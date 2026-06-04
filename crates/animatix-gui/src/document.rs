@@ -137,8 +137,10 @@ impl DocumentSession {
                 self.expanded_statements = None;
                 self.source_index = None;
                 self.namespaces = HashMap::new();
-                self.components = HashMap::new();
-                self.module_actions = HashMap::new();
+                // Preserve last-known-good component registry so the GUI
+                // stays usable while the user is editing.
+                // self.components = HashMap::new();
+                // self.module_actions = HashMap::new();
                 self.timeline = None;
                 self.composition = None;
                 self.active_scene = None;

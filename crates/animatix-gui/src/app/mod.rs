@@ -517,6 +517,16 @@ impl GuiShell {
             self.shortcut_cheat_sheet_ui(ui);
         }
 
+        // Command palette overlay
+        if self.ui_store.view.command_palette_open {
+            self.command_palette_ui(ui);
+        }
+
+        // Find / Replace overlay
+        if self.ui_store.view.find_replace_open {
+            self.find_replace_ui(ui);
+        }
+
         // Toast notifications
         let now = Instant::now();
         self.ui_store.toasts.show(ui, now);

@@ -464,10 +464,23 @@ impl GuiShell {
                 type_name,
                 suggested_label: None,
             },
-            ItemKind::Snippet { .. } => {
-                // Snippets bypass SourceEdit for now.
+            ItemKind::Snippet { text } => {
+                // Insert snippet as a new code cell at the end of the document.
                 self.insertion_palette.close();
-                self.preview_store.preview.status = "Snippets not yet implemented".to_string();
+                let source = self.document_store.source.editor.text();
+                let new_source = if source.ends_with('\n') || source.is_empty() {
+                    format!("{}{}\n", source, text)
+                } else {
+                    format!("{}\n{}\n", source, text)
+                };
+                self.document_store.source.editor.replace_text(new_source.clone());
+                self.document_store.source.document.source_text = new_source;
+                self.document_store.source.document.is_dirty = true;
+                self.preview_store.pending_rebuild_at = Some(
+                    std::time::Instant::now()
+                        + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),
+                );
+                self.preview_store.preview.status = format!("Inserted snippet: {}", item.label);
                 return;
             }
         };

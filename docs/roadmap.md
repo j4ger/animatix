@@ -45,19 +45,9 @@
 
 | # | Item | What | Files | Effort |
 |---|------|------|-------|--------|
-| 6.1 | **Command palette** | `Cmd+Shift+P` searchable palette for all commands (undo, redo, export, save, scene switch, etc.). Uses existing `Command` enum. | `app/shell/`, `app/mod.rs` | 1 day |
-| 6.2 | **Zoom-to-selection** | `F` key frames selected actors in view. `Shift+F` fit all actors. | `app/preview/mod.rs`, `app/runtime.rs` | 1 day |
-| 6.3 | **Font preview in picker** | Font dropdown shows a small glyph preview next to each family name. | `app/panels/inspector/property_groups.rs` | 1 day |
-| 6.4 | **Snippets implementation** | Complete the stubbed snippet insertion in the palette. Parse snippet text and insert via `SourceEdit`. | `app/shell/insertion_palette.rs`, `animatix-analyzer/` | 1 day |
-| 6.5 | **Export format expansion** | Expose WebM, MOV, APNG, WebP in export dialog. Encoder already supports these codecs. | `app/shell/export_dialog.rs` | 1 day |
-| 6.6 | **Export quality presets** | "720p / 30fps", "1080p / 60fps", "4K / 60fps" quick-select buttons in export dialog. | `app/shell/export_dialog.rs` | 1 day |
-| 6.7 | **Alignment tools** | Align left/center/right, distribute horizontally/vertically toolbar buttons. Multi-select required. | `app/preview/drag_handler.rs` | 1 day |
-| 6.8 | **Group / Ungroup** | `Ctrl+G` groups selected actors into a `Group` container. `Ctrl+Shift+G` ungroups. | `app/handlers/actor.rs` | 1 day |
+| 6.5 | **Export format expansion** | Expose WebM, MOV, APNG, WebP in export dialog. Requires backend encoder support (currently only MP4/H.264, GIF, PNG). | `app/shell/export_dialog.rs`, `renderer/encode/` | 1 week |
 | 6.9 | **Amber flash on rewritten timestamps** | When `adjust_following_relative_keyframe` rewrites a relative offset, flash the timestamp label amber for ~300ms. | `app/panels/timeline_panel.rs` | 1 day |
-| 6.10 | **Find / Replace** | `Ctrl+F` find/replace in source editor with regex support. | `app/panels/editor.rs` | 1 day |
 | 6.11 | **Component parameter dialog** | When instantiating a parameterized component (e.g. `MetricCard(title: "Default")`), show a dialog to override params instead of always using defaults. | `app/panels/sidebar.rs`, `app/shell/insertion_palette.rs` | 2 days |
-| 6.12 | **Preserve component registry on parse errors** | `DocumentSession::rebuild()` clears `components`/`module_actions` on any parse error. Keep last-known-good registry so the Components tab and palette stay usable while editing. | `document.rs` | 1 day |
-| 6.13 | **Lossless config property edits** | `SetConfigProperty` normalizes unquoted identifiers into quoted strings (e.g. `editorial-dark` → `"editorial-dark"`). Preserve the user's original quoting style. | `source_edit/config_edits.rs`, `to_source.rs` | 1 day |
 
 ---
 

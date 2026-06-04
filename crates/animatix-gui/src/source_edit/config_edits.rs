@@ -6,6 +6,10 @@ use super::SourceEditError;
 
 /// Set or update a config property.
 /// If no config block exists, one is created at the top of the statement list.
+///
+/// Preserves the quoting style of the existing value: if the current value is
+/// an unquoted identifier (`Expr::Ident`), the new value is stored as an
+/// identifier when possible (no spaces, no special chars).
 pub(super) fn set_config_property(stmts: &mut Vec<Stmt>, key: &str, value: Expr) -> Result<(), SourceEditError> {
     // Find existing config block
     let config_idx = stmts.iter().position(|s| matches!(s, Stmt::Config { .. }));
@@ -13,7 +17,7 @@ pub(super) fn set_config_property(stmts: &mut Vec<Stmt>, key: &str, value: Expr)
     if let Some(idx) = config_idx {
         if let Stmt::Config { settings, .. } = &mut stmts[idx] {
             if let Some(prop) = settings.iter_mut().find(|p| p.name == key) {
-                prop.value = value;
+                prop.value = preserve_quoting_style(&prop.value, value);
                 return Ok(());
             }
             settings.push(Property {
@@ -37,6 +41,23 @@ pub(super) fn set_config_property(stmts: &mut Vec<Stmt>, key: &str, value: Expr)
         span: None,
     });
     Ok(())
+}
+
+/// When the old value was an unquoted identifier, keep the new value as an
+/// identifier if it is a valid bare identifier (no spaces, no quotes, etc.).
+fn preserve_quoting_style(old: &Expr, new: Expr) -> Expr {
+    let is_valid_ident = |s: &str| {
+        !s.is_empty()
+            && !s.contains(' ')
+            && !s.contains('"')
+            && !s.contains('\'')
+            && !s.starts_with(|c: char| c.is_ascii_digit())
+    };
+
+    match (old, &new) {
+        (Expr::Ident(_), Expr::Str(s)) if is_valid_ident(s) => Expr::Ident(s.clone()),
+        _ => new,
+    }
 }
 
 /// Insert an import statement at the top of the file, after any existing imports.

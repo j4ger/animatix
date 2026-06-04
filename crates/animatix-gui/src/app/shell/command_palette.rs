@@ -1,0 +1,203 @@
+//! Command palette: Cmd+Shift+P searchable list of all commands.
+
+use crate::app::commands::{Command, ShellAction};
+use crate::app::commands::ViewAction;
+use crate::app::design_tokens::*;
+use crate::app::GuiShell;
+
+struct PaletteItem {
+    label: String,
+    icon: &'static str,
+    action: ShellAction,
+    keywords: &'static str,
+}
+
+impl GuiShell {
+    pub(crate) fn command_palette_ui(&mut self,
+        ui: &mut egui::Ui,
+    ) {
+        let screen_rect = ui.ctx().viewport_rect();
+        ui.painter().rect_filled(screen_rect, 0.0, overlay_backdrop());
+
+        // Close on Escape or backdrop click
+        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.ui_store.view.command_palette_open = false;
+        }
+        let backdrop = ui.interact(screen_rect, ui.id().with("cmd_palette_backdrop"), egui::Sense::click());
+        if backdrop.clicked() {
+            self.ui_store.view.command_palette_open = false;
+        }
+
+        let mut commands = Vec::new();
+
+        egui::Window::new("")
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, -80.0])
+            .default_size([480.0, 400.0])
+            .min_size([400.0, 300.0])
+            .max_size([600.0, 500.0])
+            .resizable(false)
+            .collapsible(false)
+            .title_bar(false)
+            .frame(
+                egui::Frame::new()
+                    .fill(BG_BASE)
+                    .stroke(egui::Stroke::new(STROKE_WIDTH, BORDER))
+                    .corner_radius(RADIUS_XL)
+                    .inner_margin(egui::Margin::same(SPACE_XL as i8)),
+            )
+            .show(ui.ctx(), |ui| {
+                ui.set_min_width(360.0);
+
+                // Search input
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.ui_store.command_palette_query
+                    )
+                    .hint_text("Type a command…")
+                    .font(egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional))
+                    .desired_width(f32::INFINITY),
+                );
+                ui.add_space(SPACE_M);
+                ui.separator();
+                ui.add_space(SPACE_S);
+
+                let query = self.ui_store.command_palette_query.to_lowercase();
+                let items = self.build_palette_items();
+                let filtered: Vec<&PaletteItem> = items
+                    .iter()
+                    .filter(|item| {
+                        item.label.to_lowercase().contains(&query)
+                            || item.keywords.to_lowercase().contains(&query)
+                    })
+                    .collect();
+
+                if filtered.is_empty() {
+                    ui.label(
+                        egui::RichText::new("No commands match your search")
+                            .size(FONT_SIZE_S)
+                            .color(TEXT_MUTED),
+                    );
+                } else {
+                    egui::ScrollArea::vertical()
+                        .max_height(320.0)
+                        .show(ui, |ui| {
+                            for item in filtered {
+                                let resp = ui.add(
+                                    egui::Button::new(
+                                        egui::RichText::new(format!("{}  {}", item.icon, item.label))
+                                            .size(FONT_SIZE_M)
+                                            .color(TEXT_PRIMARY),
+                                    )
+                                    .fill(BG_WIDGET)
+                                    .stroke(egui::Stroke::new(STROKE_WIDTH, BORDER))
+                                    .corner_radius(RADIUS_M)
+                                    .min_size(egui::vec2(ui.available_width(), ROW_M)),
+                                );
+                                if resp.clicked() {
+                                    commands.push(item.action.clone());
+                                    self.ui_store.view.command_palette_open = false;
+                                    self.ui_store.command_palette_query.clear();
+                                }
+                            }
+                        });
+                }
+            });
+
+        for action in commands {
+            let effects = self.handle_action(action);
+            self.apply_effects(effects);
+        }
+    }
+
+    fn build_palette_items(&self,
+    ) -> Vec<PaletteItem> {
+        let mut items = Vec::new();
+        let has_selection = !self.ui_store.selection.selected_actors.is_empty();
+
+        items.push(PaletteItem {
+            label: "Save".into(),
+            icon: egui_phosphor::regular::FLOPPY_DISK,
+            action: ShellAction::Command(Command::Save),
+            keywords: "save file disk",
+        });
+        items.push(PaletteItem {
+            label: "Reload".into(),
+            icon: egui_phosphor::regular::ARROW_CLOCKWISE,
+            action: ShellAction::Command(Command::Reload),
+            keywords: "reload refresh",
+        });
+        items.push(PaletteItem {
+            label: "Rebuild".into(),
+            icon: egui_phosphor::regular::ARROWS_CLOCKWISE,
+            action: ShellAction::Command(Command::Rebuild),
+            keywords: "rebuild compile",
+        });
+        items.push(PaletteItem {
+            label: "Export…".into(),
+            icon: egui_phosphor::regular::DOWNLOAD,
+            action: ShellAction::View(ViewAction::OpenExportDialog),
+            keywords: "export render video gif image",
+        });
+        items.push(PaletteItem {
+            label: "Toggle Playback".into(),
+            icon: egui_phosphor::regular::PLAY,
+            action: ShellAction::Command(Command::TogglePlayback),
+            keywords: "play pause playback",
+        });
+        items.push(PaletteItem {
+            label: "Undo".into(),
+            icon: egui_phosphor::regular::ARROW_U_UP_LEFT,
+            action: ShellAction::Command(Command::Undo),
+            keywords: "undo revert",
+        });
+        items.push(PaletteItem {
+            label: "Redo".into(),
+            icon: egui_phosphor::regular::ARROW_U_UP_RIGHT,
+            action: ShellAction::Command(Command::Redo),
+            keywords: "redo forward",
+        });
+
+        if has_selection {
+            items.push(PaletteItem {
+                label: "Delete Selected Actors".into(),
+                icon: egui_phosphor::regular::TRASH,
+                action: ShellAction::Command(Command::DeleteSelectedActors),
+                keywords: "delete remove actors",
+            });
+            items.push(PaletteItem {
+                label: "Duplicate Selected Actors".into(),
+                icon: egui_phosphor::regular::COPY,
+                action: ShellAction::Command(Command::DuplicateActor(
+                    self.ui_store.selection.selected_actors.iter().next().cloned().unwrap_or_default(),
+                )),
+                keywords: "duplicate copy actors",
+            });
+            items.push(PaletteItem {
+                label: "Group Selected Actors".into(),
+                icon: egui_phosphor::regular::SQUARES_FOUR,
+                action: ShellAction::Command(Command::GroupSelectedActors),
+                keywords: "group container",
+            });
+            items.push(PaletteItem {
+                label: "Zoom to Selection".into(),
+                icon: egui_phosphor::regular::MAGNIFYING_GLASS_PLUS,
+                action: ShellAction::Command(Command::ZoomToSelection),
+                keywords: "zoom fit selection",
+            });
+        }
+
+        items.push(PaletteItem {
+            label: "Zoom to Fit All".into(),
+            icon: egui_phosphor::regular::ARROWS_IN,
+            action: ShellAction::Command(Command::ZoomToAll),
+            keywords: "zoom fit all",
+        });
+        items.push(PaletteItem {
+            label: "Open Settings".into(),
+            icon: egui_phosphor::regular::GEAR,
+            action: ShellAction::Command(Command::Rebuild), // dummy
+            keywords: "settings preferences",
+        });
+
+        items
+    }
+}

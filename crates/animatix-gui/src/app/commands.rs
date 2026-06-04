@@ -92,6 +92,36 @@ pub enum Command {
 
     // ── Navigation ────────────────────────────────────────────────────
     ScrollToLine(usize, usize),
+
+    // ── Viewport ──────────────────────────────────────────────────────
+    ZoomToSelection,
+    ZoomToAll,
+
+    // ── Alignment ─────────────────────────────────────────────────────
+    AlignActors(Align),
+    DistributeActors(Axis),
+
+    // ── Group / Ungroup ───────────────────────────────────────────────
+    GroupSelectedActors,
+    UngroupSelectedActors,
+}
+
+/// Horizontal or vertical axis for distribute.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Axis {
+    Horizontal,
+    Vertical,
+}
+
+/// Alignment type for multi-select alignment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Align {
+    Left,
+    Center,
+    Right,
+    Top,
+    Bottom,
+    Middle,
 }
 
 // =========================================================================
@@ -104,6 +134,8 @@ pub enum Command {
 pub enum ViewAction {
     ShowInspector,
     OpenExportDialog,
+    OpenCommandPalette,
+    OpenFindReplace,
 }
 
 // =========================================================================

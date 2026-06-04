@@ -725,7 +725,8 @@ pub(crate) fn render_property_row(
                                     .width(ui.available_width())
                                     .show_ui(ui, |ui| {
                                         for family in families {
-                                            if ui.selectable_label(family == *text, &family).clicked() {
+                                            let label = format!("Aa   {}", family);
+                                            if ui.selectable_label(family == *text, label).clicked() {
                                                 commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
                                                     actor: actor_label.to_string(),
                                                     property: entry.name.to_string(),

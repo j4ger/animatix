@@ -1,4 +1,6 @@
+pub mod command_palette;
 pub mod export_dialog;
+pub mod find_replace;
 pub mod insertion_palette;
 pub mod shortcut_cheat_sheet;
 pub mod toolbar;
@@ -226,6 +228,37 @@ impl GuiShell {
                 &mut self.preview_store,
                 path,
             ),
+            Command::ZoomToSelection => ui::handle_zoom_to_selection(
+                &mut self.preview_store,
+                &self.ui_store,
+                &self.document_store,
+            ),
+            Command::ZoomToAll => ui::handle_zoom_to_all(
+                &mut self.preview_store,
+                &self.document_store,
+            ),
+            Command::AlignActors(alignment) => actor::handle_align_actors(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+                alignment,
+            ),
+            Command::DistributeActors(axis) => actor::handle_distribute_actors(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+                axis,
+            ),
+            Command::GroupSelectedActors => actor::handle_group_selected_actors(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+            ),
+            Command::UngroupSelectedActors => actor::handle_ungroup_selected_actors(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+            ),
         }
     }
 
@@ -234,6 +267,14 @@ impl GuiShell {
             ViewAction::ShowInspector => ui::handle_show_inspector(&mut self.ui_store),
             ViewAction::OpenExportDialog => {
                 ui::handle_open_export_dialog(&mut self.export_store, &self.document_store)
+            }
+            ViewAction::OpenCommandPalette => {
+                self.ui_store.view.command_palette_open = true;
+                vec![]
+            }
+            ViewAction::OpenFindReplace => {
+                self.ui_store.view.find_replace_open = true;
+                vec![]
             }
         }
     }

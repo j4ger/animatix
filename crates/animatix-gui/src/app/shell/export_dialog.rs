@@ -408,6 +408,34 @@ impl GuiShell {
 
             ui.add_space(SPACE_XS);
 
+            // ── Quality presets ──
+            Self::settings_row(ui, "Presets", |ui| {
+                let presets = [
+                    ("720p / 30", 1280, 720, 30),
+                    ("1080p / 30", 1920, 1080, 30),
+                    ("1080p / 60", 1920, 1080, 60),
+                    ("4K / 60", 3840, 2160, 60),
+                ];
+                for (label, w, h, f) in presets {
+                    let resp = ui.add(
+                        egui::Button::new(
+                            RichText::new(label).size(FONT_SIZE_XS).color(TEXT_SECONDARY),
+                        )
+                        .fill(BG_WIDGET)
+                        .stroke(Stroke::new(STROKE_WIDTH, BORDER))
+                        .corner_radius(RADIUS_S)
+                        .small(),
+                    );
+                    if resp.clicked() {
+                        *width = w;
+                        *height = h;
+                        *fps = f;
+                    }
+                }
+            });
+
+            ui.add_space(SPACE_XS);
+
             // ── Format-specific settings ──
             match format {
                 ExportFormat::Image => {

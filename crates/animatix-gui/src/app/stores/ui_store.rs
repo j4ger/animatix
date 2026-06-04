@@ -87,6 +87,8 @@ pub struct ViewStore {
     pub inspector_visible: bool,
     pub welcome_open: bool,
     pub workspace_switcher_open: bool,
+    pub command_palette_open: bool,
+    pub find_replace_open: bool,
 }
 
 impl ViewStore {
@@ -102,6 +104,8 @@ impl ViewStore {
             inspector_visible: false,
             welcome_open: false,
             workspace_switcher_open: false,
+            command_palette_open: false,
+            find_replace_open: false,
         }
     }
 }
@@ -129,6 +133,12 @@ pub struct UiStore {
     pub toasts: ToastQueue,
     /// Path buffer for the workspace switcher dialog.
     pub workspace_switcher_path: String,
+    /// Query string for the command palette.
+    pub command_palette_query: String,
+    /// Find/replace query string.
+    pub find_query: String,
+    /// Find/replace replacement string.
+    pub replace_query: String,
 }
 
 impl UiStore {
@@ -154,6 +164,9 @@ impl UiStore {
             pending_actions: ActionQueue::default(),
             toasts: ToastQueue::default(),
             workspace_switcher_path: String::new(),
+            command_palette_query: String::new(),
+            find_query: String::new(),
+            replace_query: String::new(),
         }
     }
 }

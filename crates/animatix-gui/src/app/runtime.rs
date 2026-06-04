@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::commands::{Command, ShellAction};
+use crate::app::commands::{Command, ShellAction, ViewAction};
 use crate::app::persistence::load_app_state;
 use crate::app::design_tokens::*;
 use eframe::egui;
@@ -233,6 +233,32 @@ impl AnimatixApp {
         if ctx.input(|i| i.key_pressed(egui::Key::P)) {
             self.shell.ui_store.view.tool_mode = crate::app::preview::ToolMode::Pivot;
             self.shell.preview_store.preview.status = "Tool: Pivot".to_string();
+        }
+
+        // Zoom-to-selection (F) and zoom-to-all (Shift+F)
+        if ctx.input(|i| i.key_pressed(egui::Key::F) && !i.modifiers.shift) {
+            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::ZoomToSelection));
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::F) && i.modifiers.shift) {
+            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::ZoomToAll));
+        }
+
+        // Command palette (Ctrl+Shift+P)
+        if ctx.input(|i| i.key_pressed(egui::Key::P) && i.modifiers.ctrl && i.modifiers.shift) {
+            self.shell.ui_store.pending_actions.push_back(ShellAction::View(ViewAction::OpenCommandPalette));
+        }
+
+        // Find / Replace (Ctrl+F)
+        if ctx.input(|i| i.key_pressed(egui::Key::F) && i.modifiers.ctrl && !i.modifiers.shift) {
+            self.shell.ui_store.pending_actions.push_back(ShellAction::View(ViewAction::OpenFindReplace));
+        }
+
+        // Group (Ctrl+G) / Ungroup (Ctrl+Shift+G)
+        if ctx.input(|i| i.key_pressed(egui::Key::G) && i.modifiers.ctrl && !i.modifiers.shift) {
+            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::GroupSelectedActors));
+        }
+        if ctx.input(|i| i.key_pressed(egui::Key::G) && i.modifiers.ctrl && i.modifiers.shift) {
+            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::UngroupSelectedActors));
         }
     }
 
