@@ -130,6 +130,7 @@ dependencies = [
  "typst-layout",
  "usvg 0.47.0",
  "vello",
+ "walkdir",
  "wgpu",
  "winit",
 ]
