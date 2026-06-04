@@ -1,7 +1,7 @@
 //! Edits related to scenes: reorder, play targets, transitions, rename, add, delete,
 //! and scene refactorings (extract, move).
 
-use animatix_syntax::ast::{Stmt, Transition};
+use animatix_syntax::ast::{Expr, Property, Stmt, Transition};
 
 use super::apply::{find_scene_mut, walk_stmts_mut};
 use super::SourceEditError;
@@ -160,6 +160,51 @@ pub(super) fn set_transition(stmts: &mut [Stmt], from_scene: &str, transition: O
     }
 
     Err(SourceEditError::Generic("No play statement to set transition on".to_string()))
+}
+
+// ---------------------------------------------------------------------------
+// SetSceneDuration
+// ---------------------------------------------------------------------------
+
+pub(super) fn set_scene_duration(stmts: &mut [Stmt], scene: &str, duration_s: Option<f64>) -> Result<(), SourceEditError> {
+    let scene_stmt = match find_scene_mut(stmts, scene) {
+        Some(stmt) => stmt,
+        None => return Err(SourceEditError::SceneNotFound { scene: scene.to_string() }),
+    };
+    let Stmt::Scene { config, .. } = scene_stmt else {
+        return Err(SourceEditError::SceneNotFound { scene: scene.to_string() });
+    };
+
+    // Find existing duration property in config
+    let duration_idx = config.iter().position(|p| p.name == "duration");
+
+    match (duration_s, duration_idx) {
+        // Setting a new duration
+        (Some(val), Some(idx)) => {
+            // Update existing
+            config[idx].value = Expr::Num(val);
+            Ok(())
+        }
+        (Some(val), None) => {
+            // Insert new
+            config.push(Property {
+                name: "duration".to_string(),
+                value: Expr::Num(val),
+                value_span: None,
+                trailing_comment: None,
+            });
+            Ok(())
+        }
+        // Removing duration
+        (None, Some(idx)) => {
+            config.remove(idx);
+            Ok(())
+        }
+        (None, None) => {
+            // Nothing to do
+            Ok(())
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -523,6 +568,49 @@ mod tests {
         assert!(apply_edit(
             &mut stmts,
             SourceEdit::SetPlayTarget { scene: "Missing".into(), target: Some("X".into()) }
+        ).is_err());
+    }
+
+    #[test]
+    fn set_scene_duration_adds_config() {
+        let mut stmts = parse("# Intro\ntitle: Text, text: \"Hello\"");
+        assert!(apply_edit(
+            &mut stmts,
+            SourceEdit::SetSceneDuration { scene: "Intro".into(), duration_s: Some(5.0) }
+        ).is_ok());
+        let src = stmts_to_source(&stmts);
+        assert!(src.contains("duration: 5"), "Expected duration in output: {}", src);
+    }
+
+    #[test]
+    fn set_scene_duration_updates_existing_config() {
+        let mut stmts = parse("# Intro\nconfig { duration: 3 }\ntitle: Text, text: \"Hello\"");
+        assert!(apply_edit(
+            &mut stmts,
+            SourceEdit::SetSceneDuration { scene: "Intro".into(), duration_s: Some(7.5) }
+        ).is_ok());
+        let src = stmts_to_source(&stmts);
+        assert!(src.contains("duration: 7.5"), "Expected duration: 7.5 in output: {}", src);
+        assert!(!src.contains("duration: 3"), "Old duration should be gone: {}", src);
+    }
+
+    #[test]
+    fn set_scene_duration_removes_when_none() {
+        let mut stmts = parse("# Intro\nconfig { duration: 5 }\ntitle: Text, text: \"Hello\"");
+        assert!(apply_edit(
+            &mut stmts,
+            SourceEdit::SetSceneDuration { scene: "Intro".into(), duration_s: None }
+        ).is_ok());
+        let src = stmts_to_source(&stmts);
+        assert!(!src.contains("duration"), "Duration should be removed: {}", src);
+    }
+
+    #[test]
+    fn set_scene_duration_fails_for_missing_scene() {
+        let mut stmts = parse("# Intro");
+        assert!(apply_edit(
+            &mut stmts,
+            SourceEdit::SetSceneDuration { scene: "Missing".into(), duration_s: Some(5.0) }
         ).is_err());
     }
 }

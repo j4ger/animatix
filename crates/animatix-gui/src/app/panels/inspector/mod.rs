@@ -130,14 +130,40 @@ fn render_scene_inspector(
             layout::card(ui, |ui| {
                 layout::section_header(ui, egui_phosphor::regular::WRENCH, "Properties", None);
 
-                // Duration (implicit — derived from timeline keyframes)
+                // Duration (editable — explicit or inferred from timeline keyframes)
                 layout::labeled_row(ui, "Duration", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                    ui.add(egui::Label::new(
-                        RichText::new(format!("{:.2} s", scene.duration_s))
-                            .monospace()
-                            .size(FONT_SIZE_S)
-                            .color(TEXT_SECONDARY),
-                    ).selectable(false));
+                    let is_explicit = scene.explicit_duration_s.is_some();
+                    let mut duration_val = scene.duration_s;
+                    let drag = ui.add(
+                        egui::DragValue::new(&mut duration_val)
+                            .speed(0.1)
+                            .suffix(" s")
+                            .max_decimals(2)
+                            .range(0.01..=600.0),
+                    );
+                    let tooltip = if is_explicit {
+                        "Explicit duration (click ⨯ to revert to auto)"
+                    } else {
+                        "Auto-detected from keyframes (drag to set explicit)"
+                    };
+                    let changed = drag.changed();
+                    drag.on_hover_text(tooltip);
+                    if is_explicit {
+                        // Small button to remove explicit duration
+                        if ui.small_button("⨯").on_hover_text("Revert to auto-detected duration").clicked() {
+                            commands.push_back(ShellAction::Command(Command::SetSceneDuration {
+                                scene: active_scene.to_string(),
+                                duration_s: None,
+                            }));
+                        }
+                    }
+                    // Only emit edit if value changed meaningfully
+                    if changed && (duration_val - scene.duration_s).abs() > 0.001 {
+                        commands.push_back(ShellAction::Command(Command::SetSceneDuration {
+                            scene: active_scene.to_string(),
+                            duration_s: Some(duration_val),
+                        }));
+                    }
                 });
 
                 // Start time

@@ -53,6 +53,7 @@ pub enum Command {
     ReorderScenes(Vec<String>),
     SetTransition { from_scene: String, transition: animatix_syntax::ast::Transition },
     SetPlayTarget { from_scene: String, target: Option<String> },
+    SetSceneDuration { scene: String, duration_s: Option<f64> },
     DuplicateScene(String),
     DeleteScene(String),
 

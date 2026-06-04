@@ -126,6 +126,16 @@ impl GuiShell {
                 from_scene,
                 target,
             ),
+            Command::SetSceneDuration {
+                scene,
+                duration_s,
+            } => property::handle_set_scene_duration(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+                scene,
+                duration_s,
+            ),
             Command::RenameActor { old_label, new_label } => actor::handle_rename_actor(
                 &mut self.document_store,
                 &mut self.preview_store,

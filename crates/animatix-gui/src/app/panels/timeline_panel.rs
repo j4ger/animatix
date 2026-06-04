@@ -493,7 +493,39 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), TEXT_MUTED);
 
                 let bar_area = Rect::from_min_max(Pos2::new(bar_origin_x, st_top), Pos2::new(scroll_rect.right(), st_bot));
+
+                // ── Scene block drag state ──
+                let scene_drag_id = panel_id.with("scene_drag");
+                let scene_drag_data_id = scene_drag_id.with("data");
+                let scene_drag: Option<(String, f32)> = ui.data(|d| d.get_temp(scene_drag_data_id));
+                let mut new_scene_drag: Option<(String, f32)> = scene_drag.clone();
+
                 render_scene_blocks(painter, comp, bar_area, &time_to_x, text_dim(), duration_s);
+
+                // Draw drag ghost if dragging
+                if let Some((ref drag_name, drag_offset_x)) = scene_drag {
+                    if let Some(scene) = comp.scenes.get(drag_name) {
+                        if let Some(start_s) = comp.scene_start_times.get(drag_name).copied() {
+                            let end_s = start_s + scene.duration_s;
+                            let block_w = time_to_x(end_s) - time_to_x(start_s);
+                            let ghost_rect = Rect::from_min_size(
+                                Pos2::new(bar_area.left() + drag_offset_x, bar_area.top()),
+                                Vec2::new(block_w, bar_area.height()),
+                            );
+                            painter.rect_filled(ghost_rect, 2.0, Color32::from_rgba_premultiplied(60, 130, 230, 80));
+                            painter.rect_stroke(ghost_rect, 2.0, Stroke::new(1.5, ACCENT_BLUE), egui::StrokeKind::Outside);
+                            if ghost_rect.width() > 24.0 {
+                                painter.text(
+                                    ghost_rect.center(),
+                                    Align2::CENTER_CENTER,
+                                    drag_name.as_str(),
+                                    FontId::monospace(FONT_SIZE_XS),
+                                    ACCENT_BLUE,
+                                );
+                            }
+                        }
+                    }
+                }
 
                 for (src_name, edge) in &comp.edges {
                     let Some(src_scene) = comp.scenes.get(src_name) else { continue };
@@ -510,9 +542,77 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 }
 
                 draw_loop_region(painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
-                if kf_drag.is_none() {
-                    bar_interaction(ui, bar_area, "scene_track", commands, x_to_time);
+
+                // Scene track interaction (click to scrub, drag scene blocks to reorder)
+                let scene_bar_resp = ui.interact(bar_area, ui.id().with("scene_track"), Sense::click_and_drag());
+                if scene_bar_resp.drag_started() {
+                    if let Some(pos) = scene_bar_resp.interact_pointer_pos() {
+                        // Check if click is on a scene block
+                        for scene_name in &comp.declaration_order {
+                            if let Some(scene) = comp.scenes.get(scene_name) {
+                                if let Some(start_s) = comp.scene_start_times.get(scene_name).copied() {
+                                    let end_s = start_s + scene.duration_s;
+                                    let block_x0 = time_to_x(start_s);
+                                    let block_x1 = time_to_x(end_s);
+                                    if pos.x >= block_x0 && pos.x <= block_x1 {
+                                        new_scene_drag = Some((scene_name.clone(), pos.x - bar_area.left()));
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
+                if scene_bar_resp.dragged() && scene_drag.is_some() {
+                    if let Some(pos) = scene_bar_resp.interact_pointer_pos() {
+                        if let Some((ref name, _)) = new_scene_drag {
+                            let block_w = comp.scenes.get(name)
+                                .and_then(|s| comp.scene_start_times.get(name).map(|st| time_to_x(st + s.duration_s) - time_to_x(*st)))
+                                .unwrap_or(40.0);
+                            new_scene_drag = Some((name.clone(), (pos.x - bar_area.left() - block_w / 2.0).max(0.0)));
+                        }
+                    }
+                }
+                if scene_bar_resp.drag_stopped() {
+                    if let Some((ref drag_name, drop_offset_x)) = scene_drag {
+                        // Compute drop position in scene order
+                        let drop_center_x = bar_area.left() + drop_offset_x + 40.0; // approximate center
+                        let drop_time = x_to_time(drop_center_x);
+
+                        // Find which scene index the drop lands on
+                        let mut new_order = comp.declaration_order.clone();
+                        if let Some(drag_idx) = new_order.iter().position(|n| n == drag_name) {
+                            let _ = new_order.remove(drag_idx);
+                            // Find insertion index based on drop time
+                            let mut insert_idx = new_order.len();
+                            for (i, name) in new_order.iter().enumerate() {
+                                if let Some(start_s) = comp.scene_start_times.get(name).copied() {
+                                    let mid_s = start_s + comp.scenes.get(name).map(|s| s.duration_s / 2.0).unwrap_or(0.0);
+                                    if drop_time < mid_s {
+                                        insert_idx = i;
+                                        break;
+                                    }
+                                }
+                            }
+                            new_order.insert(insert_idx, drag_name.clone());
+
+                            if new_order != comp.declaration_order {
+                                commands.push_back(ShellAction::Command(Command::ReorderScenes(new_order)));
+                            }
+                        }
+                    }
+                    new_scene_drag = None;
+                }
+                if scene_bar_resp.clicked() && scene_drag.is_none() {
+                    if let Some(pos) = scene_bar_resp.interact_pointer_pos() {
+                        let new_time = x_to_time(pos.x);
+                        commands.push_back(ShellAction::Command(Command::ScrubTo(new_time)));
+                    }
+                }
+
+                // Persist scene drag state
+                ui.data_mut(|d| d.insert_temp(scene_drag_data_id, new_scene_drag));
+
                 painter.line_segment([Pos2::new(playhead_x, bar_area.top() - 2.0), Pos2::new(playhead_x, bar_area.bottom() + 2.0)], Stroke::new(1.5, TEXT_PRIMARY));
                 painter.line_segment([Pos2::new(scroll_rect.left(), st_bot), Pos2::new(scroll_rect.right(), st_bot)], Stroke::new(STROKE_WIDTH, BORDER));
             }

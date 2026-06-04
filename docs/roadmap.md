@@ -8,20 +8,8 @@
 
 ## Priority Order
 
-1. **Phase 4** — Composition & Reuse (scene-level workflows)
-2. **Phase 5** — Source Editor Foundation (lossless parsing, formatting, linting)
-3. **Phase 6** — Web Export & Media (WASM, audio, remaining formats)
-
----
-
-## Phase 4 — Composition & Reuse
-
-> Composition timeline improvements for better multi-scene workflows.
-
-| # | Feature | Description | Effort | Blocker |
-|---|---------|-------------|--------|---------|
-| 1 | **Editable scene duration** | Inspector field to set scene duration explicitly (currently inferred). Required for precise composition timing. | 2 days | — |
-| 2 | **Draggable scene blocks** | Drag composition timeline blocks to change scene start times and ordering. | 3 days | 1 |
+1. **Phase 5** — Source Editor Foundation (lossless parsing, formatting, linting)
+2. **Phase 6** — Web Export & Media (WASM, audio, remaining formats)
 
 ---
 

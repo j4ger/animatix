@@ -308,6 +308,44 @@ impl DocumentController<'_> {
         }
     }
 
+    /// Set explicit duration for a scene.
+    /// NOTE: The caller should have called `snapshot()` before this.
+    pub(crate) fn handle_set_scene_duration(&mut self, scene: &str, duration_s: Option<f64>) {
+        let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
+            self.preview_store.preview.status =
+                "Failed to set scene duration — no AST available".to_string();
+            return;
+        };
+
+        let edit = source_edit::SourceEdit::SetSceneDuration {
+            scene: scene.into(),
+            duration_s,
+        };
+
+        if source_edit::apply_edit(stmts, edit).is_ok() {
+            let (new_source, source_index) = {
+                (
+                    animatix_syntax::to_source::stmts_to_source(stmts),
+                    animatix_syntax::source_index::SourceIndex::build(stmts),
+                )
+            };
+            self.apply_source(new_source, source_index);
+            match duration_s {
+                Some(d) => {
+                    self.preview_store.preview.status =
+                        format!("Set scene '{}' duration to {:.2}s", scene, d);
+                }
+                None => {
+                    self.preview_store.preview.status =
+                        format!("Removed explicit duration from scene '{}'", scene);
+                }
+            }
+        } else {
+            self.preview_store.preview.status =
+                format!("Failed to set duration for scene '{}'", scene);
+        }
+    }
+
     // ── Keyframe edits ──────────────────────────────────────────────────
 
     /// Handle a keyframe easing change request.

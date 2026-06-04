@@ -95,6 +95,11 @@ pub enum SourceEdit {
         from_scene: String,
         transition: Option<Transition>,
     },
+    /// Set explicit duration for a scene (in seconds). Pass None to remove.
+    SetSceneDuration {
+        scene: String,
+        duration_s: Option<f64>,
+    },
     /// Rename a scene and update all play references.
     RenameScene {
         old_name: String,
@@ -217,6 +222,9 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
         }
         SourceEdit::SetTransition { from_scene, transition } => {
             super::scene_edits::set_transition(stmts, &from_scene, transition)
+        }
+        SourceEdit::SetSceneDuration { scene, duration_s } => {
+            super::scene_edits::set_scene_duration(stmts, &scene, duration_s)
         }
         SourceEdit::RenameScene { old_name, new_name } => {
             super::scene_edits::rename_scene(stmts, &old_name, &new_name)

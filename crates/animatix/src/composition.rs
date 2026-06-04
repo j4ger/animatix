@@ -8,7 +8,7 @@
 //! `Timeline::build_with_diagnostics` path — this module is only activated
 //! when `Stmt::Scene` markers are present in the parsed AST.
 
-use crate::ast::{Property, Span, Stmt, Transition};
+use crate::ast::{Expr, Property, Span, Stmt, Transition};
 use crate::diagnostics::{BuildReport, Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::timeline::Timeline;
 use crate::module::Namespace;
@@ -27,8 +27,10 @@ pub struct CompositionScene {
     pub config: Vec<Property>,
     /// Built timeline for this scene.
     pub timeline: Timeline,
-    /// Duration of this scene in seconds.
+    /// Duration of this scene in seconds (explicit if set, otherwise inferred).
     pub duration_s: f64,
+    /// Explicit duration set by the user (overrides timeline inference).
+    pub explicit_duration_s: Option<f64>,
     /// Source span of the scene declaration, for diagnostics.
     pub source_span: Option<Span>,
 }
@@ -264,7 +266,11 @@ impl Composition {
                             .map(|d| d.with_subject(format!("scene '{}'", name))),
                     );
                     let timeline = build_report.output;
-                    let duration_s = timeline.duration_seconds();
+                    let inferred_duration = timeline.duration_seconds();
+
+                    // Check for explicit duration in scene config
+                    let explicit_duration_s = Self::extract_duration_from_config(config);
+                    let duration_s = explicit_duration_s.unwrap_or(inferred_duration);
 
                     if let Some(target) = play_target {
                         play_targets.insert(name.clone(), target);
@@ -277,6 +283,7 @@ impl Composition {
                             config: config.clone(),
                             timeline,
                             duration_s,
+                            explicit_duration_s,
                             source_span: *span,
                         },
                     );
@@ -492,6 +499,19 @@ impl Composition {
             } = stmt
             {
                 return Some((scene_name.clone(), transition.clone()));
+            }
+        }
+        None
+    }
+
+    /// Extract explicit duration from scene config properties.
+    /// Looks for a `duration` property with a numeric value (in seconds).
+    fn extract_duration_from_config(config: &[Property]) -> Option<f64> {
+        for prop in config {
+            if prop.name == "duration" {
+                if let Expr::Num(val) = prop.value {
+                    return Some(val);
+                }
             }
         }
         None

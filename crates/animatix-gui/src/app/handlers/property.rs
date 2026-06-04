@@ -41,3 +41,23 @@ pub fn handle_set_play_target(
     ctrl.handle_set_play_target(&from_scene, target);
     vec![]
 }
+
+pub fn handle_set_scene_duration(
+    document_store: &mut DocumentStore,
+    preview_store: &mut PreviewStore,
+    ui_store: &mut UiStore,
+    scene: String,
+    duration_s: Option<f64>,
+) -> Vec<Effect> {
+    document_store.snapshot(Command::SetSceneDuration {
+        scene: scene.clone(),
+        duration_s,
+    });
+    let mut ctrl = DocumentController {
+        document_store,
+        preview_store,
+        ui_store,
+    };
+    ctrl.handle_set_scene_duration(&scene, duration_s);
+    vec![]
+}
