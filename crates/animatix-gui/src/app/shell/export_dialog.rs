@@ -14,6 +14,9 @@ pub(crate) enum ExportFormat {
     Image,
     Video,
     Gif,
+    WebM,
+    Mov,
+    WebP,
 }
 
 #[derive(Clone, Debug)]
@@ -174,6 +177,9 @@ impl GuiShell {
                 (ExportFormat::Image, egui_phosphor::regular::IMAGE, "Image"),
                 (ExportFormat::Video, egui_phosphor::regular::FILM_STRIP, "Video"),
                 (ExportFormat::Gif, egui_phosphor::regular::GIF, "GIF"),
+                (ExportFormat::WebM, egui_phosphor::regular::FILM_STRIP, "WebM"),
+                (ExportFormat::Mov, egui_phosphor::regular::FILM_STRIP, "MOV"),
+                (ExportFormat::WebP, egui_phosphor::regular::IMAGE, "WebP"),
             ];
             let tab_rect = egui::Rect::from_min_size(
                 egui::pos2(content_rect.left(), cursor_y),
@@ -257,6 +263,9 @@ impl GuiShell {
             ExportFormat::Image => "Rendering single frame",
             ExportFormat::Video => "Rendering video frames",
             ExportFormat::Gif => "Rendering GIF frames",
+            ExportFormat::WebM => "Rendering WebM frames",
+            ExportFormat::Mov => "Rendering MOV frames",
+            ExportFormat::WebP => "Rendering WebP frame",
         };
         ui.painter().text(
             egui::pos2(content_rect.center().x, center_y + 26.0),
@@ -290,7 +299,7 @@ impl GuiShell {
         }
 
         // Frame count / percentage text
-        let progress_text = if self.export_store.export_state.format == ExportFormat::Image {
+        let progress_text = if matches!(self.export_store.export_state.format, ExportFormat::Image | ExportFormat::WebP) {
             "Frame 1/1".to_string()
         } else {
             format!("Frame {}/{}  ({:.0}%)", progress.min(total), total, pct * 100.0)
@@ -438,7 +447,7 @@ impl GuiShell {
 
             // ── Format-specific settings ──
             match format {
-                ExportFormat::Image => {
+                ExportFormat::Image | ExportFormat::WebP => {
                     Self::settings_row(ui, "Time", |ui| {
                         let mut t = *time_s;
                         layout::field_sized(ui, Some(100.0), |ui| {
@@ -466,7 +475,7 @@ impl GuiShell {
                         }
                     });
                 }
-                ExportFormat::Video | ExportFormat::Gif => {
+                ExportFormat::Video | ExportFormat::Gif | ExportFormat::WebM | ExportFormat::Mov => {
                     // FPS
                     Self::settings_row(ui, "FPS", |ui| {
                         let mut fps_f32 = *fps as f32;
@@ -665,6 +674,9 @@ impl GuiShell {
                     ExportFormat::Image => "Export Image",
                     ExportFormat::Video => "Export Video",
                     ExportFormat::Gif => "Export GIF",
+                    ExportFormat::WebM => "Export WebM",
+                    ExportFormat::Mov => "Export MOV",
+                    ExportFormat::WebP => "Export WebP",
                 };
                 let btn_size = Vec2::new(120.0, ROW_M);
                 let (btn_rect, btn_resp) = ui.allocate_exact_size(btn_size, egui::Sense::click());
@@ -692,6 +704,9 @@ impl GuiShell {
             ExportFormat::Image => "png",
             ExportFormat::Video => "mp4",
             ExportFormat::Gif => "gif",
+            ExportFormat::WebM => "webm",
+            ExportFormat::Mov => "mov",
+            ExportFormat::WebP => "webp",
         };
         let stem = self
             .document_store
@@ -742,7 +757,7 @@ impl GuiShell {
             return;
         }
         match state.format {
-            ExportFormat::Video | ExportFormat::Gif => {
+            ExportFormat::Video | ExportFormat::Gif | ExportFormat::WebM | ExportFormat::Mov => {
                 if state.fps == 0 {
                     self.export_store.export_status = ExportStatus::Failed("FPS must be > 0".into());
                     return;
@@ -786,8 +801,8 @@ impl GuiShell {
 
         // Compute total frames for progress display
         self.export_store.export_total_frames = match state.format {
-            ExportFormat::Image => 1,
-            ExportFormat::Video | ExportFormat::Gif => {
+            ExportFormat::Image | ExportFormat::WebP => 1,
+            ExportFormat::Video | ExportFormat::Gif | ExportFormat::WebM | ExportFormat::Mov => {
                 let duration = if state.auto_duration {
                     let d = timeline.duration_seconds() as f32 + state.hold_s.max(0.0);
                     d.max(0.5)
@@ -815,7 +830,50 @@ impl GuiShell {
                     progress_ref,
                     cancel_ref,
                 ),
+                ExportFormat::WebP => animatix::renderer::render_image_timeline_with_progress(
+                    timeline,
+                    state.width,
+                    state.height,
+                    state.time_s,
+                    &output_path,
+                    debug,
+                    progress_ref,
+                    cancel_ref,
+                ),
                 ExportFormat::Video => {
+                    let duration = if state.auto_duration {
+                        let d = timeline.duration_seconds() as f32 + state.hold_s.max(0.0);
+                        d.max(0.5)
+                    } else {
+                        state.duration_s
+                    };
+                    animatix::renderer::render_video_timeline_with_progress(
+                        timeline, state.width, state.height, state.fps, duration,
+                        &output_path, debug,
+                        animatix::renderer::ExportSettings::default(),
+                        progress_ref,
+                        cancel_ref,
+                    )
+                }
+                ExportFormat::WebM => {
+                    let duration = if state.auto_duration {
+                        let d = timeline.duration_seconds() as f32 + state.hold_s.max(0.0);
+                        d.max(0.5)
+                    } else {
+                        state.duration_s
+                    };
+                    animatix::renderer::render_video_timeline_with_progress(
+                        timeline, state.width, state.height, state.fps, duration,
+                        &output_path, debug,
+                        animatix::renderer::ExportSettings {
+                            video_codec: animatix::renderer::VideoCodec::Vp9,
+                            ..Default::default()
+                        },
+                        progress_ref,
+                        cancel_ref,
+                    )
+                }
+                ExportFormat::Mov => {
                     let duration = if state.auto_duration {
                         let d = timeline.duration_seconds() as f32 + state.hold_s.max(0.0);
                         d.max(0.5)

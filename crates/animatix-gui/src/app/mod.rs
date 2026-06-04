@@ -205,6 +205,9 @@ pub(crate) struct PreviewPaneState {
     pub timeline_scroll_offset: f64,
     /// When true, the preview panel will recompute zoom to fit on next frame.
     pub fit_zoom_requested: bool,
+    /// Keyframe times that were recently rewritten by `adjust_following_relative_keyframe`.
+    /// Rendered with an amber flash in the timeline panel for ~300 ms.
+    pub flashed_keyframe_times: Vec<(f64, std::time::Instant)>,
 }
 
 
@@ -243,6 +246,7 @@ impl PreviewPaneState {
             timeline_zoom: 1.0,
             timeline_scroll_offset: 0.0,
             fit_zoom_requested: false,
+            flashed_keyframe_times: Vec::new(),
         }
     }
 }

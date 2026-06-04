@@ -45,10 +45,16 @@
 
 | # | Item | What | Files | Effort |
 |---|------|------|-------|--------|
-| 6.5 | **Export format expansion** | Expose WebM, MOV, APNG, WebP in export dialog. Requires backend encoder support (currently only MP4/H.264, GIF, PNG). | `app/shell/export_dialog.rs`, `renderer/encode/` | 1 week |
-| 6.9 | **Amber flash on rewritten timestamps** | When `adjust_following_relative_keyframe` rewrites a relative offset, flash the timestamp label amber for ~300ms. | `app/panels/timeline_panel.rs` | 1 day |
-| 6.11 | **Component parameter dialog** | When instantiating a parameterized component (e.g. `MetricCard(title: "Default")`), show a dialog to override params instead of always using defaults. | `app/panels/sidebar.rs`, `app/shell/insertion_palette.rs` | 2 days |
-| 6.14 | **Split `SidebarContext` per tab** | `SidebarContext` carries ~20 fields but each tab only needs a subset. Split into focused contexts (e.g. `ExplorerContext`, `ComponentsContext`) to eliminate borrow conflicts and reduce god-struct surface. | `app/panels/sidebar.rs`, `app/panels/behavior.rs` | 1 day |
+| 6.5 | **Export format expansion** | Added WebM (VP9), MOV (H.264), and WebP. APNG requires a new animated PNG encoder backend, not yet implemented. | `app/shell/export_dialog.rs`, `renderer/encode/` | 1 week |
+
+---
+
+## Deferred (not on critical path)
+
+| Item | Why deferred | Likely phase |
+|------|--------------|--------------|
+| **APNG export** | Requires animated PNG encoder backend (frames → APNG). The `image` crate does not support APNG encoding out of the box. | Post-6 |
+| `animatix-cli lint` / `format` | Requires trivia-aware AST (Phase 5 / green tree) | 5 |
 
 ---
 

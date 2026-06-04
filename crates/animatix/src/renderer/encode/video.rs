@@ -663,5 +663,11 @@ pub(crate) fn select_video_encoder(
             info!("Auto-selected software encoder: libx264");
             Ok((codec, false))
         }
+        VideoCodec::Vp9 => {
+            let codec = AVCodec::find_encoder_by_name(&CString::new("libvpx-vp9")?).ok_or_else(
+                || ExportError::VideoEncode("Failed to find libvpx-vp9 encoder".into()),
+            )?;
+            Ok((codec, false))
+        }
     }
 }

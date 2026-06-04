@@ -32,7 +32,7 @@ pub enum ItemKind {
     Action { verb: String },
     #[allow(dead_code)]
     Snippet { text: String },
-    Component { type_name: String },
+    Component { type_name: String, params: Vec<(String, Option<String>)> },
 }
 
 /// State for the insertion palette overlay.
@@ -43,6 +43,13 @@ pub struct InsertionPalette {
     pub mode: PaletteMode,
     items: Vec<PaletteItem>,
     filtered: Vec<usize>, // indices into items
+    param_form: Option<ParamFormState>,
+}
+
+#[derive(Debug, Clone)]
+struct ParamFormState {
+    type_name: String,
+    params: Vec<(String, String)>, // (name, value)
 }
 
 impl Default for InsertionPalette {
@@ -54,6 +61,7 @@ impl Default for InsertionPalette {
             mode: PaletteMode::Universal,
             items: Vec::new(),
             filtered: Vec::new(),
+            param_form: None,
         }
     }
 }
@@ -64,6 +72,7 @@ impl InsertionPalette {
         _timeline: Option<&animatix::timeline::Timeline>,
         components: &std::collections::HashMap<String, animatix_syntax::module::ComponentEntry>,
     ) {
+        self.param_form = None;
         self.items.clear();
 
         // Primitives
@@ -107,16 +116,21 @@ impl InsertionPalette {
 
         // Components
         for (name, entry) in components {
-            let params: Vec<String> = entry.definition.params.iter().map(|p| {
+            let params_info: Vec<(String, Option<String>)> = entry.definition.params.iter().map(|p| {
+                let default_str = p.default.as_ref().map(|e| animatix_syntax::to_source::expr_to_source(e));
+                (p.name.clone(), default_str)
+            }).collect();
+            let params_display: Vec<String> = entry.definition.params.iter().map(|p| {
                 p.default.as_ref().map(|_| p.name.clone()).unwrap_or_else(|| format!("{}?", p.name))
             }).collect();
             self.items.push(PaletteItem {
                 label: name.clone(),
-                detail: if params.is_empty() { "Component".into() } else { format!("Component — {}", params.join(", ")) },
+                detail: if params_display.is_empty() { "Component".into() } else { format!("Component — {}", params_display.join(", ")) },
                 icon: egui_phosphor::regular::CUBE.to_string(),
                 color: Color32::from_rgb(160, 180, 220),
                 kind: ItemKind::Component {
                     type_name: name.clone(),
+                    params: params_info,
                 },
             });
         }
@@ -130,6 +144,7 @@ impl InsertionPalette {
         self.mode = mode;
         self.query.clear();
         self.selected_index = 0;
+        self.param_form = None;
         self.rebuild_filter();
     }
 
@@ -266,6 +281,122 @@ impl GuiShell {
             });
         });
         content.add_space(SPACE_M);
+
+        // ── Component parameter form ──────────────────────────────
+        if let Some(ref mut form) = self.insertion_palette.param_form {
+            let type_name = form.type_name.clone();
+            content.label(
+                RichText::new(format!("Configure {}", type_name))
+                    .size(FONT_SIZE_L)
+                    .color(TEXT_PRIMARY)
+                    .strong(),
+            );
+            content.add_space(SPACE_M);
+            for (param_name, param_value) in &mut form.params {
+                content.horizontal(|ui| {
+                    ui.label(
+                        RichText::new(format!("{}:", param_name))
+                            .size(FONT_SIZE_S)
+                            .color(TEXT_SECONDARY),
+                    );
+                    ui.add(
+                        egui::TextEdit::singleline(param_value)
+                            .desired_width(f32::INFINITY),
+                    );
+                });
+                content.add_space(SPACE_S);
+            }
+            content.add_space(SPACE_M);
+            let mut should_insert = false;
+            let mut should_back = false;
+            content.horizontal(|ui| {
+                if ui.button("Insert").clicked() {
+                    should_insert = true;
+                }
+                if ui.button("Back").clicked() {
+                    should_back = true;
+                }
+            });
+            if should_insert {
+                let props: Vec<animatix_syntax::ast::Property> = form
+                    .params
+                    .iter()
+                    .filter_map(|(name, value)| {
+                        if value.trim().is_empty() {
+                            return None;
+                        }
+                        let source = format!("let _ = {}", value.trim());
+                        let (stmts, errors) = animatix_syntax::parser::parse_source(&source);
+                        let expr = if errors.is_empty() {
+                            stmts
+                                .and_then(|v| v.into_iter().next())
+                                .and_then(|stmt| match stmt {
+                                    animatix_syntax::ast::Stmt::LetDecl { value, .. } => Some(value),
+                                    _ => None,
+                                })
+                                .unwrap_or_else(|| animatix_syntax::ast::Expr::Str(value.trim().to_string()))
+                        } else {
+                            animatix_syntax::ast::Expr::Str(value.trim().to_string())
+                        };
+                        Some(animatix_syntax::ast::Property {
+                            name: name.clone(),
+                            value: expr,
+                            value_span: None,
+                            trailing_comment: None,
+                        })
+                    })
+                    .collect();
+                self.insertion_palette.param_form = None;
+                let ctx = InsertionContext {
+                    current_time_s: self.preview_store.preview.playback.current_time_s(),
+                    selected_actors: self.ui_store.selection.selected_actors.clone(),
+                    cursor_cell_time_s: self.ui_store.cursor_time_s,
+                    selected_container: self.ui_store.selection.selected_actors.iter().next().cloned().filter(|sel| {
+                        self.document_store.source.document.timeline.as_ref().is_some_and(|t| {
+                            t.get_track(sel).is_some_and(|tr| {
+                                matches!(
+                                    tr.kind,
+                                    animatix::timeline::ActorKindId::Row
+                                        | animatix::timeline::ActorKindId::Col
+                                        | animatix::timeline::ActorKindId::Grid
+                                        | animatix::timeline::ActorKindId::Stack
+                                        | animatix::timeline::ActorKindId::Group
+                                )
+                            })
+                        })
+                    }),
+                };
+                let request = InsertionRequest::Primitive {
+                    type_name: type_name.clone(),
+                    suggested_label: None,
+                    props,
+                };
+                if let Some(edit) = request.into_source_edit(&ctx) {
+                    if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
+                        if crate::source_edit::apply_edit(stmts, edit).is_ok() {
+                            let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
+                            self.document_store.source.document.source_text = new_source.clone();
+                            self.document_store.source.editor.replace_text(new_source);
+                            self.document_store.source.document.is_dirty = true;
+                            self.preview_store.pending_rebuild_at = Some(
+                                std::time::Instant::now()
+                                    + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),
+                            );
+                            self.preview_store.preview.status = format!("Inserted {}", type_name);
+                        } else {
+                            self.preview_store.preview.status = format!("Failed to insert {}", type_name);
+                        }
+                    }
+                }
+                self.insertion_palette.close();
+                return;
+            }
+            if should_back {
+                self.insertion_palette.param_form = None;
+                return;
+            }
+            return;
+        }
 
         // Query input
         let query_id = ui.id().with("insertion_query");
@@ -455,15 +586,26 @@ impl GuiShell {
             ItemKind::Primitive { type_name } => InsertionRequest::Primitive {
                 type_name,
                 suggested_label: None,
+                props: vec![],
             },
             ItemKind::Action { verb } => InsertionRequest::Action {
                 verb,
                 targets: Vec::new(),
             },
-            ItemKind::Component { type_name } => InsertionRequest::Primitive {
-                type_name,
-                suggested_label: None,
-            },
+            ItemKind::Component { type_name, params } => {
+                if !params.is_empty() {
+                    self.insertion_palette.param_form = Some(ParamFormState {
+                        type_name,
+                        params: params.into_iter().map(|(name, default)| (name, default.unwrap_or_default())).collect(),
+                    });
+                    return;
+                }
+                InsertionRequest::Primitive {
+                    type_name,
+                    suggested_label: None,
+                    props: vec![],
+                }
+            }
             ItemKind::Snippet { text } => {
                 // Insert snippet as a new code cell at the end of the document.
                 self.insertion_palette.close();

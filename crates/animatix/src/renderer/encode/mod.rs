@@ -146,7 +146,7 @@ impl std::str::FromStr for MaxRenderThreads {
     }
 }
 
-/// Video encoder selection for MP4 exports.
+/// Video encoder selection for MP4/WebM exports.
 #[derive(Debug, Clone, Copy)]
 pub enum VideoCodec {
     /// Auto-detect: try hardware encoders first, fall back to libx264.
@@ -157,6 +157,8 @@ pub enum VideoCodec {
     H264Nvenc,
     /// VAAPI hardware H.264 encoder (h264_vaapi).
     H264Vaapi,
+    /// Software VP9 encoder (libvpx-vp9) for WebM.
+    Vp9,
 }
 
 impl std::fmt::Display for VideoCodec {
@@ -166,6 +168,7 @@ impl std::fmt::Display for VideoCodec {
             Self::Libx264 => write!(f, "libx264"),
             Self::H264Nvenc => write!(f, "h264_nvenc"),
             Self::H264Vaapi => write!(f, "h264_vaapi"),
+            Self::Vp9 => write!(f, "libvpx-vp9"),
         }
     }
 }
@@ -178,8 +181,9 @@ impl std::str::FromStr for VideoCodec {
             "libx264" => Ok(Self::Libx264),
             "h264_nvenc" | "nvenc" => Ok(Self::H264Nvenc),
             "h264_vaapi" | "vaapi" => Ok(Self::H264Vaapi),
+            "vp9" | "libvpx-vp9" => Ok(Self::Vp9),
             _ => Err(format!(
-                "Unknown codec: {s}. Expected: auto, libx264, h264_nvenc, h264_vaapi"
+                "Unknown codec: {s}. Expected: auto, libx264, h264_nvenc, h264_vaapi, vp9"
             )),
         }
     }

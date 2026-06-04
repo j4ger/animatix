@@ -161,6 +161,9 @@ fn suggest_export_filename(
         crate::app::shell::export_dialog::ExportFormat::Image => "png",
         crate::app::shell::export_dialog::ExportFormat::Video => "mp4",
         crate::app::shell::export_dialog::ExportFormat::Gif => "gif",
+        crate::app::shell::export_dialog::ExportFormat::WebM => "webm",
+        crate::app::shell::export_dialog::ExportFormat::Mov => "mov",
+        crate::app::shell::export_dialog::ExportFormat::WebP => "webp",
     };
     let stem = document_store
         .source

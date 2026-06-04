@@ -19,6 +19,8 @@ pub enum InsertionRequest {
         type_name: String,
         /// If None, generate a unique label automatically.
         suggested_label: Option<String>,
+        /// Property overrides (e.g. component parameter values).
+        props: Vec<animatix_syntax::ast::Property>,
     },
     /// Insert an action into the current keyframe.
     Action {
@@ -91,6 +93,7 @@ impl InsertionRequest {
             InsertionRequest::Primitive {
                 type_name,
                 suggested_label,
+                props,
             } => {
                 let label = suggested_label.unwrap_or_else(|| {
                     crate::app::utils::labels::unique_label(None, &type_name)
@@ -100,21 +103,21 @@ impl InsertionRequest {
                     InsertionTarget::TopLevel => Some(SourceEdit::InsertActor {
                         ty: type_name,
                         label,
-                        props: vec![],
+                        props,
                         container: None,
                         time_s: 0.0,
                     }),
                     InsertionTarget::IntoContainer(container) => Some(SourceEdit::InsertActor {
                         ty: type_name,
                         label,
-                        props: vec![],
+                        props,
                         container: Some(container),
                         time_s: 0.0,
                     }),
                     InsertionTarget::KeyframeBody(time_s) => Some(SourceEdit::InsertActor {
                         ty: type_name,
                         label,
-                        props: vec![],
+                        props,
                         container: None,
                         time_s,
                     }),

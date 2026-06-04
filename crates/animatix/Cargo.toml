@@ -17,7 +17,7 @@ bytemuck = { version = "1.25.0", features = ["derive"], optional = true }
 clap = { version = "4.5.0", features = ["derive"] }
 fastrand = "2.4"
 fontdb = { version = "0.23", default-features = false, features = ["fs", "memmap", "fontconfig"], optional = true }
-image = { version = "0.25.10", default-features = false, features = ["png", "gif", "jpeg"], optional = true }
+image = { version = "0.25.10", default-features = false, features = ["png", "gif", "jpeg", "webp"], optional = true }
 kurbo = "0.13.0"
 pollster = { version = "0.4.0", optional = true }
 roxmltree = { version = "0.20.0", optional = true }

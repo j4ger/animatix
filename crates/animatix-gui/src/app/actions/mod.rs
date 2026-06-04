@@ -190,7 +190,7 @@ impl GuiShell {
             .prev_keyframe_time(edit_time_s);
         let delta_s = edit_time_s - prev_time_s;
 
-        let (new_source, source_index) =
+        let (new_source, source_index, flashes) =
             if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
                 let source_edit = if delta_s < self.ui_store.keyframe_merge_window_s {
                     crate::source_edit::SourceEdit::MergeKeyframe {
@@ -216,7 +216,7 @@ impl GuiShell {
             };
 
         self.apply_timeline_edit(edit);
-        self.commit_source(new_source, source_index);
+        self.commit_source(new_source, source_index, flashes);
         Ok(())
     }
 
@@ -224,7 +224,7 @@ impl GuiShell {
         let expr = animatix_syntax::ast::Expr::try_from(edit.value.clone())
             .map_err(crate::source_edit::SourceEditError::Generic)?;
 
-        let (new_source, source_index) =
+        let (new_source, source_index, flashes) =
             if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
                 let actor = edit.actor.clone();
                 let property = edit.property.clone();
@@ -250,7 +250,7 @@ impl GuiShell {
             };
 
         self.apply_timeline_edit(edit);
-        self.commit_source(new_source, source_index);
+        self.commit_source(new_source, source_index, flashes);
         Ok(())
     }
 
@@ -260,7 +260,7 @@ impl GuiShell {
     ) -> Result<(), crate::source_edit::SourceEditError> {
         use crate::app::panels::PropertyValue as PV;
 
-        let (new_source, source_index) =
+        let (new_source, source_index, flashes) =
             if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
                 if let PV::StringList(order) = edit.value.clone() {
                     let edit_op = crate::source_edit::SourceEdit::ReorderContainerChildren {
@@ -285,7 +285,7 @@ impl GuiShell {
                 }
             }
         }
-        self.commit_source(new_source, source_index);
+        self.commit_source(new_source, source_index, flashes);
         Ok(())
     }
 
@@ -293,12 +293,16 @@ impl GuiShell {
         &mut self,
         new_source: String,
         source_index: animatix_syntax::source_index::SourceIndex,
+        flashes: Vec<f64>,
     ) {
         self.document_store.source.document.source_text = new_source.clone();
         self.document_store.source.editor.replace_text(new_source);
         self.document_store.source.document.is_dirty = true;
         self.document_store.source.document.source_index = Some(source_index);
         self.document_store.source.document.rescan_keyframe_lines();
+        for time in flashes {
+            self.preview_store.preview.flashed_keyframe_times.push((time, Instant::now()));
+        }
         self.preview_store.pending_rebuild_at = Some(
             Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms),
         );
@@ -322,18 +326,20 @@ impl GuiShell {
 fn try_apply_source_edit<F>(
     stmts: &mut Vec<animatix_syntax::ast::Stmt>,
     apply_fn: F,
-) -> Result<(String, animatix_syntax::source_index::SourceIndex), crate::source_edit::SourceEditError>
+) -> Result<(String, animatix_syntax::source_index::SourceIndex, Vec<f64>), crate::source_edit::SourceEditError>
 where
     F: FnOnce(&mut Vec<animatix_syntax::ast::Stmt>) -> Result<(), crate::source_edit::SourceEditError>,
 {
+    crate::source_edit::clear_adjust_flash_queue();
     let mut trial = stmts.clone();
     apply_fn(&mut trial)?;
 
     let new_source = animatix_syntax::to_source::stmts_to_source(&trial);
     let source_index = animatix_syntax::source_index::SourceIndex::build(&trial);
+    let flashes = crate::source_edit::drain_adjust_flash_queue();
 
     *stmts = trial;
-    Ok((new_source, source_index))
+    Ok((new_source, source_index, flashes))
 }
 
 // ─────────────────────────────────────────────────────────────

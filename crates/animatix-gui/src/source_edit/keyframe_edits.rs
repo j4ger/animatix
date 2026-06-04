@@ -381,6 +381,29 @@ pub(super) fn move_keyframe_time(
         return Ok(()); // No change needed
     }
 
+    // Pre-compute flash indices before any mutation.
+    let mut flash_indices = Vec::new();
+    if matches!(stmts[idx], Stmt::RelativeKeyframe { .. }) {
+        if idx + 1 < stmts.len() && matches!(stmts[idx + 1], Stmt::RelativeKeyframe { .. }) {
+            flash_indices.push(idx + 1);
+        }
+    }
+    if matches!(stmts[idx], Stmt::Keyframe { .. }) {
+        for (j, stmt) in stmts[(idx + 1)..].iter().enumerate() {
+            if matches!(stmt, Stmt::RelativeKeyframe { .. }) {
+                flash_indices.push(idx + 1 + j);
+                break;
+            }
+            if matches!(stmt, Stmt::Keyframe { .. }) {
+                break;
+            }
+        }
+    }
+    for fi in &flash_indices {
+        let t = super::ast_utils::compute_keyframe_abs_time(stmts, *fi);
+        super::ast_utils::push_adjust_flash_time(t);
+    }
+
     // Update the found keyframe's time
     match &mut stmts[idx] {
         Stmt::Keyframe { time, .. } => {

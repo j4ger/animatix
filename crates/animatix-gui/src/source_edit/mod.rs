@@ -28,4 +28,6 @@ pub use ast_utils::{
     KeyframeStyle, keyframe_style_before, find_keyframe_insertion_point,
     find_prev_keyframe_time, wrap_leading_decls_in_zero_keyframe,
     adjust_following_relative_keyframe, append_to_keyframe_at_time,
+    compute_keyframe_abs_time, push_adjust_flash_time,
+    clear_adjust_flash_queue, drain_adjust_flash_queue,
 };

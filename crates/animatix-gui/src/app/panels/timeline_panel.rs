@@ -18,6 +18,7 @@
 //! └────────┴──────────────────────────────────────────-┘
 
 use std::collections::HashSet;
+use std::time::Duration;
 
 use crate::app::commands::{ActionQueue, Command, ShellAction};
 use crate::app::components::button::{play_pause_button, toolbar_action_button, toolbar_separator, toolbar_toggle_button};
@@ -169,6 +170,9 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         actor_labels: _,
         actor_keyframes: _,
     } = ctx;
+    // Prune expired keyframe flashes (300 ms lifetime)
+    let now = std::time::Instant::now();
+    preview.flashed_keyframe_times.retain(|(_, instant)| now.duration_since(*instant) < Duration::from_millis(300));
     let duration_s = preview.playback.duration_s.max(0.1);
     let panel_id = ui.id().with("timeline_panel");
 
@@ -665,8 +669,9 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             let is_act = (kf_s - preview.playback.current_time_s()).abs() < 0.01;
                             let is_ms = multi_selected.iter().any(|(l, t)| l == actor_label && *t == kf_ms);
                             let is_drag = kf_drag.as_ref().is_some_and(|(l, _, t, _)| l == actor_label && *t == kf_ms);
-                            let ds = if is_drag { KF_DIAMOND_HALF * 1.5 } else { KF_DIAMOND_HALF };
-                            let kc = if is_ms { ACCENT_BLUE } else if is_act { TEXT_PRIMARY } else { AMBER };
+                            let is_flashed = preview.flashed_keyframe_times.iter().any(|(t, _)| (*t - kf_s).abs() < 0.001);
+                            let ds = if is_flashed { KF_DIAMOND_HALF * 2.0 } else if is_drag { KF_DIAMOND_HALF * 1.5 } else { KF_DIAMOND_HALF };
+                            let kc = if is_flashed { Color32::from_rgb(255, 200, 50) } else if is_ms { ACCENT_BLUE } else if is_act { TEXT_PRIMARY } else { AMBER };
                             let cy = bar_area.center().y;
                             let dr = Rect::from_center_size(Pos2::new(kf_x, cy), Vec2::new((ds * 3.0).max(16.0), (ds * 3.0).max(16.0)));
                             let dresp = ui.interact(dr, ui.id().with(("kf_diamond", track_idx, kf_ms)), Sense::click_and_drag());
