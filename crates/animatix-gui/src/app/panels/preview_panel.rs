@@ -415,14 +415,14 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                         let label = crate::app::utils::labels::unique_label(None, if ext == "svg" { "svg" } else { "image" });
                         let (ty, props) = if ext == "svg" {
                             ("Svg".to_string(), vec![animatix_syntax::ast::Property {
-                                name: "path".into(),
+                                name: "url".into(),
                                 value: animatix_syntax::ast::Expr::Str(path_str),
                                 value_span: None,
                                 trailing_comment: None,
                             }])
                         } else {
                             ("Image".to_string(), vec![animatix_syntax::ast::Property {
-                                name: "path".into(),
+                                name: "url".into(),
                                 value: animatix_syntax::ast::Expr::Str(path_str),
                                 value_span: None,
                                 trailing_comment: None,

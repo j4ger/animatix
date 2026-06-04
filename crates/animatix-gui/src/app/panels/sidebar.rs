@@ -873,7 +873,7 @@ fn assets_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                             label,
                             position: pos,
                             props: vec![animatix_syntax::ast::Property {
-                                name: "path".into(),
+                                name: "url".into(),
                                 value: animatix_syntax::ast::Expr::Str(path.clone()),
                                 value_span: None,
                                 trailing_comment: None,
@@ -905,7 +905,7 @@ fn assets_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                             label,
                             position: pos,
                             props: vec![animatix_syntax::ast::Property {
-                                name: "path".into(),
+                                name: "url".into(),
                                 value: animatix_syntax::ast::Expr::Str(path.clone()),
                                 value_span: None,
                                 trailing_comment: None,

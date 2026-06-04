@@ -48,6 +48,7 @@
 | 6.5 | **Export format expansion** | Expose WebM, MOV, APNG, WebP in export dialog. Requires backend encoder support (currently only MP4/H.264, GIF, PNG). | `app/shell/export_dialog.rs`, `renderer/encode/` | 1 week |
 | 6.9 | **Amber flash on rewritten timestamps** | When `adjust_following_relative_keyframe` rewrites a relative offset, flash the timestamp label amber for ~300ms. | `app/panels/timeline_panel.rs` | 1 day |
 | 6.11 | **Component parameter dialog** | When instantiating a parameterized component (e.g. `MetricCard(title: "Default")`), show a dialog to override params instead of always using defaults. | `app/panels/sidebar.rs`, `app/shell/insertion_palette.rs` | 2 days |
+| 6.14 | **Split `SidebarContext` per tab** | `SidebarContext` carries ~20 fields but each tab only needs a subset. Split into focused contexts (e.g. `ExplorerContext`, `ComponentsContext`) to eliminate borrow conflicts and reduce god-struct surface. | `app/panels/sidebar.rs`, `app/panels/behavior.rs` | 1 day |
 
 ---
 
@@ -56,10 +57,7 @@
 | Item | Why deferred | Likely phase |
 |------|--------------|--------------|
 | `animatix-cli lint` / `format` | Requires trivia-aware AST (Phase 5 / green tree) | 5 |
-| `let` variable animation | Superseded by easing functions in `always` blocks (6.8.3). Keyframed `let` tracks would need new timeline infrastructure; `always` lerp covers the same use cases statelessly. | Post-5 |
-| **AI / NL Integration** | Requires external AI service (OpenAI, Claude, local LLM). No runtime dependency on AI should be mandatory. Includes: NL command bar, agent suggestion UI, agent_suggestions component. | Post-5 or separate product |
-| **Row double-click / right-click** | No defined user story. Fields were wired to egui events but no caller consumed them. Re-add when a feature needs them. | When needed |
-| **Badge button component** | Fully implemented but no caller. Re-add when the UI needs count badges (e.g. "Errors: 3"). | When needed |
+| `let` variable animation | Superseded by easing functions in `always` blocks. Keyframed `let` tracks would need new timeline infrastructure; `always` lerp covers the same use cases statelessly. | Post-5 |
 | **Pre-compile plot closures** | Compile `func` AST bodies to closures/bytecode once per build instead of tree-walking thousands of times per curve. Would give 10–50× sampling speedup but requires a stable closure compilation API. | Post-5 or when plot count becomes a bottleneck again |
 | **Unify duplicate PropertyValue types** | Two separate `PropertyValue` enums exist: `animatix::timeline::property_engine::PropertyValue` (engine-level) and `animatix_gui::app::commands::PropertyValue` (GUI-level). Different variant names (`F32` vs `Float`, `String` vs `Text`) force conversion logic in `apply_property_edit_to_track`. Unify into one canonical type. | When touching property dispatch again |
 | **Replace `node_local_bounds` with trait-based bounds** | `node_local_bounds` takes `&[VelloPath]` forcing callers to materialize paths just for bounds computation. A `trait HasLocalBounds` on `VelloPath`/`TextPath`/`SceneImage` would be cleaner and allow lazy evaluation. | When touching scene_eval bounds logic |
@@ -69,9 +67,5 @@
 | **Module dependency graph** | Visual graph of imports between `.amx` files. Internal tooling feature. | When needed |
 | **Scene duration editing** | Add `duration` property to scene declarations (currently implicit). Inspector shows editable duration field. Requires `Stmt::Scene` AST extension. | Phase 5 |
 | **Scene block drag in timeline** | Drag scene blocks in the composition timeline to change start times. Start times are derived from walk order + durations; needs design. | Phase 5 |
-| **Unify `load_program` return type** | Currently returns a 6-tuple. Replace with a dedicated `LoadedProgramResult` struct for readability and maintainability. | Phase 5 or when touching `document.rs` |
-| **Split `SidebarContext` per tab** | `SidebarContext` carries ~20 fields but each tab only needs a subset. Split into focused contexts (e.g. `ExplorerContext`, `ComponentsContext`) to eliminate borrow conflicts and reduce god-struct surface. | When touching sidebar again |
 | **AssetCache ↔ timeline cross-reference** | `AssetCache` and timeline tracks store asset data in parallel with no cross-references. The asset manager cannot show "which actors reference this asset" without AST re-scanning. | When touching asset system |
-| **Actor property name consistency** | Programmatic insertions use `"path"` for Svg/Image actors, but the test suite sometimes uses `"url"`. Decide on canonical property names and enforce them in both parser and GUI. | When touching primitive schemas |
 | **Validate `CreateActor` props** | `DocumentController::handle_create_actor` blindly appends `props` to the actor declaration with no type checking, duplicate detection, or required-field validation. | When touching actor creation |
-| **Normalize `ToSource` API** | `stmts_to_source` is a free function but `Expr::to_source()` requires importing the `ToSource` trait. Expose a consistent free-function or trait-based API across all AST nodes. | Phase 5 or when touching `to_source.rs` |

@@ -9,6 +9,16 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Result of loading and parsing a program.
+pub struct LoadedProgramResult {
+    pub raw_statements: Vec<Stmt>,
+    pub expanded_statements: Vec<Stmt>,
+    pub namespaces: HashMap<String, Namespace>,
+    pub type_diagnostics: Vec<Diagnostic>,
+    pub components: HashMap<String, ComponentEntry>,
+    pub module_actions: HashMap<String, ActionTemplate>,
+}
+
 pub struct DocumentSession {
     pub file_path: PathBuf,
     pub source_text: String,
@@ -101,8 +111,8 @@ impl DocumentSession {
     /// not already available. Inspector edits mutate the AST directly and build
     /// the index from the mutated AST without re-parsing.
     pub fn rebuild_source_index(&mut self) {
-        if let Ok((raw_statements, _, _, _, _, _)) = self.load_program() {
-            self.source_index = Some(SourceIndex::build(&raw_statements));
+        if let Ok(result) = self.load_program() {
+            self.source_index = Some(SourceIndex::build(&result.raw_statements));
         }
     }
 
@@ -126,10 +136,8 @@ impl DocumentSession {
     }
 
     pub fn rebuild(&mut self) -> Result<(), GuiError> {
-        let (raw_statements, expanded_statements, namespaces, type_diagnostics, components, module_actions) = match self.load_program() {
-            Ok((raw_statements, expanded_statements, namespaces, type_diagnostics, components, module_actions)) => {
-                (raw_statements, expanded_statements, namespaces, type_diagnostics, components, module_actions)
-            }
+        let result = match self.load_program() {
+            Ok(result) => result,
             Err(err) => {
                 let err_string = err.to_string();
                 self.last_rebuild_error = Some(err_string.clone());
@@ -154,24 +162,24 @@ impl DocumentSession {
         };
 
         // Build source index from raw (non-expanded) statements
-        let source_index = SourceIndex::build(&raw_statements);
+        let source_index = SourceIndex::build(&result.raw_statements);
 
         let report = BuildTarget::from_ast_with_quality(
-            &expanded_statements,
-            &namespaces,
+            &result.expanded_statements,
+            &result.namespaces,
             Some(&self.file_path),
             animatix::timeline::BuildQuality::Draft,
         );
         self.last_rebuild_error = None;
         self.duration_s = report.output.duration_s().max(0.1);
-        self.scene_dimensions = document_scene_dimensions(&expanded_statements);
-        self.raw_statements = Some(raw_statements);
-        self.expanded_statements = Some(expanded_statements);
+        self.scene_dimensions = document_scene_dimensions(&result.expanded_statements);
+        self.raw_statements = Some(result.raw_statements);
+        self.expanded_statements = Some(result.expanded_statements);
         self.source_index = Some(source_index);
-        self.namespaces = namespaces;
-        self.components = components;
-        self.module_actions = module_actions;
-        let mut all_diagnostics = type_diagnostics;
+        self.namespaces = result.namespaces;
+        self.components = result.components;
+        self.module_actions = result.module_actions;
+        let mut all_diagnostics = result.type_diagnostics;
         all_diagnostics.extend(report.diagnostics);
         self.diagnostics = all_diagnostics;
         // Phase 6.4: Preserve plot path cache across rebuilds.
@@ -219,24 +227,23 @@ impl DocumentSession {
         Ok(())
     }
 
-    /// Load the program, returning (raw_statements, expanded_statements, namespaces).
+    /// Load the program, returning a structured result.
     /// Raw statements are the parsed statements before component expansion.
-    #[allow(clippy::type_complexity)]
-    fn load_program(
-        &self,
-    ) -> Result<(Vec<Stmt>, Vec<Stmt>, HashMap<String, Namespace>, Vec<Diagnostic>, HashMap<String, ComponentEntry>, HashMap<String, ActionTemplate>), ModuleError>
-    {
+    fn load_program(&self) -> Result<LoadedProgramResult, ModuleError> {
         let mut graph = ModuleGraph::new();
         let mut program = graph
             .load_program_with_source(&self.file_path, Some(&self.source_text))?;
         let type_diagnostics = program.typecheck();
         // expand_components borrows &self, so call it before moving fields out.
         let expanded_statements = program.expand_components();
-        let raw_statements = program.statements;
-        let namespaces = program.namespaces;
-        let components = program.components;
-        let module_actions = program.module_actions;
-        Ok((raw_statements, expanded_statements, namespaces, type_diagnostics, components, module_actions))
+        Ok(LoadedProgramResult {
+            raw_statements: program.statements,
+            expanded_statements,
+            namespaces: program.namespaces,
+            type_diagnostics,
+            components: program.components,
+            module_actions: program.module_actions,
+        })
     }
 
     pub fn raw_program_statements(&self) -> Option<&[Stmt]> {

@@ -513,6 +513,21 @@ fn serialize_actor_like_stmt(
 /// This is the main entry-point for GUI write-back: after the inspector mutates
 /// the AST, the entire tree is re-serialized via this function to produce the
 /// updated source text.
+/// Serialize a single expression to source text.
+///
+/// This is a convenience free-function equivalent to `expr.to_source()`
+/// so callers don't need to import the `ToSource` trait.
+pub fn expr_to_source(expr: &Expr) -> String {
+    expr.to_source()
+}
+
+/// Serialize a top-level statement list (the contents of an `.amx` file).
+///
+/// Keyframe blocks are separated by a single blank line for readability.
+///
+/// This is the main entry-point for GUI write-back: after the inspector mutates
+/// the AST, the entire tree is re-serialized via this function to produce the
+/// updated source text.
 pub fn stmts_to_source(stmts: &[Stmt]) -> String {
     stmts
         .iter()
