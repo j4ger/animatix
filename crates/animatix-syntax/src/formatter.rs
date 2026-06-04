@@ -219,11 +219,7 @@ impl Formatter {
                     parts.push(format!("config {{ {} }}", inner));
                 }
                 if !body.is_empty() {
-                    let body_str = body
-                        .iter()
-                        .map(|s| self.format_stmt(s, depth))
-                        .collect::<Vec<_>>()
-                        .join("\n");
+                    let body_str = self.format_stmts(body, depth);
                     parts.push(body_str);
                 }
                 parts.join("\n")
@@ -236,36 +232,37 @@ impl Formatter {
                 s
             }
             Stmt::Comment(text, ..) => {
-                if self.config.normalize_comment_spacing {
-                    format!("//{}", text.trim_start())
-                } else {
-                    format!("//{}", text)
-                }
+                format!("//{}", text)
             }
         }
     }
 
     /// Format a list of statements at the given indentation depth.
     fn format_stmts(&self, stmts: &[Stmt], depth: usize) -> String {
-        stmts
-            .iter()
-            .map(|s| {
-                let formatted = self.format_stmt(s, depth);
-                // Indent each line of the formatted statement
-                formatted
-                    .lines()
-                    .map(|line| {
-                        if line.is_empty() {
-                            String::new()
-                        } else {
-                            format!("{}{}", self.indent(depth), line)
-                        }
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
+        let mut result = Vec::new();
+        for (i, stmt) in stmts.iter().enumerate() {
+            let formatted = self.format_stmt(stmt, depth);
+            // Indent each line of the formatted statement
+            let indented = formatted
+                .lines()
+                .map(|line| {
+                    if line.is_empty() {
+                        String::new()
+                    } else {
+                        format!("{}{}", self.indent(depth), line)
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            
+            // Add blank line before keyframes (except the first statement)
+            if i > 0 && matches!(stmt, Stmt::Keyframe { .. } | Stmt::RelativeKeyframe { .. }) {
+                result.push(String::new()); // blank line
+            }
+            
+            result.push(indented);
+        }
+        result.join("\n")
     }
 
     /// Format an expression.
@@ -311,7 +308,7 @@ impl Formatter {
 
     /// Format an inline item (child of a container).
     fn format_inline_item(&self, item: &InlineItem, depth: usize) -> String {
-        match item {
+        let result = match item {
             InlineItem::Anonymous { ty, props, modifiers, children, .. } => {
                 self.format_actor_like(
                     None,
@@ -343,7 +340,20 @@ impl Formatter {
                     .join("\n");
                 format!("@{} {{\n{}\n{}}}", slot, items_str, self.indent(depth))
             }
-        }
+        };
+        
+        // Add indentation to each line
+        result
+            .lines()
+            .map(|line| {
+                if line.is_empty() {
+                    String::new()
+                } else {
+                    format!("{}{}", self.indent(depth), line)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     /// Format a component definition.
