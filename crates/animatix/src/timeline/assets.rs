@@ -58,4 +58,14 @@ impl AssetCache {
         self.images.clear();
         self.text_glyphs.clear();
     }
+
+    /// Iterate over cached SVG paths.
+    pub fn svg_paths(&self) -> impl Iterator<Item = (&String, &Vec<VelloPath>)> {
+        self.svg_paths.iter()
+    }
+
+    /// Iterate over cached images.
+    pub fn images(&self) -> impl Iterator<Item = (&String, &SceneImage)> {
+        self.images.iter()
+    }
 }

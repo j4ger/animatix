@@ -8,25 +8,9 @@
 
 ## Order
 
-1. **Phase 3** Asset & Component Integration
-2. **Phase 4** PiP / Multi-Viewport
-3. **Phase 5** Editor Infrastructure (green tree, WASM)
-4. **Phase 6** QoL & Polish
-
----
-
-## Phase 3 — Asset & Component Integration
-
-> **Theme: "The system is bigger than the editor."** Components, colorschemes, modules, and assets have full backend support but no GUI.
-
-| # | Item | What | Files | Effort | Backend? |
-|---|------|------|-------|--------|----------|
-| 3.1 | **Colorscheme picker** | Dropdown in settings or inspector to select from built-in schemes (`default-dark`, `default-light`, `editorial-dark`). Live preview of scheme tokens. | `app/shell/settings.rs`, `app/panels/inspector/` | 1 day | ✅ |
-| 3.2 | **Component instantiation palette** | Palette mode or sidebar section listing available components from loaded modules. Click to instantiate with default props. | `app/shell/insertion_palette.rs`, `app/panels/sidebar.rs` | 2 days | ✅ |
-| 3.3 | **Component definition browser** | Read-only tree of `pub component` definitions from all imported modules. Shows params and body preview. | `app/panels/sidebar.rs` | 1 day | ✅ |
-| 3.4 | **SVG import UI** | Drag-and-drop or file picker to import SVG files. Creates an SVG actor with the imported paths. | `app/panels/preview_panel.rs`, `timeline/svg_import.rs` | 1 day | ✅ |
-| 3.5 | **Image asset manager** | Visual grid of loaded images from `AssetCache`. Shows filename + thumbnail. Click to create an Image actor with that asset. | `app/panels/sidebar.rs` | 2 days | ✅ |
-| 3.6 | **Module import UI** | "Import module" button in sidebar that opens a file picker, inserts `import "path"` into AST, and rebuilds. | `app/panels/sidebar.rs`, `app/commands.rs` | 1 day | ✅ |
+1. **Phase 4** PiP / Multi-Viewport
+2. **Phase 5** Editor Infrastructure (green tree, WASM)
+3. **Phase 6** QoL & Polish
 
 ---
 
@@ -71,6 +55,9 @@
 | 6.8 | **Group / Ungroup** | `Ctrl+G` groups selected actors into a `Group` container. `Ctrl+Shift+G` ungroups. | `app/handlers/actor.rs` | 1 day |
 | 6.9 | **Amber flash on rewritten timestamps** | When `adjust_following_relative_keyframe` rewrites a relative offset, flash the timestamp label amber for ~300ms. | `app/panels/timeline_panel.rs` | 1 day |
 | 6.10 | **Find / Replace** | `Ctrl+F` find/replace in source editor with regex support. | `app/panels/editor.rs` | 1 day |
+| 6.11 | **Component parameter dialog** | When instantiating a parameterized component (e.g. `MetricCard(title: "Default")`), show a dialog to override params instead of always using defaults. | `app/panels/sidebar.rs`, `app/shell/insertion_palette.rs` | 2 days |
+| 6.12 | **Preserve component registry on parse errors** | `DocumentSession::rebuild()` clears `components`/`module_actions` on any parse error. Keep last-known-good registry so the Components tab and palette stay usable while editing. | `document.rs` | 1 day |
+| 6.13 | **Lossless config property edits** | `SetConfigProperty` normalizes unquoted identifiers into quoted strings (e.g. `editorial-dark` → `"editorial-dark"`). Preserve the user's original quoting style. | `source_edit/config_edits.rs`, `to_source.rs` | 1 day |
 
 ---
 
@@ -92,3 +79,9 @@
 | **Module dependency graph** | Visual graph of imports between `.amx` files. Internal tooling feature. | When needed |
 | **Scene duration editing** | Add `duration` property to scene declarations (currently implicit). Inspector shows editable duration field. Requires `Stmt::Scene` AST extension. | Phase 5 |
 | **Scene block drag in timeline** | Drag scene blocks in the composition timeline to change start times. Start times are derived from walk order + durations; needs design. | Phase 5 |
+| **Unify `load_program` return type** | Currently returns a 6-tuple. Replace with a dedicated `LoadedProgramResult` struct for readability and maintainability. | Phase 5 or when touching `document.rs` |
+| **Split `SidebarContext` per tab** | `SidebarContext` carries ~20 fields but each tab only needs a subset. Split into focused contexts (e.g. `ExplorerContext`, `ComponentsContext`) to eliminate borrow conflicts and reduce god-struct surface. | When touching sidebar again |
+| **AssetCache ↔ timeline cross-reference** | `AssetCache` and timeline tracks store asset data in parallel with no cross-references. The asset manager cannot show "which actors reference this asset" without AST re-scanning. | When touching asset system |
+| **Actor property name consistency** | Programmatic insertions use `"path"` for Svg/Image actors, but the test suite sometimes uses `"url"`. Decide on canonical property names and enforce them in both parser and GUI. | When touching primitive schemas |
+| **Validate `CreateActor` props** | `DocumentController::handle_create_actor` blindly appends `props` to the actor declaration with no type checking, duplicate detection, or required-field validation. | When touching actor creation |
+| **Normalize `ToSource` API** | `stmts_to_source` is a free function but `Expr::to_source()` requires importing the `ToSource` trait. Expose a consistent free-function or trait-based API across all AST nodes. | Phase 5 or when touching `to_source.rs` |

@@ -42,6 +42,8 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
             WorkspaceTab::Sidebar => {
                 let diagnostics = self.document_store.combined_diagnostics();
                 let is_playing = self.preview_store.preview.playback.is_playing;
+                let timeline = self.document_store.source.document.timeline.as_ref();
+                let asset_cache = timeline.map(|t| t.asset_cache());
                 let mut ctx = sidebar::SidebarContext {
                     active_scene: self.document_store.source.document.active_scene.as_deref(),
                     is_composition: self.document_store.source.document.is_composition(),
@@ -52,7 +54,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     preview: &mut self.preview_store.preview,
                     commands: self.commands,
                     scene_dimensions: self.document_store.source.document.scene_dimensions,
-                    timeline: self.document_store.source.document.timeline.as_ref(),
+                    timeline,
                     selected_actors: self.selected_actors,
                     collapsed_actors: self.collapsed_actors,
                     sidebar_tab: self.sidebar_tab,
@@ -60,6 +62,8 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     diagnostics: &diagnostics,
                     source_dirty: &mut self.document_store.source.document.source_text,
                     is_playing,
+                    components: &self.document_store.source.document.components,
+                    asset_cache,
                 };
                 sidebar::sidebar_ui(&mut ctx, ui);
             }

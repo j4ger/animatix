@@ -79,13 +79,14 @@ impl GuiShell {
             Command::DeleteScene(scene) => {
                 scene::handle_delete_scene(&mut self.document_store, &mut self.preview_store, &mut self.ui_store, scene)
             }
-            Command::CreateActor { ty, label, position } => actor::handle_create_actor(
+            Command::CreateActor { ty, label, position, props } => actor::handle_create_actor(
                 &mut self.document_store,
                 &mut self.preview_store,
                 &mut self.ui_store,
                 ty,
                 label,
                 position,
+                props,
             ),
             Command::DuplicateActor(original_label) => actor::handle_duplicate_actor(
                 &mut self.document_store,
@@ -220,6 +221,11 @@ impl GuiShell {
                 ui::handle_redo(&mut self.document_store, &mut self.preview_store, &mut self.ui_store)
             }
             Command::ScrollToLine(line, column) => ui::handle_scroll_to_line(&mut self.document_store, line, column),
+            Command::ImportModule(path) => file::handle_import_module(
+                &mut self.document_store,
+                &mut self.preview_store,
+                path,
+            ),
         }
     }
 

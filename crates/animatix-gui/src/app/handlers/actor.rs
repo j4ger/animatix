@@ -9,18 +9,20 @@ pub fn handle_create_actor(
     ty: String,
     label: String,
     position: [f32; 2],
+    props: Vec<animatix_syntax::ast::Property>,
 ) -> Vec<Effect> {
     document_store.snapshot(Command::CreateActor {
         ty: ty.clone(),
         label: label.clone(),
         position,
+        props: props.clone(),
     });
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
         ui_store,
     };
-    ctrl.handle_create_actor(&ty, &label, position);
+    ctrl.handle_create_actor(&ty, &label, position, props);
     vec![]
 }
 

@@ -213,6 +213,34 @@ pub fn handle_reload(
     }
 }
 
+pub fn handle_import_module(
+    document_store: &mut DocumentStore,
+    preview_store: &mut PreviewStore,
+    path: String,
+) -> Vec<Effect> {
+    let Some(ref mut stmts) = document_store.source.document.raw_statements else {
+        preview_store.preview.status = "Failed to import — no AST available".to_string();
+        return vec![];
+    };
+
+    let edit = crate::source_edit::SourceEdit::InsertImport { path: path.clone() };
+    if crate::source_edit::apply_edit(stmts, edit).is_ok() {
+        let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
+        let source_index = animatix_syntax::source_index::SourceIndex::build(stmts);
+        document_store.source.document.source_text = new_source.clone();
+        document_store.source.editor.replace_text(new_source);
+        document_store.source.document.is_dirty = true;
+        document_store.source.document.source_index = Some(source_index);
+        preview_store.pending_rebuild_at =
+            Some(std::time::Instant::now() + std::time::Duration::from_millis(150));
+        preview_store.preview.status = format!("Imported module {}", path);
+    } else {
+        preview_store.preview.status = format!("Failed to import module {}", path);
+    }
+    preview_store.preview_dirty = true;
+    vec![]
+}
+
 pub fn handle_rebuild(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,

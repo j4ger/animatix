@@ -2,7 +2,7 @@ use crate::error::GuiError;
 use animatix_syntax::ast::{Expr, Stmt};
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use animatix::composition::{BuildTarget, Composition};
-use animatix_syntax::module::{ModuleError, ModuleGraph, Namespace};
+use animatix_syntax::module::{ActionTemplate, ComponentEntry, ModuleError, ModuleGraph, Namespace};
 use animatix_syntax::source_index::SourceIndex;
 use animatix::timeline::{AnimationTrack, PropertyTrack, SceneDimensions, Timeline, TimelineIndex};
 use std::collections::HashMap;
@@ -29,6 +29,10 @@ pub struct DocumentSession {
     /// Set of 0-indexed line numbers that contain keyframe declarations.
     /// Derived from timeline_index for editor decorations.
     pub keyframe_lines: Vec<usize>,
+    /// Component registry from the last successful program load.
+    pub components: HashMap<String, ComponentEntry>,
+    /// Module-scoped actions from the last successful program load.
+    pub module_actions: HashMap<String, ActionTemplate>,
 }
 
 impl DocumentSession {
@@ -53,6 +57,8 @@ impl DocumentSession {
             scene_dimensions: SceneDimensions::default(),
             timeline_index: TimelineIndex::default(),
             keyframe_lines: Vec::new(),
+            components: HashMap::new(),
+            module_actions: HashMap::new(),
         };
 
         if let Err(e) = document.rebuild() {
@@ -79,6 +85,8 @@ impl DocumentSession {
             scene_dimensions: SceneDimensions::default(),
             timeline_index: TimelineIndex::default(),
             keyframe_lines: Vec::new(),
+            components: HashMap::new(),
+            module_actions: HashMap::new(),
         }
     }
 
@@ -93,7 +101,7 @@ impl DocumentSession {
     /// not already available. Inspector edits mutate the AST directly and build
     /// the index from the mutated AST without re-parsing.
     pub fn rebuild_source_index(&mut self) {
-        if let Ok((raw_statements, _, _, _)) = self.load_program() {
+        if let Ok((raw_statements, _, _, _, _, _)) = self.load_program() {
             self.source_index = Some(SourceIndex::build(&raw_statements));
         }
     }
@@ -118,9 +126,9 @@ impl DocumentSession {
     }
 
     pub fn rebuild(&mut self) -> Result<(), GuiError> {
-        let (raw_statements, expanded_statements, namespaces, type_diagnostics) = match self.load_program() {
-            Ok((raw_statements, expanded_statements, namespaces, type_diagnostics)) => {
-                (raw_statements, expanded_statements, namespaces, type_diagnostics)
+        let (raw_statements, expanded_statements, namespaces, type_diagnostics, components, module_actions) = match self.load_program() {
+            Ok((raw_statements, expanded_statements, namespaces, type_diagnostics, components, module_actions)) => {
+                (raw_statements, expanded_statements, namespaces, type_diagnostics, components, module_actions)
             }
             Err(err) => {
                 let err_string = err.to_string();
@@ -129,6 +137,8 @@ impl DocumentSession {
                 self.expanded_statements = None;
                 self.source_index = None;
                 self.namespaces = HashMap::new();
+                self.components = HashMap::new();
+                self.module_actions = HashMap::new();
                 self.timeline = None;
                 self.composition = None;
                 self.active_scene = None;
@@ -157,6 +167,8 @@ impl DocumentSession {
         self.expanded_statements = Some(expanded_statements);
         self.source_index = Some(source_index);
         self.namespaces = namespaces;
+        self.components = components;
+        self.module_actions = module_actions;
         let mut all_diagnostics = type_diagnostics;
         all_diagnostics.extend(report.diagnostics);
         self.diagnostics = all_diagnostics;
@@ -210,7 +222,7 @@ impl DocumentSession {
     #[allow(clippy::type_complexity)]
     fn load_program(
         &self,
-    ) -> Result<(Vec<Stmt>, Vec<Stmt>, HashMap<String, Namespace>, Vec<Diagnostic>), ModuleError>
+    ) -> Result<(Vec<Stmt>, Vec<Stmt>, HashMap<String, Namespace>, Vec<Diagnostic>, HashMap<String, ComponentEntry>, HashMap<String, ActionTemplate>), ModuleError>
     {
         let mut graph = ModuleGraph::new();
         let mut program = graph
@@ -220,7 +232,9 @@ impl DocumentSession {
         let expanded_statements = program.expand_components();
         let raw_statements = program.statements;
         let namespaces = program.namespaces;
-        Ok((raw_statements, expanded_statements, namespaces, type_diagnostics))
+        let components = program.components;
+        let module_actions = program.module_actions;
+        Ok((raw_statements, expanded_statements, namespaces, type_diagnostics, components, module_actions))
     }
 
     pub fn raw_program_statements(&self) -> Option<&[Stmt]> {

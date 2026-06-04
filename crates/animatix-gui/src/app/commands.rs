@@ -57,7 +57,7 @@ pub enum Command {
     DeleteScene(String),
 
     // ── Actor ─────────────────────────────────────────────────────────
-    CreateActor { ty: String, label: String, position: [f32; 2] },
+    CreateActor { ty: String, label: String, position: [f32; 2], props: Vec<animatix_syntax::ast::Property> },
     RenameActor { old_label: String, new_label: String },
     DuplicateActor(String),
     DeleteSelectedActors,
@@ -82,6 +82,9 @@ pub enum Command {
 
     // ── Clipboard ─────────────────────────────────────────────────────
     PasteActors,
+
+    // ── Modules ───────────────────────────────────────────────────────
+    ImportModule(String),
 
     // ── Undo / Redo ───────────────────────────────────────────────────
     Undo,

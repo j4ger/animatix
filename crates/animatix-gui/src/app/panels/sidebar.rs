@@ -2,7 +2,7 @@
 //!
 //! Focused context struct borrows only the fields the sidebar needs.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use egui::{RichText, Vec2};
@@ -16,6 +16,7 @@ use crate::app::panels::SidebarTab;
 use crate::app::{FileTreeEntry, PreviewPaneState};
 use crate::editor::EditorBuffer;
 use animatix_syntax::diagnostics::Diagnostic;
+use animatix_syntax::to_source::ToSource;
 use animatix::timeline::{Timeline, SceneDimensions};
 
 /// Id used to persist the explorer filter string in egui's data store.
@@ -30,7 +31,6 @@ pub(crate) struct SidebarContext<'a> {
     pub file_tree: &'a [FileTreeEntry],
     pub preview: &'a mut PreviewPaneState,
     pub commands: &'a mut ActionQueue,
-    pub scene_dimensions: SceneDimensions,
     pub timeline: Option<&'a Timeline>,
     pub selected_actors: &'a mut HashSet<String>,
     pub collapsed_actors: &'a mut HashSet<String>,
@@ -40,6 +40,9 @@ pub(crate) struct SidebarContext<'a> {
     pub diagnostics: &'a [Diagnostic],
     pub source_dirty: &'a mut String,
     pub is_playing: bool,
+    pub components: &'a HashMap<String, animatix_syntax::module::ComponentEntry>,
+    pub asset_cache: Option<&'a animatix::timeline::assets::AssetCache>,
+    pub scene_dimensions: SceneDimensions,
 }
 
 pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
@@ -74,6 +77,8 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                     SidebarTab::Layers => layers_content_ui(ctx, ui),
                     SidebarTab::Scenes => scenes_content_ui(ctx, ui),
                     SidebarTab::Editor => editor_content_ui(ctx, ui),
+                    SidebarTab::Components => components_content_ui(ctx, ui),
+                    SidebarTab::Assets => assets_content_ui(ctx, ui),
                 }
             },
         );
@@ -87,6 +92,8 @@ fn render_sidebar_tab_bar(ui: &mut egui::Ui, active_tab: &mut SidebarTab) {
         (SidebarTab::Explorer, egui_phosphor::regular::FOLDER, "Explorer"),
         (SidebarTab::Layers, egui_phosphor::regular::STACK, "Layers"),
         (SidebarTab::Scenes, egui_phosphor::regular::FILM_STRIP, "Scenes"),
+        (SidebarTab::Components, egui_phosphor::regular::CUBE, "Components"),
+        (SidebarTab::Assets, egui_phosphor::regular::IMAGES, "Assets"),
         (SidebarTab::Editor, egui_phosphor::regular::PENCIL_SIMPLE, "Editor"),
     ];
     if let Some(new_tab) = layout::pill_tab_bar(ui, *active_tab, &tabs) {
@@ -128,6 +135,30 @@ fn explorer_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
         // the stored value stays in sync (clearing is distinct from never-set).
         if filter.is_empty() && response.lost_focus() {
             ui.data_mut(|d| d.insert_temp(filter_id, String::new()));
+        }
+    });
+    ui.add_space(SPACE_S);
+
+    // Import module button
+    ui.horizontal(|ui| {
+        ui.add_space(SPACE_S);
+        if ui
+            .button(
+                RichText::new(format!("{} Import module", egui_phosphor::regular::DOWNLOAD_SIMPLE))
+                    .size(FONT_SIZE_S)
+                    .color(ACCENT_BLUE),
+            )
+            .clicked()
+        {
+            if let Some(path) = rfd::FileDialog::new().add_filter("Animatix", &["amx"]).pick_file() {
+                if let Ok(relative) = path.strip_prefix(&ctx.current_file.parent().unwrap_or(std::path::Path::new("."))) {
+                    let rel_str = relative.to_string_lossy().to_string();
+                    ctx.commands.push_back(ShellAction::Command(Command::ImportModule(rel_str)));
+                } else {
+                    let abs_str = path.to_string_lossy().to_string();
+                    ctx.commands.push_back(ShellAction::Command(Command::ImportModule(abs_str)));
+                }
+            }
         }
     });
     ui.add_space(SPACE_S);
@@ -489,7 +520,12 @@ fn layers_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                     ctx.scene_dimensions.width as f32 / 2.0,
                     ctx.scene_dimensions.height as f32 / 2.0,
                 ];
-                ctx.commands.push_back(ShellAction::Command(Command::CreateActor { ty: super::default_actor_type().into(), label, position: pos }));
+                ctx.commands.push_back(ShellAction::Command(Command::CreateActor {
+                    ty: super::default_actor_type().into(),
+                    label,
+                    position: pos,
+                    props: vec![],
+                }));
             }
         });
         return;
@@ -700,4 +736,183 @@ fn render_actor_tree(
             );
         }
     }
+}
+
+// ─── Components Tab ───────────────────────────────────────────────────────
+
+fn components_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
+    if ctx.components.is_empty() {
+        layout::empty_state(
+            ui,
+            egui_phosphor::regular::CUBE,
+            "No components",
+            "Import modules with pub component definitions to see them here.",
+        );
+        return;
+    }
+
+    egui::ScrollArea::vertical()
+        .auto_shrink([false; 2])
+        .show(ui, |ui| {
+            let mut names: Vec<&String> = ctx.components.keys().collect();
+            names.sort();
+            for name in names {
+                let entry = &ctx.components[name];
+                let row_id = ui.id().with(name);
+                let response = row::Row::new(name)
+                    .icon(Some(egui_phosphor::regular::CUBE))
+                    .label_color(TEXT_SECONDARY)
+                    .show(ui, row_id);
+
+                if response.row_clicked {
+                    // Instantiate component with default props
+                    let label = crate::app::utils::labels::unique_label(None, name);
+                    let pos = [
+                        ctx.scene_dimensions.width as f32 / 2.0,
+                        ctx.scene_dimensions.height as f32 / 2.0,
+                    ];
+                    ctx.commands.push_back(ShellAction::Command(Command::CreateActor {
+                        ty: (*name).clone(),
+                        label,
+                        position: pos,
+                        props: vec![],
+                    }));
+                }
+
+                // Show params as sub-label
+                if !entry.definition.params.is_empty() {
+                    ui.horizontal(|ui| {
+                        ui.add_space(ICON_SLOT_WIDTH + SPACE_S);
+                        let params: Vec<String> = entry
+                            .definition
+                            .params
+                            .iter()
+                            .map(|p| {
+                                let default = p.default.as_ref().map(|v| format!(" = {}", v.to_source())).unwrap_or_default();
+                                format!("{}{}", p.name, default)
+                            })
+                            .collect();
+                        ui.label(
+                            egui::RichText::new(params.join(", "))
+                                .size(FONT_SIZE_XS)
+                                .color(TEXT_MUTED),
+                        );
+                    });
+                }
+
+                response.response.context_menu(|ui| {
+                    let entries = vec![
+                        MenuEntry::item_with_icon(egui_phosphor::regular::PLUS, "Instantiate"),
+                    ];
+                    if render_menu(ui, &entries).is_some() {
+                        let label = crate::app::utils::labels::unique_label(None, name);
+                        let pos = [
+                            ctx.scene_dimensions.width as f32 / 2.0,
+                            ctx.scene_dimensions.height as f32 / 2.0,
+                        ];
+                        ctx.commands.push_back(ShellAction::Command(Command::CreateActor {
+                            ty: (*name).clone(),
+                            label,
+                            position: pos,
+                            props: vec![],
+                        }));
+                        ui.close();
+                    }
+                });
+            }
+        });
+}
+
+// ─── Assets Tab ───────────────────────────────────────────────────────────
+
+fn assets_content_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
+    let Some(cache) = ctx.asset_cache else {
+        layout::empty_state(
+            ui,
+            egui_phosphor::regular::IMAGES,
+            "No assets loaded",
+            "Add Image or SVG actors to populate the asset cache.",
+        );
+        return;
+    };
+
+    let images: Vec<(String, &animatix::timeline::image::SceneImage)> = cache.images().map(|(k, v)| (k.clone(), v)).collect();
+    let svgs: Vec<(String, &Vec<animatix::timeline::vello_path::VelloPath>)> = cache.svg_paths().map(|(k, v)| (k.clone(), v)).collect();
+
+    if images.is_empty() && svgs.is_empty() {
+        layout::empty_state(
+            ui,
+            egui_phosphor::regular::IMAGES,
+            "No assets loaded",
+            "Add Image or SVG actors to populate the asset cache.",
+        );
+        return;
+    }
+
+    egui::ScrollArea::vertical()
+        .auto_shrink([false; 2])
+        .show(ui, |ui| {
+            if !images.is_empty() {
+                layout::section_header(ui, egui_phosphor::regular::IMAGE, "Images", Some(images.len()));
+                for (path, _img) in &images {
+                    let row_id = ui.id().with(path);
+                    let filename = std::path::Path::new(path).file_name().and_then(|n| n.to_str()).unwrap_or(path);
+                    let response = row::Row::new(filename)
+                        .icon(Some(egui_phosphor::regular::IMAGE))
+                        .label_color(TEXT_SECONDARY)
+                        .show(ui, row_id);
+
+                    if response.row_clicked {
+                        let label = crate::app::utils::labels::unique_label(None, "image");
+                        let pos = [
+                            ctx.scene_dimensions.width as f32 / 2.0,
+                            ctx.scene_dimensions.height as f32 / 2.0,
+                        ];
+                        ctx.commands.push_back(ShellAction::Command(Command::CreateActor {
+                            ty: "Image".into(),
+                            label,
+                            position: pos,
+                            props: vec![animatix_syntax::ast::Property {
+                                name: "path".into(),
+                                value: animatix_syntax::ast::Expr::Str(path.clone()),
+                                value_span: None,
+                                trailing_comment: None,
+                            }],
+                        }));
+                    }
+                }
+                ui.add_space(SPACE_M);
+            }
+
+            if !svgs.is_empty() {
+                layout::section_header(ui, egui_phosphor::regular::FILE_SVG, "SVGs", Some(svgs.len()));
+                for (path, _svg) in &svgs {
+                    let row_id = ui.id().with(path);
+                    let filename = std::path::Path::new(path).file_name().and_then(|n| n.to_str()).unwrap_or(path);
+                    let response = row::Row::new(filename)
+                        .icon(Some(egui_phosphor::regular::FILE_SVG))
+                        .label_color(TEXT_SECONDARY)
+                        .show(ui, row_id);
+
+                    if response.row_clicked {
+                        let label = crate::app::utils::labels::unique_label(None, "svg");
+                        let pos = [
+                            ctx.scene_dimensions.width as f32 / 2.0,
+                            ctx.scene_dimensions.height as f32 / 2.0,
+                        ];
+                        ctx.commands.push_back(ShellAction::Command(Command::CreateActor {
+                            ty: "Svg".into(),
+                            label,
+                            position: pos,
+                            props: vec![animatix_syntax::ast::Property {
+                                name: "path".into(),
+                                value: animatix_syntax::ast::Expr::Str(path.clone()),
+                                value_span: None,
+                                trailing_comment: None,
+                            }],
+                        }));
+                    }
+                }
+            }
+        });
 }

@@ -16,6 +16,7 @@ mod ast_utils;
 mod keyframe_edits;
 mod scene_edits;
 mod action_edits;
+mod config_edits;
 mod error;
 
 // Re-export public API

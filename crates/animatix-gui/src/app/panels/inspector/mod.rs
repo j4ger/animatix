@@ -421,6 +421,7 @@ pub(super) fn inspector_ui(
                     ty: super::default_actor_type().into(),
                     label,
                     position: pos,
+                    props: vec![],
                 }));
             }
         });

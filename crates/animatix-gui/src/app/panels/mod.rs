@@ -21,6 +21,8 @@ pub(crate) enum SidebarTab {
     Layers,
     Scenes,
     Editor,
+    Components,
+    Assets,
 }
 
 /// Returns the canonical default actor type: the first non-advanced Shape actor.

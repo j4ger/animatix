@@ -158,6 +158,15 @@ pub enum SourceEdit {
         modifiers: Vec<Modifier>,
         time_s: f64,
     },
+    /// Set or update a config property value.
+    SetConfigProperty {
+        key: String,
+        value: Expr,
+    },
+    /// Insert an import statement at the top of the file.
+    InsertImport {
+        path: String,
+    },
 }
 
 /// Apply a semantic edit to a statement list.
@@ -237,6 +246,12 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
         }
         SourceEdit::InsertAction { verb, targets, args, modifiers, time_s } => {
             super::action_edits::insert_action(stmts, &verb, &targets, &args, &modifiers, time_s)
+        }
+        SourceEdit::SetConfigProperty { key, value } => {
+            super::config_edits::set_config_property(stmts, &key, value)
+        }
+        SourceEdit::InsertImport { path } => {
+            super::config_edits::insert_import(stmts, &path)
         }
     }
 }

@@ -306,6 +306,7 @@ circle: Ellipse, at: (200, 200), radius: 50, color: red
             "Rect".into(),
             "new_box".into(),
             [300.0, 300.0],
+            vec![],
         );
 
         // Actor should be in raw_statements

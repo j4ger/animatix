@@ -399,6 +399,45 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
 
             ctx.render_preview_selection_overlay(ui, preview_rect, is_dragging);
 
+            // ── File drop ──
+            if response.hovered() {
+                let dropped_files = ui.input(|i| i.raw.dropped_files.clone());
+                for file in dropped_files {
+                    if let Some(path) = file.path {
+                        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+                        let path_str = path.to_string_lossy().to_string();
+                        let drop_pos = if let Some(mouse) = ui.ctx().input(|i| i.pointer.latest_pos()) {
+                            let scene = preview_screen_to_scene(ctx.scene_dimensions, preview_rect, mouse, ctx.preview.viewport.preview_zoom, ctx.preview.viewport.preview_pan);
+                            [scene.x as f32, scene.y as f32]
+                        } else {
+                            [ctx.scene_dimensions.width as f32 / 2.0, ctx.scene_dimensions.height as f32 / 2.0]
+                        };
+                        let label = crate::app::utils::labels::unique_label(None, if ext == "svg" { "svg" } else { "image" });
+                        let (ty, props) = if ext == "svg" {
+                            ("Svg".to_string(), vec![animatix_syntax::ast::Property {
+                                name: "path".into(),
+                                value: animatix_syntax::ast::Expr::Str(path_str),
+                                value_span: None,
+                                trailing_comment: None,
+                            }])
+                        } else {
+                            ("Image".to_string(), vec![animatix_syntax::ast::Property {
+                                name: "path".into(),
+                                value: animatix_syntax::ast::Expr::Str(path_str),
+                                value_span: None,
+                                trailing_comment: None,
+                            }])
+                        };
+                        ctx.commands.push_back(ShellAction::Command(Command::CreateActor {
+                            ty,
+                            label,
+                            position: drop_pos,
+                            props,
+                        }));
+                    }
+                }
+            }
+
             // Floating property cards for selected actors
             if !is_dragging && ctx.selected_actors.len() == 1 {
                 if let Some(actor) = ctx.selected_actors.iter().next() {

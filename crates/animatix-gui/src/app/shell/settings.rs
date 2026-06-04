@@ -90,6 +90,85 @@ impl GuiShell {
                 );
                 ui.add_space(SPACE_M);
 
+                // ── Colorscheme ──
+                layout::section_header(ui, egui_phosphor::regular::PALETTE, "Colorscheme", None);
+                ui.add_space(SPACE_S);
+
+                let current_scheme = self
+                    .document_store
+                    .source
+                    .document
+                    .timeline
+                    .as_ref()
+                    .map(|t| t.colorscheme_name())
+                    .unwrap_or("default-dark");
+                let schemes = [
+                    ("default-dark", "Default Dark"),
+                    ("default-light", "Default Light"),
+                    ("editorial-dark", "Editorial Dark"),
+                ];
+                layout::labeled_row(
+                    ui,
+                    RichText::new("Theme").size(FONT_SIZE_S).color(TEXT_SECONDARY),
+                    SETTINGS_INPUT_WIDTH,
+                    |ui| {
+                        egui::ComboBox::from_id_salt(ui.id().with("colorscheme"))
+                            .selected_text(
+                                schemes
+                                    .iter()
+                                    .find(|(id, _)| *id == current_scheme)
+                                    .map(|(_, name)| *name)
+                                    .unwrap_or(current_scheme),
+                            )
+                            .width(ui.available_width())
+                            .show_ui(ui, |ui| {
+                                for (id, name) in schemes {
+                                    if ui.selectable_label(id == current_scheme, name).clicked()
+                                        && id != current_scheme
+                                    {
+                                        if let Some(ref mut stmts) =
+                                            self.document_store.source.document.raw_statements
+                                        {
+                                            let edit =
+                                                crate::source_edit::SourceEdit::SetConfigProperty {
+                                                    key: "colorscheme".into(),
+                                                    value: animatix_syntax::ast::Expr::Str(
+                                                        id.into(),
+                                                    ),
+                                                };
+                                            if crate::source_edit::apply_edit(stmts, edit).is_ok()
+                                            {
+                                                let new_source =
+                                                    animatix_syntax::to_source::stmts_to_source(
+                                                        stmts,
+                                                    );
+                                                let source_index =
+                                                    animatix_syntax::source_index::SourceIndex::build(
+                                                        stmts,
+                                                    );
+                                                self.document_store.source.document.source_text =
+                                                    new_source.clone();
+                                                self.document_store.source.editor.replace_text(new_source);
+                                                self.document_store.source.document.is_dirty = true;
+                                                self.document_store.source.document.source_index =
+                                                    Some(source_index);
+                                                self.preview_store.pending_rebuild_at = Some(
+                                                    std::time::Instant::now()
+                                                        + std::time::Duration::from_millis(
+                                                            self.ui_store.rebuild_debounce_ms,
+                                                        ),
+                                                );
+                                                self.preview_store.preview.status =
+                                                    format!("Colorscheme changed to {}", name);
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+                    },
+                );
+                ui.add_space(SPACE_M);
+
                 // ── Input ──
                 layout::section_header(ui, egui_phosphor::regular::CURSOR_CLICK, "Input", None);
                 ui.add_space(SPACE_S);

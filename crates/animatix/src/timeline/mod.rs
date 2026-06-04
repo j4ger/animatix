@@ -879,6 +879,11 @@ impl Timeline {
         &mut self.container_metadata
     }
 
+    /// Returns a reference to the asset cache.
+    pub fn asset_cache(&self) -> &assets::AssetCache {
+        &self.asset_cache
+    }
+
     /// Returns a reference to the environment.
     pub fn env(&self) -> &Environment {
         &self.env
@@ -943,6 +948,11 @@ impl Timeline {
     /// `evaluate()` call.
     pub fn clear_runtime_diagnostics(&self) {
         self.runtime_diagnostics.borrow_mut().clear();
+    }
+
+    /// Returns the name of the currently active colorscheme.
+    pub fn colorscheme_name(&self) -> &str {
+        &self.colorscheme.name
     }
 
     /// Returns the appropriate default color for a primitive type and property,

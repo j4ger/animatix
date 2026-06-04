@@ -13,6 +13,7 @@ pub enum PaletteMode {
     Primitives,
     Actions,
     Snippets,
+    Components,
 }
 
 /// A single item in the palette list.
@@ -31,6 +32,7 @@ pub enum ItemKind {
     Action { verb: String },
     #[allow(dead_code)]
     Snippet { text: String },
+    Component { type_name: String },
 }
 
 /// State for the insertion palette overlay.
@@ -60,6 +62,7 @@ impl InsertionPalette {
     /// Populate items from the core registries.
     pub fn populate(&mut self,
         _timeline: Option<&animatix::timeline::Timeline>,
+        components: &std::collections::HashMap<String, animatix_syntax::module::ComponentEntry>,
     ) {
         self.items.clear();
 
@@ -102,6 +105,22 @@ impl InsertionPalette {
             });
         }
 
+        // Components
+        for (name, entry) in components {
+            let params: Vec<String> = entry.definition.params.iter().map(|p| {
+                p.default.as_ref().map(|_| p.name.clone()).unwrap_or_else(|| format!("{}?", p.name))
+            }).collect();
+            self.items.push(PaletteItem {
+                label: name.clone(),
+                detail: if params.is_empty() { "Component".into() } else { format!("Component — {}", params.join(", ")) },
+                icon: egui_phosphor::regular::CUBE.to_string(),
+                color: Color32::from_rgb(160, 180, 220),
+                kind: ItemKind::Component {
+                    type_name: name.clone(),
+                },
+            });
+        }
+
         self.rebuild_filter();
     }
 
@@ -128,6 +147,7 @@ impl InsertionPalette {
                 PaletteMode::Primitives => matches!(item.kind, ItemKind::Primitive { .. }),
                 PaletteMode::Actions => matches!(item.kind, ItemKind::Action { .. }),
                 PaletteMode::Snippets => matches!(item.kind, ItemKind::Snippet { .. }),
+                PaletteMode::Components => matches!(item.kind, ItemKind::Component { .. }),
             };
             if !matches_mode {
                 continue;
@@ -181,6 +201,7 @@ impl GuiShell {
         if self.insertion_palette.items.is_empty() {
             self.insertion_palette.populate(
                 self.document_store.source.document.timeline.as_ref(),
+                &self.document_store.source.document.components,
             );
         }
 
@@ -266,6 +287,7 @@ impl GuiShell {
                 (PaletteMode::Primitives, "Primitives"),
                 (PaletteMode::Actions, "Actions"),
                 (PaletteMode::Snippets, "Snippets"),
+                (PaletteMode::Components, "Components"),
             ];
             for (mode, label) in modes {
                 let selected = self.insertion_palette.mode == mode;
@@ -310,6 +332,7 @@ impl GuiShell {
                     PaletteMode::Primitives,
                     PaletteMode::Actions,
                     PaletteMode::Snippets,
+                    PaletteMode::Components,
                 ];
                 let current = modes.iter().position(|&m| m == self.insertion_palette.mode).unwrap_or(0);
                 self.insertion_palette.mode = modes[(current + 1) % modes.len()];
@@ -436,6 +459,10 @@ impl GuiShell {
             ItemKind::Action { verb } => InsertionRequest::Action {
                 verb,
                 targets: Vec::new(),
+            },
+            ItemKind::Component { type_name } => InsertionRequest::Primitive {
+                type_name,
+                suggested_label: None,
             },
             ItemKind::Snippet { .. } => {
                 // Snippets bypass SourceEdit for now.

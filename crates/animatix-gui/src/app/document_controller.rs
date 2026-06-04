@@ -46,12 +46,13 @@ impl DocumentController<'_> {
 
     /// Create a new actor from a type/label/position.
     /// NOTE: The caller should have called `snapshot()` before this.
-    pub(crate) fn handle_create_actor(&mut self, ty: &str, label: &str, position: [f32; 2]) {
-        let props = crate::app::actions::default_props_for_actor(
+    pub(crate) fn handle_create_actor(&mut self, ty: &str, label: &str, position: [f32; 2], extra_props: Vec<animatix_syntax::ast::Property>) {
+        let mut props = crate::app::actions::default_props_for_actor(
             ty,
             position,
             self.document_store.source.document.scene_dimensions,
         );
+        props.extend(extra_props);
 
         // If a container is selected, offer to insert inside it
         let container =
