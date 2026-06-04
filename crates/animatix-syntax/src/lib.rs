@@ -5,6 +5,8 @@
 pub mod ast;
 /// Error and warning reporting types for the animation pipeline.
 pub mod diagnostics;
+/// Configurable source formatter for `.amx` files.
+pub mod formatter;
 /// Animation easing curves and interpolation functions.
 pub mod easing;
 /// Icon glyph constants for UI primitives.
