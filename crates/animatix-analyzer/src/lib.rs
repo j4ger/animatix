@@ -27,7 +27,7 @@ pub use symbol_table::{
     SymbolTable, ImportInfo, LabelInfo, LabelKind, ComponentInfo, ParamInfo, SceneInfo,
 };
 pub use completer::{all_snippets, CompletionItem, CompletionKind, completions_at};
-pub use diagnostics::{Diagnostic, DiagnosticSeverity, collect_diagnostics};
+pub use diagnostics::{Diagnostic, DiagnosticSeverity, LintConfig, collect_diagnostics, collect_diagnostics_with_config};
 pub use workspace::Workspace;
 pub use types::{HoverInfo, Location, DocumentSymbol, SymbolKind};
 
@@ -331,11 +331,18 @@ impl Analyzer {
 
     /// All diagnostics (parse errors + semantic checks).
     pub fn diagnostics(&self) -> Vec<Diagnostic> {
-        let mut diagnostics = diagnostics::collect_diagnostics(
+        let config = diagnostics::LintConfig::from_source(&self.source);
+        self.diagnostics_with_config(&config)
+    }
+
+    /// All diagnostics with explicit lint configuration.
+    pub fn diagnostics_with_config(&self, config: &diagnostics::LintConfig) -> Vec<Diagnostic> {
+        let mut diagnostics = diagnostics::collect_diagnostics_with_config(
             &self.source,
             &self.parse_errors,
             &self.symbols,
             self.ast.as_deref(),
+            config,
         );
         diagnostics.extend(self.type_diagnostics.clone());
         diagnostics

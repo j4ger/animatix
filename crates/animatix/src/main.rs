@@ -208,6 +208,10 @@ enum Commands {
         /// Treat warnings as errors
         #[arg(long)]
         deny_warnings: bool,
+
+        /// Path to .amx.toml config file
+        #[arg(long)]
+        config: Option<PathBuf>,
     },
 }
 
@@ -687,7 +691,12 @@ fn main() {
             }
         }
 
-        Commands::Lint { paths, format, deny_warnings } => {
+        Commands::Lint { paths, format, deny_warnings, config } => {
+            // Load lint config from file if specified
+            let file_config = config.as_ref()
+                .map(|p| animatix_analyzer::LintConfig::from_file(p))
+                .unwrap_or_default();
+
             let mut total_errors = 0;
             let mut total_warnings = 0;
             let mut all_diagnostics = Vec::new();
@@ -715,7 +724,10 @@ fn main() {
                     };
 
                     let analyzer = animatix_analyzer::Analyzer::new_with_path(&source, Some(file.clone()));
-                    let diagnostics = analyzer.diagnostics();
+                    // Merge inline config with file config
+                    let mut config = animatix_analyzer::LintConfig::from_source(&source);
+                    config.merge(&file_config);
+                    let diagnostics = analyzer.diagnostics_with_config(&config);
 
                     if !diagnostics.is_empty() {
                         match format {

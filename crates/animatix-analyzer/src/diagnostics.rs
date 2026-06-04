@@ -63,12 +63,116 @@ impl std::fmt::Display for Diagnostic {
     }
 }
 
+/// Lint configuration for suppressing specific diagnostics.
+#[derive(Debug, Default, Clone)]
+pub struct LintConfig {
+    /// Diagnostic codes to suppress (e.g., "unused-label", "unknown-property").
+    pub disabled: HashSet<String>,
+    /// Whether to disable all warnings.
+    pub disable_all_warnings: bool,
+}
+
+impl LintConfig {
+    /// Parse lint config from inline comments in the source.
+    /// Looks for `// lint-disable: code1, code2` and `// lint-disable-all-warnings`.
+    pub fn from_source(source: &str) -> Self {
+        let mut config = Self::default();
+        for line in source.lines() {
+            let trimmed = line.trim();
+            if let Some(rest) = trimmed.strip_prefix("// lint-disable:") {
+                for code in rest.split(',') {
+                    let code = code.trim().to_lowercase();
+                    if !code.is_empty() {
+                        config.disabled.insert(code);
+                    }
+                }
+            } else if trimmed == "// lint-disable-all-warnings" {
+                config.disable_all_warnings = true;
+            }
+        }
+        config
+    }
+
+    /// Load lint config from an `.amx.toml` file.
+    /// The file should have a `[lint]` section with a `disabled` array.
+    pub fn from_file(path: &std::path::Path) -> Self {
+        let mut config = Self::default();
+        let Ok(content) = std::fs::read_to_string(path) else {
+            return config;
+        };
+        // Simple TOML parser for the [lint] section
+        let mut in_lint_section = false;
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if trimmed == "[lint]" {
+                in_lint_section = true;
+                continue;
+            }
+            if trimmed.starts_with('[') {
+                in_lint_section = false;
+                continue;
+            }
+            if in_lint_section {
+                // Parse `disabled = ["code1", "code2"]`
+                if let Some(rest) = trimmed.strip_prefix("disabled") {
+                    let rest = rest.trim_start();
+                    if rest.starts_with('=') {
+                        let rest = rest[1..].trim();
+                        // Extract items from array
+                        for item in rest.trim_matches(|c| c == '[' || c == ']').split(',') {
+                            let code = item.trim().trim_matches('"').to_lowercase();
+                            if !code.is_empty() {
+                                config.disabled.insert(code);
+                            }
+                        }
+                    }
+                }
+                // Parse `disable_all_warnings = true`
+                if let Some(rest) = trimmed.strip_prefix("disable_all_warnings") {
+                    let rest = rest.trim_start();
+                    if rest.starts_with('=') {
+                        let val = rest[1..].trim();
+                        if val == "true" {
+                            config.disable_all_warnings = true;
+                        }
+                    }
+                }
+            }
+        }
+        config
+    }
+
+    /// Merge another config into this one (combines disabled codes).
+    pub fn merge(&mut self, other: &LintConfig) {
+        self.disabled.extend(other.disabled.iter().cloned());
+        if other.disable_all_warnings {
+            self.disable_all_warnings = true;
+        }
+    }
+
+    /// Check if a diagnostic code is disabled.
+    pub fn is_disabled(&self, code: &str) -> bool {
+        self.disabled.contains(code)
+    }
+}
+
 /// Collect all diagnostics from the source.
 pub fn collect_diagnostics(
     source: &str,
     parse_errors: &[ParseError],
     symbols: &SymbolTable,
     ast: Option<&[Stmt]>,
+) -> Vec<Diagnostic> {
+    collect_diagnostics_with_config(source, parse_errors, symbols, ast, &LintConfig::default())
+}
+
+/// Collect all diagnostics from the source with lint configuration.
+pub fn collect_diagnostics_with_config(
+    source: &str,
+    parse_errors: &[ParseError],
+    symbols: &SymbolTable,
+    ast: Option<&[Stmt]>,
+    config: &LintConfig,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
 
@@ -90,6 +194,25 @@ pub fn collect_diagnostics(
     if let Some(stmts) = ast {
         collect_semantic_diagnostics(stmts, symbols, &mut diagnostics);
     }
+
+    // 3. Filter based on lint config
+    diagnostics.retain(|d| {
+        // Never suppress errors
+        if d.severity == DiagnosticSeverity::Error {
+            return true;
+        }
+        // Check if all warnings are disabled
+        if config.disable_all_warnings && d.severity == DiagnosticSeverity::Warning {
+            return false;
+        }
+        // Check if specific code is disabled
+        if let Some(code) = &d.code {
+            if config.is_disabled(code) {
+                return false;
+            }
+        }
+        true
+    });
 
     diagnostics
 }
@@ -382,5 +505,98 @@ mod tests {
             .filter(|d| d.code.as_deref() == Some("unknown-type"))
             .collect();
         assert_eq!(unknown_types.len(), 1);
+    }
+
+    #[test]
+    fn lint_config_from_source_parses_disable() {
+        let source = "// lint-disable: unused-label, unknown-action\n#0s\ntitle: Text";
+        let config = LintConfig::from_source(source);
+        assert!(config.is_disabled("unused-label"));
+        assert!(config.is_disabled("unknown-action"));
+        assert!(!config.is_disabled("unknown-type"));
+    }
+
+    #[test]
+    fn lint_config_from_source_parses_disable_all_warnings() {
+        let source = "// lint-disable-all-warnings\n#0s\ntitle: Text";
+        let config = LintConfig::from_source(source);
+        assert!(config.disable_all_warnings);
+    }
+
+    #[test]
+    fn lint_config_suppresses_specific_code() {
+        let source = "// lint-disable: unused-label\n#0s\ntitle: Text";
+        let stmts = vec![
+            Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "title".to_string(),
+                ty: "Text".to_string(),
+                props: vec![],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            },
+        ];
+        let mut symbols = SymbolTable::build_from_ast(&stmts);
+        // Don't add any references - should trigger unused-label
+        symbols.collect_references(&[]);
+        let config = LintConfig::from_source(source);
+        let diagnostics = collect_diagnostics_with_config(source, &[], &symbols, Some(&stmts), &config);
+
+        let unused: Vec<_> = diagnostics.iter()
+            .filter(|d| d.code.as_deref() == Some("unused-label"))
+            .collect();
+        assert_eq!(unused.len(), 0, "unused-label should be suppressed");
+    }
+
+    #[test]
+    fn lint_config_suppresses_warnings_globally() {
+        let source = "// lint-disable-all-warnings\n#0s\ntitle: Text";
+        let stmts = vec![
+            Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "title".to_string(),
+                ty: "Text".to_string(),
+                props: vec![],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            },
+        ];
+        let mut symbols = SymbolTable::build_from_ast(&stmts);
+        symbols.collect_references(&[]);
+        let config = LintConfig::from_source(source);
+        let diagnostics = collect_diagnostics_with_config(source, &[], &symbols, Some(&stmts), &config);
+
+        let warnings: Vec<_> = diagnostics.iter()
+            .filter(|d| d.severity == DiagnosticSeverity::Warning)
+            .collect();
+        assert_eq!(warnings.len(), 0, "all warnings should be suppressed");
+    }
+
+    #[test]
+    fn lint_config_does_not_suppress_errors() {
+        let source = "// lint-disable: parse-0\n#0s\ntitle: Text";
+        let parse_errors = vec![
+            ParseError {
+                message: "test error".to_string(),
+                line: 1,
+                column: 1,
+                span: 0..10,
+                expected: vec![],
+                found: None,
+                context: vec![],
+            },
+        ];
+        let symbols = SymbolTable::build_from_ast(&[]);
+        let config = LintConfig::from_source(source);
+        let diagnostics = collect_diagnostics_with_config(source, &parse_errors, &symbols, None, &config);
+
+        let errors: Vec<_> = diagnostics.iter()
+            .filter(|d| d.severity == DiagnosticSeverity::Error)
+            .collect();
+        assert_eq!(errors.len(), 1, "errors should not be suppressed");
     }
 }
