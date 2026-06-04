@@ -22,19 +22,13 @@ Immutable syntax tree that preserves whitespace and comments. Enables reliable s
 | 5.1.4 | **Source edit trivia preservation** | Update `source_edit` module to preserve trivia during AST mutations (property edits, keyframe inserts, etc.). | 1–2 weeks | 5.1.3 |
 | 5.1.5 | **Round-trip tests** | Parse → serialize → parse → serialize produces identical output for all example files. | 1 week | 5.1.4 |
 
-### 5.2 Source Formatter
+
+### 5.2 Source Formatter ✅
 
 `cog fmt` and editor auto-format that preserve the user's style choices.
 
-**Current state:** `to_source.rs` has hardcoded formatting rules (2-space indent, blank lines between top-level). No configuration. No CLI command.
+**Done:** Formatter module with `FormatConfig`, CLI `cog fmt` command, LSP `textDocument/formatting`, 17 tests including 8 idempotency tests.
 
-| # | Task | Description | Effort | Blocker |
-|---|------|-------------|--------|---------|
-| 5.2.1 | **Extract formatter module** | Pull formatting logic from `to_source` into standalone `formatter.rs` in `animatix-syntax`. | 3 days | — |
-| 5.2.2 | **Formatter configuration** | Define `FormatConfig` (indent size, blank line rules, trailing comma style). Serialize to `.amx.toml` or similar. | 2 days | 5.2.1 |
-| 5.2.3 | **CLI `cog fmt`** | Add `fmt` subcommand to `animatix-cli`. Formats files in-place or checks (`--check`). | 2 days | 5.2.1 |
-| 5.2.4 | **Editor auto-format** | Wire formatter into LSP `textDocument/formatting` and GUI save-on-format. | 3 days | 5.2.1 |
-| 5.2.5 | **Idempotency tests** | Formatting already-formatted code produces byte-identical output. | 1 day | 5.2.1 |
 
 ### 5.3 Lint and Diagnostics CLI
 
