@@ -14,6 +14,8 @@ Immutable syntax tree that preserves whitespace and comments. Enables reliable s
 
 **Current state:** AST has `Span`/`ByteSpan` for positions, `Property.trailing_comment`, `Stmt::Comment`. Parser (Chumsky) discards whitespace/comments. `to_source` normalizes formatting on re-serialize.
 
+**Verdict:** Defer. 6–8 weeks of work. Current source_edit + formatter handles 90% of cases. Only matters for perfect round-trip fidelity (rare edge case). Revisit if users report formatting loss.
+
 | # | Task | Description | Effort | Blocker |
 |---|------|-------------|--------|---------|
 | 5.1.1 | **Trivia data structure** | Define `Trivia` type (leading whitespace, trailing whitespace, comments). Add to AST nodes. | 1 week | — |
@@ -34,17 +36,12 @@ Immutable syntax tree that preserves whitespace and comments. Enables reliable s
 
 Static analysis for unused actors, missing imports, and type mismatches. Runnable from `animatix-cli`.
 
-**Current state:** `animatix-analyzer` has basic diagnostics (duplicate labels, unknown types/properties, undefined labels). LSP server exists. No CLI linter.
+**Done:** Unused actor detection (5.3.1), missing import detection (5.3.2), `animatix lint` command (5.3.4). Remaining: type mismatch warnings (5.3.3), lint configuration (5.3.5).
 
 | # | Task | Description | Effort | Blocker |
 |---|------|-------------|--------|---------|
-| 5.3.1 | **Unused actor detection** | Warn on actors declared but never referenced in actions/assignments. | 3 days | — |
-| 5.3.2 | **Missing import detection** | Error on `import "path"` where file doesn't exist. | 1 day | — |
 | 5.3.3 | **Type mismatch warnings** | Warn on property assignments with wrong types (e.g., `size: "hello"`). Uses type annotations when present. | 1 week | — |
-| 5.3.4 | **CLI `animatix lint`** | Add `lint` subcommand. Runs diagnostics on one or more `.amx` files. Exit code 1 on errors. | 2 days | 5.3.1–5.3.3 |
-| 5.3.5 | **Lint configuration** | `.amx.toml` or inline `// lint-disable: unused-actor` to suppress specific warnings. | 2 days | 5.3.4 |
-
-**Done:** Unused actor detection, missing import detection, `animatix lint` command with text/JSON output, --deny-warnings flag.
+| 5.3.5 | **Lint configuration** | `.amx.toml` or inline `// lint-disable: unused-actor` to suppress specific warnings. | 2 days | — |
 
 ### 5.4 Snippet-aware Insertion
 
@@ -70,6 +67,8 @@ Parse palette snippets into AST before inserting (instead of raw text surgery). 
 | 2 | **Audio playback in preview** | Play audio segments during GUI preview (currently only muxed on video export). | 1 week | Audio backend (rodio/cpal) |
 | 3 | **APNG export** | Animated PNG output for lossless web animations. Requires an APNG encoder backend. | 3 days | APNG encoder |
 
+**Verdict:** Defer all. WASM export needs renderer abstraction (big refactor). Audio needs new dependency. APNG needs encoder. None are quick wins.
+
 ---
 
 ## Icebox
@@ -84,3 +83,30 @@ Parse palette snippets into AST before inserting (instead of raw text surgery). 
 | **Asset usage tracking** | Show which actors reference an asset. Low user demand. |
 | **Variable track UI** | GUI for `let` variable tracks. `always` blocks cover most cases. |
 | **Module dependency graph** | Visual graph of `.amx` imports. Internal tooling, no user stories. |
+
+---
+
+## Next Steps (prioritized)
+
+1. **Phase 5.3.5 — Lint configuration** (2 days)
+   - `.amx.toml` for project-level settings
+   - Inline `// lint-disable: unused-actor` suppression
+   - Quick win, no blockers
+
+2. **Phase 5.4 — Snippet-aware Insertion** (3 days)
+   - Parse snippets before inserting
+   - Prevents malformed insertions
+   - Improves GUI usability
+
+3. **Phase 5.3.3 — Type mismatch warnings** (1 week)
+   - Warn on `size: "hello"` (string where vec2 expected)
+   - Needs type inference for properties
+   - Can start with hardcoded type rules
+
+4. **Phase 5.1 — Lossless AST** (6–8 weeks)
+   - Defer until users report formatting loss
+   - Current system handles 90% of cases
+
+5. **Phase 6 — Web Export** (2+ months)
+   - Defer until renderer abstraction is done
+   - Big refactor, no quick wins
