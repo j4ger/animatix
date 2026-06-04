@@ -607,22 +607,48 @@ impl GuiShell {
                 }
             }
             ItemKind::Snippet { text } => {
-                // Insert snippet as a new code cell at the end of the document.
+                // Parse snippet into AST fragment and insert via SourceEdit.
                 self.insertion_palette.close();
-                let source = self.document_store.source.editor.text();
-                let new_source = if source.ends_with('\n') || source.is_empty() {
-                    format!("{}{}\n", source, text)
+                if let Some(fragment) = animatix_syntax::parser::parse_snippet(&text) {
+                    let time_s = ctx.cursor_cell_time_s.or(Some(ctx.current_time_s));
+                    let container = ctx.selected_container.clone();
+                    let edit = crate::source_edit::SourceEdit::InsertSnippet {
+                        stmts: fragment,
+                        time_s,
+                        container,
+                    };
+                    if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
+                        if crate::source_edit::apply_edit(stmts, edit).is_ok() {
+                            let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
+                            self.document_store.source.document.source_text = new_source.clone();
+                            self.document_store.source.editor.replace_text(new_source);
+                            self.document_store.source.document.is_dirty = true;
+                            self.preview_store.pending_rebuild_at = Some(
+                                std::time::Instant::now()
+                                    + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),
+                            );
+                            self.preview_store.preview.status = format!("Inserted snippet: {}", item.label);
+                        } else {
+                            self.preview_store.preview.status = format!("Failed to insert snippet: {}", item.label);
+                        }
+                    }
                 } else {
-                    format!("{}\n{}\n", source, text)
-                };
-                self.document_store.source.editor.replace_text(new_source.clone());
-                self.document_store.source.document.source_text = new_source;
-                self.document_store.source.document.is_dirty = true;
-                self.preview_store.pending_rebuild_at = Some(
-                    std::time::Instant::now()
-                        + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),
-                );
-                self.preview_store.preview.status = format!("Inserted snippet: {}", item.label);
+                    // Fallback: insert raw text if parsing fails.
+                    let source = self.document_store.source.editor.text();
+                    let new_source = if source.ends_with('\n') || source.is_empty() {
+                        format!("{}{}\n", source, text)
+                    } else {
+                        format!("{}\n{}\n", source, text)
+                    };
+                    self.document_store.source.editor.replace_text(new_source.clone());
+                    self.document_store.source.document.source_text = new_source;
+                    self.document_store.source.document.is_dirty = true;
+                    self.preview_store.pending_rebuild_at = Some(
+                        std::time::Instant::now()
+                            + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),
+                    );
+                    self.preview_store.preview.status = format!("Inserted snippet (raw): {}", item.label);
+                }
                 return;
             }
         };

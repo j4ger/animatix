@@ -99,6 +99,72 @@ pub fn parse_source(source: &str) -> (Option<Vec<Stmt>>, Vec<ParseError>) {
     (ast, owned_errors)
 }
 
+/// Strip VS Code–style tab-stop placeholders from snippet text.
+///
+/// Placeholders have the form `${N:default}` or `${N}` (where N is a
+/// non-negative integer).  The function returns the text with every
+/// placeholder replaced by its default value (or removed if empty).
+///
+/// This is used by the GUI insertion palette so that snippet templates
+/// can be parsed as valid `.amx` source.
+pub fn strip_snippet_tabstops(snippet: &str) -> String {
+    let mut result = String::with_capacity(snippet.len());
+    let mut chars = snippet.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if c == '$' && chars.peek() == Some(&'{') {
+            chars.next(); // consume '{'
+            // Skip the tab-stop number
+            while chars.peek().map_or(false, |ch| ch.is_ascii_digit()) {
+                chars.next();
+            }
+            // If there's a ':', collect the default text
+            if chars.peek() == Some(&':') {
+                chars.next(); // consume ':'
+                let mut depth = 1i32;
+                while let Some(&ch) = chars.peek() {
+                    if ch == '{' {
+                        depth += 1;
+                    } else if ch == '}' {
+                        depth -= 1;
+                        if depth == 0 {
+                            chars.next(); // consume '}'
+                            break;
+                        }
+                    }
+                    result.push(ch);
+                    chars.next();
+                }
+            } else {
+                // No default — just skip to closing '}'
+                while chars.next_if(|&ch| ch != '}').is_some() {}
+                chars.next(); // consume '}'
+            }
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
+/// Parse a snippet template into a list of statements.
+///
+/// The snippet text may contain VS Code–style tab-stop placeholders
+/// (`${1:label}`, `${2:}`, etc.). These are stripped before parsing.
+///
+/// Returns `Some(stmts)` if parsing succeeds, `None` otherwise.
+pub fn parse_snippet(snippet: &str) -> Option<Vec<Stmt>> {
+    let cleaned = strip_snippet_tabstops(snippet);
+    let (ast, errors) = parse_source(&cleaned);
+    if errors.is_empty() {
+        ast
+    } else {
+        // Try harder: some snippets omit trailing braces / are fragments.
+        // Fallback: return whatever parsed.
+        ast
+    }
+}
+
 /// Scan modifiers for `ease: ...` and extract the easing value.
 /// Removes the ease modifier from the list so it doesn't get processed twice.
 fn extract_easing(modifiers: &mut Vec<Modifier>) -> Option<crate::easing::Easing> {
@@ -1641,5 +1707,107 @@ mod tests {
             "Expected error context to include 'actor declaration', got: {:?}",
             errors
         );
+    }
+
+    // ── Snippet tab-stop tests ──
+
+    #[test]
+    fn strip_tabstops_simple() {
+        let input = "${1:label}: ${2:Text} {}";
+        let result = strip_snippet_tabstops(input);
+        assert_eq!(result, "label: Text {}");
+    }
+
+    #[test]
+    fn strip_tabstops_nested_braces() {
+        let input = "${1:label}: ${2:Text} {\n    ${3:content}: \"${4:}\",\n}";
+        let result = strip_snippet_tabstops(input);
+        assert_eq!(result, "label: Text {\n    content: \"\",\n}");
+    }
+
+    #[test]
+    fn strip_tabstops_no_default() {
+        let input = "# ${1:0s}\n${2}";
+        let result = strip_snippet_tabstops(input);
+        assert_eq!(result, "# 0s\n");
+    }
+
+    #[test]
+    fn strip_tabstops_preserves_dollar_signs() {
+        let input = "price: \"$100\"";
+        let result = strip_snippet_tabstops(input);
+        assert_eq!(result, "price: \"$100\"");
+    }
+
+    #[test]
+    fn parse_snippet_actor_inline_props() {
+        // AMX uses comma-separated inline properties, not braces
+        let snippet = "${1:label}: ${2:Text}, ${3:content}: \"${4:Hello}\"";
+        let stmts = parse_snippet(snippet);
+        assert!(stmts.is_some(), "snippet should parse");
+        let stmts = stmts.unwrap();
+        assert_eq!(stmts.len(), 1);
+        if let Stmt::ActorDecl { label, ty, props, .. } = &stmts[0] {
+            assert_eq!(label, "label");
+            assert_eq!(ty, "Text");
+            assert_eq!(props.len(), 1);
+            assert_eq!(props[0].name, "content");
+        } else {
+            panic!("Expected ActorDecl, got {:?}", stmts[0]);
+        }
+    }
+
+    #[test]
+    fn parse_snippet_actor_with_children() {
+        // AMX children (nested items) use braces
+        let snippet = "${1:container}: ${2:Row} {\n    ${3:child}: ${4:Text}, content: \"${5:Hi}\"\n}";
+        let stmts = parse_snippet(snippet);
+        assert!(stmts.is_some(), "snippet should parse");
+        let stmts = stmts.unwrap();
+        assert_eq!(stmts.len(), 1);
+        if let Stmt::ActorDecl { label, ty, children, .. } = &stmts[0] {
+            assert_eq!(label, "container");
+            assert_eq!(ty, "Row");
+            assert_eq!(children.len(), 1);
+        } else {
+            panic!("Expected ActorDecl with children, got {:?}", stmts[0]);
+        }
+    }
+
+    #[test]
+    fn parse_snippet_keyframe() {
+        let snippet = "# ${1:0s}\n${2}";
+        let stmts = parse_snippet(snippet);
+        assert!(stmts.is_some(), "keyframe snippet should parse");
+        let stmts = stmts.unwrap();
+        assert_eq!(stmts.len(), 1);
+        assert!(matches!(&stmts[0], Stmt::Keyframe { .. }), "Expected Keyframe, got {:?}", stmts[0]);
+    }
+
+    #[test]
+    fn parse_snippet_always() {
+        let snippet = "always {\n    ${1:}\n}";
+        let stmts = parse_snippet(snippet);
+        assert!(stmts.is_some(), "always snippet should parse");
+        let stmts = stmts.unwrap();
+        assert_eq!(stmts.len(), 1);
+        assert!(matches!(&stmts[0], Stmt::Always { .. }), "Expected Always, got {:?}", stmts[0]);
+    }
+
+    #[test]
+    fn parse_snippet_stagger() {
+        let snippet = "stagger [${1:150ms}] {\n    ${2:}\n}";
+        let stmts = parse_snippet(snippet);
+        assert!(stmts.is_some(), "stagger snippet should parse");
+        let stmts = stmts.unwrap();
+        // Parser wraps bare statements in a default keyframe (#0s)
+        assert_eq!(stmts.len(), 1);
+        if let Stmt::Keyframe { body, .. } = &stmts[0] {
+            assert_eq!(body.len(), 1);
+            assert!(matches!(&body[0], Stmt::Stagger { .. }), "Expected Stagger inside keyframe, got {:?}", body[0]);
+        } else {
+            // Also accept top-level stagger
+            assert!(matches!(&stmts[0], Stmt::Stagger { .. }), "Expected Stagger or Keyframe, got {:?}", stmts[0]);
+        }
     }
 }

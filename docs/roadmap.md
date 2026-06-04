@@ -22,18 +22,6 @@ Immutable syntax tree that preserves whitespace and comments. Enables reliable s
 | 5.1.4 | **Source edit trivia preservation** | Update `source_edit` module to preserve trivia during AST mutations (property edits, keyframe inserts, etc.). | 1–2 weeks | 5.1.3 |
 | 5.1.5 | **Round-trip tests** | Parse → serialize → parse → serialize produces identical output for all example files. | 1 week | 5.1.4 |
 
-### 5.4 Snippet-aware Insertion
-
-Parse palette snippets into AST before inserting (instead of raw text surgery). Prevents malformed insertions and respects surrounding formatting.
-
-**Current state:** GUI insertion palette inserts raw text. `source_edit` does AST mutation for property/keyframe edits but not for snippet insertion.
-
-| # | Task | Description | Effort | Blocker |
-|---|------|-------------|--------|---------|
-| 5.4.1 | **Snippet parser** | Parse snippet text into `Vec<Stmt>` fragment. Handle partial snippets (e.g., just an actor decl without keyframe). | 1 day | — |
-| 5.4.2 | **AST fragment merge** | Insert parsed fragment into existing AST at cursor position (inside keyframe, inside container, top-level). | 1 day | 5.4.1 |
-| 5.4.3 | **Format-aware insertion** | Re-merge with surrounding trivia so blank lines/indentation are correct. | 1 day | 5.4.1, 5.2.1 |
-
 ---
 
 ## Phase 6 — Web Export & Media
@@ -67,15 +55,10 @@ Parse palette snippets into AST before inserting (instead of raw text surgery). 
 
 ## Next Steps (prioritized)
 
-1. **Phase 5.4 — Snippet-aware Insertion** (3 days)
-   - Parse snippets before inserting
-   - Prevents malformed insertions
-   - Improves GUI usability
-
-2. **Phase 5.1 — Lossless AST** (6–8 weeks)
+1. **Phase 5.1 — Lossless AST** (6–8 weeks)
    - Defer until users report formatting loss
    - Current system handles 90% of cases
 
-3. **Phase 6 — Web Export** (2+ months)
+2. **Phase 6 — Web Export** (2+ months)
    - Defer until renderer abstraction is done
    - Big refactor, no quick wins

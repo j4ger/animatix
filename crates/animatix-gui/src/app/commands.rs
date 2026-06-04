@@ -108,14 +108,20 @@ pub enum Command {
 }
 
 /// Horizontal or vertical axis for distribute.
+///
+/// Used by `handle_distribute_actors` but not yet exposed in the UI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)] // Implemented in handlers, awaiting UI wiring
 pub enum Axis {
     Horizontal,
     Vertical,
 }
 
 /// Alignment type for multi-select alignment.
+///
+/// Used by `handle_align_actors` but not yet exposed in the UI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)] // Implemented in handlers, awaiting UI wiring
 pub enum Align {
     Left,
     Center,

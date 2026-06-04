@@ -450,6 +450,65 @@ fn rename_in_inline_items(items: &mut [InlineItem], old_label: &str, new_label: 
 }
 
 // ---------------------------------------------------------------------------
+// InsertSnippet
+// ---------------------------------------------------------------------------
+
+/// Insert a parsed snippet (AST fragment) into the statement list.
+///
+/// If `time_s` is provided, tries to insert inside the keyframe at that time.
+/// If `container` is provided, tries to insert as children of that container.
+/// Otherwise, appends to the top level.
+pub(super) fn insert_snippet(
+    stmts: &mut Vec<Stmt>,
+    fragment: Vec<Stmt>,
+    time_s: Option<f64>,
+    container: Option<&str>,
+) -> Result<(), SourceEditError> {
+    // If a container is specified, insert as children of that container.
+    if let Some(container_label) = container {
+        let container_decl = find_actor_decl_mut(stmts, container_label)
+            .ok_or_else(|| SourceEditError::ContainerNotFound {
+                container: container_label.to_string(),
+            })?;
+        if let Stmt::ActorDecl { children, .. } = container_decl {
+            // Convert top-level stmts to inline items and append.
+            for stmt in fragment {
+                children.push(stmt_to_inline_item(stmt));
+            }
+            return Ok(());
+        } else {
+            return Err(SourceEditError::ContainerNotFound {
+                container: container_label.to_string(),
+            });
+        }
+    }
+
+    // If a time is specified, try to find the keyframe at that time.
+    if let Some(target_time) = time_s {
+        for stmt in stmts.iter_mut() {
+            if let Stmt::Keyframe { time, body, .. } = stmt {
+                let kf_time = super::apply::time_to_seconds(time);
+                if (kf_time - target_time).abs() < 0.001 {
+                    body.extend(fragment);
+                    return Ok(());
+                }
+            }
+        }
+        // No matching keyframe found — create one.
+        stmts.push(Stmt::Keyframe {
+            time: animatix_syntax::ast::Time::Seconds(target_time),
+            body: fragment,
+            span: None,
+        });
+        return Ok(());
+    }
+
+    // Default: append to top level.
+    stmts.extend(fragment);
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -705,5 +764,98 @@ btn.position = (200, 100)"#);
         walk(&stmts, &mut found_color, &mut found_position);
         assert!(found_color, "Color assignment should reference my_box");
         assert!(found_position, "Position assignment should reference my_box");
+    }
+
+    #[test]
+    fn insert_snippet_at_top_level() {
+        use animatix_syntax::ast::{Expr, Property, Stmt};
+
+        let mut stmts = vec![];
+        let fragment = vec![
+            Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "title".into(),
+                ty: "Text".into(),
+                props: vec![Property::new("content", Expr::Str("Hello".into()))],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            },
+        ];
+        let result = super::insert_snippet(&mut stmts, fragment, None, None);
+        assert!(result.is_ok());
+        assert_eq!(stmts.len(), 1);
+        if let Stmt::ActorDecl { label, .. } = &stmts[0] {
+            assert_eq!(label, "title");
+        } else {
+            panic!("Expected ActorDecl");
+        }
+    }
+
+    #[test]
+    fn insert_snippet_into_keyframe() {
+        use animatix_syntax::ast::{Stmt, Time};
+
+        let mut stmts = vec![
+            Stmt::Keyframe {
+                time: Time::Seconds(0.0),
+                body: vec![],
+                span: None,
+            },
+        ];
+        let fragment = vec![
+            Stmt::Action(animatix_syntax::ast::Action {
+                verb: "fade-in".into(),
+                targets: vec!["title".into()],
+                args: vec![],
+                modifiers: vec![],
+                byte_span: None,
+            }, None),
+        ];
+        let result = super::insert_snippet(&mut stmts, fragment, Some(0.0), None);
+        assert!(result.is_ok());
+        if let Stmt::Keyframe { body, .. } = &stmts[0] {
+            assert_eq!(body.len(), 1);
+        } else {
+            panic!("Expected Keyframe");
+        }
+    }
+
+    #[test]
+    fn insert_snippet_into_container() {
+        use animatix_syntax::ast::Stmt;
+
+        let mut stmts = vec![
+            Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "container".into(),
+                ty: "Row".into(),
+                props: vec![],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            },
+        ];
+        let fragment = vec![
+            Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "child".into(),
+                ty: "Text".into(),
+                props: vec![],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            },
+        ];
+        let result = super::insert_snippet(&mut stmts, fragment, None, Some("container"));
+        assert!(result.is_ok());
+        if let Stmt::ActorDecl { children, .. } = &stmts[0] {
+            assert_eq!(children.len(), 1);
+        } else {
+            panic!("Expected ActorDecl");
+        }
     }
 }

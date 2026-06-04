@@ -223,7 +223,7 @@ fn snippet_completions() -> Vec<CompletionItem> {
             kind: CompletionKind::Snippet,
             detail: Some("Actor declaration".to_string()),
             documentation: Some("Declare a new actor with type and properties".to_string()),
-            insert_text: Some("${1:label}: ${2:Text} {\n    ${3:content}: \"${4:}\",\n}".to_string()),
+            insert_text: Some("${1:label}: ${2:Text}, ${3:content}: \"${4:}\"".to_string()),
         },
         CompletionItem {
             label: "keyframe".to_string(),

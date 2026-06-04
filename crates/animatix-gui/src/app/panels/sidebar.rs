@@ -81,7 +81,6 @@ pub(crate) struct EditorContext<'a> {
     pub diagnostics: &'a [Diagnostic],
     pub source_dirty: &'a mut String,
     pub commands: &'a mut ActionQueue,
-    pub preview: &'a mut PreviewPaneState,
     pub is_playing: bool,
 }
 
@@ -162,7 +161,6 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                             diagnostics: ctx.diagnostics,
                             source_dirty: ctx.source_dirty,
                             commands: ctx.commands,
-                            preview: ctx.preview,
                             is_playing: ctx.is_playing,
                         };
                         editor_content_ui(&mut ectx, ui);

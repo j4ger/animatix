@@ -145,11 +145,17 @@ impl InsertionRequest {
                     time_s,
                 })
             }
-            InsertionRequest::Snippet { .. } => {
-                // Snippets bypass SourceEdit for now — they insert raw text
-                // at the cursor position in the cell editor.
-                // Future: parse snippet into Stmt list and insert via SourceEdit.
-                None
+            InsertionRequest::Snippet { text } => {
+                // Parse snippet into AST fragment and insert via SourceEdit.
+                animatix_syntax::parser::parse_snippet(&text).map(|stmts| {
+                    let time_s = ctx.cursor_cell_time_s.or(Some(ctx.current_time_s));
+                    let container = ctx.selected_container.clone();
+                    SourceEdit::InsertSnippet {
+                        stmts,
+                        time_s,
+                        container,
+                    }
+                })
             }
         }
     }

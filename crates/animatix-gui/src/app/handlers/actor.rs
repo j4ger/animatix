@@ -554,9 +554,6 @@ pub fn handle_ungroup_selected_actors(
             }
 
             // Remove the group actor
-            let remove = crate::source_edit::SourceEdit::DeleteScene {
-                name: group.clone(),
-            };
             // DeleteScene doesn't work for actors, so manually remove
             if let Some(idx) = stmts.iter().position(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == group)) {
                 stmts.remove(idx);

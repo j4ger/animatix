@@ -172,6 +172,15 @@ pub enum SourceEdit {
     InsertImport {
         path: String,
     },
+    /// Insert a parsed snippet (AST fragment) at the appropriate location.
+    InsertSnippet {
+        /// The parsed AST fragment to insert.
+        stmts: Vec<Stmt>,
+        /// Optional target time for insertion inside a keyframe.
+        time_s: Option<f64>,
+        /// Optional container label for insertion as children.
+        container: Option<String>,
+    },
 }
 
 /// Apply a semantic edit to a statement list.
@@ -260,6 +269,9 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
         }
         SourceEdit::InsertImport { path } => {
             super::config_edits::insert_import(stmts, &path)
+        }
+        SourceEdit::InsertSnippet { stmts: fragment, time_s, container } => {
+            super::actor_edits::insert_snippet(stmts, fragment, time_s, container.as_deref())
         }
     }
 }
