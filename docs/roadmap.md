@@ -25,9 +25,9 @@ Immutable syntax tree that preserves whitespace and comments. Enables reliable s
 
 ### 5.2 Source Formatter ✅
 
-`cog fmt` and editor auto-format that preserve the user's style choices.
+`animatix fmt` and editor auto-format that preserve the user's style choices.
 
-**Done:** Formatter module with `FormatConfig`, CLI `cog fmt` command, LSP `textDocument/formatting`, 17 tests including 8 idempotency tests.
+**Done:** Formatter module with `FormatConfig`, CLI `animatix fmt` command, LSP `textDocument/formatting`, 17 tests including 8 idempotency tests.
 
 
 ### 5.3 Lint and Diagnostics CLI

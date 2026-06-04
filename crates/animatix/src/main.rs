@@ -668,7 +668,7 @@ fn main() {
             }
 
             if check && has_changes {
-                error!("Some files are not formatted. Run 'cog fmt' to fix.");
+                error!("Some files are not formatted. Run 'animatix fmt' to fix.");
                 std::process::exit(1);
             }
         }
