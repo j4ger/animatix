@@ -44,11 +44,6 @@ impl Span {
         }
     }
 
-    /// Return the start line number of this span.
-    pub fn line(&self) -> usize {
-        self.start_line
-    }
-
     /// Convert a `ByteSpan` to a `Span` given the source text.
     pub fn from_byte_span(source: &str, byte_span: ByteSpan) -> Self {
         Self::from_range(source, byte_span.start..byte_span.end)
@@ -62,13 +57,11 @@ impl Span {
         let mut start_col = 1;
         let mut end_line = 1;
         let mut end_col = 1;
-        let mut _in_start = true;
 
         for (i, ch) in source.char_indices() {
             if i == range.start {
                 start_line = line;
                 start_col = col;
-                _in_start = false;
             }
             if i == range.end {
                 end_line = line;

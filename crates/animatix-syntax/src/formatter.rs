@@ -38,8 +38,6 @@ pub struct FormatConfig {
     pub blank_lines_between_top_level: usize,
     /// Whether to add a trailing newline at the end of the file. Default: true.
     pub trailing_newline: bool,
-    /// Whether to normalize inline comments to have exactly 2 spaces before `//`. Default: true.
-    pub normalize_comment_spacing: bool,
 }
 
 impl Default for FormatConfig {
@@ -48,7 +46,6 @@ impl Default for FormatConfig {
             indent_size: 2,
             blank_lines_between_top_level: 1,
             trailing_newline: true,
-            normalize_comment_spacing: true,
         }
     }
 }
@@ -110,7 +107,7 @@ impl Formatter {
             Stmt::Action(a, ..) => a.to_source(),
             Stmt::LetDecl { is_pub, name, value, .. } => {
                 let pub_kw = if *is_pub { "pub " } else { "" };
-                format!("{}let {} = {}", pub_kw, name, self.format_expr(value))
+                format!("{}let {} = {}", pub_kw, name, value.to_source())
             }
             Stmt::ActorDecl { is_pub, is_anonymous, label, ty, props, modifiers, children, .. } => {
                 let s = self.format_actor_like(
@@ -142,9 +139,9 @@ impl Formatter {
             }
             Stmt::Assignment { target, property, value, modifiers, .. } => {
                 let assignment_str = if target.is_empty() {
-                    format!("{} = {}", property, self.format_expr(value))
+                    format!("{} = {}", property, value.to_source())
                 } else {
-                    format!("{}.{} = {}", target.join("."), property, self.format_expr(value))
+                    format!("{}.{} = {}", target.join("."), property, value.to_source())
                 };
                 let mut parts = vec![assignment_str];
                 if !modifiers.is_empty() {
@@ -175,11 +172,11 @@ impl Formatter {
                 format!("drive {} {{\n{}\n{}}}", label, body_str, self.indent(depth))
             }
             Stmt::ReactiveBinding { target, property, value, .. } => {
-                format!("{}.{} := {}", target.join("."), property, self.format_expr(value))
+                format!("{}.{} := {}", target.join("."), property, value.to_source())
             }
             Stmt::Conditional { condition, then_branch, else_branch, .. } => {
                 let then_str = self.format_stmts(then_branch, depth + 1);
-                let mut result = format!("if {} {{\n{}\n{}}}", self.format_expr(condition), then_str, self.indent(depth));
+                let mut result = format!("if {} {{\n{}\n{}}}", condition.to_source(), then_str, self.indent(depth));
                 if let Some(else_body) = else_branch {
                     let else_str = self.format_stmts(else_body, depth + 1);
                     result.push_str(&format!(" else {{\n{}\n{}}}", else_str, self.indent(depth)));
@@ -188,7 +185,7 @@ impl Formatter {
             }
             Stmt::ForLoop { var, iterable, body, .. } => {
                 let body_str = self.format_stmts(body, depth + 1);
-                format!("for {} in {} {{\n{}\n{}}}", var, self.format_expr(iterable), body_str, self.indent(depth))
+                format!("for {} in {} {{\n{}\n{}}}", var, iterable.to_source(), body_str, self.indent(depth))
             }
             Stmt::ComponentDef(def, ..) => self.format_component_def(def, depth),
             Stmt::ComponentAction { name, params, body, .. } => {
@@ -263,11 +260,6 @@ impl Formatter {
             result.push(indented);
         }
         result.join("\n")
-    }
-
-    /// Format an expression.
-    fn format_expr(&self, expr: &Expr) -> String {
-        expr.to_source()
     }
 
     /// Format an actor-like declaration.

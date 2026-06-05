@@ -133,9 +133,14 @@ impl SourceIndex {
                 | Stmt::Stagger { body, .. }
                 | Stmt::Always { body, .. }
                 | Stmt::Drive { body, .. }
-                | Stmt::Conditional { then_branch: body, .. }
                 | Stmt::ForLoop { body, .. } => {
                     self.walk(body);
+                }
+                Stmt::Conditional { then_branch, else_branch, .. } => {
+                    self.walk(then_branch);
+                    if let Some(else_body) = else_branch {
+                        self.walk(else_body);
+                    }
                 }
                 Stmt::Config { settings, .. } => {
                     // Config properties use "at" syntax
