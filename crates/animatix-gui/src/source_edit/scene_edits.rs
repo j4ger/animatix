@@ -46,38 +46,31 @@ pub(super) fn reorder_scenes(stmts: &mut Vec<Stmt>, new_order: Vec<String>) -> R
         return Err(SourceEditError::Generic("Scene order does not match existing scenes".to_string()));
     }
 
-    let first_scene_idx = match stmts.iter().position(|stmt| matches!(stmt, Stmt::Scene { .. })) {
-        Some(idx) => idx,
-        None => return Err(SourceEditError::Generic("No scenes to reorder".to_string())),
-    };
+    // Separate scenes from non-scenes, preserving original interleaving positions
+    let original: Vec<Stmt> = stmts.drain(..).collect();
+    let scene_map: std::collections::HashMap<String, Stmt> = original
+        .iter()
+        .filter_map(|stmt| match stmt {
+            Stmt::Scene { name, .. } => Some((name.clone(), stmt.clone())),
+            _ => None,
+        })
+        .collect();
 
-    let mut scenes = Vec::new();
-    let mut prelude = stmts.drain(..first_scene_idx).collect::<Vec<_>>();
-    let mut tail = Vec::new();
-    for stmt in stmts.drain(..) {
-        match stmt {
-            Stmt::Scene { .. } => scenes.push(stmt),
-            other => tail.push(other),
+    let mut scene_iter = new_order.into_iter();
+    let mut reordered = Vec::with_capacity(original.len());
+    for original_stmt in &original {
+        match original_stmt {
+            Stmt::Scene { .. } => {
+                if let Some(name) = scene_iter.next() {
+                    if let Some(scene) = scene_map.get(&name) {
+                        reordered.push(scene.clone());
+                    }
+                }
+            }
+            other => reordered.push(other.clone()),
         }
     }
 
-    let mut by_name = std::collections::BTreeMap::new();
-    for scene in scenes {
-        if let Stmt::Scene { name, .. } = &scene {
-            by_name.insert(name.clone(), scene);
-        }
-    }
-
-    let mut reordered = Vec::new();
-    reordered.append(&mut prelude);
-    for name in new_order {
-        if let Some(scene) = by_name.remove(&name) {
-            reordered.push(scene);
-        } else {
-            return Err(SourceEditError::SceneNotFound { scene: name });
-        }
-    }
-    reordered.extend(tail);
     *stmts = reordered;
     Ok(())
 }
