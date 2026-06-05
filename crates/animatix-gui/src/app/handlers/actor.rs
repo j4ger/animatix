@@ -195,6 +195,12 @@ pub fn handle_move_to_scene(
     vec![]
 }
 
+/// Toggle actor visibility in the preview.
+///
+/// **Note:** This is an ephemeral state — it mutates the in-memory `Timeline`
+/// but does NOT persist to `.amx` source. The toggle is lost on rebuild
+/// (source edit, file reopen, undo). See #21 for discussion on making this
+/// durable via source syntax.
 pub fn handle_toggle_actor_visibility(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
@@ -216,6 +222,10 @@ pub fn handle_toggle_actor_visibility(
     vec![]
 }
 
+/// Toggle actor lock (prevent selection/dragging in preview).
+///
+/// **Note:** This is an ephemeral state — see [`handle_toggle_actor_visibility`]
+/// for the same limitation. The toggle is lost on rebuild.
 pub fn handle_toggle_actor_lock(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
