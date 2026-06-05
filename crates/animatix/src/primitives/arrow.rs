@@ -143,7 +143,7 @@ impl Primitive for ArrowPrimitive {
         ctx: &crate::primitives::EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
-        use crate::primitives::{RenderCommand, sample_shape_style};
+        use crate::primitives::evaluate_shape_render;
         use crate::timeline::shapes::ArrowState;
         use crate::timeline::Value;
 
@@ -160,20 +160,13 @@ impl Primitive for ArrowPrimitive {
             }
         }
 
-        let state = ArrowState {
+        let state = VectorShapeState::Arrow(ArrowState {
             from: line_from,
             to: line_to,
             head_size,
-        };
+        });
 
-        let style = sample_shape_style(ctx.track, ctx.time_ms, ctx.overrides);
-        let paths = self.render(&RenderCtx {
-            state: &VectorShapeState::Arrow(state),
-            style,
-            time_ms: ctx.time_ms,
-        }).unwrap_or_default();
-
-        Ok(Some(vec![RenderCommand::Paths { paths }]))
+        evaluate_shape_render(self, ctx, &state)
     }
 
     fn apply_property(

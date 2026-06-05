@@ -80,7 +80,7 @@ impl Primitive for LinePrimitive {
         ctx: &crate::primitives::EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
-        use crate::primitives::{RenderCommand, sample_shape_style};
+        use crate::primitives::evaluate_shape_render;
         use crate::timeline::shapes::LineState;
 
         let mut line_from = ctx.track.line_from.get(ctx.time_ms, [-50.0, 0.0]);
@@ -95,20 +95,13 @@ impl Primitive for LinePrimitive {
             }
         }
 
-        let state = LineState {
+        let state = VectorShapeState::Line(LineState {
             size: [0.0, 0.0],
             line_from,
             line_to,
-        };
+        });
 
-        let style = sample_shape_style(ctx.track, ctx.time_ms, ctx.overrides);
-        let paths = self.render(&RenderCtx {
-            state: &VectorShapeState::Line(state),
-            style,
-            time_ms: ctx.time_ms,
-        }).unwrap_or_default();
-
-        Ok(Some(vec![RenderCommand::Paths { paths }]))
+        evaluate_shape_render(self, ctx, &state)
     }
 
     fn apply_property(
