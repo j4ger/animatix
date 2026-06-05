@@ -13,12 +13,11 @@ pub fn handle_reorder_scenes(
     let edit = crate::source_edit::SourceEdit::ReorderScenes { new_order };
     match crate::source_edit::apply_edit(stmts, edit) {
         Ok(()) => {
-            let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
-            document_store.source.document.source_text = new_source.clone();
-            document_store.source.document.is_dirty = true;
-            document_store.source.editor.replace_text(new_source);
-            document_store.source.document.source_index =
-                Some(animatix_syntax::source_index::SourceIndex::build(stmts));
+            let (new_source, source_index) = (
+                animatix_syntax::to_source::stmts_to_source(stmts),
+                animatix_syntax::source_index::SourceIndex::build(stmts),
+            );
+            document_store.source.commit_source(new_source, source_index);
             preview_store.preview_dirty = true;
             vec![Effect::Status("Scenes reordered".to_string())]
         }
@@ -75,10 +74,8 @@ pub fn handle_duplicate_scene(
         stmts,
         crate::source_edit::SourceEdit::DuplicateScene { name: scene.clone() },
     ).is_ok() {
-        document_store.source.document.source_text =
-            animatix_syntax::to_source::stmts_to_source(stmts);
-        document_store.source.document.is_dirty = true;
-        document_store.source.editor.replace_text(document_store.source.document.source_text.clone());
+        let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+        document_store.source.commit_source(new_source, source_index);
         preview_store.preview_dirty = true;
         preview_store.preview.status = format!("Duplicated scene '{}'", scene);
         vec![Effect::Status(format!("Duplicated scene '{}'", scene))]
@@ -103,10 +100,8 @@ pub fn handle_delete_scene(
         stmts,
         crate::source_edit::SourceEdit::DeleteScene { name: scene.clone() },
     ).is_ok() {
-        document_store.source.document.source_text =
-            animatix_syntax::to_source::stmts_to_source(stmts);
-        document_store.source.document.is_dirty = true;
-        document_store.source.editor.replace_text(document_store.source.document.source_text.clone());
+        let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+        document_store.source.commit_source(new_source, source_index);
         preview_store.preview_dirty = true;
         ui_store.selection.selected_actors.clear();
         preview_store.preview.status = format!("Deleted scene '{}'", scene);

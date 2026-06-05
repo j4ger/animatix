@@ -45,6 +45,18 @@ impl SourceStore {
         self.cached_actor_bounds.clear();
         self.cache_valid = false;
     }
+
+    /// Apply pre-computed source text and source index to the document.
+    ///
+    /// Centralizes the boilerplate that was previously duplicated across handlers.
+    /// Callers compute `(stmts_to_source(stmts), SourceIndex::build(stmts))` while
+    /// holding the `stmts` borrow, then call this after the borrow ends.
+    pub fn commit_source(&mut self, new_source: String, source_index: animatix_syntax::source_index::SourceIndex) {
+        self.document.source_text = new_source.clone();
+        self.document.is_dirty = true;
+        self.editor.replace_text(new_source);
+        self.document.source_index = Some(source_index);
+    }
 }
 
 /// Rebuild cached actor labels, per-actor keyframe lists, hit regions, and actor

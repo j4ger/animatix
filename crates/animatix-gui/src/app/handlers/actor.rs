@@ -1,4 +1,3 @@
-use animatix_syntax::ast::Stmt;
 use crate::app::commands::{Command, Effect};
 use crate::app::document_controller::DocumentController;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore};
@@ -67,12 +66,8 @@ pub fn handle_rename_actor(
                 format!("Rename failed — could not rename '{}' to '{}'", old_label, new_label);
             return vec![];
         }
-        let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
-        document_store.source.document.source_text = new_source.clone();
-        document_store.source.editor.replace_text(new_source);
-        document_store.source.document.is_dirty = true;
-        document_store.source.document.source_index =
-            Some(animatix_syntax::source_index::SourceIndex::build(stmts));
+        let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+        document_store.source.commit_source(new_source, source_index);
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
         preview_store.preview.status = format!("Renamed {} → {}", old_label, new_label);
@@ -330,12 +325,8 @@ pub fn handle_align_actors(
             };
             let _ = crate::source_edit::apply_edit(stmts, source_edit);
         }
-        let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
-        document_store.source.document.source_text = new_source.clone();
-        document_store.source.editor.replace_text(new_source);
-        document_store.source.document.is_dirty = true;
-        document_store.source.document.source_index =
-            Some(animatix_syntax::source_index::SourceIndex::build(stmts));
+        let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+        document_store.source.commit_source(new_source, source_index);
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
     }
@@ -423,12 +414,8 @@ pub fn handle_distribute_actors(
             };
             let _ = crate::source_edit::apply_edit(stmts, source_edit);
         }
-        let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
-        document_store.source.document.source_text = new_source.clone();
-        document_store.source.editor.replace_text(new_source);
-        document_store.source.document.is_dirty = true;
-        document_store.source.document.source_index =
-            Some(animatix_syntax::source_index::SourceIndex::build(stmts));
+        let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+        document_store.source.commit_source(new_source, source_index);
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
     }
@@ -506,12 +493,8 @@ pub fn handle_group_selected_actors(
                 };
                 let _ = crate::source_edit::apply_edit(stmts, reparent);
             }
-            let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
-            document_store.source.document.source_text = new_source.clone();
-            document_store.source.editor.replace_text(new_source);
-            document_store.source.document.is_dirty = true;
-            document_store.source.document.source_index =
-                Some(animatix_syntax::source_index::SourceIndex::build(stmts));
+            let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+        document_store.source.commit_source(new_source, source_index);
             preview_store.pending_rebuild_at =
                 Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
             ui_store.selection.selected_actors.clear();
@@ -569,18 +552,12 @@ pub fn handle_ungroup_selected_actors(
             }
 
             // Remove the group actor
-            // DeleteScene doesn't work for actors, so manually remove
-            if let Some(idx) = stmts.iter().position(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == group)) {
-                stmts.remove(idx);
-            }
+            let delete = crate::source_edit::SourceEdit::DeleteActor { label: group.clone() };
+            let _ = crate::source_edit::apply_edit(stmts, delete);
         }
 
-        let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
-        document_store.source.document.source_text = new_source.clone();
-        document_store.source.editor.replace_text(new_source);
-        document_store.source.document.is_dirty = true;
-        document_store.source.document.source_index =
-            Some(animatix_syntax::source_index::SourceIndex::build(stmts));
+        let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+        document_store.source.commit_source(new_source, source_index);
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
         for group in &groups {

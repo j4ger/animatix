@@ -101,7 +101,8 @@ impl GuiShell {
                     .timeline
                     .as_ref()
                     .map(|t| t.colorscheme_name())
-                    .unwrap_or("default-dark");
+                    .unwrap_or("default-dark")
+                    .to_string();
                 let schemes = [
                     ("default-dark", "Default Dark"),
                     ("default-light", "Default Light"),
@@ -118,7 +119,7 @@ impl GuiShell {
                                     .iter()
                                     .find(|(id, _)| *id == current_scheme)
                                     .map(|(_, name)| *name)
-                                    .unwrap_or(current_scheme),
+                                    .unwrap_or(&current_scheme),
                             )
                             .width(ui.available_width())
                             .show_ui(ui, |ui| {
@@ -138,20 +139,8 @@ impl GuiShell {
                                                 };
                                             if crate::source_edit::apply_edit(stmts, edit).is_ok()
                                             {
-                                                let new_source =
-                                                    animatix_syntax::to_source::stmts_to_source(
-                                                        stmts,
-                                                    );
-                                                let source_index =
-                                                    animatix_syntax::source_index::SourceIndex::build(
-                                                        stmts,
-                                                    );
-                                                self.document_store.source.document.source_text =
-                                                    new_source.clone();
-                                                self.document_store.source.editor.replace_text(new_source);
-                                                self.document_store.source.document.is_dirty = true;
-                                                self.document_store.source.document.source_index =
-                                                    Some(source_index);
+                                                let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+                                                self.document_store.source.commit_source(new_source, source_index);
                                                 self.preview_store.pending_rebuild_at = Some(
                                                     std::time::Instant::now()
                                                         + std::time::Duration::from_millis(

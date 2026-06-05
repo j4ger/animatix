@@ -508,6 +508,19 @@ pub(super) fn insert_snippet(
     Ok(())
 }
 
+/// Delete an actor declaration by label.
+///
+/// Only removes top-level `ActorDecl` statements. Does not remove
+/// keyframe assignments (they become orphaned and harmless).
+pub(super) fn delete_actor(stmts: &mut Vec<Stmt>, label: &str) -> Result<(), SourceEditError> {
+    let pos = stmts
+        .iter()
+        .position(|s| matches!(s, Stmt::ActorDecl { label: l, .. } if l == label))
+        .ok_or_else(|| SourceEditError::ActorNotFound { actor: label.to_string() })?;
+    stmts.remove(pos);
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------

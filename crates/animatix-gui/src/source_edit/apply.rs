@@ -81,6 +81,10 @@ pub enum SourceEdit {
         old_label: String,
         new_label: String,
     },
+    /// Delete an actor declaration by label.
+    DeleteActor {
+        label: String,
+    },
     /// Reorder top-level scene declarations.
     ReorderScenes {
         new_order: Vec<String>,
@@ -225,6 +229,7 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
             super::actor_edits::rename_all_references(stmts, &old_label, &new_label);
             Ok(())
         }
+        SourceEdit::DeleteActor { label } => super::actor_edits::delete_actor(stmts, &label),
         SourceEdit::ReorderScenes { new_order } => super::scene_edits::reorder_scenes(stmts, new_order),
         SourceEdit::SetPlayTarget { scene, target } => {
             super::scene_edits::set_play_target(stmts, &scene, target.as_deref())

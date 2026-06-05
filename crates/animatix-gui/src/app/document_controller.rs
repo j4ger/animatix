@@ -204,35 +204,28 @@ impl DocumentController<'_> {
             return;
         }
 
-        let mut deleted = Vec::new();
+        let mut deleted = 0;
         for label in &to_delete {
-            let pos = stmts.iter().position(|s| {
-                matches!(s, animatix_syntax::ast::Stmt::ActorDecl { label: l, .. } if l == label)
-            });
-            if let Some(pos) = pos {
-                stmts.remove(pos);
-                deleted.push(label.clone());
+            let edit = crate::source_edit::SourceEdit::DeleteActor { label: label.clone() };
+            if crate::source_edit::apply_edit(stmts, edit).is_ok() {
+                deleted += 1;
             }
         }
 
-        if deleted.is_empty() {
+        if deleted == 0 {
             self.preview_store.preview.status = "No actors deleted".to_string();
             return;
         }
 
-        // Commit source — scope block drops stmts borrow
-        let (new_source, source_index) = {
-            (
-                animatix_syntax::to_source::stmts_to_source(stmts),
-                animatix_syntax::source_index::SourceIndex::build(stmts),
-            )
-        };
-        self.apply_source(new_source, source_index);
+        let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+        self.document_store.source.commit_source(new_source, source_index);
+        self.preview_store.pending_rebuild_at =
+            Some(std::time::Instant::now() + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms));
 
         // Clear selection
         self.ui_store.selection.selected_actors.clear();
         self.preview_store.preview_dirty = true;
-        self.preview_store.preview.status = format!("Deleted {} actor(s)", deleted.len());
+        self.preview_store.preview.status = format!("Deleted {} actor(s)", deleted);
     }
 
     // ── Scene/transition edits ──────────────────────────────────────────
