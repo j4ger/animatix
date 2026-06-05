@@ -102,7 +102,7 @@ impl Primitive for TextPrimitive {
         let paths = if let Some(text_ctx) = text_ctx {
             evaluate_text_paths(ctx, text_ctx, TextKind::Text, 48.0)
         } else {
-            Ok(ctx.track.evaluate_text_paths(ctx.time_ms))
+            Ok(std::sync::Arc::from(ctx.track.evaluate_text_paths(ctx.time_ms)))
         }?;
         if paths.is_empty() {
             Ok(None)

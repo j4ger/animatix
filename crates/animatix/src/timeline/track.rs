@@ -714,7 +714,7 @@ impl AnimationTrack {
         if let Some(content_track) = &self.text_content {
             if !content_track.keyframes.is_empty() {
                 let current_text = content_track.evaluate(time_ms);
-                if !current_text.is_empty() { return Vec::new(); }
+                if current_text.is_empty() { return Vec::new(); }
             }
         }
         let default_paths = PropertyTrack::new(Vec::new());
@@ -760,41 +760,25 @@ impl AnimationTrack {
     /// Returns true if any property track has animated keyframes.
     /// A track is "animated" if it has 2+ keyframes or 1 keyframe at time > 0.
     pub fn has_any_keyframes(&self) -> bool {
-        self.position.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.motion_offset.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.rotation.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.scale.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.transform.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.placement_mode.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.position_binding.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.size.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.layout_size.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.color.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.opacity.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.stroke_width.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.stroke_color.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.stroke_progress.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.fill_opacity.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.morph_options.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.shape_type.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.line_from.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.line_to.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.arc_angles.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.points.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.commands.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.vector_paths.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.text_content.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.font_family.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.font_size.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.text_paths.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.image.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.filter_blur.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.filter_brightness.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.filter_contrast.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.filter_saturate.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.filter_hue_rotate.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.filter_sepia.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            || self.head_size.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+        macro_rules! check {
+            ($track:expr) => {
+                $track.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
+            };
+        }
+        check!(self.position) || check!(self.motion_offset) || check!(self.rotation)
+            || check!(self.scale) || check!(self.transform) || check!(self.placement_mode)
+            || check!(self.position_binding) || check!(self.size) || check!(self.layout_size)
+            || check!(self.color) || check!(self.opacity) || check!(self.stroke_width)
+            || check!(self.stroke_color) || check!(self.stroke_progress) || check!(self.fill_opacity)
+            || check!(self.morph_options) || check!(self.shape_type) || check!(self.line_from)
+            || check!(self.line_to) || check!(self.arc_angles) || check!(self.points)
+            || check!(self.commands) || check!(self.vector_paths) || check!(self.text_content)
+            || check!(self.font_family) || check!(self.font_size) || check!(self.text_paths)
+            || check!(self.image)
+            || check!(self.filter_blur) || check!(self.filter_brightness)
+            || check!(self.filter_contrast) || check!(self.filter_saturate)
+            || check!(self.filter_hue_rotate) || check!(self.filter_sepia)
+            || check!(self.head_size)
     }
 }
 

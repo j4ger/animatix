@@ -26,6 +26,8 @@ struct State {
     queue: Arc<wgpu::Queue>,
     render_texture: Option<wgpu::Texture>,
     render_view: Option<wgpu::TextureView>,
+    /// Cached texture blitter — created once, reused every frame.
+    blitter: wgpu::util::TextureBlitter,
 }
 
 impl State {
@@ -90,6 +92,7 @@ impl State {
 
         let core = RendererCore::new(&device, &queue)?;
 
+        let blitter = wgpu::util::TextureBlitter::new(&device, config.format);
         let mut state = Self {
             timeline: timeline.clone(),
             debug_options,
@@ -101,6 +104,7 @@ impl State {
             queue: Arc::new(queue),
             render_texture: None,
             render_view: None,
+            blitter,
         };
         state.ensure_render_texture();
         Ok(state)
@@ -191,13 +195,12 @@ impl State {
             )
             .map_err(|e| e.to_string())?;
 
-        let blitter = wgpu::util::TextureBlitter::new(&self.device, self.config.format);
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Blit Encoder"),
             });
-        blitter.copy(&self.device, &mut encoder, render_view, &view);
+        self.blitter.copy(&self.device, &mut encoder, render_view, &view);
         self.queue.submit(std::iter::once(encoder.finish()));
 
         output.present();
@@ -290,7 +293,7 @@ impl ApplicationHandler for App {
                     current_time
                 };
 
-                state.render(current_time).ok();
+                if let Err(e) = state.render(current_time) { error!("Render error: {e}"); }
                 window.request_redraw();
             }
             _ => {}
@@ -349,6 +352,8 @@ struct CompositionState {
     render_texture: Option<wgpu::Texture>,
     render_view: Option<wgpu::TextureView>,
     offscreen: OffscreenRenderer,
+    /// Cached texture blitter — created once, reused every frame.
+    blitter: wgpu::util::TextureBlitter,
 }
 
 impl CompositionState {
@@ -416,6 +421,7 @@ impl CompositionState {
             RenderError::DeviceRequestFailed(format!("OffscreenRenderer init failed: {e}"))
         })?;
 
+        let blitter = wgpu::util::TextureBlitter::new(&device, config.format);
         let mut state = Self {
             composition: composition.clone(),
             debug_options,
@@ -427,6 +433,7 @@ impl CompositionState {
             render_texture: None,
             render_view: None,
             offscreen,
+            blitter,
         };
         state.ensure_render_texture();
         Ok(state)
@@ -522,13 +529,12 @@ impl CompositionState {
         );
 
         // Blit intermediate texture to surface
-        let blitter = wgpu::util::TextureBlitter::new(&self.device, self.config.format);
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Composition Blit Encoder"),
             });
-        blitter.copy(&self.device, &mut encoder, render_view, &view);
+        self.blitter.copy(&self.device, &mut encoder, render_view, &view);
         self.queue.submit(std::iter::once(encoder.finish()));
 
         output.present();
@@ -669,7 +675,7 @@ impl ApplicationHandler for CompositionApp {
                     current_time
                 };
 
-                state.render(current_time).ok();
+                if let Err(e) = state.render(current_time) { error!("Render error: {e}"); }
                 window.request_redraw();
             }
             _ => {}

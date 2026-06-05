@@ -28,6 +28,9 @@ pub struct OffscreenRenderer {
     texture_b: Option<wgpu::Texture>,
     view_b: Option<wgpu::TextureView>,
     compositor: Option<TransitionCompositor>,
+    /// Cached GPU filter backend — recreated only when dimensions change.
+    filter_backend: Option<GpuFilterBackend>,
+    filter_backend_dimensions: Option<SceneDimensions>,
     dimensions: SceneDimensions,
     bytes_per_row: u32,
 }
@@ -77,6 +80,8 @@ impl OffscreenRenderer {
             texture_b: None,
             view_b: None,
             compositor: None,
+            filter_backend: None,
+            filter_backend_dimensions: None,
             dimensions: SceneDimensions {
                 width: 0,
                 height: 0,
@@ -111,12 +116,17 @@ impl OffscreenRenderer {
         self.ensure_targets(dimensions);
 
         // Evaluate timeline with filter backend support.
-        let mut filter_backend = GpuFilterBackend::new(
-            self.device.clone(),
-            self.queue.clone(),
-            dimensions,
-        )?;
-        let mut fb: Option<&mut dyn crate::timeline::filter::FilterBackend> = Some(&mut filter_backend);
+        // Reuse cached backend if dimensions match, otherwise recreate.
+        if self.filter_backend_dimensions != Some(dimensions) {
+            self.filter_backend = Some(GpuFilterBackend::new(
+                self.device.clone(),
+                self.queue.clone(),
+                dimensions,
+            )?);
+            self.filter_backend_dimensions = Some(dimensions);
+        }
+        let filter_backend = self.filter_backend.as_mut().unwrap();
+        let mut fb: Option<&mut dyn crate::timeline::filter::FilterBackend> = Some(filter_backend);
         let scene = timeline.evaluate_with_debug(time_s, dimensions, debug_options, &mut fb);
 
         let output_view = self.output_view.as_ref()

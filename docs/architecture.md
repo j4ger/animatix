@@ -487,13 +487,35 @@ source_text ──parse──► AST (Vec<Stmt>)
 
 **Components:**
 - `to_source::ToSource` — serializes every AST node back to `.amx` syntax
-- `source_edit_v2` — semantic edit API (`SetProperty`, `InsertProperty`, `InsertKeyframe`)
+- `source_edit/` — semantic edit API (`SetProperty`, `InsertProperty`, `InsertKeyframe`, `InsertAction`, `InsertActor`)
 
 **Benefits over old byte-span surgery:** no span invalidation, no re-parsing, robust property aliasing.
 
 **Trade-offs:** formatting is normalized; inline comments after properties are preserved via `Property.trailing_comment`, but blank lines and indentation style are not.
 
 For the full formatting rules, see [`spec.md`](spec.md) §Appendix A: Source Formatting Specification.
+
+### Insertion Mechanism (Phase 8.5)
+
+The GUI provides a unified insertion palette (`/` key) for inserting primitives, actions, and snippets. All insertions go through `SourceEdit` → AST mutation → re-serialization (no raw text surgery).
+
+**Three layers:**
+1. **`SourceEdit`** — semantic edit types (`InsertActor`, `InsertAction`)
+2. **`InsertionRequest`** — bridge between palette UI and `SourceEdit`
+3. **`InsertionPalette`** — fuzzy-searchable overlay populated from `PRIMITIVES`, action registry, and analyzer snippets
+
+**Key design properties:**
+- **Auto-extensible** — adding a primitive to `PRIMITIVES` or action to the registry automatically surfaces it in the palette
+- **Context-aware** — palette defaults to actions in keyframe cells, primitives in code cells
+- **Timeline-safe** — existing keyframes' absolute times never shift; new keyframes inherit the preceding style (relative/absolute)
+
+**Six insertion rules:**
+1. Exact time, never nearest — create a keyframe if none exists at the target time
+2. Cursor-in-cell wins over playhead
+3. Style inheritance — new keyframes match the preceding keyframe's style
+4. Absolute times are sacred — existing events keep their absolute times
+5. No micro-fragmentation — within 50ms of existing keyframe, append instead
+6. Visual confirmation — status bar explains what happened
 
 ---
 

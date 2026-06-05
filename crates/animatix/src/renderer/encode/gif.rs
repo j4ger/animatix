@@ -114,7 +114,7 @@ pub(super) async fn render_gif_async(
     use image::codecs::gif::{GifEncoder, Repeat};
 
     let total_frames = (duration * fps as f32).ceil() as u32;
-    let frame_duration_ms = (1000 / fps) as u16;
+    let frame_duration_ms = ((1000.0 / fps as f64).round() as u16).max(1);
 
     // ------------------------------------------------------------------------
     // 1. Parallel frame rendering with streaming to encoder
@@ -263,7 +263,7 @@ pub(super) async fn render_gif_composition_async(
     use image::codecs::gif::{GifEncoder, Repeat};
 
     let total_frames = (duration * fps as f32).ceil() as u32;
-    let frame_duration_ms = (1000 / fps) as u16;
+    let frame_duration_ms = ((1000.0 / fps as f64).round() as u16).max(1);
 
     info!("Encoding {} frames to GIF...", total_frames);
 

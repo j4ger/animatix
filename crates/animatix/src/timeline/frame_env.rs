@@ -45,7 +45,7 @@ pub(crate) fn apply_override_incremental(
     if property == "size" {
         if let Value::Vec2([w, h]) = value {
             let radius_key = format!("{label}.radius");
-            if env.get(&radius_key).is_none() {
+            if env.get_ref(&radius_key).is_none() {
                 env.set(&radius_key, Value::Num(w.min(h) / 2.0));
             }
             env.set(&format!("{label}.radius_x"), Value::Num(w / 2.0));
@@ -189,7 +189,7 @@ impl Timeline {
             // was actually overridden and radius wasn't explicitly set.
             if node_overrides.is_some_and(|o| o.contains_key("size")) {
                 let radius_key = format!("{label}.radius");
-                if env.get(&radius_key).is_none() {
+                if env.get_ref(&radius_key).is_none() {
                     let size_val = env.get(&format!("{label}.size"));
                     if let Some(Value::Vec2([w, h])) = size_val {
                         env.set(&radius_key, Value::Num(w.min(h) / 2.0));

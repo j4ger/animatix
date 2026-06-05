@@ -9,6 +9,7 @@
 
 use super::modifier_runtime::{ir, vm};
 use super::{EvalError, SceneDimensions, Stmt, Timeline, Value, assignment_target_key, evaluate_expr};
+use tracing::warn;
 
 impl Timeline {
     /// Apply a single modifier statement to the frame environment.
@@ -28,18 +29,22 @@ impl Timeline {
                 value,
                 ..
             } => {
-                if let Ok(val) = evaluate_expr(value, frame_env) {
-                    let label = assignment_target_key(target);
-                    overrides
-                        .entry(label.clone())
-                        .or_default()
-                        .insert(property.clone(), val.clone());
-                    super::frame_env::apply_override_incremental(frame_env, &label, property, val);
+                match evaluate_expr(value, frame_env) {
+                    Ok(val) => {
+                        let label = assignment_target_key(target);
+                        overrides
+                            .entry(label.clone())
+                            .or_default()
+                            .insert(property.clone(), val.clone());
+                        super::frame_env::apply_override_incremental(frame_env, &label, property, val);
+                    }
+                    Err(e) => warn!("Modifier assignment error for {:?}.{property}: {e}", target),
                 }
             }
             Stmt::LetDecl { is_pub: _, name, value, .. } => {
-                if let Ok(val) = evaluate_expr(value, frame_env) {
-                    frame_env.set(name, val);
+                match evaluate_expr(value, frame_env) {
+                    Ok(val) => { frame_env.set(name, val); }
+                    Err(e) => warn!("Modifier let-decl error for {name}: {e}"),
                 }
             }
             Stmt::Conditional {

@@ -38,6 +38,16 @@ Immutable syntax tree that preserves whitespace and comments. Enables reliable s
 
 ---
 
+## Code Quality & Performance (from audit)
+
+> All items from the June 2026 audit have been completed or assessed. See git history for details.
+
+### Remaining: Shape primitive incremental migration
+
+The `evaluate_shape_render()` helper is available in `primitives/mod.rs`. Line, polygon, path, and arrow primitives can be migrated incrementally — no urgency, the helper is ready when touching those files.
+
+---
+
 ## Icebox
 
 > Blocked on external dependencies, solve niche problems, or lack user demand. No committed timeline.

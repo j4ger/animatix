@@ -246,7 +246,7 @@ impl Environment {
         }
     }
 
-    /// Look up a variable by name.
+    /// Look up a variable by name, returning a clone.
     /// Checks single binding → overrides → base, in that order.
     pub fn get(&self, name: &str) -> Option<Value> {
         if let Some((ref binding_name, ref binding_value)) = self.binding {
@@ -256,6 +256,19 @@ impl Environment {
         }
         self.overrides.get(name).cloned().or_else(|| {
             self.base.as_ref().and_then(|b| b.get(name).cloned())
+        })
+    }
+
+    /// Look up a variable by name, returning a reference (zero-copy).
+    /// Checks single binding → overrides → base, in that order.
+    pub fn get_ref(&self, name: &str) -> Option<&Value> {
+        if let Some((ref binding_name, ref binding_value)) = self.binding {
+            if binding_name == name {
+                return Some(binding_value);
+            }
+        }
+        self.overrides.get(name).or_else(|| {
+            self.base.as_ref().and_then(|b| b.get(name))
         })
     }
 

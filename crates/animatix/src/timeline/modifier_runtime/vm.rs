@@ -105,6 +105,7 @@ pub fn execute_modifier_bytecode(
     let mut vm = ModifierVm {
         stack: Vec::with_capacity(16),
         ip: 0,
+        for_iteration_count: 0,
     };
     vm.run(program, frame_env, overrides)
 }
@@ -250,6 +251,8 @@ impl BytecodeCompiler {
 struct ModifierVm {
     stack: Vec<Value>,
     ip: usize,
+    /// Bounded iteration guard to prevent infinite loops in for-loops.
+    for_iteration_count: usize,
 }
 
 impl ModifierVm {
@@ -446,6 +449,12 @@ impl ModifierVm {
                     self.ip += 1;
                 }
                 Instruction::CheckFor(var, end) => {
+                    self.for_iteration_count += 1;
+                    if self.for_iteration_count > 100_000 {
+                        return Err(EvalError::TypeMismatch(
+                            "for-loop exceeded 100,000 iterations — possible infinite loop".to_string()
+                        ));
+                    }
                     let iter_key = format!("__for_iter_{var}");
                     let idx_key = format!("__for_idx_{var}");
                     let items = frame_env

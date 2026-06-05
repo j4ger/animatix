@@ -122,17 +122,14 @@ impl LayoutEngine {
         // Sample child extents at current time
         let child_extents: Vec<ChildExtent> = layout_children
             .iter()
-            .map(|child| {
-                let track = tracks
-                    .get(&child.label)
-                    .expect("admitted layout child must have a track");
-                ChildExtent {
+            .filter_map(|child| {
+                let track = tracks.get(&child.label)?;
+                let half_size = track.layout_size_get(time_ms)?;
+                Some(ChildExtent {
                     label: child.label.clone(),
-                    half_size: track
-                        .layout_size_get(time_ms)
-                        .expect("admitted layout child must have seeded layout_size"),
+                    half_size,
                     placement_mode: child.placement_mode,
-                }
+                })
             })
             .collect();
 
@@ -232,18 +229,14 @@ impl Timeline {
         // sampled per-frame relayout when those tracks animate later.
         let child_extents: Vec<ChildExtent> = children
             .iter()
-            .map(|cl| {
-                let track = self
-                    .tracks
-                    .get(&cl.label)
-                    .expect("admitted layout child must have a track");
-                ChildExtent {
+            .filter_map(|cl| {
+                let track = self.tracks.get(&cl.label)?;
+                let half_size = track.layout_size_last()?;
+                Some(ChildExtent {
                     label: cl.label.clone(),
-                    half_size: track
-                        .layout_size_last()
-                        .expect("admitted layout child must have seeded layout_size"),
+                    half_size,
                     placement_mode: cl.placement_mode,
-                }
+                })
             })
             .collect();
 

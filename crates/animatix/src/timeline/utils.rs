@@ -121,8 +121,14 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
                     BinaryOp::Add => Ok(Value::Vec2([l[0] + r[0], l[1] + r[1]])),
                     BinaryOp::Sub => Ok(Value::Vec2([l[0] - r[0], l[1] - r[1]])),
                     BinaryOp::Mul => Ok(Value::Vec2([l[0] * r[0], l[1] * r[1]])),
-                    BinaryOp::Div => Ok(Value::Vec2([l[0] / r[0], l[1] / r[1]])),
-                    BinaryOp::Mod => Ok(Value::Vec2([l[0] % r[0], l[1] % r[1]])),
+                    BinaryOp::Div => Ok(Value::Vec2([
+                        if r[0] != 0.0 { l[0] / r[0] } else { 0.0 },
+                        if r[1] != 0.0 { l[1] / r[1] } else { 0.0 },
+                    ])),
+                    BinaryOp::Mod => Ok(Value::Vec2([
+                        if r[0] != 0.0 { l[0] % r[0] } else { 0.0 },
+                        if r[1] != 0.0 { l[1] % r[1] } else { 0.0 },
+                    ])),
                     _ => Err(EvalError::TypeMismatch(format!(
                         "Unsupported operation {:?} for Vec2 and Vec2",
                         op
@@ -132,8 +138,16 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
                     BinaryOp::Add => Ok(Value::Vec3([l[0] + r[0], l[1] + r[1], l[2] + r[2]])),
                     BinaryOp::Sub => Ok(Value::Vec3([l[0] - r[0], l[1] - r[1], l[2] - r[2]])),
                     BinaryOp::Mul => Ok(Value::Vec3([l[0] * r[0], l[1] * r[1], l[2] * r[2]])),
-                    BinaryOp::Div => Ok(Value::Vec3([l[0] / r[0], l[1] / r[1], l[2] / r[2]])),
-                    BinaryOp::Mod => Ok(Value::Vec3([l[0] % r[0], l[1] % r[1], l[2] % r[2]])),
+                    BinaryOp::Div => Ok(Value::Vec3([
+                        if r[0] != 0.0 { l[0] / r[0] } else { 0.0 },
+                        if r[1] != 0.0 { l[1] / r[1] } else { 0.0 },
+                        if r[2] != 0.0 { l[2] / r[2] } else { 0.0 },
+                    ])),
+                    BinaryOp::Mod => Ok(Value::Vec3([
+                        if r[0] != 0.0 { l[0] % r[0] } else { 0.0 },
+                        if r[1] != 0.0 { l[1] % r[1] } else { 0.0 },
+                        if r[2] != 0.0 { l[2] % r[2] } else { 0.0 },
+                    ])),
                     _ => Err(EvalError::TypeMismatch(format!(
                         "Unsupported operation {:?} for Vec3 and Vec3",
                         op
@@ -159,10 +173,10 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
                         l[3] * r[3],
                     ])),
                     BinaryOp::Div => Ok(Value::Color([
-                        l[0] / r[0],
-                        l[1] / r[1],
-                        l[2] / r[2],
-                        l[3] / r[3],
+                        if r[0] != 0.0 { l[0] / r[0] } else { 0.0 },
+                        if r[1] != 0.0 { l[1] / r[1] } else { 0.0 },
+                        if r[2] != 0.0 { l[2] / r[2] } else { 0.0 },
+                        if r[3] != 0.0 { l[3] / r[3] } else { 0.0 },
                     ])),
                     _ => Err(EvalError::TypeMismatch(format!(
                         "Unsupported operation {:?} for Color and Color",
@@ -173,8 +187,14 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
                     BinaryOp::Add => Ok(Value::Vec2([l[0] + r, l[1] + r])),
                     BinaryOp::Sub => Ok(Value::Vec2([l[0] - r, l[1] - r])),
                     BinaryOp::Mul => Ok(Value::Vec2([l[0] * r, l[1] * r])),
-                    BinaryOp::Div => Ok(Value::Vec2([l[0] / r, l[1] / r])),
-                    BinaryOp::Mod => Ok(Value::Vec2([l[0] % r, l[1] % r])),
+                    BinaryOp::Div => Ok(Value::Vec2([
+                        if r != 0.0 { l[0] / r } else { 0.0 },
+                        if r != 0.0 { l[1] / r } else { 0.0 },
+                    ])),
+                    BinaryOp::Mod => Ok(Value::Vec2([
+                        if r != 0.0 { l[0] % r } else { 0.0 },
+                        if r != 0.0 { l[1] % r } else { 0.0 },
+                    ])),
                     _ => Err(EvalError::TypeMismatch(format!(
                         "Unsupported operation {:?} for Vec2 and Num",
                         op
@@ -184,8 +204,14 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
                     BinaryOp::Add => Ok(Value::Vec2([l + r[0], l + r[1]])),
                     BinaryOp::Sub => Ok(Value::Vec2([l - r[0], l - r[1]])),
                     BinaryOp::Mul => Ok(Value::Vec2([l * r[0], l * r[1]])),
-                    BinaryOp::Div => Ok(Value::Vec2([l / r[0], l / r[1]])),
-                    BinaryOp::Mod => Ok(Value::Vec2([l % r[0], l % r[1]])),
+                    BinaryOp::Div => Ok(Value::Vec2([
+                        if r[0] != 0.0 { l / r[0] } else { 0.0 },
+                        if r[1] != 0.0 { l / r[1] } else { 0.0 },
+                    ])),
+                    BinaryOp::Mod => Ok(Value::Vec2([
+                        if r[0] != 0.0 { l % r[0] } else { 0.0 },
+                        if r[1] != 0.0 { l % r[1] } else { 0.0 },
+                    ])),
                     _ => Err(EvalError::TypeMismatch(format!(
                         "Unsupported operation {:?} for Num and Vec2",
                         op
@@ -195,8 +221,16 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
                     BinaryOp::Add => Ok(Value::Vec3([l[0] + r, l[1] + r, l[2] + r])),
                     BinaryOp::Sub => Ok(Value::Vec3([l[0] - r, l[1] - r, l[2] - r])),
                     BinaryOp::Mul => Ok(Value::Vec3([l[0] * r, l[1] * r, l[2] * r])),
-                    BinaryOp::Div => Ok(Value::Vec3([l[0] / r, l[1] / r, l[2] / r])),
-                    BinaryOp::Mod => Ok(Value::Vec3([l[0] % r, l[1] % r, l[2] % r])),
+                    BinaryOp::Div => Ok(Value::Vec3([
+                        if r != 0.0 { l[0] / r } else { 0.0 },
+                        if r != 0.0 { l[1] / r } else { 0.0 },
+                        if r != 0.0 { l[2] / r } else { 0.0 },
+                    ])),
+                    BinaryOp::Mod => Ok(Value::Vec3([
+                        if r != 0.0 { l[0] % r } else { 0.0 },
+                        if r != 0.0 { l[1] % r } else { 0.0 },
+                        if r != 0.0 { l[2] % r } else { 0.0 },
+                    ])),
                     _ => Err(EvalError::TypeMismatch(format!(
                         "Unsupported operation {:?} for Vec3 and Num",
                         op
@@ -206,8 +240,16 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
                     BinaryOp::Add => Ok(Value::Vec3([l + r[0], l + r[1], l + r[2]])),
                     BinaryOp::Sub => Ok(Value::Vec3([l - r[0], l - r[1], l - r[2]])),
                     BinaryOp::Mul => Ok(Value::Vec3([l * r[0], l * r[1], l * r[2]])),
-                    BinaryOp::Div => Ok(Value::Vec3([l / r[0], l / r[1], l / r[2]])),
-                    BinaryOp::Mod => Ok(Value::Vec3([l % r[0], l % r[1], l % r[2]])),
+                    BinaryOp::Div => Ok(Value::Vec3([
+                        if r[0] != 0.0 { l / r[0] } else { 0.0 },
+                        if r[1] != 0.0 { l / r[1] } else { 0.0 },
+                        if r[2] != 0.0 { l / r[2] } else { 0.0 },
+                    ])),
+                    BinaryOp::Mod => Ok(Value::Vec3([
+                        if r[0] != 0.0 { l % r[0] } else { 0.0 },
+                        if r[1] != 0.0 { l % r[1] } else { 0.0 },
+                        if r[2] != 0.0 { l % r[2] } else { 0.0 },
+                    ])),
                     _ => Err(EvalError::TypeMismatch(format!(
                         "Unsupported operation {:?} for Num and Vec3",
                         op
@@ -217,7 +259,12 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
                     BinaryOp::Add => Ok(Value::Color([l[0] + r, l[1] + r, l[2] + r, l[3] + r])),
                     BinaryOp::Sub => Ok(Value::Color([l[0] - r, l[1] - r, l[2] - r, l[3] - r])),
                     BinaryOp::Mul => Ok(Value::Color([l[0] * r, l[1] * r, l[2] * r, l[3] * r])),
-                    BinaryOp::Div => Ok(Value::Color([l[0] / r, l[1] / r, l[2] / r, l[3] / r])),
+                    BinaryOp::Div => Ok(Value::Color([
+                        if r != 0.0 { l[0] / r } else { 0.0 },
+                        if r != 0.0 { l[1] / r } else { 0.0 },
+                        if r != 0.0 { l[2] / r } else { 0.0 },
+                        if r != 0.0 { l[3] / r } else { 0.0 },
+                    ])),
                     _ => Err(EvalError::TypeMismatch(format!(
                         "Unsupported operation {:?} for Color and Num",
                         op
@@ -227,7 +274,12 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
                     BinaryOp::Add => Ok(Value::Color([l + r[0], l + r[1], l + r[2], l + r[3]])),
                     BinaryOp::Sub => Ok(Value::Color([l - r[0], l - r[1], l - r[2], l - r[3]])),
                     BinaryOp::Mul => Ok(Value::Color([l * r[0], l * r[1], l * r[2], l * r[3]])),
-                    BinaryOp::Div => Ok(Value::Color([l / r[0], l / r[1], l / r[2], l / r[3]])),
+                    BinaryOp::Div => Ok(Value::Color([
+                        if r[0] != 0.0 { l / r[0] } else { 0.0 },
+                        if r[1] != 0.0 { l / r[1] } else { 0.0 },
+                        if r[2] != 0.0 { l / r[2] } else { 0.0 },
+                        if r[3] != 0.0 { l / r[3] } else { 0.0 },
+                    ])),
                     _ => Err(EvalError::TypeMismatch(format!(
                         "Unsupported operation {:?} for Num and Color",
                         op

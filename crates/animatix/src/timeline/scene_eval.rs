@@ -512,8 +512,8 @@ impl Timeline {
                             .with_alpha(global_opacity);
                         scene.draw_image(&brush, kurbo::Affine::IDENTITY);
                     }
-                    Err(_) => {
-                        // Fallback: append sub-scene directly
+                    Err(e) => {
+                        tracing::warn!("Filter backend error, falling back to unfiltered rendering: {e}");
                         scene.encoding_mut().append(sub_scene.encoding(), &None);
                     }
                 }
@@ -779,9 +779,9 @@ impl Timeline {
             self.hit_regions.borrow_mut().clear();
         }
 
-        // P2.25: Save scene in reusable buffer before returning.
-        // Clone for frame cache if needed, then return a clone and keep original.
-        let result = scene.clone();
+        // P2.25: Save scene in reusable buffer and cache for fast-path replay.
+        // Two clones are needed (cache + return). Rc<Scene> would reduce to one
+        // refcount bump but requires changing the return type across call sites.
         if debug_options == DebugRenderOptions::default() {
             *self.frame_cache.borrow_mut() = Some(super::FrameCacheEntry {
                 time_ms,
@@ -789,9 +789,10 @@ impl Timeline {
                 has_modifiers: needs_frame_env,
                 has_dynamic_layout: self.dynamic_layout,
                 has_child_orders: !self.child_orders.is_empty(),
-                scene: result.clone(),
+                scene: scene.clone(),
             });
         }
+        let result = scene.clone();
         *self.scene_buffer.borrow_mut() = Some(scene);
 
         result

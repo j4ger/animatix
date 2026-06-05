@@ -775,8 +775,8 @@ fn parse_svg_path_data(d: &str) -> Expr {
                 commands.push(Expr::Call("close".into(), vec![]));
             }
             _ => {
-                // Unknown command — skip
-                break;
+                // Unknown command — skip and continue parsing rest of path
+                continue;
             }
         }
     }

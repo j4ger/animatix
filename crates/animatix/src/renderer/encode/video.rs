@@ -130,49 +130,65 @@ pub fn render_video_timeline_with_progress(
 }
 
 // ---------------------------------------------------------------------------
-// Internal async video encoder
+// VideoEncoder — shared encoder setup for single-timeline and composition
 // ---------------------------------------------------------------------------
 
-pub(super) async fn render_video_async(
-    timeline: Timeline,
+/// Encapsulates the rsmpeg/ffmpeg encoder state.
+/// Created once per export, used to encode frames and finalize.
+#[allow(dead_code)]
+struct VideoEncoder {
+    format_context: AVFormatContextOutput,
+    encode_context: AVCodecContext,
+    sws_context: SwsContext,
+    yuv_frame: AVFrame,
+    stream_index: i32,
+    stream_time_base: AVRational,
+    is_hw_encoder: bool,
+}
+
+// VideoEncoder is kept for future use. Current code uses setup_video_encoder()
+// due to closure borrowing constraints in render_frames_streaming.
+
+// ---------------------------------------------------------------------------
+// Shared encoder setup helper
+// ---------------------------------------------------------------------------
+
+/// Result of video encoder initialization.
+/// Caller owns these fields for the frame encoding loop.
+struct VideoEncoderParts {
+    format_context: AVFormatContextOutput,
+    encode_context: AVCodecContext,
+    sws_context: SwsContext,
+    yuv_frame: AVFrame,
+    stream_index: i32,
+    stream_time_base: AVRational,
+    is_hw_encoder: bool,
+}
+
+/// Initialize the video encoder, format context, and color converter.
+/// Returns the parts needed for frame encoding.
+fn setup_video_encoder(
+    output_file: &std::path::Path,
     width: u32,
     height: u32,
     fps: u32,
-    duration: f32,
-    output_file: &std::path::Path,
-    debug_options: DebugRenderOptions,
-    settings: ExportSettings,
-    progress: Option<&AtomicU32>,
-    cancel: Option<&AtomicBool>,
-) -> Result<(), ExportError> {
-    let total_frames = (duration * fps as f32).ceil() as u32;
-
-    // ------------------------------------------------------------------------
-    // 1. Encoder setup (before streaming so we know if HW accel is available)
-    // ------------------------------------------------------------------------
-    info!("Encoding {} frames to video...", total_frames);
-
+    settings: &ExportSettings,
+) -> Result<VideoEncoderParts, ExportError> {
     let filename = CString::new(
         output_file
             .to_str()
             .ok_or_else(|| ExportError::VideoEncode("Invalid output path".into()))?,
     )?;
-    let mut format_context =
-        AVFormatContextOutput::create(&filename).map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+    let mut format_context = AVFormatContextOutput::create(&filename)
+        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
 
-    let (encoder, is_hw_encoder) = select_video_encoder(&settings)?;
+    let (encoder, is_hw_encoder) = select_video_encoder(settings)?;
     let mut encode_context = AVCodecContext::new(&encoder);
 
     encode_context.set_width(width as i32);
     encode_context.set_height(height as i32);
-    encode_context.set_time_base(AVRational {
-        num: 1,
-        den: fps as i32,
-    });
-    encode_context.set_framerate(AVRational {
-        num: fps as i32,
-        den: 1,
-    });
+    encode_context.set_time_base(AVRational { num: 1, den: fps as i32 });
+    encode_context.set_framerate(AVRational { num: fps as i32, den: 1 });
     encode_context.set_pix_fmt(rsmpeg::ffi::AV_PIX_FMT_YUV420P);
 
     if format_context.oformat().flags & rsmpeg::ffi::AVFMT_GLOBALHEADER as i32 != 0 {
@@ -180,8 +196,6 @@ pub(super) async fn render_video_async(
             .set_flags(encode_context.flags | rsmpeg::ffi::AV_CODEC_FLAG_GLOBAL_HEADER as i32);
     }
 
-    // Apply libx264 preset via dictionary. Hardware encoder presets are
-    // codec-specific and left at default for now.
     let dict = if !is_hw_encoder {
         Some(AVDictionary::new(
             &CString::new("preset")?,
@@ -210,17 +224,10 @@ pub(super) async fn render_video_async(
 
     let stream_time_base = format_context.streams()[stream_index as usize].time_base;
 
-    let mut sws_context = SwsContext::get_context(
-        width as i32,
-        height as i32,
-        rsmpeg::ffi::AV_PIX_FMT_RGBA,
-        width as i32,
-        height as i32,
-        rsmpeg::ffi::AV_PIX_FMT_YUV420P,
-        rsmpeg::ffi::SWS_FAST_BILINEAR,
-        None,
-        None,
-        None,
+    let sws_context = SwsContext::get_context(
+        width as i32, height as i32, rsmpeg::ffi::AV_PIX_FMT_RGBA,
+        width as i32, height as i32, rsmpeg::ffi::AV_PIX_FMT_YUV420P,
+        rsmpeg::ffi::SWS_FAST_BILINEAR, None, None, None,
     )
     .ok_or_else(|| ExportError::VideoEncode("Failed to create SWS context".into()))?;
 
@@ -231,6 +238,89 @@ pub(super) async fn render_video_async(
     yuv_frame
         .alloc_buffer()
         .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+
+    Ok(VideoEncoderParts {
+        format_context,
+        encode_context,
+        sws_context,
+        yuv_frame,
+        stream_index,
+        stream_time_base,
+        is_hw_encoder,
+    })
+}
+
+/// Drain pending packets and write trailer.
+fn finish_video_encoder(
+    encode_context: &mut AVCodecContext,
+    format_context: &mut AVFormatContextOutput,
+    stream_time_base: AVRational,
+    stream_index: i32,
+) -> Result<(), ExportError> {
+    encode_context
+        .send_frame(None)
+        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+    loop {
+        match encode_context.receive_packet() {
+            Ok(mut packet) => {
+                packet.rescale_ts(encode_context.time_base, stream_time_base);
+                packet.set_stream_index(stream_index);
+                format_context
+                    .interleaved_write_frame(&mut packet)
+                    .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+            }
+            Err(RsmpegError::EncoderDrainError) | Err(RsmpegError::EncoderFlushedError) => break,
+            Err(e) => return Err(ExportError::VideoEncode(format!("{e:?}"))),
+        }
+    }
+    format_context
+        .write_trailer()
+        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+    Ok(())
+}
+
+/// Collect audio segments and mux into the output file.
+fn mux_audio_if_present(
+    audio_segments: &[AudioSegment],
+    output_file: &std::path::Path,
+) -> Result<(), ExportError> {
+    if !audio_segments.is_empty() {
+        mux_audio_segments(output_file, audio_segments, output_file)?;
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Internal async video encoder
+// ---------------------------------------------------------------------------
+
+pub(super) async fn render_video_async(
+    timeline: Timeline,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
+    settings: ExportSettings,
+    progress: Option<&AtomicU32>,
+    cancel: Option<&AtomicBool>,
+) -> Result<(), ExportError> {
+    // Fail early if ffmpeg is missing (needed for audio muxing later)
+    super::require_ffmpeg()?;
+
+    let total_frames = (duration * fps as f32).ceil() as u32;
+    info!("Encoding {} frames to video...", total_frames);
+
+    let VideoEncoderParts {
+        mut format_context,
+        mut encode_context,
+        mut sws_context,
+        mut yuv_frame,
+        stream_index,
+        stream_time_base,
+        is_hw_encoder,
+    } = setup_video_encoder(output_file, width, height, fps, &settings)?;
 
     // ------------------------------------------------------------------------
     // 2. Parallel frame rendering with streaming to encoder
@@ -284,31 +374,8 @@ pub(super) async fn render_video_async(
         },
     )?;
 
-    encode_context
-        .send_frame(None)
-        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-    loop {
-        match encode_context.receive_packet() {
-            Ok(mut packet) => {
-                packet.rescale_ts(encode_context.time_base, stream_time_base);
-                packet.set_stream_index(stream_index);
-                format_context
-                    .interleaved_write_frame(&mut packet)
-                    .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-            }
-            Err(RsmpegError::EncoderDrainError) | Err(RsmpegError::EncoderFlushedError) => break,
-            Err(e) => return Err(ExportError::VideoEncode(format!("{e:?}"))),
-        }
-    }
-    format_context
-        .write_trailer()
-        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-
-    // Mux audio segments if any are present
-    let audio_segments: Vec<AudioSegment> = timeline.audio_segments.clone();
-    if !audio_segments.is_empty() {
-        mux_audio_segments(output_file, &audio_segments, output_file)?;
-    }
+    finish_video_encoder(&mut encode_context, &mut format_context, stream_time_base, stream_index)?;
+    mux_audio_if_present(&timeline.audio_segments, output_file)?;
 
     info!("Render complete!");
     Ok(())
@@ -404,88 +471,20 @@ pub(super) async fn render_video_composition_async(
     progress: Option<&AtomicU32>,
     cancel: Option<&AtomicBool>,
 ) -> Result<(), ExportError> {
-    let total_frames = (duration * fps as f32).ceil() as u32;
+    super::require_ffmpeg()?;
 
+    let total_frames = (duration * fps as f32).ceil() as u32;
     info!("Encoding {} frames to video...", total_frames);
 
-    let filename = CString::new(
-        output_file
-            .to_str()
-            .ok_or_else(|| ExportError::VideoEncode("Invalid output path".into()))?,
-    )?;
-    let mut format_context = AVFormatContextOutput::create(&filename)
-        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-
-    let (encoder, is_hw_encoder) = select_video_encoder(&settings)?;
-    let mut encode_context = AVCodecContext::new(&encoder);
-
-    encode_context.set_width(width as i32);
-    encode_context.set_height(height as i32);
-    encode_context.set_time_base(AVRational {
-        num: 1,
-        den: fps as i32,
-    });
-    encode_context.set_framerate(AVRational {
-        num: fps as i32,
-        den: 1,
-    });
-    encode_context.set_pix_fmt(rsmpeg::ffi::AV_PIX_FMT_YUV420P);
-
-    if format_context.oformat().flags & rsmpeg::ffi::AVFMT_GLOBALHEADER as i32 != 0 {
-        encode_context.set_flags(
-            encode_context.flags | rsmpeg::ffi::AV_CODEC_FLAG_GLOBAL_HEADER as i32,
-        );
-    }
-
-    let dict = if !is_hw_encoder {
-        Some(AVDictionary::new(
-            &CString::new("preset")?,
-            &CString::new(settings.h264_preset.as_str())?,
-            0,
-        ))
-    } else {
-        None
-    };
-
-    encode_context
-        .open(dict)
-        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-
-    let stream_index;
-    {
-        let mut stream = format_context.new_stream();
-        stream.set_time_base(encode_context.time_base);
-        stream.set_codecpar(encode_context.extract_codecpar());
-        stream_index = stream.index;
-    }
-
-    format_context
-        .write_header(&mut None)
-        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-
-    let stream_time_base = format_context.streams()[stream_index as usize].time_base;
-
-    let mut sws_context = SwsContext::get_context(
-        width as i32,
-        height as i32,
-        rsmpeg::ffi::AV_PIX_FMT_RGBA,
-        width as i32,
-        height as i32,
-        rsmpeg::ffi::AV_PIX_FMT_YUV420P,
-        rsmpeg::ffi::SWS_FAST_BILINEAR,
-        None,
-        None,
-        None,
-    )
-    .ok_or_else(|| ExportError::VideoEncode("Failed to create SWS context".into()))?;
-
-    let mut yuv_frame = AVFrame::new();
-    yuv_frame.set_format(rsmpeg::ffi::AV_PIX_FMT_YUV420P);
-    yuv_frame.set_width(width as i32);
-    yuv_frame.set_height(height as i32);
-    yuv_frame
-        .alloc_buffer()
-        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+    let VideoEncoderParts {
+        mut format_context,
+        mut encode_context,
+        mut sws_context,
+        mut yuv_frame,
+        stream_index,
+        stream_time_base,
+        is_hw_encoder,
+    } = setup_video_encoder(output_file, width, height, fps, &settings)?;
 
     let num_threads =
         adaptive_thread_count(width, height, total_frames, false, is_hw_encoder, &settings);
@@ -538,25 +537,7 @@ pub(super) async fn render_video_composition_async(
         },
     )?;
 
-    encode_context
-        .send_frame(None)
-        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-    loop {
-        match encode_context.receive_packet() {
-            Ok(mut packet) => {
-                packet.rescale_ts(encode_context.time_base, stream_time_base);
-                packet.set_stream_index(stream_index);
-                format_context
-                    .interleaved_write_frame(&mut packet)
-                    .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-            }
-            Err(RsmpegError::EncoderDrainError) | Err(RsmpegError::EncoderFlushedError) => break,
-            Err(e) => return Err(ExportError::VideoEncode(format!("{e:?}"))),
-        }
-    }
-    format_context
-        .write_trailer()
-        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+    finish_video_encoder(&mut encode_context, &mut format_context, stream_time_base, stream_index)?;
 
     // Mux audio segments from all scenes in the composition
     let audio_segments: Vec<AudioSegment> = composition
@@ -564,9 +545,7 @@ pub(super) async fn render_video_composition_async(
         .values()
         .flat_map(|s| s.timeline.audio_segments.clone())
         .collect();
-    if !audio_segments.is_empty() {
-        mux_audio_segments(output_file, &audio_segments, output_file)?;
-    }
+    mux_audio_if_present(&audio_segments, output_file)?;
 
     info!("Render complete!");
     Ok(())

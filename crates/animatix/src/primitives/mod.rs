@@ -57,7 +57,7 @@ pub fn evaluate_text_paths(
     text_ctx: &mut TextCompileCtx,
     kind: crate::renderer::text::TextKind,
     default_font_size: f32,
-) -> Result<Vec<crate::renderer::types::TextPath>, crate::renderer::error::RenderError> {
+) -> Result<std::sync::Arc<[crate::renderer::types::TextPath]>, crate::renderer::error::RenderError> {
     use crate::timeline::TrackAccessor;
 
     let mut content = ctx.track.text_content.get(ctx.time_ms, String::new());
@@ -94,9 +94,8 @@ pub fn evaluate_text_paths(
             kind,
             text_ctx.font_context,
         )
-        .map(|arc| arc.to_vec())
     } else {
-        Ok(ctx.track.evaluate_text_paths(ctx.time_ms))
+        Ok(std::sync::Arc::from(ctx.track.evaluate_text_paths(ctx.time_ms)))
     }
 }
 
@@ -139,6 +138,22 @@ pub fn sample_shape_style(
         stroke_color,
         fill_opacity,
     }
+}
+
+/// Helper: sample style, render shape, wrap in RenderCommand::Paths.
+pub(crate) fn evaluate_shape_render(
+    primitive: &dyn Primitive,
+    ctx: &EvaluateCtx,
+    state: &VectorShapeState,
+) -> Result<Option<Vec<RenderCommand>>, crate::renderer::error::RenderError> {
+    let style = sample_shape_style(ctx.track, ctx.time_ms, ctx.overrides);
+    let paths = primitive.render(&RenderCtx {
+        state,
+        style,
+        time_ms: ctx.time_ms,
+    })
+    .unwrap_or_default();
+    Ok(Some(vec![RenderCommand::Paths { paths }]))
 }
 
 // ── Re-export all primitive modules ──────────────────────────────────────
@@ -254,7 +269,7 @@ pub enum RenderCommand {
     /// Draw text glyphs.
     Text {
         /// Text glyph paths with per-glyph color and opacity.
-        paths: Vec<TextPath>,
+        paths: std::sync::Arc<[TextPath]>,
     },
     /// Draw an image.
     Image {
@@ -294,7 +309,7 @@ impl RenderCommand {
                 }
             }
             RenderCommand::Text { paths } => {
-                for text_path in paths {
+                for text_path in paths.iter() {
                     let color = match &text_path.color {
                         ::typst::visualize::Paint::Solid(color) => {
                             let rgba = color.to_vec4_u8();
@@ -352,7 +367,7 @@ impl RenderCommand {
                 }
             }
             RenderCommand::Text { paths } => {
-                for text_path in paths {
+                for text_path in paths.iter() {
                     bounds = union(bounds, text_path.path.bounding_box());
                 }
             }

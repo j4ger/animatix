@@ -60,7 +60,7 @@ impl Primitive for CodePrimitive {
         diagnostics: &mut Vec<Diagnostic>,
         subject: &str,
     ) -> bool {
-        if !matches!(property, "text" | "latex" | "math" | crate::icon_glyphs::CODE) {
+        if !matches!(property, "text" | "latex" | "math" | "code") {
             return false;
         }
         let target_text = evaluate_expr_with_lookup_diagnostic(
@@ -103,7 +103,7 @@ impl Primitive for CodePrimitive {
         let paths = if let Some(text_ctx) = text_ctx {
             evaluate_text_paths(ctx, text_ctx, TextKind::Code, 24.0)
         } else {
-            Ok(ctx.track.evaluate_text_paths(ctx.time_ms))
+            Ok(std::sync::Arc::from(ctx.track.evaluate_text_paths(ctx.time_ms)))
         }?;
         if paths.is_empty() {
             Ok(None)

@@ -57,6 +57,8 @@ pub enum ExportError {
     ThreadPanicked,
     /// Export was cancelled by the user.
     Cancelled,
+    /// ffmpeg binary not found on PATH.
+    FfmpegNotFound,
 }
 
 impl std::fmt::Display for ExportError {
@@ -73,6 +75,7 @@ impl std::fmt::Display for ExportError {
             Self::InvalidPath(_) => write!(f, "Output path contains null bytes"),
             Self::ThreadPanicked => write!(f, "Render thread panicked"),
             Self::Cancelled => write!(f, "Export cancelled by user"),
+            Self::FfmpegNotFound => write!(f, "ffmpeg is required for audio muxing. Install it from https://ffmpeg.org or via your package manager (e.g. `apt install ffmpeg`, `brew install ffmpeg`)."),
         }
     }
 }
@@ -88,6 +91,36 @@ impl From<std::io::Error> for ExportError {
 impl From<std::ffi::NulError> for ExportError {
     fn from(err: std::ffi::NulError) -> Self {
         Self::InvalidPath(err)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ffmpeg availability
+// ---------------------------------------------------------------------------
+
+use std::sync::OnceLock;
+
+static FFMPEG_AVAILABLE: OnceLock<bool> = OnceLock::new();
+
+/// Check whether `ffmpeg` is available on PATH. Result is cached after first call.
+pub fn is_ffmpeg_available() -> bool {
+    *FFMPEG_AVAILABLE.get_or_init(|| {
+        std::process::Command::new("ffmpeg")
+            .arg("-version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    })
+}
+
+/// Returns `Ok(())` if ffmpeg is available, `Err(ExportError::FfmpegNotFound)` otherwise.
+pub fn require_ffmpeg() -> Result<(), ExportError> {
+    if is_ffmpeg_available() {
+        Ok(())
+    } else {
+        Err(ExportError::FfmpegNotFound)
     }
 }
 
@@ -278,6 +311,8 @@ pub fn mux_audio_segments(
     if segments.is_empty() {
         return Ok(());
     }
+
+    require_ffmpeg()?;
 
     let temp_path = output_path.with_extension("tmp_muxed.mp4");
 

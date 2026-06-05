@@ -68,7 +68,7 @@ impl Primitive for EllipsePrimitive {
         ctx: &crate::primitives::EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
-        use crate::primitives::{RenderCommand, sample_shape_style};
+        use crate::primitives::evaluate_shape_render;
         use crate::timeline::shapes::EllipseState;
 
         let half_size = ctx.track.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE);
@@ -88,14 +88,7 @@ impl Primitive for EllipsePrimitive {
             }
         }
 
-        let style = sample_shape_style(ctx.track, ctx.time_ms, ctx.overrides);
-        let paths = self.render(&RenderCtx {
-            state: &VectorShapeState::Ellipse(state),
-            style,
-            time_ms: ctx.time_ms,
-        }).unwrap_or_default();
-
-        Ok(Some(vec![RenderCommand::Paths { paths }]))
+        evaluate_shape_render(self, ctx, &VectorShapeState::Ellipse(state))
     }
 
     fn apply_property(
