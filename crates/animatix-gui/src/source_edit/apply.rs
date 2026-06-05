@@ -313,11 +313,10 @@ pub(super) fn walk_stmts_mut(stmts: &mut [Stmt], visitor: &mut dyn FnMut(&mut St
 // AST traversal helpers
 // ---------------------------------------------------------------------------
 
-/// Find an ActorDecl with the given label anywhere in the statement tree.
-pub fn find_actor_decl<'a>(stmts: &'a [Stmt], label: &str) -> Option<&'a Stmt> {
-    for stmt in stmts.iter() {
-        match stmt {
-            Stmt::ActorDecl { label: l, .. } if l == label => return Some(stmt),
+/// Recurse into a statement's body/children.
+macro_rules! recurse_stmt {
+    ($stmt:expr, $find_fn:ident, $($arg:expr),*) => {
+        match $stmt {
             Stmt::Keyframe { body, .. }
             | Stmt::RelativeKeyframe { body, .. }
             | Stmt::Sequence { body, .. }
@@ -325,26 +324,36 @@ pub fn find_actor_decl<'a>(stmts: &'a [Stmt], label: &str) -> Option<&'a Stmt> {
             | Stmt::Always { body, .. }
             | Stmt::ComponentDef(ComponentDef { body, .. }, _)
             | Stmt::ComponentAction { body, .. } => {
-                if let Some(found) = find_actor_decl(body, label) {
+                if let Some(found) = $find_fn(body, $($arg),*) {
                     return Some(found);
                 }
             }
             Stmt::Conditional { then_branch, else_branch, .. } => {
-                if let Some(found) = find_actor_decl(then_branch, label) {
+                if let Some(found) = $find_fn(then_branch, $($arg),*) {
                     return Some(found);
                 }
                 if let Some(else_b) = else_branch {
-                    if let Some(found) = find_actor_decl(else_b, label) {
+                    if let Some(found) = $find_fn(else_b, $($arg),*) {
                         return Some(found);
                     }
                 }
             }
             Stmt::ForLoop { body, .. } => {
-                if let Some(found) = find_actor_decl(body, label) {
+                if let Some(found) = $find_fn(body, $($arg),*) {
                     return Some(found);
                 }
             }
             _ => {}
+        }
+    };
+}
+
+/// Find an ActorDecl with the given label anywhere in the statement tree.
+pub fn find_actor_decl<'a>(stmts: &'a [Stmt], label: &str) -> Option<&'a Stmt> {
+    for stmt in stmts.iter() {
+        match stmt {
+            Stmt::ActorDecl { label: l, .. } if l == label => return Some(stmt),
+            _ => recurse_stmt!(stmt, find_actor_decl, label),
         }
     }
     None
@@ -354,33 +363,7 @@ pub(super) fn find_actor_decl_mut<'a>(stmts: &'a mut [Stmt], label: &str) -> Opt
     for stmt in stmts.iter_mut() {
         match stmt {
             Stmt::ActorDecl { label: l, .. } if l == label => return Some(stmt),
-            Stmt::Keyframe { body, .. }
-            | Stmt::RelativeKeyframe { body, .. }
-            | Stmt::Sequence { body, .. }
-            | Stmt::Stagger { body, .. }
-            | Stmt::Always { body, .. }
-            | Stmt::ComponentDef(ComponentDef { body, .. }, _)
-            | Stmt::ComponentAction { body, .. } => {
-                if let Some(found) = find_actor_decl_mut(body, label) {
-                    return Some(found);
-                }
-            }
-            Stmt::Conditional { then_branch, else_branch, .. } => {
-                if let Some(found) = find_actor_decl_mut(then_branch, label) {
-                    return Some(found);
-                }
-                if let Some(else_b) = else_branch {
-                    if let Some(found) = find_actor_decl_mut(else_b, label) {
-                        return Some(found);
-                    }
-                }
-            }
-            Stmt::ForLoop { body, .. } => {
-                if let Some(found) = find_actor_decl_mut(body, label) {
-                    return Some(found);
-                }
-            }
-            _ => {}
+            _ => recurse_stmt!(stmt, find_actor_decl_mut, label),
         }
     }
     None
@@ -400,33 +383,7 @@ pub(super) fn find_assignment_mut<'a>(
             {
                 return Some(stmt);
             }
-            Stmt::Keyframe { body, .. }
-            | Stmt::RelativeKeyframe { body, .. }
-            | Stmt::Sequence { body, .. }
-            | Stmt::Stagger { body, .. }
-            | Stmt::Always { body, .. }
-            | Stmt::ComponentDef(ComponentDef { body, .. }, _)
-            | Stmt::ComponentAction { body, .. } => {
-                if let Some(found) = find_assignment_mut(body, actor, property) {
-                    return Some(found);
-                }
-            }
-            Stmt::Conditional { then_branch, else_branch, .. } => {
-                if let Some(found) = find_assignment_mut(then_branch, actor, property) {
-                    return Some(found);
-                }
-                if let Some(else_b) = else_branch {
-                    if let Some(found) = find_assignment_mut(else_b, actor, property) {
-                        return Some(found);
-                    }
-                }
-            }
-            Stmt::ForLoop { body, .. } => {
-                if let Some(found) = find_assignment_mut(body, actor, property) {
-                    return Some(found);
-                }
-            }
-            _ => {}
+            _ => recurse_stmt!(stmt, find_assignment_mut, actor, property),
         }
     }
     None

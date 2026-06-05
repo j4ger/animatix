@@ -536,5 +536,8 @@ fn install_theme(ctx: &egui::Context) {
     // Strikethrough / separator
     style.visuals.widgets.noninteractive.bg_stroke = Stroke::new(STROKE_WIDTH, BG_WIDGET);
 
+    // Disable selectable labels globally (we handle selection manually)
+    style.interaction.selectable_labels = false;
+
     ctx.set_global_style(style);
 }

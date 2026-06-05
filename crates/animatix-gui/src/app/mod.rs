@@ -400,13 +400,6 @@ impl GuiShell {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, preview_texture_id: Option<egui::TextureId>) {
-        // Labels should never be selectable in a GUI application.
-        // We modify the *context* style so it applies to all Ui instances,
-        // including windows and panels that create fresh Ui from the context.
-        ui.ctx().global_style_mut(|style| {
-            style.interaction.selectable_labels = false;
-        });
-
         let mut commands: ActionQueue = ActionQueue::default();
         commands.append(&mut self.ui_store.pending_actions);
 
