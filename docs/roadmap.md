@@ -40,11 +40,12 @@ Immutable syntax tree that preserves whitespace and comments. Enables reliable s
 
 ## Code Quality & Performance (from audit)
 
-> All items from the June 2026 audit have been completed or assessed. See git history for details.
+> All items from the June 2026 audit have been completed. See git history for details.
 
-### Remaining: Shape primitive incremental migration
-
-The `evaluate_shape_render()` helper is available in `primitives/mod.rs`. Line, polygon, path, and arrow primitives can be migrated incrementally — no urgency, the helper is ready when touching those files.
+- **Shape primitive migration** — line, polygon, path, arrow migrated to `evaluate_shape_render()` helper
+- **SourceEdit consistency** — `handle_reorder_scenes` and `handle_ungroup` now use `apply_edit`; `DeleteActor` variant added
+- **Commit boilerplate** — `SourceStore::commit_source()` centralizes source commit logic
+- **GUI audit fixes** — NaN-safe sort, VecDeque undo, bounded paste labels, Ctrl guard on tool shortcuts, `recurse_stmt!` macro, `selectable_labels` moved to `install_theme`
 
 ---
 
