@@ -7,6 +7,8 @@ pub mod ast;
 pub mod diagnostics;
 /// Configurable source formatter for `.amx` files.
 pub mod formatter;
+/// Shared formatting logic used by both `ToSource` and `Formatter`.
+pub mod format_core;
 /// Animation easing curves and interpolation functions.
 pub mod easing;
 /// Icon glyph constants for UI primitives.

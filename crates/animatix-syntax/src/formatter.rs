@@ -8,7 +8,8 @@
 //!
 //! - **Idempotent**: formatting already-formatted code produces byte-identical output.
 //! - **Configurable**: indent size, blank line rules, trailing commas.
-//! - **AST-based**: uses `ToSource` internally, with formatting options applied.
+//! - **AST-based**: delegates to [`format_core`](crate::format_core) for the
+//!   actual serialization, with formatting options applied on top.
 //!
 //! # Examples
 //!
@@ -27,7 +28,7 @@
 //! ```
 
 use crate::ast::*;
-use crate::to_source::ToSource;
+use crate::format_core;
 
 /// Configuration for the source formatter.
 #[derive(Debug, Clone)]
@@ -103,272 +104,7 @@ impl Formatter {
 
     /// Format a single statement at the given indentation depth.
     fn format_stmt(&self, stmt: &Stmt, depth: usize) -> String {
-        match stmt {
-            Stmt::Action(a, ..) => a.to_source(),
-            Stmt::LetDecl { is_pub, name, value, .. } => {
-                let pub_kw = if *is_pub { "pub " } else { "" };
-                format!("{}let {} = {}", pub_kw, name, value.to_source())
-            }
-            Stmt::ActorDecl { is_pub, is_anonymous, label, ty, props, modifiers, children, .. } => {
-                let s = self.format_actor_like(
-                    Some(label),
-                    *is_anonymous,
-                    ty,
-                    props,
-                    modifiers,
-                    children,
-                    depth,
-                );
-                if *is_pub { format!("pub {}", s) } else { s }
-            }
-            Stmt::Import { path, alias, .. } => match alias {
-                Some(a) => format!(r#"import "{}" as {}"#, path, a),
-                None => format!(r#"import "{}""#, path),
-            },
-            Stmt::Use { path, items, .. } => {
-                let items_str = items.join(", ");
-                format!("use {}.{{{}}}", path, items_str)
-            }
-            Stmt::Keyframe { time, body, .. } => {
-                let body_str = self.format_stmts(body, depth);
-                format!("#{}\n{}", time.to_source(), body_str)
-            }
-            Stmt::RelativeKeyframe { offset, body, .. } => {
-                let body_str = self.format_stmts(body, depth);
-                format!("#+{}\n{}", offset.to_source(), body_str)
-            }
-            Stmt::Assignment { target, property, value, modifiers, .. } => {
-                let assignment_str = if target.is_empty() {
-                    format!("{} = {}", property, value.to_source())
-                } else {
-                    format!("{}.{} = {}", target.join("."), property, value.to_source())
-                };
-                let mut parts = vec![assignment_str];
-                if !modifiers.is_empty() {
-                    let mods = modifiers.iter().map(|m| m.to_source()).collect::<Vec<_>>().join(", ");
-                    parts.push(format!(" [{}]", mods));
-                }
-                parts.join("")
-            }
-            Stmt::Sequence { body, .. } => {
-                let body_str = self.format_stmts(body, depth + 1);
-                format!("sequence {{\n{}\n{}}}", body_str, self.indent(depth))
-            }
-            Stmt::Stagger { modifiers, body, .. } => {
-                let mut header = "stagger".to_string();
-                if !modifiers.is_empty() {
-                    let mods = modifiers.iter().map(|m| m.to_source()).collect::<Vec<_>>().join(", ");
-                    header.push_str(&format!(" [{}]", mods));
-                }
-                let body_str = self.format_stmts(body, depth + 1);
-                format!("{} {{\n{}\n{}}}", header, body_str, self.indent(depth))
-            }
-            Stmt::Always { body, .. } => {
-                let body_str = self.format_stmts(body, depth + 1);
-                format!("always {{\n{}\n{}}}", body_str, self.indent(depth))
-            }
-            Stmt::Drive { label, body, .. } => {
-                let body_str = self.format_stmts(body, depth + 1);
-                format!("drive {} {{\n{}\n{}}}", label, body_str, self.indent(depth))
-            }
-            Stmt::ReactiveBinding { target, property, value, .. } => {
-                format!("{}.{} := {}", target.join("."), property, value.to_source())
-            }
-            Stmt::Conditional { condition, then_branch, else_branch, .. } => {
-                let then_str = self.format_stmts(then_branch, depth + 1);
-                let mut result = format!("if {} {{\n{}\n{}}}", condition.to_source(), then_str, self.indent(depth));
-                if let Some(else_body) = else_branch {
-                    let else_str = self.format_stmts(else_body, depth + 1);
-                    result.push_str(&format!(" else {{\n{}\n{}}}", else_str, self.indent(depth)));
-                }
-                result
-            }
-            Stmt::ForLoop { var, iterable, body, .. } => {
-                let body_str = self.format_stmts(body, depth + 1);
-                format!("for {} in {} {{\n{}\n{}}}", var, iterable.to_source(), body_str, self.indent(depth))
-            }
-            Stmt::ComponentDef(def, ..) => self.format_component_def(def, depth),
-            Stmt::ComponentAction { name, params, body, .. } => {
-                let params_str = params
-                    .iter()
-                    .map(|p| p.to_source())
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                let body_str = self.format_stmts(body, depth + 1);
-                format!("action {}({}) {{\n{}\n{}}}", name, params_str, body_str, self.indent(depth))
-            }
-            Stmt::Config { settings, .. } => {
-                let inner = settings
-                    .iter()
-                    .map(|s| s.to_source())
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                format!("config {{ {} }}", inner)
-            }
-            Stmt::Scene { name, config, body, .. } => {
-                let mut parts = vec![format!("# {}", name)];
-                if !config.is_empty() {
-                    let inner = config
-                        .iter()
-                        .map(|s| s.to_source())
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    parts.push(format!("config {{ {} }}", inner));
-                }
-                if !body.is_empty() {
-                    let body_str = self.format_stmts(body, depth);
-                    parts.push(body_str);
-                }
-                parts.join("\n")
-            }
-            Stmt::Play { scene_name, transition, .. } => {
-                let mut s = format!("play {}", scene_name);
-                if let Some(t) = transition {
-                    s.push_str(&format!(" [{}]", t.to_source()));
-                }
-                s
-            }
-            Stmt::Comment(text, ..) => {
-                format!("//{}", text)
-            }
-        }
-    }
-
-    /// Format a list of statements at the given indentation depth.
-    fn format_stmts(&self, stmts: &[Stmt], depth: usize) -> String {
-        let mut result = Vec::new();
-        for (i, stmt) in stmts.iter().enumerate() {
-            let formatted = self.format_stmt(stmt, depth);
-            // Indent each line of the formatted statement
-            let indented = formatted
-                .lines()
-                .map(|line| {
-                    if line.is_empty() {
-                        String::new()
-                    } else {
-                        format!("{}{}", self.indent(depth), line)
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join("\n");
-            
-            // Add blank line before keyframes (except the first statement)
-            if i > 0 && matches!(stmt, Stmt::Keyframe { .. } | Stmt::RelativeKeyframe { .. }) {
-                result.push(String::new()); // blank line
-            }
-            
-            result.push(indented);
-        }
-        result.join("\n")
-    }
-
-    /// Format an actor-like declaration.
-    fn format_actor_like(
-        &self,
-        label: Option<&str>,
-        is_anonymous: bool,
-        ty: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        children: &[InlineItem],
-        depth: usize,
-    ) -> String {
-        let mut parts = Vec::new();
-        if let Some(lbl) = label.filter(|_| !is_anonymous) {
-            parts.push(format!("{}: {}", lbl, ty));
-        } else {
-            parts.push(ty.to_string());
-        }
-        if !props.is_empty() {
-            let props_str = props.iter().map(|p| p.to_source()).collect::<Vec<_>>().join(", ");
-            parts.push(format!(", {}", props_str));
-        }
-        if !modifiers.is_empty() {
-            let mods = modifiers.iter().map(|m| m.to_source()).collect::<Vec<_>>().join(", ");
-            parts.push(format!(" [{}]", mods));
-        }
-        if !children.is_empty() {
-            let children_str = children
-                .iter()
-                .map(|c| self.format_inline_item(c, depth + 1))
-                .collect::<Vec<_>>()
-                .join("\n");
-            parts.push(format!(" {{\n{}\n{}}}", children_str, self.indent(depth)));
-        }
-        parts.join("")
-    }
-
-    /// Format an inline item (child of a container).
-    fn format_inline_item(&self, item: &InlineItem, depth: usize) -> String {
-        let result = match item {
-            InlineItem::Anonymous { ty, props, modifiers, children, .. } => {
-                self.format_actor_like(
-                    None,
-                    true,
-                    ty,
-                    props,
-                    modifiers,
-                    children,
-                    depth,
-                )
-            }
-            InlineItem::Labeled { label, ty, props, modifiers, children, .. } => {
-                self.format_actor_like(
-                    Some(label),
-                    false,
-                    ty,
-                    props,
-                    modifiers,
-                    children,
-                    depth,
-                )
-            }
-            InlineItem::SlotMarker => "@slot".into(),
-            InlineItem::SlotFill { slot, items } => {
-                let items_str = items
-                    .iter()
-                    .map(|i| self.format_inline_item(i, depth + 1))
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                format!("@{} {{\n{}\n{}}}", slot, items_str, self.indent(depth))
-            }
-        };
-        
-        // Add indentation to each line
-        result
-            .lines()
-            .map(|line| {
-                if line.is_empty() {
-                    String::new()
-                } else {
-                    format!("{}{}", self.indent(depth), line)
-                }
-            })
-            .collect::<Vec<_>>()
-            .join("\n")
-    }
-
-    /// Format a component definition.
-    fn format_component_def(&self, def: &ComponentDef, depth: usize) -> String {
-        let params_str = def
-            .params
-            .iter()
-            .map(|p| p.to_source())
-            .collect::<Vec<_>>()
-            .join(", ");
-        let body_str = def
-            .body
-            .iter()
-            .map(|s| self.format_stmt(s, depth + 1))
-            .collect::<Vec<_>>()
-            .join("\n");
-        let pub_kw = if def.is_pub { "pub " } else { "" };
-        format!("{}component {}({}) {{\n{}\n{}}}", pub_kw, def.name, params_str, body_str, self.indent(depth))
-    }
-
-    /// Generate indentation string for the given depth.
-    fn indent(&self, depth: usize) -> String {
-        " ".repeat(self.config.indent_size * depth)
+        format_core::format_stmt_raw(stmt, depth, self.config.indent_size)
     }
 }
 
@@ -379,7 +115,10 @@ mod tests {
     use chumsky::Parser;
 
     fn parse(source: &str) -> Vec<Stmt> {
-        parser().parse(source).into_result().expect("failed to parse")
+        parser()
+            .parse(source)
+            .into_result()
+            .expect("failed to parse")
     }
 
     #[test]
@@ -408,7 +147,9 @@ mod tests {
 
     #[test]
     fn format_container_with_children() {
-        let stmts = parse("row: Row, gap: 8 {\n  a: Rect, size: (10, 10)\n  b: Rect, size: (20, 20)\n}");
+        let stmts = parse(
+            "row: Row, gap: 8 {\n  a: Rect, size: (10, 10)\n  b: Rect, size: (20, 20)\n}",
+        );
         let formatter = Formatter::default();
         let result = formatter.format(&stmts);
         assert!(result.contains("row: Row, gap: 8"));
@@ -433,7 +174,6 @@ mod tests {
         let formatter = Formatter::new(config);
         let stmts = parse("sequence {\nfade-in btn [1s]\n}");
         let result = formatter.format(&stmts);
-        // Should use 4 spaces for indentation
         assert!(result.contains("    fade-in btn [1s]"));
     }
 
@@ -442,10 +182,14 @@ mod tests {
         let stmts = parse("#0s\ntitle: Text\n\n#1s\nfade-in title [1s]");
         let formatter = Formatter::default();
         let result = formatter.format(&stmts);
-        // Should have blank line between keyframes
         let lines: Vec<&str> = result.lines().collect();
         let blank_count = lines.iter().filter(|l| l.is_empty()).count();
-        assert!(blank_count >= 1, "Expected at least 1 blank line, got {}: {}", blank_count, result);
+        assert!(
+            blank_count >= 1,
+            "Expected at least 1 blank line, got {}: {}",
+            blank_count,
+            result
+        );
     }
 
     #[test]
@@ -476,7 +220,11 @@ mod tests {
         let first = formatter.format(&stmts);
         let stmts2 = parse(&first);
         let second = formatter.format(&stmts2);
-        assert_eq!(first, second, "Formatter is not idempotent for:\n{}\n\nFirst pass:\n{}\n\nSecond pass:\n{}", source, first, second);
+        assert_eq!(
+            first, second,
+            "Formatter is not idempotent for:\n{}\n\nFirst pass:\n{}\n\nSecond pass:\n{}",
+            source, first, second
+        );
     }
 
     #[test]
