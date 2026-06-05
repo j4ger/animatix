@@ -426,7 +426,7 @@ pub fn timeline_keyframe_times_s(
                 all_keyframes.push(start_s + local_time);
             }
         }
-        all_keyframes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        all_keyframes.sort_by(|a, b| a.total_cmp(b));
         all_keyframes.dedup_by(|a, b| (*a - *b).abs() < 0.001);
         all_keyframes
     } else {

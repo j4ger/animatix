@@ -435,7 +435,10 @@ pub fn handle_group_selected_actors(
     }
 
     let labels: Vec<String> = ui_store.selection.selected_actors.iter().cloned().collect();
-    let group_label = crate::app::utils::labels::unique_label(None, "group");
+    let group_label = crate::app::utils::labels::unique_label(
+        document_store.source.document.timeline.as_ref(),
+        "group",
+    );
 
     // Compute center of selected actors for group position
     let bounds = &document_store.source.cached_actor_bounds;

@@ -213,24 +213,24 @@ impl AnimatixApp {
             }
         }
 
-        // Tool mode shortcuts
-        if ctx.input(|i| i.key_pressed(egui::Key::M)) {
+        // Tool mode shortcuts (guard against Ctrl/Cmd to avoid conflicting with system shortcuts)
+        if ctx.input(|i| i.key_pressed(egui::Key::M) && !i.modifiers.command) {
             self.shell.ui_store.view.tool_mode = crate::app::preview::ToolMode::Move;
             self.shell.preview_store.preview.status = "Tool: Move".to_string();
         }
-        if ctx.input(|i| i.key_pressed(egui::Key::S) && i.modifiers.shift) {
+        if ctx.input(|i| i.key_pressed(egui::Key::S) && i.modifiers.shift && !i.modifiers.command) {
             self.shell.ui_store.view.tool_mode = crate::app::preview::ToolMode::Scale;
             self.shell.preview_store.preview.status = "Tool: Scale".to_string();
         }
-        if ctx.input(|i| i.key_pressed(egui::Key::R)) {
+        if ctx.input(|i| i.key_pressed(egui::Key::R) && !i.modifiers.command) {
             self.shell.ui_store.view.tool_mode = crate::app::preview::ToolMode::Rotate;
             self.shell.preview_store.preview.status = "Tool: Rotate".to_string();
         }
-        if ctx.input(|i| i.key_pressed(egui::Key::V)) {
+        if ctx.input(|i| i.key_pressed(egui::Key::V) && !i.modifiers.command) {
             self.shell.ui_store.view.tool_mode = crate::app::preview::ToolMode::Vertex;
             self.shell.preview_store.preview.status = "Tool: Vertex".to_string();
         }
-        if ctx.input(|i| i.key_pressed(egui::Key::P)) {
+        if ctx.input(|i| i.key_pressed(egui::Key::P) && !i.modifiers.command) {
             self.shell.ui_store.view.tool_mode = crate::app::preview::ToolMode::Pivot;
             self.shell.preview_store.preview.status = "Tool: Pivot".to_string();
         }

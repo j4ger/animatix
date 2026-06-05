@@ -43,8 +43,8 @@ pub fn handle_undo(
     preview_store: &mut PreviewStore,
     ui_store: &mut UiStore,
 ) -> Vec<Effect> {
-    if let Some(entry) = document_store.history.undo_stack.pop() {
-        document_store.history.redo_stack.push(UndoEntry {
+    if let Some(entry) = document_store.history.undo_stack.pop_back() {
+        document_store.history.redo_stack.push_back(UndoEntry {
             command: entry.command,
             source_before: document_store.source.document.source_text.clone(),
         });
@@ -64,8 +64,8 @@ pub fn handle_redo(
     preview_store: &mut PreviewStore,
     ui_store: &mut UiStore,
 ) -> Vec<Effect> {
-    if let Some(entry) = document_store.history.redo_stack.pop() {
-        document_store.history.undo_stack.push(UndoEntry {
+    if let Some(entry) = document_store.history.redo_stack.pop_back() {
+        document_store.history.undo_stack.push_back(UndoEntry {
             command: entry.command,
             source_before: document_store.source.document.source_text.clone(),
         });

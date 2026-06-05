@@ -676,13 +676,17 @@ impl DocumentController<'_> {
         if !self.has_actor_label(&candidate) {
             return candidate;
         }
-        for i in 1.. {
+        for i in 1..=9999 {
             let candidate = format!("{}_{}", base, i);
             if !self.has_actor_label(&candidate) {
                 return candidate;
             }
         }
-        format!("{}_{}", base, 999)
+        // Fallback: append timestamp to guarantee uniqueness
+        format!("{}_{}", base, std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() % 100_000)
     }
 
     /// Check if an actor label already exists in the timeline (or in clipboard).
