@@ -523,10 +523,10 @@ Some GUI operations bypass `SourceEdit` and directly mutate `raw_statements`. Th
 
 | Operation | Handler | Bypasses `SourceEdit`? | Notes |
 |-----------|---------|----------------------|-------|
-| Delete actor | `document_controller::handle_delete_selected_actors` | Yes — direct `stmts.remove` | No `DeleteActor` variant |
+| Delete actor | `document_controller::handle_delete_selected_actors` | No — uses `SourceEdit::DeleteActor` | Fixed 2026-06-05 |
 | Duplicate actor | `document_controller::handle_duplicate_actor` | Yes — direct `stmts.insert` | No `DuplicateActor` variant |
 | Paste actors | `document_controller::paste_actors` | Yes — direct `stmts.insert` + keyframe clone/rename/shift | No `PasteActors` variant |
-| Ungroup | `handlers/actor::handle_ungroup_selected_actors` | Partial — uses `Reparent` via `apply_edit` for children, direct `stmts.remove` for group | No `Ungroup` or `DeleteActor` variant |
+| Ungroup | `handlers/actor::handle_ungroup_selected_actors` | No — uses `Reparent` + `DeleteActor` | Fixed 2026-06-05 |
 | Reorder scenes | `handlers/scene::handle_reorder_scenes` | No — uses `SourceEdit::ReorderScenes` | Fixed 2026-06-05 |
 
 **Design decision:** Keep `SourceEdit` for surgical edits (property, keyframe, single-actor operations). Structural operations (delete, duplicate, paste, ungroup) stay as direct mutations with a shared commit helper. Forcing them into `SourceEdit` variants would make the enum unwieldy and leak GUI concerns (clipboard, label uniqueness) into the edit layer. Revisit if edit serialization or scripting support is needed.
