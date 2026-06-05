@@ -45,6 +45,15 @@ pub fn definition_at(
         });
     }
 
+    // Check if it's a scene defined in this file
+    if let Some(info) = symbols.scenes.get(text) {
+        return Some(Location {
+            file: None,
+            line: info.line,
+            col: info.col,
+        });
+    }
+
     // Check imported files for cross-file definitions
     if let Some(workspace) = workspace {
         if let Some(path) = path {
@@ -61,6 +70,14 @@ pub fn definition_at(
                     }
                     // Check components in imported file
                     if let Some(info) = symbols.components.get(text) {
+                        return Some(Location {
+                            file: Some(import_path.display().to_string()),
+                            line: info.line,
+                            col: info.col,
+                        });
+                    }
+                    // Check scenes in imported file
+                    if let Some(info) = symbols.scenes.get(text) {
                         return Some(Location {
                             file: Some(import_path.display().to_string()),
                             line: info.line,

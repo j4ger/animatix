@@ -94,52 +94,35 @@ impl LintConfig {
     }
 
     /// Load lint config from an `.amx.toml` file.
-    /// The file should have a `[lint]` section with a `disabled` array.
     pub fn from_file(path: &std::path::Path) -> Self {
-        let mut config = Self::default();
         let Ok(content) = std::fs::read_to_string(path) else {
-            return config;
+            return Self::default();
         };
-        // Simple TOML parser for the [lint] section
-        let mut in_lint_section = false;
-        for line in content.lines() {
-            let trimmed = line.trim();
-            if trimmed == "[lint]" {
-                in_lint_section = true;
-                continue;
-            }
-            if trimmed.starts_with('[') {
-                in_lint_section = false;
-                continue;
-            }
-            if in_lint_section {
-                // Parse `disabled = ["code1", "code2"]`
-                if let Some(rest) = trimmed.strip_prefix("disabled") {
-                    let rest = rest.trim_start();
-                    if rest.starts_with('=') {
-                        let rest = rest[1..].trim();
-                        // Extract items from array
-                        for item in rest.trim_matches(|c| c == '[' || c == ']').split(',') {
-                            let code = item.trim().trim_matches('"').to_lowercase();
-                            if !code.is_empty() {
-                                config.disabled.insert(code);
-                            }
-                        }
-                    }
-                }
-                // Parse `disable_all_warnings = true`
-                if let Some(rest) = trimmed.strip_prefix("disable_all_warnings") {
-                    let rest = rest.trim_start();
-                    if rest.starts_with('=') {
-                        let val = rest[1..].trim();
-                        if val == "true" {
-                            config.disable_all_warnings = true;
-                        }
-                    }
-                }
-            }
+
+        #[derive(serde::Deserialize)]
+        struct LintFile {
+            lint: Option<LintSection>,
         }
-        config
+
+        #[derive(serde::Deserialize)]
+        struct LintSection {
+            disabled: Option<Vec<String>>,
+            disable_all_warnings: Option<bool>,
+        }
+
+        match toml::from_str::<LintFile>(&content) {
+            Ok(file) => {
+                let mut config = Self::default();
+                if let Some(lint) = file.lint {
+                    if let Some(codes) = lint.disabled {
+                        config.disabled = codes.into_iter().map(|c| c.to_lowercase()).collect();
+                    }
+                    config.disable_all_warnings = lint.disable_all_warnings.unwrap_or(false);
+                }
+                config
+            }
+            Err(_) => Self::default(),
+        }
     }
 
     /// Merge another config into this one (combines disabled codes).
@@ -192,7 +175,7 @@ pub fn collect_diagnostics_with_config(
 
     // 2. Semantic checks (if AST is available)
     if let Some(stmts) = ast {
-        collect_semantic_diagnostics(stmts, symbols, &mut diagnostics);
+        collect_semantic_diagnostics(source, stmts, symbols, &mut diagnostics);
     }
 
     // 3. Filter based on lint config
@@ -219,6 +202,7 @@ pub fn collect_diagnostics_with_config(
 
 /// Collect semantic diagnostics from the AST.
 fn collect_semantic_diagnostics(
+    source: &str,
     stmts: &[Stmt],
     symbols: &SymbolTable,
     diagnostics: &mut Vec<Diagnostic>,
@@ -282,22 +266,37 @@ fn collect_semantic_diagnostics(
     }
     // Check each statement
     for stmt in stmts {
-        check_stmt(stmt, symbols, diagnostics);
+        check_stmt(source, stmt, symbols, diagnostics);
+    }
+}
+
+/// Convert an optional Span to (line, col, end_line, end_col) 0-based positions.
+fn span_to_diag(span: &Option<animatix_syntax::ast::Span>) -> (usize, usize, usize, usize) {
+    match span {
+        Some(s) => (
+            s.start_line.saturating_sub(1),
+            s.start_col.saturating_sub(1),
+            s.end_line.saturating_sub(1),
+            s.end_col.saturating_sub(1),
+        ),
+        None => (0, 0, 0, 0),
     }
 }
 
 /// Check a single statement for semantic issues.
-fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnostic>) {
+fn check_stmt(source: &str, stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnostic>) {
     match stmt {
-        Stmt::Action(action, ..) => {
+        Stmt::Action(action, span) => {
+            let (line, col, end_line, end_col) = span_to_diag(span);
+
             // Check if action verb is known
             if !symbols.actions.contains(&action.verb) {
                 diagnostics.push(Diagnostic {
                     severity: DiagnosticSeverity::Warning,
-                    line: 0,
-                    col: 0,
-                    end_line: 0,
-                    end_col: 0,
+                    line,
+                    col,
+                    end_line,
+                    end_col,
                     message: format!("Unknown action: {}", action.verb),
                     code: Some("unknown-action".to_string()),
                 });
@@ -308,10 +307,10 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnost
                 if !symbols.labels.contains_key(target) {
                     diagnostics.push(Diagnostic {
                         severity: DiagnosticSeverity::Warning,
-                        line: 0,
-                        col: 0,
-                        end_line: 0,
-                        end_col: 0,
+                        line,
+                        col,
+                        end_line,
+                        end_col,
                         message: format!("Undefined label: {}", target),
                         code: Some("undefined-label".to_string()),
                     });
@@ -319,16 +318,18 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnost
             }
         }
 
-        Stmt::Assignment { target, property, value, .. } => {
+        Stmt::Assignment { target, property, value, span, .. } => {
+            let (line, col, end_line, end_col) = span_to_diag(span);
+
             // Check if target label exists
             if let Some(label) = target.first() {
                 if !symbols.labels.contains_key(label) {
                     diagnostics.push(Diagnostic {
                         severity: DiagnosticSeverity::Warning,
-                        line: 0,
-                        col: 0,
-                        end_line: 0,
-                        end_col: 0,
+                        line,
+                        col,
+                        end_line,
+                        end_col,
                         message: format!("Undefined label: {}", label),
                         code: Some("undefined-label".to_string()),
                     });
@@ -343,10 +344,10 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnost
                             if !known_props.contains(property) {
                                 diagnostics.push(Diagnostic {
                                     severity: DiagnosticSeverity::Info,
-                                    line: 0,
-                                    col: 0,
-                                    end_line: 0,
-                                    end_col: 0,
+                                    line,
+                                    col,
+                                    end_line,
+                                    end_col,
                                     message: format!(
                                         "Property '{}' not commonly used on {} (may still be valid)",
                                         property, ty
@@ -365,10 +366,10 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnost
                                 {
                                     diagnostics.push(Diagnostic {
                                         severity: DiagnosticSeverity::Warning,
-                                        line: 0,
-                                        col: 0,
-                                        end_line: 0,
-                                        end_col: 0,
+                                        line,
+                                        col,
+                                        end_line,
+                                        end_col,
                                         message: format!(
                                             "Type mismatch for '{}.{}': expected {:?}, found {:?}",
                                             label, property, expected_type, actual_type
@@ -383,15 +384,17 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnost
             }
         }
 
-        Stmt::ActorDecl { ty, props, .. } => {
+        Stmt::ActorDecl { ty, props, span, .. } => {
+            let (line, col, end_line, end_col) = span_to_diag(span);
+
             // Check if type is known
             if !symbols.types.contains(ty) {
                 diagnostics.push(Diagnostic {
                     severity: DiagnosticSeverity::Warning,
-                    line: 0,
-                    col: 0,
-                    end_line: 0,
-                    end_col: 0,
+                    line,
+                    col,
+                    end_line,
+                    end_col,
                     message: format!("Unknown type: {}", ty),
                     code: Some("unknown-type".to_string()),
                 });
@@ -403,10 +406,10 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnost
                     if !known_props.contains(&prop.name) {
                         diagnostics.push(Diagnostic {
                             severity: DiagnosticSeverity::Info,
-                            line: 0,
-                            col: 0,
-                            end_line: 0,
-                            end_col: 0,
+                            line,
+                            col,
+                            end_line,
+                            end_col,
                             message: format!(
                                 "Property '{}' not commonly used on {} (may still be valid)",
                                 prop.name, ty
@@ -425,10 +428,10 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnost
                         {
                             diagnostics.push(Diagnostic {
                                 severity: DiagnosticSeverity::Warning,
-                                line: 0,
-                                col: 0,
-                                end_line: 0,
-                                end_col: 0,
+                                line,
+                                col,
+                                end_line,
+                                end_col,
                                 message: format!(
                                     "Type mismatch for '{}.{}': expected {:?}, found {:?}",
                                     ty, prop.name, expected_type, actual_type
@@ -444,32 +447,32 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnost
         // Recurse into blocks
         Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
             for stmt in body {
-                check_stmt(stmt, symbols, diagnostics);
+                check_stmt(source, stmt, symbols, diagnostics);
             }
         }
         Stmt::Sequence { body, .. } | Stmt::Stagger { body, .. } | Stmt::Always { body, .. } => {
             for stmt in body {
-                check_stmt(stmt, symbols, diagnostics);
+                check_stmt(source, stmt, symbols, diagnostics);
             }
         }
         Stmt::Conditional { then_branch, else_branch, .. } => {
             for stmt in then_branch {
-                check_stmt(stmt, symbols, diagnostics);
+                check_stmt(source, stmt, symbols, diagnostics);
             }
             if let Some(else_stmts) = else_branch {
                 for stmt in else_stmts {
-                    check_stmt(stmt, symbols, diagnostics);
+                    check_stmt(source, stmt, symbols, diagnostics);
                 }
             }
         }
         Stmt::ForLoop { body, .. } => {
             for stmt in body {
-                check_stmt(stmt, symbols, diagnostics);
+                check_stmt(source, stmt, symbols, diagnostics);
             }
         }
         Stmt::ComponentDef(def, ..) => {
             for stmt in &def.body {
-                check_stmt(stmt, symbols, diagnostics);
+                check_stmt(source, stmt, symbols, diagnostics);
             }
         }
 

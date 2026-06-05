@@ -279,6 +279,40 @@ impl Analyzer {
                     }
                 }
             }
+            "for_statement" => {
+                if let Some(var_node) = node.child_by_field_name("variable") {
+                    let name = var_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
+                    let start = var_node.start_position();
+                    let end = var_node.end_position();
+                    if let Some(info) = table.labels.get_mut(&name) {
+                        info.line = start.row + 1;
+                        info.col = start.column + 1;
+                        info.span = Some(Span {
+                            start_line: start.row + 1,
+                            start_col: start.column + 1,
+                            end_line: end.row + 1,
+                            end_col: end.column + 1,
+                        });
+                    }
+                }
+            }
+            "drive_statement" => {
+                if let Some(label_node) = node.child_by_field_name("label") {
+                    let name = label_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
+                    let start = label_node.start_position();
+                    let end = label_node.end_position();
+                    if let Some(info) = table.labels.get_mut(&name) {
+                        info.line = start.row + 1;
+                        info.col = start.column + 1;
+                        info.span = Some(Span {
+                            start_line: start.row + 1,
+                            start_col: start.column + 1,
+                            end_line: end.row + 1,
+                            end_col: end.column + 1,
+                        });
+                    }
+                }
+            }
             _ => {}
         }
 

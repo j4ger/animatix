@@ -79,6 +79,48 @@ pub fn hover_at(
                         node.end_position().column,
                     )),
                 })
+            }
+            // Check if it's a property name (node is the "name" child of a "property" node)
+            else if let Some(parent) = node.parent() {
+                if parent.kind() == "property" {
+                    if let Some(name_node) = parent.child_by_field_name("name") {
+                        if name_node.id() == node.id() {
+                            if let Some(doc) = crate::completer::property_documentation(text) {
+                                return Some(HoverInfo {
+                                    contents: format!("**Property** `{}`\n\n{}", text, doc),
+                                    range: Some((
+                                        node.start_position().row,
+                                        node.start_position().column,
+                                        node.end_position().row,
+                                        node.end_position().column,
+                                    )),
+                                });
+                            }
+                        }
+                    }
+                }
+                // Check if it's a component
+                if symbols.components.contains_key(text) {
+                    let info = &symbols.components[text];
+                    let params_str = info.params.iter()
+                        .map(|p| match &p.param_type {
+                            Some(ty) => format!("{}: {:?}", p.name, ty),
+                            None => p.name.clone(),
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    return Some(HoverInfo {
+                        contents: format!("**Component** `{}`\n\nParameters: ({})", text, params_str),
+                        range: Some((
+                            node.start_position().row,
+                            node.start_position().column,
+                            node.end_position().row,
+                            node.end_position().column,
+                        )),
+                    });
+                } else {
+                    None
+                }
             } else {
                 None
             }

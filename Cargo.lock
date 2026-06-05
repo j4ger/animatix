@@ -143,6 +143,8 @@ version = "0.1.0"
 dependencies = [
  "animatix-syntax",
  "chumsky",
+ "serde",
+ "toml",
  "tree-sitter",
  "tree-sitter-animatix",
 ]
@@ -188,6 +190,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tower-lsp",
+ "url",
 ]
 
 [[package]]

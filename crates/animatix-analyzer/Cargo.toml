@@ -10,3 +10,5 @@ animatix-syntax = { path = "../animatix-syntax" }
 chumsky = "0.12"
 tree-sitter = "0.26"
 tree-sitter-animatix = { path = "../tree-sitter-animatix" }
+toml = "0.8"
+serde = { version = "1", features = ["derive"] }

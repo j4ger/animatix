@@ -352,14 +352,18 @@ impl LanguageServer for Backend {
 
     async fn symbol(
         &self,
-        _params: WorkspaceSymbolParams,
+        params: WorkspaceSymbolParams,
     ) -> Result<Option<Vec<SymbolInformation>>> {
+        let query = params.query.to_lowercase();
         let analyzers = self.analyzers.lock().await;
         let mut all_symbols = Vec::new();
 
         for (uri, analyzer) in analyzers.iter() {
             let symbols = analyzer.document_symbols();
             for sym in symbols {
+                if !query.is_empty() && !sym.name.to_lowercase().contains(&query) {
+                    continue;
+                }
                 let kind = match sym.kind {
                     animatix_analyzer::SymbolKind::Actor => SymbolKind::VARIABLE,
                     animatix_analyzer::SymbolKind::Variable => SymbolKind::VARIABLE,
@@ -467,7 +471,8 @@ impl LanguageServer for Backend {
 
 /// Convert a file:// URI to a PathBuf.
 fn uri_to_path(uri: &str) -> Option<PathBuf> {
-    uri.strip_prefix("file://").map(PathBuf::from)
+    let url = url::Url::parse(uri).ok()?;
+    url.to_file_path().ok()
 }
 
 #[tokio::main]

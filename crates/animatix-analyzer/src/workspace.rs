@@ -30,10 +30,13 @@ impl Workspace {
         use animatix_syntax::parser::parse_source;
 
         let (ast, _) = parse_source(source);
-        let symbols = ast
+        let mut symbols = ast
             .as_ref()
             .map(|stmts| SymbolTable::build_from_ast(stmts))
             .unwrap_or_default();
+        if let Some(ref stmts) = ast {
+            symbols.collect_references(stmts);
+        }
         self.files.insert(path, FileEntry { symbols });
     }
 

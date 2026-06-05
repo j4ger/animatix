@@ -402,7 +402,7 @@ fn property_completions(symbols: &SymbolTable, actor_type: Option<&str>) -> Vec<
 }
 
 /// Documentation for common properties.
-fn property_documentation(name: &str) -> Option<&str> {
+pub fn property_documentation(name: &str) -> Option<&str> {
     match name {
         "position" | "at" => Some("Position as (x, y) coordinates"),
         "anchor" => Some("Anchor point for positioning"),

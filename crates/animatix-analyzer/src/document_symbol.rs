@@ -2,6 +2,7 @@
 
 use crate::symbol_table::{LabelKind, SymbolTable};
 use crate::types::{DocumentSymbol, SymbolKind};
+use std::collections::HashSet;
 
 /// Get all document symbols for outline view.
 pub fn document_symbols(symbols: &SymbolTable) -> Vec<DocumentSymbol> {
@@ -24,7 +25,11 @@ pub fn document_symbols(symbols: &SymbolTable) -> Vec<DocumentSymbol> {
         });
     }
 
+    let mut seen: HashSet<String> = result.iter().map(|s| s.name.clone()).collect();
     for (name, info) in &symbols.components {
+        if !seen.insert(name.clone()) {
+            continue;
+        }
         result.push(DocumentSymbol {
             name: name.clone(),
             kind: SymbolKind::Component,

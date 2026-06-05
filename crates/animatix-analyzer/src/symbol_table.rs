@@ -507,6 +507,17 @@ impl SymbolTable {
                     self.collect_refs_from_stmt(stmt);
                 }
             }
+            Stmt::ReactiveBinding { target, .. } => {
+                for label in target {
+                    self.referenced_labels.insert(label.clone());
+                }
+            }
+            Stmt::Drive { label, body, .. } => {
+                self.referenced_labels.insert(label.clone());
+                for stmt in body {
+                    self.collect_refs_from_stmt(stmt);
+                }
+            }
             _ => {}
         }
     }
