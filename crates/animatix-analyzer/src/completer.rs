@@ -126,21 +126,21 @@ impl CompletionContext {
             let parent_kind = parent.kind();
 
             match parent_kind {
-                // Inside a property block
-                "property_block" | "property_list" | "declaration_property_list" => {
+                // Inside a property list
+                "property_list" => {
                     let actor_type = find_actor_type(parent, source);
                     return CompletionContext::PropertyBlock { actor_type };
                 }
 
                 // After ":" in actor declaration
                 "actor_declaration" => {
-                    if kind == "type_identifier" || is_after_colon(node, source) {
+                    if is_after_colon(node, source) {
                         return CompletionContext::TypePosition;
                     }
                 }
 
                 // After action verb
-                "action_statement" => {
+                "action_invocation" => {
                     return CompletionContext::ActionTarget;
                 }
 
@@ -184,11 +184,6 @@ fn find_actor_type(node: tree_sitter::Node, source: &str) -> Option<String> {
                     return Some(source[type_node.byte_range()].to_string());
                 }
             }
-            "text_statement" => return Some("Text".to_string()),
-            "math_statement" => return Some("Math".to_string()),
-            "code_statement" => return Some("Code".to_string()),
-            "svg_statement" => return Some("Svg".to_string()),
-            "image_statement" => return Some("Image".to_string()),
             _ => {}
         }
         current = current.parent()?;

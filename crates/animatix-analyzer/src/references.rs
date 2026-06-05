@@ -23,7 +23,7 @@ fn collect_references(
 ) {
     let node = cursor.node();
 
-    if (node.kind() == "identifier" || node.kind() == "type_identifier")
+    if node.kind() == "identifier"
         && node.utf8_text(source.as_bytes()).unwrap_or("") == symbol_name
     {
         refs.push((

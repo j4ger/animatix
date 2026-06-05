@@ -1,0 +1,198 @@
+==================
+Actor declaration
+==================
+
+title: Text, content: "Hello", font_size: 72
+
+---
+
+(source_file
+  (actor_declaration
+    label: (identifier)
+    type: (identifier)
+    (property_list
+      (property name: (identifier) value: (string))
+      (property name: (identifier) value: (number)))))
+
+==================
+Actor with children
+==================
+
+row: Row, gap: 16 {
+  a: Rect, size: (60, 60)
+  b: Rect, size: (60, 60)
+}
+
+---
+
+(source_file
+  (actor_declaration
+    label: (identifier)
+    type: (identifier)
+    (property_list
+      (property name: (identifier) value: (number)))
+    (children_block
+      (actor_declaration
+        label: (identifier)
+        type: (identifier)
+        (property_list
+          (property name: (identifier) value: (tuple_expression (number) (number)))))
+      (actor_declaration
+        label: (identifier)
+        type: (identifier)
+        (property_list
+          (property name: (identifier) value: (tuple_expression (number) (number))))))))
+
+==================
+Let declaration
+==================
+
+let x = 42
+
+---
+
+(source_file
+  (let_declaration
+    name: (identifier)
+    value: (number)))
+
+==================
+Pub let declaration
+==================
+
+pub let bg = (0.04, 0.06, 0.09, 1.0)
+
+---
+
+(source_file
+  (let_declaration
+    name: (identifier)
+    value: (tuple_expression (number) (number) (number) (number))))
+
+==================
+Property assignment
+==================
+
+title.text = "World"
+
+---
+
+(source_file
+  (property_assignment
+    target: (path_expression
+      base: (identifier)
+      name: (identifier))
+    value: (string)))
+
+==================
+Config block
+==================
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+---
+
+(source_file
+  (config
+    (property_list
+      (property name: (identifier) value: (string))
+      (property name: (identifier) value: (tuple_expression (number) (number))))))
+
+==================
+Import statement
+==================
+
+import "./lib/palette.amx" as theme
+
+---
+
+(source_file
+  (import_statement
+    path: (string)
+    alias: (identifier)))
+
+==================
+Import without alias
+==================
+
+import "./lib/utils.amx"
+
+---
+
+(source_file
+  (import_statement
+    path: (string)))
+
+==================
+Use statement
+==================
+
+use module.path
+
+---
+
+(source_file
+  (use_statement
+    path: (path_expression
+      base: (identifier)
+      name: (identifier))))
+
+==================
+Component definition
+==================
+
+pub component MetricCard(title: "Metric", value: "0") {
+  frame: Rect, size: (240, 140)
+}
+
+---
+
+(source_file
+  (component_definition
+    name: (identifier)
+    (parameter_list
+      (parameter name: (identifier) default: (string))
+      (parameter name: (identifier) default: (string)))
+    (block
+      (actor_declaration
+        label: (identifier)
+        type: (identifier)
+        (property_list
+          (property name: (identifier) value: (tuple_expression (number) (number))))))))
+
+==================
+Action definition
+==================
+
+action pulse {
+  self.scale = 1.05
+  self.scale = 1.0
+}
+
+---
+
+(source_file
+  (action_definition
+    name: (identifier)
+    (block
+      (property_assignment
+        target: (path_expression base: (identifier) name: (identifier))
+        value: (number))
+      (property_assignment
+        target: (path_expression base: (identifier) name: (identifier))
+        value: (number)))))
+
+==================
+Reactive binding
+==================
+
+prop := expression
+
+---
+
+(source_file
+  (reactive_binding
+    target: (identifier)
+    value: (identifier)))
+
+

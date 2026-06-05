@@ -298,7 +298,6 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 "let",
                 "import",
                 "always",
-                "drive",
                 "if",
                 "else",
                 "for",
@@ -827,7 +826,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                         "assignment target must be a property name or actor.property path",
                     ))
                 } else if path.len() == 1 {
-                    // Single-segment assignment: e.g. `at = expr` inside a drive block
+                    // Single-segment assignment: e.g. `at = expr` inside an always block
                     let property = path[0].clone();
                     let easing = extract_easing(&mut modifiers);
                     Ok(Stmt::Assignment {
@@ -1068,14 +1067,6 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .as_context()
             .padded();
 
-        let drive_stmt = text::keyword("drive")
-            .ignore_then(ident)
-            .then(always_body.clone())
-            .map(|(label, body)| Stmt::Drive { label, body, span: None })
-            .labelled("drive block")
-            .as_context()
-            .padded();
-
         // Conditional: if expr { }
         let conditional_stmt = text::keyword("if")
             .ignore_then(expr.clone())
@@ -1246,7 +1237,6 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             svg_stmt,
             image_stmt,
             always_stmt,
-            drive_stmt,
             conditional_stmt,
             for_stmt,
             sequence_stmt,
@@ -1564,47 +1554,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_drive_block_parser() {
-        let input = r#"drive tracker {
-    at = (640 + 100 * cos(t), 360 + 100 * sin(t))
-}"#;
-        let res = parser().parse(input).unwrap();
-        assert_eq!(res.len(), 1);
-        // Drive statements are not wrapped in a default keyframe
-        if let Stmt::Drive { label, body: drive_body, .. } = &res[0] {
-            assert_eq!(label, "tracker");
-            assert_eq!(drive_body.len(), 1);
-            if let Stmt::Assignment {
-                target,
-                property,
-                ..
-            } = &drive_body[0]
-            {
-                assert!(target.is_empty(), "Expected empty target for single-segment assignment inside drive");
-                assert_eq!(property, "at");
-            } else {
-                panic!("Expected Assignment");
-            }
-        } else {
-            panic!("Expected Drive");
-        }
-    }
-
-    #[test]
-    fn test_single_segment_assignment_outside_drive_is_parsed() {
-        // Single-segment assignments parse successfully but are rejected at build time
-        let input = r#"at = (100, 200)"#;
-        let res = parser().parse(input).unwrap();
-        assert_eq!(res.len(), 1);
-        // Single-segment assignments are not wrapped in a default keyframe
-        if let Stmt::Assignment { target, property, .. } = &res[0] {
-            assert!(target.is_empty());
-            assert_eq!(property, "at");
-        } else {
-            panic!("Expected Assignment");
-        }
-    }
 
     #[test]
     fn test_reactive_binding_parser() {

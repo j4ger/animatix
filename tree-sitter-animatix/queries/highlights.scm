@@ -5,6 +5,7 @@
 [
   "config"
   "import"
+  "use"
   "as"
   "let"
   "pub"
@@ -22,11 +23,20 @@
 
 (slot_marker) @keyword
 
+; Scene/keyframe prefix
+(scene_declaration "#" @punctuation.special)
+(keyframe "#" @punctuation.special)
+
+; Slot fill prefix
+(slot_fill "@" @punctuation.special)
+
 ; Literals
 (number) @number
+(percentage) @number
 (time_literal) @number
 (string) @string
 (boolean) @boolean
+(null_literal) @constant.builtin
 
 ; Operators
 [
@@ -46,6 +56,8 @@
   "||"
   "!"
   "="
+  ":="
+  "=>"
 ] @operator
 
 ; Punctuation

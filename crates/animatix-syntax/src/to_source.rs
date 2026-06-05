@@ -490,24 +490,6 @@ btn: Rect, size: (100, 200) // half-extents"#;
     }
 
     #[test]
-    fn roundtrip_drive_block() {
-        let source = r#"drive tracker {
-    at = (640 + 100 * cos(t), 360 + 100 * sin(t))
-}"#;
-        let parsed = crate::parser::parser().parse(source).unwrap();
-        assert_eq!(parsed.len(), 1);
-        if let Stmt::Drive { label, body: drive_body, .. } = &parsed[0] {
-            assert_eq!(label, "tracker");
-            assert_eq!(drive_body.len(), 1);
-        } else {
-            panic!("Expected Drive statement");
-        }
-        let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parser().parse(&serialized).unwrap();
-        assert_eq!(parsed.len(), reparsed.len());
-    }
-
-    #[test]
     fn roundtrip_reactive_binding() {
         let source = r#"orbiter.at := tracker.at + (200 * cos(3 * t), 200 * sin(3 * t))"#;
         let parsed = crate::parser::parser().parse(source).unwrap();

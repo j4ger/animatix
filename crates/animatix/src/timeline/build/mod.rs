@@ -12,7 +12,6 @@
 //! | `property.rs` | Property extraction, graph coordinate mapping |
 //! | `shape.rs` | Vector shape state construction |
 //! | `actor.rs` | Actor declaration processing, VelloPath generation, keyframes |
-//! | `drive.rs` | `drive` block assignment rewriting |
 //! | `process.rs` | Main `process_body` AST statement dispatcher |
 //! | `plot.rs` | Plot curve/axis path building (pre-existing) |
 //! | `keyframe_utils.rs` | Keyframe insertion helpers (pre-existing) |
@@ -25,7 +24,6 @@ use crate::timeline::plot::PlotCurveKind;
 mod actor;
 mod colorscheme;
 mod container;
-mod drive;
 mod entry;
 mod keyframe_utils;
 mod node;

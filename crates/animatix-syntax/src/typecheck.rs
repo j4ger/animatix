@@ -103,8 +103,7 @@ impl<'a> TypeEnv<'a> {
             | Stmt::RelativeKeyframe { body, .. }
             | Stmt::Sequence { body, .. }
             | Stmt::Stagger { body, .. }
-            | Stmt::Always { body, .. }
-            | Stmt::Drive { body, .. } => {
+            | Stmt::Always { body, .. } => {
                 for stmt in body {
                     self.check_stmt(stmt, diagnostics);
                 }

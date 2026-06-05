@@ -68,11 +68,6 @@ fn inline_stmt(
             body: inline_custom_actions(body, registry, module_actions),
             span,
         }],
-        Stmt::Drive { label, body, span } => vec![Stmt::Drive {
-            label,
-            body: inline_custom_actions(body, registry, module_actions),
-            span,
-        }],
         Stmt::ReactiveBinding { target, property, value, value_span, span } => vec![Stmt::ReactiveBinding {
             target,
             property,
@@ -242,14 +237,6 @@ fn substitute_params_in_stmt(stmt: &Stmt, bindings: &HashMap<String, Expr>) -> S
             span,
         },
         Stmt::Always { body, span } => Stmt::Always {
-            body: body
-                .iter()
-                .map(|s| substitute_params_in_stmt(s, bindings))
-                .collect(),
-            span,
-        },
-        Stmt::Drive { label, body, span } => Stmt::Drive {
-            label,
             body: body
                 .iter()
                 .map(|s| substitute_params_in_stmt(s, bindings))

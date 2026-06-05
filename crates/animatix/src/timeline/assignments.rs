@@ -68,7 +68,7 @@ impl Timeline {
                 DiagnosticCode::InvalidAssignmentTarget,
                 DiagnosticPhase::Build,
                 format!(
-                    "Assignment '{property} = ...' must include an actor label, or be placed inside a 'drive' block",
+                    "Assignment '{property} = ...' must include an actor label.",
                 ),
             ));
             return;

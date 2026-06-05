@@ -635,7 +635,7 @@ pub component MetricCard(title: "Metric") {
 - Assignments (`actor.prop = value`)
 - `let` declarations
 - Control flow: `if`, `for`, `sequence`, `stagger`
-- Reactive blocks: `always`, `drive`
+- Reactive blocks: `always`
 - Comments
 - Nested `component` definitions
 

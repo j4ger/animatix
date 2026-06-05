@@ -218,7 +218,7 @@ impl Analyzer {
                     }
                 }
             }
-            "actor_declaration" | "text_shorthand" => {
+            "actor_declaration" => {
                 if let Some(label_node) = node.child_by_field_name("label") {
                     let name = label_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
                     let start = label_node.start_position();
@@ -270,7 +270,7 @@ impl Analyzer {
                     }
                 }
             }
-            "for_statement" => {
+            "for_block" => {
                 if let Some(var_node) = node.child_by_field_name("variable") {
                     let name = var_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
                     let start = var_node.start_position();
@@ -287,11 +287,29 @@ impl Analyzer {
                     }
                 }
             }
-            "drive_statement" => {
-                if let Some(label_node) = node.child_by_field_name("label") {
-                    let name = label_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
-                    let start = label_node.start_position();
-                    let end = label_node.end_position();
+            "use_statement" => {
+                if let Some(path_node) = node.child_by_field_name("path") {
+                    let path = path_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
+                    let start = node.start_position();
+                    let end = node.end_position();
+                    for info in &mut table.imports {
+                        if info.path == path {
+                            info.span = Some(Span {
+                                start_line: start.row + 1,
+                                start_col: start.column + 1,
+                                end_line: end.row + 1,
+                                end_col: end.column + 1,
+                            });
+                            break;
+                        }
+                    }
+                }
+            }
+            "reactive_binding" => {
+                if let Some(target_node) = node.child_by_field_name("target") {
+                    let name = target_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
+                    let start = target_node.start_position();
+                    let end = target_node.end_position();
                     if let Some(info) = table.labels.get_mut(&name) {
                         info.line = start.row + 1;
                         info.col = start.column + 1;
@@ -412,7 +430,7 @@ impl Analyzer {
         let node = tree.root_node().descendant_for_point_range(point, point)?;
 
         match node.kind() {
-            "identifier" | "type_identifier" => {
+            "identifier" => {
                 Some(node.utf8_text(self.source.as_bytes()).unwrap_or("").to_string())
             }
             _ => None,

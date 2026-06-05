@@ -460,15 +460,6 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             let body_str = format_stmts_raw(body, depth + 1, indent_size);
             format!("always {{\n{}\n{}}}", body_str, " ".repeat(indent_size * depth))
         }
-        Stmt::Drive { label, body, .. } => {
-            let body_str = format_stmts_raw(body, depth + 1, indent_size);
-            format!(
-                "drive {} {{\n{}\n{}}}",
-                label,
-                body_str,
-                " ".repeat(indent_size * depth)
-            )
-        }
         Stmt::ReactiveBinding {
             target,
             property,

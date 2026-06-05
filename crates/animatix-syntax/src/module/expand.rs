@@ -49,15 +49,6 @@ fn expand_stmt_into(
                 span: None,
             });
         }
-        Stmt::Drive { label, body, .. } => {
-            let (expanded_body, sub_registry) = expand_statements(body, components);
-            merge_registry(registry, sub_registry);
-            output.push(Stmt::Drive {
-                label: label.clone(),
-                body: expanded_body,
-                span: None,
-            });
-        }
         Stmt::ReactiveBinding { target, property, value, value_span, .. } => {
             output.push(Stmt::ReactiveBinding {
                 target: target.clone(),
@@ -356,12 +347,6 @@ fn collect_stmt_labels(stmt: &Stmt, labels: &mut HashSet<String>) {
     match stmt {
         Stmt::ActorDecl { label, .. } => {
             labels.insert(label.clone());
-        }
-        Stmt::Drive { label, body, .. } => {
-            labels.insert(label.clone());
-            for stmt in body {
-                collect_stmt_labels(stmt, labels);
-            }
         }
         Stmt::ReactiveBinding { target, .. } => {
             if let Some(label) = target.first() {

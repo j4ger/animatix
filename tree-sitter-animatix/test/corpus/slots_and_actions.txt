@@ -1,0 +1,135 @@
+==================
+Slot marker
+==================
+
+@slot
+
+---
+
+(source_file
+  (slot_marker))
+
+==================
+Slot fill
+==================
+
+@header {
+  label: Text, text: "Title"
+}
+
+---
+
+(source_file
+  (slot_fill
+    name: (identifier)
+    (block
+      (actor_declaration
+        label: (identifier)
+        type: (identifier)
+        (property_list
+          (property
+            name: (identifier)
+            value: (string)))))))
+
+==================
+Action invocation single target
+==================
+
+fade-in hello [800ms, ease: ease-out]
+
+---
+
+(source_file
+  (action_invocation
+    verb: (identifier)
+    targets: (target_list
+      (identifier))
+    (modifier_block
+      (modifier_list
+        (modifier
+          (time_literal))
+        (modifier
+          key: (identifier)
+          value: (identifier))))))
+
+==================
+Action invocation multiple targets
+==================
+
+swap bar1, bar2 [600ms, ease: ease-in-out]
+
+---
+
+(source_file
+  (action_invocation
+    verb: (identifier)
+    targets: (target_list
+      (identifier)
+      (identifier))
+    (modifier_block
+      (modifier_list
+        (modifier
+          (time_literal))
+        (modifier
+          key: (identifier)
+          value: (identifier))))))
+
+==================
+Action invocation with named modifiers
+==================
+
+shift features [by: (40, 0), 600ms, ease: ease-out]
+
+---
+
+(source_file
+  (action_invocation
+    verb: (identifier)
+    targets: (target_list
+      (identifier))
+    (modifier_block
+      (modifier_list
+        (modifier
+          key: (identifier)
+          value: (tuple_expression
+            (number)
+            (number)))
+        (modifier
+          (time_literal))
+        (modifier
+          key: (identifier)
+          value: (identifier))))))
+
+==================
+Index expression with plain number
+==================
+
+let x = items[0]
+
+---
+
+(source_file
+  (let_declaration
+    name: (identifier)
+    value: (index_expression
+      object: (identifier)
+      index: (index_value
+        (number)))))
+
+==================
+Modifier block after property (not index)
+==================
+
+fade-in hello [800ms]
+
+---
+
+(source_file
+  (action_invocation
+    verb: (identifier)
+    targets: (target_list
+      (identifier))
+    (modifier_block
+      (modifier_list
+        (modifier
+          (time_literal))))))

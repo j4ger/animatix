@@ -1,6 +1,11 @@
 module.exports = grammar({
   name: 'animatix',
 
+  externals: $ => [
+    $.number,
+    $.time_literal,
+  ],
+
   extras: $ => [
     /\s/,
     $.comment,
@@ -9,35 +14,28 @@ module.exports = grammar({
   word: $ => $.identifier,
 
   conflicts: $ => [
-    [$._expression, $.object_expression],
-    [$._expression, $.path_expression],
-    [$._expression, $.call_expression],
-    [$._expression, $.method_call_expression],
+    // (x) could be tuple or closure params
     [$._expression, $.closure_expression],
-    [$._expression, $.tuple_expression],
-    [$._expression, $.index_expression],
-    [$._expression, $.parenthesized_expression],
-    [$._expression, $.array_expression],
-    [$._expression, $.type_annotation],
-    [$.tuple_expression, $.parenthesized_expression],
     [$.binary_expression, $.closure_expression],
-    [$.binary_expression, $.path_expression],
-    [$.binary_expression, $.call_expression],
-    [$.binary_expression, $.method_call_expression],
-    [$.binary_expression, $.index_expression],
-    [$._statement, $.actor_declaration],
-    [$._statement, $.property_assignment],
-    [$._statement, $.action_invocation],
-    [$.target_list, $.argument_list],
+    // (a) is ambiguous between tuple and parenthesized
+    [$.tuple_expression, $.parenthesized_expression],
+    // foo: Bar {} could be actor declaration or expression
+    [$._statement, $._expression],
+    // a.b ambiguity in expression context
+    [$._expression, $.path_expression],
+    // Foo {} could be object expression or block
+    [$._expression, $.object_expression],
+    // expr[index] needs conflict with index_value
+    [$._expression, $.index_value],
   ],
 
   rules: {
     source_file: $ => repeat($._statement),
 
     _statement: $ => choice(
-      $.comment,
       $.config,
       $.import_statement,
+      $.use_statement,
       $.let_declaration,
       $.component_definition,
       $.action_definition,
@@ -45,12 +43,13 @@ module.exports = grammar({
       $.keyframe,
       $.actor_declaration,
       $.property_assignment,
+      $.reactive_binding,
       $.action_invocation,
       $.sequence_block,
       $.stagger_block,
       $.always_block,
       $.for_block,
-      $.if_statement,
+      $.if_expression,
       $.play_statement,
       $.slot_marker,
       $.slot_fill,
@@ -98,8 +97,11 @@ module.exports = grammar({
 
     parameter: $ => seq(
       field('name', $.identifier),
-      optional(seq(':', field('type', $.type_annotation), optional(seq('=', field('default', $._expression))))),
-      optional(seq('=', field('default', $._expression)))
+      optional(choice(
+        seq(':', field('type', $.type_annotation), optional(seq('=', field('default', $._expression)))),
+        seq(':', field('default', $._expression)),
+        seq('=', field('default', $._expression))
+      ))
     ),
 
     type_annotation: $ => choice(
@@ -126,13 +128,7 @@ module.exports = grammar({
       field('name', $.identifier)
     ),
 
-    keyframe: $ => seq(
-      '#',
-      choice(
-        seq(optional('+'), $.number, optional($.time_unit)),
-        seq('+', $.number, optional($.time_unit))
-      )
-    ),
+    keyframe: $ => seq('#', optional('+'), choice($.time_literal, $.number)),
 
     time_unit: $ => choice('s', 'ms'),
 
@@ -187,11 +183,23 @@ module.exports = grammar({
       $.block
     ),
 
-    if_statement: $ => seq(
+    if_expression: $ => seq(
       'if',
       field('condition', $._expression),
-      field('consequence', $.block),
-      optional(seq('else', field('alternative', $.block)))
+      field('consequence', choice(
+        $.block,
+        $.expression_block
+      )),
+      optional(seq('else', field('alternative', choice(
+        $.block,
+        $.expression_block
+      ))))
+    ),
+
+    expression_block: $ => seq(
+      '{',
+      $._expression,
+      '}'
     ),
 
     play_statement: $ => seq(
@@ -254,9 +262,11 @@ module.exports = grammar({
     // Expressions
     _expression: $ => choice(
       $.number,
+      $.percentage,
       $.time_literal,
       $.string,
       $.boolean,
+      $.null_literal,
       $.identifier,
       $.path_expression,
       $.unary_expression,
@@ -265,10 +275,12 @@ module.exports = grammar({
       $.index_expression,
       $.tuple_expression,
       $.array_expression,
+      $.set_expression,
       $.closure_expression,
       $.object_expression,
       $.parenthesized_expression,
       $.method_call_expression,
+      $.if_expression,
     ),
 
     path_expression: $ => prec.left(seq(
@@ -312,10 +324,19 @@ module.exports = grammar({
 
     index_expression: $ => prec(5, seq(
       field('object', $._expression),
-      '[',
-      field('index', $._expression),
+      token.immediate('['),
+      field('index', $.index_value),
       ']'
     )),
+
+    // Values that make sense as array/tuple indices.
+    // Excludes time_literal and percentage to avoid ambiguity with modifier blocks.
+    index_value: $ => choice(
+      $.number,
+      $.identifier,
+      $.path_expression,
+      $.parenthesized_expression
+    ),
 
     tuple_expression: $ => seq(
       '(',
@@ -327,6 +348,12 @@ module.exports = grammar({
       '[',
       optional(seq($._expression, repeat(seq(',', $._expression)))),
       ']'
+    ),
+
+    set_expression: $ => seq(
+      '{',
+      optional(seq($._expression, repeat(seq(',', $._expression)))),
+      '}'
     ),
 
     closure_expression: $ => seq(
@@ -350,10 +377,29 @@ module.exports = grammar({
       ')'
     ),
 
-    // Literals
-    number: $ => /\d+(\.\d+)?/,
+    // New statements
+    use_statement: $ => seq(
+      'use',
+      field('path', $.path_expression)
+    ),
 
-    time_literal: $ => seq($.number, $.time_unit),
+    reactive_binding: $ => seq(
+      field('target', choice($.identifier, $.path_expression)),
+      ':=',
+      field('value', $._expression),
+      optional($.modifier_block)
+    ),
+
+    // Literals
+    // number and time_literal are handled by external scanner (scanner.c)
+    // The scanner decides: digits → number, digits+s/ms → time_literal
+
+    percentage: $ => prec(6, seq($.number, '%')),
+
+    null_literal: $ => 'null',
+
+    // time_literal is handled by external scanner (scanner.c)
+    // It tokenizes '800ms', '2.5s', etc. as a single token
 
     string: $ => choice(
       seq('"', /[^"\\]*/, '"'),

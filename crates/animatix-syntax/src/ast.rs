@@ -603,17 +603,6 @@ pub enum Stmt {
         span: Option<Span>,
     },
 
-    /// Drive block: `drive actor { ... }`
-    /// Per-actor reactive block where assignments are implicitly scoped.
-    Drive {
-        /// Target actor label.
-        label: String,
-        /// Body statements in the drive block.
-        body: Vec<Stmt>,
-        /// Source span for this block.
-        span: Option<Span>,
-    },
-
     /// Reactive binding: `actor.prop := expr`
     /// Desugars to an always-assignment at build time.
     ReactiveBinding {

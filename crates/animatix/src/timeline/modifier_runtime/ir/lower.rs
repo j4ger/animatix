@@ -5,7 +5,7 @@ use super::types::{
     BuiltinFn, CompiledExpr, IrLowerError, ModifierExpr, ModifierIrProgram, ModifierIrStmt,
 };
 
-/// Convenience wrapper that unwraps `Always` / `Drive`
+/// Convenience wrapper that unwraps `Always`
 /// statements and lowers their bodies. Kept for test compatibility.
 pub fn lower_modifier_ir(program: &[Stmt]) -> Result<ModifierIrProgram, IrLowerError> {
     let mut statements = Vec::new();
@@ -20,7 +20,7 @@ fn lower_modifier_roots(
     output: &mut Vec<ModifierIrStmt>,
 ) -> Result<(), IrLowerError> {
     match stmt {
-        Stmt::Always { body, .. } | Stmt::Drive { body, .. } => {
+        Stmt::Always { body, .. } => {
             output.extend(lower_modifier_block(body)?);
         }
         Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
@@ -44,7 +44,7 @@ pub fn lower_modifier_block(body: &[Stmt]) -> Result<Vec<ModifierIrStmt>, IrLowe
 
 /// Lower a flat list of modifier body statements (assignments, conditionals, lets)
 /// into a ModifierIrProgram. Unlike `lower_modifier_ir`, this does not expect
-/// Always/Drive wrapper statements.
+/// Always wrapper statements.
 pub fn lower_modifier_body(statements: &[Stmt]) -> Result<ModifierIrProgram, IrLowerError> {
     Ok(ModifierIrProgram {
         statements: lower_modifier_block(statements)?,
@@ -109,7 +109,6 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
         | Stmt::Sequence { .. }
         | Stmt::Stagger { .. }
         | Stmt::Always { .. }
-        | Stmt::Drive { .. }
         | Stmt::ReactiveBinding { .. }
         | Stmt::ComponentDef(..)
         | Stmt::ComponentAction { .. }

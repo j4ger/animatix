@@ -32,8 +32,7 @@ fn set_action_spans(stmts: &mut [Stmt], source: &str) {
             | Stmt::RelativeKeyframe { body, .. }
             | Stmt::Sequence { body, .. }
             | Stmt::Stagger { body, .. }
-            | Stmt::Always { body, .. }
-            | Stmt::Drive { body, .. } => bodies.push(body),
+            | Stmt::Always { body, .. } => bodies.push(body),
             Stmt::Conditional { then_branch, else_branch, .. } => {
                 bodies.push(then_branch);
                 if let Some(else_body) = else_branch {
@@ -595,7 +594,6 @@ impl ModuleGraph {
             | Stmt::Sequence { body, .. }
             | Stmt::Stagger { body, .. }
             | Stmt::Always { body, .. }
-            | Stmt::Drive { body, .. }
             | Stmt::ForLoop { body, .. } => {
                 for stmt in body {
                     Self::collect_module_actions_from_stmt(stmt, actions);

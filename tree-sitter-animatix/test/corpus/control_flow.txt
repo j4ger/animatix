@@ -1,0 +1,180 @@
+==================
+If statement
+==================
+
+if condition {
+  title.text = "Yes"
+}
+
+---
+
+(source_file
+  (if_expression
+    condition: (identifier)
+    consequence: (block
+      (property_assignment
+        target: (path_expression
+          base: (identifier)
+          name: (identifier))
+        value: (string)))))
+
+==================
+If else statement
+==================
+
+if condition {
+  title.text = "Yes"
+} else {
+  title.text = "No"
+}
+
+---
+
+(source_file
+  (if_expression
+    condition: (identifier)
+    consequence: (block
+      (property_assignment
+        target: (path_expression
+          base: (identifier)
+          name: (identifier))
+        value: (string)))
+    alternative: (block
+      (property_assignment
+        target: (path_expression
+          base: (identifier)
+          name: (identifier))
+        value: (string)))))
+
+==================
+For loop
+==================
+
+for i in {0, 1, 2, 3, 4} {
+  let x = i
+}
+
+---
+
+(source_file
+  (for_block
+    variable: (identifier)
+    iterable: (set_expression
+      (number)
+      (number)
+      (number)
+      (number)
+      (number))
+    (block
+      (let_declaration
+        name: (identifier)
+        value: (identifier)))))
+
+==================
+Sequence block
+==================
+
+sequence {
+  a.color = accent.danger
+  b.color = accent.warning
+}
+
+---
+
+(source_file
+  (sequence_block
+    (block
+      (property_assignment
+        target: (path_expression
+          base: (identifier)
+          name: (identifier))
+        value: (path_expression
+          base: (identifier)
+          name: (identifier)))
+      (property_assignment
+        target: (path_expression
+          base: (identifier)
+          name: (identifier))
+        value: (path_expression
+          base: (identifier)
+          name: (identifier))))))
+
+==================
+Stagger block
+==================
+
+stagger [80ms] {
+  fade-in a [400ms]
+  fade-in b [400ms]
+}
+
+---
+
+(source_file
+  (stagger_block
+    (time_literal)
+    (block
+      (action_invocation
+        verb: (identifier)
+        targets: (target_list
+          (identifier))
+        (modifier_block
+          (modifier_list
+            (modifier
+              (time_literal)))))
+      (action_invocation
+        verb: (identifier)
+        targets: (target_list
+          (identifier))
+        (modifier_block
+          (modifier_list
+            (modifier
+              (time_literal))))))))
+
+==================
+Always block
+==================
+
+always {
+  let cx = scene.center.x
+  orbit.at = (cx, cy)
+}
+
+---
+
+(source_file
+  (always_block
+    (block
+      (let_declaration
+        name: (identifier)
+        value: (path_expression
+          base: (path_expression
+            base: (identifier)
+            name: (identifier))
+          name: (identifier)))
+      (property_assignment
+        target: (path_expression
+          base: (identifier)
+          name: (identifier))
+        value: (tuple_expression
+          (identifier)
+          (identifier))))))
+
+==================
+Comments in blocks
+==================
+
+always {
+  // This is a comment
+  let x = 1
+}
+
+---
+
+(source_file
+  (always_block
+    (block
+      (comment)
+      (let_declaration
+        name: (identifier)
+        value: (number)))))

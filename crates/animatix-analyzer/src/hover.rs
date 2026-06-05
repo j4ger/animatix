@@ -125,18 +125,8 @@ pub fn hover_at(
                 None
             }
         }
-        "type_identifier" => {
-            let doc = type_documentation(text);
-            Some(HoverInfo {
-                contents: format!("**Type** `{}`\n\n{}", text, doc),
-                range: Some((
-                    node.start_position().row,
-                    node.start_position().column,
-                    node.end_position().row,
-                    node.end_position().column,
-                )),
-            })
-        }
+        // type_identifier doesn't exist in tree-sitter-animatix; types are just identifiers
+        // handled by the identifier branch above via symbols.types.contains(text)
         "string" => Some(HoverInfo {
             contents: format!("**String** `{}`", text),
             range: Some((
@@ -146,7 +136,7 @@ pub fn hover_at(
                 node.end_position().column,
             )),
         }),
-        "number" | "duration_literal" | "percentage" => Some(HoverInfo {
+        "number" | "time_literal" | "percentage" => Some(HoverInfo {
             contents: format!("**Number** `{}`", text),
             range: Some((
                 node.start_position().row,

@@ -1,5 +1,5 @@
 //! Main AST statement processor: dispatches to actor declaration, assignment,
-//! sequence, stagger, drive, always, for-loop, and let-decl handlers.
+//! sequence, stagger, always, for-loop, and let-decl handlers.
 
 use super::*;
 use tracing::instrument;
@@ -49,7 +49,7 @@ impl Timeline {
                             DiagnosticCode::InvalidAssignmentTarget,
                             DiagnosticPhase::Build,
                             format!(
-                                "Assignment '{property} = ...' must include an actor label, or be placed inside a 'drive' block",
+                                "Assignment '{property} = ...' must include an actor label.",
                             ),
                         ));
                     } else {
@@ -66,10 +66,6 @@ impl Timeline {
                 }
                 Stmt::Always { body, .. } => {
                     self.modifiers.extend(body.clone());
-                }
-                Stmt::Drive { label, body, .. } => {
-                    let rewritten = self.rewrite_drive_assignments(body, label);
-                    self.modifiers.extend(rewritten);
                 }
                 Stmt::ReactiveBinding {
                     target,

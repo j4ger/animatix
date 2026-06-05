@@ -16,7 +16,6 @@ pub(crate) fn sequence_stmt_kind(stmt: &Stmt) -> &'static str {
         Stmt::Keyframe { .. } => "keyframe",
         Stmt::RelativeKeyframe { .. } => "relative keyframe",
         Stmt::Always { .. } => "always block",
-        Stmt::Drive { .. } => "drive block",
         Stmt::ReactiveBinding { .. } => "reactive binding",
         Stmt::Conditional { .. } => "conditional",
         Stmt::ForLoop { .. } => "for loop",

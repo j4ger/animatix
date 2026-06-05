@@ -22,8 +22,8 @@ pub fn definition_at(
 
     let text = &source[node.byte_range()];
 
-    // Only handle identifiers
-    if node.kind() != "identifier" && node.kind() != "type_identifier" {
+    // Only handle identifiers (tree-sitter-animatix uses "identifier" for all names)
+    if node.kind() != "identifier" {
         return None;
     }
 

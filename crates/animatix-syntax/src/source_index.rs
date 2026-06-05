@@ -132,7 +132,6 @@ impl SourceIndex {
                 | Stmt::Sequence { body, .. }
                 | Stmt::Stagger { body, .. }
                 | Stmt::Always { body, .. }
-                | Stmt::Drive { body, .. }
                 | Stmt::ForLoop { body, .. } => {
                     self.walk(body);
                 }
