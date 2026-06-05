@@ -41,7 +41,6 @@ use tree_sitter::{Parser as TsParser, Tree};
 ///
 /// Holds parsed source, AST, tree-sitter tree, and extracted symbols.
 /// Call `update()` when source changes; query methods are cheap.
-#[derive(Clone)]
 pub struct Analyzer {
     source: String,
     path: Option<PathBuf>,
@@ -49,8 +48,11 @@ pub struct Analyzer {
     parse_errors: Vec<ParseError>,
     tree: Option<Tree>,
     symbols: SymbolTable,
-    workspace: Option<std::sync::Arc<Workspace>>,
     type_diagnostics: Vec<diagnostics::Diagnostic>,
+    lint_config: diagnostics::LintConfig,
+    /// Whether the source has changed since the last type check.
+    /// Set by `update()`, cleared by `rebuild_symbols()`.
+    dirty: bool,
 }
 
 impl Analyzer {
@@ -68,19 +70,12 @@ impl Analyzer {
             parse_errors: Vec::new(),
             tree: None,
             symbols: SymbolTable::default(),
-            workspace: None,
             type_diagnostics: Vec::new(),
+            lint_config: diagnostics::LintConfig::default(),
+            dirty: true,
         };
         analyzer.update(source);
         analyzer
-    }
-
-    /// Attach a workspace for cross-file analysis.
-    /// Triggers re-resolution of cross-file symbols.
-    pub fn set_workspace(&mut self, workspace: std::sync::Arc<Workspace>) {
-        self.workspace = Some(workspace);
-        // Force re-build of symbols with workspace context
-        self.rebuild_symbols();
     }
 
     /// Update the source text. Re-parses if changed.
@@ -90,6 +85,7 @@ impl Analyzer {
         }
 
         self.source = source.to_string();
+        self.dirty = true;
 
         // Parse with tree-sitter (for position-based queries)
         let mut ts_parser = TsParser::new();
@@ -102,7 +98,6 @@ impl Analyzer {
     }
 
     /// Rebuild the symbol table from the current source and tree.
-    /// Shared logic between `update()` and `set_workspace()`.
     fn rebuild_symbols(&mut self) {
         let source = &self.source;
 
@@ -114,9 +109,7 @@ impl Analyzer {
         // Build symbol table from AST
         let mut table = if let Some(ref stmts) = self.ast {
             let mut table = SymbolTable::build_from_ast(stmts);
-            // Collect label references for unused label detection
             table.collect_references(stmts);
-            // Enrich with real positions from tree-sitter
             if let Some(ref tree) = self.tree {
                 Self::enrich_positions(tree, source, &mut table);
             }
@@ -125,27 +118,25 @@ impl Analyzer {
             SymbolTable::default()
         };
 
-        // Resolve cross-file symbols if workspace is attached
-        if let Some(ref workspace) = self.workspace {
-            if let Some(ref path) = self.path {
-                let resolved = workspace.resolve_symbols(path);
-                table.merge(&resolved);
-            }
-        }
+        // Cache lint config from source comments
+        self.lint_config = diagnostics::LintConfig::from_source(source);
 
-        // Run gradual type checker
-        self.type_diagnostics = if let Some(ref stmts) = self.ast {
-            let components = Self::build_component_registry(stmts);
-            let module_actions = std::collections::HashMap::new();
-            let mut env = animatix_syntax::typecheck::TypeEnv::new(&components, &module_actions);
-            let syntax_diagnostics = env.check_statements(stmts);
-            syntax_diagnostics
-                .into_iter()
-                .map(Self::convert_type_diagnostic)
-                .collect()
-        } else {
-            Vec::new()
-        };
+        // Run gradual type checker only if source actually changed
+        if self.dirty {
+            self.type_diagnostics = if let Some(ref stmts) = self.ast {
+                let components = Self::build_component_registry(stmts);
+                let module_actions = std::collections::HashMap::new();
+                let mut env = animatix_syntax::typecheck::TypeEnv::new(&components, &module_actions);
+                let syntax_diagnostics = env.check_statements(stmts);
+                syntax_diagnostics
+                    .into_iter()
+                    .map(Self::convert_type_diagnostic)
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            self.dirty = false;
+        }
 
         self.symbols = table;
     }
@@ -365,8 +356,7 @@ impl Analyzer {
 
     /// All diagnostics (parse errors + semantic checks).
     pub fn diagnostics(&self) -> Vec<Diagnostic> {
-        let config = diagnostics::LintConfig::from_source(&self.source);
-        self.diagnostics_with_config(&config)
+        self.diagnostics_with_config(&self.lint_config)
     }
 
     /// All diagnostics with explicit lint configuration.
@@ -388,12 +378,14 @@ impl Analyzer {
     }
 
     /// Go-to-definition at cursor position.
-    pub fn definition_at(&self, line: usize, col: usize) -> Option<Location> {
+    ///
+    /// Pass `workspace` for cross-file definition lookup.
+    pub fn definition_at(&self, workspace: Option<&Workspace>, line: usize, col: usize) -> Option<Location> {
         definition::definition_at(
             &self.symbols,
             self.tree.as_ref(),
             &self.source,
-            self.workspace.as_deref(),
+            workspace,
             self.path.as_deref(),
             line,
             col,
@@ -539,12 +531,14 @@ title: Text {
         assert!(lib_symbols.labels.contains_key("shared_color"), "lib should have shared_color " );
 
         let mut analyzer = Analyzer::new_with_path(main_source, Some(PathBuf::from("/project/main.amx")));
-        analyzer.set_workspace(std::sync::Arc::new(workspace));
 
+        // Verify local symbols are available
         let symbols = analyzer.symbols();
+        assert!(symbols.labels.contains_key("title"), "main should have title from local source");
 
-        assert!(symbols.labels.contains_key("shared_color"), "main should have shared_color from import");
-        assert!(symbols.labels.contains_key("title"));
+        // Verify workspace resolves cross-file symbols
+        let resolved = workspace.resolve_symbols(Path::new("/project/main.amx"));
+        assert!(resolved.labels.contains_key("shared_color"), "workspace should resolve shared_color from import");
     }
 
     #[test]
@@ -630,7 +624,7 @@ always {
         let analyzer = Analyzer::new(source);
 
         // Click on "title" in always block (line 6, col 4)
-        let loc = analyzer.definition_at(6, 4);
+        let loc = analyzer.definition_at(None, 6, 4);
         assert!(loc.is_some());
         let loc = loc.unwrap();
         assert!(loc.file.is_none(), "definition in same file " );
@@ -650,7 +644,7 @@ title: Text {
         let analyzer = Analyzer::new(source);
 
         // Position on colon ':' at line 2, col 5
-        let loc = analyzer.definition_at(2, 5);
+        let loc = analyzer.definition_at(None, 2, 5);
         assert!(loc.is_none());
     }
 
@@ -664,7 +658,7 @@ title: Text {
 "#;
         let analyzer = Analyzer::new(source);
 
-        let loc = analyzer.definition_at(999, 999);
+        let loc = analyzer.definition_at(None, 999, 999);
         assert!(loc.is_none());
     }
 

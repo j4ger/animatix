@@ -16,9 +16,11 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 struct Backend {
     client: Client,
     /// Analyzer instances per document URI.
-    analyzers: Arc<Mutex<HashMap<String, Analyzer>>>,
+    /// `Analyzer` is not `Clone` — we hold it behind a mutex and call query
+    /// methods while the lock is held (queries are fast).
+    analyzers: Mutex<HashMap<String, Analyzer>>,
     /// Cached workspace for cross-file analysis.
-    /// Rebuilt incrementally when files change.
+    /// Rebuilt when files are opened, changed, or closed.
     cached_workspace: Mutex<Option<Arc<Workspace>>>,
 }
 
@@ -26,50 +28,59 @@ impl Backend {
     fn new(client: Client) -> Self {
         Self {
             client,
-            analyzers: Arc::new(Mutex::new(HashMap::new())),
+            analyzers: Mutex::new(HashMap::new()),
             cached_workspace: Mutex::new(None),
         }
     }
 
-    /// Get or create an analyzer for a document.
-    async fn get_analyzer(&self, uri: &str) -> Analyzer {
-        let analyzers = self.analyzers.lock().await;
-        analyzers.get(uri).cloned().unwrap_or_else(|| Analyzer::new(""))
+    /// Update the analyzer for a document. Rebuilds workspace if needed.
+    async fn update_analyzer(&self, uri: String, text: String) {
+        let path = uri_to_path(&uri);
+        let is_new;
+        {
+            let mut analyzers = self.analyzers.lock().await;
+            is_new = !analyzers.contains_key(&uri);
+            let analyzer = analyzers
+                .entry(uri.clone())
+                .or_insert_with(|| Analyzer::new_with_path(&text, path.clone()));
+            analyzer.update(&text);
+        }
+
+        if is_new {
+            self.rebuild_workspace().await;
+        } else {
+            self.update_workspace_file(&uri, &text).await;
+        }
     }
 
-    /// Build a workspace from all open documents and attach it to each analyzer.
+    /// Remove an analyzer for a closed document.
+    async fn remove_analyzer(&self, uri: &str) {
+        {
+            let mut analyzers = self.analyzers.lock().await;
+            analyzers.remove(uri);
+        }
+        self.rebuild_workspace().await;
+    }
+
+    /// Build a workspace from all open documents.
     /// Full rebuild — use when files are opened or closed.
     async fn rebuild_workspace(&self) {
-        let mut analyzers = self.analyzers.lock().await;
-        if analyzers.len() <= 1 {
-            // Clear cached workspace when dropping below 2 files
-            let mut cached = self.cached_workspace.lock().await;
-            *cached = None;
-            // Also clear workspace from remaining analyzer
-            for (_, analyzer) in analyzers.iter_mut() {
-                analyzer.set_workspace(Arc::new(Workspace::new()));
+        let workspace = {
+            let analyzers = self.analyzers.lock().await;
+            if analyzers.len() <= 1 {
+                None
+            } else {
+                let mut workspace = Workspace::new();
+                for (_uri, analyzer) in analyzers.iter() {
+                    if let Some(path) = analyzer.path() {
+                        workspace.add_file(path.to_path_buf(), analyzer.source());
+                    }
+                }
+                Some(Arc::new(workspace))
             }
-            return;
-        }
-
-        // Build workspace from all open documents
-        let mut workspace = Workspace::new();
-        for (_uri, analyzer) in analyzers.iter() {
-            if let Some(path) = analyzer.path() {
-                workspace.add_file(path.to_path_buf(), analyzer.source());
-            }
-        }
-
-        let workspace_arc = Arc::new(workspace);
-
-        // Attach workspace to each analyzer
-        for (_, analyzer) in analyzers.iter_mut() {
-            analyzer.set_workspace(Arc::clone(&workspace_arc));
-        }
-
-        // Cache the workspace
+        };
         let mut cached = self.cached_workspace.lock().await;
-        *cached = Some(workspace_arc);
+        *cached = workspace;
     }
 
     /// Incrementally update a single file in the cached workspace.
@@ -77,64 +88,26 @@ impl Backend {
     async fn update_workspace_file(&self, uri: &str, source: &str) {
         let cached = self.cached_workspace.lock().await;
         if let Some(workspace) = cached.as_ref() {
-            // We have a cached workspace — update it incrementally
             let mut workspace = Workspace::clone(workspace);
             drop(cached);
 
             if let Some(path) = uri_to_path(uri) {
                 workspace.add_file(path, source);
-                let workspace_arc = Arc::new(workspace);
-
-                // Update all analyzers with the new workspace
-                let mut analyzers = self.analyzers.lock().await;
-                for (_, analyzer) in analyzers.iter_mut() {
-                    analyzer.set_workspace(Arc::clone(&workspace_arc));
-                }
-
-                // Update cache
                 let mut cached = self.cached_workspace.lock().await;
-                *cached = Some(workspace_arc);
+                *cached = Some(Arc::new(workspace));
             }
         }
-        // If no cached workspace, do nothing — full rebuild will happen on file open
     }
-
-    /// Update the analyzer for a document.
-    async fn update_analyzer(&self, uri: String, text: String) {
-        let mut analyzers = self.analyzers.lock().await;
-        let path = uri_to_path(&uri);
-        let is_new = !analyzers.contains_key(&uri);
-        let analyzer = analyzers
-            .entry(uri.clone())
-            .or_insert_with(|| Analyzer::new_with_path(&text, path.clone()));
-        analyzer.update(&text);
-        drop(analyzers);
-
-        if is_new {
-            // Full rebuild when a new file is opened
-            self.rebuild_workspace().await;
-        } else {
-            // Incremental update for keystroke-level changes
-            self.update_workspace_file(&uri, &text).await;
-        }
-    }
-
-    /// Remove an analyzer for a closed document.
-    async fn remove_analyzer(&self, uri: &str) {
-        let mut analyzers = self.analyzers.lock().await;
-        analyzers.remove(uri);
-        drop(analyzers);
-
-        // Rebuild workspace after removal
-        self.rebuild_workspace().await;
-    }
-
-
 
     /// Publish diagnostics for a document to the LSP client.
     async fn publish_diagnostics(&self, uri: &str) {
-        let analyzer = self.get_analyzer(uri).await;
-        let diagnostics = analyzer.diagnostics();
+        let diagnostics = {
+            let analyzers = self.analyzers.lock().await;
+            let Some(analyzer) = analyzers.get(uri) else {
+                return;
+            };
+            analyzer.diagnostics()
+        };
 
         let lsp_diagnostics: Vec<Diagnostic> = diagnostics
             .into_iter()
@@ -233,8 +206,13 @@ impl LanguageServer for Backend {
         let uri = params.text_document_position.text_document.uri.to_string();
         let position = params.text_document_position.position;
 
-        let analyzer = self.get_analyzer(&uri).await;
-        let items = analyzer.completions_at(position.line as usize, position.character as usize);
+        let items = {
+            let analyzers = self.analyzers.lock().await;
+            let Some(analyzer) = analyzers.get(&uri) else {
+                return Ok(Some(CompletionResponse::Array(vec![])));
+            };
+            analyzer.completions_at(position.line as usize, position.character as usize)
+        };
 
         let lsp_items: Vec<CompletionItem> = items.into_iter().map(|item| {
             let kind = match item.kind {
@@ -264,8 +242,13 @@ impl LanguageServer for Backend {
         let uri = params.text_document_position_params.text_document.uri.to_string();
         let position = params.text_document_position_params.position;
 
-        let analyzer = self.get_analyzer(&uri).await;
-        let hover_info = analyzer.hover_at(position.line as usize, position.character as usize);
+        let hover_info = {
+            let analyzers = self.analyzers.lock().await;
+            let Some(analyzer) = analyzers.get(&uri) else {
+                return Ok(None);
+            };
+            analyzer.hover_at(position.line as usize, position.character as usize)
+        };
 
         Ok(hover_info.map(|info| {
             let range = info.range.map(|(sl, sc, el, ec)| {
@@ -292,8 +275,14 @@ impl LanguageServer for Backend {
         let uri = params.text_document_position_params.text_document.uri.to_string();
         let position = params.text_document_position_params.position;
 
-        let analyzer = self.get_analyzer(&uri).await;
-        let location = analyzer.definition_at(position.line as usize, position.character as usize);
+        let location = {
+            let analyzers = self.analyzers.lock().await;
+            let workspace = self.cached_workspace.lock().await;
+            let Some(analyzer) = analyzers.get(&uri) else {
+                return Ok(None);
+            };
+            analyzer.definition_at(workspace.as_deref(), position.line as usize, position.character as usize)
+        };
 
         Ok(location.map(|loc| {
             let target_uri = loc.file.map(|f| {
@@ -319,8 +308,13 @@ impl LanguageServer for Backend {
         params: DocumentSymbolParams,
     ) -> Result<Option<DocumentSymbolResponse>> {
         let uri = params.text_document.uri.to_string();
-        let analyzer = self.get_analyzer(&uri).await;
-        let symbols = analyzer.document_symbols();
+        let symbols = {
+            let analyzers = self.analyzers.lock().await;
+            let Some(analyzer) = analyzers.get(&uri) else {
+                return Ok(None);
+            };
+            analyzer.document_symbols()
+        };
 
         let lsp_symbols: Vec<SymbolInformation> = symbols.into_iter().map(|sym| {
             let kind = match sym.kind {
@@ -402,8 +396,11 @@ impl LanguageServer for Backend {
         let uri = params.text_document_position.text_document.uri.to_string();
         let position = params.text_document_position.position;
 
-        // Get the symbol name at the cursor position using structured lookup
-        let analyzer = self.get_analyzer(&uri).await;
+        let analyzers = self.analyzers.lock().await;
+        let Some(analyzer) = analyzers.get(&uri) else {
+            return Ok(None);
+        };
+
         let symbol_name = analyzer
             .symbol_at(position.line as usize, position.character as usize);
 
@@ -412,7 +409,6 @@ impl LanguageServer for Backend {
         };
 
         // Search for references across all workspace files
-        let analyzers = self.analyzers.lock().await;
         let mut locations = Vec::new();
 
         for (file_uri, file_analyzer) in analyzers.iter() {
@@ -439,20 +435,24 @@ impl LanguageServer for Backend {
 
     async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {
         let uri = params.text_document.uri.to_string();
-        let analyzer = self.get_analyzer(&uri).await;
-        let source = analyzer.source();
 
-        let fmt = animatix_syntax::formatter::Formatter::default();
-        let stmts = match analyzer.ast() {
-            Some(stmts) => stmts,
-            None => return Ok(None),
+        let (source, formatted) = {
+            let analyzers = self.analyzers.lock().await;
+            let Some(analyzer) = analyzers.get(&uri) else {
+                return Ok(None);
+            };
+            let source = analyzer.source();
+            let stmts = match analyzer.ast() {
+                Some(stmts) => stmts,
+                None => return Ok(None),
+            };
+            let fmt = animatix_syntax::formatter::Formatter::default();
+            let formatted = fmt.format(stmts);
+            if source == formatted {
+                return Ok(None);
+            }
+            (source.to_string(), formatted)
         };
-
-        let formatted = fmt.format(stmts);
-
-        if source == formatted {
-            return Ok(None);
-        }
 
         // Replace the entire document
         let lines: Vec<&str> = source.lines().collect();
