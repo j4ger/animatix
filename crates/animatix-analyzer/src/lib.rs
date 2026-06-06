@@ -107,7 +107,7 @@ impl Analyzer {
         self.parse_errors = errors;
 
         // Build symbol table from AST
-        let mut table = if let Some(ref stmts) = self.ast {
+        let table = if let Some(ref stmts) = self.ast {
             let mut table = SymbolTable::build_from_ast(stmts);
             table.collect_references(stmts);
             if let Some(ref tree) = self.tree {
