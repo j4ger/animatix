@@ -436,6 +436,7 @@ impl ModifierVm {
                     self.ip = *target;
                 }
                 Instruction::BeginFor(var) => {
+                    self.for_iteration_count = 0;
                     let iterable = self.pop()?;
                     let items: Vec<Value> = match iterable {
                         Value::List(list) => list,
