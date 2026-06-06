@@ -69,9 +69,9 @@ impl Workspace {
             let import_path = Self::resolve_import_path(path, &import.path);
             if let Some(entry) = self.files.get(&import_path) {
                 if import.alias.is_some() {
-                    // Aliased import: symbols are accessed via alias.namespace
-                    // For now, include all symbols but track the alias for qualified access
-                    merged.merge(&entry.symbols);
+                    // Aliased import: symbols should be accessed via alias.namespace.
+                    // Don't merge into global namespace to avoid name pollution.
+                    // TODO: implement namespace-aware symbol resolution for aliases.
                 } else {
                     // Direct import: merge all exported symbols
                     merged.merge(&entry.symbols);

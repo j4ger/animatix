@@ -673,8 +673,35 @@ pub fn infer_expr_type(expr: &Expr) -> PropertyType {
         Expr::Ident(_) => PropertyType::Any,
         Expr::Path(_) => PropertyType::Any, // e.g., text.primary
         Expr::Index(_, _) => PropertyType::Any,
-        Expr::Binary(_, _, _) => PropertyType::Num,
-        Expr::Unary(_, _) => PropertyType::Num,
+        Expr::Binary(left, op, right) => {
+            let lt = infer_expr_type(left);
+            let rt = infer_expr_type(right);
+            match op {
+                // Arithmetic: result is Num if both operands are numeric, Any otherwise
+                BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod | BinaryOp::Pow => {
+                    if lt == PropertyType::Num && rt == PropertyType::Num {
+                        PropertyType::Num
+                    } else if lt == PropertyType::String || rt == PropertyType::String {
+                        PropertyType::String // string concatenation
+                    } else {
+                        PropertyType::Any
+                    }
+                }
+                // Comparison: result is Bool
+                BinaryOp::Eq | BinaryOp::Neq | BinaryOp::Lt | BinaryOp::Gt | BinaryOp::Lte | BinaryOp::Gte => PropertyType::Bool,
+                // Logical: result is Bool
+                BinaryOp::And | BinaryOp::Or => PropertyType::Bool,
+            }
+        }
+        Expr::Unary(op, inner) => {
+            match op {
+                UnaryOp::Neg => {
+                    let t = infer_expr_type(inner);
+                    if t == PropertyType::Num { PropertyType::Num } else { PropertyType::Any }
+                }
+                UnaryOp::Not => PropertyType::Bool,
+            }
+        }
         Expr::Call(_, _) => PropertyType::Any,
         Expr::Method(_, _, _) => PropertyType::Any,
         Expr::Closure(_, _) => PropertyType::Any,
