@@ -478,6 +478,10 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 }
             }
 
+            // ── Ruler click-to-scrub ──
+            let ruler_rect = Rect::from_min_max(Pos2::new(scroll_rect.left(), ruler_top), Pos2::new(scroll_rect.right(), ruler_bot));
+            bar_interaction(ui, ruler_rect, "ruler", commands, &x_to_time);
+
             // ── Playhead X position ──
             let playhead_x = time_to_x(preview.playback.current_time_s());
 
