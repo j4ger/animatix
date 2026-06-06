@@ -53,6 +53,8 @@ pub struct SymbolTable {
     pub imports: Vec<ImportInfo>,
     /// Labels referenced in actions/assignments (for unused label detection).
     pub referenced_labels: HashSet<String>,
+    /// Namespaced symbols from aliased imports (e.g., "foo" → SymbolTable).
+    pub namespaces: HashMap<String, SymbolTable>,
 }
 
 /// Information about an import declaration.
@@ -550,6 +552,47 @@ impl SymbolTable {
                 }
             }
         }
+    }
+
+    /// Look up a label by namespace-qualified name (e.g., "foo.bar").
+    /// Returns the label info if found in the specified namespace.
+    pub fn resolve_namespaced_label(&self, qualified_name: &str) -> Option<&LabelInfo> {
+        let parts: Vec<&str> = qualified_name.splitn(2, '.').collect();
+        if parts.len() == 2 {
+            let namespace = parts[0];
+            let name = parts[1];
+            self.namespaces.get(namespace)
+                .and_then(|ns| ns.labels.get(name))
+        } else {
+            None
+        }
+    }
+
+    /// Look up a component by namespace-qualified name (e.g., "foo.MyComponent").
+    pub fn resolve_namespaced_component(&self, qualified_name: &str) -> Option<&ComponentInfo> {
+        let parts: Vec<&str> = qualified_name.splitn(2, '.').collect();
+        if parts.len() == 2 {
+            let namespace = parts[0];
+            let name = parts[1];
+            self.namespaces.get(namespace)
+                .and_then(|ns| ns.components.get(name))
+        } else {
+            None
+        }
+    }
+
+    /// Get all labels in a specific namespace (for completions).
+    pub fn namespace_labels(&self, namespace: &str) -> Vec<&str> {
+        self.namespaces.get(namespace)
+            .map(|ns| ns.labels.keys().map(|s| s.as_str()).collect())
+            .unwrap_or_default()
+    }
+
+    /// Get all components in a specific namespace (for completions).
+    pub fn namespace_components(&self, namespace: &str) -> Vec<&str> {
+        self.namespaces.get(namespace)
+            .map(|ns| ns.components.keys().map(|s| s.as_str()).collect())
+            .unwrap_or_default()
     }
 }
 

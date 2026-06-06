@@ -551,7 +551,7 @@ title: Text {
         let lib_symbols = workspace.file_symbols(Path::new("/project/lib.amx")).unwrap();
         assert!(lib_symbols.labels.contains_key("shared_color"), "lib should have shared_color " );
 
-        let mut analyzer = Analyzer::new_with_path(main_source, Some(PathBuf::from("/project/main.amx")));
+        let analyzer = Analyzer::new_with_path(main_source, Some(PathBuf::from("/project/main.amx")));
 
         // Verify local symbols are available
         let symbols = analyzer.symbols();
@@ -560,6 +560,48 @@ title: Text {
         // Verify workspace resolves cross-file symbols
         let resolved = workspace.resolve_symbols(Path::new("/project/main.amx"));
         assert!(resolved.labels.contains_key("shared_color"), "workspace should resolve shared_color from import");
+    }
+
+    #[test]
+    fn workspace_resolves_aliased_imports_to_namespaces() {
+        let mut workspace = Workspace::new();
+
+        let lib_source = r#"
+let accent = rgb(255, 0, 0)
+btn: Button {
+    text: "Click"
+}
+"#;
+        let main_source = r#"
+import "lib.amx" as lib
+
+title: Text {
+    content: "Hello"
+}
+"#;
+
+        workspace.add_file(PathBuf::from("/project/lib.amx"), lib_source);
+        workspace.add_file(PathBuf::from("/project/main.amx"), main_source);
+
+        let resolved = workspace.resolve_symbols(Path::new("/project/main.amx"));
+
+        // Local symbols should be in the global namespace
+        assert!(resolved.labels.contains_key("title"));
+
+        // Imported symbols should NOT be in the global namespace (aliased)
+        assert!(!resolved.labels.contains_key("accent"));
+        assert!(!resolved.labels.contains_key("btn"));
+
+        // Imported symbols should be in the "lib" namespace
+        assert!(resolved.namespaces.contains_key("lib"));
+        let lib_ns = &resolved.namespaces["lib"];
+        assert!(lib_ns.labels.contains_key("accent"));
+        assert!(lib_ns.labels.contains_key("btn"));
+
+        // Namespace-qualified lookup should work
+        assert!(resolved.resolve_namespaced_label("lib.accent").is_some());
+        assert!(resolved.resolve_namespaced_label("lib.btn").is_some());
+        assert!(resolved.resolve_namespaced_label("lib.unknown").is_none());
     }
 
     #[test]

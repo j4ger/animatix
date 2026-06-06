@@ -82,13 +82,9 @@ Immutable syntax tree that preserves whitespace and comments. Enables reliable s
 
 ### CQ-4: `scene_eval` double clone
 
-**Problem:** `scene_eval.rs:791–798` clones `Scene` twice — once for cache, once for return — because `scene_buffer` takes ownership for encoding buffer reuse.
+**Problem:** `scene_eval.rs` clones `Scene` twice — once for cache, once for return — because `scene_buffer` takes ownership for encoding buffer reuse.
 
-| # | Task | File(s) | Details |
-|---|------|---------|--------|
-| CQ-4.1 | **Separate encoding buffer from scene data** | `scene_eval.rs`, `composition.rs` | Extract Vello `Encoding` into a reusable buffer struct. `Scene` holds a reference or `Rc<Encoding>` instead of owning it inline. |
-| CQ-4.2 | **Use `Rc<Scene>` for cache** | `scene_eval.rs` | Cache stores `Rc<Scene>`, return clones the `Rc` (cheap). `scene_buffer` can still take ownership of the encoding buffer separately. |
-| CQ-4.3 | **Verify no behavioral change** | — | Run existing render tests. Compare output frames before/after (pixel-identical). |
+**Verdict:** Known limitation. Two clones are necessary because we need 3 copies: cache, return value, and buffer (for encoding reuse). The only way to eliminate this is to separate the Vello `Encoding` buffer from the scene data, which requires changes to the Vello API. Low priority — only matters for very large scenes.
 
 ---
 
