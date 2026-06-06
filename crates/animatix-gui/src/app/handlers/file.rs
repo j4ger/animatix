@@ -46,12 +46,15 @@ pub fn handle_open_file(
 ) -> Vec<Effect> {
     match DocumentSession::load(path.clone()) {
         Ok(document) => {
-            let new_workspace_root =
-                crate::app::file_tree::workspace_root_for(&path);
-            if new_workspace_root != workspace_store.workspace_root {
-                workspace_store.workspace_root = new_workspace_root;
-                workspace_store.expanded_dirs =
-                    std::collections::HashSet::from([workspace_store.workspace_root.clone()]);
+            // Only recompute workspace root if the file is outside the current workspace
+            if !path.starts_with(&workspace_store.workspace_root) {
+                let new_workspace_root =
+                    crate::app::file_tree::workspace_root_for(&path);
+                if new_workspace_root != workspace_store.workspace_root {
+                    workspace_store.workspace_root = new_workspace_root;
+                    workspace_store.expanded_dirs =
+                        std::collections::HashSet::from([workspace_store.workspace_root.clone()]);
+                }
             }
             workspace_store.file_tree = build_file_tree(
                 &workspace_store.workspace_root,
