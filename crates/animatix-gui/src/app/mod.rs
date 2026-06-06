@@ -288,9 +288,9 @@ impl GuiShell {
         }
     }
 
-    fn load(initial_path: PathBuf) -> Self {
-        let (document, status, error, is_welcome) = if initial_path == default_file_path() && !initial_path.exists() {
-            // No recent file — start in welcome mode with an empty session
+    fn load(initial_path: PathBuf, show_welcome: bool) -> Self {
+        let (document, status, error, is_welcome) = if show_welcome {
+            // No recent file persisted — show welcome screen
             let doc = DocumentSession::from_error(initial_path.clone());
             (doc, None, None, true)
         } else {
@@ -299,12 +299,11 @@ impl GuiShell {
                     let error = document.last_rebuild_error.clone();
                     (document, None, error, false)
                 }
-                Err(error) => (
-                    DocumentSession::from_error(initial_path.clone()),
-                    Some("Failed to initialize session".to_string()),
-                    Some(error.to_string()),
-                    false,
-                ),
+                Err(error) => {
+                    // Persisted file missing/deleted — fall back to welcome
+                    let doc = DocumentSession::from_error(initial_path.clone());
+                    (doc, None, Some(error.to_string()), true)
+                }
             }
         };
 

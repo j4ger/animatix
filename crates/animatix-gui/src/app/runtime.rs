@@ -1,13 +1,17 @@
 use super::*;
 use crate::app::commands::{Command, ShellAction, ViewAction};
-use crate::app::persistence::load_app_state;
+use crate::app::persistence::{load_app_state, save_app_state, clear_app_state};
 use crate::app::design_tokens::*;
 use eframe::egui;
 
 pub fn run_gui(path: Option<PathBuf>) {
-    let initial_path = path
-        .or_else(load_app_state)
-        .unwrap_or_else(default_file_path);
+    let (initial_path, show_welcome) = match path {
+        Some(p) => (p, false),
+        None => match load_app_state() {
+            Some(p) => (p, false),
+            None => (default_file_path(), true),
+        },
+    };
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("Animatix")
@@ -22,7 +26,7 @@ pub fn run_gui(path: Option<PathBuf>) {
         "Animatix",
         options,
         Box::new(move |cc| {
-            let app = AnimatixApp::new(cc, initial_path)?;
+            let app = AnimatixApp::new(cc, initial_path, show_welcome)?;
             Ok(Box::new(app))
         }),
     ) {
@@ -40,7 +44,7 @@ struct AnimatixApp {
 }
 
 impl AnimatixApp {
-    fn new(cc: &eframe::CreationContext<'_>, initial_path: PathBuf) -> Result<Self, String> {
+    fn new(cc: &eframe::CreationContext<'_>, initial_path: PathBuf, show_welcome: bool) -> Result<Self, String> {
         let render_state = cc
             .wgpu_render_state
             .as_ref()
@@ -59,7 +63,7 @@ impl AnimatixApp {
         cc.egui_ctx.set_fonts(fonts);
 
         let preview_surface = PreviewSurface::new(device, queue).map_err(|e| format!("Preview surface init failed: {e}"))?;
-        let shell = GuiShell::load(initial_path);
+        let shell = GuiShell::load(initial_path, show_welcome);
 
         Ok(Self {
             shell,
@@ -392,6 +396,11 @@ impl eframe::App for AnimatixApp {
 
     fn on_exit(&mut self) {
         self.shell.save_persistence();
+        if self.shell.ui_store.view.welcome_open {
+            clear_app_state();
+        } else {
+            save_app_state(&self.shell.document_store.source.document.file_path);
+        }
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {

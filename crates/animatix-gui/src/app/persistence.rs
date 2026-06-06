@@ -112,3 +112,10 @@ pub(super) fn save_app_state(recent_file: &Path) {
         fs::write(&path, serialized).ok();
     }
 }
+
+pub(super) fn clear_app_state() {
+    let path = app_state_path();
+    if path.exists() {
+        fs::remove_file(&path).ok();
+    }
+}

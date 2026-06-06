@@ -217,7 +217,7 @@ use super::{
 
     #[test]
     fn clear_render_error_removes_render_failure_state() {
-        let mut shell = GuiShell::load(PathBuf::from("test_dummy.amx"));
+        let mut shell = GuiShell::load(PathBuf::from("test_dummy.amx"), false);
         shell.set_render_error("preview failed".to_string());
 
         shell.clear_render_error("Live preview restored".to_string());
@@ -229,7 +229,7 @@ use super::{
 
     #[test]
     fn clear_render_error_preserves_non_render_preview_failures() {
-        let mut shell = GuiShell::load(PathBuf::from("test_dummy.amx"));
+        let mut shell = GuiShell::load(PathBuf::from("test_dummy.amx"), false);
         shell.set_status(
             "Open failed • missing.amx".to_string(),
             Some("missing file".to_string()),
@@ -292,7 +292,7 @@ use super::{
 
     #[test]
     fn clear_render_error_preserves_newer_non_render_failure_when_render_diagnostic_is_stale() {
-        let mut shell = GuiShell::load(PathBuf::from("test_dummy.amx"));
+        let mut shell = GuiShell::load(PathBuf::from("test_dummy.amx"), false);
         shell.set_render_error("preview failed".to_string());
         shell.set_status(
             "Rebuild blocked • parse/load error".to_string(),
