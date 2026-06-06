@@ -322,6 +322,16 @@ impl Analyzer {
                     }
                 }
             }
+            "scene_declaration" => {
+                if let Some(name_node) = node.child_by_field_name("name") {
+                    let name = name_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
+                    let start = name_node.start_position();
+                    if let Some(info) = table.scenes.get_mut(&name) {
+                        info.line = start.row + 1;
+                        info.col = start.column + 1;
+                    }
+                }
+            }
             _ => {}
         }
 

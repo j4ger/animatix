@@ -30,6 +30,7 @@ use std::collections::BTreeMap;
 
 use super::{AnimationTrack, ContainerLayoutChild, Diagnostic, Easing, PlacementMode, Timeline, TrackAccessor};
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
+use tracing::warn;
 
 use super::taffy_layout::{compute_taffy_linear_layout, compute_taffy_grid_layout};
 
@@ -177,6 +178,7 @@ impl Timeline {
 
         for child_label in child_order {
             let Some(track) = self.tracks.get(child_label) else {
+                warn!("layout: child '{}' not found in tracks, skipping", child_label);
                 continue;
             };
 

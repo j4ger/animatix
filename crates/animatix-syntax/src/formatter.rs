@@ -58,15 +58,16 @@ pub struct Formatter {
     config: FormatConfig,
 }
 
+impl Default for Formatter {
+    fn default() -> Self {
+        Self::new(FormatConfig::default())
+    }
+}
+
 impl Formatter {
     /// Create a new formatter with the given configuration.
     pub fn new(config: FormatConfig) -> Self {
         Self { config }
-    }
-
-    /// Create a formatter with default configuration.
-    pub fn default() -> Self {
-        Self::new(FormatConfig::default())
     }
 
     /// Get the current configuration.
@@ -89,9 +90,8 @@ impl Formatter {
             .collect();
 
         // Remove empty lines at the start
-        while result.first().is_some_and(|s| s.is_empty()) {
-            result.remove(0);
-        }
+        let first_non_empty = result.iter().position(|s| !s.is_empty()).unwrap_or(result.len());
+        result.drain(..first_non_empty);
 
         let mut output = result.join(&separator);
 

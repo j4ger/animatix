@@ -646,7 +646,7 @@ mod tests {
         assert!(times.contains(&3.5), "missing 3.5, got {times:?}");
         // Verify they're sorted and deduped
         let mut sorted = times.clone();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.sort_by(|a, b| f64::total_cmp(a, b));
         sorted.dedup();
         assert_eq!(times, sorted, "times are not sorted and deduped");
     }

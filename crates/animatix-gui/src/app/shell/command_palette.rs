@@ -191,12 +191,6 @@ impl GuiShell {
             action: ShellAction::Command(Command::ZoomToAll),
             keywords: "zoom fit all",
         });
-        items.push(PaletteItem {
-            label: "Open Settings".into(),
-            icon: egui_phosphor::regular::GEAR,
-            action: ShellAction::Command(Command::Rebuild), // dummy
-            keywords: "settings preferences",
-        });
 
         items
     }

@@ -760,25 +760,21 @@ impl AnimationTrack {
     /// Returns true if any property track has animated keyframes.
     /// A track is "animated" if it has 2+ keyframes or 1 keyframe at time > 0.
     pub fn has_any_keyframes(&self) -> bool {
-        macro_rules! check {
-            ($track:expr) => {
-                $track.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            };
-        }
-        check!(self.position) || check!(self.motion_offset) || check!(self.rotation)
-            || check!(self.scale) || check!(self.transform) || check!(self.placement_mode)
-            || check!(self.position_binding) || check!(self.size) || check!(self.layout_size)
-            || check!(self.color) || check!(self.opacity) || check!(self.stroke_width)
-            || check!(self.stroke_color) || check!(self.stroke_progress) || check!(self.fill_opacity)
-            || check!(self.morph_options) || check!(self.shape_type) || check!(self.line_from)
-            || check!(self.line_to) || check!(self.arc_angles) || check!(self.points)
-            || check!(self.commands) || check!(self.vector_paths) || check!(self.text_content)
-            || check!(self.font_family) || check!(self.font_size) || check!(self.text_paths)
-            || check!(self.image)
-            || check!(self.filter_blur) || check!(self.filter_brightness)
-            || check!(self.filter_contrast) || check!(self.filter_saturate)
-            || check!(self.filter_hue_rotate) || check!(self.filter_sepia)
-            || check!(self.head_size)
+        let check = |t: &Option<PropertyTrack<_>>| t.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false);
+        check(&self.position) || check(&self.motion_offset) || check(&self.rotation)
+            || check(&self.scale) || check(&self.transform) || check(&self.placement_mode)
+            || check(&self.position_binding) || check(&self.size) || check(&self.layout_size)
+            || check(&self.color) || check(&self.opacity) || check(&self.stroke_width)
+            || check(&self.stroke_color) || check(&self.stroke_progress) || check(&self.fill_opacity)
+            || check(&self.morph_options) || check(&self.shape_type) || check(&self.line_from)
+            || check(&self.line_to) || check(&self.arc_angles) || check(&self.points)
+            || check(&self.commands) || check(&self.vector_paths) || check(&self.text_content)
+            || check(&self.font_family) || check(&self.font_size) || check(&self.text_paths)
+            || check(&self.image)
+            || check(&self.filter_blur) || check(&self.filter_brightness)
+            || check(&self.filter_contrast) || check(&self.filter_saturate)
+            || check(&self.filter_hue_rotate) || check(&self.filter_sepia)
+            || check(&self.head_size)
     }
 }
 

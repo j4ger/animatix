@@ -46,7 +46,7 @@ pub fn format_action(a: &Action) -> String {
 pub fn format_time(t: &Time) -> String {
     match t {
         Time::Seconds(s) => {
-            if s.fract() == 0.0 {
+            if (s - s.round()).abs() < 1e-9 {
                 format!("{}s", *s as i64)
             } else {
                 format!("{}s", s)
@@ -134,7 +134,7 @@ impl UnaryOp {
 pub fn format_expr(expr: &Expr) -> String {
     match expr {
         Expr::Num(n) => {
-            if n.fract() == 0.0 {
+            if (n - n.round()).abs() < 1e-9 {
                 format!("{}", *n as i64)
             } else {
                 format!("{}", n)
@@ -142,7 +142,7 @@ pub fn format_expr(expr: &Expr) -> String {
         }
         Expr::Percent(n) => format!("{}%", n),
         Expr::Str(s) => {
-            let escaped = s.replace('"', "\\\"");
+            let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
             format!("\"{}\"", escaped)
         }
         Expr::Bool(true) => "true".into(),
@@ -272,8 +272,7 @@ pub fn format_actor_like(
             .map(|c| format_inline_item(c, depth + 1, indent_size))
             .collect::<Vec<_>>()
             .join("\n");
-        let indented = indent(&children_str, depth + 1, indent_size);
-        parts.push(format!(" {{\n{}\n{}}}", indented, " ".repeat(indent_size * depth)));
+        parts.push(format!(" {{\n{}\n{}}}", children_str, " ".repeat(indent_size * depth)));
     }
     parts.join("")
 }
@@ -310,11 +309,10 @@ pub fn format_inline_item(item: &InlineItem, depth: usize, indent_size: usize) -
                 .map(|i| format_inline_item(i, depth + 1, indent_size))
                 .collect::<Vec<_>>()
                 .join("\n");
-            let indented = indent(&items_str, depth + 1, indent_size);
             format!(
                 "@{} {{\n{}\n{}}}",
                 slot,
-                indented,
+                items_str,
                 " ".repeat(indent_size * depth)
             )
         }

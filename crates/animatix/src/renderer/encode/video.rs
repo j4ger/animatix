@@ -130,26 +130,6 @@ pub fn render_video_timeline_with_progress(
 }
 
 // ---------------------------------------------------------------------------
-// VideoEncoder — shared encoder setup for single-timeline and composition
-// ---------------------------------------------------------------------------
-
-/// Encapsulates the rsmpeg/ffmpeg encoder state.
-/// Created once per export, used to encode frames and finalize.
-#[allow(dead_code)]
-struct VideoEncoder {
-    format_context: AVFormatContextOutput,
-    encode_context: AVCodecContext,
-    sws_context: SwsContext,
-    yuv_frame: AVFrame,
-    stream_index: i32,
-    stream_time_base: AVRational,
-    is_hw_encoder: bool,
-}
-
-// VideoEncoder is kept for future use. Current code uses setup_video_encoder()
-// due to closure borrowing constraints in render_frames_streaming.
-
-// ---------------------------------------------------------------------------
 // Shared encoder setup helper
 // ---------------------------------------------------------------------------
 

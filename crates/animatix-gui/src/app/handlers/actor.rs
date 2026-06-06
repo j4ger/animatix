@@ -357,8 +357,8 @@ pub fn handle_distribute_actors(
 
     // Sort by position along the distribution axis
     match axis {
-        Axis::Horizontal => rects.sort_by(|a, b| a.1.x0.partial_cmp(&b.1.x0).unwrap()),
-        Axis::Vertical => rects.sort_by(|a, b| a.1.y0.partial_cmp(&b.1.y0).unwrap()),
+        Axis::Horizontal => rects.sort_by(|a, b| f64::total_cmp(&a.1.x0, &b.1.x0)),
+        Axis::Vertical => rects.sort_by(|a, b| f64::total_cmp(&a.1.y0, &b.1.y0)),
     }
 
     let first = rects.first().unwrap();
@@ -494,7 +494,7 @@ pub fn handle_group_selected_actors(
                 let _ = crate::source_edit::apply_edit(stmts, reparent);
             }
             let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
-        document_store.source.commit_source(new_source, source_index);
+            document_store.source.commit_source(new_source, source_index);
             preview_store.pending_rebuild_at =
                 Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
             ui_store.selection.selected_actors.clear();

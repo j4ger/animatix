@@ -45,7 +45,7 @@ pub(super) fn insert_property(stmts: &mut [Stmt], actor: &str, property: &str, v
 
     // Check if property already exists
     if find_prop_mut(actor_decl, source_prop).is_some() {
-        return Err(SourceEditError::PropertyNotFound {
+        return Err(SourceEditError::PropertyAlreadyExists {
             actor: actor.to_string(),
             property: property.to_string(),
         });
@@ -256,12 +256,15 @@ fn stmt_to_inline_item(stmt: Stmt) -> InlineItem {
             modifiers,
             children,
         },
-        _ => InlineItem::Anonymous {
-            ty: "Group".into(),
-            props: vec![],
-            modifiers: vec![],
-            children: vec![],
-        },
+        other => {
+            tracing::warn!("stmt_to_inline_item: non-ActorDecl statement discarded: {:?}", std::mem::discriminant(&other));
+            InlineItem::Anonymous {
+                ty: "Group".into(),
+                props: vec![],
+                modifiers: vec![],
+                children: vec![],
+            }
+        }
     }
 }
 

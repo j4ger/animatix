@@ -156,13 +156,7 @@ pub fn strip_snippet_tabstops(snippet: &str) -> String {
 pub fn parse_snippet(snippet: &str) -> Option<Vec<Stmt>> {
     let cleaned = strip_snippet_tabstops(snippet);
     let (ast, errors) = parse_source(&cleaned);
-    if errors.is_empty() {
-        ast
-    } else {
-        // Try harder: some snippets omit trailing braces / are fragments.
-        // Fallback: return whatever parsed.
-        ast
-    }
+    ast
 }
 
 /// Scan modifiers for `ease: ...` and extract the easing value.

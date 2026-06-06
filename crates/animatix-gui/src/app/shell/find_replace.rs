@@ -120,6 +120,8 @@ impl GuiShell {
         let new_text = text.replace(find, replace);
         self.document_store.source.editor.replace_text(new_text.clone());
         self.document_store.source.document.source_text = new_text;
+        self.document_store.source.document.raw_statements = None;
+        self.document_store.source.document.expanded_statements = None;
         self.document_store.source.document.is_dirty = true;
         self.preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms));

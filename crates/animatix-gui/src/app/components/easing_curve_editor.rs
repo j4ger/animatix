@@ -159,14 +159,12 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
     }
 }
 
-#[allow(dead_code)]
 fn cubic_bezier_x(t: f32, cp: [f32; 4]) -> f32 {
     let t = t.clamp(0.0, 1.0);
     let omt = 1.0 - t;
     3.0 * omt * omt * t * cp[0] + 3.0 * omt * t * t * cp[2] + t * t * t
 }
 
-#[allow(dead_code)]
 fn cubic_bezier_y(t: f32, cp: [f32; 4]) -> f32 {
     let t = t.clamp(0.0, 1.0);
     let omt = 1.0 - t;

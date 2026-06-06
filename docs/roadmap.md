@@ -40,7 +40,11 @@ Immutable syntax tree that preserves whitespace and comments. Enables reliable s
 
 ## Code Quality & Performance (from audit)
 
-> All items from the June 2026 audit have been completed. See git history for details.
+> Most items from the June 2026 audit have been completed. See git history for details.
+
+**Remaining:**
+
+- **Diagnostics position source inconsistency** — `check_stmt` uses AST spans (chumsky) while `collect_semantic_diagnostics` uses enriched tree-sitter positions. When a label is "undefined" it's not in the symbol table so the enriched lookup won't help; this is primarily a code quality / consistency concern. Low functional impact. Revisit if diagnostic positions are reported as inaccurate by users.
 
 - **Shape primitive migration** — line, polygon, path, arrow migrated to `evaluate_shape_render()` helper
 - **SourceEdit consistency** — `handle_reorder_scenes` and `handle_ungroup` now use `apply_edit`; `DeleteActor` variant added

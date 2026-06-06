@@ -11,6 +11,10 @@ pub enum SourceEditError {
     #[error("property '{property}' not found on actor '{actor}'")]
     PropertyNotFound { actor: String, property: String },
 
+    /// The property already exists on the actor (insert was requested).
+    #[error("property '{property}' already exists on actor '{actor}'")]
+    PropertyAlreadyExists { actor: String, property: String },
+
     /// The requested scene does not exist.
     #[error("scene '{scene}' not found")]
     SceneNotFound { scene: String },
