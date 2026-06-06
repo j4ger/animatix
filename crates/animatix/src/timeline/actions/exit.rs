@@ -57,13 +57,7 @@ impl BuiltinAction for FadeOut {
                     .add_keyframe(t_start_ms, start_opacity, Easing::Linear);
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                let prior_opacity = track.opacity.get(guard_time, 1.0);
-                if !track.opacity.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
-                    track
-                        .opacity
-                        .ensure(1.0)
-                        .add_keyframe(guard_time, prior_opacity, Easing::Linear);
-                }
+                super::ensure_guard_keyframe(&mut track.opacity, guard_time, 1.0);
             }
             track.opacity.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
         }

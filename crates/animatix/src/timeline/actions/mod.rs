@@ -16,6 +16,8 @@ pub mod reveal;
 
 use crate::ast::Action;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use crate::easing::Easing;
+use crate::timeline::track::{Interpolate, PropertyTrack, TrackAccessor};
 use crate::timeline::Timeline;
 use tracing::{debug, instrument, warn};
 use effects::{Bounce, Pulse, Shake};
@@ -61,6 +63,19 @@ fn push_unsupported_action_target_diagnostic(
         .with_subject(format!("{verb} {target}"))
         .with_ast_span(span),
     );
+}
+
+/// Insert a guard keyframe at `guard_time` for a single property track if one doesn't already exist.
+/// This preserves the pre-delay value for instant-change actions (duration == 0) with delay.
+pub(crate) fn ensure_guard_keyframe<T: Interpolate + Clone>(
+    track: &mut Option<PropertyTrack<T>>,
+    guard_time: u64,
+    default: T,
+) {
+    if !track.has_keyframe_at(guard_time) {
+        let prior = track.get(guard_time, default.clone());
+        track.ensure(default).add_keyframe(guard_time, prior, Easing::Linear);
+    }
 }
 
 pub(crate) fn ensure_target_exists(

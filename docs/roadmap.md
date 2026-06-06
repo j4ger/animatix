@@ -38,19 +38,89 @@ Immutable syntax tree that preserves whitespace and comments. Enables reliable s
 
 ---
 
-## Code Quality & Performance (from audit)
+## Code Quality & Performance
 
-> Most items from the June 2026 audit have been completed. See git history for details.
+---
 
-**Remaining:**
+### CQ-1: Duplicated guard-time keyframe logic
 
-- **Diagnostics position source inconsistency** — `check_stmt` uses AST spans (chumsky) while `collect_semantic_diagnostics` uses enriched tree-sitter positions. Low functional impact. Revisit if diagnostic positions are reported as inaccurate by users.
-- **scene_eval double clone** — Two clones are needed because `scene_buffer` takes ownership for encoding buffer reuse (`reset()`). Rc<Scene> alone can't fix this. Requires separating encoding buffers from scene data. Low priority — only matters for very large scenes.
+**Problem:** The pattern for inserting guard keyframes before instant-change actions with delay is copy-pasted 11 times across `entrance.rs`, `exit.rs`, `reveal.rs`.
 
-- **Shape primitive migration** — line, polygon, path, arrow migrated to `evaluate_shape_render()` helper
-- **SourceEdit consistency** — `handle_reorder_scenes` and `handle_ungroup` now use `apply_edit`; `DeleteActor` variant added
-- **Commit boilerplate** — `SourceStore::commit_source()` centralizes source commit logic
-- **GUI audit fixes** — NaN-safe sort, VecDeque undo, bounded paste labels, Ctrl guard on tool shortcuts, `recurse_stmt!` macro, `selectable_labels` moved to `install_theme`
+| # | Task | File(s) | Details |
+|---|------|---------|--------|
+| CQ-1.1 | **Add `has_keyframe_at()` helper** | `actions/mod.rs` | `fn has_keyframe_at(track: &Option<impl AsRef<PropertyTrack<T>>>, time: u64) -> bool` — returns `track.as_ref().map(|t| t.keyframes.contains_key(&time)).unwrap_or(false)` |
+| CQ-1.2 | **Add `ensure_guard_keyframe()` helper** | `actions/mod.rs` | Takes `&mut AnimationTrack`, field accessor fn, guard_time, prior_value, default. Calls `has_keyframe_at`, inserts keyframe if missing. |
+| CQ-1.3 | **Replace inline patterns** | `entrance.rs`, `exit.rs`, `reveal.rs` | Replace all 11 guard blocks with calls to `ensure_guard_keyframe()`. Verify each action still behaves identically. |
+| CQ-1.4 | **Add regression tests** | `actions/mod.rs` or inline | Test: action with delay + zero duration produces guard keyframe. Test: existing keyframe at guard_time is not overwritten. |
+
+---
+
+### CQ-2: Hot-path clone optimization in `track.rs:evaluate()`
+
+**Problem:** `PropertyTrack<T>::evaluate()` clones `T` up to 9 times per call. Most `T` types are `f32`, `[f32; N]`, or small `Copy`-eligible enums.
+
+| # | Task | File(s) | Details |
+|---|------|---------|--------|
+| CQ-2.1 | **Audit `T` types for `Copy` eligibility** | `track.rs`, `animation.rs` | List all `PropertyTrack<T>` instantiations. Mark which `T` can be `Copy` (`f32`, `[f32;2]`, `[f32;4]`, `[f32;6]`, `PlacementMode`, `PositionBinding`, `ShapeType`, `MorphOptions`). |
+| CQ-2.2 | **Split `evaluate` into `evaluate_ref` + `evaluate_owned`** | `track.rs` | For `Copy` types, return `T` by value (zero-cost). For `Clone` types, keep current behavior. Alternatively, add `T: Copy` bound to a fast-path specialization. |
+| CQ-2.3 | **Eliminate cache-hit clone** | `track.rs:~465` | Change cache return from `cached_value.clone()` to `*cached_value` for `Copy` types. For non-`Copy`, consider `Rc<T>` in cache. |
+| CQ-2.4 | **Benchmark** | `benches/` or inline | Compare frame evaluation time before/after on a scene with 50+ tracks. Target: ≥20% reduction in evaluate() time. |
+
+---
+
+### CQ-3: Diagnostics position source inconsistency
+
+**Problem:** `check_stmt` in `diagnostics.rs` mixes AST spans (Chumsky) with tree-sitter token lookups. The `unknown-action` verb gets precise tree-sitter position, but `undefined-label` for the same statement uses the full AST span.
+
+| # | Task | File(s) | Details |
+|---|------|---------|--------|
+| CQ-3.1 | **Standardize on tree-sitter for all token-level diagnostics** | `diagnostics.rs` | When `tree` is `Some`, use `find_token_range()` for both verb and target positions. Fall back to AST span only when tree-sitter is `None`. |
+| CQ-3.2 | **Add `find_target_range()` helper** | `diagnostics.rs` | Similar to `find_token_range()` but looks for `label_ref` or `target` node types. Used for `undefined-label` diagnostics. |
+| CQ-3.3 | **Add position accuracy tests** | `diagnostics.rs` | Test that `undefined-label` diagnostic points to the target token, not the statement start. Use a test `.amx` file with known positions. |
+
+---
+
+### CQ-4: `scene_eval` double clone
+
+**Problem:** `scene_eval.rs:791–798` clones `Scene` twice — once for cache, once for return — because `scene_buffer` takes ownership for encoding buffer reuse.
+
+| # | Task | File(s) | Details |
+|---|------|---------|--------|
+| CQ-4.1 | **Separate encoding buffer from scene data** | `scene_eval.rs`, `composition.rs` | Extract Vello `Encoding` into a reusable buffer struct. `Scene` holds a reference or `Rc<Encoding>` instead of owning it inline. |
+| CQ-4.2 | **Use `Rc<Scene>` for cache** | `scene_eval.rs` | Cache stores `Rc<Scene>`, return clones the `Rc` (cheap). `scene_buffer` can still take ownership of the encoding buffer separately. |
+| CQ-4.3 | **Verify no behavioral change** | — | Run existing render tests. Compare output frames before/after (pixel-identical). |
+
+---
+
+### CQ-5: SVG import limitations
+
+**Problem:** `svg_import.rs` has 9 unsupported SVG features. These are edge cases but block import of real-world SVGs.
+
+| # | Task | File(s) | Details |
+|---|------|---------|--------|
+| CQ-5.1 | **`stroke-linecap` / `stroke-linejoin` mapping** | `svg_import.rs` | Map SVG `stroke-linecap` (butt/round/square) → Vello `LineCap`. Map `stroke-linejoin` (miter/round/bevel) → Vello `LineJoin`. ~2 hours. |
+| CQ-5.2 | **`currentColor` support** | `svg_import.rs` | Resolve `currentColor` to the parent element's `color` property (CSS inheritance). Falls back to black if unset. |
+| CQ-5.3 | **`inherit` fill/stroke** | `svg_import.rs` | Walk up the element tree to find the nearest ancestor with explicit fill/stroke. Use that value. |
+| CQ-5.4 | **`<use>` element support** | `svg_import.rs` | Resolve `href`/`xlink:href` to the referenced element. Clone its children into the use element's position with optional transform. |
+| CQ-5.5 | **`<clipPath>` support** | `svg_import.rs` | Parse `<clipPath>` definitions. Apply as Vello clip when referenced via `clip-path` attribute. |
+| CQ-5.6 | **`<mask>` support** | `svg_import.rs` | Parse `<mask>` definitions. Apply as alpha/luminance mask. May require Vello mask shader. |
+| CQ-5.7 | **SVG patterns** | `svg_import.rs` | Parse `<pattern>` definitions. Tile as fill/stroke. Complex — may defer to Phase 6. |
+| CQ-5.8 | **Extended path commands** | `svg_import.rs` | Add support for `A` (arc), `H`/`V` (horizontal/vertical lineto), `S`/`T` (smooth curveto). `A` is the most impactful. |
+| CQ-5.9 | **Import test suite** | `tests/svg/` | Create test SVGs covering each feature. Assert imported AST matches expected structure. |
+
+---
+
+### CQ-6: Analyzer namespace resolution for aliases
+
+**Problem:** `workspace.rs:74` — aliased imports (`import "foo.amx" as foo`) are silently skipped. Symbols from aliased files are unreachable.
+
+| # | Task | File(s) | Details |
+|---|------|---------|--------|
+| CQ-6.1 | **Add namespace field to `SymbolTable`** | `symbol_table.rs` | Add `namespace: Option<String>` field. When set, all symbols in this table are prefixed with `namespace.` in lookups. |
+| CQ-6.2 | **Implement aliased merge in `resolve_symbols`** | `workspace.rs:~74` | When `import.alias.is_some()`, create a namespaced copy of the imported `SymbolTable` and merge it. Labels become `foo.label_name`, actions become `foo.action_name`. |
+| CQ-6.3 | **Update `resolve_reference` for namespace lookup** | `symbol_table.rs` | When resolving `foo.bar`, split on first `.` and look up `bar` in the `foo` namespace. |
+| CQ-6.4 | **Add completions support** | `lib.rs` | When cursor is after `foo.`, offer completions from the `foo` namespace only. |
+| CQ-6.5 | **Add tests** | `tests/` | Test: aliased import resolves `foo.label`. Test: unaliased import still works. Test: completions after `foo.` offer namespace symbols. |
 
 ---
 

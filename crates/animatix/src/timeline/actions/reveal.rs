@@ -53,20 +53,8 @@ impl BuiltinAction for DrawIn {
 
             if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                let prior_stroke = track.stroke_progress.get(guard_time, 1.0);
-                let prior_fill = track.fill_opacity.get(guard_time, 1.0);
-                if !track.stroke_progress.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
-                    track
-                        .stroke_progress
-                        .ensure(1.0)
-                        .add_keyframe(guard_time, prior_stroke, Easing::Linear);
-                }
-                if !track.fill_opacity.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
-                    track
-                        .fill_opacity
-                        .ensure(1.0)
-                        .add_keyframe(guard_time, prior_fill, Easing::Linear);
-                }
+                super::ensure_guard_keyframe(&mut track.stroke_progress, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut track.fill_opacity, guard_time, 1.0);
             }
 
             track
@@ -160,20 +148,8 @@ impl BuiltinAction for RevealIn {
                 }
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                let prior_stroke = track.stroke_progress.get(guard_time, 1.0);
-                let prior_fill = track.fill_opacity.get(guard_time, 1.0);
-                if !track.stroke_progress.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
-                    track
-                        .stroke_progress
-                        .ensure(1.0)
-                        .add_keyframe(guard_time, prior_stroke, Easing::Linear);
-                }
-                if !track.fill_opacity.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
-                    track
-                        .fill_opacity
-                        .ensure(1.0)
-                        .add_keyframe(guard_time, prior_fill, Easing::Linear);
-                }
+                super::ensure_guard_keyframe(&mut track.stroke_progress, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut track.fill_opacity, guard_time, 1.0);
             }
 
             track
@@ -245,20 +221,8 @@ impl BuiltinAction for WipeOut {
                     .add_keyframe(t_start_ms, start_fill, Easing::Linear);
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                let prior_stroke = track.stroke_progress.get(guard_time, 1.0);
-                let prior_fill = track.fill_opacity.get(guard_time, 1.0);
-                if !track.stroke_progress.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
-                    track
-                        .stroke_progress
-                        .ensure(1.0)
-                        .add_keyframe(guard_time, prior_stroke, Easing::Linear);
-                }
-                if !track.fill_opacity.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
-                    track
-                        .fill_opacity
-                        .ensure(1.0)
-                        .add_keyframe(guard_time, prior_fill, Easing::Linear);
-                }
+                super::ensure_guard_keyframe(&mut track.stroke_progress, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut track.fill_opacity, guard_time, 1.0);
             }
 
             track.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
@@ -322,20 +286,8 @@ impl BuiltinAction for RevealOut {
                     .add_keyframe(t_start_ms, start_stroke, Easing::Linear);
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                let prior_stroke = track.stroke_progress.get(guard_time, 1.0);
-                let prior_fill = track.fill_opacity.get(guard_time, 1.0);
-                if !track.stroke_progress.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
-                    track
-                        .stroke_progress
-                        .ensure(1.0)
-                        .add_keyframe(guard_time, prior_stroke, Easing::Linear);
-                }
-                if !track.fill_opacity.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
-                    track
-                        .fill_opacity
-                        .ensure(1.0)
-                        .add_keyframe(guard_time, prior_fill, Easing::Linear);
-                }
+                super::ensure_guard_keyframe(&mut track.stroke_progress, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut track.fill_opacity, guard_time, 1.0);
             }
 
             track
@@ -412,20 +364,8 @@ impl BuiltinAction for DrawOut {
                 );
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                let prior_stroke = track.stroke_progress.get(guard_time, 1.0);
-                let prior_fill = track.fill_opacity.get(guard_time, 1.0);
-                if !track.stroke_progress.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
-                    track
-                        .stroke_progress
-                        .ensure(1.0)
-                        .add_keyframe(guard_time, prior_stroke, Easing::Linear);
-                }
-                if !track.fill_opacity.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
-                    track
-                        .fill_opacity
-                        .ensure(1.0)
-                        .add_keyframe(guard_time, prior_fill, Easing::Linear);
-                }
+                super::ensure_guard_keyframe(&mut track.stroke_progress, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut track.fill_opacity, guard_time, 1.0);
             }
 
             track.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
