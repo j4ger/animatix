@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 pub(super) fn workspace_root_for(file_path: &Path) -> PathBuf {
     for ancestor in file_path.ancestors() {
-        if ancestor.join(".git").exists() || ancestor.join("Cargo.toml").exists() {
+        if ancestor.join(".git").exists() {
             return ancestor.to_path_buf();
         }
     }
