@@ -780,8 +780,10 @@ impl Timeline {
         }
 
         // P2.25: Save scene in reusable buffer and cache for fast-path replay.
-        // Two clones are needed (cache + return). Rc<Scene> would reduce to one
-        // refcount bump but requires changing the return type across call sites.
+        // Two clones are needed: one for cache, one for return.
+        // scene_buffer takes ownership for encoding buffer reuse (reset()),
+        // so Rc alone can't eliminate both. A deeper refactor would separate
+        // the encoding buffer from the scene data.
         if debug_options == DebugRenderOptions::default() {
             *self.frame_cache.borrow_mut() = Some(super::FrameCacheEntry {
                 time_ms,
