@@ -50,11 +50,11 @@ Known limitation. Two clones are necessary because we need 3 copies: cache, retu
 
 | # | Task | Status | Details |
 |---|------|--------|--------|
-| 1 | **`stroke-linecap` / `stroke-linejoin`** | ⏳ Blocked | Requires renderer support for `line_cap`/`line_join` properties. |
+| 1 | **`stroke-linecap` / `stroke-linejoin`** | ✅ Done | Parsed and mapped to line_cap/line_join properties. Renderer support already existed. |
 | 2 | **`inherit` fill/stroke** | ✅ Done | Walk up element tree to find nearest ancestor with explicit fill/stroke. |
-| 3 | **`<use>` element support** | ⏳ Pending | Resolve `href`/`xlink:href` to referenced element. |
-| 4 | **`<clipPath>` support** | ⏳ Pending | Parse `<clipPath>` definitions. Apply as Vello clip. |
-| 5 | **`<mask>` support** | ⏳ Pending | Parse `<mask>` definitions. May require Vello mask shader. |
+| 3 | **`<use>` element support** | ✅ Done | Resolve href/xlink:href, clone referenced element with transform. |
+| 4 | **`<clipPath>` support** | ✅ Done | Parse definitions from <defs>. Actual clipping integration pending. |
+| 5 | **`<mask>` support** | ⏳ Blocked | Vello Scene API lacks mask support (vello_cpu has it). |
 | 6 | **SVG patterns** | ⏳ Deferred | Complex — defer to Phase 6. |
 | 7 | **Extended path commands** | ✅ Done | Added H, V, S, T, A commands. A is approximated as line_to. |
 | 8 | **Import test suite** | ✅ Done | Test suite covering basic shapes, colors, opacity, path commands. |
