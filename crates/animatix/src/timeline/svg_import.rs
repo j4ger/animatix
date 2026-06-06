@@ -992,6 +992,9 @@ fn convert_children(
             "polyline" | "polygon" => {
                 convert_poly(&child, stmts, counter, &combined, tag, gradients)?;
             }
+            "use" => {
+                convert_use(&child, parent, stmts, counter, &combined, gradients)?;
+            }
             "defs" => {
                 // <defs> contents (gradients etc.) were already collected;
                 // skip silently — nothing to render directly.
@@ -1013,6 +1016,65 @@ fn make_label(base: &str, counter: &mut u64) -> String {
     let label = format!("{}_{}", base, *counter);
     *counter += 1;
     label
+}
+
+/// Convert a `<use>` element by resolving its href and cloning the referenced element.
+fn convert_use(
+    node: &Node,
+    root: &Node,
+    stmts: &mut Vec<Stmt>,
+    counter: &mut u64,
+    transform: &Transform,
+    gradients: &HashMap<String, GradientDef>,
+) -> Result<(), SvgImportError> {
+    // Resolve href (try both href and xlink:href)
+    let href = node.attribute("href")
+        .or_else(|| node.attribute("xlink:href"));
+    
+    let Some(href) = href else {
+        return Ok(()); // No href — skip silently
+    };
+    
+    // Remove leading # to get the id
+    let id = href.trim_start_matches('#');
+    
+    // Find the referenced element by id
+    let referenced = find_element_by_id(root, id);
+    let Some(referenced) = referenced else {
+        tracing::warn!("SVG import: <use> references unknown id '{}'", id);
+        return Ok(());
+    };
+    
+    // Convert the referenced element as if it were inline
+    let tag = referenced.tag_name().name();
+    match tag {
+        "g" => convert_group(&referenced, stmts, counter, transform, gradients)?,
+        "rect" => convert_rect(&referenced, stmts, counter, transform, gradients)?,
+        "circle" => convert_circle(&referenced, stmts, counter, transform, gradients)?,
+        "ellipse" => convert_ellipse(&referenced, stmts, counter, transform, gradients)?,
+        "path" => convert_path(&referenced, stmts, counter, transform, gradients)?,
+        "line" => convert_line(&referenced, stmts, counter, transform, gradients)?,
+        "polyline" | "polygon" => convert_poly(&referenced, stmts, counter, transform, tag, gradients)?,
+        _ => {
+            // Unsupported element type for <use> — skip
+            tracing::warn!("SVG import: <use> references unsupported element type '{}'", tag);
+        }
+    }
+    
+    Ok(())
+}
+
+/// Find an element by its id attribute in the SVG tree.
+fn find_element_by_id<'a>(node: &Node<'a, 'a>, id: &str) -> Option<Node<'a, 'a>> {
+    if node.attribute("id") == Some(id) {
+        return Some(*node);
+    }
+    for child in node.children() {
+        if let Some(found) = find_element_by_id(&child, id) {
+            return Some(found);
+        }
+    }
+    None
 }
 
 fn convert_group(
