@@ -94,7 +94,7 @@ Immutable syntax tree that preserves whitespace and comments. Enables reliable s
 
 | # | Task | File(s) | Details |
 |---|------|---------|--------|
-| CQ-5.1 | **`stroke-linecap` / `stroke-linejoin` mapping** | `svg_import.rs` | Map SVG `stroke-linecap` (butt/round/square) → Vello `LineCap`. Map `stroke-linejoin` (miter/round/bevel) → Vello `LineJoin`. ~2 hours. |
+| CQ-5.1 | **`stroke-linecap` / `stroke-linejoin` mapping** | `svg_import.rs`, renderer | Blocked: Animatix renderer doesn't support linecap/linejoin yet. Requires adding `line_cap` and `line_join` properties to AnimationTrack and rendering them via Vello. ~1 week total. |
 | CQ-5.2 | **`currentColor` support** | `svg_import.rs` | Resolve `currentColor` to the parent element's `color` property (CSS inheritance). Falls back to black if unset. |
 | CQ-5.3 | **`inherit` fill/stroke** | `svg_import.rs` | Walk up the element tree to find the nearest ancestor with explicit fill/stroke. Use that value. |
 | CQ-5.4 | **`<use>` element support** | `svg_import.rs` | Resolve `href`/`xlink:href` to the referenced element. Clone its children into the use element's position with optional transform. |

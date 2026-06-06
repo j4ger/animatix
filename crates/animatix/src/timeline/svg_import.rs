@@ -578,10 +578,17 @@ fn resolve_gradient_url(value: &str, gradients: &HashMap<String, GradientDef>) -
 /// Parse SVG color/fill/stroke value into an Animatix property expression.
 ///
 /// Returns `None` for `none` (transparent), or an `Expr` usable as a color value.
-fn parse_svg_color(value: &str) -> Option<Expr> {
+/// `current_color` is the resolved color from the parent element's `color` attribute,
+/// used when the value is `currentColor`.
+fn parse_svg_color(value: &str, current_color: Option<&Expr>) -> Option<Expr> {
     let value = value.trim();
     if value.eq_ignore_ascii_case("none") || value.eq_ignore_ascii_case("transparent") {
         return None; // caller can treat this as transparent / omit fill
+    }
+
+    // currentColor — resolve to parent element's color attribute
+    if value.eq_ignore_ascii_case("currentColor") {
+        return current_color.cloned();
     }
 
     // Named colors → pass through as identifier
@@ -1274,9 +1281,13 @@ fn transform_to_props(t: &Transform) -> Vec<Property> {
 /// Add `fill`, `stroke`, `stroke-width`, `opacity` properties from SVG attributes.
 /// Also handles `stroke-dasharray` parsing and `url(#...)` gradient references.
 fn add_fill_stroke_props(node: &Node, props: &mut Vec<Property>, gradients: &HashMap<String, GradientDef>) {
+    // Resolve parent color for currentColor support
+    let current_color: Option<Expr> = node.attribute("color")
+        .and_then(|c| parse_svg_color(c, None));
+
     // Fill color — handles hex, named, rgb(), and url(#id) gradient references
     if let Some(fill) = node.attribute("fill") {
-        if let Some(color_expr) = parse_svg_color_with_gradients(fill, gradients) {
+        if let Some(color_expr) = parse_svg_color_with_gradients(fill, gradients, current_color.as_ref()) {
             props.push(Property::new("color", color_expr));
         } else {
             // fill="none" → transparent; fill="url(...)" with unknown gradient → transparent
@@ -1293,7 +1304,7 @@ fn add_fill_stroke_props(node: &Node, props: &mut Vec<Property>, gradients: &Has
 
     // Stroke color — same as fill, supports url(#id)
     if let Some(stroke) = node.attribute("stroke") {
-        if let Some(color_expr) = parse_svg_color_with_gradients(stroke, gradients) {
+        if let Some(color_expr) = parse_svg_color_with_gradients(stroke, gradients, current_color.as_ref()) {
             props.push(Property::new("stroke_color", color_expr));
         }
     }
@@ -1336,7 +1347,7 @@ fn add_fill_stroke_props(node: &Node, props: &mut Vec<Property>, gradients: &Has
 /// is emitted via tracing.
 ///
 /// Returns `None` for `none`/`transparent`, or for unknown/unresolvable urls.
-fn parse_svg_color_with_gradients(value: &str, gradients: &HashMap<String, GradientDef>) -> Option<Expr> {
+fn parse_svg_color_with_gradients(value: &str, gradients: &HashMap<String, GradientDef>, current_color: Option<&Expr>) -> Option<Expr> {
     let value = value.trim();
 
     // Check for url(#id) gradient reference
@@ -1357,7 +1368,7 @@ fn parse_svg_color_with_gradients(value: &str, gradients: &HashMap<String, Gradi
     }
 
     // Fall through to standard color parsing
-    parse_svg_color(value)
+    parse_svg_color(value, current_color)
 }
 
 /// Helper to convert nested `Vec<Stmt>` (from imported children) into `Vec<InlineItem>`.
@@ -1408,7 +1419,7 @@ mod tests {
 
     #[test]
     fn test_parse_hex_color() {
-        let expr = parse_svg_color("#ff0000").unwrap();
+        let expr = parse_svg_color("#ff0000", None).unwrap();
         assert_eq!(
             expr,
             Expr::Call("rgb".into(), vec![Expr::Num(255.0), Expr::Num(0.0), Expr::Num(0.0)])
@@ -1417,7 +1428,7 @@ mod tests {
 
     #[test]
     fn test_parse_short_hex_color() {
-        let expr = parse_svg_color("#f00").unwrap();
+        let expr = parse_svg_color("#f00", None).unwrap();
         assert_eq!(
             expr,
             Expr::Call("rgb".into(), vec![Expr::Num(255.0), Expr::Num(0.0), Expr::Num(0.0)])
@@ -1426,19 +1437,19 @@ mod tests {
 
     #[test]
     fn test_parse_named_color() {
-        let expr = parse_svg_color("red").unwrap();
+        let expr = parse_svg_color("red", None).unwrap();
         assert_eq!(expr, Expr::Ident("red".into()));
     }
 
     #[test]
     fn test_parse_none_color() {
-        let expr = parse_svg_color("none");
+        let expr = parse_svg_color("none", None);
         assert!(expr.is_none());
     }
 
     #[test]
     fn test_parse_rgb_color() {
-        let expr = parse_svg_color("rgb(255, 0, 0)").unwrap();
+        let expr = parse_svg_color("rgb(255, 0, 0)", None).unwrap();
         assert_eq!(
             expr,
             Expr::Call("rgb".into(), vec![Expr::Num(255.0), Expr::Num(0.0), Expr::Num(0.0)])
