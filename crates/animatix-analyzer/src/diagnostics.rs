@@ -175,7 +175,7 @@ pub fn collect_diagnostics_with_config(
 
     // 2. Semantic checks (if AST is available)
     if let Some(stmts) = ast {
-        collect_semantic_diagnostics(source, stmts, symbols, &mut diagnostics);
+        collect_semantic_diagnostics(stmts, symbols, &mut diagnostics);
     }
 
     // 3. Filter based on lint config
@@ -202,7 +202,6 @@ pub fn collect_diagnostics_with_config(
 
 /// Collect semantic diagnostics from the AST.
 fn collect_semantic_diagnostics(
-    source: &str,
     stmts: &[Stmt],
     symbols: &SymbolTable,
     diagnostics: &mut Vec<Diagnostic>,
@@ -247,26 +246,13 @@ fn collect_semantic_diagnostics(
         }
     }
 
-    // Check for missing imports
-    for import in &symbols.imports {
-        if let Some(span) = &import.span {
-            let import_path = std::path::Path::new(&import.path);
-            if !import_path.exists() {
-                diagnostics.push(Diagnostic {
-                    severity: DiagnosticSeverity::Error,
-                    line: span.start_line.saturating_sub(1),
-                    col: span.start_col.saturating_sub(1),
-                    end_line: span.end_line.saturating_sub(1),
-                    end_col: span.end_col.saturating_sub(1),
-                    message: format!("Import file not found: '{}'", import.path),
-                    code: Some("missing-import".to_string()),
-                });
-            }
-        }
-    }
+    // Note: import path validation (file existence) is intentionally omitted here.
+    // The analyzer should be I/O free. LSP and GUI layers should validate imports
+    // separately using their own file system access.
+
     // Check each statement
     for stmt in stmts {
-        check_stmt(source, stmt, symbols, diagnostics);
+        check_stmt(stmt, symbols, diagnostics);
     }
 }
 
@@ -284,7 +270,7 @@ fn span_to_diag(span: &Option<animatix_syntax::ast::Span>) -> (usize, usize, usi
 }
 
 /// Check a single statement for semantic issues.
-fn check_stmt(source: &str, stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnostic>) {
+fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnostic>) {
     match stmt {
         Stmt::Action(action, span) => {
             let (line, col, end_line, end_col) = span_to_diag(span);
@@ -447,32 +433,32 @@ fn check_stmt(source: &str, stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mu
         // Recurse into blocks
         Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
             for stmt in body {
-                check_stmt(source, stmt, symbols, diagnostics);
+                check_stmt(stmt, symbols, diagnostics);
             }
         }
         Stmt::Sequence { body, .. } | Stmt::Stagger { body, .. } | Stmt::Always { body, .. } => {
             for stmt in body {
-                check_stmt(source, stmt, symbols, diagnostics);
+                check_stmt(stmt, symbols, diagnostics);
             }
         }
         Stmt::Conditional { then_branch, else_branch, .. } => {
             for stmt in then_branch {
-                check_stmt(source, stmt, symbols, diagnostics);
+                check_stmt(stmt, symbols, diagnostics);
             }
             if let Some(else_stmts) = else_branch {
                 for stmt in else_stmts {
-                    check_stmt(source, stmt, symbols, diagnostics);
+                    check_stmt(stmt, symbols, diagnostics);
                 }
             }
         }
         Stmt::ForLoop { body, .. } => {
             for stmt in body {
-                check_stmt(source, stmt, symbols, diagnostics);
+                check_stmt(stmt, symbols, diagnostics);
             }
         }
         Stmt::ComponentDef(def, ..) => {
             for stmt in &def.body {
-                check_stmt(source, stmt, symbols, diagnostics);
+                check_stmt(stmt, symbols, diagnostics);
             }
         }
 

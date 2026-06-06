@@ -50,9 +50,6 @@ pub struct Analyzer {
     symbols: SymbolTable,
     type_diagnostics: Vec<diagnostics::Diagnostic>,
     lint_config: diagnostics::LintConfig,
-    /// Whether the source has changed since the last type check.
-    /// Set by `update()`, cleared by `rebuild_symbols()`.
-    dirty: bool,
 }
 
 impl Analyzer {
@@ -72,7 +69,6 @@ impl Analyzer {
             symbols: SymbolTable::default(),
             type_diagnostics: Vec::new(),
             lint_config: diagnostics::LintConfig::default(),
-            dirty: true,
         };
         analyzer.update(source);
         analyzer
@@ -85,7 +81,6 @@ impl Analyzer {
         }
 
         self.source = source.to_string();
-        self.dirty = true;
 
         // Parse with tree-sitter (for position-based queries)
         let mut ts_parser = TsParser::new();
@@ -121,9 +116,8 @@ impl Analyzer {
         // Cache lint config from source comments
         self.lint_config = diagnostics::LintConfig::from_source(source);
 
-        // Run gradual type checker only if source actually changed
-        if self.dirty {
-            self.type_diagnostics = if let Some(ref stmts) = self.ast {
+        // Run type checker
+        self.type_diagnostics = if let Some(ref stmts) = self.ast {
                 let components = Self::build_component_registry(stmts);
                 let module_actions = std::collections::HashMap::new();
                 let mut env = animatix_syntax::typecheck::TypeEnv::new(&components, &module_actions);
@@ -135,8 +129,6 @@ impl Analyzer {
             } else {
                 Vec::new()
             };
-            self.dirty = false;
-        }
 
         self.symbols = table;
     }
@@ -396,7 +388,7 @@ impl Analyzer {
             self.ast.as_deref(),
             config,
         );
-        diagnostics.extend(self.type_diagnostics.clone());
+        diagnostics.extend_from_slice(&self.type_diagnostics);
         diagnostics
     }
 

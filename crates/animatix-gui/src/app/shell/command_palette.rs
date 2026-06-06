@@ -166,9 +166,7 @@ impl GuiShell {
             items.push(PaletteItem {
                 label: "Duplicate Selected Actors".into(),
                 icon: egui_phosphor::regular::COPY,
-                action: ShellAction::Command(Command::DuplicateActor(
-                    self.ui_store.selection.selected_actors.iter().next().cloned().unwrap_or_default(),
-                )),
+                action: ShellAction::Command(Command::DuplicateSelectedActors),
                 keywords: "duplicate copy actors",
             });
             items.push(PaletteItem {

@@ -3,6 +3,7 @@
 use animatix_syntax::ast::*;
 use animatix_syntax::to_source::ToSource;
 use std::collections::{HashMap, HashSet};
+use std::sync::OnceLock;
 
 /// Expected type for a property value.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -158,7 +159,9 @@ const KEYWORDS: &[&str] = &[
 ];
 
 /// Known properties per type.
-fn known_properties() -> HashMap<String, Vec<String>> {
+fn known_properties() -> &'static HashMap<String, Vec<String>> {
+    static CACHE: OnceLock<HashMap<String, Vec<String>>> = OnceLock::new();
+    CACHE.get_or_init(|| {
     let mut map = HashMap::new();
 
     // Common properties shared by most actors
@@ -252,10 +255,13 @@ fn known_properties() -> HashMap<String, Vec<String>> {
     }
 
     map
+    })
 }
 
 /// Known property types per (type, property) pair.
-fn known_property_types() -> HashMap<(String, String), PropertyType> {
+fn known_property_types() -> &'static HashMap<(String, String), PropertyType> {
+    static CACHE: OnceLock<HashMap<(String, String), PropertyType>> = OnceLock::new();
+    CACHE.get_or_init(|| {
     let mut map = HashMap::new();
 
     // Common properties
@@ -315,6 +321,7 @@ fn known_property_types() -> HashMap<(String, String), PropertyType> {
     map.insert(("Graph".to_string(), "function".to_string()), PropertyType::String);
 
     map
+    })
 }
 
 impl SymbolTable {
@@ -324,8 +331,8 @@ impl SymbolTable {
             types: BUILTIN_TYPES.iter().map(|s| s.to_string()).collect(),
             keywords: KEYWORDS.iter().map(|s| s.to_string()).collect(),
             actions: BUILTIN_ACTIONS.iter().map(|s| s.to_string()).collect(),
-            properties: known_properties(),
-            property_types: known_property_types(),
+            properties: known_properties().clone(),
+            property_types: known_property_types().clone(),
             scenes: HashMap::new(),
             ..Default::default()
         };

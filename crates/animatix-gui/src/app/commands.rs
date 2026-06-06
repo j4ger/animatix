@@ -61,6 +61,7 @@ pub enum Command {
     CreateActor { ty: String, label: String, position: [f32; 2], props: Vec<animatix_syntax::ast::Property> },
     RenameActor { old_label: String, new_label: String },
     DuplicateActor(String),
+    DuplicateSelectedActors,
     DeleteSelectedActors,
     ReparentActor { actor: String, new_parent: Option<String> },
     ExtractScene { actor_labels: Vec<String>, new_scene_name: String },
