@@ -73,6 +73,7 @@ struct GradientStop {
 
 /// A parsed SVG clip path definition.
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 struct ClipPathDef {
     /// The path data for clipping.
     path_data: String,
