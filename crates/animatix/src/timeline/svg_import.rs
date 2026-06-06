@@ -1278,15 +1278,36 @@ fn transform_to_props(t: &Transform) -> Vec<Property> {
     props
 }
 
+/// Walk up the element tree to find the nearest ancestor with the given attribute.
+fn find_ancestor_attr<'a>(node: &Node<'a, 'a>, attr: &str) -> Option<&'a str> {
+    let mut current = node.parent();
+    while let Some(parent) = current {
+        if let Some(val) = parent.attribute(attr) {
+            return Some(val);
+        }
+        current = parent.parent();
+    }
+    None
+}
+
 /// Add `fill`, `stroke`, `stroke-width`, `opacity` properties from SVG attributes.
 /// Also handles `stroke-dasharray` parsing and `url(#...)` gradient references.
 fn add_fill_stroke_props(node: &Node, props: &mut Vec<Property>, gradients: &HashMap<String, GradientDef>) {
     // Resolve parent color for currentColor support
     let current_color: Option<Expr> = node.attribute("color")
-        .and_then(|c| parse_svg_color(c, None));
+        .and_then(|c| parse_svg_color(c, None))
+        .or_else(|| find_ancestor_attr(node, "color")
+            .and_then(|c| parse_svg_color(c, None)));
 
-    // Fill color — handles hex, named, rgb(), and url(#id) gradient references
-    if let Some(fill) = node.attribute("fill") {
+    // Fill color — handles hex, named, rgb(), url(#id) gradient references, and inherit
+    let fill_value = node.attribute("fill").or_else(|| {
+        if node.attribute("fill").map_or(false, |v| v.eq_ignore_ascii_case("inherit")) {
+            find_ancestor_attr(node, "fill")
+        } else {
+            None
+        }
+    });
+    if let Some(fill) = fill_value {
         if let Some(color_expr) = parse_svg_color_with_gradients(fill, gradients, current_color.as_ref()) {
             props.push(Property::new("color", color_expr));
         } else {
@@ -1302,8 +1323,15 @@ fn add_fill_stroke_props(node: &Node, props: &mut Vec<Property>, gradients: &Has
         }
     }
 
-    // Stroke color — same as fill, supports url(#id)
-    if let Some(stroke) = node.attribute("stroke") {
+    // Stroke color — same as fill, supports url(#id) and inherit
+    let stroke_value = node.attribute("stroke").or_else(|| {
+        if node.attribute("stroke").map_or(false, |v| v.eq_ignore_ascii_case("inherit")) {
+            find_ancestor_attr(node, "stroke")
+        } else {
+            None
+        }
+    });
+    if let Some(stroke) = stroke_value {
         if let Some(color_expr) = parse_svg_color_with_gradients(stroke, gradients, current_color.as_ref()) {
             props.push(Property::new("stroke_color", color_expr));
         }
