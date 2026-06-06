@@ -265,6 +265,7 @@ fn mux_audio_if_present(
     output_file: &std::path::Path,
 ) -> Result<(), ExportError> {
     if !audio_segments.is_empty() {
+        super::require_ffmpeg()?;
         mux_audio_segments(output_file, audio_segments, output_file)?;
     }
     Ok(())
@@ -286,9 +287,6 @@ pub(super) async fn render_video_async(
     progress: Option<&AtomicU32>,
     cancel: Option<&AtomicBool>,
 ) -> Result<(), ExportError> {
-    // Fail early if ffmpeg is missing (needed for audio muxing later)
-    super::require_ffmpeg()?;
-
     let total_frames = (duration * fps as f32).ceil() as u32;
     info!("Encoding {} frames to video...", total_frames);
 
@@ -451,8 +449,6 @@ pub(super) async fn render_video_composition_async(
     progress: Option<&AtomicU32>,
     cancel: Option<&AtomicBool>,
 ) -> Result<(), ExportError> {
-    super::require_ffmpeg()?;
-
     let total_frames = (duration * fps as f32).ceil() as u32;
     info!("Encoding {} frames to video...", total_frames);
 
