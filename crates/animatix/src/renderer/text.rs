@@ -585,8 +585,15 @@ impl TextCompiler {
         }
 
         // Evict cache if it grows too large to prevent unbounded memory use.
+        // Remove ~half the entries to avoid a full clear spike.
         if self.cache.len() > 1000 {
-            self.cache.clear();
+            let to_remove: Vec<_> = self.cache.keys()
+                .take(self.cache.len() / 2)
+                .cloned()
+                .collect();
+            for k in to_remove {
+                self.cache.remove(&k);
+            }
         }
 
         let typst_color = typst::visualize::Color::from_u8(key.color[0], key.color[1], key.color[2], key.color[3]);
