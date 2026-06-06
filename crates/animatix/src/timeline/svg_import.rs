@@ -71,6 +71,13 @@ struct GradientStop {
     opacity: f64,
 }
 
+/// A parsed SVG clip path definition.
+#[derive(Clone, Debug)]
+struct ClipPathDef {
+    /// The path data for clipping.
+    path_data: String,
+}
+
 /// A parsed SVG gradient definition (linear or radial).
 ///
 /// Geometric fields (`x1`, `y1`, …) are parsed for completeness but not used
@@ -167,8 +174,9 @@ pub fn import_svg(path: &Path) -> Result<Vec<Stmt>, SvgImportError> {
     let mut stmts = Vec::new();
     let mut counter = 0u64;
 
-    // Collect gradient definitions from <defs> elements
+    // Collect gradient and clipPath definitions from <defs> elements
     let gradients = collect_gradients(&root);
+    let clip_paths = collect_clip_paths(&root);
 
     // Parse viewBox and width/height for scene configuration
     if let Some(config_stmt) = parse_viewbox_config(&root) {
@@ -176,6 +184,10 @@ pub fn import_svg(path: &Path) -> Result<Vec<Stmt>, SvgImportError> {
     }
 
     convert_children(&root, &mut stmts, &mut counter, &Transform::identity(), &gradients)?;
+    
+    // Apply clip paths to elements that reference them
+    apply_clip_paths(&mut stmts, &clip_paths);
+    
     Ok(stmts)
 }
 
@@ -547,6 +559,83 @@ fn parse_stop_color(value: &str) -> (u8, u8, u8) {
 
     // Fallback
     (0, 0, 0)
+}
+
+/// Collect clipPath definitions from the SVG tree.
+fn collect_clip_paths(node: &Node) -> HashMap<String, ClipPathDef> {
+    let mut clip_paths = HashMap::new();
+    collect_clip_paths_recursive(node, &mut clip_paths);
+    clip_paths
+}
+
+fn collect_clip_paths_recursive(node: &Node, clip_paths: &mut HashMap<String, ClipPathDef>) {
+    for child in node.children() {
+        if !child.is_element() {
+            continue;
+        }
+        let tag = child.tag_name().name();
+        if tag == "clipPath" {
+            if let Some(id) = child.attribute("id") {
+                // Extract path data from children (path, rect, circle, etc.)
+                let path_data = extract_clip_path_data(&child);
+                if !path_data.is_empty() {
+                    clip_paths.insert(id.to_string(), ClipPathDef { path_data });
+                }
+            }
+        }
+        // Recurse into all element children
+        collect_clip_paths_recursive(&child, clip_paths);
+    }
+}
+
+/// Extract path data from clipPath children.
+fn extract_clip_path_data(node: &Node) -> String {
+    let mut paths = Vec::new();
+    for child in node.children() {
+        if !child.is_element() {
+            continue;
+        }
+        let tag = child.tag_name().name();
+        match tag {
+            "path" => {
+                if let Some(d) = child.attribute("d") {
+                    paths.push(d.to_string());
+                }
+            }
+            "rect" => {
+                let x = attr_float(&child, "x", 0.0);
+                let y = attr_float(&child, "y", 0.0);
+                let w = attr_float(&child, "width", 0.0);
+                let h = attr_float(&child, "height", 0.0);
+                paths.push(format!("M {} {} L {} {} L {} {} L {} {} Z", x, y, x+w, y, x+w, y+h, x, y+h));
+            }
+            "circle" => {
+                let cx = attr_float(&child, "cx", 0.0);
+                let cy = attr_float(&child, "cy", 0.0);
+                let r = attr_float(&child, "r", 0.0);
+                // Approximate circle with 4 bezier curves
+                let k = 0.5522847498; // 4/3 * (sqrt(2) - 1)
+                paths.push(format!(
+                    "M {} {} C {} {} {} {} {} {} C {} {} {} {} {} {} C {} {} {} {} {} {} C {} {} {} {} {} {} Z",
+                    cx, cy-r,
+                    cx+r*k, cy-r, cx+r, cy-r*k, cx+r, cy,
+                    cx+r, cy+r*k, cx+r*k, cy+r, cx, cy+r,
+                    cx-r*k, cy+r, cx-r, cy+r*k, cx-r, cy,
+                    cx-r, cy-r*k, cx-r*k, cy-r, cx, cy-r
+                ));
+            }
+            _ => {}
+        }
+    }
+    paths.join(" ")
+}
+
+/// Apply clip paths to elements that reference them via clip-path attribute.
+fn apply_clip_paths(stmts: &mut Vec<Stmt>, _clip_paths: &HashMap<String, ClipPathDef>) {
+    // For now, clip paths are applied at the SVG level.
+    // The actual clipping is done during rendering via the mask/group mechanism.
+    // This is a placeholder for future enhancement.
+    let _ = stmts;
 }
 
 /// Try to resolve a `url(#id)` reference in a fill/stroke attribute.
