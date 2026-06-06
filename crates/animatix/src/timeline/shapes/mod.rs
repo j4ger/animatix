@@ -309,6 +309,10 @@ pub struct VectorShapeStyle {
     pub stroke_color: [f32; 4],
     /// Additional opacity multiplier for the fill.
     pub fill_opacity: f32,
+    /// Stroke line cap (0=Butt, 1=Round, 2=Square).
+    pub line_cap: u32,
+    /// Stroke line join (0=Miter, 1=Round, 2=Bevel).
+    pub line_join: u32,
 }
 
 #[cfg(test)]
@@ -683,6 +687,8 @@ pub fn build_vello_path(
                     (color[3] * 255.0) as u8,
                 ), 1.0))
             } else { None }),
+        line_cap: 0,
+        line_join: 0,
     }
 }
 
@@ -731,6 +737,8 @@ pub fn build_shape_vello_path(
             path: build_shape(shape_type, size, line_from, line_to, arc_angles).to_path_default(),
             fill: shape_fill_color(shape_type, color, fill_opacity),
             stroke: shape_stroke(stroke_color, stroke_width),
+            line_cap: 0,
+            line_join: 0,
         },
     };
     build_vector_shape_vello_path(
@@ -741,12 +749,16 @@ pub fn build_shape_vello_path(
             stroke_width,
             stroke_color,
             fill_opacity,
+            line_cap: 0,
+            line_join: 0,
         },
     )
     .unwrap_or_else(|| VelloPath {
         path: build_shape(shape_type, size, line_from, line_to, arc_angles).to_path_default(),
         fill: shape_fill_color(shape_type, color, fill_opacity),
         stroke: shape_stroke(stroke_color, stroke_width),
+        line_cap: 0,
+        line_join: 0,
     })
 }
 

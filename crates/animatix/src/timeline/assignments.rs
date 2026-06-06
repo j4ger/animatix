@@ -409,7 +409,7 @@ fn rebuild_vector_paths(
     let target_vello_path = build_vector_shape_vello_path(
         shape_type,
         &vector_shape_state,
-        VectorShapeStyle { color, stroke_width, stroke_color, fill_opacity },
+        VectorShapeStyle { color, stroke_width, stroke_color, fill_opacity, line_cap: 0, line_join: 0 },
     )
     .unwrap_or_else(|| {
         build_shape_vello_path(

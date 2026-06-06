@@ -21,4 +21,20 @@ pub struct VelloPath {
     pub fill: Option<Color>,
     /// Optional stroke color and width.
     pub stroke: Option<(Color, f32)>,
+    /// Stroke line cap (0=Butt, 1=Round, 2=Square).
+    pub line_cap: u32,
+    /// Stroke line join (0=Miter, 1=Round, 2=Bevel).
+    pub line_join: u32,
+}
+
+impl Default for VelloPath {
+    fn default() -> Self {
+        Self {
+            path: BezPath::new(),
+            fill: None,
+            stroke: None,
+            line_cap: 0,
+            line_join: 0,
+        }
+    }
 }

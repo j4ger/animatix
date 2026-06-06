@@ -616,6 +616,8 @@ pub(crate) fn inject_property_into_env(
     inject_scalar_env(env, &mut key, prefix_len, "stroke_width",   &track.stroke_width, time_ms, 2.0);
     inject_scalar_env(env, &mut key, prefix_len, "stroke_progress", &track.stroke_progress, time_ms, 1.0);
     inject_scalar_env(env, &mut key, prefix_len, "fill_opacity",   &track.fill_opacity, time_ms, 1.0);
+    inject_scalar_env(env, &mut key, prefix_len, "line_cap",      &track.line_cap, time_ms, 0.0);
+    inject_scalar_env(env, &mut key, prefix_len, "line_join",     &track.line_join, time_ms, 0.0);
 
     // Shape-specific derived fields
     let size = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
@@ -652,6 +654,8 @@ pub(crate) fn inject_property_into_env(
     inject_scalar_animating(env, &mut key, prefix_len, "stroke_width", &track.stroke_width);
     inject_scalar_animating(env, &mut key, prefix_len, "stroke_progress", &track.stroke_progress);
     inject_scalar_animating(env, &mut key, prefix_len, "fill_opacity", &track.fill_opacity);
+    inject_scalar_animating(env, &mut key, prefix_len, "line_cap",    &track.line_cap);
+    inject_scalar_animating(env, &mut key, prefix_len, "line_join",   &track.line_join);
     inject_scalar_animating(env, &mut key, prefix_len, "from",       &track.line_from);
     inject_scalar_animating(env, &mut key, prefix_len, "to",         &track.line_to);
     inject_scalar_animating(env, &mut key, prefix_len, "blur",          &track.filter_blur);

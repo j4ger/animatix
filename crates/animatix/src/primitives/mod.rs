@@ -110,6 +110,8 @@ pub fn sample_shape_style(
     let mut stroke_width = track.stroke_width.get(time_ms, 2.0);
     let mut stroke_color = track.stroke_color.get(time_ms, DEFAULT_WHITE);
     let mut fill_opacity = track.fill_opacity.get(time_ms, 1.0);
+    let mut line_cap = track.line_cap.get(time_ms, 0.0) as u32;
+    let mut line_join = track.line_join.get(time_ms, 0.0) as u32;
 
     if let Some(node_overrides) = overrides {
         if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides.get("color") {
@@ -130,6 +132,12 @@ pub fn sample_shape_style(
         if let Some(Value::Num(opacity)) = node_overrides.get("fill_opacity") {
             fill_opacity = *opacity as f32;
         }
+        if let Some(Value::Num(cap)) = node_overrides.get("line_cap") {
+            line_cap = *cap as u32;
+        }
+        if let Some(Value::Num(join)) = node_overrides.get("line_join") {
+            line_join = *join as u32;
+        }
     }
 
     VectorShapeStyle {
@@ -137,6 +145,8 @@ pub fn sample_shape_style(
         stroke_width,
         stroke_color,
         fill_opacity,
+        line_cap,
+        line_join,
     }
 }
 

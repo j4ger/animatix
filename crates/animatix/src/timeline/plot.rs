@@ -649,6 +649,8 @@ pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &mut Environment) -> V
             } else {
                 None
             },
+            line_cap: 0,
+            line_join: 0,
         });
     } else {
         env.set_binding(&arg_name, Value::Num(min_t));
@@ -789,6 +791,8 @@ pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &mut Environment) -> V
             } else {
                 None
             },
+            line_cap: 0,
+            line_join: 0,
         });
     }
 

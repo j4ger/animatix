@@ -579,6 +579,10 @@ pub struct AnimationTrack {
     pub stroke_progress: Option<PropertyTrack<f32>>,
     /// Fill opacity multiplier.
     pub fill_opacity: Option<PropertyTrack<f32>>,
+    /// Stroke line cap (0=Butt, 1=Round, 2=Square).
+    pub line_cap: Option<PropertyTrack<u32>>,
+    /// Stroke line join (0=Miter, 1=Round, 2=Bevel).
+    pub line_join: Option<PropertyTrack<u32>>,
     /// Path morphing options.
     pub morph_options: Option<PropertyTrack<MorphOptions>>,
 
@@ -666,6 +670,8 @@ impl AnimationTrack {
             stroke_color: None,
             stroke_progress: None,
             fill_opacity: None,
+            line_cap: None,
+            line_join: None,
             morph_options: None,
 
             // Filter flat fields
@@ -883,6 +889,8 @@ fn interpolate_vello_paths(source: &Vec<VelloPath>, target: &Vec<VelloPath>, t: 
                 path: path.path.clone(),
                 fill: path.fill.map(|c| c.multiply_alpha(source_alpha)),
                 stroke: path.stroke.map(|(c, w)| (c.multiply_alpha(source_alpha), w)),
+                line_cap: path.line_cap,
+                line_join: path.line_join,
             });
         }
         for path in target {
@@ -890,6 +898,8 @@ fn interpolate_vello_paths(source: &Vec<VelloPath>, target: &Vec<VelloPath>, t: 
                 path: path.path.clone(),
                 fill: path.fill.map(|c| c.multiply_alpha(target_alpha)),
                 stroke: path.stroke.map(|(c, w)| (c.multiply_alpha(target_alpha), w)),
+                line_cap: path.line_cap,
+                line_join: path.line_join,
             });
         }
         return result;
@@ -915,6 +925,8 @@ fn interpolate_vello_paths(source: &Vec<VelloPath>, target: &Vec<VelloPath>, t: 
                 (None, Some((c, w))) => Some((if t >= 0.5 { c } else { vello::peniko::Color::TRANSPARENT }, if t >= 0.5 { w } else { 0.0 })),
                 (None, None) => None,
             },
+            line_cap: source_element.map(|e| e.line_cap).unwrap_or(0),
+            line_join: source_element.map(|e| e.line_join).unwrap_or(0),
         }
     }).collect()
 }
@@ -1286,11 +1298,15 @@ mod tests {
             path: BezPath::new(),
             fill: Some(vello::peniko::Color::from_rgba8(255, 0, 0, 255)),
             stroke: None,
+            line_cap: 0,
+            line_join: 0,
         }];
         let target = vec![VelloPath {
             path: BezPath::new(),
             fill: Some(vello::peniko::Color::from_rgba8(0, 255, 0, 255)),
             stroke: None,
+            line_cap: 0,
+            line_join: 0,
         }];
         let result = interpolate_vello_paths(&source, &target, 0.0, MorphOptions { strategy: MorphStrategy::Fade, path_arc: 0.0, stretch: false });
         assert_eq!(result.len(), 1);
@@ -1303,11 +1319,15 @@ mod tests {
             path: BezPath::new(),
             fill: Some(vello::peniko::Color::from_rgba8(255, 0, 0, 255)),
             stroke: None,
+            line_cap: 0,
+            line_join: 0,
         }];
         let target = vec![VelloPath {
             path: BezPath::new(),
             fill: Some(vello::peniko::Color::from_rgba8(0, 255, 0, 255)),
             stroke: None,
+            line_cap: 0,
+            line_join: 0,
         }];
         let result = interpolate_vello_paths(&source, &target, 1.0, MorphOptions { strategy: MorphStrategy::Fade, path_arc: 0.0, stretch: false });
         assert_eq!(result.len(), 1);
@@ -1320,11 +1340,15 @@ mod tests {
             path: BezPath::new(),
             fill: Some(vello::peniko::Color::from_rgba8(255, 0, 0, 200)),
             stroke: Some((vello::peniko::Color::from_rgba8(255, 255, 255, 100), 2.0)),
+            line_cap: 0,
+            line_join: 0,
         }];
         let target = vec![VelloPath {
             path: BezPath::new(),
             fill: Some(vello::peniko::Color::from_rgba8(0, 255, 0, 128)),
             stroke: None,
+            line_cap: 0,
+            line_join: 0,
         }];
         let result = interpolate_vello_paths(&source, &target, 0.5, MorphOptions { strategy: MorphStrategy::Fade, path_arc: 0.0, stretch: false });
         assert_eq!(result.len(), 2);
@@ -1363,6 +1387,8 @@ mod tests {
             path: BezPath::new(),
             fill: Some(vello::peniko::Color::from_rgba8(0, 255, 0, 128)),
             stroke: None,
+            line_cap: 0,
+            line_join: 0,
         }];
         let result = interpolate_vello_paths(&source, &target, 0.25, MorphOptions { strategy: MorphStrategy::Fade, path_arc: 0.0, stretch: false });
         assert_eq!(result.len(), 1);
@@ -1375,6 +1401,8 @@ mod tests {
             path: BezPath::new(),
             fill: Some(vello::peniko::Color::from_rgba8(255, 0, 0, 200)),
             stroke: None,
+            line_cap: 0,
+            line_join: 0,
         }];
         let target: Vec<VelloPath> = vec![];
         let result = interpolate_vello_paths(&source, &target, 0.75, MorphOptions { strategy: MorphStrategy::Fade, path_arc: 0.0, stretch: false });

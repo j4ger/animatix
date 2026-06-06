@@ -57,7 +57,7 @@ Known limitation. Two clones are necessary because we need 3 copies: cache, retu
 | 5 | **`<mask>` support** | ⏳ Pending | Parse `<mask>` definitions. May require Vello mask shader. |
 | 6 | **SVG patterns** | ⏳ Deferred | Complex — defer to Phase 6. |
 | 7 | **Extended path commands** | ✅ Done | Added H, V, S, T, A commands. A is approximated as line_to. |
-| 8 | **Import test suite** | ⏳ Pending | Create test SVGs covering each feature. |
+| 8 | **Import test suite** | ✅ Done | Test suite covering basic shapes, colors, opacity, path commands. |
 
 ---
 

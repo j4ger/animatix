@@ -101,6 +101,8 @@ impl Primitive for ArrowPrimitive {
                     (ctx.style.stroke_color[2] * 255.0) as u8,
                     (ctx.style.stroke_color[3] * 255.0) as u8,
                 ), 1.0))),
+            line_cap: 0,
+            line_join: 0,
         }])
     }
 

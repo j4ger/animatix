@@ -106,6 +106,8 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                 } else {
                     None
                 },
+                line_cap: 0,
+                line_join: 0,
             });
         } else {
             env_copy.set_binding(&arg_name, Value::Num(min_t));
@@ -246,6 +248,8 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                 } else {
                     None
                 },
+                line_cap: 0,
+                line_join: 0,
             });
         }
     }
@@ -297,6 +301,8 @@ pub(crate) fn build_graph_axis_paths(
                 (axis_color[2] * 255.0) as u8,
                 (axis_color[3] * 255.0) as u8,
             ), 2.0)),
+            line_cap: 0,
+            line_join: 0,
         });
     }
 
@@ -338,6 +344,8 @@ pub(crate) fn build_graph_axis_paths(
                     (axis_color[2] * 255.0) as u8,
                     (axis_color[3] * 255.0) as u8 / 4,
                 ), 1.0)),
+                line_cap: 0,
+                line_join: 0,
             });
         }
     }
@@ -383,6 +391,8 @@ pub(crate) fn build_graph_axis_paths(
                     (axis_color[2] * 255.0) as u8,
                     (axis_color[3] * 255.0) as u8,
                 ), 1.5)),
+                line_cap: 0,
+                line_join: 0,
             });
         }
     }
@@ -1079,6 +1089,8 @@ pub(crate) fn build_number_plane_paths(
             path: grid_path,
             fill: None,
             stroke: Some((grid_c, 1.0)),
+                    line_cap: 0,
+                    line_join: 0,
         });
     }
 
@@ -1109,6 +1121,8 @@ pub(crate) fn build_number_plane_paths(
             path: axis_path,
             fill: None,
             stroke: Some((axis_c, 2.0)),
+                    line_cap: 0,
+                    line_join: 0,
         });
     }
 
@@ -1149,6 +1163,8 @@ pub(crate) fn build_number_plane_paths(
             path: tick_path,
             fill: None,
             stroke: Some((axis_c, 1.5)),
+                    line_cap: 0,
+                    line_join: 0,
         });
     }
 
@@ -1269,6 +1285,8 @@ fn build_vector_field_paths(
         } else {
             None
         },
+        line_cap: 0,
+        line_join: 0,
     }]
 }
 
@@ -1339,6 +1357,8 @@ fn build_heatmap_paths(
                 path: bp,
                 fill: Some(vello::peniko::Color::from_rgba8(cr, cg, cb, alpha)),
                 stroke: None,
+                line_cap: 0,
+                line_join: 0,
             });
         }
     }
@@ -1398,6 +1418,8 @@ fn build_contour_set_paths(
                 } else {
                     None
                 },
+                line_cap: 0,
+                line_join: 0,
             });
         }
     }
