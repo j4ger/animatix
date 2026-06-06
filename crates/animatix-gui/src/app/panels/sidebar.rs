@@ -241,28 +241,6 @@ fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::Ui) {
     });
     ui.add_space(SPACE_S);
 
-    // Import module button
-    ui.horizontal(|ui| {
-        ui.add_space(SPACE_S);
-        if ui
-            .button(
-                RichText::new(format!("{} Import module", egui_phosphor::regular::DOWNLOAD_SIMPLE))
-                    .size(FONT_SIZE_S)
-                    .color(ACCENT_BLUE),
-            )
-            .clicked()
-        {
-            if let Some(path) = rfd::FileDialog::new().add_filter("Animatix", &["amx"]).pick_file() {
-                if let Ok(relative) = path.strip_prefix(&ctx.current_file.parent().unwrap_or(std::path::Path::new("."))) {
-                    let rel_str = relative.to_string_lossy().to_string();
-                    ctx.commands.push_back(ShellAction::Command(Command::ImportModule(rel_str)));
-                } else {
-                    let abs_str = path.to_string_lossy().to_string();
-                    ctx.commands.push_back(ShellAction::Command(Command::ImportModule(abs_str)));
-                }
-            }
-        }
-    });
     ui.add_space(SPACE_S);
 
     let filter_lower = filter.to_lowercase();

@@ -1,4 +1,4 @@
-//! Edits related to config and import statements.
+//! Edits related to config statements.
 
 use animatix_syntax::ast::{Expr, Property, Stmt};
 
@@ -58,27 +58,4 @@ fn preserve_quoting_style(old: &Expr, new: Expr) -> Expr {
         (Expr::Ident(_), Expr::Str(s)) if is_valid_ident(s) => Expr::Ident(s.clone()),
         _ => new,
     }
-}
-
-/// Insert an import statement at the top of the file, after any existing imports.
-pub(super) fn insert_import(stmts: &mut Vec<Stmt>, path: &str) -> Result<(), SourceEditError> {
-    // Check for duplicate
-    if stmts.iter().any(|s| matches!(s, Stmt::Import { path: p, .. } if p == path)) {
-        return Err(SourceEditError::Generic(format!("Import '{}' already exists", path)));
-    }
-
-    let import_stmt = Stmt::Import {
-        path: path.into(),
-        alias: None,
-        span: None,
-    };
-
-    // Find insertion point: after the last import, or at the very top
-    let last_import_idx = stmts.iter().rposition(|s| matches!(s, Stmt::Import { .. }));
-    if let Some(idx) = last_import_idx {
-        stmts.insert(idx + 1, import_stmt);
-    } else {
-        stmts.insert(0, import_stmt);
-    }
-    Ok(())
 }

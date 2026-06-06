@@ -172,10 +172,6 @@ pub enum SourceEdit {
         key: String,
         value: Expr,
     },
-    /// Insert an import statement at the top of the file.
-    InsertImport {
-        path: String,
-    },
     /// Insert a parsed snippet (AST fragment) at the appropriate location.
     InsertSnippet {
         /// The parsed AST fragment to insert.
@@ -271,9 +267,6 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
         }
         SourceEdit::SetConfigProperty { key, value } => {
             super::config_edits::set_config_property(stmts, &key, value)
-        }
-        SourceEdit::InsertImport { path } => {
-            super::config_edits::insert_import(stmts, &path)
         }
         SourceEdit::InsertSnippet { stmts: fragment, time_s, container } => {
             super::actor_edits::insert_snippet(stmts, fragment, time_s, container.as_deref())

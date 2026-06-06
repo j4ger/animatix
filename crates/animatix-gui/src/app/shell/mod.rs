@@ -246,11 +246,6 @@ impl GuiShell {
                 ui::handle_redo(&mut self.document_store, &mut self.preview_store, &mut self.ui_store)
             }
             Command::ScrollToLine(line, column) => ui::handle_scroll_to_line(&mut self.document_store, line, column),
-            Command::ImportModule(path) => file::handle_import_module(
-                &mut self.document_store,
-                &mut self.preview_store,
-                path,
-            ),
             Command::ZoomToSelection => ui::handle_zoom_to_selection(
                 &mut self.preview_store,
                 &self.ui_store,
