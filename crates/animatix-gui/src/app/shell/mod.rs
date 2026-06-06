@@ -98,14 +98,16 @@ impl GuiShell {
             ),
             Command::DuplicateSelectedActors => {
                 let labels: Vec<String> = self.ui_store.selection.selected_actors.iter().cloned().collect();
+                let mut effects = Vec::new();
                 for label in labels {
-                    actor::handle_duplicate_actor(
+                    effects.extend(actor::handle_duplicate_actor(
                         &mut self.document_store,
                         &mut self.preview_store,
                         &mut self.ui_store,
                         label,
-                    );
+                    ));
                 }
+                effects
             }
             Command::DeleteSelectedActors => actor::handle_delete_selected_actors(
                 &mut self.document_store,

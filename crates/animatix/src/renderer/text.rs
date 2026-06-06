@@ -316,7 +316,7 @@ pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color, 
     // 4-backtick delimiter handles text containing up to 3 consecutive backticks.
     // Block raw also handles newlines, which inline raw cannot.
     let escaped = text
-        .replace('\', "\\\\");
+        .replace('\\', "\\\\");
     let markup = format!(
         "#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\")\n````\n{}````",
         font_size,

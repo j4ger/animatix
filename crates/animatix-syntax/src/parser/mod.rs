@@ -155,7 +155,7 @@ pub fn strip_snippet_tabstops(snippet: &str) -> String {
 /// Returns `Some(stmts)` if parsing succeeds, `None` otherwise.
 pub fn parse_snippet(snippet: &str) -> Option<Vec<Stmt>> {
     let cleaned = strip_snippet_tabstops(snippet);
-    let (ast, errors) = parse_source(&cleaned);
+    let (ast, _errors) = parse_source(&cleaned);
     ast
 }
 
