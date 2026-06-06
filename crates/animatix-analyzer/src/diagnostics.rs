@@ -332,12 +332,16 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, tree: Option<&tree_sitter::Tre
             // Check if target labels exist
             for target in &action.targets {
                 if !symbols.labels.contains_key(target) {
+                    // Use tree-sitter for precise target positioning when available
+                    let (tline, tcol, tend_line, tend_col) = tree
+                        .and_then(|t| find_token_range(t.root_node(), source, "identifier", target))
+                        .unwrap_or((line, col, end_line, end_col));
                     diagnostics.push(Diagnostic {
                         severity: DiagnosticSeverity::Warning,
-                        line,
-                        col,
-                        end_line,
-                        end_col,
+                        line: tline,
+                        col: tcol,
+                        end_line: tend_line,
+                        end_col: tend_col,
                         message: format!("Undefined label: {}", target),
                         code: Some("undefined-label".to_string()),
                     });
