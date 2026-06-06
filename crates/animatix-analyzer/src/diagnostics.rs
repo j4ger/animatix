@@ -145,8 +145,9 @@ pub fn collect_diagnostics(
     parse_errors: &[ParseError],
     symbols: &SymbolTable,
     ast: Option<&[Stmt]>,
+    tree: Option<&tree_sitter::Tree>,
 ) -> Vec<Diagnostic> {
-    collect_diagnostics_with_config(source, parse_errors, symbols, ast, &LintConfig::default())
+    collect_diagnostics_with_config(source, parse_errors, symbols, ast, tree, &LintConfig::default())
 }
 
 /// Collect all diagnostics from the source with lint configuration.
@@ -155,6 +156,7 @@ pub fn collect_diagnostics_with_config(
     parse_errors: &[ParseError],
     symbols: &SymbolTable,
     ast: Option<&[Stmt]>,
+    tree: Option<&tree_sitter::Tree>,
     config: &LintConfig,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
@@ -175,7 +177,7 @@ pub fn collect_diagnostics_with_config(
 
     // 2. Semantic checks (if AST is available)
     if let Some(stmts) = ast {
-        collect_semantic_diagnostics(stmts, symbols, &mut diagnostics);
+        collect_semantic_diagnostics(stmts, symbols, tree, source, &mut diagnostics);
     }
 
     // 3. Filter based on lint config
@@ -204,6 +206,8 @@ pub fn collect_diagnostics_with_config(
 fn collect_semantic_diagnostics(
     stmts: &[Stmt],
     symbols: &SymbolTable,
+    tree: Option<&tree_sitter::Tree>,
+    source: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // Check for duplicate labels
@@ -252,7 +256,7 @@ fn collect_semantic_diagnostics(
 
     // Check each statement
     for stmt in stmts {
-        check_stmt(stmt, symbols, diagnostics);
+        check_stmt(stmt, symbols, tree, source, diagnostics);
     }
 }
 
@@ -269,20 +273,57 @@ fn span_to_diag(span: &Option<animatix_syntax::ast::Span>) -> (usize, usize, usi
     }
 }
 
+/// Search the tree-sitter tree for a node of the given kind containing `text`.
+/// Returns 0-based (line, col, end_line, end_col) if found.
+fn find_token_range(
+    node: tree_sitter::Node,
+    source: &str,
+    kind: &str,
+    text: &str,
+) -> Option<(usize, usize, usize, usize)> {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == kind {
+            if let Ok(node_text) = child.utf8_text(source.as_bytes()) {
+                if node_text == text {
+                    let start = child.start_position();
+                    let end = child.end_position();
+                    return Some((
+                        start.row,
+                        start.column,
+                        end.row,
+                        end.column,
+                    ));
+                }
+            }
+        }
+        // Recurse into children
+        if let Some(found) = find_token_range(child, source, kind, text) {
+            return Some(found);
+        }
+    }
+    None
+}
+
 /// Check a single statement for semantic issues.
-fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnostic>) {
+fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, tree: Option<&tree_sitter::Tree>, source: &str, diagnostics: &mut Vec<Diagnostic>) {
     match stmt {
         Stmt::Action(action, span) => {
             let (line, col, end_line, end_col) = span_to_diag(span);
 
             // Check if action verb is known
             if !symbols.actions.contains(&action.verb) {
+                // Try to find the verb token in the tree-sitter tree for precise positioning
+                let (vline, vcol, vend_line, vend_col) = tree
+                    .and_then(|t| find_token_range(t.root_node(), source, "action_verb", &action.verb))
+                    .map(|(sl, sc, el, ec)| (sl, sc, el, ec))
+                    .unwrap_or((line, col, end_line, end_col));
                 diagnostics.push(Diagnostic {
                     severity: DiagnosticSeverity::Warning,
-                    line,
-                    col,
-                    end_line,
-                    end_col,
+                    line: vline,
+                    col: vcol,
+                    end_line: vend_line,
+                    end_col: vend_col,
                     message: format!("Unknown action: {}", action.verb),
                     code: Some("unknown-action".to_string()),
                 });
@@ -433,32 +474,32 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, diagnostics: &mut Vec<Diagnost
         // Recurse into blocks
         Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
             for stmt in body {
-                check_stmt(stmt, symbols, diagnostics);
+                check_stmt(stmt, symbols, tree, source, diagnostics);
             }
         }
         Stmt::Sequence { body, .. } | Stmt::Stagger { body, .. } | Stmt::Always { body, .. } => {
             for stmt in body {
-                check_stmt(stmt, symbols, diagnostics);
+                check_stmt(stmt, symbols, tree, source, diagnostics);
             }
         }
         Stmt::Conditional { then_branch, else_branch, .. } => {
             for stmt in then_branch {
-                check_stmt(stmt, symbols, diagnostics);
+                check_stmt(stmt, symbols, tree, source, diagnostics);
             }
             if let Some(else_stmts) = else_branch {
                 for stmt in else_stmts {
-                    check_stmt(stmt, symbols, diagnostics);
+                    check_stmt(stmt, symbols, tree, source, diagnostics);
                 }
             }
         }
         Stmt::ForLoop { body, .. } => {
             for stmt in body {
-                check_stmt(stmt, symbols, diagnostics);
+                check_stmt(stmt, symbols, tree, source, diagnostics);
             }
         }
         Stmt::ComponentDef(def, ..) => {
             for stmt in &def.body {
-                check_stmt(stmt, symbols, diagnostics);
+                check_stmt(stmt, symbols, tree, source, diagnostics);
             }
         }
 
@@ -473,7 +514,7 @@ mod tests {
 
     #[test]
     fn empty_source_has_no_diagnostics() {
-        let diagnostics = collect_diagnostics("", &[], &SymbolTable::default(), None);
+        let diagnostics = collect_diagnostics("", &[], &SymbolTable::default(), None, None);
         assert!(diagnostics.is_empty());
     }
 
@@ -489,7 +530,7 @@ mod tests {
             }, None),
         ];
         let symbols = SymbolTable::build_from_ast(&[]);
-        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts));
+        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), None);
 
         let unknown_actions: Vec<_> = diagnostics.iter()
             .filter(|d| d.code.as_deref() == Some("unknown-action"))
@@ -510,7 +551,7 @@ mod tests {
             }, None),
         ];
         let symbols = SymbolTable::build_from_ast(&[]);
-        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts));
+        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), None);
 
         let undefined: Vec<_> = diagnostics.iter()
             .filter(|d| d.code.as_deref() == Some("undefined-label"))
@@ -534,7 +575,7 @@ mod tests {
             },
         ];
         let symbols = SymbolTable::build_from_ast(&stmts);
-        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts));
+        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), None);
 
         let unknown_types: Vec<_> = diagnostics.iter()
             .filter(|d| d.code.as_deref() == Some("unknown-type"))
@@ -577,7 +618,7 @@ mod tests {
         // Don't add any references - should trigger unused-label
         symbols.collect_references(&[]);
         let config = LintConfig::from_source(source);
-        let diagnostics = collect_diagnostics_with_config(source, &[], &symbols, Some(&stmts), &config);
+        let diagnostics = collect_diagnostics_with_config(source, &[], &symbols, Some(&stmts), None, &config);
 
         let unused: Vec<_> = diagnostics.iter()
             .filter(|d| d.code.as_deref() == Some("unused-label"))
@@ -603,7 +644,7 @@ mod tests {
         let mut symbols = SymbolTable::build_from_ast(&stmts);
         symbols.collect_references(&[]);
         let config = LintConfig::from_source(source);
-        let diagnostics = collect_diagnostics_with_config(source, &[], &symbols, Some(&stmts), &config);
+        let diagnostics = collect_diagnostics_with_config(source, &[], &symbols, Some(&stmts), None, &config);
 
         let warnings: Vec<_> = diagnostics.iter()
             .filter(|d| d.severity == DiagnosticSeverity::Warning)
@@ -635,7 +676,7 @@ mod tests {
             },
         ];
         let symbols = SymbolTable::build_from_ast(&stmts);
-        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts));
+        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), None);
 
         let type_mismatches: Vec<_> = diagnostics.iter()
             .filter(|d| d.code.as_deref() == Some("type-mismatch"))
@@ -670,7 +711,7 @@ mod tests {
             },
         ];
         let symbols = SymbolTable::build_from_ast(&stmts);
-        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts));
+        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), None);
 
         let type_mismatches: Vec<_> = diagnostics.iter()
             .filter(|d| d.code.as_deref() == Some("type-mismatch"))
@@ -694,7 +735,7 @@ mod tests {
         ];
         let symbols = SymbolTable::build_from_ast(&[]);
         let config = LintConfig::from_source(source);
-        let diagnostics = collect_diagnostics_with_config(source, &parse_errors, &symbols, None, &config);
+        let diagnostics = collect_diagnostics_with_config(source, &parse_errors, &symbols, None, None, &config);
 
         let errors: Vec<_> = diagnostics.iter()
             .filter(|d| d.severity == DiagnosticSeverity::Error)

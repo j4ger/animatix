@@ -386,6 +386,7 @@ impl Analyzer {
             &self.parse_errors,
             &self.symbols,
             self.ast.as_deref(),
+            self.tree.as_ref(),
             config,
         );
         diagnostics.extend_from_slice(&self.type_diagnostics);
