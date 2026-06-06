@@ -83,6 +83,8 @@ impl Timeline {
                 stroke_width,
                 stroke_color,
                 fill_opacity,
+                line_cap: 0,
+                line_join: 0,
             },
         )
         .unwrap_or_else(|| {

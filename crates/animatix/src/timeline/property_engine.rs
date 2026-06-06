@@ -616,8 +616,8 @@ pub(crate) fn inject_property_into_env(
     inject_scalar_env(env, &mut key, prefix_len, "stroke_width",   &track.stroke_width, time_ms, 2.0);
     inject_scalar_env(env, &mut key, prefix_len, "stroke_progress", &track.stroke_progress, time_ms, 1.0);
     inject_scalar_env(env, &mut key, prefix_len, "fill_opacity",   &track.fill_opacity, time_ms, 1.0);
-    inject_scalar_env(env, &mut key, prefix_len, "line_cap",      &track.line_cap, time_ms, 0.0);
-    inject_scalar_env(env, &mut key, prefix_len, "line_join",     &track.line_join, time_ms, 0.0);
+    inject_u32_env(env, &mut key, prefix_len, "line_cap",      &track.line_cap, time_ms, 0);
+    inject_u32_env(env, &mut key, prefix_len, "line_join",     &track.line_join, time_ms, 0);
 
     // Shape-specific derived fields
     let size = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
@@ -675,6 +675,21 @@ fn inject_scalar_env(
     field: &Option<PropertyTrack<f32>>,
     time_ms: u64,
     default: f32,
+) {
+    let val = field.get(time_ms, default) as f64;
+    key.truncate(prefix_len);
+    key.push_str(suffix);
+    env.set(&*key, Value::Num(val));
+}
+
+fn inject_u32_env(
+    env: &mut Environment,
+    key: &mut String,
+    prefix_len: usize,
+    suffix: &str,
+    field: &Option<PropertyTrack<u32>>,
+    time_ms: u64,
+    default: u32,
 ) {
     let val = field.get(time_ms, default) as f64;
     key.truncate(prefix_len);

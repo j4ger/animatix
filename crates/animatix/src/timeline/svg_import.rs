@@ -1470,6 +1470,26 @@ fn add_fill_stroke_props(node: &Node, props: &mut Vec<Property>, gradients: &Has
         }
     }
 
+    // Stroke line cap: butt=0, round=1, square=2
+    if let Some(linecap) = node.attribute("stroke-linecap") {
+        let cap = match linecap {
+            "round" => 1.0,
+            "square" => 2.0,
+            _ => 0.0,
+        };
+        props.push(Property::new("line_cap", Expr::Num(cap)));
+    }
+
+    // Stroke line join: miter=0, round=1, bevel=2
+    if let Some(linejoin) = node.attribute("stroke-linejoin") {
+        let join = match linejoin {
+            "round" => 1.0,
+            "bevel" => 2.0,
+            _ => 0.0,
+        };
+        props.push(Property::new("line_join", Expr::Num(join)));
+    }
+
     // stroke-dasharray: parse and store as custom property; warn not rendered
     if let Some(dasharray) = node.attribute("stroke-dasharray") {
         let values: Vec<f64> = parse_numbers(dasharray);

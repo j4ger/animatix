@@ -110,8 +110,8 @@ pub fn sample_shape_style(
     let mut stroke_width = track.stroke_width.get(time_ms, 2.0);
     let mut stroke_color = track.stroke_color.get(time_ms, DEFAULT_WHITE);
     let mut fill_opacity = track.fill_opacity.get(time_ms, 1.0);
-    let mut line_cap = track.line_cap.get(time_ms, 0.0) as u32;
-    let mut line_join = track.line_join.get(time_ms, 0.0) as u32;
+    let mut line_cap = track.line_cap.get(time_ms, 0);
+    let mut line_join = track.line_join.get(time_ms, 0);
 
     if let Some(node_overrides) = overrides {
         if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides.get("color") {
@@ -313,7 +313,25 @@ impl RenderCommand {
                     }
                     if let Some((mut sc, sw)) = path.stroke {
                         sc = sc.with_alpha(sc.components[3] * opacity);
-                        let stroke = vello::kurbo::Stroke::new(sw as f64);
+                        let cap = match path.line_cap {
+                            1 => vello::kurbo::Cap::Round,
+                            2 => vello::kurbo::Cap::Square,
+                            _ => vello::kurbo::Cap::Butt,
+                        };
+                        let join = match path.line_join {
+                            1 => vello::kurbo::Join::Round,
+                            2 => vello::kurbo::Join::Bevel,
+                            _ => vello::kurbo::Join::Miter,
+                        };
+                        let stroke = vello::kurbo::Stroke {
+                            width: sw as f64,
+                            join,
+                            miter_limit: 10.0,
+                            start_cap: cap,
+                            end_cap: cap,
+                            dash_pattern: Default::default(),
+                            dash_offset: 0.0,
+                        };
                         scene.stroke(&stroke, *transform, sc, None, &path.path);
                     }
                 }
