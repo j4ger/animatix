@@ -459,31 +459,39 @@ impl<T: Interpolate + Clone> PropertyTrack<T> {
     }
     /// Evaluate the interpolated value at `time_ms`.
     pub fn evaluate(&self, time_ms: u64) -> T {
+        self.evaluate_with(time_ms, T::clone)
+    }
+    /// Optimized evaluate for `Copy` types — avoids heap allocation on clone.
+    pub fn evaluate_copy(&self, time_ms: u64) -> T where T: Copy {
+        self.evaluate_with(time_ms, |v| *v)
+    }
+    /// Core evaluation logic parameterized by clone strategy.
+    fn evaluate_with(&self, time_ms: u64, clone_val: impl Fn(&T) -> T) -> T {
         // P2.20: Memoization — return cached value if time matches
         if let Some((cached_time, cached_value)) = self.last_evaluated.borrow().as_ref() {
             if *cached_time == time_ms {
-                return cached_value.clone();
+                return clone_val(cached_value);
             }
         }
 
         let result = if self.keyframes.is_empty() {
-            self.default_value.clone()
+            clone_val(&self.default_value)
         } else {
             let found = match self.keyframes.range(time_ms..).next() {
                 Some(entry) => entry,
-                None => return self.last_value(),
+                None => return self.last_value_with(clone_val),
             };
             let (&found_time, (found_val, found_easing)) = found;
             if let Some((&first_time, _)) = self.keyframes.iter().next() {
                 if time_ms <= first_time {
-                    let value = found_val.clone();
-                    *self.last_evaluated.borrow_mut() = Some((time_ms, value.clone()));
+                    let value = clone_val(found_val);
+                    *self.last_evaluated.borrow_mut() = Some((time_ms, clone_val(&value)));
                     return value;
                 }
             }
             let (prev_time, prev_val) = match self.keyframes.range(..time_ms).next_back() {
-                Some((&t, (val, _))) => (t, val.clone()),
-                None => (0, self.default_value.clone()),
+                Some((&t, (val, _))) => (t, clone_val(val)),
+                None => (0, clone_val(&self.default_value)),
             };
             let duration = (found_time - prev_time) as f32;
             let elapsed = (time_ms - prev_time) as f32;
@@ -492,13 +500,17 @@ impl<T: Interpolate + Clone> PropertyTrack<T> {
             prev_val.interpolate(found_val, eased_progress)
         };
 
-        *self.last_evaluated.borrow_mut() = Some((time_ms, result.clone()));
+        *self.last_evaluated.borrow_mut() = Some((time_ms, clone_val(&result)));
         result
     }
     /// Return the value of the most recent keyframe, or the default.
     pub fn last_value(&self) -> T {
-        self.keyframes.iter().next_back().map(|(_, (val, _))| val.clone())
-            .unwrap_or_else(|| self.default_value.clone())
+        self.last_value_with(T::clone)
+    }
+    /// Return the value of the most recent keyframe, or the default, using a custom clone strategy.
+    fn last_value_with(&self, clone_val: impl Fn(&T) -> T) -> T {
+        self.keyframes.iter().next_back().map(|(_, (val, _))| clone_val(val))
+            .unwrap_or_else(|| clone_val(&self.default_value))
     }
     /// Return the timestamp of the most recent keyframe, if any.
     pub fn last_keyframe_time(&self) -> Option<u64> {

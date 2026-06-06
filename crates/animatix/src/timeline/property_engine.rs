@@ -441,17 +441,19 @@ pub fn read_property_value(track: &AnimationTrack, field: ActorField, time_ms: u
 fn read_property_value_inner(track: &AnimationTrack, field: ActorField, time_ms: u64) -> Option<PropertyValue> {
     use crate::timeline::track::TrackFieldRef;
     track.field_ref(field).and_then(|f| match f {
-        TrackFieldRef::F32(opt) => opt.as_ref().map(|pt| PropertyValue::F32(pt.evaluate(time_ms))),
-        TrackFieldRef::Vec2(opt) => opt.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate(time_ms))),
-        TrackFieldRef::Vec4(opt) => opt.as_ref().map(|pt| PropertyValue::Color(pt.evaluate(time_ms))),
-        TrackFieldRef::Transform(opt) => opt.as_ref().map(|pt| PropertyValue::Transform(pt.evaluate(time_ms))),
+        // Copy types — use evaluate_copy to avoid cloning
+        TrackFieldRef::F32(opt) => opt.as_ref().map(|pt| PropertyValue::F32(pt.evaluate_copy(time_ms))),
+        TrackFieldRef::Vec2(opt) => opt.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate_copy(time_ms))),
+        TrackFieldRef::Vec4(opt) => opt.as_ref().map(|pt| PropertyValue::Color(pt.evaluate_copy(time_ms))),
+        TrackFieldRef::Transform(opt) => opt.as_ref().map(|pt| PropertyValue::Transform(pt.evaluate_copy(time_ms))),
+        TrackFieldRef::U32(opt) => opt.as_ref().map(|pt| PropertyValue::U32(pt.evaluate_copy(time_ms))),
+        TrackFieldRef::ShapeType(opt) => opt.as_ref().map(|pt| PropertyValue::U32(shape_type_to_u32(pt.evaluate_copy(time_ms)))),
+        TrackFieldRef::PlacementMode(opt) => opt.as_ref().map(|pt| PropertyValue::PlacementMode(pt.evaluate_copy(time_ms))),
+        TrackFieldRef::MorphOptions(opt) => opt.as_ref().map(|pt| PropertyValue::MorphOptions(pt.evaluate_copy(time_ms))),
+        // Clone types — keep using evaluate
         TrackFieldRef::String(opt) => opt.as_ref().map(|pt| PropertyValue::String(pt.evaluate(time_ms))),
-        TrackFieldRef::U32(opt) => opt.as_ref().map(|pt| PropertyValue::U32(pt.evaluate(time_ms))),
         TrackFieldRef::PointList(opt) => opt.as_ref().map(|pt| PropertyValue::PointList(pt.evaluate(time_ms))),
         TrackFieldRef::CommandList(opt) => opt.as_ref().map(|pt| PropertyValue::CommandList(pt.evaluate(time_ms))),
-        TrackFieldRef::ShapeType(opt) => opt.as_ref().map(|pt| PropertyValue::U32(shape_type_to_u32(pt.evaluate(time_ms)))),
-        TrackFieldRef::PlacementMode(opt) => opt.as_ref().map(|pt| PropertyValue::PlacementMode(pt.evaluate(time_ms))),
-        TrackFieldRef::MorphOptions(opt) => opt.as_ref().map(|pt| PropertyValue::MorphOptions(pt.evaluate(time_ms))),
     })
 }
 

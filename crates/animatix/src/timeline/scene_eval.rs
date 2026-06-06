@@ -636,7 +636,7 @@ impl Timeline {
         // P2.25: Reuse vello scene buffer to avoid allocating fresh encoding buffers.
         let mut scene = self.scene_buffer.borrow_mut().take().unwrap_or_default();
         scene.reset();
-        let bg_color = self.background_color.evaluate(time_ms);
+        let bg_color = self.background_color.evaluate_copy(time_ms);
 
         // Collect actor world-space bounding boxes for click-to-select
         let mut hit_regions: Vec<(String, kurbo::Rect)> = Vec::new();

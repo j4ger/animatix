@@ -137,7 +137,7 @@ impl Timeline {
                 _ => None,
             })
             .unwrap_or_else(|| {
-                let [r, g, b, a] = self.background_color.evaluate(time_ms);
+                let [r, g, b, a] = self.background_color.evaluate_copy(time_ms);
                 [r as f64, g as f64, b as f64, a as f64]
             });
         set_lookup_color(env, "scene.background_color", background_color);
