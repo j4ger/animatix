@@ -51,12 +51,12 @@ Known limitation. Two clones are necessary because we need 3 copies: cache, retu
 | # | Task | Status | Details |
 |---|------|--------|--------|
 | 1 | **`stroke-linecap` / `stroke-linejoin`** | ⏳ Blocked | Requires renderer support for `line_cap`/`line_join` properties. |
-| 2 | **`inherit` fill/stroke** | ⏳ Pending | Walk up element tree to find nearest ancestor with explicit fill/stroke. |
+| 2 | **`inherit` fill/stroke** | ✅ Done | Walk up element tree to find nearest ancestor with explicit fill/stroke. |
 | 3 | **`<use>` element support** | ⏳ Pending | Resolve `href`/`xlink:href` to referenced element. |
 | 4 | **`<clipPath>` support** | ⏳ Pending | Parse `<clipPath>` definitions. Apply as Vello clip. |
 | 5 | **`<mask>` support** | ⏳ Pending | Parse `<mask>` definitions. May require Vello mask shader. |
 | 6 | **SVG patterns** | ⏳ Deferred | Complex — defer to Phase 6. |
-| 7 | **Extended path commands** | ⏳ Pending | Add `A` (arc), `H`/`V`, `S`/`T` commands. |
+| 7 | **Extended path commands** | ✅ Done | Added H, V, S, T, A commands. A is approximated as line_to. |
 | 8 | **Import test suite** | ⏳ Pending | Create test SVGs covering each feature. |
 
 ---

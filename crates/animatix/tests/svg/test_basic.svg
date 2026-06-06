@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Basic shapes -->
+  <rect x="10" y="10" width="30" height="20" fill="#ff0000" stroke="#000" stroke-width="2"/>
+  <circle cx="70" cy="30" r="15" fill="blue" opacity="0.8"/>
+  <ellipse cx="50" cy="70" rx="25" ry="15" fill="green"/>
+  
+  <!-- Path with various commands -->
+  <path d="M 10 80 L 30 90 H 70 V 80 Z" fill="yellow" stroke="orange"/>
+  
+  <!-- Text -->
+  <text x="50" y="50" font-size="12" fill="black">Hello</text>
+</svg>
