@@ -312,12 +312,13 @@ pub fn compile_typst(typst_markup: &str, font_size: f32, color: typst::visualize
 /// Compile plain text into a Typst frame.
 pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Result<Frame, RenderError> {
     let font = resolve_font_family(font_family, font_ctx);
-    // Use Typst raw block to avoid markup interpretation of user text
+    // Use Typst raw block (4 backticks) to avoid markup interpretation of user text.
+    // 4-backtick delimiter handles text containing up to 3 consecutive backticks.
+    // Block raw also handles newlines, which inline raw cannot.
     let escaped = text
-        .replace('\\', "\\\\")
-        .replace('`', "\\`");
+        .replace('\', "\\\\");
     let markup = format!(
-        "#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\")\n`{}`",
+        "#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\")\n````\n{}````",
         font_size,
         color.to_hex(),
         font,
@@ -335,12 +336,11 @@ pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color, 
 /// Compile code text into a Typst frame.
 pub fn compile_code(code: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Result<Frame, RenderError> {
     let font = resolve_font_family(font_family, font_ctx);
-    // Use Typst raw block to avoid markup interpretation of code text
+    // Use Typst raw block (4 backticks) to avoid markup interpretation of code text.
     let escaped = code
-        .replace('\\', "\\\\")
-        .replace('`', "\\`");
+        .replace('\\', "\\\\");
     let markup = format!(
-        "#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\")\n`{}`",
+        "#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\")\n````\n{}````",
         font_size,
         color.to_hex(),
         font,
