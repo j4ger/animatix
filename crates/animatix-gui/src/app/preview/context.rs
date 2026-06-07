@@ -365,12 +365,19 @@ impl PreviewContext<'_> {
                     tx.screen_to_scene(click_pos)
                 };
 
-                // Find a text-type actor at the click position
+                // Find a text-type actor at the click position (skip locked actors)
                 let text_actor = self.hit_regions.iter()
                     .filter(|(_, bounds)| {
                         // Check if click is within bounds
                         scene_point.x >= bounds.x0 && scene_point.x <= bounds.x1
                             && scene_point.y >= bounds.y0 && scene_point.y <= bounds.y1
+                    })
+                    .filter(|(label, _)| {
+                        // Skip locked actors
+                        !self.timeline
+                            .and_then(|t| t.get_track(label))
+                            .map(|tr| tr.locked)
+                            .unwrap_or(false)
                     })
                     .filter(|(label, _)| self.get_text_property(label).is_some())
                     .map(|(label, _)| label.clone())

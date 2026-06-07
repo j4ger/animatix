@@ -63,10 +63,13 @@ pub(crate) fn handle_preview_drag(
                             let handle_world = preview::world_handle_positions(p);
                             let handle_screen: [Pos2; 8] =
                                 std::array::from_fn(|i| ctx.preview_scene_to_screen(preview_rect, handle_world[i]));
-                            let nearest = (0..8).min_by_key(|i| {
-                                let d = mouse.distance(handle_screen[*i]);
-                                (d * 1000.0) as i32
-                            });
+                            // Find nearest handle within hit radius
+                            let nearest = (0..8)
+                                .filter(|&i| mouse.distance(handle_screen[i]) <= hit_radius)
+                                .min_by_key(|&i| {
+                                    let d = mouse.distance(handle_screen[i]);
+                                    (d * 1000.0) as i32
+                                });
                             if let Some(idx) = nearest {
                                 let anchor_local = if p.pivot_offset != [0.0, 0.0] {
                                     p.pivot_offset
@@ -107,16 +110,33 @@ pub(crate) fn handle_preview_drag(
                             }
                         }
                         preview::ToolMode::Rotate => {
+                            // Only start rotation if cursor is near the rotation handle or actor body
                             let pivot = preview::pivot_world(p);
-                            let angle = ((scene.y - pivot[1] as f64) as f32)
-                                .atan2((scene.x - pivot[0] as f64) as f32);
-                            *ctx.drag_state = DragState::Rotate {
-                                actor,
-                                start_angle: angle,
-                                start_rotation: p.rotation,
-                                pivot,
-                            };
-                            return true;
+                            let pivot_screen = ctx.preview_scene_to_screen(
+                                preview_rect,
+                                kurbo::Point::new(pivot[0] as f64, pivot[1] as f64),
+                            );
+                            let rotation_handle_offset = PREVIEW_ROTATION_OFFSET * ui.ctx().pixels_per_point();
+                            let rotation_handle_screen = Pos2::new(
+                                pivot_screen.x,
+                                pivot_screen.y - rotation_handle_offset,
+                            );
+                            let near_rotation_handle = mouse.distance(rotation_handle_screen) <= hit_radius * 2.0;
+                            // Check if cursor is within actor bounds
+                            let near_actor_body = ctx.hit_regions.iter()
+                                .any(|(label, bounds)| label == &actor && bounds.contains(scene));
+                            
+                            if near_rotation_handle || near_actor_body {
+                                let angle = ((scene.y - pivot[1] as f64) as f32)
+                                    .atan2((scene.x - pivot[0] as f64) as f32);
+                                *ctx.drag_state = DragState::Rotate {
+                                    actor,
+                                    start_angle: angle,
+                                    start_rotation: p.rotation,
+                                    pivot,
+                                };
+                                return true;
+                            }
                         }
                         preview::ToolMode::Pivot => {
                             let pivot_world_pt = preview::pivot_world(p);
@@ -317,8 +337,8 @@ pub(crate) fn handle_preview_drag(
                                 return true;
                             }
                             // Click without drag: fall through to selection/double-click handlers
+                            // Don't return true here - let selection handler process the click
                         }
-                        return true;
                     }
 
                     let alt = ui.input(|i| i.modifiers.alt);

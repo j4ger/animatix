@@ -250,7 +250,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                 let scroll = ui.input(|i| i.smooth_scroll_delta);
                 if scroll.y != 0.0 {
                     let zoom_factor = 1.0 + scroll.y * 0.001;
-                    let new_zoom = (ctx.preview.viewport.preview_zoom * zoom_factor).clamp(1.0, 10.0);
+                    let new_zoom = (ctx.preview.viewport.preview_zoom * zoom_factor).clamp(PREVIEW_MIN_ZOOM, 10.0);
                     let prev_zoom = ctx.preview.viewport.preview_zoom;
                     if let Some(cursor) = ui.ctx().input(|i| i.pointer.latest_pos()) {
                         let cursor_in_rect = preview_rect.contains(cursor);
