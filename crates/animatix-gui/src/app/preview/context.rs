@@ -7,11 +7,12 @@ use std::collections::{HashMap, HashSet};
 
 use egui::{Pos2, Vec2};
 
-use crate::app::commands::{ActionQueue, Command, ShellAction};
+use crate::app::commands::{ActionQueue, Command, ShellAction, PropertyEdit, PropertyValue as GuiPropertyValue};
 use crate::app::design_tokens::*;
 use crate::app::preview::{self, selection, ActorProps, DragState};
-use crate::app::PreviewPaneState;
-use animatix::timeline::{SceneDimensions, Timeline};
+use crate::app::{PreviewPaneState, InlineTextEditState};
+use animatix::timeline::{SceneDimensions, Timeline, ActorKindId};
+use egui::Stroke;
 
 pub(crate) struct PreviewContext<'a> {
     pub scene_dimensions: SceneDimensions,
@@ -56,6 +57,140 @@ impl PreviewContext<'_> {
         let size = [local_size[0] * scale, local_size[1] * scale];
         let pivot_offset = self.pivot_offsets.get(actor).copied().unwrap_or([0.0, 0.0]);
         Some(ActorProps { position, size, rotation, pivot_offset })
+    }
+
+    /// Get the text content property name for a text-type actor.
+    /// Returns `Some(property_name)` for Text, Math, Code, Typst actors.
+    pub(crate) fn get_text_property(&self, actor: &str) -> Option<&'static str> {
+        let timeline = self.timeline.or_else(|| {
+            let comp = self.composition?;
+            let scene_name = self.active_scene?;
+            comp.scenes.get(scene_name).map(|s| &s.timeline)
+        })?;
+        let track = timeline.get_track(actor)?;
+        match track.kind {
+            ActorKindId::Text => Some("text"),
+            ActorKindId::Math => Some("math"),
+            ActorKindId::Code => Some("code"),
+            ActorKindId::Typst => Some("content"),
+            _ => None,
+        }
+    }
+
+    /// Get the current text content of a text-type actor.
+    pub(crate) fn get_text_content(&self, actor: &str) -> Option<String> {
+        let timeline = self.timeline.or_else(|| {
+            let comp = self.composition?;
+            let scene_name = self.active_scene?;
+            comp.scenes.get(scene_name).map(|s| &s.timeline)
+        })?;
+        let track = timeline.get_track(actor)?;
+        let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
+        let value = animatix::timeline::read_property_value_or_default(
+            track, animatix::timeline::ActorField::TextContent, time_ms, track.kind
+        );
+        match value {
+            animatix::timeline::PropertyValue::String(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    /// Start inline text editing for a text-type actor.
+    pub(crate) fn start_inline_edit(&mut self, actor: &str, preview_rect: egui::Rect) {
+        let Some(property) = self.get_text_property(actor) else { return; };
+        let Some(content) = self.get_text_content(actor) else { return; };
+        let Some(props) = self.get_actor_props(actor) else { return; };
+
+        let screen_pos = preview::scene_to_screen(
+            kurbo::Point::new(props.position[0] as f64, props.position[1] as f64),
+            preview_rect, self.scene_dimensions, preview_rect.size(),
+            self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
+        );
+
+        // Estimate screen size from actor bounds
+        let screen_size = if let Some((_, bounds)) = self.hit_regions.iter().find(|(l, _)| l == actor) {
+            let tl = preview::scene_to_screen(
+                kurbo::Point::new(bounds.x0, bounds.y0),
+                preview_rect, self.scene_dimensions, preview_rect.size(),
+                self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
+            );
+            let br = preview::scene_to_screen(
+                kurbo::Point::new(bounds.x1, bounds.y1),
+                preview_rect, self.scene_dimensions, preview_rect.size(),
+                self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan,
+            );
+            egui::vec2(br.x - tl.x, br.y - tl.y).max(egui::vec2(100.0, 24.0))
+        } else {
+            egui::vec2(200.0, 24.0)
+        };
+
+        self.preview.inline_edit = Some(InlineTextEditState {
+            actor: actor.to_string(),
+            property: property.to_string(),
+            current_value: content,
+            screen_pos,
+            screen_size,
+        });
+    }
+
+    /// Render inline text editor overlay if active.
+    pub(crate) fn render_inline_text_editor(&mut self, ui: &mut egui::Ui, preview_rect: egui::Rect) {
+        let Some(edit) = self.preview.inline_edit.as_mut() else { return; };
+
+        // Position the editor at the actor's screen position
+        let editor_w = edit.screen_size.x.max(150.0);
+        let editor_h = edit.screen_size.y.max(24.0);
+        let editor_rect = egui::Rect::from_center_size(
+            edit.screen_pos,
+            egui::vec2(editor_w + 16.0, editor_h + 8.0),
+        ).intersect(preview_rect);
+
+        // Draw background
+        ui.painter().rect_filled(editor_rect, RADIUS_M as u8, BG_SURFACE);
+        ui.painter().rect_stroke(editor_rect, RADIUS_M as u8, Stroke::new(STROKE_WIDTH, ACCENT_BLUE), egui::StrokeKind::Outside);
+
+        // Build text edit UI
+        let mut child = ui.new_child(egui::UiBuilder::new().max_rect(editor_rect.shrink(SPACE_S)));
+        child.set_clip_rect(editor_rect);
+
+        let font = match edit.property.as_str() {
+            "code" => egui::FontId::monospace(FONT_SIZE_S),
+            "math" => egui::FontId::monospace(FONT_SIZE_S),
+            _ => egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+        };
+
+        let response = child.add(
+            egui::TextEdit::multiline(&mut edit.current_value)
+                .font(font)
+                .desired_width(editor_w)
+                .desired_rows(1)
+        );
+
+        // Auto-focus the text edit
+        response.request_focus();
+
+        // Commit on Enter (without Shift) or Escape
+        let enter_pressed = child.input(|i| i.key_pressed(egui::Key::Enter) && !i.modifiers.shift);
+        let escape_pressed = child.input(|i| i.key_pressed(egui::Key::Escape));
+        let lost_focus = response.lost_focus();
+
+        if enter_pressed || (lost_focus && !escape_pressed) {
+            // Commit the edit
+            let new_value = edit.current_value.clone();
+            let actor = edit.actor.clone();
+            let property = edit.property.clone();
+            self.commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+                time_s: None,
+                actor,
+                property,
+                value: GuiPropertyValue::Text(new_value),
+                create_keyframe: false,
+            })));
+            self.preview.inline_edit = None;
+        } else if escape_pressed {
+            // Cancel the edit
+            self.preview.inline_edit = None;
+        }
     }
 
     pub(crate) fn is_layout_managed(&self, actor: &str) -> bool {
@@ -215,6 +350,36 @@ impl PreviewContext<'_> {
                             }
                         }
                     }
+                }
+            }
+        }
+
+        // ── Double-click: start inline text editing for text actors ──
+        if response.double_clicked() && !is_dragging {
+            if let Some(click_pos) = response.interact_pointer_pos() {
+                let scene_dimensions = self.scene_dimensions;
+                let zoom = self.preview.viewport.preview_zoom;
+                let pan = self.preview.viewport.preview_pan;
+                let scene_point = {
+                    let tx = preview::PreviewTransform::new(scene_dimensions, _preview_rect, zoom, pan);
+                    tx.screen_to_scene(click_pos)
+                };
+
+                // Find a text-type actor at the click position
+                let text_actor = self.hit_regions.iter()
+                    .filter(|(_, bounds)| {
+                        // Check if click is within bounds
+                        scene_point.x >= bounds.x0 && scene_point.x <= bounds.x1
+                            && scene_point.y >= bounds.y0 && scene_point.y <= bounds.y1
+                    })
+                    .filter(|(label, _)| self.get_text_property(label).is_some())
+                    .map(|(label, _)| label.clone())
+                    .next();
+
+                if let Some(actor) = text_actor {
+                    self.selected_actors.clear();
+                    self.selected_actors.insert(actor.clone());
+                    self.start_inline_edit(&actor, _preview_rect);
                 }
             }
         }

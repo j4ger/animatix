@@ -438,8 +438,11 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                 }
             }
 
-            // Floating property cards for selected actors
-            if !is_dragging && ctx.selected_actors.len() == 1 {
+            // Inline text editor (double-click on text actors)
+            ctx.render_inline_text_editor(ui, preview_rect);
+
+            // Floating property cards for selected actors (hide when inline editing)
+            if !is_dragging && ctx.selected_actors.len() == 1 && ctx.preview.inline_edit.is_none() {
                 if let Some(actor) = ctx.selected_actors.iter().next() {
                     if let Some(props) = ctx.get_actor_props(actor) {
                         let screen_pos = preview::scene_to_screen(

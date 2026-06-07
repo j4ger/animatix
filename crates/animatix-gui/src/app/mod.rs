@@ -187,6 +187,15 @@ pub(crate) struct SnapState {
     pub snap_hud_label: Option<String>,
 }
 
+/// State for in-place text editing on the preview canvas.
+pub(crate) struct InlineTextEditState {
+    pub actor: String,
+    pub property: String,
+    pub current_value: String,
+    pub screen_pos: egui::Pos2,
+    pub screen_size: egui::Vec2,
+}
+
 pub(crate) struct PreviewPaneState {
     pub playback: PlaybackController,
     pub viewport: ViewportState,
@@ -208,6 +217,8 @@ pub(crate) struct PreviewPaneState {
     /// Keyframe times that were recently rewritten by `adjust_following_relative_keyframe`.
     /// Rendered with an amber flash in the timeline panel for ~300 ms.
     pub flashed_keyframe_times: Vec<(f64, std::time::Instant)>,
+    /// In-place text editing state (activated by double-clicking text actors).
+    pub inline_edit: Option<InlineTextEditState>,
 }
 
 
@@ -247,6 +258,7 @@ impl PreviewPaneState {
             timeline_scroll_offset: 0.0,
             fit_zoom_requested: false,
             flashed_keyframe_times: Vec::new(),
+            inline_edit: None,
         }
     }
 }
