@@ -769,6 +769,10 @@ impl Timeline {
                     initial_size[1] as f64,
                 ]),
             );
+            // Store graph axis settings so they survive size-assignment rebuilds
+            self.env.set(&format!("{}_grid", label), Value::Bool(grid));
+            self.env.set(&format!("{}_ticks", label), Value::Bool(ticks));
+            self.env.set(&format!("{}_tick_labels", label), Value::Str(tick_labels.clone()));
         }
 
         self.process_inline_items(time_ms, children, label, diagnostics);

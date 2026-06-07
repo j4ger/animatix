@@ -1,6 +1,7 @@
 use super::{
-    AnimationTrack, Diagnostic, Easing, ModifierHost, ParsedTimingModifiers, PositionBinding,
-    ShapeType, Timeline, Value, VectorShapeState, VectorShapeStyle, assignment_target_key, best_path_suggestion,
+    AnimationTrack, Diagnostic, Easing, Environment, ModifierHost, ParsedTimingModifiers,
+    PositionBinding, ShapeType, Timeline, Value, VectorShapeState, VectorShapeStyle,
+    assignment_target_key, best_path_suggestion,
     build_shape_vello_path, build_vector_shape_vello_path,
     evaluate_expr_with_lookup_diagnostic,
     mark_track_manual_position, parse_color_in_env_with_lookup_diagnostic,
@@ -10,6 +11,7 @@ use super::{
     DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
 };
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
+use crate::timeline::build::build_graph_axis_paths;
 use crate::primitives::{AssignmentCtx, find_primitive};
 use crate::renderer::error::RenderError;
 use crate::timeline::property_engine::{
@@ -216,7 +218,7 @@ impl Timeline {
 
                 // If this property affects shape geometry, rebuild vector paths
                 if affects_shape_geometry(property) {
-                    rebuild_vector_paths(track, t_start_ms, t_end_ms, easing, diagnostics);
+                    rebuild_vector_paths(track, t_start_ms, t_end_ms, easing, diagnostics, Some(&eval_env));
                 }
             }
         } else {
@@ -286,7 +288,7 @@ fn handle_size_assignment(
     track.ensure_layout_size(default_size).add_keyframe(t_end_ms, target_size, easing);
 
     // Rebuild vector paths after size change
-    rebuild_vector_paths(track, t_start_ms, t_end_ms, easing, diagnostics);
+    rebuild_vector_paths(track, t_start_ms, t_end_ms, easing, diagnostics, Some(env));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -356,11 +358,63 @@ fn rebuild_vector_paths(
     t_end_ms: u64,
     easing: Easing,
     _diagnostics: &mut Vec<Diagnostic>,
+    env: Option<&Environment>,
 ) {
     let default_size = DEFAULT_LAYOUT_HALF_SIZE;
     let default_arc = [0.0, 0.0];
     let has_duration = t_end_ms > t_start_ms;
     let size = track.size.last(default_size);
+    let shape_type = track.shape_type.last(ShapeType::Rect);
+
+    // ── Special case: Graph actors rebuild axis/grid/tick paths ──
+    if shape_type == ShapeType::Graph {
+        if let Some(env) = env {
+            let label = &track.label;
+            let x_domain = env
+                .get(&format!("{}_x_domain", label))
+                .and_then(|v| if let Value::Vec2(d) = v { Some(d) } else { None })
+                .unwrap_or([-10.0, 10.0]);
+            let y_domain = env
+                .get(&format!("{}_y_domain", label))
+                .and_then(|v| if let Value::Vec2(d) = v { Some(d) } else { None })
+                .unwrap_or([-10.0, 10.0]);
+            let stroke_color = track.stroke_color.last(DEFAULT_WHITE);
+
+            // Read graph axis settings from env (stored during build)
+            let grid = env
+                .get(&format!("{}_grid", label))
+                .and_then(|v| if let Value::Bool(b) = v { Some(b) } else { None })
+                .unwrap_or(false);
+            let ticks = env
+                .get(&format!("{}_ticks", label))
+                .and_then(|v| if let Value::Bool(b) = v { Some(b) } else { None })
+                .unwrap_or(false);
+            let tick_labels_str = env
+                .get(&format!("{}_tick_labels", label))
+                .and_then(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
+                .unwrap_or_else(|| "auto".to_string());
+            let has_labels = matches!(tick_labels_str.as_str(), "auto" | "true" | "both");
+
+            let new_paths = build_graph_axis_paths(
+                size, x_domain, y_domain, stroke_color, grid, ticks, has_labels,
+            );
+
+            if has_duration {
+                let start_paths = track.evaluate_vector_paths(t_start_ms);
+                track.vector_paths
+                    .ensure(Vec::new())
+                    .add_keyframe(t_start_ms, start_paths, Easing::Linear);
+            } else if t_end_ms > 0 {
+                preserve_instant_delayed_value(&mut track.vector_paths, t_end_ms);
+            }
+            track
+                .vector_paths
+                .ensure(Vec::new())
+                .add_keyframe(t_end_ms, new_paths, easing);
+            return;
+        }
+    }
+
     let line_from = track.line_from.last([-50.0, 0.0]);
     let line_to = track.line_to.last([50.0, 0.0]);
     let arc_angles = track.arc_angles.last(default_arc);
@@ -368,10 +422,8 @@ fn rebuild_vector_paths(
     let stroke_width = track.stroke_width.last(2.0);
     let stroke_color = track.stroke_color.last(DEFAULT_WHITE);
     let fill_opacity = track.fill_opacity.last(1.0);
-    let _shape_type = track.shape_type.last(ShapeType::Rect);
 
         // Build vector shape state and compute paths
-    let shape_type = track.shape_type.last(ShapeType::Rect);
     let mut vector_shape_state = VectorShapeState::new(shape_type, size);
     // Restore shape-specific fields from track data
     match &mut vector_shape_state {
