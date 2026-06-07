@@ -132,7 +132,7 @@ pub(super) fn resize_action(
 
         for stmt in body.iter_mut() {
             if let Stmt::Action(action, _) = stmt {
-                if action.verb != verb || action.targets != targets {
+                if action.verb != verb || !action.targets.iter().any(|t| targets.contains(t)) {
                     continue;
                 }
 
