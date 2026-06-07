@@ -43,6 +43,10 @@ pub fn handle_undo(
     preview_store: &mut PreviewStore,
     ui_store: &mut UiStore,
 ) -> Vec<Effect> {
+    if document_store.history.undo_stack.is_empty() {
+        ui_store.toasts.push(Toast::info("Nothing to undo"));
+        return vec![];
+    }
     if let Some(entry) = document_store.history.undo_stack.pop_back() {
         document_store.history.redo_stack.push_back(UndoEntry {
             command: entry.command,
@@ -64,6 +68,10 @@ pub fn handle_redo(
     preview_store: &mut PreviewStore,
     ui_store: &mut UiStore,
 ) -> Vec<Effect> {
+    if document_store.history.redo_stack.is_empty() {
+        ui_store.toasts.push(Toast::info("Nothing to redo"));
+        return vec![];
+    }
     if let Some(entry) = document_store.history.redo_stack.pop_back() {
         document_store.history.undo_stack.push_back(UndoEntry {
             command: entry.command,

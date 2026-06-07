@@ -453,6 +453,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                         preview::property_popup::show_property_popup(
                             ui, actor, &props, screen_pos, ctx.commands, is_dragging,
                             ctx.timeline, ctx.preview.playback.current_time_s(),
+                            ctx.scene_dimensions, ctx.preview.viewport.preview_zoom,
                         );
                     }
                 }

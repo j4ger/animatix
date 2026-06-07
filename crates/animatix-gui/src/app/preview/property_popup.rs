@@ -2,7 +2,7 @@ use crate::app::commands::{ActionQueue, Command, ShellAction, PropertyEdit, Prop
 use crate::app::components::button;
 use crate::app::preview::ActorProps;
 use crate::app::design_tokens::*;
-use animatix::timeline::{Timeline, read_property_value_or_default, PropertyValue as TlPropertyValue};
+use animatix::timeline::{Timeline, SceneDimensions, read_property_value_or_default, PropertyValue as TlPropertyValue};
 use egui::{Color32, Pos2, Rect, RichText, Sense, Stroke, Vec2};
 
 /// Show the property popup attached to a selected actor.
@@ -18,6 +18,8 @@ pub fn show_property_popup(
     is_dragging: bool,
     timeline: Option<&Timeline>,
     current_time_s: f64,
+    scene_dimensions: SceneDimensions,
+    zoom: f32,
 ) {
     if is_dragging {
         return; // Auto-hide during canvas drag
@@ -25,7 +27,7 @@ pub fn show_property_popup(
 
     let viewport = ui.max_rect();
     let popup_w = 260.0;
-    let popup_h = 220.0; // Increased to fit all rows
+    let popup_h = 160.0; // Reduced since we removed essentials row
 
     // Position: attached to top edge of actor, centered
     let popup_pos = Pos2::new(
@@ -64,22 +66,10 @@ pub fn show_property_popup(
     });
     content.add_space(SPACE_S);
 
-    // ── Essentials row: 2x2 grid ──
-    let essentials_h = 48.0;
-    let essentials_rect = Rect::from_min_size(
-        content.cursor().min,
-        Vec2::new(content.available_width(), essentials_h),
-    );
-
-    ui.painter().rect_filled(essentials_rect, RADIUS_M as u8, BG_BASE);
-
-    let mut ess_ui = ui.new_child(egui::UiBuilder::new().max_rect(essentials_rect.shrink(SPACE_S)));
-    ess_ui.set_clip_rect(essentials_rect);
-
-    let col_w = (essentials_rect.width() - SPACE_S * 2.0 - SPACE_S) / 2.0;
+    // ── Property rows ──
+    let time_ms = (current_time_s * 1000.0) as u64;
 
     // Read opacity from timeline
-    let time_ms = (current_time_s * 1000.0) as u64;
     let opacity = timeline
         .and_then(|tl| {
             tl.get_track(actor).map(|track| {
@@ -92,68 +82,6 @@ pub fn show_property_popup(
         })
         .unwrap_or(1.0);
 
-    // Row 1: Position | Size
-    ess_ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
-
-        let pos_delta = property_essential(ui, "Pos", &format!("{:.0}, {:.0}", props.position[0], props.position[1]), col_w);
-        if let Some((dx, dy)) = pos_delta {
-            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
-                time_s: None,
-                actor: actor.to_string(),
-                property: "position".into(),
-                value: PropertyValue::Vec2([props.position[0] + dx, props.position[1] + dy]),
-                create_keyframe: false,
-            })));
-        }
-
-        let size_delta = property_essential(ui, "Size", &format!("{:.0}×{:.0}", props.size[0], props.size[1]), col_w);
-        if let Some((dx, dy)) = size_delta {
-            let new_w = (props.size[0] + dx).max(1.0);
-            let new_h = (props.size[1] + dy).max(1.0);
-            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
-                time_s: None,
-                actor: actor.to_string(),
-                property: "size".into(),
-                value: PropertyValue::Vec2([new_w, new_h]),
-                create_keyframe: false,
-            })));
-        }
-    });
-
-    // Row 2: Rotation | Opacity
-    ess_ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
-
-        let rot_deg = props.rotation.to_degrees();
-        let rot_delta = property_essential(ui, "Rot", &format!("{:.0}°", rot_deg), col_w);
-        if let Some((dx, _)) = rot_delta {
-            let new_rot_deg = (rot_deg + dx * 0.5).rem_euclid(360.0);
-            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
-                time_s: None,
-                actor: actor.to_string(),
-                property: "rotation".into(),
-                value: PropertyValue::Float(new_rot_deg.to_radians()),
-                create_keyframe: false,
-            })));
-        }
-
-        let opac_delta = property_essential(ui, "Opac", &format!("{:.0}%", opacity * 100.0), col_w);
-        if let Some((dx, _)) = opac_delta {
-            let new_opacity = (opacity + dx * 0.005).clamp(0.0, 1.0);
-            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
-                time_s: None,
-                actor: actor.to_string(),
-                property: "opacity".into(),
-                value: PropertyValue::Float(new_opacity),
-                create_keyframe: false,
-            })));
-        }
-    });
-
-    content.add_space(essentials_h + SPACE_S);
-
-    // ── Property rows ──
     let content_rect = Rect::from_min_max(
         content.cursor().min,
         Pos2::new(popup_rect.max.x - SPACE_M, popup_rect.max.y - SPACE_M),
@@ -162,12 +90,17 @@ pub fn show_property_popup(
     let mut rows_ui = ui.new_child(egui::UiBuilder::new().max_rect(content_rect));
     rows_ui.set_clip_rect(content_rect);
 
+    // Compute scale factor for converting screen delta to scene delta
+    let preview_rect = ui.max_rect();
+    let scale_x = scene_dimensions.width as f32 / preview_rect.width() * zoom;
+    let scale_y = scene_dimensions.height as f32 / preview_rect.height() * zoom;
+
     // Position row
     let has_kf_pos = timeline.map(|tl| tl.has_keyframe_at(actor, "position", time_ms)).unwrap_or(false);
     popup_property_row(
         &mut rows_ui, actor, "position", "Position",
         [props.position[0], props.position[1]],
-        commands, has_kf_pos, current_time_s, timeline, time_ms,
+        commands, has_kf_pos, current_time_s, scale_x, scale_y,
     );
 
     // Size row
@@ -175,7 +108,7 @@ pub fn show_property_popup(
     popup_property_row(
         &mut rows_ui, actor, "size", "Size",
         [props.size[0], props.size[1]],
-        commands, has_kf_size, current_time_s, timeline, time_ms,
+        commands, has_kf_size, current_time_s, scale_x, scale_y,
     );
 
     // Rotation row
@@ -183,7 +116,7 @@ pub fn show_property_popup(
     popup_property_row(
         &mut rows_ui, actor, "rotation", "Rotation",
         [props.rotation.to_degrees(), 0.0],
-        commands, has_kf_rot, current_time_s, timeline, time_ms,
+        commands, has_kf_rot, current_time_s, scale_x, scale_y,
     );
 
     // Opacity row
@@ -191,36 +124,8 @@ pub fn show_property_popup(
     popup_property_row(
         &mut rows_ui, actor, "opacity", "Opacity",
         [opacity * 100.0, 0.0],
-        commands, has_kf_opac, current_time_s, timeline, time_ms,
+        commands, has_kf_opac, current_time_s, scale_x, scale_y,
     );
-}
-
-/// Render a single essential property (compact, no diamond).
-/// Returns `Some((dx, dy))` if the user is dragging on the value area.
-fn property_essential(ui: &mut egui::Ui, label: &str, value: &str, width: f32) -> Option<(f32, f32)> {
-    let rect = Rect::from_min_size(ui.cursor().min, Vec2::new(width, 20.0));
-    let mut local = ui.new_child(egui::UiBuilder::new().max_rect(rect));
-    local.set_clip_rect(rect);
-
-    local.horizontal(|ui| {
-        ui.label(RichText::new(label).size(FONT_SIZE_XS).color(TEXT_MUTED));
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.label(RichText::new(value).size(FONT_SIZE_S).color(TEXT_PRIMARY));
-        });
-    });
-
-    let response = ui.interact(rect, ui.id().with((label, "drag_value")), Sense::drag());
-
-    if response.hovered() {
-        response.clone().on_hover_text("Drag to change");
-    }
-
-    if response.dragged() {
-        let delta = response.drag_delta();
-        Some((delta.x, delta.y))
-    } else {
-        None
-    }
 }
 
 /// Render a property row with a diamond keyframe toggle and inline value editing.
@@ -233,8 +138,8 @@ fn popup_property_row(
     commands: &mut ActionQueue,
     has_keyframe: bool,
     current_time_s: f64,
-    _timeline: Option<&Timeline>,
-    _time_ms: u64,
+    scale_x: f32,
+    scale_y: f32,
 ) {
     let row_h = 24.0;
     let row_rect = Rect::from_min_size(ui.cursor().min, Vec2::new(ui.available_width(), row_h));
@@ -350,19 +255,22 @@ fn popup_property_row(
     // Drag on value to change
     if value_resp.dragged() {
         let delta = value_resp.drag_delta();
+        // Convert screen delta to scene delta
+        let scene_dx = delta.x * scale_x;
+        let scene_dy = delta.y * scale_y;
         match property {
             "position" => {
                 commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
                     time_s: None,
                     actor: actor.to_string(),
                     property: "position".into(),
-                    value: PropertyValue::Vec2([values[0] + delta.x, values[1] + delta.y]),
+                    value: PropertyValue::Vec2([values[0] + scene_dx, values[1] + scene_dy]),
                     create_keyframe: false,
                 })));
             }
             "size" => {
-                let new_w = (values[0] + delta.x).max(1.0);
-                let new_h = (values[1] + delta.y).max(1.0);
+                let new_w = (values[0] + scene_dx).max(1.0);
+                let new_h = (values[1] + scene_dy).max(1.0);
                 commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
                     time_s: None,
                     actor: actor.to_string(),
