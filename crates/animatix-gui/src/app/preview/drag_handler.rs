@@ -304,14 +304,19 @@ pub(crate) fn handle_preview_drag(
                             return true;
                         }
                         if let Some((container, layout_type, source_index)) = ctx.find_layout_container(&actor) {
-                            *ctx.drag_state = DragState::Reorder {
-                                actor,
-                                container,
-                                source_index,
-                                target_index: source_index,
-                                layout_type,
-                            };
-                            return true;
+                            // Only activate reorder on actual drag movement (not just click)
+                            // This allows double-click to reach the text editing handler
+                            if response.drag_started() {
+                                *ctx.drag_state = DragState::Reorder {
+                                    actor,
+                                    container,
+                                    source_index,
+                                    target_index: source_index,
+                                    layout_type,
+                                };
+                                return true;
+                            }
+                            // Click without drag: fall through to selection/double-click handlers
                         }
                         return true;
                     }
