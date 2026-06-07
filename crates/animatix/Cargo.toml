@@ -97,5 +97,9 @@ harness = false
 name = "static_scene"
 harness = false
 
+[[bench]]
+name = "full_pipeline"
+harness = false
+
 [build-dependencies]
 naga = { version = "29.0.0", features = ["termcolor"] }
