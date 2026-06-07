@@ -27,7 +27,7 @@ pub fn show_property_popup(
 
     let viewport = ui.max_rect();
     let popup_w = 260.0;
-    let popup_h = 160.0;
+    let popup_h = 170.0; // Slightly taller for better header spacing
 
     // Drag offset state (persisted between frames)
     let drag_offset_id = ui.id().with(("popup_drag_offset", actor));
@@ -60,9 +60,10 @@ pub fn show_property_popup(
     content.set_clip_rect(popup_rect);
 
     // ── Header: actor name + close (draggable) ──
+    let header_h = ROW_L; // 28px - comfortable height for header
     let header_rect = Rect::from_min_size(
         content.cursor().min,
-        Vec2::new(content.available_width(), 20.0),
+        Vec2::new(content.available_width(), header_h),
     );
     let header_resp = ui.interact(header_rect, ui.id().with("popup_header"), Sense::click_and_drag());
     if header_resp.dragged() {
@@ -73,7 +74,31 @@ pub fn show_property_popup(
     if header_resp.double_clicked() {
         ui.data_mut(|d| d.remove::<Vec2>(drag_offset_id));
     }
-    content.horizontal(|ui| {
+    
+    // Draw header background on hover (drag affordance)
+    if header_resp.hovered() {
+        ui.painter().rect_filled(header_rect, RADIUS_S as u8, BG_HOVER);
+    }
+    
+    // Subtle drag handle indicator (6 dots) on the left side of header
+    let handle_center = Pos2::new(header_rect.min.x + SPACE_S + 4.0, header_rect.center().y);
+    let dot_color = if header_resp.hovered() { TEXT_MUTED } else { TEXT_DISABLED };
+    for row in 0..3 {
+        for col in 0..2 {
+            let dot_pos = Pos2::new(
+                handle_center.x + col as f32 * 4.0,
+                handle_center.y + (row as f32 - 1.0) * 4.0,
+            );
+            ui.painter().circle_filled(dot_pos, 1.0, dot_color);
+        }
+    }
+    
+    // Header content with proper padding
+    let header_content_rect = header_rect.shrink2(Vec2::new(SPACE_S, 0.0));
+    let mut header_ui = ui.new_child(egui::UiBuilder::new().max_rect(header_content_rect));
+    header_ui.set_clip_rect(header_content_rect);
+    header_ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
         ui.label(RichText::new(actor).size(FONT_SIZE_M).color(TEXT_PRIMARY).strong());
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if button::icon_button(ui, egui_phosphor::regular::X, "Close").clicked() {
@@ -81,7 +106,7 @@ pub fn show_property_popup(
             }
         });
     });
-    content.add_space(SPACE_S);
+    content.add_space(header_h + SPACE_S);
 
     // ── Property rows ──
     let time_ms = (current_time_s * 1000.0) as u64;
