@@ -981,3 +981,27 @@ fn test_hierarchical_assignment_target() {
         opacity_at_1s
     );
 }
+
+#[test]
+fn graph_axes_invisible_before_fadein() {
+    use crate::timeline::SceneDimensions;
+    // Graph declared before any keyframe → default_opacity = 0.0
+    // fade-in at #0.5s should animate opacity 0→1
+    let source = "g1: Graph, x_domain: (-4, 4), y_domain: (-2, 18), size: (380, 280), at: (280, 200)\n\n#0.5s\nfade-in g1 [400ms]";
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report = crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+
+    let track = timeline.tracks.get("g1").expect("g1 track should exist");
+    let opacity_at_0 = track.opacity.as_ref().map(|t| t.evaluate(0));
+    let opacity_at_500 = track.opacity.as_ref().map(|t| t.evaluate(500));
+    let opacity_at_900 = track.opacity.as_ref().map(|t| t.evaluate(900));
+    let opacity_at_1000 = track.opacity.as_ref().map(|t| t.evaluate(1000));
+
+    assert_eq!(opacity_at_0, Some(0.0), "opacity should be 0 at t=0");
+    assert_eq!(opacity_at_500, Some(0.0), "opacity should be 0 at t=500ms (fade-in start)");
+    assert_eq!(opacity_at_900, Some(1.0), "opacity should be 1 at t=900ms (fade-in end)");
+    assert_eq!(opacity_at_1000, Some(1.0), "opacity should stay 1 after fade-in");
+}

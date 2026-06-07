@@ -17,7 +17,7 @@ pub mod reveal;
 use crate::ast::Action;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
-use crate::timeline::track::{Interpolate, PropertyTrack, TrackAccessor};
+use crate::timeline::track::{ActorKindId, Interpolate, PropertyTrack, TrackAccessor};
 use crate::timeline::Timeline;
 use tracing::{debug, instrument, warn};
 use effects::{Bounce, Pulse, Shake};
@@ -124,11 +124,15 @@ pub(crate) fn expand_group_targets(
             if track.children.is_empty() {
                 // Leaf actor — keep it
                 result.push(label);
-            } else {
-                // Group — recurse into children (push in reverse to maintain order)
+            } else if is_layout_container(track.kind) {
+                // Layout container (Row, Col, Grid, etc.) — recurse into children
                 for child in track.children.iter().rev() {
                     stack.push(child.clone());
                 }
+            } else {
+                // Non-layout container with children (e.g. Graph with tick labels)
+                // — keep the container itself as the target
+                result.push(label);
             }
         } else {
             // Target doesn't exist — pass through and let the action handler report it
@@ -137,6 +141,22 @@ pub(crate) fn expand_group_targets(
     }
 
     result
+}
+
+/// Returns true if the actor kind is a layout container whose children
+/// should be expanded by `expand_group_targets`. Plot containers like
+/// Graph (which have tick label children) are NOT layout containers.
+fn is_layout_container(kind: ActorKindId) -> bool {
+    matches!(
+        kind,
+        ActorKindId::Row
+            | ActorKindId::Col
+            | ActorKindId::Grid
+            | ActorKindId::Stack
+            | ActorKindId::Group
+            | ActorKindId::Mask
+            | ActorKindId::Filter
+    )
 }
 
 pub(crate) fn ensure_vector_reveal_target(
