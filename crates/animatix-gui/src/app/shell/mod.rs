@@ -196,6 +196,22 @@ impl GuiShell {
                 old_time_s,
                 new_time_s,
             ),
+            Command::ResizeAction {
+                verb,
+                targets,
+                old_start_s,
+                new_start_s,
+                new_duration_s,
+            } => keyframe::handle_resize_action(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+                verb,
+                targets,
+                old_start_s,
+                new_start_s,
+                new_duration_s,
+            ),
             Command::ReparentActor { actor, new_parent } => actor::handle_reparent_actor(
                 &mut self.document_store,
                 &mut self.preview_store,

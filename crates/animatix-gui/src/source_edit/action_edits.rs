@@ -1,6 +1,6 @@
 //! Edits related to action insertion at exact keyframe times.
 
-use animatix_syntax::ast::{Action, Stmt, Time};
+use animatix_syntax::ast::{Action, Expr, Modifier, Stmt, Time};
 
 use super::ast_utils::{
     adjust_following_relative_keyframe, append_to_keyframe_at_time,
@@ -92,6 +92,90 @@ pub(super) fn insert_action(
         }
     }
     Ok(())
+}
+
+/// Resize an action block's duration (right-edge drag).
+///
+/// Finds the action matching `verb` + `targets` within the keyframe at `old_start_s`
+/// and updates its unnamed duration modifier to `new_duration_s`.
+pub(super) fn resize_action(
+    stmts: &mut Vec<Stmt>,
+    verb: &str,
+    targets: &[String],
+    old_start_s: f64,
+    _new_start_s: f64,
+    new_duration_s: f64,
+) -> Result<(), SourceEditError> {
+    const EPSILON_S: f64 = 0.05;
+    let mut current_time = 0.0f64;
+
+    for kf in stmts.iter_mut() {
+        match kf {
+            Stmt::Keyframe { time, .. } => {
+                current_time = time_to_seconds(time);
+            }
+            Stmt::RelativeKeyframe { offset, .. } => {
+                current_time += time_to_seconds(offset);
+            }
+            _ => continue,
+        }
+
+        if (current_time - old_start_s).abs() >= EPSILON_S {
+            continue;
+        }
+
+        // Find matching action in this keyframe's body
+        let body = match kf {
+            Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => body,
+            _ => unreachable!(),
+        };
+
+        for stmt in body.iter_mut() {
+            if let Stmt::Action(action, _) = stmt {
+                if action.verb != verb || action.targets != targets {
+                    continue;
+                }
+
+                // Format the new duration as a literal string
+                let duration_str = if new_duration_s < 1.0 {
+                    format!("{}ms", (new_duration_s * 1000.0).round())
+                } else {
+                    format!("{}s", new_duration_s)
+                };
+
+                // Update or insert the unnamed duration modifier
+                if let Some(modifier) = action.modifiers.iter_mut().find(|m| m.name.is_none()) {
+                    modifier.value = Expr::Ident(duration_str);
+                } else {
+                    action.modifiers.insert(
+                        0,
+                        Modifier {
+                            name: None,
+                            value: Expr::Ident(duration_str),
+                        },
+                    );
+                }
+                return Ok(());
+            }
+        }
+
+        return Err(SourceEditError::Generic(format!(
+            "No action '{verb}' with matching targets at {:.2}s",
+            old_start_s
+        )));
+    }
+
+    Err(SourceEditError::Generic(format!(
+        "No keyframe at {:.2}s to resize action '{verb}'",
+        old_start_s
+    )))
+}
+
+fn time_to_seconds(time: &Time) -> f64 {
+    match time {
+        Time::Seconds(s) => *s,
+        Time::Milliseconds(ms) => *ms as f64 / 1000.0,
+    }
 }
 
 // ---------------------------------------------------------------------------

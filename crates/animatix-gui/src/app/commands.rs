@@ -77,6 +77,14 @@ pub enum Command {
     DeleteKeyframe { actor: String, property: String, time_s: f64 },
     /// Move a keyframe to a new time. Emitted by timeline drag.
     MoveKeyframe { actor: String, property: String, old_time_s: f64, new_time_s: f64 },
+    /// Resize an action block's duration. Emitted by timeline drag handles.
+    ResizeAction {
+        verb: String,
+        targets: Vec<String>,
+        old_start_s: f64,
+        new_start_s: f64,
+        new_duration_s: f64,
+    },
 
     // ── Editor sync modes ─────────────────────────────────────────────
     ToggleEditorSync,

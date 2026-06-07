@@ -454,6 +454,48 @@ impl DocumentController<'_> {
         }
     }
 
+    /// Resize an action block's duration.
+    /// NOTE: The caller should have called `snapshot()` before this.
+    pub(crate) fn handle_resize_action(
+        &mut self,
+        verb: &str,
+        targets: &[String],
+        old_start_s: f64,
+        new_start_s: f64,
+        new_duration_s: f64,
+    ) {
+        let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
+            self.preview_store.preview.status =
+                "Failed to resize action — no AST available".to_string();
+            return;
+        };
+
+        let edit = source_edit::SourceEdit::ResizeAction {
+            verb: verb.into(),
+            targets: targets.to_vec(),
+            old_start_s,
+            new_start_s,
+            new_duration_s,
+        };
+
+        if source_edit::apply_edit(stmts, edit).is_ok() {
+            let (new_source, source_index) = {
+                (
+                    animatix_syntax::to_source::stmts_to_source(stmts),
+                    animatix_syntax::source_index::SourceIndex::build(stmts),
+                )
+            };
+            self.apply_source(new_source, source_index);
+            self.preview_store.preview.status =
+                format!("Resized action '{verb}' to {:.2}s", new_duration_s);
+        } else {
+            self.preview_store.preview.status = format!(
+                "Failed to resize action '{verb}' at {:.2}s",
+                old_start_s
+            );
+        }
+    }
+
     // ── Actor hierarchy / scene refactoring ─────────────────────────────
 
     /// Reparent an actor under a new parent (or to top-level).

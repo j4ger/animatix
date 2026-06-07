@@ -183,6 +183,15 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
     let kf_drag: Option<(String, &'static str, u64, f64)> = ui.data(|d| d.get_temp(kf_drag_data_id));
     let mut new_kf_drag: Option<(String, &'static str, u64, f64)> = kf_drag.clone();
 
+    // ── Action block drag state ──
+    // (track_idx, event_start_ms, edge: LeftOrRight, initial_pointer_x, original_start_s, original_duration_s)
+    #[derive(Clone, Copy, PartialEq)]
+    enum Edge { Left, Right }
+    let action_drag_id = panel_id.with("action_drag");
+    let action_drag_data_id = action_drag_id.with("data");
+    let action_drag: Option<(usize, u64, Edge, f32, f64, f64)> = ui.data(|d| d.get_temp(action_drag_data_id));
+    let mut new_action_drag: Option<(usize, u64, Edge, f32, f64, f64)> = action_drag;
+
     // ── Keyframe multi-select state ──
     let kf_multi_select_id = panel_id.with("kf_multi");
     let mut multi_selected: Vec<(String, u64)> = ui.data(|d| d.get_temp(kf_multi_select_id)).unwrap_or_default();
@@ -607,12 +616,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     }
                     new_scene_drag = None;
                 }
-                if scene_bar_resp.clicked() && scene_drag.is_none() {
-                    if let Some(pos) = scene_bar_resp.interact_pointer_pos() {
-                        let new_time = x_to_time(pos.x);
-                        commands.push_back(ShellAction::Command(Command::ScrubTo(new_time)));
-                    }
-                }
+
 
                 // Persist scene drag state
                 ui.data_mut(|d| d.insert_temp(scene_drag_data_id, new_scene_drag));
@@ -731,6 +735,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                         if !event.targets.contains(actor_label) { continue; }
                         let start_s = event.start_time_ms as f64 / 1000.0;
                         let end_s = (event.start_time_ms + event.duration_ms) as f64 / 1000.0;
+                        let duration_s = event.duration_ms as f64 / 1000.0;
                         let left = time_to_x(start_s);
                         let right = time_to_x(end_s);
                         if right > bar_area.left() && left < bar_area.right() {
@@ -739,30 +744,108 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                 Pos2::new(right.min(bar_area.right()), bar_area.bottom() - 3.0),
                             );
                             let color = action_category_color(event.category);
+
+                            // Check if this block is being dragged
+                            let is_action_drag = action_drag.as_ref().is_some_and(|(_, ms, _, _, _, _)| *ms == event.start_time_ms);
+
+                            // Draw drag handles (left/right edges)
+                            let handle_w = 6.0;
+                            if br.width() > handle_w * 2.0 + 4.0 {
+                                let left_handle = Rect::from_min_max(br.left_top(), Pos2::new(br.left() + handle_w, br.bottom()));
+                                let right_handle = Rect::from_min_max(Pos2::new(br.right() - handle_w, br.top()), br.right_bottom());
+                                let handle_color = if is_action_drag { ACCENT_BLUE } else { color.linear_multiply(0.8) };
+                                painter.rect_filled(left_handle, RADIUS_S, handle_color);
+                                painter.rect_filled(right_handle, RADIUS_S, handle_color);
+                            }
+
+                            // Draw main block body
                             painter.rect_filled(br, RADIUS_S, color.linear_multiply(0.5));
-                            painter.rect_stroke(br, RADIUS_S, Stroke::new(STROKE_WIDTH, color), egui::StrokeKind::Outside);
+                            painter.rect_stroke(br, RADIUS_S, Stroke::new(if is_action_drag { 2.0 } else { STROKE_WIDTH }, if is_action_drag { ACCENT_BLUE } else { color }), egui::StrokeKind::Outside);
                             if br.width() > 40.0 {
                                 painter.text(br.center(), Align2::CENTER_CENTER, &event.verb, FontId::monospace(FONT_SIZE_XS), TEXT_PRIMARY);
                             }
-                            // Clickable: scrub to action start on click, tooltip on hover
-                            let action_resp = ui.interact(br, ui.id().with(("action_block", track_idx, event.start_time_ms)), Sense::click());
-                            if action_resp.clicked() {
-                                commands.push_back(ShellAction::Command(Command::ScrubTo(start_s)));
+
+                            // Interaction: click_and_drag for resize handles
+                            let action_resp = ui.interact(br, ui.id().with(("action_block", track_idx, event.start_time_ms)), Sense::click_and_drag());
+
+                            // Drag start: detect which edge
+                            if action_resp.drag_started() {
+                                if let Some(pos) = action_resp.interact_pointer_pos() {
+                                    let handle_w = 6.0;
+                                    let left_handle = Rect::from_min_max(br.left_top(), Pos2::new(br.left() + handle_w, br.bottom()));
+                                    let right_handle = Rect::from_min_max(Pos2::new(br.right() - handle_w, br.top()), br.right_bottom());
+                                    if left_handle.contains(pos) {
+                                        new_action_drag = Some((track_idx, event.start_time_ms, Edge::Left, pos.x, start_s, duration_s));
+                                    } else if right_handle.contains(pos) {
+                                        new_action_drag = Some((track_idx, event.start_time_ms, Edge::Right, pos.x, start_s, duration_s));
+                                    }
+                                }
                             }
-                            action_resp.on_hover_text(format!(
-                                "{:?}: {}\n{:.2}s → {:.2}s\nTargets: {}",
-                                event.category,
-                                event.verb,
-                                start_s,
-                                end_s,
-                                event.targets.join(", ")
-                            ));
+
+                            // During drag: visual feedback
+                            if is_action_drag {
+                                if let Some((_, _, edge, init_x, orig_start, orig_dur)) = action_drag {
+                                    if let Some(pos) = action_resp.interact_pointer_pos() {
+                                        let dx = pos.x - init_x;
+                                        let dt = (dx / (bar_width / visible_s as f32)) as f64;
+                                        match edge {
+                                            Edge::Right => {
+                                                let new_end_x = time_to_x(orig_start + orig_dur + dt);
+                                                painter.line_segment([Pos2::new(new_end_x, br.top()), Pos2::new(new_end_x, br.bottom())], Stroke::new(2.0, ACCENT_BLUE));
+                                                let new_dur = (orig_dur + dt).max(0.1);
+                                                let dur_text = if new_dur < 1.0 { format!("{}ms", (new_dur * 1000.0).round()) } else { format!("{:.2}s", new_dur) };
+                                                painter.text(Pos2::new(new_end_x, br.top() - 4.0), Align2::CENTER_BOTTOM, dur_text, FontId::monospace(FONT_SIZE_XS), ACCENT_BLUE);
+                                            }
+                                            Edge::Left => {
+                                                let new_start_x = time_to_x(orig_start + dt);
+                                                painter.line_segment([Pos2::new(new_start_x, br.top()), Pos2::new(new_start_x, br.bottom())], Stroke::new(2.0, ACCENT_BLUE));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Drag stop: emit ResizeAction command
+                            if action_resp.drag_stopped() {
+                                if let Some((_, _, edge, init_x, orig_start, orig_dur)) = new_action_drag {
+                                    if let Some(pos) = action_resp.interact_pointer_pos() {
+                                        let dx = pos.x - init_x;
+                                        let dt = (dx / (bar_width / visible_s as f32)) as f64;
+                                        let (new_start_s, new_duration_s) = match edge {
+                                            Edge::Right => (orig_start, (orig_dur + dt).max(0.1)),
+                                            Edge::Left => {
+                                                let ns = (orig_start + dt).max(0.0);
+                                                (ns, (orig_dur - dt).max(0.1))
+                                            }
+                                        };
+                                        commands.push_back(ShellAction::Command(Command::ResizeAction {
+                                            verb: event.verb.clone(),
+                                            targets: event.targets.clone(),
+                                            old_start_s: orig_start,
+                                            new_start_s,
+                                            new_duration_s,
+                                        }));
+                                    }
+                                }
+                                new_action_drag = None;
+                            }
+
+                            // Tooltip on hover (when not dragging)
+                            if !is_action_drag {
+                                action_resp.on_hover_text(format!(
+                                    "{:?}: {}\n{:.2}s → {:.2}s\nDrag edges to resize\nTargets: {}",
+                                    event.category,
+                                    event.verb,
+                                    start_s,
+                                    end_s,
+                                    event.targets.join(", ")
+                                ));
+                            }
                         }
                     }
                 }
 
                 // Keyframe diamonds (computed from timeline)
-                let mut kf_clicked_this_track = false;
                 if let Some(tl) = timeline {
                     if let Some(track) = tl.get_track(actor_label) {
                         let kf_props = collect_actor_keyframes(track);
@@ -815,14 +898,12 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             });
 
                             if dresp.clicked() {
-                                kf_clicked_this_track = true;
                                 if shift_held {
                                     if let Some(p) = multi_selected.iter().position(|(l, t)| l == actor_label && *t == kf_ms) { multi_selected.remove(p); }
                                     else { multi_selected.push((actor_label.clone(), kf_ms)); }
                                 } else {
                                     multi_selected.clear();
                                     multi_selected.push((actor_label.clone(), kf_ms));
-                                    commands.push_back(ShellAction::Command(Command::ScrubTo(kf_s)));
                                 }
                             }
                             if dresp.drag_started() {
@@ -913,10 +994,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     }
                 });
 
-                // Track bar interaction (scrubbing) — suppressed during keyframe drag or click
-                if kf_drag.is_none() && !kf_clicked_this_track {
-                    bar_interaction(ui, bar_area, ("actor_track", track_idx), commands, x_to_time);
-                }
+                // Track bar interaction — scrubbing removed; only ruler moves the playhead
 
                 // Per-track playhead
                 painter.line_segment([Pos2::new(playhead_x, bar_area.top()), Pos2::new(playhead_x, bar_area.bottom())], Stroke::new(STROKE_WIDTH, text_faint()));
@@ -1010,6 +1088,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 if let Some(drag) = new_kf_drag.clone() { d.insert_temp(kf_drag_data_id, drag); }
                 else { d.remove::<(String, &'static str, u64, f64)>(kf_drag_data_id); }
                 d.insert_temp(kf_multi_select_id, multi_selected.clone());
+                if let Some(drag) = new_action_drag { d.insert_temp(action_drag_data_id, drag); }
+                else { d.remove::<(usize, u64, Edge, f32, f64, f64)>(action_drag_data_id); }
             });
 
             // Draw clip rect border

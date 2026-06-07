@@ -172,6 +172,14 @@ pub enum SourceEdit {
         key: String,
         value: Expr,
     },
+    /// Resize an action block's duration (and optionally move its start time).
+    ResizeAction {
+        verb: String,
+        targets: Vec<String>,
+        old_start_s: f64,
+        new_start_s: f64,
+        new_duration_s: f64,
+    },
     /// Insert a parsed snippet (AST fragment) at the appropriate location.
     InsertSnippet {
         /// The parsed AST fragment to insert.
@@ -267,6 +275,9 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
         }
         SourceEdit::SetConfigProperty { key, value } => {
             super::config_edits::set_config_property(stmts, &key, value)
+        }
+        SourceEdit::ResizeAction { verb, targets, old_start_s, new_start_s, new_duration_s } => {
+            super::action_edits::resize_action(stmts, &verb, &targets, old_start_s, new_start_s, new_duration_s)
         }
         SourceEdit::InsertSnippet { stmts: fragment, time_s, container } => {
             super::actor_edits::insert_snippet(stmts, fragment, time_s, container.as_deref())
