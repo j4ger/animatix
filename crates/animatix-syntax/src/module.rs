@@ -382,7 +382,14 @@ impl ModuleGraph {
     ) -> Result<LoadResult, ModuleError> {
         let canonical = fs::canonicalize(path).map_err(ModuleError::IoError)?;
 
-        if let Some(&id) = self.paths.get(&canonical) {
+        // Only use cache if there's no source override for this path
+        let has_override = source_override.is_some_and(|o| o.path == canonical.as_path());
+        if has_override {
+            // Invalidate stale cache entry for the overridden file
+            if let Some(old_id) = self.paths.remove(&canonical) {
+                self.files.remove(&old_id);
+            }
+        } else if let Some(&id) = self.paths.get(&canonical) {
             let import_ids = self.collect_import_ids(id);
             return Ok(LoadResult { import_ids });
         }

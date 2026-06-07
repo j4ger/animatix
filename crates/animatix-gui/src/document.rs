@@ -5,8 +5,10 @@ use animatix::composition::{BuildTarget, Composition};
 use animatix_syntax::module::{ActionTemplate, ComponentEntry, ModuleError, ModuleGraph, Namespace};
 use animatix_syntax::source_index::SourceIndex;
 use animatix::timeline::{AnimationTrack, PropertyTrack, SceneDimensions, Timeline, TimelineIndex};
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 /// Result of loading and parsing a program.
@@ -43,6 +45,10 @@ pub struct DocumentSession {
     pub components: HashMap<String, ComponentEntry>,
     /// Module-scoped actions from the last successful program load.
     pub module_actions: HashMap<String, ActionTemplate>,
+    /// Hash of source_text at last successful rebuild — skip rebuild if unchanged.
+    last_source_hash: u64,
+    /// Cached module graph — preserves parsed imports across rebuilds.
+    cached_module_graph: Option<ModuleGraph>,
 }
 
 impl DocumentSession {
@@ -69,6 +75,8 @@ impl DocumentSession {
             keyframe_lines: Vec::new(),
             components: HashMap::new(),
             module_actions: HashMap::new(),
+            last_source_hash: 0,
+            cached_module_graph: None,
         };
 
         if let Err(e) = document.rebuild() {
@@ -97,6 +105,8 @@ impl DocumentSession {
             keyframe_lines: Vec::new(),
             components: HashMap::new(),
             module_actions: HashMap::new(),
+            last_source_hash: 0,
+            cached_module_graph: None,
         }
     }
 
@@ -136,6 +146,14 @@ impl DocumentSession {
     }
 
     pub fn rebuild(&mut self) -> Result<(), GuiError> {
+        // Skip rebuild if source text hasn't changed since last successful build
+        let mut hasher = DefaultHasher::new();
+        self.source_text.hash(&mut hasher);
+        let source_hash = hasher.finish();
+        if source_hash == self.last_source_hash && (self.timeline.is_some() || self.composition.is_some()) {
+            return Ok(());
+        }
+
         let result = match self.load_program() {
             Ok(result) => result,
             Err(err) => {
@@ -224,18 +242,24 @@ impl DocumentSession {
         self.timeline_index = TimelineIndex::build(&self.source_text);
         self.keyframe_lines = self.timeline_index.keyframes.iter().map(|(_, line)| *line).collect();
 
+        // Update source hash after successful rebuild
+        self.last_source_hash = source_hash;
+
         Ok(())
     }
 
     /// Load the program, returning a structured result.
     /// Raw statements are the parsed statements before component expansion.
-    fn load_program(&self) -> Result<LoadedProgramResult, ModuleError> {
-        let mut graph = ModuleGraph::new();
+    /// Uses cached ModuleGraph to avoid re-reading unchanged imports.
+    fn load_program(&mut self) -> Result<LoadedProgramResult, ModuleError> {
+        let mut graph = self.cached_module_graph.take().unwrap_or_default();
         let mut program = graph
             .load_program_with_source(&self.file_path, Some(&self.source_text))?;
         let type_diagnostics = program.typecheck();
         // expand_components borrows &self, so call it before moving fields out.
         let expanded_statements = program.expand_components();
+        // Cache the graph for next rebuild (preserves parsed imports)
+        self.cached_module_graph = Some(graph);
         Ok(LoadedProgramResult {
             raw_statements: program.statements,
             expanded_statements,

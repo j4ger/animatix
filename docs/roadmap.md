@@ -42,6 +42,24 @@ Immutable syntax tree that preserves whitespace and comments. Enables reliable s
 
 > Remaining work from the June 2026 audit.
 
+### Timeline build performance
+
+Simple scenes take >1s to rebuild. Quick wins implemented:
+- ✅ Skip rebuild if source text unchanged (hash check)
+- ✅ Cache ModuleGraph across rebuilds (preserves parsed imports)
+- ✅ Invalidate entry file cache on source override
+
+Remaining opportunities:
+
+| # | Task | Impact | Effort | Description |
+|---|------|--------|--------|-------------|
+| 1 | **Expression evaluation memoization** | Medium | 1 day | Cache `(expr_ptr, env_hash) → Value` during build. Same expression in same environment produces same result. |
+| 2 | **Incremental component expansion** | Medium | 2–3 days | Only re-expand changed component instances. Requires AST diffing or dirty-flag per component. |
+| 3 | **Skip stmts_to_source for surgical edits** | Low | 1 day | For keyframe moves/resizes, use SourceIndex byte-range replacement instead of full AST re-serialization. |
+| 4 | **Taffy layout caching** | Low | 1 day | Cache layout results for unchanged container subtrees. |
+| 5 | **Modifier IR/bytecode caching** | Low | 1 day | Cache lowered IR and compiled bytecode for unchanged `always` blocks. |
+| 6 | **Incremental parsing (tree-sitter)** | High | 1–2 weeks | Use existing tree-sitter grammar for incremental parsing. Feed AST diffs to build pipeline. |
+
 ### `scene_eval` double clone
 
 Known limitation. Two clones are necessary because we need 3 copies: cache, return value, and buffer (for encoding reuse). Requires Vello API changes. Low priority.
