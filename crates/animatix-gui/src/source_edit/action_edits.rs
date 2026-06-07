@@ -398,4 +398,144 @@ box.color = red"#,
             panic!("Expected Keyframe at index 1");
         }
     }
+
+    // ── Resize action: change duration ──
+    #[test]
+    fn resize_action_changes_duration() {
+        let mut stmts = parse(
+            r#"#0s
+box: Rect
+
+#1s
+fade-in box [1s]"#,
+        );
+        let edit = SourceEdit::ResizeAction {
+            verb: "fade-in".into(),
+            targets: vec!["box".into()],
+            old_start_s: 1.0,
+            new_start_s: 1.0,
+            new_duration_s: 2.0,
+        };
+        assert!(apply_edit(&mut stmts, edit).is_ok());
+
+        // Find the action in the keyframe body
+        if let Stmt::Keyframe { body, .. } = &stmts[1] {
+            assert_eq!(body.len(), 1);
+            if let Stmt::Action(action, _) = &body[0] {
+                assert_eq!(action.verb, "fade-in");
+                // Should have one unnamed modifier with value "2s"
+                assert_eq!(action.modifiers.len(), 1);
+                assert!(action.modifiers[0].name.is_none());
+                assert!(matches!(&action.modifiers[0].value, Expr::Ident(s) if s == "2s"));
+            } else {
+                panic!("Expected Action");
+            }
+        } else {
+            panic!("Expected Keyframe at index 1");
+        }
+    }
+
+    // ── Resize action: multi-target overlap ──
+    #[test]
+    fn resize_action_matches_multi_target_by_overlap() {
+        let mut stmts = parse(
+            r#"#0s
+box: Rect
+circle: Ellipse
+
+#1s
+fade-in box circle [1s]"#,
+        );
+        // Resize using only one target — should still match
+        let edit = SourceEdit::ResizeAction {
+            verb: "fade-in".into(),
+            targets: vec!["box".into()],
+            old_start_s: 1.0,
+            new_start_s: 1.0,
+            new_duration_s: 3.0,
+        };
+        assert!(apply_edit(&mut stmts, edit).is_ok());
+
+        if let Stmt::Keyframe { body, .. } = &stmts[1] {
+            if let Stmt::Action(action, _) = &body[0] {
+                assert!(matches!(&action.modifiers[0].value, Expr::Ident(s) if s == "3s"));
+            } else {
+                panic!("Expected Action");
+            }
+        } else {
+            panic!("Expected Keyframe at index 1");
+        }
+    }
+
+    // ── Resize action: adds modifier when none exists ──
+    #[test]
+    fn resize_action_adds_modifier_when_missing() {
+        let mut stmts = parse(
+            r#"#0s
+box: Rect
+
+#1s
+fade-in box"#,
+        );
+        // Use 0.5s (< 1.0) to test ms formatting
+        let edit = SourceEdit::ResizeAction {
+            verb: "fade-in".into(),
+            targets: vec!["box".into()],
+            old_start_s: 1.0,
+            new_start_s: 1.0,
+            new_duration_s: 0.5,
+        };
+        assert!(apply_edit(&mut stmts, edit).is_ok());
+
+        if let Stmt::Keyframe { body, .. } = &stmts[1] {
+            if let Stmt::Action(action, _) = &body[0] {
+                assert_eq!(action.modifiers.len(), 1);
+                assert!(matches!(&action.modifiers[0].value, Expr::Ident(s) if s == "500ms"));
+            } else {
+                panic!("Expected Action");
+            }
+        } else {
+            panic!("Expected Keyframe at index 1");
+        }
+    }
+
+    // ── Resize action: wrong verb fails ──
+    #[test]
+    fn resize_action_wrong_verb_fails() {
+        let mut stmts = parse(
+            r#"#0s
+box: Rect
+
+#1s
+fade-in box [1s]"#,
+        );
+        let edit = SourceEdit::ResizeAction {
+            verb: "fade-out".into(),
+            targets: vec!["box".into()],
+            old_start_s: 1.0,
+            new_start_s: 1.0,
+            new_duration_s: 2.0,
+        };
+        assert!(apply_edit(&mut stmts, edit).is_err());
+    }
+
+    // ── Resize action: wrong time fails ──
+    #[test]
+    fn resize_action_wrong_time_fails() {
+        let mut stmts = parse(
+            r#"#0s
+box: Rect
+
+#1s
+fade-in box [1s]"#,
+        );
+        let edit = SourceEdit::ResizeAction {
+            verb: "fade-in".into(),
+            targets: vec!["box".into()],
+            old_start_s: 5.0,  // Wrong time
+            new_start_s: 5.0,
+            new_duration_s: 2.0,
+        };
+        assert!(apply_edit(&mut stmts, edit).is_err());
+    }
 }

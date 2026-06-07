@@ -749,11 +749,11 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             let is_action_drag = action_drag.as_ref().is_some_and(|(_, ms, _, _, _, _)| *ms == event.start_time_ms);
 
                             // Draw drag handles (left/right edges)
-                            let handle_w = 6.0;
+                            let handle_w = 8.0;
                             if br.width() > handle_w * 2.0 + 4.0 {
                                 let left_handle = Rect::from_min_max(br.left_top(), Pos2::new(br.left() + handle_w, br.bottom()));
                                 let right_handle = Rect::from_min_max(Pos2::new(br.right() - handle_w, br.top()), br.right_bottom());
-                                let handle_color = if is_action_drag { ACCENT_BLUE } else { color.linear_multiply(0.8) };
+                                let handle_color = if is_action_drag { ACCENT_BLUE } else { color.linear_multiply(0.7) };
                                 painter.rect_filled(left_handle, RADIUS_S, handle_color);
                                 painter.rect_filled(right_handle, RADIUS_S, handle_color);
                             }
@@ -765,20 +765,17 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                 painter.text(br.center(), Align2::CENTER_CENTER, &event.verb, FontId::monospace(FONT_SIZE_XS), TEXT_PRIMARY);
                             }
 
-                            // Interaction: click_and_drag for resize handles
+                            // Interaction: click_and_drag for resize
                             let action_resp = ui.interact(br, ui.id().with(("action_block", track_idx, event.start_time_ms)), Sense::click_and_drag());
 
-                            // Drag start: detect which edge
+                            // Drag start: detect which edge by proximity
                             if action_resp.drag_started() {
                                 if let Some(pos) = action_resp.interact_pointer_pos() {
-                                    let handle_w = 6.0;
-                                    let left_handle = Rect::from_min_max(br.left_top(), Pos2::new(br.left() + handle_w, br.bottom()));
-                                    let right_handle = Rect::from_min_max(Pos2::new(br.right() - handle_w, br.top()), br.right_bottom());
-                                    if left_handle.contains(pos) {
-                                        new_action_drag = Some((track_idx, event.start_time_ms, Edge::Left, pos.x, start_s, duration_s));
-                                    } else if right_handle.contains(pos) {
-                                        new_action_drag = Some((track_idx, event.start_time_ms, Edge::Right, pos.x, start_s, duration_s));
-                                    }
+                                    // Choose closest edge: left or right
+                                    let dist_left = (pos.x - br.left()).abs();
+                                    let dist_right = (pos.x - br.right()).abs();
+                                    let edge = if dist_left <= dist_right { Edge::Left } else { Edge::Right };
+                                    new_action_drag = Some((track_idx, event.start_time_ms, edge, pos.x, start_s, duration_s));
                                 }
                             }
 
@@ -808,7 +805,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             // Drag stop: emit ResizeAction command
                             if action_resp.drag_stopped() {
                                 if let Some((_, _, edge, init_x, orig_start, orig_dur)) = new_action_drag {
-                                    if let Some(pos) = action_resp.interact_pointer_pos() {
+                                    if let Some(pos) = ui.input(|i| i.pointer.interact_pos()) {
                                         let dx = pos.x - init_x;
                                         let dt = (dx / (bar_width / visible_s as f32)) as f64;
                                         let (new_start_s, new_duration_s) = match edge {
