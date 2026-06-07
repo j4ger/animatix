@@ -16,11 +16,12 @@ const SHORTCUT_GROUPS: &[(&str, &[(&str, &str)])] = &[
     (
         "Tools",
         &[
-            ("V", "Select"),
-            ("M / G", "Move"),
-            ("S", "Scale"),
+            ("Esc", "Select (default)"),
+            ("M", "Move"),
+            ("Shift + S", "Scale"),
             ("R", "Rotate"),
-            ("E", "Vertex edit"),
+            ("V", "Vertex edit"),
+            ("P", "Pivot"),
         ],
     ),
     (
@@ -37,9 +38,9 @@ const SHORTCUT_GROUPS: &[(&str, &[(&str, &str)])] = &[
     (
         "Timeline",
         &[
-            ("Click track", "Scrub to time"),
-            ("Drag track", "Scrub"),
-            ("A", "Action palette"),
+            ("Click ruler", "Scrub to time"),
+            ("Drag ruler", "Scrub"),
+            (", / .", "Prev / Next keyframe"),
         ],
     ),
     (
@@ -49,8 +50,8 @@ const SHORTCUT_GROUPS: &[(&str, &[(&str, &str)])] = &[
             ("⌘C / ⌘V", "Copy / Paste actors"),
             ("⌘D", "Duplicate selected"),
             ("Delete", "Delete selected"),
-            ("Esc", "Deselect / Close"),
-            ("⌘K", "Command palette"),
+            ("Esc", "Deselect / Select tool"),
+            ("⌘⇧P", "Command palette"),
         ],
     ),
 ];

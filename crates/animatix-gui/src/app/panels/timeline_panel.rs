@@ -589,7 +589,11 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 if scene_bar_resp.drag_stopped() {
                     if let Some((ref drag_name, drop_offset_x)) = scene_drag {
                         // Compute drop position in scene order
-                        let drop_center_x = bar_area.left() + drop_offset_x + 40.0; // approximate center
+                        // Use actual block width instead of hardcoded value
+                        let block_w = comp.scenes.get(drag_name)
+                            .and_then(|s| comp.scene_start_times.get(drag_name).map(|st| time_to_x(st + s.duration_s) - time_to_x(*st)))
+                            .unwrap_or(80.0);
+                        let drop_center_x = bar_area.left() + drop_offset_x + block_w / 2.0;
                         let drop_time = x_to_time(drop_center_x);
 
                         // Find which scene index the drop lands on
