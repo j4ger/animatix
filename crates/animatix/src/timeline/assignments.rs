@@ -14,6 +14,7 @@ use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
 use crate::timeline::build::build_graph_axis_paths;
 use crate::primitives::{AssignmentCtx, find_primitive};
 use crate::renderer::error::RenderError;
+use crate::timeline::VelloPath;
 use crate::timeline::property_engine::{
     parse_property_value, write_property_field,
 };
@@ -207,8 +208,30 @@ impl Timeline {
 
             // Special handling for properties that write to size + layout_size together
             if is_size_property {
-                handle_size_assignment(track, property, value, &eval_env, &assignment_subject,
+                // Save parent's old size before assignment (for scaling children)
+                let old_half_size = track.size.last(DEFAULT_LAYOUT_HALF_SIZE);
+
+                let new_half_size = handle_size_assignment(track, property, value, &eval_env, &assignment_subject,
                     t_start_ms, t_end_ms, easing, instant_delayed, diagnostics);
+
+                // For Graph actors, also rebuild PlotCurve children whose
+                // paths depend on the parent's size (p_size).
+                let shape_type = track.shape_type.last(ShapeType::Rect);
+                if shape_type == ShapeType::Graph && old_half_size != new_half_size {
+                    let scale_x = new_half_size[0] / old_half_size[0];
+                    let scale_y = new_half_size[1] / old_half_size[1];
+                    let children: Vec<String> = track.children.clone();
+                    for child_label in &children {
+                        if let Some(child_track) = self.tracks.get_mut(child_label) {
+                            if child_track.kind == super::ActorKindId::PlotCurve {
+                                scale_plot_curve_paths(
+                                    child_track, scale_x, scale_y, t_start_ms, t_end_ms, easing,
+                                );
+                            }
+                        }
+                    }
+                }
+
                 return;
             }
 
@@ -245,7 +268,7 @@ fn handle_size_assignment(
     easing: Easing,
     instant_delayed: bool,
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> [f32; 2] {
     let default_size = DEFAULT_LAYOUT_HALF_SIZE;
     let has_duration = t_end_ms > t_start_ms;
 
@@ -289,6 +312,8 @@ fn handle_size_assignment(
 
     // Rebuild vector paths after size change
     rebuild_vector_paths(track, t_start_ms, t_end_ms, easing, diagnostics, Some(env));
+
+    target_size
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -484,6 +509,47 @@ fn rebuild_vector_paths(
         preserve_instant_delayed_value(&mut track.vector_paths, t_end_ms);
     }
     track.vector_paths.ensure(Vec::new()).add_keyframe(t_end_ms, vec![target_vello_path], easing);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Helper: scale PlotCurve paths when parent Graph resizes
+// ─────────────────────────────────────────────────────────────
+
+fn scale_plot_curve_paths(
+    track: &mut AnimationTrack,
+    scale_x: f32,
+    scale_y: f32,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+) {
+    // Skip if scale is identity
+    if (scale_x - 1.0).abs() < f32::EPSILON && (scale_y - 1.0).abs() < f32::EPSILON {
+        return;
+    }
+
+    let has_duration = t_end_ms > t_start_ms;
+    let current_paths = track.evaluate_vector_paths(t_end_ms);
+    if current_paths.is_empty() {
+        return;
+    }
+
+    let scale_transform = kurbo::Affine::scale_non_uniform(scale_x as f64, scale_y as f64);
+    let scaled_paths: Vec<VelloPath> = current_paths
+        .into_iter()
+        .map(|mut vp| {
+            vp.path = scale_transform * vp.path;
+            vp
+        })
+        .collect();
+
+    if has_duration {
+        let start_paths = track.evaluate_vector_paths(t_start_ms);
+        track.vector_paths.ensure(Vec::new()).add_keyframe(t_start_ms, start_paths, Easing::Linear);
+    } else if t_end_ms > 0 {
+        preserve_instant_delayed_value(&mut track.vector_paths, t_end_ms);
+    }
+    track.vector_paths.ensure(Vec::new()).add_keyframe(t_end_ms, scaled_paths, easing);
 }
 
 // ─────────────────────────────────────────────────────────────
