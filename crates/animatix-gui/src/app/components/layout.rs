@@ -1,4 +1,4 @@
-use egui::{CornerRadius, Margin, Rect, Response, Vec2};
+use egui::{CornerRadius, Margin, Rect, Response, Stroke, Vec2};
 
 use crate::app::design_tokens::*;
 
@@ -8,7 +8,7 @@ pub fn card(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::new()
         .fill(BG_SURFACE)
         .corner_radius(CornerRadius::same(RADIUS_M as u8))
-        .inner_margin(Margin::same(SPACE_L as i8))
+        .inner_margin(Margin::same(SPACE_M as i8))
         .shadow(egui::Shadow {
             offset: [0, 2],
             blur: 6,
@@ -28,7 +28,7 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
 
     let line_h = 2.0;
     let row_h = ROW_S;
-    let header_height = SPACE_M + line_h + SPACE_M + row_h + SPACE_M;
+    let header_height = SPACE_S + line_h + SPACE_S + row_h + SPACE_S;
 
     let (alloc_rect, _) =
         ui.allocate_exact_size(Vec2::new(available, header_height), egui::Sense::hover());
@@ -59,13 +59,13 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
     }
 
     let line_rect = Rect::from_min_size(
-        egui::pos2(paint_x, paint_y + SPACE_M),
+        egui::pos2(paint_x, paint_y + SPACE_S),
         Vec2::new(24.0, line_h),
     );
     ui.painter().rect_filled(line_rect, RADIUS_S, ACCENT_BLUE);
 
     let row_rect = Rect::from_min_size(
-        egui::pos2(paint_x, paint_y + SPACE_M + line_h + SPACE_M),
+        egui::pos2(paint_x, paint_y + SPACE_S + line_h + SPACE_S),
         Vec2::new(available, row_h),
     );
     let baseline_y = row_rect.center().y;
@@ -223,16 +223,16 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
 
         let response = ui.interact(tab_rect, ui.id().with(("pill_tab", idx)), egui::Sense::click());
 
+        // Draw pill background
+        let pill = tab_rect.shrink2(Vec2::new(2.0, 2.0));
         if is_active {
-            let pill = tab_rect.shrink2(Vec2::new(2.0, 2.0));
             ui.painter().rect_filled(pill, RADIUS_M, BG_SURFACE);
+            ui.painter().rect_stroke(pill, RADIUS_M, Stroke::new(STROKE_WIDTH, BORDER_HOVER), egui::StrokeKind::Inside);
         } else if response.hovered() {
-            let hover_bg = BG_HOVER;
-            let pill = tab_rect.shrink2(Vec2::new(2.0, 2.0));
-            ui.painter().rect_filled(pill, RADIUS_M, hover_bg);
+            ui.painter().rect_filled(pill, RADIUS_M, BG_HOVER);
         }
 
-        let text_color = if is_active { TEXT_PRIMARY } else { TEXT_MUTED };
+        let text_color = if is_active { TEXT_PRIMARY } else if response.hovered() { TEXT_SECONDARY } else { TEXT_MUTED };
         let font_id = egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional);
         let full_text = format!("{}  {}", icon, label);
         let galley = ui.painter().layout_no_wrap(full_text.clone(), font_id.clone(), text_color);

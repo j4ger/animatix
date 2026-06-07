@@ -501,7 +501,7 @@ pub(super) fn inspector_ui(
                     // View-mode toggle button overlaid on the sticky header row
                     {
                         let clip = ui.clip_rect();
-                        let row_top = clip.min.y + SPACE_M + 2.0 + SPACE_M; // matches header row y
+                        let row_top = clip.min.y + SPACE_S + 2.0 + SPACE_S; // matches header row y
                         let label = match view_mode {
                             PropertyViewMode::Semantic => format!("{} Semantic", egui_phosphor::regular::ROWS),
                             PropertyViewMode::Intensity => format!("{} Stream", egui_phosphor::regular::FIRE),
@@ -521,7 +521,7 @@ pub(super) fn inspector_ui(
                             PropertyViewMode::Intensity => "Switch to semantic view",
                         };
                         if btn_ui
-                            .button(RichText::new(&label).size(FONT_SIZE_XS).color(TEXT_MUTED))
+                            .button(RichText::new(&label).size(FONT_SIZE_XS).color(TEXT_SECONDARY))
                             .on_hover_text(tooltip)
                             .clicked()
                         {
@@ -652,7 +652,7 @@ pub(super) fn inspector_ui(
                     // View-mode toggle button overlaid on the sticky header row
                     {
                         let clip = ui.clip_rect();
-                        let row_top = clip.min.y + SPACE_M + 2.0 + SPACE_M;
+                        let row_top = clip.min.y + SPACE_S + 2.0 + SPACE_S;
                         let label = match kf_view {
                             KeyframeViewMode::List => format!("{} List", egui_phosphor::regular::LIST),
                             KeyframeViewMode::Curve => format!("{} Curve", egui_phosphor::regular::CHART_LINE_UP),
@@ -672,7 +672,7 @@ pub(super) fn inspector_ui(
                             KeyframeViewMode::Curve => "Switch to list view",
                         };
                         if btn_ui
-                            .button(RichText::new(&label).size(FONT_SIZE_XS).color(TEXT_MUTED))
+                            .button(RichText::new(&label).size(FONT_SIZE_XS).color(TEXT_SECONDARY))
                             .on_hover_text(kf_tooltip)
                             .clicked()
                         {
