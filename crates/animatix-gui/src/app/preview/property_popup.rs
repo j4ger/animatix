@@ -27,12 +27,16 @@ pub fn show_property_popup(
 
     let viewport = ui.max_rect();
     let popup_w = 260.0;
-    let popup_h = 160.0; // Reduced since we removed essentials row
+    let popup_h = 160.0;
 
-    // Position: attached to top edge of actor, centered
+    // Drag offset state (persisted between frames)
+    let drag_offset_id = ui.id().with(("popup_drag_offset", actor));
+    let drag_offset: Vec2 = ui.data(|d| d.get_temp(drag_offset_id)).unwrap_or(Vec2::ZERO);
+
+    // Position: attached to top edge of actor, centered, with drag offset
     let popup_pos = Pos2::new(
-        screen_pos.x - popup_w / 2.0,
-        screen_pos.y - popup_h - 12.0,
+        screen_pos.x - popup_w / 2.0 + drag_offset.x,
+        screen_pos.y - popup_h - 12.0 + drag_offset.y,
     );
 
     // Clamp to viewport
@@ -55,7 +59,20 @@ pub fn show_property_popup(
     let mut content = ui.new_child(egui::UiBuilder::new().max_rect(popup_rect.shrink(SPACE_M)));
     content.set_clip_rect(popup_rect);
 
-    // ── Header: actor name + close ──
+    // ── Header: actor name + close (draggable) ──
+    let header_rect = Rect::from_min_size(
+        content.cursor().min,
+        Vec2::new(content.available_width(), 20.0),
+    );
+    let header_resp = ui.interact(header_rect, ui.id().with("popup_header"), Sense::click_and_drag());
+    if header_resp.dragged() {
+        let new_offset = drag_offset + header_resp.drag_delta();
+        ui.data_mut(|d| d.insert_temp(drag_offset_id, new_offset));
+    }
+    // Double-click header to reset position
+    if header_resp.double_clicked() {
+        ui.data_mut(|d| d.remove::<Vec2>(drag_offset_id));
+    }
     content.horizontal(|ui| {
         ui.label(RichText::new(actor).size(FONT_SIZE_M).color(TEXT_PRIMARY).strong());
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
