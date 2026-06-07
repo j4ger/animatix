@@ -215,7 +215,8 @@ impl Timeline {
                     t_start_ms, t_end_ms, easing, instant_delayed, diagnostics);
 
                 // For Graph actors, also rebuild PlotCurve children whose
-                // paths depend on the parent's size (p_size).
+                // paths depend on the parent's size (p_size), and scale
+                // tick label positions to match the new axis positions.
                 let shape_type = track.shape_type.last(ShapeType::Rect);
                 if shape_type == ShapeType::Graph && old_half_size != new_half_size {
                     let scale_x = new_half_size[0] / old_half_size[0];
@@ -223,10 +224,26 @@ impl Timeline {
                     let children: Vec<String> = track.children.clone();
                     for child_label in &children {
                         if let Some(child_track) = self.tracks.get_mut(child_label) {
+                            // Scale PlotCurve paths
                             if child_track.kind == super::ActorKindId::PlotCurve {
                                 scale_plot_curve_paths(
                                     child_track, scale_x, scale_y, t_start_ms, t_end_ms, easing,
                                 );
+                            }
+                            // Scale tick label positions (Text children named {label}_tick_x_N / _tick_y_N)
+                            if child_track.kind == super::ActorKindId::Text
+                                && (child_label.contains("_tick_x_") || child_label.contains("_tick_y_"))
+                            {
+                                let old_pos = child_track.position.last([0.0, 0.0]);
+                                let new_pos = [old_pos[0] * scale_x, old_pos[1] * scale_y];
+                                let child_has_duration = t_end_ms > t_start_ms;
+                                if child_has_duration {
+                                    let start_pos = child_track.position.get(t_start_ms, [0.0, 0.0]);
+                                    child_track.position.ensure([0.0, 0.0]).add_keyframe(t_start_ms, start_pos, Easing::Linear);
+                                } else if instant_delayed {
+                                    preserve_instant_delayed_value(&mut child_track.position, t_start_ms);
+                                }
+                                child_track.position.ensure([0.0, 0.0]).add_keyframe(t_end_ms, new_pos, easing);
                             }
                         }
                     }
