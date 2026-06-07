@@ -5,18 +5,6 @@ use crate::app::design_tokens::*;
 use animatix::timeline::Timeline;
 use egui::{Color32, Pos2, Rect, RichText, Sense, Stroke, Vec2};
 
-/// Tab categories in the property popup.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum PopupTab {
-    Transform,
-    #[allow(dead_code)] // Future tab — not yet wired
-    Style,
-    #[allow(dead_code)] // Future tab — not yet wired
-    Shape,
-    #[allow(dead_code)] // Future tab — not yet wired
-    Text,
-}
-
 /// Show the property popup attached to a selected actor.
 ///
 /// Attached to actor's top edge, follows actor, clamped to viewport.
@@ -37,7 +25,7 @@ pub fn show_property_popup(
 
     let viewport = ui.max_rect();
     let popup_w = 260.0;
-    let popup_h = 180.0;
+    let popup_h = 190.0;
 
     // Position: attached to top edge of actor, centered
     let popup_pos = Pos2::new(
@@ -62,158 +50,98 @@ pub fn show_property_popup(
     );
 
     // Build child UI for content
-    let mut content = ui.new_child(egui::UiBuilder::new().max_rect(popup_rect));
+    let mut content = ui.new_child(egui::UiBuilder::new().max_rect(popup_rect.shrink(SPACE_M)));
     content.set_clip_rect(popup_rect);
-    content.add_space(SPACE_S);
 
-    // ── Header: actor name + close + pin ──
+    // ── Header: actor name + close ──
     content.horizontal(|ui| {
         ui.label(RichText::new(actor).size(FONT_SIZE_M).color(TEXT_PRIMARY).strong());
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.spacing_mut().item_spacing = Vec2::new(SPACE_XS, 0.0);
             if button::icon_button(ui, egui_phosphor::regular::X, "Close").clicked() {
-                // Close is implicit — deselect actor
-                // (handled by Esc or clicking elsewhere)
+                // Close is implicit — deselect actor (handled by Esc or clicking elsewhere)
             }
         });
     });
     content.add_space(SPACE_S);
 
-    // ── Essentials row: 4 properties ──
-    let essentials_h = 56.0;
+    // ── Essentials row: 2x2 grid ──
+    let essentials_h = 48.0;
     let essentials_rect = Rect::from_min_size(
-        Pos2::new(popup_rect.min.x + SPACE_S, content.cursor().min.y),
-        Vec2::new(popup_w - SPACE_S * 2.0, essentials_h),
+        content.cursor().min,
+        Vec2::new(content.available_width(), essentials_h),
     );
 
-    // Background for essentials
     ui.painter().rect_filled(essentials_rect, RADIUS_M as u8, BG_BASE);
 
-    let mut ess_ui = ui.new_child(egui::UiBuilder::new().max_rect(essentials_rect));
+    let mut ess_ui = ui.new_child(egui::UiBuilder::new().max_rect(essentials_rect.shrink(SPACE_S)));
     ess_ui.set_clip_rect(essentials_rect);
-    ess_ui.add_space(SPACE_XS);
 
-    // 2×2 grid
-    let col_w = (essentials_rect.width() - SPACE_S) / 2.0;
+    let col_w = (essentials_rect.width() - SPACE_S * 2.0 - SPACE_S) / 2.0;
 
     // Row 1: Position | Size
     ess_ui.horizontal(|ui| {
-        ui.set_width(essentials_rect.width());
         ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
-
         property_essential(ui, "Pos", &format!("{:.0}, {:.0}", props.position[0], props.position[1]), col_w);
         property_essential(ui, "Size", &format!("{:.0}×{:.0}", props.size[0], props.size[1]), col_w);
     });
 
     // Row 2: Rotation | Opacity
     ess_ui.horizontal(|ui| {
-        ui.set_width(essentials_rect.width());
         ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
-
         let rot_deg = props.rotation.to_degrees();
         let rot_delta = property_essential(ui, "Rot", &format!("{:.0}°", rot_deg), col_w);
         if let Some(delta) = rot_delta {
             let new_rot_deg = (rot_deg + delta * 0.5).rem_euclid(360.0);
-            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
+            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+                time_s: None,
                 actor: actor.to_string(),
                 property: "rotation".into(),
                 value: PropertyValue::Float(new_rot_deg.to_radians()),
                 create_keyframe: false,
             })));
         }
-        // Opacity not in ActorProps — show placeholder
         property_essential(ui, "Opac", "100%", col_w);
     });
 
     content.add_space(essentials_h + SPACE_S);
 
-    // ── Tabs ──
-    let tab_h = 24.0;
-    let tabs = [
-        (PopupTab::Transform, "Transform"),
-        (PopupTab::Transform, "Style"),
-        (PopupTab::Transform, "Shape"),
-        (PopupTab::Transform, "Text"),
-    ];
-
-    content.horizontal(|ui| {
-        ui.spacing_mut().item_spacing = Vec2::new(0.0, 0.0);
-        for (i, (_, label)) in tabs.iter().enumerate() {
-            let is_first = i == 0;
-            let tab_color = if is_first { TEXT_PRIMARY } else { TEXT_MUTED };
-            let tab_bg = if is_first { BG_WIDGET } else { Color32::TRANSPARENT };
-            let tab_rect = Rect::from_min_size(
-                ui.cursor().min,
-                Vec2::new(58.0, tab_h),
-            );
-            ui.painter().rect_filled(tab_rect, RADIUS_S as u8, tab_bg);
-            ui.painter().text(
-                tab_rect.center(),
-                egui::Align2::CENTER_CENTER,
-                *label,
-                egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-                tab_color,
-            );
-            ui.allocate_rect(tab_rect, egui::Sense::hover());
-        }
-    });
-
-    content.add_space(SPACE_S);
-
-    // ── Transform tab content (default) ──
+    // ── Property rows ──
     let content_rect = Rect::from_min_max(
-        Pos2::new(popup_rect.min.x + SPACE_S, content.cursor().min.y),
-        Pos2::new(popup_rect.max.x - SPACE_S, popup_rect.max.y - SPACE_S),
+        content.cursor().min,
+        Pos2::new(popup_rect.max.x - SPACE_M, popup_rect.max.y - SPACE_M),
     );
 
     let mut tab_ui = ui.new_child(egui::UiBuilder::new().max_rect(content_rect));
     tab_ui.set_clip_rect(content_rect);
 
-    // Position row with diamond
     let time_ms = (current_time_s * 1000.0) as u64;
+
     let has_kf_pos = timeline.map(|tl| tl.has_keyframe_at(actor, "position", time_ms)).unwrap_or(false);
     popup_property_row(
-        &mut tab_ui,
-        actor,
-        "position",
-        "Position",
+        &mut tab_ui, actor, "position", "Position",
         &format!("{:.1}, {:.1}", props.position[0], props.position[1]),
-        commands,
-        has_kf_pos,
-        current_time_s,
+        commands, has_kf_pos, current_time_s,
     );
 
-    // Size row with diamond
     let has_kf_size = timeline.map(|tl| tl.has_keyframe_at(actor, "size", time_ms)).unwrap_or(false);
     popup_property_row(
-        &mut tab_ui,
-        actor,
-        "size",
-        "Size",
+        &mut tab_ui, actor, "size", "Size",
         &format!("{:.1} × {:.1}", props.size[0], props.size[1]),
-        commands,
-        has_kf_size,
-        current_time_s,
+        commands, has_kf_size, current_time_s,
     );
 
-    // Rotation row with diamond
     let has_kf_rot = timeline.map(|tl| tl.has_keyframe_at(actor, "rotation", time_ms)).unwrap_or(false);
     popup_property_row(
-        &mut tab_ui,
-        actor,
-        "rotation",
-        "Rotation",
+        &mut tab_ui, actor, "rotation", "Rotation",
         &format!("{:.1}°", props.rotation.to_degrees()),
-        commands,
-        has_kf_rot,
-        current_time_s,
+        commands, has_kf_rot, current_time_s,
     );
 }
 
 /// Render a single essential property (compact, no diamond).
 /// Returns `Some(drag_delta.x)` if the user is dragging on the value area.
 fn property_essential(ui: &mut egui::Ui, label: &str, value: &str, width: f32) -> Option<f32> {
-    let rect = Rect::from_min_size(ui.cursor().min, Vec2::new(width, 22.0));
+    let rect = Rect::from_min_size(ui.cursor().min, Vec2::new(width, 20.0));
     let mut local = ui.new_child(egui::UiBuilder::new().max_rect(rect));
     local.set_clip_rect(rect);
 
@@ -292,7 +220,7 @@ fn popup_property_row(
     );
 
     // Hover: show tooltip
-    let interact = ui.interact(row_rect, ui.id().with((actor, property)), egui::Sense::hover());
+    let interact = ui.interact(row_rect, ui.id().with((actor, property)), Sense::hover());
     if interact.hovered() {
         let tooltip = if has_keyframe {
             format!("{label}: {value}\nKeyframe at {current_time_s:.2}s\nClick to remove keyframe")
@@ -302,5 +230,5 @@ fn popup_property_row(
         interact.on_hover_text(tooltip);
     }
 
-    ui.allocate_rect(row_rect, egui::Sense::hover());
+    ui.allocate_rect(row_rect, Sense::hover());
 }
