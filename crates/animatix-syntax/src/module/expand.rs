@@ -52,45 +52,46 @@ fn expand_stmt_into(
     ctx: &mut ExpansionCtx,
 ) {
     match stmt {
-        Stmt::Keyframe { time, body, .. } => {
+        Stmt::Keyframe { time, body, span, .. } => {
             let (expanded_body, sub_registry) = expand_statements_inner(body, components, ctx);
             merge_registry(registry, sub_registry);
             output.push(Stmt::Keyframe {
                 time: time.clone(),
                 body: expanded_body,
-                span: None,
+                span: *span,
             });
         }
-        Stmt::RelativeKeyframe { offset, body, .. } => {
+        Stmt::RelativeKeyframe { offset, body, span, .. } => {
             let (expanded_body, sub_registry) = expand_statements_inner(body, components, ctx);
             merge_registry(registry, sub_registry);
             output.push(Stmt::RelativeKeyframe {
                 offset: offset.clone(),
                 body: expanded_body,
-                span: None,
+                span: *span,
             });
         }
-        Stmt::Always { body, .. } => {
+        Stmt::Always { body, span, .. } => {
             let (expanded_body, sub_registry) = expand_statements_inner(body, components, ctx);
             merge_registry(registry, sub_registry);
             output.push(Stmt::Always {
                 body: expanded_body,
-                span: None,
+                span: *span,
             });
         }
-        Stmt::ReactiveBinding { target, property, value, value_span, .. } => {
+        Stmt::ReactiveBinding { target, property, value, value_span, span, .. } => {
             output.push(Stmt::ReactiveBinding {
                 target: target.clone(),
                 property: property.clone(),
                 value: value.clone(),
                 value_span: *value_span,
-                span: None,
+                span: *span,
             });
         }
         Stmt::Conditional {
             condition,
             then_branch,
             else_branch,
+            span,
             ..
         } => {
             let (then_expanded, then_registry) = expand_statements_inner(then_branch, components, ctx);
@@ -104,13 +105,14 @@ fn expand_stmt_into(
                 condition: condition.clone(),
                 then_branch: then_expanded,
                 else_branch: else_expanded,
-                span: None,
+                span: *span,
             });
         }
         Stmt::ForLoop {
             var,
             iterable,
             body,
+            span,
             ..
         } => {
             let (expanded_body, sub_registry) = expand_statements_inner(body, components, ctx);
@@ -119,35 +121,37 @@ fn expand_stmt_into(
                 var: var.clone(),
                 iterable: iterable.clone(),
                 body: expanded_body,
-                span: None,
+                span: *span,
             });
         }
-        Stmt::Sequence { body, .. } => {
+        Stmt::Sequence { body, span, .. } => {
             let (expanded_body, sub_registry) = expand_statements_inner(body, components, ctx);
             merge_registry(registry, sub_registry);
             output.push(Stmt::Sequence {
                 body: expanded_body,
-                span: None,
+                span: *span,
             });
         }
-        Stmt::Stagger { modifiers, body, .. } => {
+        Stmt::Stagger { modifiers, body, span, .. } => {
             let (expanded_body, sub_registry) = expand_statements_inner(body, components, ctx);
             merge_registry(registry, sub_registry);
             output.push(Stmt::Stagger {
                 modifiers: modifiers.clone(),
                 body: expanded_body,
-                span: None,
+                span: *span,
             });
         }
         // ComponentAction is NOT emitted into output; it's collected during instance expansion
         Stmt::ComponentAction { .. } => {}
         Stmt::ComponentDef(..) => {}
         Stmt::ActorDecl {
+            is_pub,
             label,
             ty,
             props,
             modifiers,
             children,
+            span,
             ..
         } => {
             if let Some(component) = components.get(ty) {
@@ -159,14 +163,14 @@ fn expand_stmt_into(
             } else {
                 let expanded_children = expand_inline_items(children, components, registry, ctx);
                 output.push(Stmt::ActorDecl {
-                    is_pub: false,
+                    is_pub: *is_pub,
                     is_anonymous: false,
                     label: label.clone(),
                     ty: ty.clone(),
                     props: props.clone(),
                     modifiers: modifiers.clone(),
                     children: expanded_children,
-                    span: None,
+                    span: *span,
                 });
             }
         }

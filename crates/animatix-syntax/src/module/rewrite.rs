@@ -15,6 +15,7 @@ pub(super) fn rewrite_stmt(
             props,
             modifiers,
             children,
+            span,
             ..
         } => Stmt::ActorDecl {
             is_pub: *is_pub,
@@ -24,41 +25,42 @@ pub(super) fn rewrite_stmt(
             props: rewrite_properties(props, prefix, root_label, known_labels, bindings),
             modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
             children: rewrite_inline_items(children, prefix, root_label, known_labels, bindings),
-            span: None,
+            span: *span,
         },
         Stmt::Assignment {
             target,
             property,
             value,
             modifiers,
-            
+            easing,
             value_span,
+            span,
             ..
         } => Stmt::Assignment {
             target: rewrite_label_path(target, prefix, root_label, known_labels),
             property: property.clone(),
             value: rewrite_expr(value, prefix, root_label, known_labels, bindings),
             modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
-            easing: None,
+            easing: easing.clone(),
             value_span: *value_span,
-            span: None,
+            span: *span,
         },
-        Stmt::Sequence { body, .. } => Stmt::Sequence {
+        Stmt::Sequence { body, span, .. } => Stmt::Sequence {
             body: body
                 .iter()
                 .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
                 .collect(),
-            span: None,
+            span: *span,
         },
-        Stmt::Stagger { modifiers, body, .. } => Stmt::Stagger {
+        Stmt::Stagger { modifiers, body, span, .. } => Stmt::Stagger {
             modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
             body: body
                 .iter()
                 .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
                 .collect(),
-            span: None,
+            span: *span,
         },
-        Stmt::Action(action, ..) => Stmt::Action(Action {
+        Stmt::Action(action, span) => Stmt::Action(Action {
             verb: action.verb.clone(),
             targets: action
                 .targets
@@ -78,47 +80,48 @@ pub(super) fn rewrite_stmt(
                 bindings,
             ),
             byte_span: action.byte_span,
-        }, None),
-        Stmt::LetDecl { is_pub, name, value, .. } => Stmt::LetDecl {
+        }, *span),
+        Stmt::LetDecl { is_pub, name, value, span, .. } => Stmt::LetDecl {
             is_pub: *is_pub,
             name: name.clone(),
             value: rewrite_expr(value, prefix, root_label, known_labels, bindings),
-            span: None,
+            span: *span,
         },
-        Stmt::Keyframe { time, body, .. } => Stmt::Keyframe {
+        Stmt::Keyframe { time, body, span, .. } => Stmt::Keyframe {
             time: time.clone(),
             body: body
                 .iter()
                 .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
                 .collect(),
-            span: None,
+            span: *span,
         },
-        Stmt::RelativeKeyframe { offset, body, .. } => Stmt::RelativeKeyframe {
+        Stmt::RelativeKeyframe { offset, body, span, .. } => Stmt::RelativeKeyframe {
             offset: offset.clone(),
             body: body
                 .iter()
                 .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
                 .collect(),
-            span: None,
+            span: *span,
         },
-Stmt::Always { body, .. } => Stmt::Always {
+Stmt::Always { body, span, .. } => Stmt::Always {
 			body: body
 				.iter()
 				.map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
 				.collect(),
-			span: None,
+			span: *span,
 		},
-		Stmt::ReactiveBinding { target, property, value, value_span, .. } => Stmt::ReactiveBinding {
+		Stmt::ReactiveBinding { target, property, value, value_span, span, .. } => Stmt::ReactiveBinding {
             target: rewrite_label_path(target, prefix, root_label, known_labels),
             property: property.clone(),
             value: rewrite_expr(value, prefix, root_label, known_labels, bindings),
             value_span: *value_span,
-            span: None,
+            span: *span,
         },
         Stmt::Conditional {
             condition,
             then_branch,
             else_branch,
+            span,
             ..
         } => Stmt::Conditional {
             condition: rewrite_expr(condition, prefix, root_label, known_labels, bindings),
@@ -132,12 +135,13 @@ Stmt::Always { body, .. } => Stmt::Always {
                     .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
                     .collect()
             }),
-            span: None,
+            span: *span,
         },
         Stmt::ForLoop {
             var,
             iterable,
             body,
+            span,
             ..
         } => Stmt::ForLoop {
             var: var.clone(),
@@ -146,9 +150,9 @@ Stmt::Always { body, .. } => Stmt::Always {
                 .iter()
                 .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
                 .collect(),
-            span: None,
+            span: *span,
         },
-        Stmt::ComponentDef(definition, ..) => Stmt::ComponentDef(ComponentDef {
+        Stmt::ComponentDef(definition, span) => Stmt::ComponentDef(ComponentDef {
             is_pub: definition.is_pub,
             name: definition.name.clone(),
             params: definition.params.clone(),
@@ -157,22 +161,22 @@ Stmt::Always { body, .. } => Stmt::Always {
                 .iter()
                 .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
                 .collect(),
-        }, None),
-        Stmt::ComponentAction { name, params, body, .. } => Stmt::ComponentAction {
+        }, *span),
+        Stmt::ComponentAction { name, params, body, span, .. } => Stmt::ComponentAction {
             name: name.clone(),
             params: params.clone(),
             body: body
                 .iter()
                 .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
                 .collect(),
-            span: None,
+            span: *span,
         },
-        Stmt::Config { settings, .. } => Stmt::Config {
+        Stmt::Config { settings, span, .. } => Stmt::Config {
             settings: rewrite_properties(settings, prefix, root_label, known_labels, bindings),
-            span: None,
+            span: *span,
         },
-        Stmt::Import { path, alias, .. } => Stmt::Import { path: path.clone(), alias: alias.clone(), span: None },
-        Stmt::Comment(comment, ..) => Stmt::Comment(comment.clone(), None),
+        Stmt::Import { path, alias, span, .. } => Stmt::Import { path: path.clone(), alias: alias.clone(), span: *span },
+        Stmt::Comment(comment, span) => Stmt::Comment(comment.clone(), *span),
         // Multi-scene composition statements: pass through unchanged
         Stmt::Scene { name, config, body, span } => Stmt::Scene {
             name: name.clone(),

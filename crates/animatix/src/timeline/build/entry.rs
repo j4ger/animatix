@@ -166,6 +166,17 @@ impl Timeline {
             }
         }
 
+        // Compute modifier hash for cross-rebuild IR/bytecode caching.
+        // Uses Debug representation since Stmt doesn't implement Hash.
+        {
+            use std::hash::{Hash, Hasher};
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            for stmt in &timeline.modifiers {
+                format!("{:?}", stmt).hash(&mut hasher);
+            }
+            timeline.modifier_hash = hasher.finish();
+        }
+
         // Compile always-body statements into IR for faster frame-time evaluation.
         // Skip compilation when no modifiers exist to avoid empty programs.
         if !timeline.modifiers.is_empty() {

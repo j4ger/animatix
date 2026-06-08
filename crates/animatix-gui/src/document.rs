@@ -215,9 +215,32 @@ impl DocumentSession {
             })
             .unwrap_or_default();
 
+        // Preserve modifier IR/bytecode programs across rebuilds when unchanged.
+        // Compare modifier hash to avoid recompilation when only non-modifier
+        // parts of the source changed.
+        let old_modifier_data: Option<(u64, Vec<_>, Vec<_>)> = self
+            .timeline
+            .as_ref()
+            .map(|t| (t.modifier_hash, t.modifier_programs.clone(), t.modifier_bytecode_programs.clone()))
+            .or_else(|| {
+                self.composition.as_ref().and_then(|c| {
+                    c.scenes.values().next().map(|s| {
+                        let t = &s.timeline;
+                        (t.modifier_hash, t.modifier_programs.clone(), t.modifier_bytecode_programs.clone())
+                    })
+                })
+            });
+
         match report.output {
             BuildTarget::SingleScene(mut timeline) => {
                 timeline.plot_path_cache = old_plot_cache;
+                // Reuse compiled modifier programs if modifier AST is unchanged.
+                if let Some((old_hash, old_ir, old_bc)) = &old_modifier_data {
+                    if timeline.modifier_hash == *old_hash && !old_ir.is_empty() {
+                        timeline.modifier_programs = old_ir.clone();
+                        timeline.modifier_bytecode_programs = old_bc.clone();
+                    }
+                }
                 self.timeline = Some(timeline);
                 self.composition = None;
                 self.active_scene = None;
@@ -232,6 +255,13 @@ impl DocumentSession {
                 }
                 for scene in composition.scenes.values_mut() {
                     scene.timeline.plot_path_cache.clone_from(&old_plot_cache);
+                    // Reuse compiled modifier programs if modifier AST is unchanged.
+                    if let Some((old_hash, old_ir, old_bc)) = &old_modifier_data {
+                        if scene.timeline.modifier_hash == *old_hash && !old_ir.is_empty() {
+                            scene.timeline.modifier_programs = old_ir.clone();
+                            scene.timeline.modifier_bytecode_programs = old_bc.clone();
+                        }
+                    }
                 }
                 self.timeline = None;
                 self.composition = Some(composition);

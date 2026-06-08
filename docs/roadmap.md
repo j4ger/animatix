@@ -13,11 +13,8 @@ Build and runtime optimizations.
 | 1 | **Incremental parsing (tree-sitter)** | High | 1–2 weeks | Use existing tree-sitter grammar for incremental parsing. Feed AST diffs to build pipeline. |
 | 2 | **Expression evaluation memoization** | Medium | 1 day | Cache `(expr_ptr, env_hash) → Value` during build. Same expression in same environment produces same result. |
 | 3 | **Incremental component expansion** | Medium | 2–3 days | Only re-expand changed component instances. Requires AST diffing or dirty-flag per component. |
-| 4 | **Preserve spans through expansion** | Medium | 2–3 days | All spans are set to `None` during `expand_stmt_into` and `rewrite_stmt`. GUI inspector can't trace expanded component instances back to source. Needs span mapping. |
-| 5 | **Taffy layout caching** | Low | 1 day | Cache layout results for unchanged container subtrees. |
-| 6 | **Modifier IR/bytecode caching** | Low | 1 day | Cache lowered IR and compiled bytecode for unchanged `always` blocks. |
-| 7 | **Skip stmts_to_source for surgical edits** | Low | 1 day | For keyframe moves/resizes, use SourceIndex byte-range replacement instead of full AST re-serialization. |
-| 8 | **Reduce cloning in expansion pipeline** | Low | 1–2 days | `expand_stmt_into` clones from `&Stmt`, `rewrite_stmt` clones recursively. Consider `Rc<Stmt>` or arena allocation if profiling shows it's hot. |
+| 4 | **Skip stmts_to_source for surgical edits** | Low | 1 day | For keyframe moves/resizes, use SourceIndex byte-range replacement instead of full AST re-serialization. |
+| 5 | **Reduce cloning in expansion pipeline** | Low | 1–2 days | `expand_stmt_into` clones from `&Stmt`, `rewrite_stmt` clones recursively. Consider `Rc<Stmt>` or arena allocation if profiling shows it's hot. |
 
 ---
 

@@ -83,7 +83,27 @@ use super::LayoutEngine;
 
 use super::ContainerMetadata;
 
+/// Cached layout computation result for a single container.
+#[derive(Clone, Debug)]
+pub(crate) struct LayoutCacheEntry {
+    /// Input fingerprint: (half_size_x, half_size_y, placement_mode_idx) per child.
+    child_fingerprints: Vec<([f32; 2], u8)>,
+    /// Cached output positions.
+    positions: BTreeMap<String, [f32; 2]>,
+}
+
 impl LayoutEngine {
+    /// Create a new layout engine with an empty cache.
+    pub fn new() -> Self {
+        Self {
+            cache: std::cell::RefCell::new(std::collections::HashMap::new()),
+        }
+    }
+
+    /// Invalidate the layout cache (e.g. after a timeline rebuild).
+    pub fn invalidate_cache(&self) {
+        self.cache.borrow_mut().clear();
+    }
     pub(crate) fn compute_positions(
         metadata: &ContainerMetadata,
         children: &[ChildExtent],
@@ -113,6 +133,10 @@ impl LayoutEngine {
 
     /// Computes layout positions for all children of a container at a specific time.
     /// Returns a BTreeMap mapping child labels to their computed positions.
+    ///
+    /// Uses a per-container cache keyed on children's layout sizes. If the
+    /// children's half-sizes and placement modes haven't changed since the last
+    /// call, the cached positions are returned without recomputing via Taffy.
     pub fn compute_layout_for_time(
         &self,
         metadata: &ContainerMetadata,
@@ -134,6 +158,24 @@ impl LayoutEngine {
             })
             .collect();
 
+        // Build fingerprint for cache lookup
+        let fingerprints: Vec<([f32; 2], u8)> = child_extents
+            .iter()
+            .map(|c| (c.half_size, c.placement_mode as u8))
+            .collect();
+
+        // Check cache — use container label from first child's parent context.
+        // We key on the child labels themselves to detect structural changes.
+        let cache_key = metadata.child_order.join("|");
+        {
+            let cache = self.cache.borrow();
+            if let Some(entry) = cache.get(&cache_key) {
+                if entry.child_fingerprints == fingerprints {
+                    return entry.positions.clone();
+                }
+            }
+        }
+
         let positions = Self::compute_positions(metadata, &child_extents);
 
         // Build result BTreeMap, only including LayoutManaged children
@@ -143,6 +185,15 @@ impl LayoutEngine {
                 result.insert(child.label.clone(), positions[i]);
             }
         }
+
+        // Store in cache
+        self.cache.borrow_mut().insert(
+            cache_key,
+            LayoutCacheEntry {
+                child_fingerprints: fingerprints,
+                positions: result.clone(),
+            },
+        );
 
         result
     }

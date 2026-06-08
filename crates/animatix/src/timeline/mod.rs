@@ -312,9 +312,21 @@ impl ContainerMetadata {
     }
 }
 
-/// Stateless layout engine for computing child positions inside containers.
-#[derive(Clone, Debug, Default)]
-pub struct LayoutEngine;
+/// Layout engine for computing child positions inside containers.
+///
+/// Caches layout results per-container to avoid redundant Taffy computation
+/// when children's layout sizes haven't changed between frames.
+#[derive(Clone, Debug)]
+pub struct LayoutEngine {
+    /// Per-container layout cache. Keyed by container child-order string.
+    pub(crate) cache: std::cell::RefCell<std::collections::HashMap<String, crate::timeline::layout::LayoutCacheEntry>>,
+}
+
+impl Default for LayoutEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Width and height of the output scene in pixels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -420,8 +432,10 @@ pub struct Timeline {
     /// colorscheme). Avoids copying ~90 entries on every [`Timeline::build_frame_env`].
     env_base: std::sync::Arc<std::collections::HashMap<String, Value>>,
     pub(crate) modifiers: Vec<Stmt>,
-    pub(crate) modifier_programs: Vec<ModifierIrProgram>,
-    pub(crate) modifier_bytecode_programs: Vec<modifier_runtime::vm::ModifierBytecodeProgram>,
+    /// Compiled modifier IR programs. Populated during build.
+    pub modifier_programs: Vec<ModifierIrProgram>,
+    /// Compiled modifier bytecode programs. Populated during build.
+    pub modifier_bytecode_programs: Vec<modifier_runtime::vm::ModifierBytecodeProgram>,
     colorscheme: ResolvedColorscheme,
     external_colorschemes: std::collections::HashMap<String, ResolvedColorscheme>,
     auto_color_assignments: BTreeMap<String, usize>,
@@ -476,6 +490,10 @@ pub struct Timeline {
     /// Runtime diagnostics from frame evaluation (modifier errors, etc.).
     /// Cleared at the start of each evaluate call.
     runtime_diagnostics: std::cell::RefCell<Vec<crate::diagnostics::Diagnostic>>,
+    /// Hash of the modifier AST statements collected during build.
+    /// Used to skip IR/bytecode recompilation when modifiers haven't changed.
+    /// Hash of modifier ASTs. Used to skip recompilation across rebuilds.
+    pub modifier_hash: u64,
 }
 
 /// Cache entry for frame evaluation results.
@@ -523,6 +541,7 @@ impl Clone for Timeline {
             action_events: self.action_events.clone(),
             plot_path_cache: self.plot_path_cache.clone(),
             runtime_diagnostics: std::cell::RefCell::new(Vec::new()),
+            modifier_hash: self.modifier_hash,
         }
     }
 }
@@ -551,7 +570,7 @@ impl Timeline {
             auto_color_assignments: BTreeMap::new(),
             next_auto_color_index: 0,
             container_metadata: BTreeMap::new(),
-            layout_engine: LayoutEngine,
+            layout_engine: LayoutEngine::new(),
             dynamic_layout: false,
             asset_cache: std::sync::Arc::new(assets::AssetCache::new()),
             font_context,
@@ -569,6 +588,7 @@ impl Timeline {
             action_events: Vec::new(),
             plot_path_cache: std::collections::HashMap::new(),
             runtime_diagnostics: std::cell::RefCell::new(Vec::new()),
+            modifier_hash: 0,
         }
     }
 
@@ -935,6 +955,7 @@ impl Timeline {
         *self.frame_cache.borrow_mut() = None;
         *self.static_subtree_cache.borrow_mut() = std::collections::HashMap::new();
         *self.transform_cache.borrow_mut() = std::collections::HashMap::new();
+        self.layout_engine.invalidate_cache();
     }
 
     /// Return runtime diagnostics produced during the most recent frame
