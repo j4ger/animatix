@@ -6,6 +6,68 @@
 
 use crate::ast::{BinaryOp, Expr, Time};
 use crate::timeline::env::{Environment, EvalError, Value};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+
+/// Thread-local expression evaluation cache.
+///
+/// Caches `(expr_ptr, env_hash) → Value` to avoid re-evaluating the same
+/// expression in the same environment during build. The cache is cleared
+/// between builds via [`clear_eval_cache`].
+thread_local! {
+    static EVAL_CACHE: RefCell<HashMap<(usize, u64), Value>> =
+        RefCell::new(HashMap::new());
+}
+
+/// Clear the thread-local expression evaluation cache.
+/// Call this at the start of each build to avoid stale results.
+pub fn clear_eval_cache() {
+    EVAL_CACHE.with(|cache| cache.borrow_mut().clear());
+}
+
+/// Compute a hash of the environment's override entries.
+/// Skips NativeFn values (which don't implement Hash).
+fn env_hash(env: &Environment) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    // Hash the base Arc pointer identity (same base = same stdlib)
+    if let Some(ref base) = env.base {
+        let ptr = std::sync::Arc::as_ptr(base) as usize;
+        ptr.hash(&mut hasher);
+    }
+    // Hash override entries (skip NativeFn which can't be hashed)
+    let mut entries: Vec<(&String, &Value)> = env.overrides.iter()
+        .filter(|(_, v)| !matches!(v, Value::NativeFn(_)))
+        .collect();
+    entries.sort_by_key(|(k, _)| k.clone());
+    for (key, value) in entries {
+        key.hash(&mut hasher);
+        hash_value(value, &mut hasher);
+    }
+    // Hash single binding if present
+    if let Some((ref name, ref value)) = env.binding {
+        name.hash(&mut hasher);
+        hash_value(value, &mut hasher);
+    }
+    hasher.finish()
+}
+
+/// Hash a Value (skipping NativeFn which can't be hashed).
+fn hash_value<V: Hasher>(value: &Value, hasher: &mut V) {
+    match value {
+        Value::Num(n) => { 0u8.hash(hasher); n.to_bits().hash(hasher); }
+        Value::Str(s) => { 1u8.hash(hasher); s.hash(hasher); }
+        Value::Bool(b) => { 2u8.hash(hasher); b.hash(hasher); }
+        Value::Vec2(v) => { 3u8.hash(hasher); v[0].to_bits().hash(hasher); v[1].to_bits().hash(hasher); }
+        Value::Vec3(v) => { 4u8.hash(hasher); for x in v { x.to_bits().hash(hasher); } }
+        Value::Vec4(v) => { 5u8.hash(hasher); for x in v { x.to_bits().hash(hasher); } }
+        Value::Color(c) => { 6u8.hash(hasher); for x in c { x.to_bits().hash(hasher); } }
+        Value::List(items) => { 7u8.hash(hasher); items.len().hash(hasher); }
+        Value::Object(name, _) => { 8u8.hash(hasher); name.hash(hasher); }
+        Value::NativeFn(_) => { 9u8.hash(hasher); } // pointer identity
+        Value::Closure(params, _) => { 10u8.hash(hasher); params.hash(hasher); }
+    }
+}
 
 /// Safe scalar division: returns 0.0 when divisor is zero.
 #[inline]
@@ -19,8 +81,72 @@ pub fn safe_rem(l: f64, r: f64) -> f64 {
     if r != 0.0 { l % r } else { 0.0 }
 }
 
+/// Hash an expression tree for cache keying.
+fn expr_hash(expr: &Expr) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    hash_expr_recursive(expr, &mut hasher);
+    hasher.finish()
+}
+
+fn hash_expr_recursive<V: Hasher>(expr: &Expr, hasher: &mut V) {
+    match expr {
+        Expr::Num(n) => { 0u8.hash(hasher); n.to_bits().hash(hasher); }
+        Expr::Percent(n) => { 1u8.hash(hasher); n.to_bits().hash(hasher); }
+        Expr::Str(s) => { 2u8.hash(hasher); s.hash(hasher); }
+        Expr::Bool(b) => { 3u8.hash(hasher); b.hash(hasher); }
+        Expr::Null => { 4u8.hash(hasher); }
+        Expr::Ident(s) => { 5u8.hash(hasher); s.hash(hasher); }
+        Expr::Path(parts) => { 6u8.hash(hasher); parts.hash(hasher); }
+        Expr::Index(a, b) => { 7u8.hash(hasher); hash_expr_recursive(a, hasher); hash_expr_recursive(b, hasher); }
+        Expr::Tuple(items) => { 8u8.hash(hasher); items.len().hash(hasher); for e in items { hash_expr_recursive(e, hasher); } }
+        Expr::Binary(a, op, b) => { 9u8.hash(hasher); hash_expr_recursive(a, hasher); format!("{:?}", op).hash(hasher); hash_expr_recursive(b, hasher); }
+        Expr::Unary(op, e) => { 10u8.hash(hasher); format!("{:?}", op).hash(hasher); hash_expr_recursive(e, hasher); }
+        Expr::Call(name, args) => { 11u8.hash(hasher); name.hash(hasher); args.len().hash(hasher); for a in args { hash_expr_recursive(a, hasher); } }
+        Expr::Method(recv, name, args) => { 12u8.hash(hasher); hash_expr_recursive(recv, hasher); name.hash(hasher); args.len().hash(hasher); for a in args { hash_expr_recursive(a, hasher); } }
+        Expr::Closure(params, body) => { 13u8.hash(hasher); params.hash(hasher); hash_expr_recursive(body, hasher); }
+        Expr::Conditional(c, t, e) => { 14u8.hash(hasher); hash_expr_recursive(c, hasher); hash_expr_recursive(t, hasher); hash_expr_recursive(e, hasher); }
+        Expr::Construct(name, _) => { 15u8.hash(hasher); name.hash(hasher); }
+    }
+}
+
 /// Represents a runtime value produced by evaluating an expression.
+///
+/// Uses a thread-local cache keyed on `(expr_content_hash, env_hash)` to
+/// avoid re-evaluating the same expression in the same environment during build.
 pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError> {
+    // Check cache for a hit (only for non-trivial expressions)
+    let cache_key = match expr {
+        Expr::Num(_) | Expr::Percent(_) | Expr::Str(_) | Expr::Bool(_) | Expr::Null => {
+            // Literals are cheap — evaluate directly without caching
+            return evaluate_expr_inner(expr, env);
+        }
+        _ => {
+            let expr_h = expr_hash(expr);
+            let env_h = env_hash(env);
+            (expr_h as usize, env_h)
+        }
+    };
+
+    // Check cache
+    {
+        let hit = EVAL_CACHE.with(|cache| {
+            cache.borrow().get(&cache_key).cloned()
+        });
+        if let Some(value) = hit {
+            return Ok(value);
+        }
+    }
+
+    // Evaluate and cache
+    let result = evaluate_expr_inner(expr, env)?;
+    EVAL_CACHE.with(|cache| {
+        cache.borrow_mut().insert(cache_key, result.clone());
+    });
+    Ok(result)
+}
+
+/// Inner evaluation function (the actual logic, moved from the original evaluate_expr).
+fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalError> {
     match expr {
         Expr::Num(n) => Ok(Value::Num(*n)),
         Expr::Percent(n) => Ok(Value::Num(*n / 100.0)),

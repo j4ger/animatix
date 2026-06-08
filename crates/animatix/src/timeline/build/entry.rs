@@ -83,6 +83,9 @@ impl Timeline {
         font_context: std::sync::Arc<crate::renderer::text::FontContext>,
         build_quality: super::BuildQuality,
     ) -> BuildReport<Self> {
+        // Clear expression evaluation cache at the start of each build.
+        crate::timeline::utils::clear_eval_cache();
+
         let mut timeline = Self::new_with_font_context(font_context);
         timeline.build_quality = build_quality;
         load_standard_library(&mut timeline.env);
