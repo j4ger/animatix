@@ -4,16 +4,6 @@
 
 ---
 
-## Performance
-
-Build and runtime optimizations.
-
-| # | Task | Impact | Effort | Description |
-|---|------|--------|--------|-------------|
-| 1 | **Incremental parsing (tree-sitter)** | High | 1–2 weeks | Use existing tree-sitter grammar for incremental parsing. Feed AST diffs to build pipeline. *CST→AST converter (`ts_convert`) implemented; GUI integration pending.* |
-
----
-
 ## Component & Module System
 
 | # | Task | Effort | Description |
