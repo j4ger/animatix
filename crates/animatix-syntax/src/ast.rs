@@ -686,15 +686,3 @@ pub enum Stmt {
     Comment(String, Option<Span>),
 }
 
-// ----------------------------------------------------------------------------
-// 6. Imports
-// ----------------------------------------------------------------------------
-
-/// Import declaration (standalone type, distinct from `Stmt::Import`).
-#[derive(Clone, Debug, PartialEq)]
-pub struct Import {
-    /// Import path.
-    pub path: String,
-    /// Optional import alias.
-    pub alias: Option<String>,
-}

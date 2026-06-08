@@ -1,9 +1,9 @@
 //! AST discovery helpers for collecting definitions and imports.
 
-use super::{ComponentDef, Import, Stmt};
+use super::{ComponentDef, Stmt};
 use std::collections::HashMap;
 
-pub(super) fn collect_imports(statements: &[Stmt]) -> Vec<Import> {
+pub(super) fn collect_imports(statements: &[Stmt]) -> Vec<(String, Option<String>)> {
     let mut imports = Vec::new();
     for stmt in statements {
         collect_imports_from_stmt(stmt, &mut imports);
@@ -11,9 +11,9 @@ pub(super) fn collect_imports(statements: &[Stmt]) -> Vec<Import> {
     imports
 }
 
-fn collect_imports_from_stmt(stmt: &Stmt, imports: &mut Vec<Import>) {
+fn collect_imports_from_stmt(stmt: &Stmt, imports: &mut Vec<(String, Option<String>)>) {
     match stmt {
-        Stmt::Import { path, alias, .. } => imports.push(Import { path: path.clone(), alias: alias.clone() }),
+        Stmt::Import { path, alias, .. } => imports.push((path.clone(), alias.clone())),
         Stmt::Keyframe { body, .. }
         | Stmt::RelativeKeyframe { body, .. }
         | Stmt::Sequence { body, .. }

@@ -7,7 +7,7 @@ mod inline_actions;
 mod rewrite;
 
 use crate::ast::{
-    Action, ComponentDef, Expr, Import, InlineItem, Modifier, ParamDef, Property, Stmt,
+    Action, ComponentDef, Expr, InlineItem, Modifier, ParamDef, Property, Stmt,
 };
 use crate::parser::{parse_source, ParseError};
 use discovery::{collect_component_actions, collect_component_defs, collect_imports, strip_imports};
@@ -249,7 +249,7 @@ fn resolve_path_in_namespace(
 struct ParsedModule {
     path: PathBuf,
     statements: Vec<Stmt>,
-    imports: Vec<Import>,
+    imports: Vec<(String, Option<String>)>,
 }
 
 struct SourceOverride<'a> {
@@ -435,7 +435,7 @@ impl ModuleGraph {
 
         for import in &imports {
             let import_path =
-                Self::resolve_path(canonical.parent().unwrap_or(Path::new(".")), &import.path);
+                Self::resolve_path(canonical.parent().unwrap_or(Path::new(".")), &import.0);
 
             let result = self.load_file(&import_path, visiting, source_override)?;
             all_import_ids.push(
@@ -470,7 +470,7 @@ impl ModuleGraph {
                 .filter_map(|imp| {
                     let path = Self::resolve_path(
                         module.path.parent().unwrap_or(Path::new(".")),
-                        &imp.path,
+                        &imp.0,
                     );
                     fs::canonicalize(&path)
                         .ok()
@@ -554,10 +554,10 @@ impl ModuleGraph {
         // resolving re-exports transitively.
         if let Some(entry_module) = self.files.get(&entry_id) {
             for imp in &entry_module.imports {
-                if let Some(alias) = &imp.alias {
+                if let Some(alias) = &imp.1 {
                     let import_path = Self::resolve_path(
                         entry_module.path.parent().unwrap_or(Path::new(".")),
-                        &imp.path,
+                        &imp.0,
                     );
                     if let Some(import_id) = fs::canonicalize(&import_path)
                         .ok()
@@ -638,10 +638,10 @@ impl ModuleGraph {
         // Recursively build namespaces for this module's aliased imports
         let mut import_namespaces: HashMap<String, Namespace> = HashMap::new();
         for imp in &module.imports {
-            if let Some(alias) = &imp.alias {
+            if let Some(alias) = &imp.1 {
                 let import_path = Self::resolve_path(
                     module.path.parent().unwrap_or(Path::new(".")),
-                    &imp.path,
+                    &imp.0,
                 );
                 if let Some(sub_id) = fs::canonicalize(&import_path)
                     .ok()
@@ -674,11 +674,11 @@ impl ModuleGraph {
 
         if let Some(module) = self.files.get(&file_id) {
             for imp in &module.imports {
-                if imp.alias.is_some() {
+                if imp.1.is_some() {
                     continue; // Aliased imports are not flattened
                 }
                 let import_path =
-                    Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.path);
+                    Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
                 if let Some(import_id) = fs::canonicalize(&import_path)
                     .ok()
                     .and_then(|p| self.paths.get(&p).copied())
@@ -712,7 +712,7 @@ impl ModuleGraph {
         if let Some(module) = self.files.get(&file_id) {
             for imp in &module.imports {
                 let import_path =
-                    Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.path);
+                    Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
                 if let Some(import_id) = fs::canonicalize(&import_path)
                     .ok()
                     .and_then(|p| self.paths.get(&p).copied())

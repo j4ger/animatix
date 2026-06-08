@@ -6,10 +6,7 @@
 
 ## Component & Module System
 
-| # | Task | Effort | Description |
-|---|------|--------|-------------|
-| 1 | **Warn on extra instance properties** | 1 day | `component_bindings` silently adds unmatched properties. Emit a diagnostic to catch typos. |
-| 2 | **Consolidate `Import` types** | 0.5 days | `Stmt::Import` and standalone `Import` struct serve the same purpose. Eliminate the standalone struct. |
+No remaining tasks.
 
 ---
 
