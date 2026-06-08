@@ -70,8 +70,25 @@ fn validate_play_target(
         let parts: Vec<&str> = target.split('.').collect();
         if parts.len() == 2 {
             let module_alias = parts[0];
-            if namespaces.contains_key(module_alias) {
-                return true;
+            if let Some(ns) = namespaces.get(module_alias) {
+                let scene_name = parts[1];
+                // If the namespace has scene data, verify the specific scene exists.
+                // If scenes are empty (legacy/test namespace), accept any name.
+                if ns.scenes.is_empty() || ns.scenes.contains_key(scene_name) {
+                    return true;
+                }
+                diagnostics.push(
+                    Diagnostic::error(
+                        DiagnosticCode::PlayTargetNotFound,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "Scene '{}' plays non-existent scene '{}' in module '{}'.",
+                            source_scene, scene_name, module_alias
+                        ),
+                    )
+                    .with_subject(source_scene),
+                );
+                return false;
             }
             diagnostics.push(
                 Diagnostic::error(
@@ -338,6 +355,54 @@ impl Composition {
                         }),
                     },
                 );
+            }
+        }
+
+        // 2b. Collect cross-file scenes from namespaces.
+        // When a play target references an imported scene (e.g. "play alias.SceneName"),
+        // build a timeline from the imported scene's data and register it.
+        let cross_file_targets: Vec<String> = play_targets
+            .values()
+            .map(|(target, _)| target.clone())
+            .filter(|t| t.contains('.') && !scenes.contains_key(t))
+            .collect();
+        for target in cross_file_targets {
+            let parts: Vec<&str> = target.splitn(2, '.').collect();
+            if parts.len() != 2 {
+                continue;
+            }
+            let module_alias = parts[0];
+            let scene_name = parts[1];
+            if let Some(ns) = namespaces.get(module_alias) {
+                if let Some(scene_data) = ns.scenes.get(scene_name) {
+                    // Build timeline from the cross-file scene's prelude + body
+                    let mut merged = scene_data.file_prelude.clone();
+                    merged.extend(scene_data.body.clone());
+                    let build_report = Timeline::build_with_diagnostics_and_font_context(
+                        &merged, namespaces, font_context.clone(), build_quality,
+                    );
+                    diagnostics.extend(
+                        build_report
+                            .diagnostics
+                            .into_iter()
+                            .map(|d| d.with_subject(format!("scene '{}'", target))),
+                    );
+                    let timeline = build_report.output;
+                    let explicit_duration_s = Self::extract_duration_from_config(&scene_data.config);
+                    let duration_s = explicit_duration_s.unwrap_or_else(|| timeline.duration_seconds());
+                    scenes.insert(
+                        target.clone(),
+                        CompositionScene {
+                            name: target.clone(),
+                            config: scene_data.config.clone(),
+                            timeline,
+                            duration_s,
+                            explicit_duration_s,
+                            source_span: scene_data.span,
+                        },
+                    );
+                    declaration_order.push(target.clone());
+                }
             }
         }
 
@@ -1067,5 +1132,114 @@ mod tests {
                     && d.message.contains("composition-scoped")
             });
         assert!(!has_config_warning, "colorscheme should not trigger composition-scoped warning");
+    }
+
+    #[test]
+    fn test_cross_file_scene_basic() {
+        let dir = std::env::temp_dir().join(format!("animatix_test_basic_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+
+        let scenes_file = dir.join("scenes.amx");
+        let main_file = dir.join("main.amx");
+
+        std::fs::write(&scenes_file, concat!(
+            "# FadeIn\n",
+            "#0s\n",
+            "label: Text, text: \"Fade In Scene\"\n",
+            "fade-in label [500ms]\n",
+        )).unwrap();
+
+        std::fs::write(&main_file, &format!(
+            "import \"{}\" as scenes\n\n# Intro\n#0s\ntitle: Text, text: \"Welcome\"\nplay scenes.FadeIn [fade, 300ms]\n",
+            scenes_file.display(),
+        )).unwrap();
+
+        let mut graph = animatix_syntax::module::ModuleGraph::new();
+        let program = graph.load_program(&main_file).unwrap();
+
+        let report = Composition::build(&program.statements, &program.namespaces);
+        assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
+        let comp = &report.output;
+
+        // Should have both "Intro" (local) and "scenes.FadeIn" (cross-file)
+        assert!(comp.scenes.contains_key("Intro"));
+        assert!(comp.scenes.contains_key("scenes.FadeIn"),
+            "Cross-file scene 'scenes.FadeIn' not found. Scenes: {:?}",
+            comp.scenes.keys().collect::<Vec<_>>());
+
+        // Edge should point to the cross-file scene
+        let edge = comp.edges.get("Intro").unwrap();
+        assert_eq!(edge.to_scene, "scenes.FadeIn");
+        assert_eq!(edge.transition.id, "fade");
+        assert_eq!(edge.transition.duration_ms, 300);
+
+        // Cleanup
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_cross_file_scene_not_found() {
+        let dir = std::env::temp_dir().join(format!("animatix_test_notfound_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+
+        let scenes_file = dir.join("scenes.amx");
+        let main_file = dir.join("main.amx");
+
+        std::fs::write(&scenes_file, "# ExistingScene\n#0s\nlabel: Text, text: \"Hi\"\n").unwrap();
+
+        std::fs::write(&main_file, &format!(
+            "import \"{}\" as scenes\n\n# Intro\n#0s\ntitle: Text, text: \"Welcome\"\nplay scenes.NonExistent\n",
+            scenes_file.display(),
+        )).unwrap();
+
+        let mut graph = animatix_syntax::module::ModuleGraph::new();
+        let program = graph.load_program(&main_file).unwrap();
+
+        let report = Composition::build(&program.statements, &program.namespaces);
+        // The play target "scenes.NonExistent" should produce a PlayTargetNotFound error
+        // because the scene exists in the namespace under "ExistingScene", not "NonExistent".
+        let has_play_error = report
+            .diagnostics
+            .iter()
+            .any(|d| matches!(d.code, DiagnosticCode::PlayTargetNotFound));
+        assert!(has_play_error, "Expected PlayTargetNotFound diagnostic. Diagnostics: {:?}", report.diagnostics);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_cross_file_scene_duration_preserved() {
+        let dir = std::env::temp_dir().join(format!("animatix_test_duration_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+
+        let scenes_file = dir.join("scenes.amx");
+        let main_file = dir.join("main.amx");
+
+        // Scene with explicit duration config
+        std::fs::write(&scenes_file, concat!(
+            "# TimedScene\n",
+            "config { duration: 5.0 }\n",
+            "#0s\n",
+            "label: Text, text: \"Timed\"\n",
+        )).unwrap();
+
+        std::fs::write(&main_file, &format!(
+            "import \"{}\" as scenes\n\n# Intro\n#0s\ntitle: Text, text: \"Welcome\"\nplay scenes.TimedScene\n",
+            scenes_file.display(),
+        )).unwrap();
+
+        let mut graph = animatix_syntax::module::ModuleGraph::new();
+        let program = graph.load_program(&main_file).unwrap();
+
+        let report = Composition::build(&program.statements, &program.namespaces);
+        assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
+        let comp = &report.output;
+
+        let timed_scene = comp.scenes.get("scenes.TimedScene").unwrap();
+        assert_eq!(timed_scene.explicit_duration_s, Some(5.0));
+        assert_eq!(timed_scene.duration_s, 5.0);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

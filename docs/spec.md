@@ -41,7 +41,8 @@
 | Multi-Scene | `Composition::build()` / `BuildTarget` | — | Runtime-real | Yes | Yes | Per-scene timeline building, edge resolution, global time mapping |
 | Multi-Scene | CLI export (video/GIF/image) | — | Runtime-real | Yes | Yes | `render_*_composition` functions; auto-routing via `BuildTarget` |
 | Multi-Scene | GUI scene list / composition timeline | — | Pending | No | Planned | Phase 4–6 of implementation plan |
-| Multi-Scene | Transition blending (dual render) | — | Pending | No | Planned | Phase 7; hard cuts only in Phase 1
+| Multi-Scene | Transition blending (dual render) | Yes | Runtime-real | Yes | Yes | Phase 7; `TransitionCompositor` + WGSL shader; wired in CLI preview, GUI preview, and export |
+| Multi-Scene | Cross-file scene composition | Yes | Runtime-real | Yes | Yes | `import "file.amx" as alias` + `play alias.SceneName`; namespace scene registry |
 
 **Key:** Parser=Yes (syntax accepted), Runtime-real (end-to-end execution), Tests=Yes (automated evidence exists).
 
@@ -1093,7 +1094,7 @@ animatix gif examples/multi_scene_mini.amx --width 640 --height 360 --fps 10
 
 ## 18. Multi-Scene Composition
 
-> **Status:** Phases 1–3 shipped (parser, composition engine, CLI export). Phases 4–8 pending (GUI, transitions, cross-file scenes).  
+> **Status:** Phases 1–3 and 7 shipped (parser, composition engine, CLI export, transition blending). Phase 4–6 pending (GUI scene list/composition timeline). Cross-file scenes pending.
 > **Design doc:** [`docs/multi-scene-composition-design.md`](multi-scene-composition-design.md)
 
 ### Scene Declarations
@@ -1125,7 +1126,7 @@ play Diagram [fade, 300ms]
 graph: Rect, size: (400, 400)
 ```
 
-**Supported transitions (hard cuts in Phase 1):** `cut`, `fade`, `wipe-left`, `wipe-right`, `wipe-up`, `wipe-down`. Transition blending (dual offscreen render) is deferred to Phase 7.
+**Supported transitions:** `cut`, `fade`, `wipe-left`, `wipe-right`, `wipe-up`, `wipe-down`. Transition blending uses a dual offscreen render path with the `TransitionCompositor` WGSL shader.
 
 ### Per-Scene Configuration
 
@@ -1153,6 +1154,40 @@ title: Text, text: "Welcome", color: accent
 # Diagram
 graph: Rect, size: (400, 400)
 ```
+
+### Cross-File Scene Composition
+
+Scenes defined in imported files can be composed across modules using aliased imports:
+
+```animatix
+// effects.amx
+# FadeIn
+title: Text, text: "Welcome"
+fade-in title [500ms]
+
+# WipeTransition
+content: Rect, size: (400, 400)
+```
+
+```animatix
+// main.amx
+import "effects.amx" as effects
+
+# Intro
+title: Text, text: "Hello"
+#1s
+fade-out title [300ms]
+play effects.FadeIn [fade, 300ms]
+
+# Diagram
+graph: Rect, size: (200, 200)
+play effects.WipeTransition [wipe-right, 500ms]
+```
+
+Cross-file scenes are referenced as `alias.SceneName` in `play` statements. Each imported scene retains its own file's prelude (shared components, `pub let` values, config) for timeline compilation.
+
+- Non-aliased imports (`import "file.amx"`) still flatten their scenes into the current file (backward compatible).
+- Scene-scoped config keys (`colorscheme`, `duration`) in the imported file apply to its scenes.
 
 ### Config Merge Semantics
 
@@ -1196,9 +1231,6 @@ Multi-scene compositions are automatically detected and routed via `BuildTarget`
 
 ### Current Limitations
 
-- **Transition blending (dual render)** — transition blending is implemented in the renderer (`TransitionCompositor` with WGSL shader) and used during export, but **live preview** (`animatix render`) still shows hard cuts only.
-- **Tree-sitter grammar** has not been updated for `# SceneName` or `play` syntax.
-- **Cross-file scenes** — scenes must be defined in a single file; importing scenes from other files is not yet supported.
 - **Multiple `play` targets** — a scene may have only one `play` statement; additional `play` statements emit a warning and are ignored.
 
 ---

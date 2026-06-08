@@ -159,6 +159,43 @@ pub fn collect_component_defs(statements: &[Stmt]) -> Vec<ComponentDef> {
     definitions
 }
 
+/// Extract the file prelude: top-level statements before the first `Stmt::Scene`,
+/// with `Stmt::Import` stripped out.
+pub fn collect_prelude_stmts(stmts: &[Stmt]) -> Vec<Stmt> {
+    let mut prelude = Vec::new();
+    for stmt in stmts {
+        if matches!(stmt, Stmt::Scene { .. }) {
+            break;
+        }
+        if let Some(cleaned) = strip_imports(stmt) {
+            prelude.push(cleaned);
+        }
+    }
+    prelude
+}
+
+/// Collect scene definitions from top-level statements, attaching the file
+/// prelude (shared context) to each scene.
+pub fn collect_scenes_from_stmts(stmts: &[Stmt]) -> HashMap<String, super::SceneData> {
+    let prelude = collect_prelude_stmts(stmts);
+    let mut scenes = HashMap::new();
+    for stmt in stmts {
+        if let Stmt::Scene { name, config, body, span } = stmt {
+            scenes.insert(
+                name.clone(),
+                super::SceneData {
+                    name: name.clone(),
+                    config: config.clone(),
+                    body: body.clone(),
+                    file_prelude: prelude.clone(),
+                    span: *span,
+                },
+            );
+        }
+    }
+    scenes
+}
+
 fn collect_component_defs_from_stmt(stmt: &Stmt, definitions: &mut Vec<ComponentDef>) {
     match stmt {
         Stmt::ComponentDef(definition, ..) => definitions.push(definition.clone()),

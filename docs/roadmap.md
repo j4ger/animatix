@@ -12,11 +12,7 @@ No remaining tasks.
 
 ## Multi-Scene Composition
 
-| # | Task | Effort | Description |
-|---|------|--------|-------------|
-| 1 | **Tree-sitter grammar for multi-scene** | 1 week | Update grammar for `# SceneName` and `play` syntax. Syntax highlighting is broken for multi-scene files. |
-| 2 | **Cross-file scenes** | 1–2 weeks | Allow scenes to be defined in imported files and composed across modules. Needs design for how `play` edges reference imported scenes. |
-| 3 | **Live preview transition blending** | 3–5 days | `TransitionCompositor` (WGSL shader) is implemented and used during export, but the `animatix render` live preview shows hard cuts only. Wire preview window to use `render_transition`. |
+No remaining tasks.
 
 ---
 

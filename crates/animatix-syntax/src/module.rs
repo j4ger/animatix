@@ -7,10 +7,10 @@ mod inline_actions;
 mod rewrite;
 
 use crate::ast::{
-    Action, ComponentDef, Expr, InlineItem, Modifier, ParamDef, Property, Stmt,
+    Action, ComponentDef, Expr, InlineItem, Modifier, ParamDef, Property, Span, Stmt,
 };
 use crate::parser::{parse_source, ParseError};
-use discovery::{collect_component_actions, collect_component_defs, collect_imports, strip_imports};
+use discovery::{collect_component_actions, collect_component_defs, collect_imports, collect_scenes_from_stmts, strip_imports};
 use expand::expand_statements;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -147,11 +147,31 @@ impl LoadedProgram {
     }
 }
 
+/// Raw scene data from an imported module, stored in a namespace.
+/// Used to build cross-file scene timelines at composition time.
+#[derive(Clone, Debug)]
+pub struct SceneData {
+    /// Scene name from the `# SceneName` declaration.
+    pub name: String,
+    /// Scene-level config properties (e.g. colorscheme, duration).
+    pub config: Vec<Property>,
+    /// Scene body statements (keyframes, actors, actions, etc.).
+    pub body: Vec<Stmt>,
+    /// Top-level statements before the first scene in the source file.
+    /// Provides shared context (components, pub lets, config) needed
+    /// to build the scene's timeline.
+    pub file_prelude: Vec<Stmt>,
+    /// Source span of the scene declaration.
+    pub span: Option<Span>,
+}
+
 /// A namespace of exported values from an aliased import.
 #[derive(Clone, Debug, Default)]
 pub struct Namespace {
     /// Exported values keyed by name.
     pub exports: HashMap<String, Expr>,
+    /// Scene definitions from this module, keyed by scene name.
+    pub scenes: HashMap<String, SceneData>,
 }
 
 /// Collects all `pub let` declarations from statements, recursing into
@@ -564,7 +584,11 @@ impl ModuleGraph {
                         .and_then(|p| self.paths.get(&p).copied())
                     {
                         let resolved_exports = self.collect_resolved_exports(import_id);
-                        namespaces.insert(alias.clone(), Namespace { exports: resolved_exports });
+                        let resolved_scenes = self.collect_resolved_scenes(import_id);
+                        namespaces.insert(alias.clone(), Namespace {
+                            exports: resolved_exports,
+                            scenes: resolved_scenes,
+                        });
                     }
                 }
             }
@@ -648,7 +672,8 @@ impl ModuleGraph {
                     .and_then(|p| self.paths.get(&p).copied())
                 {
                     let sub_exports = self.collect_resolved_exports(sub_id);
-                    import_namespaces.insert(alias.clone(), Namespace { exports: sub_exports });
+                    let sub_scenes = self.collect_resolved_scenes(sub_id);
+                    import_namespaces.insert(alias.clone(), Namespace { exports: sub_exports, scenes: sub_scenes });
                 }
             }
         }
@@ -659,6 +684,82 @@ impl ModuleGraph {
             .map(|(k, v)| (k.clone(), v))
             .collect();
         resolve_exports(raw_exports, &import_refs)
+    }
+
+    /// Collect resolved scene data for a module, flattening the module's
+    /// statements and extracting `Stmt::Scene` nodes with their file prelude.
+    fn collect_resolved_scenes(&self, file_id: FileId) -> HashMap<String, SceneData> {
+        let module = match self.files.get(&file_id) {
+            Some(m) => m,
+            None => return HashMap::new(),
+        };
+
+        // Flatten this module's statements (including non-aliased imports)
+        let mut flat = Vec::new();
+        let mut visited = Vec::new();
+        // We inline the flatten logic here to avoid borrow conflicts with `self`.
+        self.flatten_module_stmts(file_id, &mut flat, &mut visited);
+
+        let mut scenes = collect_scenes_from_stmts(&flat);
+
+        // Recursively collect scenes from aliased sub-imports.
+        // These are available as "alias.SceneName" in the parent namespace.
+        for imp in &module.imports {
+            if let Some(alias) = &imp.1 {
+                let import_path = Self::resolve_path(
+                    module.path.parent().unwrap_or(Path::new(".")),
+                    &imp.0,
+                );
+                if let Some(sub_id) = fs::canonicalize(&import_path)
+                    .ok()
+                    .and_then(|p| self.paths.get(&p).copied())
+                {
+                    let sub_scenes = self.collect_resolved_scenes(sub_id);
+                    for (name, data) in sub_scenes {
+                        // Prefix with alias to make it accessible as "alias.SceneName"
+                        scenes.insert(format!("{}.{}", alias, name), data);
+                    }
+                }
+            }
+        }
+
+        scenes
+    }
+
+    /// Flatten a module's statements into `result`, following non-aliased imports.
+    /// Separate from `flatten_recursive` to allow calling from multiple contexts.
+    fn flatten_module_stmts(
+        &self,
+        file_id: FileId,
+        result: &mut Vec<Stmt>,
+        visited: &mut Vec<FileId>,
+    ) {
+        if visited.contains(&file_id) {
+            return;
+        }
+        visited.push(file_id);
+
+        if let Some(module) = self.files.get(&file_id) {
+            for imp in &module.imports {
+                if imp.1.is_some() {
+                    continue; // Aliased imports are not flattened
+                }
+                let import_path =
+                    Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
+                if let Some(import_id) = fs::canonicalize(&import_path)
+                    .ok()
+                    .and_then(|p| self.paths.get(&p).copied())
+                {
+                    self.flatten_module_stmts(import_id, result, visited);
+                }
+            }
+
+            for stmt in &module.statements {
+                if let Some(stmt) = strip_imports(stmt) {
+                    result.push(stmt);
+                }
+            }
+        }
     }
 
     fn flatten_recursive(
