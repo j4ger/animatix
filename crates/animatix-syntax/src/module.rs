@@ -69,6 +69,8 @@ pub struct ModuleGraph {
     files: HashMap<FileId, ParsedModule>,
     next_id: u32,
     paths: HashMap<PathBuf, FileId>,
+    /// When true, use the tree-sitter parser instead of chumsky.
+    use_tree_sitter: bool,
 }
 
 /// A component definition together with its source file and custom actions.
@@ -347,6 +349,17 @@ impl ModuleGraph {
             files: HashMap::new(),
             next_id: 0,
             paths: HashMap::new(),
+            use_tree_sitter: false,
+        }
+    }
+
+    /// Create a new ModuleGraph that uses the tree-sitter parser.
+    pub fn new_with_tree_sitter() -> Self {
+        ModuleGraph {
+            files: HashMap::new(),
+            next_id: 0,
+            paths: HashMap::new(),
+            use_tree_sitter: true,
         }
     }
 
@@ -398,7 +411,11 @@ impl ModuleGraph {
             .map(|override_source| override_source.source.to_owned())
             .unwrap_or(fs::read_to_string(&canonical).map_err(ModuleError::IoError)?);
 
-        let (statements, parse_errors) = parse_source(&source);
+        let (statements, parse_errors) = if self.use_tree_sitter {
+            crate::parser::parse_source_ts(&source)
+        } else {
+            parse_source(&source)
+        };
 
         if !parse_errors.is_empty() {
             return Err(ModuleError::ParseErrors(parse_errors));

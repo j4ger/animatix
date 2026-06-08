@@ -53,6 +53,8 @@ pub struct DocumentSession {
     cached_expanded: Option<Vec<Stmt>>,
     /// Cached module graph — preserves parsed imports across rebuilds.
     cached_module_graph: Option<ModuleGraph>,
+    /// When true, use the tree-sitter parser for incremental parsing.
+    use_tree_sitter: bool,
 }
 
 impl DocumentSession {
@@ -83,6 +85,7 @@ impl DocumentSession {
             last_component_hash: 0,
             cached_expanded: None,
             cached_module_graph: None,
+            use_tree_sitter: false,
         };
 
         if let Err(e) = document.rebuild() {
@@ -115,7 +118,23 @@ impl DocumentSession {
             last_component_hash: 0,
             cached_expanded: None,
             cached_module_graph: None,
+            use_tree_sitter: false,
         }
+    }
+
+    /// Enable or disable the tree-sitter parser for incremental parsing.
+    /// When enabled, the next rebuild will use tree-sitter instead of chumsky.
+    pub fn set_use_tree_sitter(&mut self, enabled: bool) {
+        if self.use_tree_sitter != enabled {
+            self.use_tree_sitter = enabled;
+            // Invalidate cached module graph since the parser changed
+            self.cached_module_graph = None;
+        }
+    }
+
+    /// Returns true if the tree-sitter parser is enabled.
+    pub fn uses_tree_sitter(&self) -> bool {
+        self.use_tree_sitter
     }
 
     pub fn set_source_text(&mut self, source_text: String) {
@@ -291,7 +310,11 @@ impl DocumentSession {
     /// Uses cached ModuleGraph to avoid re-reading unchanged imports.
     /// Skips component expansion when the component registry hasn't changed.
     fn load_program(&mut self) -> Result<LoadedProgramResult, ModuleError> {
-        let mut graph = self.cached_module_graph.take().unwrap_or_default();
+        let mut graph = if self.use_tree_sitter {
+            self.cached_module_graph.take().unwrap_or_else(ModuleGraph::new_with_tree_sitter)
+        } else {
+            self.cached_module_graph.take().unwrap_or_default()
+        };
         let mut program = graph
             .load_program_with_source(&self.file_path, Some(&self.source_text))?;
         let type_diagnostics = program.typecheck();

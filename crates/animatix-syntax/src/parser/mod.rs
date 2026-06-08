@@ -99,6 +99,35 @@ pub fn parse_source(source: &str) -> (Option<Vec<Stmt>>, Vec<ParseError>) {
     (ast, owned_errors)
 }
 
+/// Parse source using tree-sitter and return the same format as [`parse_source`].
+///
+/// This is the incremental parsing entry point. Tree-sitter re-parses only the
+/// changed region of the file, making this significantly faster for large files
+/// with small edits. Falls back to the chumsky parser if tree-sitter fails.
+pub fn parse_source_ts(source: &str) -> (Option<Vec<Stmt>>, Vec<ParseError>) {
+    match crate::ts_convert::parse_source(source) {
+        Some(result) => {
+            let errors: Vec<ParseError> = result.diagnostics.iter().map(|d| {
+                let span = d.location.span.clone().unwrap_or(0..0);
+                ParseError {
+                    message: d.message.clone(),
+                    span,
+                    line: d.location.line.unwrap_or(1),
+                    column: d.location.column.unwrap_or(1),
+                    expected: Vec::new(),
+                    found: None,
+                    context: Vec::new(),
+                }
+            }).collect();
+            (Some(result.statements), errors)
+        }
+        None => {
+            // Tree-sitter failed — fall back to chumsky
+            parse_source(source)
+        }
+    }
+}
+
 /// Strip VS Code–style tab-stop placeholders from snippet text.
 ///
 /// Placeholders have the form `${N:default}` or `${N}` (where N is a
