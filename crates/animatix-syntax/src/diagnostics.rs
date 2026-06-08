@@ -102,6 +102,10 @@ pub enum DiagnosticCode {
     PlayTargetNotFound,
     /// Multi-scene composition: a play cycle was detected.
     PlayCycleDetected,
+    /// Multi-scene composition: a scene has multiple `play` statements (only the first is used).
+    MultiplePlayTargets,
+    /// Multi-scene composition: a scene is unreachable (no `play` edge leads to it).
+    OrphanScene,
     /// The plot function is invalid.
     InvalidPlotFunc,
     /// The actor type is unknown.
@@ -154,6 +158,8 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::DuplicateSceneName => write!(f, "duplicate-scene-name"),
             DiagnosticCode::PlayTargetNotFound => write!(f, "play-target-not-found"),
             DiagnosticCode::PlayCycleDetected => write!(f, "play-cycle-detected"),
+            DiagnosticCode::MultiplePlayTargets => write!(f, "multiple-play-targets"),
+            DiagnosticCode::OrphanScene => write!(f, "orphan-scene"),
             DiagnosticCode::InvalidPlotFunc => write!(f, "invalid-plot-func"),
             DiagnosticCode::UnknownActorType => write!(f, "unknown-actor-type"),
             DiagnosticCode::TypeMismatch => write!(f, "type-mismatch"),

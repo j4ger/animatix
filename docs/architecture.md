@@ -630,15 +630,23 @@ Not every visual variation needs its own primitive. The rule of thumb:
 
 ## 15. Multi-Scene Composition
 
-> Design doc archived. All phases (1–8) shipped 2026-05-15.
-
 Core concepts:
 - `# SceneName` declares a scene; `play SceneName [transition, duration]` declares edges.
-- `Composition::build()` creates per-scene `Timeline` instances, resolves `play` edges, detects cycles.
-- `Composition::evaluate(global_time_s)` maps global time → `(scene_name, local_time_s, transition_blend)`.
+- `Composition::build()` creates per-scene `Timeline` instances, resolves `play` edges, detects cycles, and warns on orphan scenes and multiple play targets.
+- `Composition::evaluate(global_time_s)` maps global time → `(scene_name, local_time_s, transition_blend)` with eased progress.
 - `BuildTarget` auto-routes single-scene vs multi-scene for CLI/GUI.
 
-For the full historical design, see git history of `docs/multi-scene-composition-design.md`.
+**Config merge:** The shared prelude (imports, `pub let`, top-level `config`) is prepended to every scene body before timeline compilation. Scene-scoped config keys (`colorscheme`, `dynamic_layout`) override the prelude; composition-scoped keys (`resolution`, `strict_types`) are ignored with a warning. See [`spec.md`](spec.md) §Config Merge Semantics for the full key-scope table.
+
+**Diagnostics:**
+- `DuplicateSceneName` — error on repeated scene names
+- `PlayTargetNotFound` — error when `play` references a missing scene
+- `PlayCycleDetected` — error when play edges form a cycle
+- `MultiplePlayTargets` — warning when a scene has >1 `play` statement (first wins)
+- `OrphanScene` — warning when a scene is not the target of any `play` edge
+- `InvalidConfigValue` — warning when a scene config sets a composition-scoped key
+
+**GUI:** The sidebar scene list supports drag-to-reorder, context menus (duplicate, delete, set active), and per-scene inspector (duration, start time, background color, transition target/type/duration/easing). `SourceEdit` variants cover: `ReorderScenes`, `SetPlayTarget`, `SetTransition`, `SetSceneDuration`, `RenameScene`, `AddScene`, `DeleteScene`, `DuplicateScene`, `ExtractScene`, `MoveToScene`.
 
 ---
 

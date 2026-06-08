@@ -103,3 +103,8 @@ Known limitation. Two clones are necessary because we need 3 copies: cache, retu
 2. **Phase 6 — Web Export** (2+ months)
    - Defer until renderer abstraction is done
    - Big refactor, no quick wins
+
+3. **Multi-Scene Composition — remaining work**
+   - **Tree-sitter grammar** — update for `# SceneName` and `play` syntax (syntax highlighting broken for multi-scene files)
+   - **Cross-file scenes** — allow scenes to be defined in imported files and composed across modules. Needs design work for how `play` edges reference imported scenes.
+   - **Live preview transition blending** — the renderer and `TransitionCompositor` (WGSL shader) are implemented and used during export, but the `animatix render` live preview window still shows hard cuts only. Wire the preview window to use `render_transition`.

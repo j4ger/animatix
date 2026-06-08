@@ -20,6 +20,42 @@ fn scene_names(stmts: &[Stmt]) -> Vec<String> {
         .collect()
 }
 
+/// Collect all actor labels from all scenes (recursively).
+fn collect_all_labels(stmts: &[Stmt]) -> Vec<String> {
+    let mut labels = Vec::new();
+    collect_labels_recursive(stmts, &mut labels);
+    labels
+}
+
+fn collect_labels_recursive(stmts: &[Stmt], out: &mut Vec<String>) {
+    for stmt in stmts {
+        match stmt {
+            Stmt::ActorDecl { label, .. } => out.push(label.clone()),
+            Stmt::Scene { body, .. }
+            | Stmt::Keyframe { body, .. }
+            | Stmt::RelativeKeyframe { body, .. }
+            | Stmt::Sequence { body, .. }
+            | Stmt::Stagger { body, .. }
+            | Stmt::Always { body, .. } => {
+                collect_labels_recursive(body, out);
+            }
+            Stmt::Conditional { then_branch, else_branch, .. } => {
+                collect_labels_recursive(then_branch, out);
+                if let Some(else_b) = else_branch {
+                    collect_labels_recursive(else_b, out);
+                }
+            }
+            Stmt::ForLoop { body, .. } => {
+                collect_labels_recursive(body, out);
+            }
+            Stmt::ComponentDef(def, _) => {
+                collect_labels_recursive(&def.body, out);
+            }
+            _ => {}
+        }
+    }
+}
+
 fn duplicate_name_in_order(order: &[String]) -> Option<String> {
     use std::collections::HashSet;
     let mut seen = HashSet::new();
@@ -291,12 +327,20 @@ pub(super) fn duplicate_scene(stmts: &mut Vec<Stmt>, name: &str) -> Result<(), S
     }
 
     // Rename actor labels inside the duplicated scene to avoid conflicts
-    let mut label_counter = 0usize;
+    // with labels in ANY scene (not just the duplicated one).
+    let all_existing_labels = collect_all_labels(stmts);
+    let mut used_labels: std::collections::HashSet<String> = all_existing_labels.into_iter().collect();
     walk_stmts_mut(std::slice::from_mut(&mut new_scene), &mut |stmt| {
         if let Stmt::ActorDecl { label, .. } = stmt {
-            let new_label = format!("{}_{}", label, label_counter);
-            label_counter += 1;
-            *label = new_label;
+            let base = label.clone();
+            let mut candidate = format!("{}_0", base);
+            let mut counter = 0usize;
+            while used_labels.contains(&candidate) {
+                counter += 1;
+                candidate = format!("{}_{}", base, counter);
+            }
+            used_labels.insert(candidate.clone());
+            *label = candidate;
         }
     });
 
@@ -341,11 +385,15 @@ pub(super) fn delete_scene(stmts: &mut Vec<Stmt>, name: &str) -> Result<(), Sour
 /// 1. Find and remove the actor declarations from their current location.
 /// 2. Create a new scene containing those actors.
 /// 3. Append the new scene after the current scene (or at top level).
-/// 4. Add a `play` statement linking to the new scene.
+/// 4. Add a `play` statement to the *source* scene linking to the new scene.
 pub(super) fn extract_scene(stmts: &mut Vec<Stmt>, actor_labels: Vec<String>, new_scene_name: &str) -> Result<(), SourceEditError> {
     if actor_labels.is_empty() {
         return Err(SourceEditError::EmptyActorList);
     }
+
+    // Determine which scene the actors are being extracted from.
+    // We find the first scene that contains any of the requested labels.
+    let source_scene_name = find_containing_scene_name(stmts, &actor_labels);
 
     // Collect the actor statements we want to extract.
     let mut extracted: Vec<Stmt> = Vec::new();
@@ -363,15 +411,30 @@ pub(super) fn extract_scene(stmts: &mut Vec<Stmt>, actor_labels: Vec<String>, ne
         span: None,
     };
 
-    // Add play statement linking to the new scene.
+    // Add play statement linking to the new scene — insert into the *source*
+    // scene's body so the edge is local to where the actors came from.
     let play_stmt = Stmt::Play {
         scene_name: new_scene_name.to_string(),
         transition: None,
         span: None,
     };
 
+    // Insert the new scene after the last scene in the file.
     stmts.push(new_scene);
-    stmts.push(play_stmt);
+
+    // Insert the play statement into the source scene's body.
+    if let Some(source_name) = source_scene_name {
+        if let Some(Stmt::Scene { body, .. }) = find_scene_mut(stmts, &source_name) {
+            body.push(play_stmt);
+        } else {
+            // Fallback: source scene not found (shouldn't happen), append at top level.
+            stmts.push(play_stmt);
+        }
+    } else {
+        // Actors were at top level (not inside any scene) — append play at top level.
+        stmts.push(play_stmt);
+    }
+
     Ok(())
 }
 
@@ -444,6 +507,60 @@ fn extract_actors_from_stmts(stmts: &mut Vec<Stmt>, labels: &[String], out: &mut
 
         i += 1;
     }
+}
+
+/// Find the name of the scene that contains any of the given actor labels.
+/// Returns `None` if actors are at the top level (not inside any scene).
+fn find_containing_scene_name(stmts: &[Stmt], labels: &[String]) -> Option<String> {
+    for stmt in stmts {
+        if let Stmt::Scene { name, body, .. } = stmt {
+            if scene_body_has_any_label(body, labels) {
+                return Some(name.clone());
+            }
+        }
+    }
+    None
+}
+
+/// Check if a statement tree contains any actor declaration with the given labels.
+fn scene_body_has_any_label(stmts: &[Stmt], labels: &[String]) -> bool {
+    for stmt in stmts {
+        match stmt {
+            Stmt::ActorDecl { label, .. } if labels.contains(label) => return true,
+            Stmt::Scene { body, .. }
+            | Stmt::Keyframe { body, .. }
+            | Stmt::RelativeKeyframe { body, .. }
+            | Stmt::Sequence { body, .. }
+            | Stmt::Stagger { body, .. }
+            | Stmt::Always { body, .. } => {
+                if scene_body_has_any_label(body, labels) {
+                    return true;
+                }
+            }
+            Stmt::Conditional { then_branch, else_branch, .. } => {
+                if scene_body_has_any_label(then_branch, labels) {
+                    return true;
+                }
+                if let Some(else_b) = else_branch {
+                    if scene_body_has_any_label(else_b, labels) {
+                        return true;
+                    }
+                }
+            }
+            Stmt::ForLoop { body, .. } => {
+                if scene_body_has_any_label(body, labels) {
+                    return true;
+                }
+            }
+            Stmt::ComponentDef(def, _) => {
+                if scene_body_has_any_label(&def.body, labels) {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 // ---------------------------------------------------------------------------
@@ -605,5 +722,45 @@ mod tests {
             &mut stmts,
             SourceEdit::SetSceneDuration { scene: "Missing".into(), duration_s: Some(5.0) }
         ).is_err());
+    }
+
+    #[test]
+    fn extract_scene_inserts_play_into_source_scene_body() {
+        let mut stmts = parse("# Intro\ntitle: Text, text: \"Hello\"\nbox: Rect, size: (100, 100)\n\n# Outro");
+        assert!(apply_edit(
+            &mut stmts,
+            SourceEdit::ExtractScene {
+                actor_labels: vec!["box".into()],
+                new_scene_name: "Diagram".into(),
+            }
+        ).is_ok());
+        let src = stmts_to_source(&stmts);
+        // The play statement should be inside the Intro scene, not at top level
+        assert!(src.contains("play Diagram"), "Expected 'play Diagram' in output: {}", src);
+        // Verify the new scene exists
+        assert!(src.contains("# Diagram"), "Expected '# Diagram' in output: {}", src);
+        // Verify the play is inside Intro's body (serialized before the next scene)
+        let intro_pos = src.find("# Intro").unwrap();
+        let diagram_pos = src.find("# Diagram").unwrap();
+        let play_pos = src.find("play Diagram").unwrap();
+        assert!(play_pos > intro_pos && play_pos < diagram_pos,
+            "play Diagram should be between # Intro and # Diagram, got positions: intro={}, play={}, diagram={}",
+            intro_pos, play_pos, diagram_pos);
+    }
+
+    #[test]
+    fn duplicate_scene_renames_labels_across_all_scenes() {
+        let mut stmts = parse("# Intro\nbox: Rect, size: (100, 100)\n\n# Diagram\ncircle: Ellipse, size: (50, 50)");
+        assert!(apply_edit(
+            &mut stmts,
+            SourceEdit::DuplicateScene { name: "Intro".into() }
+        ).is_ok());
+        let src = stmts_to_source(&stmts);
+        // The duplicated scene should have renamed labels that don't conflict
+        // with the original 'box' or 'circle' in other scenes
+        assert!(src.contains("box"), "Original box should still exist: {}", src);
+        assert!(src.contains("circle"), "Original circle should still exist: {}", src);
+        // The duplicated scene should have a renamed label (box_0 or similar)
+        assert!(src.contains("_0"), "Duplicated label should have _0 suffix: {}", src);
     }
 }

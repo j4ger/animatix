@@ -20,7 +20,7 @@ A progressive suite of 17 runnable `.amx` demos. Each builds on the previous, in
 | 11 | `11_colors.amx` | ~3s | **Color system** — `auto`, built-in constants, scheme tokens |
 | 12 | `12_reorder.amx` | ~10s | **Reorder** — `swap`, `reorder` with `dynamic_layout` |
 | 13 | `13_paths.amx` | ~6s | **Paths** — bezier curves, polygon morphing |
-| 14 | `14_multiscene.amx` | ~6s | **Scenes** — `# SceneName`, `play`, transitions |
+| 14 | `14_multiscene.amx` | ~6s | **Scenes** — `# SceneName`, `play`, transitions, per-scene `colorscheme` overrides |
 | 15 | `15_for_loop.amx` | ~4s | **For loops** — compile-time expansion |
 | 16 | `16_showcase.amx` | ~6s | **Hero** — everything combined in one polished scene |
 

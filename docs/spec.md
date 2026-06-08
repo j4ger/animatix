@@ -1129,7 +1129,7 @@ graph: Rect, size: (400, 400)
 
 ### Per-Scene Configuration
 
-A scene may contain its own `config` block after the scene declaration:
+A scene may contain its own `config` block after the scene declaration. Scene-scoped keys (`colorscheme`, `dynamic_layout`, `duration`) override the prelude; composition-scoped keys (`resolution`, `strict_types`) are ignored with a warning. See [Config Merge Semantics](#config-merge-semantics) below.
 
 ```animatix
 # Intro
@@ -1154,6 +1154,38 @@ title: Text, text: "Welcome", color: accent
 graph: Rect, size: (400, 400)
 ```
 
+### Config Merge Semantics
+
+When both the shared prelude and a scene define `config` blocks, the **scene-level config takes precedence** for scene-scoped keys. The prelude provides base defaults; scene config overrides them.
+
+```animatix
+config { resolution: (1280, 720), colorscheme: "default-dark" }
+
+# Intro
+config { colorscheme: "editorial-dark" }  // overrides prelude colorscheme
+// Intro uses: resolution (1280, 720) from prelude, colorscheme "editorial-dark" from scene config
+
+# Diagram
+// No scene config — inherits both resolution and colorscheme from prelude
+```
+
+**Config key scopes:**
+
+| Key | Scope | Scene override? | Notes |
+|-----|-------|----------------|-------|
+| `resolution` | Composition | ❌ No | Set once in the prelude; affects canvas size and export dimensions. Scene-level `resolution` is ignored with a warning. |
+| `strict_types` | Program | ❌ No | Enables strict type checking for the entire file. Scene-level `strict_types` is ignored. |
+| `colorscheme` | Scene | ✅ Yes | Scene-level overrides prelude. Each scene can have a different colorscheme. |
+| `dynamic_layout` | Scene | ✅ Yes | Scene-level overrides prelude. Enables per-frame layout recomputation. |
+| `duration` | Scene | ✅ Yes | Scene-only; sets explicit scene duration (overrides keyframe-inferred duration). |
+
+**Merge rules:**
+- The shared prelude statements are prepended to every scene's body before timeline compilation.
+- Scene-scoped keys (`colorscheme`, `dynamic_layout`, `duration`) override the prelude.
+- Composition-scoped keys (`resolution`, `strict_types`) are inherited from the prelude only; scene-level overrides produce a warning and are ignored.
+- Properties present only in the prelude are inherited by all scenes.
+- Properties present only in a scene's config apply only to that scene.
+
 ### Backward Compatibility
 
 Files without `# SceneName` declarations are single-scene files — all existing syntax, semantics, and behavior are preserved exactly. The parser produces the same AST as before; the timeline builder follows the existing single-timeline path.
@@ -1164,10 +1196,10 @@ Multi-scene compositions are automatically detected and routed via `BuildTarget`
 
 ### Current Limitations
 
-- **Hard cuts only** — transition blending (Phase 7) is not yet implemented; scene changes are instantaneous cuts.
-- **Live preview** (`animatix render`) shows only the first scene for multi-scene files.
-- **GUI** does not yet show the scene list panel or composition timeline (Phases 4–6).
+- **Transition blending (dual render)** — transition blending is implemented in the renderer (`TransitionCompositor` with WGSL shader) and used during export, but **live preview** (`animatix render`) still shows hard cuts only.
 - **Tree-sitter grammar** has not been updated for `# SceneName` or `play` syntax.
+- **Cross-file scenes** — scenes must be defined in a single file; importing scenes from other files is not yet supported.
+- **Multiple `play` targets** — a scene may have only one `play` statement; additional `play` statements emit a warning and are ignored.
 
 ---
 
