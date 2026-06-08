@@ -6,4 +6,6 @@ rust-version = "1.85"
 
 [dependencies]
 chumsky = "0.12.0"
+tree-sitter = "0.26"
+tree-sitter-animatix = { path = "../tree-sitter-animatix" }
 tracing = "0.1"

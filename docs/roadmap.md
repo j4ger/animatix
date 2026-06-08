@@ -14,7 +14,6 @@ Build and runtime optimizations.
 | 2 | **Expression evaluation memoization** | Medium | 1 day | Cache `(expr_ptr, env_hash) → Value` during build. Same expression in same environment produces same result. |
 | 3 | **Incremental component expansion** | Medium | 2–3 days | Only re-expand changed component instances. Requires AST diffing or dirty-flag per component. |
 | 4 | **Skip stmts_to_source for surgical edits** | Low | 1 day | For keyframe moves/resizes, use SourceIndex byte-range replacement instead of full AST re-serialization. |
-| 5 | **Reduce cloning in expansion pipeline** | Low | 1–2 days | `expand_stmt_into` clones from `&Stmt`, `rewrite_stmt` clones recursively. Consider `Rc<Stmt>` or arena allocation if profiling shows it's hot. |
 
 ---
 

@@ -199,6 +199,8 @@ version = "0.1.0"
 dependencies = [
  "chumsky",
  "tracing",
+ "tree-sitter",
+ "tree-sitter-animatix",
 ]
 
 [[package]]

@@ -19,6 +19,8 @@ pub mod parser;
 #[doc(hidden)]
 pub use chumsky;
 pub mod source_index;
+/// Tree-sitter CST → Animatix AST converter for incremental parsing.
+pub mod ts_convert;
 pub mod to_source;
 pub mod transition_registry;
 /// Gradual type checker for component/action parameter validation.
