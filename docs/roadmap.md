@@ -11,8 +11,7 @@ Build and runtime optimizations.
 | # | Task | Impact | Effort | Description |
 |---|------|--------|--------|-------------|
 | 1 | **Incremental parsing (tree-sitter)** | High | 1–2 weeks | Use existing tree-sitter grammar for incremental parsing. Feed AST diffs to build pipeline. *CST→AST converter (`ts_convert`) implemented; GUI integration pending.* |
-| 2 | **Incremental component expansion** | Medium | 2–3 days | Only re-expand changed component instances. Requires AST diffing or dirty-flag per component. |
-| 3 | **Skip stmts_to_source for surgical edits** | Low | 1 day | For keyframe moves/resizes, use SourceIndex byte-range replacement instead of full AST re-serialization. |
+| 2 | **Skip stmts_to_source for surgical edits** | Low | 1 day | For keyframe moves/resizes, use SourceIndex byte-range replacement instead of full AST re-serialization. |
 
 ---
 
