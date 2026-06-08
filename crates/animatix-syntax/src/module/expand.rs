@@ -4,14 +4,42 @@ use super::{
     rewrite::rewrite_stmt,
 };
 
+/// Maximum nesting depth for component expansion before reporting a cycle error.
+const MAX_EXPANSION_DEPTH: usize = 64;
+
+/// Mutable state threaded through the component expansion pipeline.
+struct ExpansionCtx {
+    /// Monotonically increasing counter for generating unique anonymous labels.
+    anon_counter: usize,
+    /// Current component nesting depth (for cycle detection).
+    depth: usize,
+}
+
+impl ExpansionCtx {
+    fn new() -> Self {
+        Self {
+            anon_counter: 0,
+            depth: 0,
+        }
+    }
+
+    /// Generate a unique label for an anonymous component instance.
+    fn next_anon_label(&mut self) -> String {
+        let label = format!("__anon_{}", self.anon_counter);
+        self.anon_counter += 1;
+        label
+    }
+}
+
 pub(super) fn expand_statements(
     statements: &[Stmt],
     components: &HashMap<String, ComponentEntry>,
 ) -> (Vec<Stmt>, InstanceActionRegistry) {
+    let mut ctx = ExpansionCtx::new();
     let mut expanded = Vec::new();
     let mut registry = InstanceActionRegistry::new();
     for stmt in statements {
-        expand_stmt_into(stmt, components, &mut expanded, &mut registry);
+        expand_stmt_into(stmt, components, &mut expanded, &mut registry, &mut ctx);
     }
     (expanded, registry)
 }
@@ -21,10 +49,11 @@ fn expand_stmt_into(
     components: &HashMap<String, ComponentEntry>,
     output: &mut Vec<Stmt>,
     registry: &mut InstanceActionRegistry,
+    ctx: &mut ExpansionCtx,
 ) {
     match stmt {
         Stmt::Keyframe { time, body, .. } => {
-            let (expanded_body, sub_registry) = expand_statements(body, components);
+            let (expanded_body, sub_registry) = expand_statements_inner(body, components, ctx);
             merge_registry(registry, sub_registry);
             output.push(Stmt::Keyframe {
                 time: time.clone(),
@@ -33,7 +62,7 @@ fn expand_stmt_into(
             });
         }
         Stmt::RelativeKeyframe { offset, body, .. } => {
-            let (expanded_body, sub_registry) = expand_statements(body, components);
+            let (expanded_body, sub_registry) = expand_statements_inner(body, components, ctx);
             merge_registry(registry, sub_registry);
             output.push(Stmt::RelativeKeyframe {
                 offset: offset.clone(),
@@ -42,7 +71,7 @@ fn expand_stmt_into(
             });
         }
         Stmt::Always { body, .. } => {
-            let (expanded_body, sub_registry) = expand_statements(body, components);
+            let (expanded_body, sub_registry) = expand_statements_inner(body, components, ctx);
             merge_registry(registry, sub_registry);
             output.push(Stmt::Always {
                 body: expanded_body,
@@ -64,10 +93,10 @@ fn expand_stmt_into(
             else_branch,
             ..
         } => {
-            let (then_expanded, then_registry) = expand_statements(then_branch, components);
+            let (then_expanded, then_registry) = expand_statements_inner(then_branch, components, ctx);
             merge_registry(registry, then_registry);
             let else_expanded = else_branch.as_ref().map(|branch| {
-                let (expanded, sub_registry) = expand_statements(branch, components);
+                let (expanded, sub_registry) = expand_statements_inner(branch, components, ctx);
                 merge_registry(registry, sub_registry);
                 expanded
             });
@@ -84,7 +113,7 @@ fn expand_stmt_into(
             body,
             ..
         } => {
-            let (expanded_body, sub_registry) = expand_statements(body, components);
+            let (expanded_body, sub_registry) = expand_statements_inner(body, components, ctx);
             merge_registry(registry, sub_registry);
             output.push(Stmt::ForLoop {
                 var: var.clone(),
@@ -94,7 +123,7 @@ fn expand_stmt_into(
             });
         }
         Stmt::Sequence { body, .. } => {
-            let (expanded_body, sub_registry) = expand_statements(body, components);
+            let (expanded_body, sub_registry) = expand_statements_inner(body, components, ctx);
             merge_registry(registry, sub_registry);
             output.push(Stmt::Sequence {
                 body: expanded_body,
@@ -102,7 +131,7 @@ fn expand_stmt_into(
             });
         }
         Stmt::Stagger { modifiers, body, .. } => {
-            let (expanded_body, sub_registry) = expand_statements(body, components);
+            let (expanded_body, sub_registry) = expand_statements_inner(body, components, ctx);
             merge_registry(registry, sub_registry);
             output.push(Stmt::Stagger {
                 modifiers: modifiers.clone(),
@@ -123,12 +152,12 @@ fn expand_stmt_into(
         } => {
             if let Some(component) = components.get(ty) {
                 let (instance_stmts, instance_registry) = expand_component_instance(
-                    label, props, children, component, components,
+                    label, props, children, component, components, ctx,
                 );
                 merge_registry(registry, instance_registry);
                 output.extend(instance_stmts);
             } else {
-                let expanded_children = expand_inline_items(children, components, registry);
+                let expanded_children = expand_inline_items(children, components, registry, ctx);
                 output.push(Stmt::ActorDecl {
                     is_pub: false,
                     is_anonymous: false,
@@ -154,11 +183,26 @@ fn merge_registry(
     }
 }
 
+/// Internal entry point that shares the [`ExpansionCtx`] across recursive calls.
+fn expand_statements_inner(
+    statements: &[Stmt],
+    components: &HashMap<String, ComponentEntry>,
+    ctx: &mut ExpansionCtx,
+) -> (Vec<Stmt>, InstanceActionRegistry) {
+    let mut expanded = Vec::new();
+    let mut registry = InstanceActionRegistry::new();
+    for stmt in statements {
+        expand_stmt_into(stmt, components, &mut expanded, &mut registry, ctx);
+    }
+    (expanded, registry)
+}
+
 /// Recursively expand component instances inside inline items (container children).
 fn expand_inline_items(
     items: &[InlineItem],
     components: &HashMap<String, ComponentEntry>,
     registry: &mut InstanceActionRegistry,
+    ctx: &mut ExpansionCtx,
 ) -> Vec<InlineItem> {
     let mut result = Vec::new();
     for item in items {
@@ -172,7 +216,7 @@ fn expand_inline_items(
             } => {
                 if let Some(component) = components.get(ty) {
                     let (instance_stmts, instance_registry) = expand_component_instance(
-                        label, props, children, component, components,
+                        label, props, children, component, components, ctx,
                     );
                     merge_registry(registry, instance_registry);
                     for stmt in instance_stmts {
@@ -181,7 +225,7 @@ fn expand_inline_items(
                         }
                     }
                 } else {
-                    let expanded_children = expand_inline_items(children, components, registry);
+                    let expanded_children = expand_inline_items(children, components, registry, ctx);
                     result.push(InlineItem::Labeled {
                         label: label.clone(),
                         ty: ty.clone(),
@@ -198,8 +242,9 @@ fn expand_inline_items(
                 children,
             } => {
                 if let Some(component) = components.get(ty) {
+                    let anon_label = ctx.next_anon_label();
                     let (instance_stmts, instance_registry) = expand_component_instance(
-                        "__anon", props, children, component, components,
+                        &anon_label, props, children, component, components, ctx,
                     );
                     merge_registry(registry, instance_registry);
                     for stmt in instance_stmts {
@@ -208,7 +253,7 @@ fn expand_inline_items(
                         }
                     }
                 } else {
-                    let expanded_children = expand_inline_items(children, components, registry);
+                    let expanded_children = expand_inline_items(children, components, registry, ctx);
                     result.push(InlineItem::Anonymous {
                         ty: ty.clone(),
                         props: props.clone(),
@@ -219,7 +264,7 @@ fn expand_inline_items(
             }
             InlineItem::SlotMarker => result.push(InlineItem::SlotMarker),
             InlineItem::SlotFill { slot, items } => {
-                let expanded = expand_inline_items(items, components, registry);
+                let expanded = expand_inline_items(items, components, registry, ctx);
                 result.push(InlineItem::SlotFill {
                     slot: slot.clone(),
                     items: expanded,
@@ -257,7 +302,19 @@ fn expand_component_instance(
     instance_children: &[InlineItem],
     component: &ComponentEntry,
     components: &HashMap<String, ComponentEntry>,
+    ctx: &mut ExpansionCtx,
 ) -> (Vec<Stmt>, InstanceActionRegistry) {
+    // Cycle detection: bail out if nesting is too deep.
+    if ctx.depth >= MAX_EXPANSION_DEPTH {
+        tracing::error!(
+            "Component expansion depth limit ({}) reached at '{}'. \
+             Possible circular component reference.",
+            MAX_EXPANSION_DEPTH, instance_label
+        );
+        return (Vec::new(), InstanceActionRegistry::new());
+    }
+    ctx.depth += 1;
+
     let bindings = component_bindings(&component.definition.params, instance_props);
     let root_label = first_labeled_stmt(&component.definition.body);
     let known_labels = collect_labels(&component.definition.body);
@@ -305,10 +362,12 @@ fn expand_component_instance(
         })
         .collect();
 
-    let (expanded_stmts, mut registry) = expand_statements(&filtered, components);
+    let (expanded_stmts, mut registry) = expand_statements_inner(&filtered, components, ctx);
     if !instance_actions.is_empty() {
         registry.insert(instance_label.to_string(), instance_actions);
     }
+
+    ctx.depth -= 1;
     (expanded_stmts, registry)
 }
 

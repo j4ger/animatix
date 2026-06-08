@@ -161,7 +161,13 @@ fn substitute_action_params(
 fn is_time_expr(expr: &Expr) -> bool {
     match expr {
         Expr::Ident(s) | Expr::Str(s) => {
-            s.ends_with("ms") || s.ends_with('s')
+            if let Some(num_part) = s.strip_suffix("ms") {
+                num_part.parse::<f64>().is_ok()
+            } else if let Some(num_part) = s.strip_suffix('s') {
+                num_part.parse::<f64>().is_ok()
+            } else {
+                false
+            }
         }
         _ => false,
     }

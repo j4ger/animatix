@@ -12,7 +12,6 @@ pub(crate) fn sequence_stmt_kind(stmt: &Stmt) -> &'static str {
         Stmt::LetDecl { .. } => "let declaration",
         Stmt::ActorDecl { .. } => "actor declaration",
         Stmt::Import { .. } => "import",
-        Stmt::Use { .. } => "use",
         Stmt::Keyframe { .. } => "keyframe",
         Stmt::RelativeKeyframe { .. } => "relative keyframe",
         Stmt::Always { .. } => "always block",

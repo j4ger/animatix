@@ -16,9 +16,32 @@ fn collect_imports_from_stmt(stmt: &Stmt, imports: &mut Vec<Import>) {
         Stmt::Import { path, alias, .. } => imports.push(Import { path: path.clone(), alias: alias.clone() }),
         Stmt::Keyframe { body, .. }
         | Stmt::RelativeKeyframe { body, .. }
-        | Stmt::Sequence { body, .. } => {
+        | Stmt::Sequence { body, .. }
+        | Stmt::Stagger { body, .. }
+        | Stmt::Always { body, .. }
+        | Stmt::ComponentAction { body, .. }
+        | Stmt::ForLoop { body, .. } => {
             for stmt in body {
                 collect_imports_from_stmt(stmt, imports);
+            }
+        }
+        Stmt::ComponentDef(def, _) => {
+            for stmt in &def.body {
+                collect_imports_from_stmt(stmt, imports);
+            }
+        }
+        Stmt::Conditional {
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            for stmt in then_branch {
+                collect_imports_from_stmt(stmt, imports);
+            }
+            if let Some(else_body) = else_branch {
+                for stmt in else_body {
+                    collect_imports_from_stmt(stmt, imports);
+                }
             }
         }
         _ => {}
@@ -72,6 +95,57 @@ pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
                 })
             }
         }
+        Stmt::Always { body, .. } => {
+            let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
+            Some(Stmt::Always { body, span: None })
+        }
+        Stmt::ComponentAction { name, params, body, .. } => {
+            let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
+            Some(Stmt::ComponentAction {
+                name: name.clone(),
+                params: params.clone(),
+                body,
+                span: None,
+            })
+        }
+        Stmt::ComponentDef(def, _) => {
+            let body = def.body.iter().filter_map(strip_imports).collect::<Vec<_>>();
+            Some(Stmt::ComponentDef(
+                ComponentDef {
+                    is_pub: def.is_pub,
+                    name: def.name.clone(),
+                    params: def.params.clone(),
+                    body,
+                },
+                None,
+            ))
+        }
+        Stmt::ForLoop { var, iterable, body, .. } => {
+            let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
+            Some(Stmt::ForLoop {
+                var: var.clone(),
+                iterable: iterable.clone(),
+                body,
+                span: None,
+            })
+        }
+        Stmt::Conditional {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            let then_branch = then_branch.iter().filter_map(strip_imports).collect::<Vec<_>>();
+            let else_branch = else_branch
+                .as_ref()
+                .map(|b| b.iter().filter_map(strip_imports).collect::<Vec<_>>());
+            Some(Stmt::Conditional {
+                condition: condition.clone(),
+                then_branch,
+                else_branch,
+                span: None,
+            })
+        }
         _ => Some(stmt.clone()),
     }
 }
@@ -91,9 +165,26 @@ fn collect_component_defs_from_stmt(stmt: &Stmt, definitions: &mut Vec<Component
         Stmt::Keyframe { body, .. }
         | Stmt::RelativeKeyframe { body, .. }
         | Stmt::Sequence { body, .. }
-        | Stmt::Stagger { body, .. } => {
+        | Stmt::Stagger { body, .. }
+        | Stmt::Always { body, .. }
+        | Stmt::ComponentAction { body, .. }
+        | Stmt::ForLoop { body, .. } => {
             for stmt in body {
                 collect_component_defs_from_stmt(stmt, definitions);
+            }
+        }
+        Stmt::Conditional {
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            for stmt in then_branch {
+                collect_component_defs_from_stmt(stmt, definitions);
+            }
+            if let Some(else_body) = else_branch {
+                for stmt in else_body {
+                    collect_component_defs_from_stmt(stmt, definitions);
+                }
             }
         }
         _ => {}

@@ -524,16 +524,6 @@ pub enum Stmt {
         span: Option<Span>,
     },
 
-    /// Use declaration: `use container.{a, b}`
-    Use {
-        /// Import path.
-        path: String,
-        /// Imported item names.
-        items: Vec<String>,
-        /// Source span for this declaration.
-        span: Option<Span>,
-    },
-
     // === Timeline ===
     /// Absolute keyframe: `#2s { ... }`
     /// Contains a body of statements/actions occurring at this time.

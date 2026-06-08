@@ -395,10 +395,6 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             Some(a) => format!(r#"import "{}" as {}"#, path, a),
             None => format!(r#"import "{}""#, path),
         },
-        Stmt::Use { path, items, .. } => {
-            let items_str = items.join(", ");
-            format!("use {}.{{{}}}", path, items_str)
-        }
         Stmt::Keyframe { time, body, .. } => {
             let body_str = format_stmts_raw(body, depth + 1, indent_size);
             format!("#{}\n{}", format_time(time), body_str)

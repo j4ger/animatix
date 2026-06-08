@@ -277,13 +277,6 @@ pub enum ModuleError {
         /// Path of the second file that defined it.
         second_path: PathBuf,
     },
-    /// A component instance references a slot that was not filled.
-    UnfilledSlot {
-        /// Name of the component with the unfilled slot.
-        component: String,
-        /// Name of the slot that was not filled.
-        slot: String,
-    },
     /// An underlying I/O error occurred.
     IoError(std::io::Error),
 }
@@ -339,12 +332,6 @@ impl fmt::Display for ModuleError {
                 name,
                 first_path.display(),
                 second_path.display()
-            ),
-            ModuleError::UnfilledSlot { component, slot } => write!(
-                f,
-                "Component '{}' has unfilled slot '{}'",
-                component,
-                slot
             ),
             ModuleError::IoError(e) => {
                 write!(f, "IO error: {}", e)

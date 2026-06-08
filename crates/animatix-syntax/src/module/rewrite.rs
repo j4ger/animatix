@@ -109,7 +109,7 @@ Stmt::Always { body, .. } => Stmt::Always {
 			span: None,
 		},
 		Stmt::ReactiveBinding { target, property, value, value_span, .. } => Stmt::ReactiveBinding {
-            target: target.iter().map(|t| rewrite_label(t, prefix, root_label, known_labels)).collect(),
+            target: rewrite_label_path(target, prefix, root_label, known_labels),
             property: property.clone(),
             value: rewrite_expr(value, prefix, root_label, known_labels, bindings),
             value_span: *value_span,
@@ -172,11 +172,6 @@ Stmt::Always { body, .. } => Stmt::Always {
             span: None,
         },
         Stmt::Import { path, alias, .. } => Stmt::Import { path: path.clone(), alias: alias.clone(), span: None },
-        Stmt::Use { path, items, .. } => Stmt::Use {
-            path: path.clone(),
-            items: items.clone(),
-            span: None,
-        },
         Stmt::Comment(comment, ..) => Stmt::Comment(comment.clone(), None),
         // Multi-scene composition statements: pass through unchanged
         Stmt::Scene { name, config, body, span } => Stmt::Scene {

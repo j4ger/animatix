@@ -64,6 +64,15 @@ Remaining opportunities:
 
 Known limitation. Two clones are necessary because we need 3 copies: cache, return value, and buffer (for encoding reuse). Requires Vello API changes. Low priority.
 
+### Component/module system gaps (from June 2026 code review)
+
+| # | Task | Impact | Effort | Description |
+|---|------|--------|--------|-------------|
+| 1 | **Preserve spans through component expansion** | Medium | 2–3 days | All spans are set to `None` during `expand_stmt_into` and `rewrite_stmt`. The GUI inspector can't trace expanded component instances back to their source locations. Needs span mapping (expansion offset → original source range). |
+| 2 | **Reduce cloning in expansion pipeline** | Low | 1–2 days | `expand_stmt_into` clones from `&Stmt`, `rewrite_stmt` clones recursively, `inline_actions` clones in `substitute_params_in_stmt`. Consider `Rc<Stmt>` for shared subtrees or arena allocation if profiling shows this is hot. |
+| 3 | **Warn on extra instance properties** | Low | 1 day | `component_bindings` silently adds unmatched properties to the bindings map. Emit a diagnostic when an instance provides a property that doesn't match any component parameter (catches typos). |
+| 4 | **Consolidate `Import` types** | Cosmetic | 0.5 days | `Stmt::Import` and standalone `Import` struct serve the same purpose. Eliminate the standalone struct in favor of extracting from `Stmt::Import`. |
+
 ### SVG import limitations
 
 | # | Task | Status | Details |
