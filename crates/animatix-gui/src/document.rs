@@ -47,6 +47,10 @@ pub struct DocumentSession {
     pub module_actions: HashMap<String, ActionTemplate>,
     /// Hash of source_text at last successful rebuild — skip rebuild if unchanged.
     last_source_hash: u64,
+    /// Hash of component registry at last successful rebuild — skip expansion if unchanged.
+    last_component_hash: u64,
+    /// Cached expanded statements — reused when components haven't changed.
+    cached_expanded: Option<Vec<Stmt>>,
     /// Cached module graph — preserves parsed imports across rebuilds.
     cached_module_graph: Option<ModuleGraph>,
 }
@@ -76,6 +80,8 @@ impl DocumentSession {
             components: HashMap::new(),
             module_actions: HashMap::new(),
             last_source_hash: 0,
+            last_component_hash: 0,
+            cached_expanded: None,
             cached_module_graph: None,
         };
 
@@ -106,6 +112,8 @@ impl DocumentSession {
             components: HashMap::new(),
             module_actions: HashMap::new(),
             last_source_hash: 0,
+            last_component_hash: 0,
+            cached_expanded: None,
             cached_module_graph: None,
         }
     }
@@ -281,13 +289,38 @@ impl DocumentSession {
     /// Load the program, returning a structured result.
     /// Raw statements are the parsed statements before component expansion.
     /// Uses cached ModuleGraph to avoid re-reading unchanged imports.
+    /// Skips component expansion when the component registry hasn't changed.
     fn load_program(&mut self) -> Result<LoadedProgramResult, ModuleError> {
         let mut graph = self.cached_module_graph.take().unwrap_or_default();
         let mut program = graph
             .load_program_with_source(&self.file_path, Some(&self.source_text))?;
         let type_diagnostics = program.typecheck();
-        // expand_components borrows &self, so call it before moving fields out.
-        let expanded_statements = program.expand_components();
+
+        // Hash the component registry to detect changes.
+        let component_hash = {
+            let mut hasher = DefaultHasher::new();
+            let mut names: Vec<&String> = program.components.keys().collect();
+            names.sort();
+            for name in names {
+                name.hash(&mut hasher);
+                let entry = &program.components[name];
+                format!("{:?}", entry.definition).hash(&mut hasher);
+            }
+            hasher.finish()
+        };
+
+        // Skip expansion if components haven't changed and we have cached results.
+        let expanded_statements = if component_hash == self.last_component_hash
+            && self.cached_expanded.is_some()
+        {
+            self.cached_expanded.clone().unwrap()
+        } else {
+            let expanded = program.expand_components();
+            self.cached_expanded = Some(expanded.clone());
+            self.last_component_hash = component_hash;
+            expanded
+        };
+
         // Cache the graph for next rebuild (preserves parsed imports)
         self.cached_module_graph = Some(graph);
         Ok(LoadedProgramResult {
