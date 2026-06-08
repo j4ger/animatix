@@ -300,6 +300,23 @@ impl<'a> TypeEnv<'a> {
                 }
             }
         }
+
+        // Warn on extra properties that don't match any defined parameter.
+        for prop in props {
+            if !param_map.contains_key(prop.name.as_str()) {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::UnknownComponentProperty,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "Unknown property '{}' for component '{}'; this has no effect and may be a typo",
+                            prop.name, component_name
+                        ),
+                    )
+                    .with_subject(format!("{}.{}", component_name, prop.name)),
+                );
+            }
+        }
     }
 }
 

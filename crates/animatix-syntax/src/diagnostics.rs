@@ -114,6 +114,8 @@ pub enum DiagnosticCode {
     TypeMismatch,
     /// A modifier failed at runtime during frame evaluation.
     ModifierRuntimeError,
+    /// A component instance property does not match any defined parameter.
+    UnknownComponentProperty,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -164,6 +166,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::UnknownActorType => write!(f, "unknown-actor-type"),
             DiagnosticCode::TypeMismatch => write!(f, "type-mismatch"),
             DiagnosticCode::ModifierRuntimeError => write!(f, "modifier-runtime-error"),
+            DiagnosticCode::UnknownComponentProperty => write!(f, "unknown-component-property"),
         }
     }
 }
