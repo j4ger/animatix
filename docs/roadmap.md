@@ -1,66 +1,42 @@
 # Animatix Roadmap
 
-> What's left to build. For the language spec, see [`spec.md`](spec.md). For architecture, see [`architecture.md`](architecture.md).
+> What's left to build. Completed work should be removed, not marked done. For the language spec, see [`spec.md`](spec.md); for architecture, see [`architecture.md`](architecture.md).
 
 ---
 
-## Component & Module System
+## Source Editing
 
-No remaining tasks.
-
----
-
-## Multi-Scene Composition
-
-No remaining tasks.
+| Task | Effort | Notes |
+|------|--------|-------|
+| **Lossless whitespace/trivia preservation** | 6–8 weeks | Current `source_edit` + formatter preserve comments and produce stable source, but still normalize formatting. Defer until users report formatting loss that the current serializer cannot handle. |
 
 ---
 
-## Source Editor — Lossless AST
+## Export & Media
 
-> 6–8 weeks. Defer until users report formatting loss. Current `source_edit` + formatter handles 90% of cases.
-
-| # | Task | Effort | Blocker |
-|---|------|--------|---------|
-| 1 | **Trivia data structure** | 1 week | — |
-| 2 | **Parser trivia capture** | 2–3 weeks | #1 |
-| 3 | **to_source trivia emission** | 1 week | #2 |
-| 4 | **Source edit trivia preservation** | 1–2 weeks | #3 |
-| 5 | **Round-trip tests** | 1 week | #4 |
+| Task | Effort | Notes |
+|------|--------|-------|
+| **Web canvas / WASM export** | 1–2 months | Requires a WASM-friendly renderer/export path and dependency audit; not just a CLI encoder change. |
+| **Audio playback in GUI preview** | 1 week | Export/muxing exists; preview still needs an audio output backend such as `rodio` or `cpal` and timeline sync. |
+| **APNG export** | 3 days | Image/GIF/video export paths exist; add APNG encoding and CLI surface. |
 
 ---
 
-## Web Export & Media
+## Renderer & Import Gaps
 
-> Blocked on renderer abstraction (big refactor). No quick wins.
-
-| # | Task | Effort | Blocker |
-|---|------|--------|---------|
-| 1 | **Web canvas / WASM export** | 1–2 months | Renderer abstraction |
-| 2 | **Audio playback in preview** | 1 week | Audio backend (rodio/cpal) |
-| 3 | **APNG export** | 3 days | APNG encoder |
-
----
-
-## Blocked on Upstream
-
-No committed timeline. Waiting on external features or dependencies.
-
-| # | Task | Blocked on | Notes |
-|---|------|------------|-------|
-| 1 | **Zero-readback GPU filters** | Vello GPU filter support ([#1296](https://github.com/linebender/vello/issues/1296)) | Phase 8.6a (GPU compute + readback) ships the perf win. Wait for Vello to eliminate the readback. |
-| 2 | **SVG `<mask>` support** | Vello Scene API mask support | `vello_cpu` has it; `vello` proper does not. |
-| 3 | **Scene primitive (PiP)** | Composition-level design | Existing components + Stack cover reuse. Revisit after transition blending. |
+| Task | Effort | Notes |
+|------|--------|-------|
+| **Zero-readback filter compositing** | Unknown | GPU filter compute exists, but scene evaluation/export still composites filtered results through CPU image readback. Wire filtered texture compositing through the renderer when the render path can consume it directly. |
+| **SVG `<mask>` import conversion** | Unknown | Runtime masking exists, but the SVG importer skips `<mask>`. Add importer support that maps SVG masks to Animatix runtime masks. |
+| **Scene primitive / picture-in-picture** | Needs design | Transition blending is shipped; keep only if there is a concrete use case for embedding one scene timeline inside another. Existing components and `Stack` cover many reuse cases. |
 
 ---
 
 ## Icebox
 
-> Low demand or niche. Kept for reference.
-
 | Task | Reason |
 |------|--------|
-| **Export performance: pre-compiled plot closures** | Only matters for dozens of plot actors. `always` block easing covers simpler cases. |
-| **Asset usage tracking** | Show which actors reference an asset. No user stories. |
-| **Variable track UI** | GUI for `let` variable tracks. `always` blocks cover most cases. |
-| **Module dependency graph** | Visual graph of `.amx` imports. Internal tooling, no user stories. |
+| **Export performance: pre-compiled plot closures** | Only matters for many plot actors or heavy sampled fields. |
+| **Asset usage tracking** | Show which actors reference an asset; no strong user story yet. |
+| **Variable track UI** | GUI for `let` variable tracks; `always` blocks cover most interactive cases. |
+| **Module dependency graph** | Visual graph of `.amx` imports; internal tooling value only so far. |
