@@ -26,8 +26,9 @@ Other paths:
 2. **Keep tests green.** Run `cargo test -p animatix` and `cargo test -p animatix-gui` before finishing.
 3. **Update docs.** If your change affects user-visible behavior, update `docs/spec.md` or `docs/architecture.md`.
 4. **Keep the todo list clean.** In `docs/roadmap.md`, remove completed items rather than marking them done. The file should read as "what's left," not a history log.
-5. **Follow conventional commits.** All commits must follow the Conventional Commits spec (e.g., `feat(gui): add scrubbing`, `fix(parser): handle empty keyframes`). Use `cog commit` if unsure.
-6. **Ask if unsure.** If you are unclear or need to decide between critical design choices, ask the user and present with pros and cons. Also inform the user if you spot any design flaw during any work.
+5. **Use `cog` for commits.** When the user asks you to commit, prefer `cog commit <type> "<summary>" [scope]` over raw `git commit` so the message is validated against `cog.toml` (example: `cog commit feat "add scrubbing" gui`). Stage files explicitly first, or use `cog commit --add <type> "<summary>" [scope]` only when all unstaged changes belong in the commit. Only fall back to `git commit -m "type(scope): summary"` if `cog` is unavailable or non-interactive use is blocked; mention the fallback in your final note.
+6. **Follow conventional commits.** Commit messages must use Conventional Commits with a valid scope from `cog.toml` when scoped (common scopes: `animatix`, `gui`, `analyzer`, `lsp`, `syntax`, `parser`, `renderer`, `timeline`, `ci`, `docs`). Examples: `feat(gui): add scrubbing`, `fix(parser): handle empty keyframes`, `docs: refresh examples guide`.
+7. **Ask if unsure.** If you are unclear or need to decide between critical design choices, ask the user and present with pros and cons. Also inform the user if you spot any design flaw during any work.
 
 ### Error handling
 
