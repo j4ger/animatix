@@ -10,12 +10,6 @@
 
 ---
 
-## P2 — Source Editing
-
-| Task | Effort | Notes |
-|------|--------|-------|
-| **Lossless whitespace/trivia preservation** | 6–8 weeks | Current `source_edit` + formatter preserve comments and produce stable source, but still normalize formatting. Defer until users report formatting loss that the current serializer cannot handle. |
-
 ---
 
 ## P2 — Export & Media
@@ -46,4 +40,5 @@
 | **Asset usage tracking** | Show which actors reference an asset; no strong user story yet. |
 | **Variable track UI** | GUI for `let` variable tracks; `always` blocks cover most interactive cases. |
 | **Module dependency graph** | Visual graph of `.amx` imports; internal tooling value only so far. |
+| **Lossless whitespace/trivia preservation** | The current write-back pipeline is correct for all normal use cases. Formatter normalizes formatting per spec Appendix A — no user reports of formatting loss. Assessment saved to [`docs/plans/lossless-trivia-preservation.md`](docs/plans/lossless-trivia-preservation.md). |
 | **APNG export** | Request-driven only; GIF covers lightweight previews, video/WebM covers higher-quality sharing, and APNG files can be large. |

@@ -439,15 +439,7 @@ impl DocumentController<'_> {
         };
 
         if source_edit::apply_edit(stmts, edit).is_ok() {
-            // Try surgical source edit: find and replace the keyframe time
-            // in the source text instead of re-serializing the entire AST.
-            let source_text = self.document_store.source.document.source_text.clone();
-            let new_source = try_surgical_keyframe_move(
-                &source_text,
-                old_time_s,
-                new_time_s,
-                false,
-            ).unwrap_or_else(|| animatix_syntax::to_source::stmts_to_source(stmts));
+            let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
             let source_index = animatix_syntax::source_index::SourceIndex::build(stmts);
             self.apply_source(new_source, source_index);
             self.preview_store.preview.status =
@@ -767,49 +759,3 @@ impl DocumentController<'_> {
     }
 }
 
-/// Attempt a surgical keyframe time replacement in the source text.
-///
-/// Finds the keyframe declaration matching `old_time_s` and replaces its
-/// time literal with the new time, avoiding a full AST re-serialization.
-/// Returns `Some(new_source)` on success, `None` if the pattern wasn't found.
-fn try_surgical_keyframe_move(
-    source: &str,
-    old_time_s: f64,
-    new_time_s: f64,
-    is_relative: bool,
-) -> Option<String> {
-    let old_time_str = format_time_literal(old_time_s);
-    let new_time_str = format_time_literal(new_time_s);
-
-    // Build the pattern to search for: "# old_time" or "#+ old_time"
-    let prefix = if is_relative { "+" } else { "" };
-    let patterns = [
-        format!("#{}{} ", prefix, old_time_str),
-        format!("#{}{}\n", prefix, old_time_str),
-        format!("#{}{}\r", prefix, old_time_str),
-        format!("#{}{}", prefix, old_time_str),
-    ];
-
-    for pattern in &patterns {
-        if let Some(pos) = source.find(pattern) {
-            // Find the time part after '#' (and optional '+')
-            let time_start = pos + 1 + if is_relative { 1 } else { 0 };
-            let time_end = time_start + old_time_str.len();
-            let mut new_source = source.to_string();
-            new_source.replace_range(time_start..time_end, &new_time_str);
-            return Some(new_source);
-        }
-    }
-
-    None
-}
-
-/// Format a time in seconds as a keyframe time literal (e.g., "2s", "0.5s", "500ms").
-fn format_time_literal(time_s: f64) -> String {
-    // Use seconds format — whole numbers get no decimal
-    if time_s.fract() == 0.0 {
-        format!("{}s", time_s as i64)
-    } else {
-        format!("{}s", time_s)
-    }
-}
