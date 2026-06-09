@@ -10,7 +10,7 @@ use crate::ast::Stmt;
 use crate::composition::Composition;
 use crate::renderer::encode::{
     mux_audio_segments,
-    ExportError, ExportSettings,
+    ExportError, ExportSettings, VideoCodec,
 };
 use crate::renderer::render_pipeline::{fill_rgba_frame, render_frames_streaming, render_frames_streaming_composition};
 use crate::timeline::{AudioSegment, DebugRenderOptions, Timeline};
@@ -290,6 +290,20 @@ pub(super) async fn render_video_async(
     let total_frames = (duration * fps as f32).ceil() as u32;
     info!("Encoding {} frames to video...", total_frames);
 
+    // Auto-detect WebM and select VP9 encoder
+    let is_webm = output_file
+        .extension()
+        .map(|e| e == "webm")
+        .unwrap_or(false);
+    let settings = if is_webm && matches!(settings.video_codec, VideoCodec::Auto) {
+        ExportSettings {
+            video_codec: VideoCodec::Vp9,
+            ..settings
+        }
+    } else {
+        settings
+    };
+
     let VideoEncoderParts {
         mut format_context,
         mut encode_context,
@@ -451,6 +465,20 @@ pub(super) async fn render_video_composition_async(
 ) -> Result<(), ExportError> {
     let total_frames = (duration * fps as f32).ceil() as u32;
     info!("Encoding {} frames to video...", total_frames);
+
+    // Auto-detect WebM and select VP9 encoder
+    let is_webm = output_file
+        .extension()
+        .map(|e| e == "webm")
+        .unwrap_or(false);
+    let settings = if is_webm && matches!(settings.video_codec, VideoCodec::Auto) {
+        ExportSettings {
+            video_codec: VideoCodec::Vp9,
+            ..settings
+        }
+    } else {
+        settings
+    };
 
     let VideoEncoderParts {
         mut format_context,

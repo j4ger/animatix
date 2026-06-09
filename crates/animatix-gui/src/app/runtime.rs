@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::audio::AudioEngine;
 use crate::app::commands::{Command, ShellAction, ViewAction};
 use crate::app::persistence::{load_app_state, save_app_state, clear_app_state};
 use crate::app::design_tokens::*;
@@ -41,6 +42,8 @@ struct AnimatixApp {
     preview_texture_id: Option<egui::TextureId>,
     /// Set to true when a screenshot is requested; cleared after saving.
     screenshot_pending: bool,
+    /// Audio playback engine for preview audio synced with the timeline.
+    audio_engine: Option<AudioEngine>,
 }
 
 impl AnimatixApp {
@@ -65,11 +68,20 @@ impl AnimatixApp {
         let preview_surface = PreviewSurface::new(device, queue).map_err(|e| format!("Preview surface init failed: {e}"))?;
         let shell = GuiShell::load(initial_path, show_welcome);
 
+        let audio_engine = match AudioEngine::new() {
+            Ok(engine) => Some(engine),
+            Err(e) => {
+                tracing::warn!("Audio playback not available: {e}");
+                None
+            }
+        };
+
         Ok(Self {
             shell,
             preview_surface,
             preview_texture_id: None,
             screenshot_pending: false,
+            audio_engine,
         })
     }
 
@@ -409,6 +421,14 @@ impl eframe::App for AnimatixApp {
 
         // Handle keyboard shortcuts
         self.handle_keyboard_shortcuts(ui.ctx());
+
+        // Sync audio with playback state
+        if let Some(audio_engine) = &mut self.audio_engine {
+            let segments = self.shell.document_store.source.document.all_audio_segments();
+            let time_s = self.shell.preview_store.preview.playback.current_time_s();
+            let playing = self.shell.preview_store.preview.playback.is_playing;
+            audio_engine.sync(&segments, time_s, playing);
+        }
 
         // Sync preview surface (render vello, register texture)
         if let Err(error) = self.sync_preview_surface(frame) {

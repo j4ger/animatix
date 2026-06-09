@@ -314,7 +314,14 @@ pub fn mux_audio_segments(
 
     require_ffmpeg()?;
 
-    let temp_path = output_path.with_extension("tmp_muxed.mp4");
+    let is_webm = output_path
+        .extension()
+        .map(|e| e == "webm")
+        .unwrap_or(false);
+
+    let temp_ext = if is_webm { "tmp_muxed.webm" } else { "tmp_muxed.mp4" };
+    let temp_path = output_path.with_extension(temp_ext);
+    let audio_codec = if is_webm { "libopus" } else { "aac" };
 
     // Build a filter_complex that positions, trims, and volumes each segment,
     // then mixes them all together.
@@ -363,7 +370,7 @@ pub fn mux_audio_segments(
     cmd.arg("-map").arg("0:v:0");
     cmd.arg("-map").arg("[outa]");
     cmd.arg("-c:v").arg("copy");
-    cmd.arg("-c:a").arg("aac");
+    cmd.arg("-c:a").arg(audio_codec);
     cmd.arg("-shortest");
     cmd.arg(&temp_path);
 

@@ -1137,12 +1137,27 @@ animatix gif examples/12_reorder.amx -o out.gif --duration 3.0
 
 **Parallel rendering:** Video and GIF exports render frames in parallel using all available CPU cores. Each thread gets its own GPU context and a cloned Timeline, then renders a chunk of frames. Encoding (GIF quantization / video muxing) remains sequential to preserve frame order and codec state.
 
+**WebM output:** Use the `--codec vp9` flag and a `.webm` output extension to export in WebM format with VP9 video and Opus audio. When `--codec auto` (default) is combined with a `.webm` output path, VP9 is auto-selected. Audio segments are muxed using `libopus` instead of `aac` for WebM output.
+
+```bash
+# Export to WebM with VP9
+animatix video examples/20_feature_reel.amx -o out.webm --codec vp9
+
+# Auto-detect WebM from output extension (auto-selects VP9)
+animatix video examples/20_feature_reel.amx -o out.webm
+
+# WebM with custom resolution and framerate
+animatix video examples/14_multiscene.amx --width 960 --height 540 --fps 24 -o out.webm
+```
+
 ```bash
 # Low-FPS quick preview
 animatix gif examples/20_feature_reel.amx -o out.gif --fps 10
 ```
 
 **Image export (`animatix image`):** Renders a single frame at `--time` (default 0s). No trailing hold or parallelization applies.
+
+**GUI Preview Audio:** The `animatix-gui` preview panel plays audio segments from `Audio` actors in sync with the timeline during playback. Audio files are decoded via `rodio` and cached in memory. Playback automatically starts, seeks, and pauses in sync with the timeline controller. Missing or unplayable audio files produce a warning but do not block preview.
 
 ### Multi-Scene Composition
 

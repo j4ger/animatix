@@ -21,6 +21,7 @@
             ffmpeg_7
             pkg-config
             rustPlatform.bindgenHook
+            alsa-lib
             tree-sitter
             nodejs
             clang

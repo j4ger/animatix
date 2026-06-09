@@ -123,7 +123,7 @@ enum Commands {
         #[arg(short = 'j', long, default_value = "auto")]
         threads: renderer::MaxRenderThreads,
 
-        /// Video codec: auto, libx264, h264_nvenc, h264_vaapi
+        /// Video codec: auto, libx264, h264_nvenc, h264_vaapi, vp9
         #[arg(long, default_value = "auto")]
         codec: renderer::VideoCodec,
 

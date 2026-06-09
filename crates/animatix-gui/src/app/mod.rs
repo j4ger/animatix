@@ -16,6 +16,7 @@ pub(crate) mod stores;
 pub mod design_tokens;
 mod utils;
 pub(crate) mod insertion;
+pub(crate) mod audio;
 
 use crate::document::{DocumentSession, default_file_path};
 use crate::hot_reload::{HotReloader, ReloadStatus};

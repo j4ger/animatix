@@ -958,6 +958,11 @@ impl Timeline {
         self.layout_engine.invalidate_cache();
     }
 
+    /// Returns a reference to the audio segments collected during build.
+    pub fn audio_segments(&self) -> &[AudioSegment] {
+        &self.audio_segments
+    }
+
     /// Return runtime diagnostics produced during the most recent frame
     /// evaluation (modifier errors, etc.). Empty if evaluation succeeded
     /// without issues.
