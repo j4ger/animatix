@@ -4,7 +4,29 @@
 
 ---
 
-## Source Editing
+## P0 — GUI Correctness
+
+| Task | Effort | Notes |
+|------|--------|-------|
+| **Invalidate component expansion cache on source edits** | 1 day | `DocumentSession` can reuse `cached_expanded` when only non-component source changes. Key expansion cache by full source/program hash or invalidate from `set_source_text` and committed source edits. Add a regression test. |
+| **Make source-edit helpers recurse into scenes** | 1 day | Generic actor/assignment find helpers miss actors inside `Stmt::Scene`, even though the mutable walker handles scenes. Add multi-scene tests for property edits, insert property, rename, delete, and reparent. |
+| **Make batch actor edits transactional** | 1–2 days | Align/distribute/group/ungroup currently ignore some `apply_edit` failures and can commit partial edits while reporting success. Validate all edits before commit or roll back on first failure. |
+
+---
+
+## P1 — GUI Performance & Polish
+
+| Task | Effort | Notes |
+|------|--------|-------|
+| **Reuse preview filter backends** | 2–3 days | Preview creates `GpuFilterBackend` during render; filtered scenes and transitions can allocate multiple backends per frame. Reuse per `PreviewSurface`/dimension instead. |
+| **Cache syntax highlighting state** | 2–3 days | Highlighting recreates parser/config and reparses during cell rendering. Cache parser/config and avoid full work for unchanged cells to reduce editor jank on large files. |
+| **Route insertion palette edits through history** | 2 days | Some snippet/component insertions bypass the central command/history flow, making undo consistency harder to reason about. |
+| **Expose align/distribute commands in UI** | 1 day | Commands and handlers exist; wire them into command palette, context menus, or toolbar affordances. |
+| **Dogfood examples `00–20` in GUI** | 2–3 days | Open every redesigned example in the GUI, verify preview, inspector, timeline, scene list, and insertion/edit workflows; convert rough edges into focused bugs. |
+
+---
+
+## P2 — Source Editing
 
 | Task | Effort | Notes |
 |------|--------|-------|
@@ -12,17 +34,17 @@
 
 ---
 
-## Export & Media
+## P2 — Export & Media
 
 | Task | Effort | Notes |
 |------|--------|-------|
-| **Web canvas / WASM export** | 1–2 months | Requires a WASM-friendly renderer/export path and dependency audit; not just a CLI encoder change. |
 | **Audio playback in GUI preview** | 1 week | Export/muxing exists; preview still needs an audio output backend such as `rodio` or `cpal` and timeline sync. |
 | **WebM export** | 1 week | More useful than APNG for browser embedding and sharing; add VP9/AV1-capable encoding path and CLI surface alongside existing GIF/video export. |
+| **Web canvas / WASM export** | 1–2 months | Requires a WASM-friendly renderer/export path and dependency audit; not just a CLI encoder change. |
 
 ---
 
-## Renderer & Import Gaps
+## P3 — Renderer & Import Gaps
 
 | Task | Effort | Notes |
 |------|--------|-------|
