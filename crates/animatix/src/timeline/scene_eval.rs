@@ -166,6 +166,42 @@ impl Timeline {
         glyphs
     }
 
+    /// Check whether a filter actor can safely use zero-readback post-render compositing.
+    /// This is only safe when the filter is the last child in every ancestor container
+    /// (nothing renders after the filter in the scene graph).
+    fn can_post_composite_filter(&self, node_label: &str) -> bool {
+        // Find the path from root to this actor
+        let Some(path) = self.find_path_to_actor(node_label) else {
+            return false;
+        };
+
+        // The actor must be in the root set (no orphan check)
+        if path.len() < 1 {
+            return false;
+        }
+
+        // Check that at every level, the actor is the last child
+        for i in 0..path.len() {
+            let label = &path[i];
+            if !self.tracks.contains_key(label) {
+                return false;
+            }
+
+            // If this is not the root, check it's the last child of its parent
+            if i > 0 {
+                let parent_label = &path[i - 1];
+                let Some(parent_track) = self.tracks.get(parent_label) else {
+                    return false;
+                };
+                if parent_track.children.last() != Some(label) {
+                    return false;
+                }
+            }
+        }
+
+        true
+    }
+
     fn evaluate_node(
         &self,
         node_label: &str,
@@ -180,11 +216,12 @@ impl Timeline {
         hit_regions: &mut Vec<(String, kurbo::Rect)>,
         frame_env: Option<&super::Environment>,
         filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
+        allow_pending_composites: bool,
     ) {
         let (global_transform, global_opacity) =
-            self.render_actor_node(node_label, time_ms, parent_transform, parent_opacity, scene_dimensions, debug_options, scene, overrides, layout_positions, hit_regions, frame_env, filter_backend);
+            self.render_actor_node(node_label, time_ms, parent_transform, parent_opacity, scene_dimensions, debug_options, scene, overrides, layout_positions, hit_regions, frame_env, filter_backend, allow_pending_composites);
 
-        self.render_node_children(node_label, time_ms, global_transform, global_opacity, scene_dimensions, debug_options, scene, overrides, hit_regions, frame_env, filter_backend);
+        self.render_node_children(node_label, time_ms, global_transform, global_opacity, scene_dimensions, debug_options, scene, overrides, hit_regions, frame_env, filter_backend, allow_pending_composites);
     }
 
     /// Evaluate a single actor node and render it to the scene.
@@ -203,6 +240,7 @@ impl Timeline {
         hit_regions: &mut Vec<(String, kurbo::Rect)>,
         frame_env: Option<&super::Environment>,
         filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
+        allow_pending_composites: bool,
     ) -> (kurbo::Affine, f32) {
         let Some(track) = self.tracks.get(node_label) else {
             return (parent_transform, parent_opacity);
@@ -228,6 +266,7 @@ impl Timeline {
                     hit_regions,
                     frame_env,
                     filter_backend,
+                    allow_pending_composites,
                 );
             }
             return (parent_transform, parent_opacity);
@@ -419,6 +458,7 @@ impl Timeline {
         hit_regions: &mut Vec<(String, kurbo::Rect)>,
         frame_env: Option<&super::Environment>,
         filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
+        allow_pending_composites: bool,
     ) {
         let Some(track) = self.tracks.get(node_label) else {
             return;
@@ -454,6 +494,7 @@ impl Timeline {
                         hit_regions,
                         frame_env,
                         filter_backend,
+                        allow_pending_composites,
                     );
                 }
                 return;
@@ -475,6 +516,7 @@ impl Timeline {
                     hit_regions,
                     frame_env,
                     filter_backend,
+                    false,
                 );
             }
 
@@ -497,6 +539,32 @@ impl Timeline {
             if !needs_filter {
                 scene.encoding_mut().append(sub_scene.encoding(), &None);
                 return;
+            }
+
+            // Try zero-readback path when this filter is safely the last rendering element
+            if allow_pending_composites && self.can_post_composite_filter(node_label) {
+                if let Some(backend) = filter_backend.as_mut() {
+                    match backend.render_scene_to_pending_composite(
+                        &sub_scene,
+                        scene_dimensions,
+                        blur,
+                        brightness,
+                        contrast,
+                        saturate,
+                        hue_rotate,
+                        sepia,
+                        global_opacity,
+                    ) {
+                        Ok(()) => {
+                            // Filter output is stored as a pending GPU composite.
+                            // The renderer will blit it after the main scene render.
+                            return;
+                        }
+                        Err(e) => {
+                            tracing::warn!("Zero-readback filter path failed, falling back to readback: {e}");
+                        }
+                    }
+                }
             }
 
             // Render sub-scene to image via backend, apply GPU filters, draw result
@@ -536,6 +604,7 @@ impl Timeline {
                     hit_regions,
                     frame_env,
                     filter_backend,
+                    allow_pending_composites,
                 );
 
                 // Get the first child's vector paths to use as clip shapes
@@ -570,6 +639,7 @@ impl Timeline {
                         hit_regions,
                         frame_env,
                         filter_backend,
+                        allow_pending_composites,
                     );
                     for _ in 0..clip_count {
                         scene.pop_layer();
@@ -592,6 +662,7 @@ impl Timeline {
                     hit_regions,
                     frame_env,
                     filter_backend,
+                    allow_pending_composites,
                 );
             }
         }
@@ -620,7 +691,7 @@ impl Timeline {
         // and the underlying modifiers/layout have not changed.
         let needs_frame_env = self.needs_frame_env();
         let has_child_orders = !self.child_orders.is_empty();
-        if debug_options == DebugRenderOptions::default() {
+        if filter_backend.is_none() && debug_options == DebugRenderOptions::default() {
             if let Some(ref cached) = *self.frame_cache.borrow() {
                 if cached.time_ms == time_ms
                     && cached.dimensions == scene_dimensions
@@ -727,7 +798,7 @@ impl Timeline {
         for root in &self.root_nodes {
             // P2.17: Static subtree cache — fully-static subtrees are evaluated once
             // and their vello encoding is reused on all subsequent frames.
-            if self.is_static_subtree(root) {
+            if filter_backend.is_none() && self.is_static_subtree(root) {
                 let cache = self.static_subtree_cache.borrow_mut();
                 if let Some(cached_scene) = cache.get(root) {
                     // Fast path: append cached encoding directly
@@ -748,6 +819,7 @@ impl Timeline {
                         &mut hit_regions,
                         frame_env.as_ref(),
                         filter_backend,
+                        true,
                     );
                     // Append to main scene and cache for next time
                     scene.encoding_mut().append(temp_scene.encoding(), &None);
@@ -767,6 +839,7 @@ impl Timeline {
                     &mut hit_regions,
                     frame_env.as_ref(),
                     filter_backend,
+                    true,
                 );
             }
         }
@@ -782,7 +855,7 @@ impl Timeline {
         // P2.25: Save scene in reusable buffer and cache for fast-path replay.
         // Two clones are needed: one for cache (if caching), one for return.
         // scene_buffer takes ownership for encoding buffer reuse (reset()).
-        if debug_options == DebugRenderOptions::default() {
+        if filter_backend.is_none() && debug_options == DebugRenderOptions::default() {
             *self.frame_cache.borrow_mut() = Some(super::FrameCacheEntry {
                 time_ms,
                 dimensions: scene_dimensions,

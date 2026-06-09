@@ -12,7 +12,7 @@
 //! the result can be drawn back into the parent Vello scene.
 
 use crate::renderer::core::RendererCore;
-use crate::timeline::filter::FilterBackend;
+use crate::timeline::filter::{FilterBackend, PendingComposite};
 use crate::timeline::image::SceneImage;
 use crate::timeline::SceneDimensions;
 use std::borrow::Cow;
@@ -166,6 +166,8 @@ pub struct GpuFilterBackend {
     last_filtered_view: Option<wgpu::TextureView>,
     /// Which internal texture `last_filtered_view` points to, for readback.
     last_filtered_source: FilteredSource,
+    /// Pending zero-readback filter textures to be composited after scene render.
+    pending_composites: Vec<PendingComposite>,
 }
 
 /// Identifies which internal texture holds the filtered result.
@@ -418,6 +420,7 @@ impl GpuFilterBackend {
             color_matrix_uniform_buffer,
             last_filtered_view: None,
             last_filtered_source: FilteredSource::Render,
+            pending_composites: Vec::new(),
         })
     }
 
@@ -749,6 +752,61 @@ impl GpuFilterBackend {
     pub fn take_last_filtered_view(&mut self) -> Option<wgpu::TextureView> {
         self.last_filtered_view.take()
     }
+
+    /// Copy the most recent filtered view to a dedicated texture for deferred compositing.
+    fn copy_last_filtered_to_pending(
+        &self,
+        dimensions: SceneDimensions,
+        alpha: f32,
+    ) -> Result<PendingComposite, String> {
+        let source = match self.last_filtered_source {
+            FilteredSource::Render => &self.render_texture,
+            FilteredSource::TexA => &self.tex_a,
+            FilteredSource::TexB => &self.tex_b,
+        };
+
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            size: wgpu::Extent3d {
+                width: dimensions.width,
+                height: dimensions.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
+            label: Some("Animatix Pending Filter Composite Texture"),
+            view_formats: &[],
+        });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Animatix Pending Filter Composite Copy Encoder"),
+        });
+        encoder.copy_texture_to_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: source,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::Extent3d {
+                width: dimensions.width,
+                height: dimensions.height,
+                depth_or_array_layers: 1,
+            },
+        );
+        self.queue.submit(std::iter::once(encoder.finish()));
+
+        Ok(PendingComposite { texture, view, alpha })
+    }
 }
 
 impl FilterBackend for GpuFilterBackend {
@@ -794,6 +852,30 @@ impl FilterBackend for GpuFilterBackend {
             FilteredSource::TexB => &self.tex_b,
         };
         self.readback_to_scene_image(texture, dimensions)
+    }
+
+    fn render_scene_to_pending_composite(
+        &mut self,
+        scene: &vello::Scene,
+        dimensions: SceneDimensions,
+        blur: f32,
+        brightness: f32,
+        contrast: f32,
+        saturate: f32,
+        hue_rotate: f32,
+        sepia: f32,
+        alpha: f32,
+    ) -> Result<(), String> {
+        self.render_and_filter_scene_to_view(
+            scene, dimensions, blur, brightness, contrast, saturate, hue_rotate, sepia,
+        )?;
+        let composite = self.copy_last_filtered_to_pending(dimensions, alpha)?;
+        self.pending_composites.push(composite);
+        Ok(())
+    }
+
+    fn take_pending_composites(&mut self) -> Vec<PendingComposite> {
+        std::mem::take(&mut self.pending_composites)
     }
 }
 

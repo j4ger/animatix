@@ -334,15 +334,17 @@ The 4×4 matrix is pre-multiplied on the CPU from individual transforms (same ma
 | Phase | Scope | Readback? | Status |
 |-------|-------|-----------|--------|
 | **8.6a** | GPU compute filters, still readback to `peniko::ImageData` | Yes (once per filter) | ✅ Implemented |
-| **8.6b** | Zero-readback composite via custom fullscreen pass | No | Deferred to Phase 10b.5 |
+| **8.6b** | Zero-readback composite via custom fullscreen pass | No | ✅ Implemented |
 
 **8.6a** removes the CPU blur/color matrix cost. The WGSL shaders (`filter_blur.wgsl`, `filter_color_matrix.wgsl`) are embedded in `renderer/filter_backend.rs` as inline compute pipelines. `GpuFilterBackend::render_scene_to_image_gpu_filtered()` runs the full GPU pipeline (render → blur H → blur V → color matrix → readback) and is called from `scene_eval.rs` for every `Filter` actor.
 
-**8.6b** is blocked on Vello's `Scene::draw_image` requiring CPU-owned `peniko::ImageData`. To eliminate the final readback, we need a custom fullscreen composite render pass that samples the GPU texture directly. This is tracked as Phase 10b.5.
+**8.6b** eliminates the final CPU readback by storing filtered GPU textures as `PendingComposite` entries on the `GpuFilterBackend`. After the main Vello scene is rendered to the output texture, each pending composite is blitted on top via `FullscreenBlitPipeline` with alpha blending. This avoids the GPU→CPU→GPU round-trip entirely.
+
+The zero-readback path activates only when the filter actor is the last child in every ancestor container (safe Z-ordering). For filters that aren't last-in-render-order, the existing readback path is used as a fallback. This is determined by `scene_eval.rs::can_post_composite_filter()`.
 
 **Implementation details:** See `renderer/filter_backend.rs` for the actual `GpuFilterBackend` struct and compute pipeline setup. The trait method `FilterBackend::render_scene_to_image_gpu_filtered()` has a default implementation that falls back to CPU filtering; `GpuFilterBackend` overrides it with the GPU path. `scene_eval.rs` calls the GPU method unconditionally when a `Filter` actor needs processing — non-GPU backends automatically fall back to the CPU path.
 
-**The Vello texture problem:** Vello's `Scene::draw_image` requires `peniko::ImageData` (CPU-owned). For 8.6a we still do one readback per filter. For 8.6b, the recommended approach is a custom fullscreen render pass in `RendererCore` that samples the filtered texture directly, bypassing vello's scene encoding for the composite step. This is tracked as Phase 10b.5.
+**The Vello texture problem:** Vello's `Scene::draw_image` requires CPU-owned `peniko::ImageData`. To bypass this, the zero-readback path uses `FullscreenBlitPipeline` — a custom fullscreen render pass in `RendererCore` that samples the filtered GPU texture directly, bypassing Vello's scene encoding for the composite step. This avoids the GPU→CPU→GPU round-trip entirely for filters that are last-in-render-order.
 
 ##### Risks & Mitigations
 

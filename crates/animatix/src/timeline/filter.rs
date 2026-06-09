@@ -3,6 +3,17 @@
 use crate::timeline::image::SceneImage;
 use crate::timeline::SceneDimensions;
 
+/// A GPU texture that should be composited after the main Vello scene render.
+/// Used by the zero-readback filter compositing path.
+pub struct PendingComposite {
+    /// Owns the copied filtered texture so `view` remains valid.
+    pub texture: wgpu::Texture,
+    /// Texture view sampled by the fullscreen compositor.
+    pub view: wgpu::TextureView,
+    /// Opacity to apply during compositing.
+    pub alpha: f32,
+}
+
 /// Backend that can render a [`vello::Scene`] to a [`SceneImage`].
 ///
 /// The timeline uses this to capture a Filter actor's children into a bitmap,
@@ -34,6 +45,30 @@ pub trait FilterBackend: Send {
         Ok(apply_cpu_filters(
             image, blur, brightness, contrast, saturate, hue_rotate, sepia,
         ))
+    }
+
+    /// Render a scene with GPU filtering and store the result as a pending
+    /// composite that can be blitted onto the render target without CPU readback.
+    /// Returns Err if this backend doesn't support zero-readback compositing.
+    fn render_scene_to_pending_composite(
+        &mut self,
+        scene: &vello::Scene,
+        dimensions: SceneDimensions,
+        blur: f32,
+        brightness: f32,
+        contrast: f32,
+        saturate: f32,
+        hue_rotate: f32,
+        sepia: f32,
+        alpha: f32,
+    ) -> Result<(), String> {
+        let _ = (scene, dimensions, blur, brightness, contrast, saturate, hue_rotate, sepia, alpha);
+        Err("zero-readback filter compositing is not supported by this backend".to_string())
+    }
+
+    /// Drain any pending composites produced by `render_scene_to_pending_composite`.
+    fn take_pending_composites(&mut self) -> Vec<PendingComposite> {
+        Vec::new()
     }
 }
 

@@ -14,7 +14,7 @@
 //!
 //! ## Limitations / TODOs
 //!
-//! - No support for SVG `<use>`, `<clipPath>`, `<mask>`, patterns
+//! - No support for SVG `<use>`, `<clipPath>`, patterns
 //! - SVG `<path>` `d` attribute: supports M, L, Q, C, Z commands (absolute/relative)
 //! - SVG `currentColor`, `inherit` fill types: not yet supported
 //! - SVG `stroke-linecap`, `stroke-linejoin`: not yet mapped
@@ -76,6 +76,14 @@ struct GradientStop {
 #[allow(dead_code)]
 struct ClipPathDef {
     /// The path data for clipping.
+    path_data: String,
+}
+
+/// A parsed SVG mask definition.
+#[derive(Clone, Debug)]
+#[allow(dead_code)]
+struct MaskDef {
+    /// The path data for masking.
     path_data: String,
 }
 
@@ -178,17 +186,18 @@ pub fn import_svg(path: &Path) -> Result<Vec<Stmt>, SvgImportError> {
     // Collect gradient and clipPath definitions from <defs> elements
     let gradients = collect_gradients(&root);
     let clip_paths = collect_clip_paths(&root);
+    let masks = collect_masks(&root);
 
     // Parse viewBox and width/height for scene configuration
     if let Some(config_stmt) = parse_viewbox_config(&root) {
         stmts.push(config_stmt);
     }
 
-    convert_children(&root, &mut stmts, &mut counter, &Transform::identity(), &gradients)?;
-    
+    convert_children(&root, &mut stmts, &mut counter, &Transform::identity(), &gradients, &masks)?;
+
     // Apply clip paths to elements that reference them
     apply_clip_paths(&mut stmts, &clip_paths);
-    
+
     Ok(stmts)
 }
 
@@ -639,6 +648,30 @@ fn apply_clip_paths(stmts: &mut Vec<Stmt>, _clip_paths: &HashMap<String, ClipPat
     let _ = stmts;
 }
 
+/// Collect `<mask>` definitions from the SVG tree.
+fn collect_masks(node: &Node) -> HashMap<String, MaskDef> {
+    let mut masks = HashMap::new();
+    collect_masks_recursive(node, &mut masks);
+    masks
+}
+
+fn collect_masks_recursive(node: &Node, masks: &mut HashMap<String, MaskDef>) {
+    for child in node.children() {
+        if !child.is_element() {
+            continue;
+        }
+        if child.tag_name().name() == "mask" {
+            if let Some(id) = child.attribute("id") {
+                let path_data = extract_clip_path_data(&child);
+                if !path_data.is_empty() {
+                    masks.insert(id.to_string(), MaskDef { path_data });
+                }
+            }
+        }
+        collect_masks_recursive(&child, masks);
+    }
+}
+
 /// Try to resolve a `url(#id)` reference in a fill/stroke attribute.
 /// If the id refers to a known gradient, return an approximate solid color.
 /// Returns `None` if the value is not a url reference or the gradient is unknown.
@@ -1059,6 +1092,7 @@ fn convert_children(
     counter: &mut u64,
     parent_transform: &Transform,
     gradients: &HashMap<String, GradientDef>,
+    masks: &HashMap<String, MaskDef>,
 ) -> Result<(), SvgImportError> {
     for child in parent.children() {
         if !child.is_element() {
@@ -1070,33 +1104,61 @@ fn convert_children(
         );
         let combined = parent_transform.compose(&local_transform);
 
-        match tag {
-            "g" => convert_group(&child, stmts, counter, &combined, gradients)?,
-            "rect" => convert_rect(&child, stmts, counter, &combined, gradients)?,
-            "circle" => convert_circle(&child, stmts, counter, &combined, gradients)?,
-            "ellipse" => convert_ellipse(&child, stmts, counter, &combined, gradients)?,
-            "path" => convert_path(&child, stmts, counter, &combined, gradients)?,
-            "text" => convert_text(&child, stmts, counter, &combined, parent, gradients)?,
-            "svg" => convert_children(&child, stmts, counter, &combined, gradients)?, // recurse into svg roots
-            "line" => convert_line(&child, stmts, counter, &combined, gradients)?,
+        let first_new_index = stmts.len();
+
+        let is_renderable = match tag {
+            "g" => {
+                convert_group(&child, stmts, counter, &combined, gradients, masks)?;
+                true
+            }
+            "rect" => {
+                convert_rect(&child, stmts, counter, &combined, gradients)?;
+                true
+            }
+            "circle" => {
+                convert_circle(&child, stmts, counter, &combined, gradients)?;
+                true
+            }
+            "ellipse" => {
+                convert_ellipse(&child, stmts, counter, &combined, gradients)?;
+                true
+            }
+            "path" => {
+                convert_path(&child, stmts, counter, &combined, gradients)?;
+                true
+            }
+            "text" => {
+                convert_text(&child, stmts, counter, &combined, parent, gradients)?;
+                true
+            }
+            "svg" => {
+                convert_children(&child, stmts, counter, &combined, gradients, masks)?;
+                true
+            }
+            "line" => {
+                convert_line(&child, stmts, counter, &combined, gradients)?;
+                true
+            }
             "polyline" | "polygon" => {
                 convert_poly(&child, stmts, counter, &combined, tag, gradients)?;
+                true
             }
             "use" => {
-                convert_use(&child, parent, stmts, counter, &combined, gradients)?;
+                convert_use(&child, parent, stmts, counter, &combined, gradients, masks)?;
+                true
             }
-            "defs" => {
-                // <defs> contents (gradients etc.) were already collected;
-                // skip silently — nothing to render directly.
-            }
-            "clipPath" | "mask" | "pattern" | "linearGradient"
-            | "radialGradient" | "filter" | "style" | "title" | "desc" => {
-                // Silently skip non-rendering elements
-            }
+            "defs" | "mask" => false,
+            "clipPath" | "pattern" | "linearGradient"
+            | "radialGradient" | "filter" | "style" | "title" | "desc" => false,
             _ => {
                 // Unknown element: still recurse in case it has renderable children
-                convert_children(&child, stmts, counter, &combined, gradients)?;
+                convert_children(&child, stmts, counter, &combined, gradients, masks)?;
+                true
             }
+        };
+
+        if is_renderable {
+            wrap_new_statements_with_mask(&child, stmts, first_new_index, counter, masks);
         }
     }
     Ok(())
@@ -1116,6 +1178,7 @@ fn convert_use(
     counter: &mut u64,
     transform: &Transform,
     gradients: &HashMap<String, GradientDef>,
+    masks: &HashMap<String, MaskDef>,
 ) -> Result<(), SvgImportError> {
     // Resolve href (try both href and xlink:href)
     let href = node.attribute("href")
@@ -1138,7 +1201,7 @@ fn convert_use(
     // Convert the referenced element as if it were inline
     let tag = referenced.tag_name().name();
     match tag {
-        "g" => convert_group(&referenced, stmts, counter, transform, gradients)?,
+        "g" => convert_group(&referenced, stmts, counter, transform, gradients, masks)?,
         "rect" => convert_rect(&referenced, stmts, counter, transform, gradients)?,
         "circle" => convert_circle(&referenced, stmts, counter, transform, gradients)?,
         "ellipse" => convert_ellipse(&referenced, stmts, counter, transform, gradients)?,
@@ -1173,6 +1236,7 @@ fn convert_group(
     counter: &mut u64,
     transform: &Transform,
     gradients: &HashMap<String, GradientDef>,
+    masks: &HashMap<String, MaskDef>,
 ) -> Result<(), SvgImportError> {
     let label = make_label("group", counter);
     let mut props = transform_to_props(transform);
@@ -1184,7 +1248,7 @@ fn convert_group(
     }
 
     let mut children_stmts = Vec::new();
-    convert_children(node, &mut children_stmts, counter, &Transform::identity(), gradients)?;
+    convert_children(node, &mut children_stmts, counter, &Transform::identity(), gradients, masks)?;
 
     stmts.push(Stmt::ActorDecl {
         is_pub: false,
@@ -1719,6 +1783,79 @@ fn children_stmts_to_inline(stmts: &[Stmt]) -> Vec<crate::ast::InlineItem> {
             }
         })
         .collect()
+}
+
+/// Resolve a `url(#id)` reference to just the id string. Returns None for
+/// non-url values or invalid references.
+fn resolve_url_id(value: &str) -> Option<&str> {
+    let value = value.trim();
+    let inner = value.strip_prefix("url(")?.strip_suffix(')')?.trim();
+    let inner = inner.trim_matches(|ch| ch == '"' || ch == '\'');
+    inner.strip_prefix('#').filter(|id| !id.is_empty())
+}
+
+/// Wrap statements generated for a node in a `Mask` actor if the node has
+/// a `mask="url(#id)"` attribute.
+fn wrap_new_statements_with_mask(
+    node: &Node,
+    stmts: &mut Vec<Stmt>,
+    first_new_index: usize,
+    counter: &mut u64,
+    masks: &HashMap<String, MaskDef>,
+) {
+    let Some(mask_attr) = node.attribute("mask") else {
+        return;
+    };
+    let Some(mask_id) = resolve_url_id(mask_attr) else {
+        tracing::warn!("SVG import: unsupported mask reference '{}'", mask_attr);
+        return;
+    };
+    let Some(mask) = masks.get(mask_id) else {
+        tracing::warn!("SVG import: mask '{}' referenced but not found in <defs>", mask_id);
+        return;
+    };
+    if first_new_index >= stmts.len() {
+        return;
+    }
+
+    // Split off the generated statements for this element
+    let content_stmts = stmts.split_off(first_new_index);
+    let content_items = children_stmts_to_inline(&content_stmts);
+    if content_items.is_empty() {
+        stmts.extend(content_stmts);
+        return;
+    }
+
+    // Create the mask shape actor (invisible, defines clip geometry)
+    let mask_label = make_label("mask_shape", counter);
+    let mask_shape = crate::ast::InlineItem::Labeled {
+        label: mask_label,
+        ty: "Path".into(),
+        props: vec![
+            Property::new("commands", parse_svg_path_data(&mask.path_data)),
+            Property::new("at", Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)])),
+            Property::new("color", Expr::Ident("white".into())),
+            Property::new("opacity", Expr::Num(0.0)),
+        ],
+        modifiers: Vec::new(),
+        children: Vec::new(),
+    };
+
+    // Build the Mask wrapper: first child = mask shape, rest = content
+    let mut children = Vec::with_capacity(content_items.len() + 1);
+    children.push(mask_shape);
+    children.extend(content_items);
+
+    stmts.push(Stmt::ActorDecl {
+        is_pub: false,
+        is_anonymous: false,
+        label: make_label("mask", counter),
+        ty: "Mask".into(),
+        props: Vec::new(),
+        modifiers: Vec::new(),
+        children,
+        span: None,
+    });
 }
 
 /// Parse an SVG attribute as f64, returning `default` on missing or invalid.

@@ -1,3 +1,4 @@
+use crate::timeline::filter::FilterBackend;
 use super::core::RendererCore;
 use super::filter_backend::GpuFilterBackend;
 use super::transition::TransitionCompositor;
@@ -142,6 +143,25 @@ impl OffscreenRenderer {
                 &scene,
             )
             .map_err(|e| e.to_string())?;
+
+        // Blit pending zero-readback filter composites on top of the rendered scene
+        let pending = self
+            .filter_backend
+            .as_mut()
+            .map(|fb| fb.take_pending_composites())
+            .unwrap_or_default();
+
+        for composite in pending {
+            self.core.blit_texture(
+                &self.device,
+                &self.queue,
+                &composite.view,
+                output_view,
+                dimensions.width,
+                dimensions.height,
+                composite.alpha,
+            );
+        }
 
         self.readback_output(dimensions)
     }

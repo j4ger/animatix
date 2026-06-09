@@ -20,9 +20,9 @@
 
 | Task | Effort | Notes |
 |------|--------|-------|
-| **Zero-readback filter compositing** | Unknown | GPU filter compute exists, but scene evaluation/export still composites filtered results through CPU image readback. Wire filtered texture compositing through the renderer when the render path can consume it directly. |
-| **SVG `<mask>` import conversion** | Unknown | Runtime masking exists, but the SVG importer skips `<mask>`. Add importer support that maps SVG masks to Animatix runtime masks. |
-| **Scene primitive / picture-in-picture** | Needs design | Transition blending is shipped; keep only if there is a concrete use case for embedding one scene timeline inside another. Existing components and `Stack` cover many reuse cases. |
+| **Zero-readback filter compositing** | Implemented | GPU filter compute (WGSL blur + color matrix via GpuFilterBackend) now supports zero-readback compositing via `PendingComposite` + fullscreen blit. Safe path activates when the filter is last-in-render-order; otherwise falls back to readback. Wired into OffscreenRenderer (export) and PreviewSurface (GUI preview). |
+| **SVG `<mask>` import conversion** | Implemented | SVG importer now collects `<mask>` definitions via `collect_masks()`, removes `"mask"` from the skip list, and wraps masked elements in `Mask` actors with an invisible mask shape as the first child. Threaded through `convert_group` and `convert_use`. |
+| **Scene primitive / picture-in-picture** | Deferred | Existing components and `Stack` cover most reuse cases. Would need a `SceneRef` actor kind + offscreen rendering via FilterBackend infrastructure. Revisit if a concrete use case emerges. |
 
 ---
 

@@ -1,3 +1,4 @@
+use animatix::timeline::filter::FilterBackend;
 use animatix::renderer::core::RendererCore;
 use animatix::renderer::filter_backend::GpuFilterBackend;
 use animatix::renderer::transition::TransitionCompositor;
@@ -196,6 +197,25 @@ impl PreviewSurface {
                 &scene,
             )
             .map_err(|e| e.to_string())?;
+
+        // Blit pending zero-readback filter composites
+        let pending = self
+            .filter_backend
+            .as_mut()
+            .map(|fb| fb.take_pending_composites())
+            .unwrap_or_default();
+
+        for composite in pending {
+            self.renderer.blit_texture(
+                device,
+                queue,
+                &composite.view,
+                render_view,
+                self.dimensions.width,
+                self.dimensions.height,
+                composite.alpha,
+            );
+        }
 
         self.copy_to_sample(device, queue)
     }
