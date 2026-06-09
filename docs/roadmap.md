@@ -10,8 +10,6 @@
 
 ---
 
----
-
 ## P2 — Export & Media
 
 | Task | Effort | Notes |
@@ -40,5 +38,5 @@
 | **Asset usage tracking** | Show which actors reference an asset; no strong user story yet. |
 | **Variable track UI** | GUI for `let` variable tracks; `always` blocks cover most interactive cases. |
 | **Module dependency graph** | Visual graph of `.amx` imports; internal tooling value only so far. |
-| **Lossless whitespace/trivia preservation** | The current write-back pipeline is correct for all normal use cases. Formatter normalizes formatting per spec Appendix A — no user reports of formatting loss. Assessment saved to [`docs/plans/lossless-trivia-preservation.md`](docs/plans/lossless-trivia-preservation.md). |
+| **Lossless whitespace/trivia preservation** | The current write-back pipeline is correct for all normal use cases — comments roundtrip, formatting is idempotent. Formatter normalizes formatting deterministically per spec Appendix A; no user reports of formatting loss. If ever needed, effort: 2wk for value-level surgical editing (~90% coverage) up to 6wk for full patch-based approach. Deferred until users report concrete loss the serializer cannot handle. |
 | **APNG export** | Request-driven only; GIF covers lightweight previews, video/WebM covers higher-quality sharing, and APNG files can be large. |
