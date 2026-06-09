@@ -4,6 +4,21 @@
 
 ---
 
+## LLM Generation Checklist
+
+Use these rules when generating `.amx` files:
+
+- Start with `config { colorscheme: "editorial-dark", resolution: (1280, 720) }` unless the user asks otherwise.
+- Declare actors as `label: Type, prop: value`; animate later with keyframes (`#1s`) and assignments (`label.prop = value [800ms, ease: ease-out]`).
+- Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Math`, `Code`, `Svg`, `Image`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`.
+- Avoid common hallucinations: `Circle` (use `Ellipse`), `Triangle` (use `Polygon`), `Chart`/`Diagram` (use `Graph`/`PlotCurve`), and any 3D primitives.
+- Colors are RGBA tuples `(r, g, b, a)`, scheme tokens (`accent.primary`, `text.primary`, etc.), `auto`, or named colors (`RED`/`red`, `GREEN`/`green`, `BLUE`/`blue`, `BLACK`/`black`, `WHITE`/`white`, `YELLOW`/`yellow`, `ORANGE`/`orange`). Do not use hex strings.
+- Timing modifiers use positional duration: `[1s]`, `[800ms, ease: ease-in-out]`, `[delay: 250ms, 0s]`. Do not write `duration: 1s`.
+- `sequence`/`stagger` may contain actions, assignments, `let`, and nested `sequence`/`stagger`; actor declarations inside them are rejected.
+- Asset paths in examples should point to files that exist under `examples/assets/`.
+
+---
+
 ## Language Status Matrix
 
 | Area | Surface | Parser | Runtime | Tests | Docs | Notes |
@@ -11,11 +26,11 @@
 | Reactive | `always` | Yes | Runtime-real | Yes | Yes | Shipped stateless reactive model |
 | Reactive | `for` | Yes | Runtime-real | Yes | Yes | Compile-time structural expansion |
 | Reactive | `loop` / `yield` / `stop` / `pause` / `resume` | Rejected | Removed | Yes | Yes | Explicitly removed |
-| Components | `pub component` instantiation | Yes | Runtime-real | Yes | Yes | Via `module.rs`; see `examples/component_modules_demo.amx` |
+| Components | `pub component` instantiation | Yes | Runtime-real | Yes | Yes | Via `module.rs`; see `examples/09_components.amx` |
 | Components | parameter binding + nested-label isolation | Yes | Runtime-real | Yes | Yes | Module/timeline tests |
 | Components | dotted assignment targets / rhs property lookup | Yes | Runtime-real | Yes | Yes | Nested-label writes; nonexistent targets report diagnostics |
 | Components | custom component actions | Yes | Runtime-real | Yes | Yes | `action` blocks inside components; inlined at expansion time |
-| Modules | `pub let` exports | Yes | Runtime-real | Yes | Yes | Exported values from `.amx` files; see `examples/module_reuse_demo.amx`. |
+| Modules | `pub let` exports | Yes | Runtime-real | Yes | Yes | Exported values from `.amx` files; see `examples/10_modules.amx`. |
 | Modules | `import ... as` namespaced imports | Yes | Runtime-real | Yes | Yes | Aliased imports create namespaces for qualified access (`theme.accent`). |
 | Modules | Re-exports (`pub let x = c.x`) | Yes | Runtime-real | Yes | Yes | Re-export chains resolved transitively through namespace imports. |
 | Expressions | literals / arithmetic / calls / paths / conditionals | Yes | Runtime-real | Yes | Yes | Stable expression core |
@@ -23,10 +38,10 @@
 | Expressions | `Expr::Method` | Yes | Runtime-real | Yes | Yes | Method dispatch: `string.length()`, `list.get(0)`, `num.abs()` |
 | Expressions | `Expr::Index` | Yes | Runtime-real | Yes | Yes | Array/vector/string index: `items[0]`, `pos[1]`, `text[0]` |
 | Expressions | `Expr::Construct` | Yes | Runtime-real | Yes | Yes | Object construction: `Point { x: 10, y: 20 }` |
-| Primitives | All shapes (`Text`, `Math`, `Svg`, `Image`, `Rect`, `Ellipse`, `Line`, `Polygon`, `Path`, etc.) | Yes | Runtime-real | Yes | Yes | See `showcase.amx`, `arc_polygon_path_demo.amx`, `primitive_breadth_demo.amx`, `arrow_demo.amx`, `image_demo.amx` |
+| Primitives | All shapes (`Text`, `Math`, `Svg`, `Image`, `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, etc.) | Yes | Runtime-real | Yes | Yes | See `examples/01_shapes.amx`, `examples/13_paths.amx`, `examples/20_feature_reel.amx` |
 | 3D | `Graph3D`, `Line3D`, `Polyhedron` | — | **Not supported** | — | Yes | Explicitly not planned; all rendering is 2D |
-| Primitives | `Code` | Yes | Runtime-real | Yes | Yes | See `examples/code_demo.amx` |
-| Plotting | `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet` | Yes | Runtime-real | Yes | Yes | `PlotCurve` with `kind: cartesian|polar|parametric|implicit`. See `examples/plotting.amx` |
+| Primitives | `Code` | Yes | Runtime-real | Yes | Yes | See `examples/01_shapes.amx` |
+| Plotting | `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane` | Yes | Runtime-real | Yes | Yes | `PlotCurve` with `kind: cartesian|polar|parametric|implicit`. See `examples/07_plots.amx`, `examples/18_number_plane_contours.amx` |
 | Post-processing | `Filter` (blur, brightness, contrast, saturate, hue-rotate, sepia) | Yes | Runtime-real | Yes | Yes | Container primitive; renders children offscreen then applies CPU filters. See `examples/08_effects.amx` |
 | Morphing | re-declaration morphing + path/text interpolation | Yes | Runtime-real | Yes | Yes | Core morph path via re-declaration |
 | Morphing | `strategy:auto\|match\|fade`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing | Yes | Yes | |
@@ -34,7 +49,7 @@
 | Actions | broader verb-first surface | Yes | Partial | Partial | Yes | Shape exists; small subset implemented |
 | Composition | `sequence { ... }` | Yes | Runtime-real | Yes | Yes | Sequential composition; nested sequences and staggers supported |
 | Composition | `stagger [150ms] { ... }` | Yes | Runtime-real | Yes | Yes | Shared interval offset; nested sequences and staggers supported |
-| Colorscheme | `Colorscheme "name" { ... }` | Yes | Runtime-real | Yes | Yes | Native AMX primitive with `extends` |
+| Colorscheme | `let name = Colorscheme { extends: "...", auto: (...) }` | Yes | Runtime-real | Yes | Yes | Source parser accepts simple construct keys; dotted token overrides are runtime/API-only until parser support lands |
 | Components | `@slot` markers with named slot fills | Yes | Runtime-real | Yes | Yes | Component-internal containers with `@slot`; instantiation via `@slotname { items }` |
 | Multi-Scene | `# SceneName` scene declarations | Yes | Runtime-real | Yes | Yes | Top-level scene markers; `group_scenes()` post-processing |
 | Multi-Scene | `play SceneName [transition, duration]` | Yes | Runtime-real | Yes | Yes | Scene-level play statements with transition types |
@@ -186,9 +201,18 @@ red: Rect, color: (1.0, 0.0, 0.0, 1.0)
 - `stroke.default`
 - `surface.primary`, `surface.secondary`
 
-**Built-in color constants** (available everywhere): `RED`, `GREEN`, `BLUE`, `BLACK`, `WHITE`
+**Named colors** (case-insensitive): `RED`/`red`, `GREEN`/`green`, `BLUE`/`blue`, `BLACK`/`black`, `WHITE`/`white`, `YELLOW`/`yellow`, `ORANGE`/`orange`.
 
-`Colorscheme` primitive with `extends` inheritance is supported. See [`architecture.md`](architecture.md) §Colorscheme System.
+`Colorscheme` construct syntax in source:
+```animatix
+let forest = Colorscheme {
+  extends: "editorial-dark",
+  auto: ((0.35, 0.82, 0.55, 1.0), (0.98, 0.83, 0.44, 1.0))
+}
+config { colorscheme: "forest" }
+```
+
+> **Parser note:** keys inside `Colorscheme { ... }` must currently be simple identifiers such as `extends` or `auto`; dotted token overrides like `scene.background` are runtime/API-supported but not source-parseable yet. See [`architecture.md`](architecture.md) §Colorscheme System.
 
 ---
 
@@ -228,6 +252,19 @@ Duplicate modifier keys: last value wins. `ease` without duration = instant chan
 - **Exit:** `fade-out`, `wipe-out`, `reveal-out`, `draw-out`
 - **Effects:** `shake`, `pulse`, `bounce`
 - **Reorder:** `swap`, `reorder`
+
+**Action signatures for generation:**
+
+| Action | Shape |
+|---|---|
+| `fade-in`, `fade-out`, `draw-in`, `draw-out`, `wipe-in`, `wipe-out`, `reveal-in`, `reveal-out` | `verb target [duration, delay, ease]` |
+| `move` | `move target [to: Vec2, duration, ease]` |
+| `shift` | `shift target [by: Vec2, duration, ease]` |
+| `rotate` | `rotate target [by: Num, duration, ease]` |
+| `scale` | `scale target [by: Num, duration, ease]` |
+| `shake`, `pulse`, `bounce` | `verb target [duration, intensity: Num]` |
+| `swap` | `swap childA, childB [duration, ease]` |
+| `reorder` | `reorder container [order: (childA, childB, ...), duration, ease]` |
 
 **Rotation:** Two ways to rotate:
 - `rotate item [by: angle, duration]` - Visual transform (applies to actor transform matrix)
@@ -332,7 +369,7 @@ stagger [150ms] {
 }
 ```
 
-Nested `sequence`/`stagger` and declarations inside either block are rejected.
+Nested `sequence`/`stagger` blocks and `let` declarations are allowed. Actor declarations inside `sequence`/`stagger` are rejected; declare actors outside the composition block, then animate them inside it.
 
 ---
 
@@ -396,7 +433,7 @@ row: Row, gap: 12, padding: 20, align: "center" {
 
 ## 9. Primitive Types
 
-**Shapes:** `Rect`, `Ellipse`, `Line`, `Polygon`, `Path`
+**Shapes:** `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`
 
 **Text-like:** `Text`, `Math`, `Code`, `Svg`, `Image`
 
@@ -406,8 +443,27 @@ row: Row, gap: 12, padding: 20, align: "center" {
 circle: Ellipse, size: (100, 100)
 poly: Polygon, points: {(0,0), (100,0), (50,100)}
 path: Path, commands: {move_to(0, 0), line_to(100, 100), close()}
-img: Image, url: "photo.png", at: (100, 100), size: (200, 150)
+arrow: Arrow, from: (0, 0), to: (120, 40), head_size: 18
+img: Image, url: "examples/assets/checker.png", at: (100, 100), size: (200, 150)
 ```
+
+**Common generation properties:**
+
+| Actor kind | Useful properties |
+|---|---|
+| All actors | `at`, `position`, `anchor`, `offset`, `opacity`, `rotation`, `scale`, `transform` |
+| Sized actors | `size` |
+| Drawables | `color` |
+| Shapes | `stroke`, `stroke_width`, `fill_opacity`, `stroke_progress` |
+| `Line` | `from`, `to` |
+| `Arrow` | `from`, `to`, `head_size` |
+| `Polygon` | `points: {(x, y), ...}` |
+| `Path` | `commands: {move_to(...), line_to(...), curve_to(...), close()}` |
+| `Text` / `Math` / `Code` | `text` / `math` / `code`, `font_size`, `font_family` |
+| `Image` / `Svg` | `url` |
+| `Filter` | `blur`, `brightness`, `contrast`, `saturate`, `hue_rotate`, `sepia` |
+| `Graph` / plots | `x_domain`, `y_domain`, `func`, `kind`, `resolution`, `density`, `levels` |
+| `Row` / `Col` / `Grid` / `Stack` | `gap`, `padding`, `align`, `cols` (`Grid`) |
 
 **Text shorthand:**
 ```animatix
@@ -474,7 +530,7 @@ Pipeline order: **blur → color matrix → opacity**. Nested filters are allowe
 
 ```animatix
 music: Audio, source: "background.mp3"
-voice: Audio, source: "voiceover.wav", volume: 0.8, [1s, duration: 5s]
+voice: Audio, source: "voiceover.wav", volume: 0.8 [5s, delay: 1s]
 ```
 
 **Audio properties:**
@@ -485,14 +541,15 @@ voice: Audio, source: "voiceover.wav", volume: 0.8, [1s, duration: 5s]
 | `volume` | F32 | 1.0 | Playback volume multiplier (0.0–1.0) |
 
 **Timing modifiers:**
-- `duration: <time>` — trim the audio clip to the specified length. Without this, the full file plays.
-- Delay modifiers (e.g. `[1s]`) shift the audio start time on the global timeline.
+- First bare time literal (for example `[5s]`) trims playback to that duration. Without this, the full file plays.
+- `delay: <time>` shifts the audio start time on the global timeline.
+- Do not use `duration: 5s`; named `duration` modifiers are rejected.
 
 During video export, all `Audio` actors from the current scene (or all scenes in a composition) are mixed together. Overlapping clips are blended; each clip respects its individual `volume` and start offset.
 
 ### Available Primitives & Common Confusions
 
-**Shapes:** `Rect`, `Ellipse`, `Line`, `Polygon`, `Path`
+**Shapes:** `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`
 
 **Text-like:** `Text`, `Math`, `Code`, `Svg`, `Image`
 
@@ -504,7 +561,6 @@ During video export, all `Audio` actors from the current scene (or all scenes in
 
 > **Not supported (common LLM hallucinations):**
 > - `Circle` — use `Ellipse` with equal `size`
-> - `Arrow` — use `Line` with manual arrowheads (dedicated `Arrow` primitive planned)
 > - `Triangle` — use `Polygon` with 3 points
 > - `Graph3D`, `Line3D`, `Polyhedron` — 3D is not supported; all rendering is 2D
 > - `Chart`, `Diagram` — use `Graph` or `PlotCurve`
@@ -623,9 +679,10 @@ Re-export chains are resolved transitively. Values are evaluated at build time i
 
 **Definition:**
 ```animatix
-pub component MetricCard(title: "Metric") {
+pub component MetricCard(title: Str = "Metric", value: Str = "0") {
     frame: Rect, size: (240, 120), color: blue
-    title_text: Text { text: title, at: (0, -20) }
+    title_text: Text, text: title, at: (0, -20)
+    value_text: Text, text: value, at: (0, 24)
     badge: Ellipse, size: (24, 24), color: gold
 }
 ```
@@ -663,9 +720,9 @@ btn: Button, text: "Submit"
 Define reusable action sequences inside a component:
 
 ```animatix
-pub component Button(text: "OK") {
-    action pulse {
-        self.scale = 1.2 [100ms]
+pub component Button(text: Str = "OK") {
+    action pulse(amount: Num = 1.2) {
+        self.scale = amount [100ms]
         self.scale = 1.0 [100ms]
     }
     frame: Rect, size: (100, 40)
@@ -677,17 +734,17 @@ Invoke on any instance:
 btn: Button, text: "Click"
 
 #0s
-pulse btn [200ms]
+pulse btn [amount: 1.3, 200ms]
 ```
 
 **Semantics:**
 - Custom actions are **inlined at component expansion time**. The invocation is replaced with the action's body statements.
-- Invocation modifiers **override** body modifiers. `pulse btn [200ms]` replaces any `[100ms]` in the body with `[200ms]`.
+- Invocation timing modifiers **override** body timing modifiers. `pulse btn [200ms]` replaces any `[100ms]` in the body with `[200ms]`.
+- Named invocation modifiers bind to action parameters. `pulse btn [amount: 1.3, 200ms]` binds `amount` and overrides timing.
 - Use `self` to refer to the component instance. `self.scale` rewrites to `btn.scale`.
 - Actions work inside `sequence`, `stagger`, and keyframes with correct timing.
 
 **Limitations:**
-- No action parameters yet (MVP only supports fixed bodies)
 - Multi-target invocation (`pulse btn, icon`) is not supported
 - Actions cannot be defined at module scope (only inside components)
 
@@ -701,7 +758,7 @@ Slots allow component authors to declare fillable regions that can be customized
 pub component SlideLayout {
   backdrop: Rect, size: fill, color: scene.background, anchor: scene.center
 
-  // Required slot — error if not filled:
+  // Required-style slot — empty if not filled:
   header: Col, anchor: scene.top {
     @slot
   }
@@ -745,6 +802,15 @@ slide: SlideLayout {
 Animatix has a **gradual type system**. Type annotations are optional and may be added to component and action parameters. When present, the type checker validates property assignments and action invocations at build time, reporting type mismatches as diagnostics.
 
 ### 13.1 Syntax
+
+Parameter forms are:
+
+```animatix
+name
+name: Type
+name: default_value
+name: Type = default_value
+```
 
 Type annotations appear after a colon in parameter declarations:
 
@@ -1059,21 +1125,21 @@ Returns a `Value::Object` with typed fields. Field access is not yet implemented
 **Auto-duration:** If `--duration` is omitted, the CLI builds the timeline, reads `Timeline::duration_seconds()` (the time of the last keyframe across all tracks, background, and child-order animations), and adds a trailing hold (configurable via `--hold`, default **1.0s**). This prevents the export from cutting off bluntly at the last animation's end frame.
 
 ```bash
-# Export full timeline + 1s hold (auto-detected ~10.9s for swap_demo.amx)
-animatix gif examples/swap_demo.amx -o out.gif
+# Export full timeline + 1s hold
+animatix gif examples/12_reorder.amx -o out.gif
 
 # Export with a 2-second trailing hold
-animatix gif examples/swap_demo.amx -o out.gif --hold 2.0
+animatix gif examples/12_reorder.amx -o out.gif --hold 2.0
 
 # Export explicit 3-second slice (hold is ignored when --duration is set)
-animatix gif examples/swap_demo.amx -o out.gif --duration 3.0
+animatix gif examples/12_reorder.amx -o out.gif --duration 3.0
 ```
 
 **Parallel rendering:** Video and GIF exports render frames in parallel using all available CPU cores. Each thread gets its own GPU context and a cloned Timeline, then renders a chunk of frames. Encoding (GIF quantization / video muxing) remains sequential to preserve frame order and codec state.
 
 ```bash
-# 109-frame GIF rendered across 28 threads (~4 frames each)
-animatix gif examples/swap_demo.amx -o out.gif --fps 10
+# Low-FPS quick preview
+animatix gif examples/20_feature_reel.amx -o out.gif --fps 10
 ```
 
 **Image export (`animatix image`):** Renders a single frame at `--time` (default 0s). No trailing hold or parallelization applies.
@@ -1084,17 +1150,17 @@ Multi-scene compositions support the same export flags. Duration is auto-detecte
 
 ```bash
 # Export a multi-scene composition
-animatix video examples/multi_scene_demo.amx --width 1280 --height 720
+animatix video examples/14_multiscene.amx --width 1280 --height 720
 
 # GIF export with quick preview settings
-animatix gif examples/multi_scene_mini.amx --width 640 --height 360 --fps 10
+animatix gif examples/19_cross_file_scenes.amx --width 640 --height 360 --fps 10
 ```
 
 ---
 
 ## 18. Multi-Scene Composition
 
-> **Status:** Phases 1–3 and 7 shipped (parser, composition engine, CLI export, transition blending). Phase 4–6 pending (GUI scene list/composition timeline). Cross-file scenes pending.
+> **Status:** Parser, composition engine, CLI export, transition blending, and cross-file scene composition are shipped. GUI scene list/composition timeline work remains pending.
 > **Design doc:** [`docs/multi-scene-composition-design.md`](multi-scene-composition-design.md)
 
 ### Scene Declarations
