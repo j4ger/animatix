@@ -578,220 +578,163 @@ pub fn property_keyframe_easing(track: &AnimationTrack, field: ActorField, time_
 // ─────────────────────────────────────────────────────────────
 
 /// Inject a property's value into the runtime Environment.
-/// This is called from `inject_runtime_lookup_values()` for every
-/// INJECTABLE property on every actor, every frame.
+///
+/// Iterates over the property registry and injects every INJECTABLE property
+/// that has a direct track storage field.  Derived values (width, height,
+/// radius, at alias, shift, line_cap, line_join) are handled afterwards.
+///
+/// This is called from `inject_runtime_lookup_values()` for every actor,
+/// every frame.
 pub(crate) fn inject_property_into_env(
     env: &mut Environment,
     label: &str,
     track: &AnimationTrack,
     time_ms: u64,
 ) {
+    use crate::timeline::property_registry::{PROPERTY_REGISTRY, PropertyFlags};
+
     // Reusable key buffer to avoid repeated small String allocations.
     let mut key = String::with_capacity(label.len() + 24);
     key.push_str(label);
     key.push('.');
     let prefix_len = key.len();
 
-    // Geometry
-    inject_vec2_env(env, &mut key, prefix_len, "at",        &track.position, time_ms, [0.0, 0.0]);
-    inject_vec2_env(env, &mut key, prefix_len, "position",  &track.position, time_ms, [0.0, 0.0]);
-    inject_vec2_env(env, &mut key, prefix_len, "shift",     &track.motion_offset, time_ms, [0.0, 0.0]);
-    let size_val = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
-    let full_size = [size_val[0] * 2.0, size_val[1] * 2.0];
-    inject_vec2_env(env, &mut key, prefix_len, "size",      &track.size, time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+    // ── Automated: inject every registered INJECTABLE property ──
+    for schema in PROPERTY_REGISTRY.iter() {
+        if !schema.flags.contains(PropertyFlags::INJECTABLE) {
+            continue;
+        }
+        // Skip group handler fields (no direct track storage).
+        if matches!(schema.field,
+            ActorField::PositionBindingGroup
+            | ActorField::VectorShapeGroup
+            | ActorField::PlotDomainGroup
+            | ActorField::ContainerLayoutGroup
+        ) {
+            continue;
+        }
+        // Read the effective value from the track (with schema default).
+        let pv = read_property_value_or_default(track, schema.field, time_ms, track.kind);
+
+        // Inject the value and typed sub-keys (x, y, r, g, b, a).
+        key.truncate(prefix_len);
+        key.push_str(schema.name);
+        inject_value(env, &mut key, prefix_len, schema.name, &pv);
+
+        // Inject the _animating_* flag.
+        key.truncate(prefix_len);
+        key.push_str("_animating_");
+        key.push_str(schema.name);
+        let animating = track.is_field_currently_animating(schema.field, time_ms);
+        env.set(&*key, Value::Num(if animating { 1.0 } else { 0.0 }));
+    }
+
+    // ── Non-registered derived / compound values ──
+
+    // width, height, radius_x, radius_y — derived from size.
+    let size_pv = read_property_value_or_default(track, ActorField::Size, time_ms, track.kind);
+    if let PropertyValue::Vec2(half) = size_pv {
+        let full = [half[0] * 2.0, half[1] * 2.0];
+        key.truncate(prefix_len);
+        key.push_str("width");
+        env.set(&*key, Value::Num(full[0] as f64));
+        key.truncate(prefix_len);
+        key.push_str("height");
+        env.set(&*key, Value::Num(full[1] as f64));
+        key.truncate(prefix_len);
+        key.push_str("radius_x");
+        env.set(&*key, Value::Num(half[0] as f64));
+        key.truncate(prefix_len);
+        key.push_str("radius_y");
+        env.set(&*key, Value::Num(half[1] as f64));
+    }
+
+    // at — maps to PositionBindingGroup (group field, skipped above).
+    // Read from the Position storage and inject manually.
+    let at_pv = read_property_value_or_default(track, ActorField::Position, time_ms, track.kind);
     key.truncate(prefix_len);
-    key.push_str("width");
-    env.set(&key, Value::Num(full_size[0] as f64));
+    key.push_str("at");
+    inject_value(env, &mut key, prefix_len, "at", &at_pv);
     key.truncate(prefix_len);
-    key.push_str("height");
-    env.set(&key, Value::Num(full_size[1] as f64));
-    inject_scalar_env(env, &mut key, prefix_len, "rotation", &track.rotation, time_ms, 0.0);
-    inject_scalar_env(env, &mut key, prefix_len, "scale",   &track.scale, time_ms, 1.0);
-    inject_transform_env(env, &mut key, prefix_len, &track.transform, time_ms);
+    key.push_str("_animating_at");
+    let at_anim = track.is_field_currently_animating(ActorField::Position, time_ms);
+    env.set(&*key, Value::Num(if at_anim { 1.0 } else { 0.0 }));
 
-    // Style
-    inject_color_env(env, &mut key, prefix_len, "color",           &track.color, time_ms, DEFAULT_WHITE);
-    inject_scalar_env(env, &mut key, prefix_len, "opacity",        &track.opacity, time_ms, 1.0);
-    inject_color_env(env, &mut key, prefix_len, "stroke_color",    &track.stroke_color, time_ms, DEFAULT_WHITE);
-    inject_scalar_env(env, &mut key, prefix_len, "stroke_width",   &track.stroke_width, time_ms, 2.0);
-    inject_scalar_env(env, &mut key, prefix_len, "stroke_progress", &track.stroke_progress, time_ms, 1.0);
-    inject_scalar_env(env, &mut key, prefix_len, "fill_opacity",   &track.fill_opacity, time_ms, 1.0);
-    inject_u32_env(env, &mut key, prefix_len, "line_cap",      &track.line_cap, time_ms, 0);
-    inject_u32_env(env, &mut key, prefix_len, "line_join",     &track.line_join, time_ms, 0);
-
-    // Shape-specific derived fields
-    let size = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+    // shift — not in the registry (read from MotionOffset directly).
+    let shift_pv = read_property_value_or_default(track, ActorField::MotionOffset, time_ms, track.kind);
     key.truncate(prefix_len);
-    key.push_str("radius_x");
-    env.set(&key, Value::Num(size[0] as f64));
+    key.push_str("shift");
+    inject_value(env, &mut key, prefix_len, "shift", &shift_pv);
     key.truncate(prefix_len);
-    key.push_str("radius_y");
-    env.set(&key, Value::Num(size[1] as f64));
+    key.push_str("_animating_shift");
+    let shift_anim = track.is_field_currently_animating(ActorField::MotionOffset, time_ms);
+    env.set(&*key, Value::Num(if shift_anim { 1.0 } else { 0.0 }));
 
-    // Line from/to
-    inject_vec2_env(env, &mut key, prefix_len, "from", &track.line_from, time_ms, [-50.0, 0.0]);
-    inject_vec2_env(env, &mut key, prefix_len, "to",   &track.line_to, time_ms, [50.0, 0.0]);
-
-    // Filter
-    inject_scalar_env(env, &mut key, prefix_len, "blur",           &track.filter_blur, time_ms, 0.0);
-    inject_scalar_env(env, &mut key, prefix_len, "brightness",     &track.filter_brightness, time_ms, 1.0);
-    inject_scalar_env(env, &mut key, prefix_len, "contrast",       &track.filter_contrast, time_ms, 1.0);
-    inject_scalar_env(env, &mut key, prefix_len, "saturate",       &track.filter_saturate, time_ms, 1.0);
-    inject_scalar_env(env, &mut key, prefix_len, "hue_rotate",     &track.filter_hue_rotate, time_ms, 0.0);
-    inject_scalar_env(env, &mut key, prefix_len, "sepia",          &track.filter_sepia, time_ms, 0.0);
-
-    // Animation-state flags: inject `_animating_{property}` booleans so `always`
-    // blocks can detect active keyframe-driven animation at the current time.
-    inject_scalar_animating(env, &mut key, prefix_len, "at",         &track.position, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "position",   &track.position, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "shift",      &track.motion_offset, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "size",       &track.size, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "rotation",   &track.rotation, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "scale",      &track.scale, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "color",      &track.color, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "opacity",    &track.opacity, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "stroke_color", &track.stroke_color, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "stroke_width", &track.stroke_width, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "stroke_progress", &track.stroke_progress, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "fill_opacity", &track.fill_opacity, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "line_cap",    &track.line_cap, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "line_join",   &track.line_join, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "from",       &track.line_from, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "to",         &track.line_to, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "blur",          &track.filter_blur, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "brightness",    &track.filter_brightness, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "contrast",      &track.filter_contrast, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "saturate",      &track.filter_saturate, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "hue_rotate",    &track.filter_hue_rotate, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "sepia",         &track.filter_sepia, time_ms);
-    inject_scalar_animating(env, &mut key, prefix_len, "transform",     &track.transform, time_ms);
+    // line_cap / line_join — stored as PropertyTrack<u32>, no ActorField
+    // variant yet, so they can't be dispatched through the registry.
+    let line_cap = track.line_cap.get(time_ms, 0) as f64;
+    key.truncate(prefix_len);
+    key.push_str("line_cap");
+    env.set(&*key, Value::Num(line_cap));
+    let line_join = track.line_join.get(time_ms, 0) as f64;
+    key.truncate(prefix_len);
+    key.push_str("line_join");
+    env.set(&*key, Value::Num(line_join));
 }
 
-fn inject_scalar_env(
-    env: &mut Environment,
-    key: &mut String,
-    prefix_len: usize,
-    suffix: &str,
-    field: &Option<PropertyTrack<f32>>,
-    time_ms: u64,
-    default: f32,
-) {
-    let val = field.get(time_ms, default) as f64;
-    key.truncate(prefix_len);
-    key.push_str(suffix);
-    env.set(&*key, Value::Num(val));
-}
-
-fn inject_u32_env(
-    env: &mut Environment,
-    key: &mut String,
-    prefix_len: usize,
-    suffix: &str,
-    field: &Option<PropertyTrack<u32>>,
-    time_ms: u64,
-    default: u32,
-) {
-    let val = field.get(time_ms, default) as f64;
-    key.truncate(prefix_len);
-    key.push_str(suffix);
-    env.set(&*key, Value::Num(val));
-}
-
-fn inject_vec2_env(
-    env: &mut Environment,
-    key: &mut String,
-    prefix_len: usize,
-    suffix: &str,
-    field: &Option<PropertyTrack<[f32; 2]>>,
-    time_ms: u64,
-    default: [f32; 2],
-) {
-    let val = field.get(time_ms, default);
-    let f = |x: f32| x as f64;
-    key.truncate(prefix_len);
-    key.push_str(suffix);
-    env.set(&*key, Value::Vec2([f(val[0]), f(val[1])]));
-    key.push_str(".x");
-    env.set(&*key, Value::Num(f(val[0])));
-    key.truncate(prefix_len + suffix.len());
-    key.push_str(".y");
-    env.set(&*key, Value::Num(f(val[1])));
-}
-
-fn inject_color_env(
-    env: &mut Environment,
-    key: &mut String,
-    prefix_len: usize,
-    suffix: &str,
-    field: &Option<PropertyTrack<[f32; 4]>>,
-    time_ms: u64,
-    default: [f32; 4],
-) {
-    let val = field.get(time_ms, default);
-    let f = |x: f32| x as f64;
-    key.truncate(prefix_len);
-    key.push_str(suffix);
-    env.set(&*key, Value::Color([f(val[0]), f(val[1]), f(val[2]), f(val[3])]));
-    key.push_str(".r");
-    env.set(&*key, Value::Num(f(val[0])));
-    key.truncate(prefix_len + suffix.len());
-    key.push_str(".g");
-    env.set(&*key, Value::Num(f(val[1])));
-    key.truncate(prefix_len + suffix.len());
-    key.push_str(".b");
-    env.set(&*key, Value::Num(f(val[2])));
-    key.truncate(prefix_len + suffix.len());
-    key.push_str(".a");
-    env.set(&*key, Value::Num(f(val[3])));
-}
-
-fn inject_transform_env(
-    env: &mut Environment,
-    key: &mut String,
-    prefix_len: usize,
-    field: &Option<PropertyTrack<[f32; 6]>>,
-    time_ms: u64,
-) {
-    let val = field.get(time_ms, [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
-    let f = |x: f32| x as f64;
-    key.truncate(prefix_len);
-    key.push_str("transform");
-    env.set(&*key, Value::List(vec![
-        Value::Num(f(val[0])),
-        Value::Num(f(val[1])),
-        Value::Num(f(val[2])),
-        Value::Num(f(val[3])),
-        Value::Num(f(val[4])),
-        Value::Num(f(val[5])),
-    ]));
-}
-
-/// Inject an `_animating_{key}` boolean flag (1.0 = has keyframes, 0.0 = none).
-fn inject_scalar_animating<T: Clone>(
-    env: &mut Environment,
-    key: &mut String,
-    prefix_len: usize,
-    suffix: &str,
-    field: &Option<PropertyTrack<T>>,
-    time_ms: u64,
-) {
-    // A property is "currently being driven by keyframes" when the next
-    // keyframe strictly after the current time has a non-Linear easing.
-    // Build-time snapshot keyframes always use Easing::Linear, while real
-    // animation targets use the user-specified easing (ease-in-out, ease-out,
-    // bounce, etc.).  Between the snapshot and the target we are actively
-    // animating; after reaching the target (or before any keyframe) we are
-    // at rest.
-    let is_animating = field.as_ref().is_some_and(|t| {
-        t.keyframes
-            .range(time_ms + 1..)
-            .next()
-            .is_some_and(|(_, (_, easing))| *easing != crate::easing::Easing::Linear)
-    });
-    key.truncate(prefix_len);
-    key.push_str("_animating_");
-    key.push_str(suffix);
-    env.set(&*key, Value::Num(if is_animating { 1.0 } else { 0.0 }));
+/// Inject a `PropertyValue` into the environment, with typed sub-keys
+/// (`.x`, `.y` for Vec2; `.r`, `.g`, `.b`, `.a` for Color/Vec4).
+///
+/// `key` must be positioned at the end of the property name (the full
+/// `{label}.{property}` prefix).  It is restored to `prefix_len + name.len()`
+/// after injection so that callers can continue using the buffer.
+fn inject_value(env: &mut Environment, key: &mut String, prefix_len: usize, name: &str, value: &PropertyValue) {
+    let restore = prefix_len + name.len();
+    match value {
+        PropertyValue::F32(v) => {
+            env.set(&*key, Value::Num(*v as f64));
+        }
+        PropertyValue::U32(v) => {
+            env.set(&*key, Value::Num(*v as f64));
+        }
+        PropertyValue::Vec2(v) => {
+            env.set(&*key, Value::Vec2([v[0] as f64, v[1] as f64]));
+            key.push_str(".x");
+            env.set(&*key, Value::Num(v[0] as f64));
+            key.truncate(restore);
+            key.push_str(".y");
+            env.set(&*key, Value::Num(v[1] as f64));
+        }
+        PropertyValue::Vec4(v) | PropertyValue::Color(v) => {
+            env.set(&*key, Value::Color([v[0] as f64, v[1] as f64, v[2] as f64, v[3] as f64]));
+            key.push_str(".r");
+            env.set(&*key, Value::Num(v[0] as f64));
+            key.truncate(restore);
+            key.push_str(".g");
+            env.set(&*key, Value::Num(v[1] as f64));
+            key.truncate(restore);
+            key.push_str(".b");
+            env.set(&*key, Value::Num(v[2] as f64));
+            key.truncate(restore);
+            key.push_str(".a");
+            env.set(&*key, Value::Num(v[3] as f64));
+        }
+        PropertyValue::Transform(v) => {
+            env.set(&*key, Value::List(vec![
+                Value::Num(v[0] as f64),
+                Value::Num(v[1] as f64),
+                Value::Num(v[2] as f64),
+                Value::Num(v[3] as f64),
+                Value::Num(v[4] as f64),
+                Value::Num(v[5] as f64),
+            ]));
+        }
+        PropertyValue::String(v) => {
+            env.set(&*key, Value::Str(v.clone()));
+        }
+        _ => {}
+    }
+    key.truncate(restore);
 }
 
 // ─────────────────────────────────────────────────────────────

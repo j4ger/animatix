@@ -465,6 +465,15 @@ impl<T: Interpolate + Clone> PropertyTrack<T> {
     pub fn evaluate_copy(&self, time_ms: u64) -> T where T: Copy {
         self.evaluate_with(time_ms, |v| *v)
     }
+    /// Returns `true` if this property track is currently interpolating
+    /// between two keyframes (the next keyframe after `time_ms` uses a
+    /// non-Linear easing — real animation targets, not snapshot scaffolding).
+    pub fn is_currently_animating(&self, time_ms: u64) -> bool {
+        self.keyframes
+            .range(time_ms + 1..)
+            .next()
+            .is_some_and(|(_, (_, easing))| *easing != crate::easing::Easing::Linear)
+    }
     /// Core evaluation logic parameterized by clone strategy.
     fn evaluate_with(&self, time_ms: u64, clone_val: impl Fn(&T) -> T) -> T {
         // P2.20: Memoization — return cached value if time matches
@@ -1069,6 +1078,29 @@ impl AnimationTrack {
             PlacementMode => TrackFieldMut::PlacementMode(&mut self.placement_mode),
             MorphOptions => TrackFieldMut::MorphOptions(&mut self.morph_options),
             _ => return None,
+        })
+    }
+
+    /// Returns `true` if the property track for `field` is currently
+    /// interpolating between two keyframes at the given time (the next
+    /// keyframe after `time_ms` uses a non-Linear easing, distinguishing
+    /// real animation targets from build-time snapshot scaffolding).
+    ///
+    /// This is the frame-time definition of "being driven by keyframes"
+    /// used by the `_animating_*` environment flags.
+    pub fn is_field_currently_animating(&self, field: ActorField, time_ms: u64) -> bool {
+        self.field_ref(field).is_some_and(|f| match f {
+            TrackFieldRef::F32(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::Vec2(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::Vec4(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::Transform(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::String(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::U32(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::PointList(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::CommandList(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::ShapeType(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::PlacementMode(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::MorphOptions(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
         })
     }
 
