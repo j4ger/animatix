@@ -22,7 +22,6 @@
 |------|--------|-------|
 | **Zero-readback filter compositing** | Implemented | GPU filter compute (WGSL blur + color matrix via GpuFilterBackend) now supports zero-readback compositing via `PendingComposite` + fullscreen blit. Safe path activates when the filter is last-in-render-order; otherwise falls back to readback. Wired into OffscreenRenderer (export) and PreviewSurface (GUI preview). |
 | **SVG `<mask>` import conversion** | Implemented | SVG importer now collects `<mask>` definitions via `collect_masks()`, removes `"mask"` from the skip list, and wraps masked elements in `Mask` actors with an invisible mask shape as the first child. Threaded through `convert_group` and `convert_use`. |
-| **Scene primitive / picture-in-picture** | Deferred | Existing components and `Stack` cover most reuse cases. Would need a `SceneRef` actor kind + offscreen rendering via FilterBackend infrastructure. Revisit if a concrete use case emerges. |
 
 ---
 
@@ -30,6 +29,7 @@
 
 | Task | Reason |
 |------|--------|
+| **Scene primitive / picture-in-picture** | Transition blending shipped; existing components and `Stack` cover most reuse cases. Would need a `SceneRef` actor kind + offscreen rendering via FilterBackend infrastructure. Revisit if a concrete use case emerges. |
 | **Export performance: pre-compiled plot closures** | Only matters for many plot actors or heavy sampled fields. |
 | **Asset usage tracking** | Show which actors reference an asset; no strong user story yet. |
 | **Variable track UI** | GUI for `let` variable tracks; `always` blocks cover most interactive cases. |
