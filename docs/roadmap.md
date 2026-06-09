@@ -16,7 +16,6 @@
 |------|--------|-------|
 | **Audio playback in GUI preview** | 1 week | Export/muxing exists; preview still needs an audio output backend such as `rodio` or `cpal` and timeline sync. |
 | **WebM export** | 1 week | More useful than APNG for browser embedding and sharing; add VP9/AV1-capable encoding path and CLI surface alongside existing GIF/video export. |
-| **Web canvas / WASM export** | 1–2 months | Requires a WASM-friendly renderer/export path and dependency audit; not just a CLI encoder change. |
 
 ---
 
