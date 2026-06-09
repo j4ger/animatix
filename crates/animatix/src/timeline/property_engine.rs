@@ -641,30 +641,30 @@ pub(crate) fn inject_property_into_env(
     inject_scalar_env(env, &mut key, prefix_len, "sepia",          &track.filter_sepia, time_ms, 0.0);
 
     // Animation-state flags: inject `_animating_{property}` booleans so `always`
-    // blocks can detect when a keyframe track exists for a property.
-    inject_scalar_animating(env, &mut key, prefix_len, "at",         &track.position);
-    inject_scalar_animating(env, &mut key, prefix_len, "position",   &track.position);
-    inject_scalar_animating(env, &mut key, prefix_len, "shift",      &track.motion_offset);
-    inject_scalar_animating(env, &mut key, prefix_len, "size",       &track.size);
-    inject_scalar_animating(env, &mut key, prefix_len, "rotation",   &track.rotation);
-    inject_scalar_animating(env, &mut key, prefix_len, "scale",      &track.scale);
-    inject_scalar_animating(env, &mut key, prefix_len, "color",      &track.color);
-    inject_scalar_animating(env, &mut key, prefix_len, "opacity",    &track.opacity);
-    inject_scalar_animating(env, &mut key, prefix_len, "stroke_color", &track.stroke_color);
-    inject_scalar_animating(env, &mut key, prefix_len, "stroke_width", &track.stroke_width);
-    inject_scalar_animating(env, &mut key, prefix_len, "stroke_progress", &track.stroke_progress);
-    inject_scalar_animating(env, &mut key, prefix_len, "fill_opacity", &track.fill_opacity);
-    inject_scalar_animating(env, &mut key, prefix_len, "line_cap",    &track.line_cap);
-    inject_scalar_animating(env, &mut key, prefix_len, "line_join",   &track.line_join);
-    inject_scalar_animating(env, &mut key, prefix_len, "from",       &track.line_from);
-    inject_scalar_animating(env, &mut key, prefix_len, "to",         &track.line_to);
-    inject_scalar_animating(env, &mut key, prefix_len, "blur",          &track.filter_blur);
-    inject_scalar_animating(env, &mut key, prefix_len, "brightness",    &track.filter_brightness);
-    inject_scalar_animating(env, &mut key, prefix_len, "contrast",      &track.filter_contrast);
-    inject_scalar_animating(env, &mut key, prefix_len, "saturate",      &track.filter_saturate);
-    inject_scalar_animating(env, &mut key, prefix_len, "hue_rotate",    &track.filter_hue_rotate);
-    inject_scalar_animating(env, &mut key, prefix_len, "sepia",         &track.filter_sepia);
-    inject_scalar_animating(env, &mut key, prefix_len, "transform",     &track.transform);
+    // blocks can detect active keyframe-driven animation at the current time.
+    inject_scalar_animating(env, &mut key, prefix_len, "at",         &track.position, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "position",   &track.position, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "shift",      &track.motion_offset, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "size",       &track.size, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "rotation",   &track.rotation, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "scale",      &track.scale, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "color",      &track.color, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "opacity",    &track.opacity, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "stroke_color", &track.stroke_color, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "stroke_width", &track.stroke_width, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "stroke_progress", &track.stroke_progress, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "fill_opacity", &track.fill_opacity, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "line_cap",    &track.line_cap, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "line_join",   &track.line_join, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "from",       &track.line_from, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "to",         &track.line_to, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "blur",          &track.filter_blur, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "brightness",    &track.filter_brightness, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "contrast",      &track.filter_contrast, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "saturate",      &track.filter_saturate, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "hue_rotate",    &track.filter_hue_rotate, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "sepia",         &track.filter_sepia, time_ms);
+    inject_scalar_animating(env, &mut key, prefix_len, "transform",     &track.transform, time_ms);
 }
 
 fn inject_scalar_env(
@@ -773,15 +773,25 @@ fn inject_scalar_animating<T: Clone>(
     prefix_len: usize,
     suffix: &str,
     field: &Option<PropertyTrack<T>>,
+    time_ms: u64,
 ) {
-    let has_keyframes = field.as_ref().map(|t| !t.keyframes.is_empty()).unwrap_or(false);
+    // A property is "currently being driven by keyframes" when the next
+    // keyframe strictly after the current time has a non-Linear easing.
+    // Build-time snapshot keyframes always use Easing::Linear, while real
+    // animation targets use the user-specified easing (ease-in-out, ease-out,
+    // bounce, etc.).  Between the snapshot and the target we are actively
+    // animating; after reaching the target (or before any keyframe) we are
+    // at rest.
+    let is_animating = field.as_ref().is_some_and(|t| {
+        t.keyframes
+            .range(time_ms + 1..)
+            .next()
+            .is_some_and(|(_, (_, easing))| *easing != crate::easing::Easing::Linear)
+    });
     key.truncate(prefix_len);
     key.push_str("_animating_");
     key.push_str(suffix);
-    env.set(
-        &*key,
-        Value::Num(if has_keyframes { 1.0 } else { 0.0 }),
-    );
+    env.set(&*key, Value::Num(if is_animating { 1.0 } else { 0.0 }));
 }
 
 // ─────────────────────────────────────────────────────────────
