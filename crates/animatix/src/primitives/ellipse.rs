@@ -86,6 +86,9 @@ impl Primitive for EllipsePrimitive {
                 state.size[0] = s[0] as f32;
                 state.size[1] = s[1] as f32;
             }
+            if let Some(Value::Num(r)) = overrides.get("rotation") {
+                state.rotation = *r as f32;
+            }
         }
 
         evaluate_shape_render(self, ctx, &VectorShapeState::Ellipse(state))

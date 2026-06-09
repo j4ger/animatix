@@ -67,6 +67,11 @@ fn transform_rect_bbox(transform: &kurbo::Affine, rect: kurbo::Rect) -> kurbo::R
 
 impl Timeline {
     /// Evaluate position, size, and transform for a node.
+    ///
+    /// `node_overrides` — when set (from an `always` modifier), overrides for
+    /// spatial properties (`at`/`position`, `shift`, `rotation`, `scale`,
+    /// `opacity`, `size`, `transform`) are applied via the property registry
+    /// helpers in place of the track's keyframed values.
     fn evaluate_node_transform(
         &self,
         track: &AnimationTrack,
@@ -75,24 +80,52 @@ impl Timeline {
         parent_transform: kurbo::Affine,
         scene_dimensions: SceneDimensions,
         layout_position: Option<[f32; 2]>,
+        node_overrides: Option<&std::collections::HashMap<String, Value>>,
     ) -> NodeTransform {
+        use crate::timeline::property_engine::{effective_f32, effective_vec2, effective_transform};
+
+        // ── Position: special handling for anchor/binding ──
+        let override_position: Option<[f32; 2]> = node_overrides
+            .and_then(|ov| ov.get("at").or_else(|| ov.get("position")))
+            .and_then(|v| match v {
+                Value::Vec2(pos) => Some([pos[0] as f32, pos[1] as f32]),
+                _ => None,
+            });
         let placement_mode = track.placement_mode.get(time_ms, PlacementMode::LayoutManaged);
-        let mut base_position = track.position.get(time_ms, [0.0, 0.0]);
+        let mut base_position = if let Some(ov_pos) = override_position {
+            ov_pos
+        } else {
+            track.position.get(time_ms, [0.0, 0.0])
+        };
         if let Some(layout_pos) = layout_position {
-            if placement_mode == PlacementMode::LayoutManaged {
+            if placement_mode == PlacementMode::LayoutManaged && override_position.is_none() {
                 base_position = layout_pos;
             }
         }
 
-        let binding = track.position_binding.get(time_ms, PositionBinding::Absolute);
+        // When an override position is set, always use Absolute binding
+        // so the modifier value is used directly (skips anchor resolution).
+        let binding = if override_position.is_some() {
+            PositionBinding::Absolute
+        } else {
+            track.position_binding.get(time_ms, PositionBinding::Absolute)
+        };
         let position = resolve_bound_position(binding, base_position, parent_transform, scene_dimensions);
-        let motion_offset = track.motion_offset.get(time_ms, [0.0, 0.0]);
-        let rotation = track.rotation.get(time_ms, 0.0) as f64;
-        let scale = track.scale.get(time_ms, 1.0) as f64;
-        let opacity = track.opacity.get(time_ms, 1.0);
-        let half_size = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
 
-        let transform = track.transform.get(time_ms, [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
+        // ── Spatial properties: read through registry-based helpers ──
+        // Note: shift is handled manually because "shift" is not yet in the
+        // property registry (despite being injectable into the environment).
+        let motion_offset = if let Some(Value::Vec2(v)) = node_overrides.and_then(|ov| ov.get("shift")) {
+            [v[0] as f32, v[1] as f32]
+        } else {
+            track.motion_offset.get(time_ms, [0.0, 0.0])
+        };
+        let rotation = effective_f32(track, node_overrides, time_ms, "rotation", 0.0) as f64;
+        let scale = effective_f32(track, node_overrides, time_ms, "scale", 1.0) as f64;
+        let opacity = effective_f32(track, node_overrides, time_ms, "opacity", 1.0);
+        let half_size = effective_vec2(track, node_overrides, time_ms, "size", DEFAULT_LAYOUT_HALF_SIZE);
+
+        let transform = effective_transform(track, node_overrides, time_ms, "transform", [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
         let transform_affine = kurbo::Affine::new([
             transform[0] as f64,
             transform[1] as f64,
@@ -273,6 +306,11 @@ impl Timeline {
         }
 
         // ── Evaluate transform first for visibility culling (P2.19) ──
+        // Extract node overrides from modifier (always block) so spatial
+        // properties (position, rotation, scale, opacity, shift, size, transform)
+        // are applied rather than being silently ignored.
+        let node_overrides = overrides.get(node_label);
+
         let layout_pos = if self.dynamic_layout {
             layout_positions.get(node_label).copied()
         } else {
@@ -296,6 +334,7 @@ impl Timeline {
                         parent_transform,
                         scene_dimensions,
                         layout_pos,
+                        node_overrides,
                     );
                     self.transform_cache.borrow_mut().insert(
                         node_label.to_string(),
@@ -312,6 +351,7 @@ impl Timeline {
                     parent_transform,
                     scene_dimensions,
                     layout_pos,
+                    node_overrides,
                 );
                 self.transform_cache.borrow_mut().insert(
                     node_label.to_string(),
@@ -521,12 +561,22 @@ impl Timeline {
             }
 
             // Sample filter properties
-            let blur = track.filter_blur.get(time_ms, 0.0);
-            let brightness = track.filter_brightness.get(time_ms, 1.0);
-            let contrast = track.filter_contrast.get(time_ms, 1.0);
-            let saturate = track.filter_saturate.get(time_ms, 1.0);
-            let hue_rotate = track.filter_hue_rotate.get(time_ms, 0.0);
-            let sepia = track.filter_sepia.get(time_ms, 0.0);
+            let mut blur = track.filter_blur.get(time_ms, 0.0);
+            let mut brightness = track.filter_brightness.get(time_ms, 1.0);
+            let mut contrast = track.filter_contrast.get(time_ms, 1.0);
+            let mut saturate = track.filter_saturate.get(time_ms, 1.0);
+            let mut hue_rotate = track.filter_hue_rotate.get(time_ms, 0.0);
+            let mut sepia = track.filter_sepia.get(time_ms, 0.0);
+
+            // Apply modifier overrides for filter properties
+            if let Some(ov) = overrides.get(node_label) {
+                if let Some(Value::Num(v)) = ov.get("blur") { blur = *v as f32; }
+                if let Some(Value::Num(v)) = ov.get("brightness") { brightness = *v as f32; }
+                if let Some(Value::Num(v)) = ov.get("contrast") { contrast = *v as f32; }
+                if let Some(Value::Num(v)) = ov.get("saturate") { saturate = *v as f32; }
+                if let Some(Value::Num(v)) = ov.get("hue_rotate") { hue_rotate = *v as f32; }
+                if let Some(Value::Num(v)) = ov.get("sepia") { sepia = *v as f32; }
+            }
 
             // If all filters are identity and no blur, just append sub-scene directly
             let needs_filter = blur > 0.5

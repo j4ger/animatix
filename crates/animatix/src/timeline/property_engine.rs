@@ -783,3 +783,80 @@ fn inject_scalar_animating<T: Clone>(
         Value::Num(if has_keyframes { 1.0 } else { 0.0 }),
     );
 }
+
+// ─────────────────────────────────────────────────────────────
+// Override-aware property reads
+// ─────────────────────────────────────────────────────────────
+
+/// Read an effective f32 property value, preferring modifier overrides
+/// over track keyframes. Uses the property registry to map `name` to its
+/// storage field for the track fallback.
+pub(crate) fn effective_f32(
+    track: &AnimationTrack,
+    overrides: Option<&std::collections::HashMap<String, Value>>,
+    time_ms: u64,
+    name: &str,
+    default: f32,
+) -> f32 {
+    if let Some(Value::Num(v)) = overrides.and_then(|ov| ov.get(name)) {
+        return *v as f32;
+    }
+    if let Some(schema) = crate::timeline::property_registry::lookup_property(name) {
+        if let Some(pv) = read_property_value(track, schema.field, time_ms) {
+            if let PropertyValue::F32(v) = pv {
+                return v;
+            }
+        }
+    }
+    default
+}
+
+/// Read an effective Vec2 property value, preferring modifier overrides
+/// over track keyframes.
+pub(crate) fn effective_vec2(
+    track: &AnimationTrack,
+    overrides: Option<&std::collections::HashMap<String, Value>>,
+    time_ms: u64,
+    name: &str,
+    default: [f32; 2],
+) -> [f32; 2] {
+    if let Some(Value::Vec2(v)) = overrides.and_then(|ov| ov.get(name)) {
+        return [v[0] as f32, v[1] as f32];
+    }
+    if let Some(schema) = crate::timeline::property_registry::lookup_property(name) {
+        if let Some(pv) = read_property_value(track, schema.field, time_ms) {
+            if let PropertyValue::Vec2(v) = pv {
+                return v;
+            }
+        }
+    }
+    default
+}
+
+/// Read an effective Transform property value ([f32; 6]), preferring modifier
+/// overrides over track keyframes.
+pub(crate) fn effective_transform(
+    track: &AnimationTrack,
+    overrides: Option<&std::collections::HashMap<String, Value>>,
+    time_ms: u64,
+    name: &str,
+    default: [f32; 6],
+) -> [f32; 6] {
+    if let Some(Value::List(items)) = overrides.and_then(|ov| ov.get(name)) {
+        if items.len() == 6 {
+            let mut t = default;
+            for (i, item) in items.iter().enumerate() {
+                t[i] = item.as_num() as f32;
+            }
+            return t;
+        }
+    }
+    if let Some(schema) = crate::timeline::property_registry::lookup_property(name) {
+        if let Some(pv) = read_property_value(track, schema.field, time_ms) {
+            if let PropertyValue::Transform(v) = pv {
+                return v;
+            }
+        }
+    }
+    default
+}
