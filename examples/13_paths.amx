@@ -1,39 +1,50 @@
-// 13 — Advanced Paths
-// Path commands, bezier curves, and polygon animation.
+// 13 — Paths & Transforms
+// Path commands, polygon morphing, and affine transform matrices.
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-// A heart drawn with bezier curves
-heart: Path, commands: {
-  move_to(0, 20),
-  curve_to(-40, -20, -60, 20, 0, 60),
-  curve_to(60, 20, 40, -20, 0, 20),
-  close()
-}, color: accent.danger, at: (320, 360), scale: 2.0
+title: Text, text: "Paths & Transforms", font_size: 48, color: text.primary, anchor: scene.top, offset: (0, 60)
 
-// A wave drawn with quadratic curves
+star: Path, commands: {
+  move_to(0, -50), line_to(14, -15), line_to(50, -15),
+  line_to(22, 10), line_to(32, 48), line_to(0, 24),
+  line_to(-32, 48), line_to(-22, 10), line_to(-50, -15),
+  line_to(-14, -15), close()
+}, color: accent.warning, at: (320, 400)
+
 wave: Path, commands: {
-  move_to(-100, 0),
-  quad_to(-50, -40, 0, 0),
-  quad_to(50, 40, 100, 0),
-  quad_to(150, -40, 200, 0)
+  move_to(-120, 0), quad_to(-60, -50, 0, 0),
+  quad_to(60, 50, 120, 0), quad_to(180, -50, 240, 0)
 }, color: accent.primary, at: (640, 360), stroke_width: 3
 
-// A morphing polygon
-poly: Polygon, points: {(0, -60), (52, -18), (32, 48), (-32, 48), (-52, -18)}, color: accent.success, at: (960, 360)
+morph: Polygon, points: {
+  (0, -50), (48, -16), (30, 40), (-30, 40), (-48, -16)
+}, color: accent.success, at: (960, 400)
+
+note: Text, text: "Bezier curves . polygons . affine transform", font_size: 16, color: text.muted, anchor: scene.center, offset: (0, 220)
 
 #0.5s
+fade-in title [600ms, ease: ease-out]
+fade-in note [400ms]
+
+#1s
 stagger [150ms] {
-  draw-in heart [800ms, ease: ease-out]
-  draw-in wave [800ms, ease: ease-out]
-  fade-in poly [600ms]
+  fade-in star [600ms]
+  fade-in wave [500ms]
+  fade-in morph [500ms]
 }
 
-// Animate the polygon points
 #2.5s
-poly: Polygon, points: {(0, -80), (70, -20), (44, 60), (-44, 60), (-70, -20)}, color: accent.warning, at: (960, 360) [1.5s, path_arc: 0.2]
+morph: Polygon, points: {
+  (0, -60), (64, -24), (40, 54), (-40, 54), (-64, -24)
+}, color: accent.warning, at: (960, 400) [1.5s, ease: ease-in-out]
 
-#4.5s
-heart.color = accent.primary [1s, ease: ease-in-out]
-wave.color = accent.warning [1s, ease: ease-in-out]
-poly.color = accent.danger [1s, ease: ease-in-out]
+#3.5s
+star.transform = (1.3, 0, 0, 1.3, 0, 0) [1s, ease: ease-out]
+
+#4s
+morph.transform = (1.2, 0.3, -0.3, 1.2, 0, 0) [1s, ease: ease-out]
+
+#5s
+wave.color = accent.success [1s, ease: ease-in-out]
+morph.color = accent.danger [1s, ease: ease-in-out]

@@ -1,21 +1,21 @@
-// 02 — Layout Containers
-// Row, Col, Grid, Stack, and Group with animated properties.
+// 02 — Layout: Containers & Grid
+// Row, Col, Grid, and Stack with animated layout properties.
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-row: Row, anchor: scene.top, offset: (0, 80), gap: 16, align: "center" {
-  r1: Rect, size: (60, 60), color: accent.primary
-  r2: Rect, size: (60, 60), color: accent.success
-  r3: Rect, size: (60, 60), color: accent.warning
+row: Row, anchor: scene.top, offset: (0, 60), gap: 16, align: "center" {
+  r1: Rect, size: (50, 50), color: accent.primary
+  r2: Rect, size: (50, 50), color: accent.success
+  r3: Rect, size: (50, 50), color: accent.warning
 }
 
-col: Col, anchor: scene.left, offset: (120, 0), gap: 16, align: "center" {
-  c1: Ellipse, size: (50, 50), color: accent.danger
-  c2: Ellipse, size: (50, 50), color: accent.primary
-  c3: Ellipse, size: (50, 50), color: accent.success
+col: Col, anchor: scene.left, offset: (100, 0), gap: 16, align: "center" {
+  c1: Ellipse, size: (40, 40), color: accent.danger
+  c2: Ellipse, size: (40, 40), color: accent.primary
+  c3: Ellipse, size: (40, 40), color: accent.success
 }
 
-grid: Grid, cols: 3, gap: 12, padding: 20, anchor: scene.bottom, offset: (0, -100) {
+grid: Grid, cols: 3, gap: 12, padding: 16, anchor: scene.bottom, offset: (0, -80) {
   g1: Rect, size: (40, 40), color: accent.warning
   g2: Rect, size: (40, 40), color: accent.danger
   g3: Rect, size: (40, 40), color: accent.primary
@@ -24,28 +24,26 @@ grid: Grid, cols: 3, gap: 12, padding: 20, anchor: scene.bottom, offset: (0, -10
   g6: Rect, size: (40, 40), color: accent.danger
 }
 
-stack: Stack, anchor: scene.right, offset: (-160, 0) {
-  back: Rect, size: (140, 140), color: surface.secondary
-  mid: Ellipse, size: (100, 100), color: accent.primary
-  front: Rect, size: (60, 60), color: text.primary
+stack: Stack, anchor: scene.right, offset: (-120, 0) {
+  back: Rect, size: (120, 120), color: surface.secondary
+  mid: Ellipse, size: (80, 80), color: accent.primary
+  front: Rect, size: (50, 50), color: text.primary
 }
 
 #0.5s
 stagger [100ms] {
-  fade-in row [400ms]
-  fade-in col [400ms]
-  fade-in grid [400ms]
-  fade-in stack [400ms]
+  fade-in row [500ms, ease: ease-out]
+  fade-in col [500ms, ease: ease-out]
+  fade-in grid [500ms, ease: ease-out]
+  fade-in stack [500ms, ease: ease-out]
 }
 
-#2s
-row.gap = 40 [1s, ease: ease-in-out]
-
-#3s
-col.gap = 40 [1s, ease: ease-in-out]
-
-#4s
+#2.5s
+row.gap = 32 [1s, ease: ease-in-out]
+col.gap = 32 [1s, ease: ease-in-out]
 grid.gap = 24 [1s, ease: ease-in-out]
 
-#5s
-mid.size = (120, 120) [1s, ease: bounce]
+#4s
+mid.size = (100, 100) [1s, ease: bounce]
+front.size = (70, 70) [1s, ease: ease-out]
+

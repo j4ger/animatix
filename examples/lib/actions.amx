@@ -1,0 +1,48 @@
+// actions.amx — Reusable component actions for Animatix examples.
+//
+// Custom actions must be defined inside `pub component` blocks (spec §12).
+// Each component below exposes actions that can be invoked on instances.
+// Patterns follow conservative syntax from existing Card/Slide examples.
+
+// ── Pressable ──────────────────────────────────────────────────────
+// A minimal hit-target with press and pulse actions.
+
+pub component Pressable() {
+  action press {
+    self.scale = 0.92 [80ms]
+    self.scale = 1.0 [120ms]
+  }
+
+  action pulse {
+    self.scale = 1.08 [120ms]
+    self.scale = 1.0 [180ms]
+  }
+}
+
+// ── Togglable ──────────────────────────────────────────────────────
+// A component whose frame highlights on toggle.
+
+pub component Togglable() {
+  action highlight {
+    self.frame.color = surface.secondary [200ms]
+    self.frame.color = surface.primary [300ms]
+  }
+
+  action dim {
+    self.frame.color = surface.primary [200ms]
+    self.frame.color = surface.secondary [300ms]
+  }
+}
+
+// ── Fadable ────────────────────────────────────────────────────────
+// A simple enter/exit helper.
+
+pub component Fadable() {
+  action show {
+    self.opacity = 1 [300ms]
+  }
+
+  action hide {
+    self.opacity = 0 [300ms]
+  }
+}

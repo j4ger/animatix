@@ -1,0 +1,5 @@
+// Re-export module — chains imports for re-export demo in 10_modules_import_reexport.amx.
+import "./palette.amx" as src
+pub let accent = src.primary
+pub let bg = src.bg
+pub let fg = src.text

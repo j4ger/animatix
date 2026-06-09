@@ -1,9 +1,22 @@
-// 00 — Hello World
-// The smallest valid Animatix scene: one actor, one action.
+// 00 — Hello: Bold Title Card
+// A dramatic opening with editorial-dark elegance.
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-hello: Text, text: "Hello, Animatix", font_size: 72, color: text.primary, anchor: scene.center
+title: Text, text: "ANIMATIX", font_size: 96, color: text.primary, anchor: scene.center, offset: (0, -80)
+subtitle: Text, text: "Layout-First Animation", font_size: 28, color: text.secondary, anchor: scene.center, offset: (0, -10)
+accent: Rect, size: (60, 3), color: accent.primary, anchor: scene.center, offset: (0, -30)
+footnote: Text, text: "A declarative DSL for motion design", font_size: 16, color: text.muted, anchor: scene.center, offset: (0, 50)
 
 #0.5s
-fade-in hello [800ms, ease: ease-out]
+fade-in title [1s, ease: ease-out]
+
+#+0.3s
+fade-in accent [400ms, ease: ease-out]
+accent.size = (640, 3) [800ms, ease: ease-out]
+
+#+0.2s
+fade-in subtitle [600ms, ease: ease-out]
+
+#+0.2s
+fade-in footnote [500ms, ease: ease-out]

@@ -1,0 +1,64 @@
+// components.amx — Reusable components for Animatix examples.
+//
+// Conservative syntax following existing lib/card.amx and lib/slide.amx.
+// All components are public and importable via `import "...as alias"`.
+
+// ── Button ─────────────────────────────────────────────────────────
+// A labeled button with optional accent and pulse action.
+
+pub component Button(label: "Button", accent: accent.primary) {
+  bg: Rect, size: (140, 44), color: surface.secondary, anchor: scene.center
+  label_text: Text, text: label, font_size: 16, color: accent, anchor: scene.center
+
+  action pulse {
+    self.scale = 1.05 [120ms]
+    self.scale = 1.0 [150ms]
+  }
+}
+
+// ── Badge ──────────────────────────────────────────────────────────
+// A small numeric badge, useful for notifications or counts.
+
+pub component Badge(count: "0", color: accent.danger) {
+  bg: Ellipse, size: (28, 28), color: color, anchor: scene.center
+  count_text: Text, text: count, font_size: 12, color: text.primary, anchor: scene.center
+}
+
+// ── Panel ──────────────────────────────────────────────────────────
+// A titled container panel with a slot for custom body content.
+
+pub component Panel(title: "Panel", width: 280, height: 180) {
+  frame: Rect, size: (width, height), color: surface.primary, anchor: scene.center
+  header: Text, text: title, font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 14)
+  body: Group, anchor: scene.center {
+    @slot
+    placeholder: Text, text: "Content", font_size: 14, color: text.secondary, anchor: scene.center
+  }
+
+  action fade_in {
+    self.opacity = 0 [0ms]
+    self.opacity = 1 [400ms]
+  }
+}
+
+// ── Tag ────────────────────────────────────────────────────────────
+// A small labelled tag/chip with colored background.
+
+pub component Tag(label: "Tag", color: accent.primary) {
+  bg: Rect, size: (60, 24), color: color, anchor: scene.center
+  label_text: Text, text: label, font_size: 12, color: text.primary, anchor: scene.center
+}
+
+// ── Divider ────────────────────────────────────────────────────────
+// A simple horizontal separator line.
+
+pub component Divider(width: 200) {
+  line: Line, from: (-100, 0), to: (100, 0), stroke: surface.secondary, stroke_width: 1.0, anchor: scene.center
+}
+
+// ── Spacer ─────────────────────────────────────────────────────────
+// An invisible layout spacer.
+
+pub component Spacer(size: 16) {
+  blank: Rect, size: (size, size), color: (0, 0, 0, 0), anchor: scene.center
+}

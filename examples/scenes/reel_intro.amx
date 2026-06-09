@@ -1,0 +1,10 @@
+// Scene fragment — imported into 19_cross_file_scenes.amx for cross-file scene demo.
+config { colorscheme: "editorial-dark" }
+
+# IntroScene
+box: Rect, size: (120, 120), color: accent.primary, anchor: scene.center
+label: Text, text: "Module Scene", font_size: 28, color: text.primary, anchor: scene.center, offset: (0, 100)
+
+#0.5s
+fade-in box [500ms]
+fade-in label [400ms, delay: 200ms]

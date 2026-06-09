@@ -1,34 +1,59 @@
-// 06 — Reactive Blocks
-// always: stateless frame-by-frame evaluation with t, scene anchors, and conditionals.
+// 06 — Reactive: Live Focus Reticle
+// Uses always + _animating_* flag to detect keyframe-driven motion.
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
+title: Text, text: "Live Focus Reticle", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 60)
+status: Text, text: "IDLE", font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -60)
+
+ring: Ellipse, size: (50, 50), color: accent.primary, stroke_width: 3, anchor: scene.center
+cross_h: Rect, size: (80, 2), color: accent.primary, anchor: scene.center
+cross_v: Rect, size: (2, 80), color: accent.primary, anchor: scene.center
+dot: Ellipse, size: (6, 6), color: accent.danger, anchor: scene.center
+
 #0s
-orbit: Ellipse, size: (20, 20), color: accent.primary
-planet: Ellipse, size: (48, 48), color: accent.success
-moon: Ellipse, size: (16, 16), color: accent.warning
-wave: Rect, size: (120, 120), color: accent.danger
-
-always {
-  // Orbital motion around scene center
-  let cx = scene.center.x
-  let cy = scene.center.y
-  orbit.at = (cx + 200 * cos(t), cy + 120 * sin(t))
-
-  // Planet follows orbit at half speed
-  planet.at = (cx + 200 * cos(t * 0.5 + 1.0), cy + 120 * sin(t * 0.5 + 1.0))
-
-  // Moon orbits the planet
-  let px = planet.at.x
-  let py = planet.at.y
-  moon.at = (px + 60 * cos(t * 2), py + 40 * sin(t * 2))
-
-  // Pulsing square synced to time
-  let pulse = if (t % 1.0) < 0.5 { 1.0 } else { 1.4 }
-  wave.size = (120 * pulse, 120 * pulse)
-  wave.at = (cx - 300, cy)
-}
-
+ring.at = (640, 360)
 
 #1s
-fade-in backdrop [1s]
+ring.at = (360, 200) [1s, ease: ease-in-out]
+
+#2.5s
+ring.at = (920, 520) [1s, ease: ease-in-out]
+
+#4s
+ring.at = (640, 360) [1s, ease: ease-out]
+
+always {
+  cross_h.at = ring.at
+  cross_v.at = ring.at
+  dot.at = ring.at
+
+  if ring._animating_at == 0 {
+    let p = 0.5 + 0.5 * sin(t * 3)
+    cross_h.color = accent.success
+    cross_v.color = accent.success
+    ring.color = accent.success
+    ring.size = (50 - p * 10, 50 - p * 10)
+    ring.stroke_width = 3.0 - p * 1.0
+    status.text = "IDLE — at rest"
+    status.color = accent.success
+  } else {
+    cross_h.color = accent.primary
+    cross_v.color = accent.primary
+    ring.color = accent.primary
+    ring.size = (50, 50)
+    ring.stroke_width = 3.0
+    status.text = "TRACKING — keyframe active"
+    status.color = accent.warning
+  }
+}
+
+#0.5s
+stagger [80ms] {
+  fade-in title [500ms]
+  fade-in ring [400ms]
+  fade-in cross_h [400ms]
+  fade-in cross_v [400ms]
+  fade-in dot [400ms]
+  fade-in status [400ms]
+}

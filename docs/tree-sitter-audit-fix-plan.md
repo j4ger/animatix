@@ -652,7 +652,7 @@ cargo test -p tree-sitter-animatix
 # Verify new grammar rules parse correctly
 tree-sitter parse examples/06_reactive.amx    # drive, if-expression
 tree-sitter parse examples/11_colors.amx       # auto
-tree-sitter parse examples/filter_demo.amx     # fill
+tree-sitter parse examples/08_effects.amx     # blur, brightness, sepia
 
 # Verify analyzer works with updated node kinds
 cargo test -p animatix-analyzer

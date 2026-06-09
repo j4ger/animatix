@@ -27,7 +27,7 @@
 | 3D | `Graph3D`, `Line3D`, `Polyhedron` | — | **Not supported** | — | Yes | Explicitly not planned; all rendering is 2D |
 | Primitives | `Code` | Yes | Runtime-real | Yes | Yes | See `examples/code_demo.amx` |
 | Plotting | `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet` | Yes | Runtime-real | Yes | Yes | `PlotCurve` with `kind: cartesian|polar|parametric|implicit`. See `examples/plotting.amx` |
-| Post-processing | `Filter` (blur, brightness, contrast, saturate, hue-rotate, sepia) | Yes | Runtime-real | Yes | Yes | Container primitive; renders children offscreen then applies CPU filters. See `examples/filter_demo.amx` |
+| Post-processing | `Filter` (blur, brightness, contrast, saturate, hue-rotate, sepia) | Yes | Runtime-real | Yes | Yes | Container primitive; renders children offscreen then applies CPU filters. See `examples/08_effects.amx` |
 | Morphing | re-declaration morphing + path/text interpolation | Yes | Runtime-real | Yes | Yes | Core morph path via re-declaration |
 | Morphing | `strategy:auto\|match\|fade`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing | Yes | Yes | |
 | Actions | Entrance: `fade-in`, `draw-in`, `wipe-in`, `reveal-in`; Motion: `move`, `shift`, `rotate`, `scale`; Exit: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`; Effects: `shake`, `pulse`, `bounce`; Reorder: `swap`, `reorder` | Yes | Runtime-real | Yes | Yes | Built-ins |

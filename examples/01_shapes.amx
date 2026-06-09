@@ -1,27 +1,40 @@
-// 01 — Shape Primitives
-// Every built-in shape type in a single balanced gallery.
+// 01 — Primitives: Shapes, Media & Code
+// Built-in primitive types in an elegant gallery.
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-gallery: Grid, cols: 4, gap: 40, padding: 80, anchor: scene.center {
-  circle: Ellipse, size: (100, 100), color: accent.primary
-  square: Rect, size: (100, 100), color: accent.success
-  diamond: Polygon, points: {(0, -50), (50, 0), (0, 50), (-50, 0)}, color: accent.warning
-  line: Line, from: (-50, 0), to: (50, 0), stroke: accent.danger, stroke_width: 4
-  star: Polygon, points: {(0, -60), (14, -20), (57, -20), (23, 8), (35, 50), (0, 25), (-35, 50), (-23, 8), (-57, -20), (-14, -20)}, color: accent.primary
-  path: Path, commands: {move_to(-40, 20), line_to(0, -40), line_to(40, 20), close()}, color: accent.success
-  math: Math, math: "sum_(i=1)^n i^2", font_size: 28, color: accent.warning
-  code: Code, code: "fn main() {}", font_size: 18, color: accent.danger
+gallery: Grid, cols: 4, gap: 24, padding: 60, anchor: scene.center {
+  text: Text, text: "Typography", font_size: 20, color: accent.primary
+  math: Math, math: "integral_0^infinity e^(-x) dx", font_size: 22, color: accent.success
+  code: Code, code: "fn animate() { }", font_size: 20, color: accent.warning
+  rect: Rect, size: (80, 80), color: accent.danger
+  ellipse: Ellipse, size: (80, 80), color: accent.primary
+  polygon: Polygon, points: {(0, -40), (40, 0), (0, 40), (-40, 0)}, color: accent.success
+  path: Path, commands: {move_to(-30, 20), line_to(0, -30), line_to(30, 20), close()}, color: accent.warning
+  line: Line, from: (-40, 0), to: (40, 0), stroke: accent.danger, stroke_width: 4
+  image: Image, url: "examples/assets/checker.png", size: (80, 80)
 }
 
 #0.5s
 stagger [80ms] {
-  fade-in circle [400ms, ease: ease-out]
-  fade-in square [400ms, ease: ease-out]
-  fade-in diamond [400ms, ease: ease-out]
-  fade-in line [400ms, ease: ease-out]
-  fade-in star [400ms, ease: ease-out]
-  fade-in path [400ms, ease: ease-out]
-  fade-in math [400ms, ease: ease-out]
-  fade-in code [400ms, ease: ease-out]
+  fade-in text [500ms, ease: ease-out]
+  fade-in math [500ms, ease: ease-out]
+  fade-in code [500ms, ease: ease-out]
+  fade-in rect [500ms, ease: ease-out]
+  fade-in ellipse [500ms, ease: ease-out]
+  fade-in polygon [500ms, ease: ease-out]
+  fade-in path [500ms, ease: ease-out]
+  fade-in line [500ms, ease: ease-out]
+  fade-in image [500ms, ease: ease-out]
 }
+
+// Color rotation across the gallery
+#3s
+text.color = accent.danger [600ms]
+math.color = accent.primary [600ms]
+code.color = accent.success [600ms]
+rect.color = accent.warning [600ms]
+ellipse.color = accent.danger [600ms]
+polygon.color = accent.primary [600ms]
+path.color = accent.success [600ms]
+line.stroke = accent.warning [600ms]

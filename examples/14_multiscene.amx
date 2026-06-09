@@ -1,30 +1,31 @@
 // 14 — Multi-Scene Composition
-// Scene declarations, play transitions, and per-scene configuration.
+// Scene declarations, transitions, and per-scene configuration.
 
 config { resolution: (1280, 720) }
 
 # Intro
 config { colorscheme: "editorial-dark" }
-title: Text, text: "Animatix", font_size: 96, color: text.primary, anchor: scene.center
-sub: Text, text: "Multi-Scene Composition", font_size: 24, color: text.secondary, anchor: scene.center, offset: (0, 60)
+title: Text, text: "Multi-Scene", font_size: 72, color: text.primary, anchor: scene.center, offset: (0, -30)
+sub: Text, text: "Composition & Transitions", font_size: 24, color: text.secondary, anchor: scene.center, offset: (0, 30)
 
 #0.5s
-fade-in title [600ms, ease: ease-out]
-fade-in sub [400ms, delay: 200ms]
+fade-in title [800ms, ease: ease-out]
+fade-in sub [500ms, delay: 200ms]
 
-#2s
+#2.5s
 fade-out title [400ms]
 fade-out sub [400ms]
 
-play Diagram [fade, 300ms]
+play Diagram [fade, 400ms]
 
 # Diagram
 config { colorscheme: "editorial-dark" }
-graph: Graph, x_domain: (-5, 5), y_domain: (-5, 5), size: (500, 500), anchor: scene.center {
-  curve: PlotCurve, kind: "cartesian", func: (x) => x^3 - 3 * x, color: accent.primary, width: 3
+graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4), size: (500, 500), anchor: scene.center {
+  sine: PlotCurve, kind: "cartesian", func: (x) => sin(x) * 2, color: accent.primary, width: 3
+  cosine: PlotCurve, kind: "cartesian", func: (x) => cos(x) * 2, color: accent.success, width: 2
 }
 
-label: Text, text: "y = x^3 - 3x", font_size: 20, color: text.secondary, anchor: scene.bottom, offset: (0, -60)
+label: Text, text: "sin(x) and cos(x)", font_size: 18, color: text.secondary, anchor: scene.bottom, offset: (0, -60)
 
 #0.5s
 fade-in graph [800ms]
@@ -34,11 +35,13 @@ fade-in label [400ms, delay: 300ms]
 fade-out graph [400ms]
 fade-out label [400ms]
 
-play Outro [fade, 300ms]
+play Outro [wipe-left, 400ms]
 
 # Outro
 config { colorscheme: "editorial-dark" }
 thanks: Text, text: "Thanks for watching", font_size: 64, color: text.primary, anchor: scene.center
+tag: Text, text: "animatix language", font_size: 20, color: accent.primary, anchor: scene.center, offset: (0, 50)
 
 #0.5s
-fade-in thanks [600ms, ease: ease-out]
+fade-in thanks [700ms, ease: ease-out]
+fade-in tag [500ms, delay: 200ms]

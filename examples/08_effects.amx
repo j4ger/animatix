@@ -1,38 +1,61 @@
-// 08 — Effect Actions
-// shake, pulse, bounce — emphasis and attention animations.
+// 08 — Filters & Effects Composition
+// Filter primitive + effect actions (shake, pulse, bounce).
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-shake_box: Rect, size: (140, 140), color: accent.danger, at: (320, 360)
-pulse_orb: Ellipse, size: (120, 120), color: accent.primary, at: (640, 360)
-bounce_ball: Ellipse, size: (100, 100), color: accent.success, at: (960, 360)
+bg_mark: Image, url: "examples/assets/animatix-mark.svg", size: (500, 500), anchor: scene.center, opacity: 0.08
 
-#0.5s
-stagger [100ms] {
-  fade-in shake_box [400ms]
-  fade-in pulse_orb [400ms]
-  fade-in bounce_ball [400ms]
+bg: Filter, blur: 0, brightness: 0.6, anchor: scene.center, at: (640, 360) {
+  grid: Image, url: "examples/assets/checker.png", size: (500, 500), anchor: scene.center
 }
 
-#2s
-shake shake_box [600ms, intensity: 3]
+// Foreground card on top of blurred background
+fg: Stack, anchor: scene.center {
+  card: Rect, size: (280, 220), color: (0.1, 0.1, 0.12, 0.85), anchor: scene.center
+  label: Text, text: "Filter FX", font_size: 36, color: text.primary, anchor: scene.center
+}
 
-#3s
-pulse pulse_orb [500ms, intensity: 2]
+target: Rect, size: (60, 60), color: accent.danger, anchor: scene.center, offset: (0, 70)
 
-#4s
-bounce bounce_ball [600ms, intensity: 2.5]
+title: Text, text: "Filters & Effects", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 60)
 
-// A second pass with combined effects
-#6s
-shake shake_box [400ms, intensity: 2]
-pulse pulse_orb [400ms, intensity: 1.5]
+#0s
+bg.blur = 0
+bg.brightness = 0.6
+
+#1.5s
+bg.blur = 12 [1.5s, ease: ease-out]
+bg.brightness = 0.3 [1.5s]
+
+#3.5s
+bg.blur = 0 [1s, ease: ease-out]
+bg.brightness = 0.6 [1s]
+
+#5s
+fg.sepia = 0
+
+#5.5s
+fg.sepia = 0.8 [1s]
 
 #7s
-bounce bounce_ball [500ms, intensity: 2]
+fg.sepia = 0 [1s]
 
-// Color emphasis after effects
-#8s
-shake_box.color = accent.warning [800ms, ease: ease-in-out]
-pulse_orb.color = accent.danger [800ms, ease: ease-in-out]
-bounce_ball.color = accent.primary [800ms, ease: ease-in-out]
+#8.5s
+pulse target [400ms, intensity: 1.5]
+
+#9.5s
+shake target [500ms, intensity: 2]
+
+#10.5s
+bounce target [400ms, intensity: 2.5]
+
+#0.5s
+fade-in title [600ms, ease: ease-out]
+
+#+0.3s
+stagger [80ms] {
+  fade-in bg_mark [500ms]
+  fade-in bg [400ms]
+  fade-in fg [400ms]
+  fade-in target [400ms]
+}

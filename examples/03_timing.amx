@@ -1,41 +1,35 @@
-// 03 — Timing & Easing
-// Absolute keyframes, relative keyframes, and the full easing vocabulary.
+// 03 — Timing: Sequence, Stagger & Easing
+// Composing actions with sequence and stagger, plus the easing vocabulary.
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-a: Rect, size: (80, 80), color: accent.primary, at: (200, 360)
-b: Rect, size: (80, 80), color: accent.success, at: (440, 360)
-c: Rect, size: (80, 80), color: accent.warning, at: (680, 360)
-d: Rect, size: (80, 80), color: accent.danger, at: (920, 360)
-e: Rect, size: (80, 80), color: text.primary, at: (1160, 360)
+a: Rect, size: (70, 70), color: accent.primary, at: (250, 360)
+b: Rect, size: (70, 70), color: accent.success, at: (450, 360)
+c: Rect, size: (70, 70), color: accent.warning, at: (650, 360)
+d: Rect, size: (70, 70), color: accent.danger, at: (850, 360)
+e: Rect, size: (70, 70), color: text.primary, at: (1050, 360)
 
 #0.5s
-fade-in a [400ms]
-
-#+0.3s
-fade-in b [400ms]
-
-#+0.3s
-fade-in c [400ms]
-
-#+0.3s
-fade-in d [400ms]
-
-#+0.3s
-fade-in e [400ms]
+stagger [120ms] {
+  fade-in a [500ms, ease: ease-out]
+  fade-in b [500ms, ease: ease-out]
+  fade-in c [500ms, ease: ease-out]
+  fade-in d [500ms, ease: ease-out]
+  fade-in e [500ms, ease: ease-out]
+}
 
 #2.5s
-a.size = (120, 120) [1s, ease: linear]
-b.size = (120, 120) [1s, ease: ease-in]
-c.size = (120, 120) [1s, ease: ease-out]
-d.size = (120, 120) [1s, ease: ease-in-out]
-e.size = (120, 120) [1s, ease: bounce]
-
-#4.5s
 sequence {
-  a.color = accent.danger [400ms]
-  b.color = accent.warning [400ms]
-  c.color = accent.primary [400ms]
-  d.color = accent.success [400ms]
-  e.color = accent.danger [400ms]
+  a.size = (100, 100) [400ms, ease: ease-out]
+  b.size = (100, 100) [400ms, ease: ease-out]
+  c.size = (100, 100) [400ms, ease: ease-out]
+  d.size = (100, 100) [400ms, ease: ease-out]
+  e.size = (100, 100) [400ms, ease: ease-out]
 }
+
+#5s
+a.color = accent.danger [600ms, ease: linear]
+b.color = accent.warning [600ms, ease: ease-in]
+c.color = accent.primary [600ms, ease: ease-out]
+d.color = accent.success [600ms, ease: ease-in-out]
+e.color = accent.danger [600ms, ease: bounce]

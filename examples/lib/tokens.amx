@@ -1,0 +1,58 @@
+// tokens.amx — Modular designtokens for Animatix examples.
+// All tokens are exported via pub let for use with `import "... as alias"`.
+
+// ── Brand Colors ─────────────────────────────────────────────────────
+
+pub let brand_primary = (0.38, 0.78, 1.0, 1.0)     // Blue
+pub let brand_secondary = (0.82, 0.58, 0.92, 1.0)   // Purple
+pub let brand_accent = (0.35, 0.86, 0.63, 1.0)      // Green
+pub let brand_warm = (0.98, 0.83, 0.44, 1.0)        // Amber
+pub let brand_danger = (1.0, 0.46, 0.54, 1.0)       // Red
+
+// ── Semantic Aliases ───────────────────────────────────────────────────
+
+pub let success = brand_accent
+pub let warning = brand_warm
+pub let info = brand_primary
+pub let error = brand_danger
+
+// ── Spacing / Sizing ───────────────────────────────────────────────────
+
+pub let space_xxs = 2.0
+pub let space_xs = 4.0
+pub let space_sm = 8.0
+pub let space_md = 16.0
+pub let space_lg = 24.0
+pub let space_xl = 40.0
+pub let space_xxl = 64.0
+
+// ── Font Sizes ─────────────────────────────────────────────────────────
+
+pub let font_xs = 12.0
+pub let font_sm = 14.0
+pub let font_md = 18.0
+pub let font_lg = 24.0
+pub let font_xl = 36.0
+pub let font_xxl = 48.0
+pub let font_hero = 72.0
+
+// ── Animation Durations ────────────────────────────────────────────────
+
+pub let duration_fast = 200.0
+pub let duration_normal = 400.0
+pub let duration_slow = 600.0
+pub let duration_slower = 1000.0
+
+// ── Border Radii ───────────────────────────────────────────────────────
+
+// Used with rect rounding or visual styling.
+pub let radius_sm = 4.0
+pub let radius_md = 8.0
+pub let radius_lg = 16.0
+pub let radius_full = 9999.0
+
+// ── Shadow / Elevation (opacity multipliers) ───────────────────────────
+
+pub let elevation_low = 0.08
+pub let elevation_mid = 0.16
+pub let elevation_high = 0.32

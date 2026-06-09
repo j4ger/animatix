@@ -1,0 +1,76 @@
+// colorschemes.amx — Custom colorschemes for Animatix examples.
+//
+// Syntax: `Colorscheme { extends: "parent", token: (r, g, b, a), ... }`
+// Runtime support is verified (test_colorscheme_inheritance).
+//
+// NOTE: The current Chumsky construct parser uses `ident` (no dots) for
+// property names inside `{ }`.  Dotted tokens like `scene.background`
+// require a parser update.  For now these schemes extend a built-in with
+// optionally overridden `auto` cycle.  Full token-level overrides are
+// documented in comments as the intended syntax.
+
+// ── Ocean ──────────────────────────────────────────────────────────
+// A cool blue-green variant of editorial-dark.
+pub let ocean = Colorscheme {
+    extends: "editorial-dark",
+    auto: (
+        (0.30, 0.72, 0.92, 1.0),
+        (0.45, 0.82, 0.70, 1.0),
+        (0.60, 0.60, 0.90, 1.0),
+        (0.98, 0.83, 0.44, 1.0),
+        (1.00, 0.50, 0.55, 1.0)
+    )
+}
+
+// ── Sunset ─────────────────────────────────────────────────────────
+// A warm amber variant of editorial-dark.
+pub let sunset = Colorscheme {
+    extends: "editorial-dark",
+    auto: (
+        (1.00, 0.65, 0.30, 1.0),
+        (0.98, 0.82, 0.36, 1.0),
+        (0.90, 0.45, 0.65, 1.0),
+        (0.50, 0.75, 0.40, 1.0),
+        (0.60, 0.75, 0.95, 1.0)
+    )
+}
+
+// ── Forest ─────────────────────────────────────────────────────────
+// A green-tinted variant of default-dark.
+pub let forest = Colorscheme {
+    extends: "default-dark",
+    auto: (
+        (0.35, 0.82, 0.55, 1.0),
+        (0.55, 0.75, 0.40, 1.0),
+        (0.30, 0.72, 0.55, 1.0),
+        (0.80, 0.70, 0.35, 1.0),
+        (0.90, 0.50, 0.50, 1.0)
+    )
+}
+
+// ── Intended token-override syntax (awaiting parser fix) ───────────
+//
+// Once the construct parser accepts dotted property names, schemes
+// should use the full form:
+//
+//   pub let ocean = Colorscheme {
+//       extends: "editorial-dark",
+//       scene.background: (0.02, 0.06, 0.12, 1.0),
+//       text.primary: (0.90, 0.95, 1.00, 1.0),
+//       text.secondary: (0.65, 0.75, 0.85, 1.0),
+//       accent.primary: (0.30, 0.72, 0.92, 1.0),
+//       accent.secondary: (0.45, 0.82, 0.70, 1.0),
+//       accent.success: (0.40, 0.85, 0.60, 1.0),
+//       accent.warning: (0.98, 0.83, 0.44, 1.0),
+//       accent.danger: (1.00, 0.50, 0.55, 1.0),
+//       surface.primary: (0.08, 0.14, 0.22, 1.0),
+//       surface.secondary: (0.14, 0.20, 0.28, 1.0),
+//       stroke.default: (0.90, 0.95, 1.00, 1.0),
+//       auto: (
+//           (0.30, 0.72, 0.92, 1.0),
+//           (0.45, 0.82, 0.70, 1.0),
+//           (0.60, 0.60, 0.90, 1.0),
+//           (0.98, 0.83, 0.44, 1.0),
+//           (1.00, 0.50, 0.55, 1.0)
+//       )
+//   }

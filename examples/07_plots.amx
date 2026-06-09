@@ -1,36 +1,29 @@
-// 07 — Mathematical Plots
-// Cartesian, polar, parametric, implicit curves + vector fields and heatmaps.
+// 07 — Data Viz: Graph, PlotCurve, VectorField, Heatmap
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-// Four graph panels
-g1: Graph, x_domain: (-4, 4), y_domain: (-2, 18), size: (380, 280), at: (280, 200) {
-  parabola: PlotCurve, kind: "cartesian", func: (x) => x^2, color: accent.danger, width: 2
+title: Text, text: "Data Visualization", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 60)
+
+main: Graph, x_domain: (-6, 6), y_domain: (-3, 3), size: (520, 400), at: (640, 360) {
+  sine: PlotCurve, kind: "cartesian", func: (x) => sin(x), color: accent.primary, stroke_width: 3
+  damped: PlotCurve, kind: "cartesian", func: (x) => sin(x) * exp(-0.3 * x), color: accent.danger, stroke_width: 2
 }
 
-g2: Graph, x_domain: (-3, 3), y_domain: (-3, 3), size: (380, 280), at: (720, 200) {
-  rose: PlotCurve, kind: "polar", func: (t) => 2 * sin(3 * t), t_domain: (0, 6.28), color: accent.primary, width: 2
-}
+field: VectorField, func: (x, y) => (y * 0.4, -x * 0.4), density: 12, color: accent.success, x_domain: (-4, 4), y_domain: (-4, 4), at: (140, 160), size: (220, 220)
 
-g3: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (380, 280), at: (280, 520) {
-  spiral: PlotCurve, kind: "parametric", func: (t) => (t * cos(t), t * sin(t)), t_domain: (0, 4 * 3.14), color: accent.success, width: 2
-}
-
-g4: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (380, 280), at: (720, 520) {
-  circle: PlotCurve, kind: "implicit", func: (x, y) => x^2 + y^2 - 1, resolution: 100, color: accent.warning, width: 2
-}
+heat: Heatmap, func: (x, y) => sin(x) * cos(y), resolution: 28, color: accent.warning, x_domain: (-3.14, 3.14), y_domain: (-3.14, 3.14), at: (1140, 160), size: (220, 220)
 
 #0.5s
-stagger [150ms] {
-  fade-in g1 [400ms]
-  fade-in g2 [400ms]
-  fade-in g3 [400ms]
-  fade-in g4 [400ms]
+fade-in title [600ms, ease: ease-out]
+
+#+0.3s
+stagger [100ms] {
+  fade-in main [500ms]
+  fade-in field [400ms]
+  fade-in heat [400ms]
 }
 
-#2s
-// Zoom all graphs simultaneously
-g1.size = (420, 310) [1.5s, ease: ease-in-out]
-g2.size = (420, 310) [1.5s, ease: ease-in-out]
-g3.size = (420, 310) [1.5s, ease: ease-in-out]
-g4.size = (420, 310) [1.5s, ease: ease-in-out]
+#3s
+main.size = (570, 440) [1.2s, ease: ease-in-out]
+field.size = (240, 240) [1.2s, ease: ease-in-out]
+heat.size = (240, 240) [1.2s, ease: ease-in-out]

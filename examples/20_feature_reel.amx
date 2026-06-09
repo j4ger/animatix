@@ -1,0 +1,69 @@
+// 20 — Feature Reel: Animatix Capstone
+// Compact showcase combining layout, animation, always, paths, and morph.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+title: Text, text: "Feature Reel", font_size: 56, color: text.primary, anchor: scene.top, offset: (0, 80)
+sub: Text, text: "Layout · Animation · Always · Paths · Morph", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 135)
+
+#0s
+// Shape deck in a row layout
+deck: Row, anchor: scene.center, offset: (0, -10), gap: 32, align: "center" {
+  orb: Ellipse, size: (70, 70), color: accent.primary
+  box: Rect, size: (70, 70), color: accent.success
+  gem: Polygon, points: {(0, -35), (35, 25), (-35, 25)}, color: accent.warning
+}
+
+// Star path on the left
+star: Path, commands: {
+  move_to(0, -60), line_to(14, -20), line_to(60, -20),
+  line_to(22, 8), line_to(36, 55), line_to(0, 30),
+  line_to(-36, 55), line_to(-22, 8), line_to(-60, -20),
+  line_to(-14, -20), close()
+}, color: accent.danger, at: (200, 550)
+
+info: Text, text: "scale | rotate | pulse | morph | always", font_size: 14, color: text.muted, anchor: scene.bottom, offset: (0, -60)
+
+// Entrance
+#0.5s
+fade-in title [700ms, ease: ease-out]
+fade-in sub [500ms, delay: 200ms]
+
+#1s
+fade-in deck [500ms]
+fade-in star [400ms]
+fade-in info [400ms]
+
+// Scale bounce
+#1.5s
+orb.size = (90, 90) [600ms, ease: bounce]
+box.size = (90, 90) [500ms, ease: ease-out]
+
+// Color morph
+#2s
+orb.color = accent.success [600ms]
+box.color = accent.warning [600ms]
+gem.color = accent.danger [500ms]
+
+// Rotation
+#2.5s
+rotate orb [by: 6.2832, 2s, ease: linear]
+rotate box [by: -3.1416, 2s, ease: ease-in-out]
+
+// Pulse effects
+#3s
+pulse orb [400ms, intensity: 1.3]
+pulse box [400ms, intensity: 1.3]
+
+// Transform star
+#3.5s
+star.transform = (0.6, 0, 0, 0.6, 0, 0) [500ms]
+
+// Continuous breathing via always
+#4s
+always {
+  orb.scale = 1.0 + 0.08 * sin(t * 3.0)
+  box.scale = 1.0 + 0.08 * sin(t * 3.0 + 2.094)
+  gem.scale = 1.0 + 0.08 * sin(t * 3.0 + 4.189)
+  star.scale = 0.6 + 0.06 * sin(t * 2.0)
+}

@@ -1,28 +1,24 @@
-// 11 — Color System
-// Colorschemes, auto-assignment, built-in constants, and custom schemes.
+// 11 — Color System: Semantic Tokens, Auto, Constants, Colorscheme Extends
+// Scheme tokens, color: auto, built-in constants, Colorscheme with extends.
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-// Auto colors: each primitive gets a distinct scheme color
-auto_row: Row, anchor: scene.center, offset: (0, -80), gap: 24, align: "center" {
-  a: Rect, size: (80, 80), color: auto
-  b: Ellipse, size: (80, 80), color: auto
-  c: Rect, size: (80, 80), color: auto
-  d: Ellipse, size: (80, 80), color: auto
-  e: Rect, size: (80, 80), color: auto
+heading: Text, text: "Color System", font_size: 40, color: text.primary, anchor: scene.top, offset: (0, 50)
+subtitle: Text, text: "scheme tokens + auto + built-ins + extends", font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 100)
+
+pub let forest = Colorscheme {
+  extends: "editorial-dark",
+  auto: (
+    (0.35, 0.82, 0.55, 1.0),
+    (0.55, 0.75, 0.40, 1.0),
+    (0.30, 0.72, 0.55, 1.0),
+    (0.80, 0.70, 0.35, 1.0),
+    (0.90, 0.50, 0.50, 1.0)
+  )
 }
 
-// Built-in constants
-const_row: Row, anchor: scene.center, offset: (0, 40), gap: 24, align: "center" {
-  r: Rect, size: (60, 60), color: RED
-  g: Rect, size: (60, 60), color: GREEN
-  b: Rect, size: (60, 60), color: BLUE
-  w: Rect, size: (60, 60), color: WHITE
-  k: Rect, size: (60, 60), color: BLACK
-}
-
-// Scheme tokens
-scheme_row: Row, anchor: scene.center, offset: (0, 160), gap: 16, align: "center" {
+#0s
+tokens_row: Row, anchor: scene.center, offset: (0, -100), gap: 12, align: "center" {
   t1: Rect, size: (50, 50), color: accent.primary
   t2: Rect, size: (50, 50), color: accent.success
   t3: Rect, size: (50, 50), color: accent.warning
@@ -31,30 +27,50 @@ scheme_row: Row, anchor: scene.center, offset: (0, 160), gap: 16, align: "center
   t6: Rect, size: (50, 50), color: surface.primary
 }
 
+auto_row: Row, anchor: scene.center, offset: (0, -20), gap: 12, align: "center" {
+  a0: Rect, size: (50, 50), color: auto
+  a1: Rect, size: (50, 50), color: auto
+  a2: Rect, size: (50, 50), color: auto
+  a3: Rect, size: (50, 50), color: auto
+  a4: Rect, size: (50, 50), color: auto
+}
+
+const_row: Row, anchor: scene.center, offset: (0, 60), gap: 12, align: "center" {
+  c0: Rect, size: (50, 50), color: RED
+  c1: Rect, size: (50, 50), color: GREEN
+  c2: Rect, size: (50, 50), color: BLUE
+  c3: Rect, size: (50, 50), color: WHITE
+  c4: Rect, size: (50, 50), color: BLACK
+}
+
 #0.5s
-stagger [60ms] {
-  fade-in a [300ms]
-  fade-in b [300ms]
-  fade-in c [300ms]
-  fade-in d [300ms]
-  fade-in e [300ms]
-}
+fade-in heading [600ms, ease: ease-out]
+fade-in subtitle [400ms]
 
-#1.5s
-stagger [60ms] {
-  fade-in r [300ms]
-  fade-in g [300ms]
-  fade-in b [300ms]
-  fade-in w [300ms]
-  fade-in k [300ms]
-}
-
-#2.5s
-stagger [60ms] {
+#1s
+stagger [50ms] {
   fade-in t1 [300ms]
   fade-in t2 [300ms]
   fade-in t3 [300ms]
   fade-in t4 [300ms]
   fade-in t5 [300ms]
   fade-in t6 [300ms]
+}
+
+#1.5s
+stagger [50ms] {
+  fade-in a0 [300ms]
+  fade-in a1 [300ms]
+  fade-in a2 [300ms]
+  fade-in a3 [300ms]
+  fade-in a4 [300ms]
+}
+
+#2s
+stagger [50ms] {
+  fade-in c0 [300ms]
+  fade-in c1 [300ms]
+  fade-in c2 [300ms]
+  fade-in c3 [300ms]
+  fade-in c4 [300ms]
 }

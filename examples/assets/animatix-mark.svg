@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- A geometric A-mark for Animatix: layout-first animation -->
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38C1FF" />
+      <stop offset="100%" stop-color="#D194EB" />
+    </linearGradient>
+  </defs>
+  <!-- Outer frame (layout) -->
+  <rect x="10" y="10" width="180" height="180" rx="24" ry="24" fill="none" stroke="url(#grad)" stroke-width="4" />
+  <!-- Inner diamond (animation) -->
+  <path d="M 100 40 L 160 100 L 100 160 L 40 100 Z" fill="none" stroke="#59DC92" stroke-width="5" stroke-linejoin="round" />
+  <!-- Center dot (timeline marker) -->
+  <circle cx="100" cy="100" r="10" fill="#FDA12E" />
+  <!-- Corner accent dots -->
+  <circle cx="42" cy="42" r="4" fill="#38C1FF" />
+  <circle cx="158" cy="42" r="4" fill="#D194EB" />
+  <circle cx="42" cy="158" r="4" fill="#59DC92" />
+  <circle cx="158" cy="158" r="4" fill="#FDA12E" />
+</svg>

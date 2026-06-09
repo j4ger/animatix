@@ -1,33 +1,33 @@
-// 05 — Shape Morphing
+// 05 — Morph: Shape Transformation
 // Re-declaration triggers automatic interpolation between shapes.
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-circle: Ellipse, size: (160, 160), color: accent.primary, at: (320, 360)
-rect: Rect, size: (160, 160), color: accent.success, at: (640, 360)
-poly: Polygon, points: {(0, -80), (80, 0), (0, 80), (-80, 0)}, color: accent.warning, at: (960, 360)
+circle: Ellipse, size: (140, 140), color: accent.primary, at: (320, 360)
+rect: Rect, size: (140, 140), color: accent.success, at: (640, 360)
+poly: Polygon, points: {(0, -70), (70, 0), (0, 70), (-70, 0)}, color: accent.warning, at: (960, 360)
 
 #0.5s
 stagger [100ms] {
-  fade-in circle [400ms]
-  fade-in rect [400ms]
-  fade-in poly [400ms]
+  fade-in circle [500ms, ease: ease-out]
+  fade-in rect [500ms, ease: ease-out]
+  fade-in poly [500ms, ease: ease-out]
 }
 
-// Circle → rounded square via re-declaration
+// Circle → Rect with auto strategy
 #2s
-circle: Rect, size: (160, 160), color: accent.danger, at: (320, 360) [1s, strategy: auto]
+circle: Rect, size: (140, 140), color: accent.danger, at: (320, 360) [1s, strategy: auto]
 
-// Rectangle → ellipse
-#3s
-rect: Ellipse, size: (180, 120), color: accent.primary, at: (640, 360) [1s, strategy: match]
+// Rect → Ellipse with match strategy
+#3.5s
+rect: Ellipse, size: (160, 120), color: accent.primary, at: (640, 360) [1s, strategy: match]
 
-// Diamond → star with path arc
-#4s
-poly: Polygon, points: {(0, -90), (22, -30), (85, -30), (35, 10), (53, 70), (0, 40), (-53, 70), (-35, 10), (-85, -30), (-22, -30)}, color: accent.success, at: (960, 360) [1.5s, path_arc: 0.3]
+// Diamond → Star with path arc hint
+#5s
+poly: Polygon, points: {(0, -80), (20, -25), (75, -25), (30, 10), (45, 65), (0, 35), (-45, 65), (-30, 10), (-75, -25), (-20, -25)}, color: accent.success, at: (960, 360) [1.5s, path_arc: 0.3]
 
-// All fade to a common color
-#6s
+// Unify colors as a finale
+#7s
 circle.color = accent.warning [800ms]
 rect.color = accent.warning [800ms]
 poly.color = accent.warning [800ms]

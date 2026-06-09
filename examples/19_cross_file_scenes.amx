@@ -1,0 +1,20 @@
+// 19 — Cross-File Scene Composition
+// Demonstrates importing scene files and playing them via play alias.SceneName.
+
+import "./scenes/reel_intro.amx" as intro
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+# Main
+title: Text, text: "Cross-File Scenes", font_size: 36, color: text.primary, anchor: scene.center, offset: (0, -30)
+sub: Text, text: "import ./scenes/reel_intro.amx  +  play intro.IntroScene", font_size: 16, color: text.secondary, anchor: scene.center, offset: (0, 25)
+
+#0.5s
+fade-in title [600ms, ease: ease-out]
+fade-in sub [400ms, delay: 200ms]
+
+#2.5s
+fade-out title [400ms]
+fade-out sub [400ms]
+
+play intro.IntroScene [fade, 400ms]

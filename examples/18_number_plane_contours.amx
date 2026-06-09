@@ -1,0 +1,48 @@
+// 18 — NumberPlane + ContourSet: grid backdrop and level-set curves
+// Demonstrates NumberPlane grid, ContourSet contour lines, and VectorField.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+title: Text, text: "Number Plane & Contours", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 50)
+
+#0s
+// NumberPlane as a background grid with labeled axes
+grid: NumberPlane, x_domain: (-6, 6), y_domain: (-4, 4), size: (560, 400), at: (420, 380),
+  x_range: (-6, 6, 1), y_range: (-4, 4, 1), grid: true, ticks: true,
+  color: surface.secondary, stroke_width: 1.0
+
+// ContourSet — level-set curves for a 2D scalar function
+contours: ContourSet, func: (x, y) => x^2 + y^2, levels: (1, 4, 9, 16),
+  x_domain: (-5, 5), y_domain: (-5, 5), size: (560, 400), at: (420, 380),
+  resolution: 96, color: accent.primary, stroke_width: 2.0
+
+// VectorField — direction field overlay on the right
+field: VectorField, func: (x, y) => (y * 0.5, -x * 0.5), density: 10,
+  x_domain: (-3, 3), y_domain: (-3, 3), size: (240, 240), at: (980, 380),
+  color: accent.success
+
+// Heatmap companion on the right
+heat: Heatmap, func: (x, y) => sin(x) * cos(y), resolution: 20,
+  x_domain: (-3.14, 3.14), y_domain: (-3.14, 3.14), size: (240, 240), at: (980, 120),
+  color: accent.warning
+
+labels: Text, text: "ContourSet  |  VectorField  |  Heatmap", font_size: 14,
+  color: text.muted, anchor: scene.bottom, offset: (0, -50)
+
+// Animate colors and stroke width
+#1s
+contours.color = accent.success [1.2s, ease: ease-in-out]
+contours.stroke_width = 3.0 [1.2s, ease: ease-in-out]
+field.color = accent.warning [1.2s, ease: ease-in-out]
+heat.color = accent.danger [1.2s, ease: ease-in-out]
+
+// Entrance
+#0.5s
+fade-in title [600ms, ease: ease-out]
+stagger [120ms] {
+  fade-in grid [500ms]
+  fade-in contours [500ms]
+  fade-in field [400ms]
+  fade-in heat [400ms]
+}
+fade-in labels [400ms, delay: 300ms]

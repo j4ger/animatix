@@ -1,34 +1,49 @@
-// 10 — Modules & Namespaces
-// import ... as, pub let exports, dotted access, re-exports.
+// 10 — Modules, Imports, and Re-export Chains
+// import ... as, pub let exports, dotted access, re-export chains, design tokens.
 
-import "./lib/palette.amx" as theme
+import "./lib/palette.amx" as palette
+import "./lib/tokens.amx" as tokens
+import "./lib/reexport.amx" as theme
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-backdrop: Rect, size: (1280, 720), color: theme.bg, anchor: scene.center
+heading: Text, text: "Module System", font_size: 40, color: text.primary, anchor: scene.top, offset: (0, 50)
+subtitle: Text, text: "import + pub let + re-export + design tokens", font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 100)
 
-header: Text, text: "Module System", font_size: 64, color: theme.text, anchor: scene.top, offset: (0, 100)
-sub: Text, text: "import ... as  +  pub let  +  dotted access", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 170)
+#0s
+direct: Row, anchor: scene.center, offset: (0, -80), gap: 16, align: "center" {
+  sw_a: Rect, size: (80, 80), color: palette.primary
+  sw_b: Rect, size: (80, 80), color: palette.secondary
+  sw_c: Rect, size: (80, 80), color: palette.tertiary
+  sw_d: Rect, size: (80, 80), color: palette.quaternary
+}
+
+reexported: Row, anchor: scene.center, offset: (0, 40), gap: 16, align: "center" {
+  sw_e: Rect, size: (80, 80), color: theme.accent
+  sw_f: Rect, size: (80, 80), color: theme.bg
+  sw_g: Rect, size: (80, 80), color: theme.fg
+}
+
+info: Text, text: "tokens.space_md = 16, tokens.font_lg = 24, tokens.radius_md = 8", font_size: 14, color: text.muted, anchor: scene.bottom, offset: (0, -60)
 
 #0.5s
-fade-in header [600ms, ease: ease-out]
-fade-in sub [400ms, delay: 200ms]
+fade-in heading [600ms, ease: ease-out]
+fade-in subtitle [400ms]
 
-#1.5s
-row: Row, anchor: scene.center, gap: 24, align: "center" {
-  a: Rect, size: (140, 100), color: theme.primary
-  b: Rect, size: (140, 100), color: theme.secondary
-  c: Rect, size: (140, 100), color: theme.tertiary
-  d: Rect, size: (140, 100), color: theme.quaternary
+#1s
+stagger [80ms] {
+  fade-in sw_a [400ms]
+  fade-in sw_b [400ms]
+  fade-in sw_c [400ms]
+  fade-in sw_d [400ms]
 }
 
-#1.5s
-fade-in row [600ms, ease: ease-out]
+#2s
+stagger [80ms] {
+  fade-in sw_e [400ms]
+  fade-in sw_f [400ms]
+  fade-in sw_g [400ms]
+}
 
 #3s
-stagger [80ms] {
-  a.color = accent.danger [400ms]
-  b.color = accent.warning [400ms]
-  c.color = accent.success [400ms]
-  d.color = accent.primary [400ms]
-}
+fade-in info [500ms]

@@ -1,41 +1,41 @@
-// 15 — For Loops
-// Compile-time structural expansion with for at the top level.
+// 15 — For Loop: Gallery
+// Procedural per-frame wave animation using for inside always.
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-title: Text, text: "For Loop Expansion", font_size: 48, color: text.primary, anchor: scene.top, offset: (0, 60)
+title: Text, text: "For Loop Gallery", font_size: 48, color: text.primary, anchor: scene.top, offset: (0, 60)
+sub: Text, text: "for inside always drives per-frame motion", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 110)
+
+#0s
+p0: Ellipse, size: (50, 50), color: accent.primary, at: (240, 400)
+p1: Ellipse, size: (50, 50), color: accent.success, at: (360, 400)
+p2: Ellipse, size: (50, 50), color: accent.warning, at: (480, 400)
+p3: Ellipse, size: (50, 50), color: accent.danger, at: (600, 400)
+p4: Ellipse, size: (50, 50), color: accent.primary, at: (720, 400)
+p5: Ellipse, size: (50, 50), color: accent.success, at: (840, 400)
+
+always {
+  for i in (0, 1, 2, 3, 4, 5) {
+    let offset_y = 80.0 * sin(t * 2.0 + i * 1.047)
+    if i == 0 { p0.at = (240.0, 400.0 + offset_y) }
+    if i == 1 { p1.at = (360.0, 400.0 + offset_y) }
+    if i == 2 { p2.at = (480.0, 400.0 + offset_y) }
+    if i == 3 { p3.at = (600.0, 400.0 + offset_y) }
+    if i == 4 { p4.at = (720.0, 400.0 + offset_y) }
+    if i == 5 { p5.at = (840.0, 400.0 + offset_y) }
+  }
+}
 
 #0.5s
-fade-in title [500ms]
+fade-in title [600ms, ease: ease-out]
+fade-in sub [400ms, delay: 200ms]
 
-// Generate five colored bars using a for loop at the top level.
-// Each iteration declares a distinct actor.
 #1s
-for i in {0, 1, 2, 3, 4} {
-  let x = 340 + i * 120
-  let h = 80 + i * 40
-  let c = if i % 2 == 0 { accent.primary } else { accent.success }
+stagger [70ms] {
+  fade-in p0 [400ms]
+  fade-in p1 [400ms]
+  fade-in p2 [400ms]
+  fade-in p3 [400ms]
+  fade-in p4 [400ms]
+  fade-in p5 [400ms]
 }
-
-// Static equivalents of what the for loop generates:
-bar0: Rect, size: (80, 80), color: accent.primary, at: (340, 540)
-bar1: Rect, size: (80, 120), color: accent.success, at: (460, 540)
-bar2: Rect, size: (80, 160), color: accent.primary, at: (580, 540)
-bar3: Rect, size: (80, 200), color: accent.success, at: (700, 540)
-bar4: Rect, size: (80, 240), color: accent.primary, at: (820, 540)
-
-#1.5s
-stagger [80ms] {
-  fade-in bar0 [400ms, ease: ease-out]
-  fade-in bar1 [400ms, ease: ease-out]
-  fade-in bar2 [400ms, ease: ease-out]
-  fade-in bar3 [400ms, ease: ease-out]
-  fade-in bar4 [400ms, ease: ease-out]
-}
-
-#3s
-bar0.size = (80, 120) [1s, ease: ease-in-out]
-bar1.size = (80, 160) [1s, ease: ease-in-out]
-bar2.size = (80, 200) [1s, ease: ease-in-out]
-bar3.size = (80, 240) [1s, ease: ease-in-out]
-bar4.size = (80, 280) [1s, ease: ease-in-out]
