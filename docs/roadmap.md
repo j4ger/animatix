@@ -18,7 +18,7 @@
 |------|--------|-------|
 | **Web canvas / WASM export** | 1–2 months | Requires a WASM-friendly renderer/export path and dependency audit; not just a CLI encoder change. |
 | **Audio playback in GUI preview** | 1 week | Export/muxing exists; preview still needs an audio output backend such as `rodio` or `cpal` and timeline sync. |
-| **APNG export** | 3 days | Image/GIF/video export paths exist; add APNG encoding and CLI surface. |
+| **WebM export** | 1 week | More useful than APNG for browser embedding and sharing; add VP9/AV1-capable encoding path and CLI surface alongside existing GIF/video export. |
 
 ---
 
@@ -40,3 +40,4 @@
 | **Asset usage tracking** | Show which actors reference an asset; no strong user story yet. |
 | **Variable track UI** | GUI for `let` variable tracks; `always` blocks cover most interactive cases. |
 | **Module dependency graph** | Visual graph of `.amx` imports; internal tooling value only so far. |
+| **APNG export** | Request-driven only; GIF covers lightweight previews, video/WebM covers higher-quality sharing, and APNG files can be large. |
