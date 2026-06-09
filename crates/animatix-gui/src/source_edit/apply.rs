@@ -332,7 +332,8 @@ macro_rules! recurse_stmt {
             | Stmt::Stagger { body, .. }
             | Stmt::Always { body, .. }
             | Stmt::ComponentDef(ComponentDef { body, .. }, _)
-            | Stmt::ComponentAction { body, .. } => {
+            | Stmt::ComponentAction { body, .. }
+            | Stmt::Scene { body, .. } => {
                 if let Some(found) = $find_fn(body, $($arg),*) {
                     return Some(found);
                 }

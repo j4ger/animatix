@@ -140,6 +140,7 @@ impl DocumentSession {
     pub fn set_source_text(&mut self, source_text: String) {
         self.source_text = source_text;
         self.is_dirty = true;
+        self.cached_expanded = None;
     }
 
     /// Rebuild just the source index from the current source text.

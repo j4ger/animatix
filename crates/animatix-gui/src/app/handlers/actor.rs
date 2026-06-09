@@ -313,17 +313,26 @@ pub fn handle_align_actors(
 
     document_store.snapshot(Command::AlignActors(alignment));
     if let Some(ref mut stmts) = document_store.source.document.raw_statements {
+        let snapshot = stmts.clone();
         for edit in &edits {
             let expr = match animatix_syntax::ast::Expr::try_from(edit.value.clone()) {
                 Ok(e) => e,
-                Err(_) => continue,
+                Err(e) => {
+                    *stmts = snapshot;
+                    preview_store.preview.status = format!("Alignment failed: expression error for '{}': {}", edit.actor, e);
+                    return vec![];
+                }
             };
             let source_edit = crate::source_edit::SourceEdit::SetProperty {
                 actor: edit.actor.clone(),
                 property: "at".into(),
                 value: expr,
             };
-            let _ = crate::source_edit::apply_edit(stmts, source_edit);
+            if let Err(e) = crate::source_edit::apply_edit(stmts, source_edit) {
+                *stmts = snapshot;
+                preview_store.preview.status = format!("Alignment failed: {}", e);
+                return vec![];
+            }
         }
         let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
         document_store.source.commit_source(new_source, source_index);
@@ -402,17 +411,26 @@ pub fn handle_distribute_actors(
 
     document_store.snapshot(Command::DistributeActors(axis));
     if let Some(ref mut stmts) = document_store.source.document.raw_statements {
+        let snapshot = stmts.clone();
         for edit in &edits {
             let expr = match animatix_syntax::ast::Expr::try_from(edit.value.clone()) {
                 Ok(e) => e,
-                Err(_) => continue,
+                Err(e) => {
+                    *stmts = snapshot;
+                    preview_store.preview.status = format!("Distribution failed: expression error for '{}': {}", edit.actor, e);
+                    return vec![];
+                }
             };
             let source_edit = crate::source_edit::SourceEdit::SetProperty {
                 actor: edit.actor.clone(),
                 property: "at".into(),
                 value: expr,
             };
-            let _ = crate::source_edit::apply_edit(stmts, source_edit);
+            if let Err(e) = crate::source_edit::apply_edit(stmts, source_edit) {
+                *stmts = snapshot;
+                preview_store.preview.status = format!("Distribution failed: {}", e);
+                return vec![];
+            }
         }
         let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
         document_store.source.commit_source(new_source, source_index);
@@ -484,25 +502,32 @@ pub fn handle_group_selected_actors(
             container: None,
             time_s: 0.0,
         };
-        if crate::source_edit::apply_edit(stmts, edit).is_ok() {
-            // Reparent each selected actor into the group
-            for actor in &labels {
-                let reparent = crate::source_edit::SourceEdit::Reparent {
-                    actor: actor.clone(),
-                    new_parent: Some(group_label.clone()),
-                };
-                let _ = crate::source_edit::apply_edit(stmts, reparent);
-            }
-            let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
-            document_store.source.commit_source(new_source, source_index);
-            preview_store.pending_rebuild_at =
-                Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
-            ui_store.selection.selected_actors.clear();
-            ui_store.selection.selected_actors.insert(group_label.clone());
-            preview_store.preview.status = format!("Grouped {} actors into {}", labels.len(), group_label);
-        } else {
-            preview_store.preview.status = "Group failed".to_string();
+        // Take snapshot for rollback
+        let snapshot = stmts.clone();
+        if let Err(e) = crate::source_edit::apply_edit(stmts, edit) {
+            *stmts = snapshot;
+            preview_store.preview.status = format!("Group failed: {}", e);
+            return vec![];
         }
+        // Reparent each selected actor into the group
+        for actor in &labels {
+            let reparent = crate::source_edit::SourceEdit::Reparent {
+                actor: actor.clone(),
+                new_parent: Some(group_label.clone()),
+            };
+            if let Err(e) = crate::source_edit::apply_edit(stmts, reparent) {
+                *stmts = snapshot;
+                preview_store.preview.status = format!("Group failed while reparenting '{}': {}", actor, e);
+                return vec![];
+            }
+        }
+        let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+        document_store.source.commit_source(new_source, source_index);
+        preview_store.pending_rebuild_at =
+            Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
+        ui_store.selection.selected_actors.clear();
+        ui_store.selection.selected_actors.insert(group_label.clone());
+        preview_store.preview.status = format!("Grouped {} actors into {}", labels.len(), group_label);
     }
     vec![]
 }
@@ -532,6 +557,7 @@ pub fn handle_ungroup_selected_actors(
     document_store.snapshot(Command::UngroupSelectedActors);
 
     if let Some(ref mut stmts) = document_store.source.document.raw_statements {
+        let snapshot = stmts.clone();
         let mut ungrouped = 0;
         for group in &groups {
             // Find children of this group from timeline
@@ -546,14 +572,21 @@ pub fn handle_ungroup_selected_actors(
                     actor: child.clone(),
                     new_parent: None,
                 };
-                if crate::source_edit::apply_edit(stmts, reparent).is_ok() {
-                    ungrouped += 1;
+                if let Err(e) = crate::source_edit::apply_edit(stmts, reparent) {
+                    *stmts = snapshot;
+                    preview_store.preview.status = format!("Ungroup failed: {}", e);
+                    return vec![];
                 }
+                ungrouped += 1;
             }
 
             // Remove the group actor
             let delete = crate::source_edit::SourceEdit::DeleteActor { label: group.clone() };
-            let _ = crate::source_edit::apply_edit(stmts, delete);
+            if let Err(e) = crate::source_edit::apply_edit(stmts, delete) {
+                *stmts = snapshot;
+                preview_store.preview.status = format!("Ungroup failed: {}", e);
+                return vec![];
+            }
         }
 
         let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
