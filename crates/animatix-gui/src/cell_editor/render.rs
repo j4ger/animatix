@@ -294,16 +294,44 @@ fn render_code_cell(
                                 .filter(|sh| sh.cell_index == index)
                                 .cloned()
                                 .collect();
-                            let mut layouter = move |ui: &egui::Ui,
-                                                     buf: &dyn egui::TextBuffer,
-                                                     wrap_width: f32| {
-                                let mut job = highlight_source(
-                                    buf.as_str(),
+                            // Cached highlight: skip highlight_source when cell body unchanged
+                            let body_text = cell.body().to_string();
+                            let cached_job = state
+                                .cached_highlight_jobs
+                                .get(&index)
+                                .filter(|(cached_body, _)| cached_body == &body_text)
+                                .map(|(_, job)| job.clone());
+                            let base_job = if let Some(job) = cached_job {
+                                job
+                            } else {
+                                let new_job = highlight_source(
+                                    &body_text,
                                     &layouter_style,
                                     &cell_diags_ref,
                                     None,
                                     &cell_semantic,
                                 );
+                                state.cached_highlight_jobs.insert(
+                                    index,
+                                    (body_text.clone(), new_job.clone()),
+                                );
+                                new_job
+                            };
+                            let mut layouter = move |ui: &egui::Ui,
+                                                     buf: &dyn egui::TextBuffer,
+                                                     wrap_width: f32| {
+                                let buf_text = buf.as_str();
+                                let mut job = if buf_text == base_job.text.as_str() {
+                                    base_job.clone()
+                                } else {
+                                    highlight_source(
+                                        buf_text,
+                                        &layouter_style,
+                                        &cell_diags_ref,
+                                        None,
+                                        &cell_semantic,
+                                    )
+                                };
                                 job.wrap.max_width = wrap_width;
                                 ui.fonts_mut(|fonts| fonts.layout_job(job))
                             };
@@ -469,16 +497,44 @@ fn render_keyframe_cell(
                                         .filter(|sh| sh.cell_index == index)
                                         .cloned()
                                         .collect();
-                                    let mut layouter = move |ui: &egui::Ui,
-                                                             buf: &dyn egui::TextBuffer,
-                                                             wrap_width: f32| {
-                                        let mut job = highlight_source(
-                                            buf.as_str(),
+                                    // Cached highlight: skip highlight_source when cell body unchanged
+                                    let body_text = cell.body().to_string();
+                                    let cached_job = state
+                                        .cached_highlight_jobs
+                                        .get(&index)
+                                        .filter(|(cached_body, _)| cached_body == &body_text)
+                                        .map(|(_, job)| job.clone());
+                                    let base_job = if let Some(job) = cached_job {
+                                        job
+                                    } else {
+                                        let new_job = highlight_source(
+                                            &body_text,
                                             &layouter_style,
                                             &cell_diags_ref,
                                             None,
                                             &cell_semantic,
                                         );
+                                        state.cached_highlight_jobs.insert(
+                                            index,
+                                            (body_text.clone(), new_job.clone()),
+                                        );
+                                        new_job
+                                    };
+                                    let mut layouter = move |ui: &egui::Ui,
+                                                             buf: &dyn egui::TextBuffer,
+                                                             wrap_width: f32| {
+                                        let buf_text = buf.as_str();
+                                        let mut job = if buf_text == base_job.text.as_str() {
+                                            base_job.clone()
+                                        } else {
+                                            highlight_source(
+                                                buf_text,
+                                                &layouter_style,
+                                                &cell_diags_ref,
+                                                None,
+                                                &cell_semantic,
+                                            )
+                                        };
                                         job.wrap.max_width = wrap_width;
                                         ui.fonts_mut(|fonts| fonts.layout_job(job))
                                     };

@@ -183,6 +183,58 @@ impl GuiShell {
             });
         }
 
+        // Align / Distribute commands (requires selection)
+        if has_selection {
+            items.push(PaletteItem {
+                label: "Align Left".into(),
+                icon: egui_phosphor::regular::ALIGN_LEFT,
+                action: ShellAction::Command(Command::AlignActors(crate::app::commands::Align::Left)),
+                keywords: "align left actors selection",
+            });
+            items.push(PaletteItem {
+                label: "Align Center".into(),
+                icon: egui_phosphor::regular::ALIGN_CENTER_HORIZONTAL_SIMPLE,
+                action: ShellAction::Command(Command::AlignActors(crate::app::commands::Align::Center)),
+                keywords: "align center horizontal actors",
+            });
+            items.push(PaletteItem {
+                label: "Align Right".into(),
+                icon: egui_phosphor::regular::ALIGN_RIGHT,
+                action: ShellAction::Command(Command::AlignActors(crate::app::commands::Align::Right)),
+                keywords: "align right actors",
+            });
+            items.push(PaletteItem {
+                label: "Align Top".into(),
+                icon: egui_phosphor::regular::ALIGN_TOP,
+                action: ShellAction::Command(Command::AlignActors(crate::app::commands::Align::Top)),
+                keywords: "align top actors",
+            });
+            items.push(PaletteItem {
+                label: "Align Middle".into(),
+                icon: egui_phosphor::regular::ALIGN_CENTER_VERTICAL_SIMPLE,
+                action: ShellAction::Command(Command::AlignActors(crate::app::commands::Align::Middle)),
+                keywords: "align middle vertical actors",
+            });
+            items.push(PaletteItem {
+                label: "Align Bottom".into(),
+                icon: egui_phosphor::regular::ALIGN_BOTTOM,
+                action: ShellAction::Command(Command::AlignActors(crate::app::commands::Align::Bottom)),
+                keywords: "align bottom actors",
+            });
+            items.push(PaletteItem {
+                label: "Distribute Horizontally".into(),
+                icon: egui_phosphor::regular::ARROWS_OUT_LINE_HORIZONTAL,
+                action: ShellAction::Command(Command::DistributeActors(crate::app::commands::Axis::Horizontal)),
+                keywords: "distribute horizontal evenly space actors",
+            });
+            items.push(PaletteItem {
+                label: "Distribute Vertically".into(),
+                icon: egui_phosphor::regular::ARROWS_OUT_LINE_VERTICAL,
+                action: ShellAction::Command(Command::DistributeActors(crate::app::commands::Axis::Vertical)),
+                keywords: "distribute vertical evenly space actors",
+            });
+        }
+
         items.push(PaletteItem {
             label: "Zoom to Fit All".into(),
             icon: egui_phosphor::regular::ARROWS_IN,

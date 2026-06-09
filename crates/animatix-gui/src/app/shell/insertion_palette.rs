@@ -2,6 +2,7 @@
 
 use egui::{Color32, Pos2, Rect, RichText, Stroke, Vec2};
 
+use crate::app::commands::Command;
 use crate::app::design_tokens::*;
 use crate::app::insertion::{InsertionContext, InsertionRequest};
 use crate::app::GuiShell;
@@ -372,6 +373,8 @@ impl GuiShell {
                     props,
                 };
                 if let Some(edit) = request.into_source_edit(&ctx) {
+                    // Snapshot for undo before palette mutation
+                    self.document_store.snapshot(Command::InsertionFromPalette);
                     if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
                         if crate::source_edit::apply_edit(stmts, edit).is_ok() {
                             let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
@@ -607,6 +610,8 @@ impl GuiShell {
             ItemKind::Snippet { text } => {
                 // Parse snippet into AST fragment and insert via SourceEdit.
                 self.insertion_palette.close();
+                // Snapshot for undo before palette mutation
+                self.document_store.snapshot(Command::InsertionFromPalette);
                 if let Some(fragment) = animatix_syntax::parser::parse_snippet(&text) {
                     let time_s = ctx.cursor_cell_time_s.or(Some(ctx.current_time_s));
                     let container = ctx.selected_container.clone();
@@ -650,6 +655,8 @@ impl GuiShell {
         };
 
         if let Some(edit) = request.into_source_edit(&ctx) {
+            // Snapshot for undo before palette mutation
+            self.document_store.snapshot(Command::InsertionFromPalette);
             if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
                 if crate::source_edit::apply_edit(stmts, edit).is_ok() {
                     let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));

@@ -11,6 +11,20 @@ use tree_sitter_animatix::{language, HIGHLIGHTS_QUERY};
 
 static LANGUAGE: LazyLock<Language> = LazyLock::new(language);
 
+static HIGHLIGHT_CONFIG: LazyLock<Option<tree_sitter_highlight::HighlightConfiguration>> =
+    LazyLock::new(|| {
+        let mut config = tree_sitter_highlight::HighlightConfiguration::new(
+            tree_sitter_animatix::language(),
+            "animatix",
+            HIGHLIGHTS_QUERY,
+            "",
+            "",
+        )
+        .ok()?;
+        config.configure(HIGHLIGHT_NAMES);
+        Some(config)
+    });
+
 /// Highlight names used in the queries/highlights.scm file.
 /// These map to indices in the highlight configuration.
 const HIGHLIGHT_NAMES: &[&str] = &[
@@ -143,20 +157,17 @@ pub fn highlight_source(
     // Use tree-sitter highlight
     let mut highlighter = tree_sitter_highlight::Highlighter::new();
 
-    let Ok(mut config) = tree_sitter_highlight::HighlightConfiguration::new(
-        tree_sitter_animatix::language(),
-        "animatix",
-        HIGHLIGHTS_QUERY,
-        "",
-        "",
-    ) else {
-        warn!("highlight_source: failed to create HighlightConfiguration, falling back to plain text");
-        return plain_text_job(source, &font_id, colors.default);
+    let config = match HIGHLIGHT_CONFIG.as_ref() {
+        Some(c) => c,
+        None => {
+            warn!(
+                "highlight_source: HIGHLIGHT_CONFIG initialization failed, falling back to plain text"
+            );
+            return plain_text_job(source, &font_id, colors.default);
+        }
     };
 
-    config.configure(HIGHLIGHT_NAMES);
-
-    let highlights = match highlighter.highlight(&config, source.as_bytes(), None, |_| None) {
+    let highlights = match highlighter.highlight(config, source.as_bytes(), None, |_| None) {
         Ok(highlights) => highlights,
         Err(e) => {
             warn!("highlight_source: highlighter.highlight failed: {:?}, falling back to plain text", e);

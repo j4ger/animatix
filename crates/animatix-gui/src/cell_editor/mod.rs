@@ -99,6 +99,9 @@ pub struct CellEditorState {
     pub pending_move_down: Option<usize>,
     /// Which cell is currently editing its timestamp inline.
     pub editing_timestamp_cell: Option<usize>,
+    /// Cached highlight LayoutJobs per cell index, keyed by cell body content.
+    /// Avoids re-highlighting unchanged cells every frame.
+    pub cached_highlight_jobs: std::collections::HashMap<usize, (String, egui::text::LayoutJob)>,
 }
 
 impl CellEditorState {

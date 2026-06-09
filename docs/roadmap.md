@@ -10,18 +10,6 @@
 
 ---
 
-## P1 — GUI Performance & Polish
-
-| Task | Effort | Notes |
-|------|--------|-------|
-| **Reuse preview filter backends** | 2–3 days | Preview creates `GpuFilterBackend` during render; filtered scenes and transitions can allocate multiple backends per frame. Reuse per `PreviewSurface`/dimension instead. |
-| **Cache syntax highlighting state** | 2–3 days | Highlighting recreates parser/config and reparses during cell rendering. Cache parser/config and avoid full work for unchanged cells to reduce editor jank on large files. |
-| **Route insertion palette edits through history** | 2 days | Some snippet/component insertions bypass the central command/history flow, making undo consistency harder to reason about. |
-| **Expose align/distribute commands in UI** | 1 day | Commands and handlers exist; wire them into command palette, context menus, or toolbar affordances. |
-| **Dogfood examples `00–20` in GUI** | 2–3 days | Open every redesigned example in the GUI, verify preview, inspector, timeline, scene list, and insertion/edit workflows; convert rough edges into focused bugs. |
-
----
-
 ## P2 — Source Editing
 
 | Task | Effort | Notes |

@@ -293,6 +293,8 @@ impl GuiShell {
                 &mut self.preview_store,
                 &mut self.ui_store,
             ),
+            // InsertionFromPalette is a snapshot marker, not dispatched through the handler.
+            Command::InsertionFromPalette { .. } => vec![],
         }
     }
 
