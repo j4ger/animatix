@@ -38,7 +38,6 @@ impl Toast {
         Self::new(message, ToastLevel::Success)
     }
 
-    #[allow(dead_code)] // Public API: available for future use
     pub fn warning(message: impl Into<String>) -> Self {
         Self::new(message, ToastLevel::Warning)
     }
