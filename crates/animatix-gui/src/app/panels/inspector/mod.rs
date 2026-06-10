@@ -12,6 +12,7 @@ use crate::app::PreviewPaneState;
 
 pub(crate) mod property_groups;
 pub(crate) mod keyframe_table;
+pub(crate) mod model;
 pub(crate) mod graph_editor;
 
 use self::property_groups::*;
