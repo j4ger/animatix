@@ -40,7 +40,7 @@ pub fn handle_rename_actor(
         preview_store.preview.status = "Rename failed — label cannot be empty".to_string();
         return vec![];
     }
-    if let Some(ref timeline) = document_store.source.document.timeline {
+    if let Some(timeline) = document_store.source.document.active_timeline() {
         if timeline.has_actor(&new_label) {
             preview_store.preview.status =
                 format!("Rename failed — '{}' already exists", new_label);
@@ -204,7 +204,8 @@ pub fn handle_toggle_actor_visibility(
     _ui_store: &mut UiStore,
     actor: String,
 ) -> Vec<Effect> {
-    if let Some(ref mut timeline) = document_store.source.document.timeline {
+    if let Some(at) = document_store.source.document.active_timeline_mut() {
+        let timeline = &mut *at.timeline;
         if let Some(track) = timeline.get_track_mut(&actor) {
             track.visible = !track.visible;
             preview_store.preview_dirty = true;
@@ -229,7 +230,8 @@ pub fn handle_toggle_actor_lock(
     _ui_store: &mut UiStore,
     actor: String,
 ) -> Vec<Effect> {
-    if let Some(ref mut timeline) = document_store.source.document.timeline {
+    if let Some(at) = document_store.source.document.active_timeline_mut() {
+        let timeline = &mut *at.timeline;
         if let Some(track) = timeline.get_track_mut(&actor) {
             track.locked = !track.locked;
             preview_store.preview_dirty = true;
@@ -283,7 +285,7 @@ pub fn handle_align_actors(
     let keyframe_mode = ui_store.keyframe_mode;
     let mut edits = Vec::new();
 
-    if let Some(ref timeline) = document_store.source.document.timeline {
+    if let Some(timeline) = document_store.source.document.active_timeline() {
         for (actor, rect) in &rects[1..] {
             if let Some(track) = timeline.get_track(actor) {
                 let pos = track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
@@ -384,7 +386,7 @@ pub fn handle_distribute_actors(
     let keyframe_mode = ui_store.keyframe_mode;
     let mut edits = Vec::new();
 
-    if let Some(ref timeline) = document_store.source.document.timeline {
+    if let Some(timeline) = document_store.source.document.active_timeline() {
         for (i, (actor, rect)) in rects.iter().enumerate() {
             if let Some(track) = timeline.get_track(actor) {
                 let pos = track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
@@ -453,7 +455,7 @@ pub fn handle_group_selected_actors(
 
     let labels: Vec<String> = ui_store.selection.selected_actors.iter().cloned().collect();
     let group_label = crate::app::utils::labels::unique_label(
-        document_store.source.document.timeline.as_ref(),
+        document_store.source.document.active_timeline(),
         "group",
     );
 
@@ -540,8 +542,7 @@ pub fn handle_ungroup_selected_actors(
     let groups: Vec<String> = ui_store.selection.selected_actors
         .iter()
         .filter(|a| {
-            document_store.source.document.timeline
-                .as_ref()
+            document_store.source.document.active_timeline()
                 .and_then(|tl| tl.get_track(a))
                 .map(|t| t.kind == animatix::timeline::ActorKindId::Group)
                 .unwrap_or(false)
@@ -561,8 +562,7 @@ pub fn handle_ungroup_selected_actors(
         let mut ungrouped = 0;
         for group in &groups {
             // Find children of this group from timeline
-            let children: Vec<String> = document_store.source.document.timeline
-                .as_ref()
+            let children: Vec<String> = document_store.source.document.active_timeline()
                 .and_then(|tl| tl.get_track(group))
                 .map(|t| t.children.clone())
                 .unwrap_or_default();

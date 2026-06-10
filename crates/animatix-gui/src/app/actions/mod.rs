@@ -90,7 +90,8 @@ impl GuiShell {
 
         // During drag: mutate timeline only, defer source write.
         if is_drag {
-            if let Some(ref mut timeline) = self.document_store.source.document.timeline.as_mut() {
+            if let Some(mut at) = self.document_store.source.document.active_timeline_mut() {
+                let timeline = &mut *at.timeline;
                 if let Some(metadata) = timeline.container_metadata_mut().get_mut(&edit.actor) {
                     if let PV::StringList(order) = &edit.value {
                         metadata.child_order = order.clone();
@@ -170,7 +171,8 @@ impl GuiShell {
     }
 
     fn apply_timeline_edit(&mut self, edit: &panels::PropertyEdit) {
-        if let Some(ref mut timeline) = self.document_store.source.document.timeline {
+        if let Some(mut at) = self.document_store.source.document.active_timeline_mut() {
+            let timeline = &mut *at.timeline;
             if let Some(track) = timeline.tracks_mut().get_mut(&edit.actor) {
                 let time_ms = (edit.time_s.unwrap_or(self.preview_store.preview.playback.current_time_s()) * 1000.0) as u64;
                 apply_property_edit_to_track(track, &edit.property, &edit.value, time_ms);
@@ -277,7 +279,8 @@ impl GuiShell {
                 return Err(crate::source_edit::SourceEditError::Generic("No AST available".to_string()));
             };
 
-        if let Some(ref mut timeline) = self.document_store.source.document.timeline.as_mut() {
+        if let Some(mut at) = self.document_store.source.document.active_timeline_mut() {
+            let timeline = &mut *at.timeline;
             if let Some(metadata) = timeline.container_metadata_mut().get_mut(&edit.actor) {
                 if let PV::StringList(order) = &edit.value {
                     metadata.child_order = order.clone();

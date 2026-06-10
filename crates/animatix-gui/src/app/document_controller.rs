@@ -176,7 +176,7 @@ impl DocumentController<'_> {
 
         // Start move drag for the new actor at the original position
         let time_ms = (self.preview_store.preview.playback.current_time_s() * 1000.0) as u64;
-        if let Some(timeline) = self.document_store.source.document.timeline.as_ref() {
+        if let Some(timeline) = self.document_store.source.document.active_timeline() {
             if let Some(track) = timeline.get_track(original_label) {
                 let position = track
                     .position
@@ -753,7 +753,7 @@ impl DocumentController<'_> {
     /// Generate a unique label for a new actor of the given type.
     fn unique_label(&self, ty: &str) -> String {
         crate::app::utils::labels::unique_label(
-            self.document_store.source.document.timeline.as_ref(),
+            self.document_store.source.document.active_timeline(),
             ty,
         )
     }

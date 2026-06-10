@@ -216,7 +216,7 @@ impl GuiShell {
         // Lazily populate items on first open
         if self.insertion_palette.items.is_empty() {
             self.insertion_palette.populate(
-                self.document_store.source.document.timeline.as_ref(),
+                self.document_store.source.document.active_timeline(),
                 &self.document_store.source.document.components,
             );
         }
@@ -353,7 +353,7 @@ impl GuiShell {
                     selected_actors: self.ui_store.selection.selected_actors.clone(),
                     cursor_cell_time_s: self.ui_store.cursor_time_s,
                     selected_container: self.ui_store.selection.selected_actors.iter().next().cloned().filter(|sel| {
-                        self.document_store.source.document.timeline.as_ref().is_some_and(|t| {
+                        self.document_store.source.document.active_timeline().is_some_and(|t| {
                             t.get_track(sel).is_some_and(|tr| {
                                 matches!(
                                     tr.kind,
@@ -568,7 +568,7 @@ impl GuiShell {
             selected_actors: self.ui_store.selection.selected_actors.clone(),
             cursor_cell_time_s: self.ui_store.cursor_time_s,
             selected_container: self.ui_store.selection.selected_actors.iter().next().cloned().filter(|sel| {
-                self.document_store.source.document.timeline.as_ref().is_some_and(|t| {
+                self.document_store.source.document.active_timeline().is_some_and(|t| {
                     t.get_track(sel).is_some_and(|tr| {
                         matches!(
                             tr.kind,

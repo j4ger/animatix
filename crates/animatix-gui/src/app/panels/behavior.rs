@@ -43,7 +43,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
             WorkspaceTab::Sidebar => {
                 let diagnostics = self.document_store.combined_diagnostics();
                 let is_playing = self.preview_store.preview.playback.is_playing;
-                let timeline = self.document_store.source.document.timeline.as_ref();
+                let timeline = self.document_store.source.document.active_timeline();
                 let asset_cache = timeline.map(|t| t.asset_cache());
                 let mut ctx = sidebar::SidebarContext {
                     active_scene: self.document_store.source.document.active_scene.as_deref(),

@@ -181,7 +181,7 @@ impl AnimatixApp {
             let keyframe_mode = self.shell.ui_store.keyframe_mode;
             let selected: Vec<String> = self.shell.ui_store.selection.selected_actors.iter().cloned().collect();
             let mut edits = Vec::new();
-            if let Some(ref timeline) = self.shell.document_store.source.document.timeline {
+            if let Some(timeline) = self.shell.document_store.source.document.active_timeline() {
                 for actor in &selected {
                     if let Some(track) = timeline.get_track(actor) {
                         let pos = track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
@@ -303,7 +303,7 @@ impl AnimatixApp {
                     self.shell.preview_store.preview.playback.current_time_s(),
                     debug,
                 )
-            } else if let Some(timeline) = self.shell.document_store.source.document.timeline.as_ref() {
+            } else if let Some(timeline) = self.shell.document_store.source.document.active_timeline() {
                 self.preview_surface.render(
                     device,
                     queue,
@@ -350,7 +350,7 @@ impl AnimatixApp {
                 for scene in composition.scenes.values() {
                     runtime_diagnostics.extend(scene.timeline.runtime_diagnostics());
                 }
-            } else if let Some(timeline) = self.shell.document_store.source.document.timeline.as_ref() {
+            } else if let Some(timeline) = self.shell.document_store.source.document.active_timeline() {
                 runtime_diagnostics.extend(timeline.runtime_diagnostics());
             }
             self.shell.document_store.history.runtime_diagnostics = runtime_diagnostics;
