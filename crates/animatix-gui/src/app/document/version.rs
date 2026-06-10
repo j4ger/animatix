@@ -92,6 +92,22 @@ pub struct CancellationSource {
 }
 
 impl CancellationSource {
+    /// Create a new cancellation source with an initial token at generation 0.
+    pub fn new() -> Self {
+        Self {
+            shared_latest: std::sync::Arc::new(AtomicU64::new(0)),
+        }
+    }
+
+    /// Create a cancellation token bound to the current generation.
+    /// Tokens created before the next `cancel()` call will not be cancelled.
+    pub fn token(&self) -> CancellationToken {
+        CancellationToken {
+            generation: self.shared_latest.load(Ordering::Relaxed),
+            shared_latest: self.shared_latest.clone(),
+        }
+    }
+
     /// Cancel all tokens derived from this source.
     pub fn cancel(&self, new_generation: u64) {
         self.shared_latest.store(new_generation, Ordering::Relaxed);

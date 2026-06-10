@@ -1,0 +1,200 @@
+//! Background rebuild worker that runs parse/typecheck/build off the UI thread.
+//!
+//! The worker receives source text snapshots, runs `DocumentSession::rebuild()`
+//! on a background thread, and sends the result back for acceptance on the UI thread.
+
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::thread;
+use std::time::{Duration, Instant};
+
+use crossbeam_channel::{Receiver, Sender};
+
+use crate::app::document::rebuild_output::{RebuildFailure, RebuildOutput};
+use crate::app::document::version::{
+    CancellationSource, CancellationToken, SourceEpoch, SourceHash,
+};
+use crate::document::DocumentSession;
+use std::path::PathBuf;
+
+/// Token identifying a specific rebuild request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct RebuildToken(pub u64);
+
+/// A request sent to the rebuild worker.
+pub struct RebuildRequest {
+    pub token: RebuildToken,
+    pub source_epoch: SourceEpoch,
+    pub source_hash: SourceHash,
+    pub file_path: PathBuf,
+    pub source_text: String,
+    pub cancellation: CancellationToken,
+}
+
+/// A response from the rebuild worker.
+pub struct RebuildResponse {
+    pub token: RebuildToken,
+    pub source_epoch: SourceEpoch,
+    pub source_hash: SourceHash,
+    pub result: Result<RebuildOutput, RebuildFailure>,
+    pub elapsed_ms: f32,
+}
+
+/// The rebuild worker runs on a dedicated thread.
+pub struct RebuildWorker {
+    request_tx: Sender<RebuildRequest>,
+    response_rx: Receiver<RebuildResponse>,
+    cancel_source: CancellationSource,
+    next_token: u64,
+    handle: Option<thread::JoinHandle<()>>,
+}
+
+impl RebuildWorker {
+    /// Start a new rebuild worker on a background thread.
+    pub fn start() -> Self {
+        let (req_tx, req_rx) = crossbeam_channel::bounded::<RebuildRequest>(4);
+        let (res_tx, res_rx) = crossbeam_channel::bounded::<RebuildResponse>(4);
+
+        let handle = thread::Builder::new()
+            .name("animatix-rebuild".into())
+            .spawn(move || {
+                Self::worker_loop(req_rx, res_tx);
+            })
+            .expect("failed to spawn rebuild worker thread");
+
+        Self {
+            request_tx: req_tx,
+            response_rx: res_rx,
+            cancel_source: CancellationSource::new(),
+            next_token: 0,
+            handle: Some(handle),
+        }
+    }
+
+    /// Submit a rebuild request. Previous requests with lower tokens are
+    /// automatically cancelled.
+    pub fn submit(&mut self, source: &crate::app::stores::SourceStore) {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        source.text().hash(&mut hasher);
+        let hash = hasher.finish();
+
+        self.next_token += 1;
+        self.cancel_source.cancel(self.next_token);
+
+        let request = RebuildRequest {
+            token: RebuildToken(self.next_token),
+            source_epoch: source.epoch(),
+            source_hash: SourceHash(hash),
+            file_path: source.file_path().to_path_buf(),
+            source_text: source.text().to_string(),
+            cancellation: self.cancel_source.token(),
+        };
+
+        // Drop old request if channel is full; worker will pick up latest
+        let _ = self.request_tx.try_send(request);
+    }
+
+    /// Poll for completed rebuild responses. Returns all available responses.
+    pub fn poll(&mut self) -> Vec<RebuildResponse> {
+        let mut responses = Vec::new();
+        while let Ok(response) = self.response_rx.try_recv() {
+            responses.push(response);
+        }
+        responses
+    }
+
+    fn worker_loop(req_rx: Receiver<RebuildRequest>, res_tx: Sender<RebuildResponse>) {
+        while let Ok(request) = req_rx.recv() {
+            let start = Instant::now();
+
+            // Check cancellation before starting work
+            if request.cancellation.is_cancelled() {
+                continue;
+            }
+
+            // Build a temporary DocumentSession and run rebuild
+            let mut session = match DocumentSession::from_source(
+                request.file_path.clone(),
+                request.source_text.clone(),
+            ) {
+                Ok(s) => s,
+                Err(_) => {
+                    let _ = res_tx.send(RebuildResponse {
+                        token: request.token,
+                        source_epoch: request.source_epoch,
+                        source_hash: request.source_hash,
+                        result: Err(RebuildFailure {
+                            error: "failed to create document session".into(),
+                            diagnostics: Vec::new(),
+                            partial_source_index: None,
+                        }),
+                        elapsed_ms: start.elapsed().as_secs_f32() * 1000.0,
+                    });
+                    continue;
+                },
+            };
+
+            // Check cancellation again before running rebuild
+            if request.cancellation.is_cancelled() {
+                continue;
+            }
+
+            let rebuild_result = session.rebuild();
+
+            // Check cancellation after rebuild (don't send stale data)
+            if request.cancellation.is_cancelled() {
+                continue;
+            }
+
+            let elapsed_ms = start.elapsed().as_secs_f32() * 1000.0;
+
+            let result = match rebuild_result {
+                Ok(()) => {
+                    // Get timeline duration
+                    let duration_s = session.duration_s;
+                    let scene_dimensions = session.scene_dimensions;
+
+                    Ok(RebuildOutput {
+                        raw_statements: session.raw_statements.unwrap_or_default(),
+                        expanded_statements: session.expanded_statements.unwrap_or_default(),
+                        namespaces: session.namespaces,
+                        components: session.components,
+                        module_actions: session.module_actions,
+                        source_index: session.source_index.unwrap_or_default(),
+                        timeline: session.timeline,
+                        composition: session.composition,
+                        diagnostics: session.diagnostics,
+                        timeline_index: session.timeline_index,
+                        keyframe_lines: session.keyframe_lines,
+                        duration_s,
+                        scene_dimensions,
+                    })
+                },
+                Err(e) => Err(RebuildFailure {
+                    error: e.to_string(),
+                    diagnostics: session.diagnostics,
+                    partial_source_index: session.source_index,
+                }),
+            };
+
+            let _ = res_tx.send(RebuildResponse {
+                token: request.token,
+                source_epoch: request.source_epoch,
+                source_hash: request.source_hash,
+                result,
+                elapsed_ms,
+            });
+        }
+    }
+}
+
+impl Drop for RebuildWorker {
+    fn drop(&mut self) {
+        // The channel will be closed when request_tx is dropped,
+        // causing the worker loop to exit.
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}

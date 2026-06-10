@@ -94,6 +94,36 @@ impl DocumentSession {
         Ok(document)
     }
 
+    /// Create a session from in-memory source text without loading from disk.
+    /// This is used by the background rebuild worker.
+    pub fn from_source(file_path: PathBuf, source_text: String) -> Result<Self, GuiError> {
+        Ok(Self {
+            file_path,
+            source_text,
+            raw_statements: None,
+            expanded_statements: None,
+            namespaces: HashMap::new(),
+            source_index: None,
+            timeline: None,
+            composition: None,
+            active_scene: None,
+            diagnostics: Vec::new(),
+            last_rebuild_error: None,
+            is_dirty: false,
+            duration_s: 5.0,
+            scene_dimensions: SceneDimensions::default(),
+            timeline_index: TimelineIndex::default(),
+            keyframe_lines: Vec::new(),
+            components: HashMap::new(),
+            module_actions: HashMap::new(),
+            last_source_hash: 0,
+            last_component_hash: 0,
+            cached_expanded: None,
+            cached_module_graph: None,
+            use_tree_sitter: false,
+        })
+    }
+
     pub fn from_error(file_path: PathBuf) -> Self {
         Self {
             file_path,
