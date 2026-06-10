@@ -12,7 +12,7 @@ use crate::ast::{ByteSpan, InlineItem, Stmt};
 ///
 /// Built by walking the AST once; used by the GUI inspector for go-to-definition
 /// and by diagnostics to report precise source locations.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct SourceIndex {
     /// Maps (actor_label, property_name) → ByteSpan for declaration properties.
     /// e.g., ("btn", "size") → ByteSpan { start: 50, end: 62 }
