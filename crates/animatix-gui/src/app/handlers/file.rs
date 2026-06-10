@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use crate::app::commands::Effect;
 use crate::app::components::toast::Toast;
+use crate::app::document::version::SourceEpoch;
 use crate::app::file_tree::build_file_tree;
 use crate::app::persistence::save_app_state;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore, WorkspaceStore};
@@ -61,6 +62,7 @@ pub fn handle_open_file(
                 &path,
                 &workspace_store.expanded_dirs,
             );
+            document_store.source.source_epoch = SourceEpoch::initial();
             document_store.source.document = document;
             document_store.source.invalidate_cache();
             document_store
@@ -154,12 +156,11 @@ pub fn handle_save(
     document_store: &mut DocumentStore,
     _preview_store: &mut PreviewStore,
 ) -> Vec<Effect> {
-    let text = document_store.source.editor.text().to_string();
-    let path = document_store.source.document.file_path.clone();
+    let path = document_store.source.file_path().to_path_buf();
+    let text = document_store.source.text().to_string();
     match std::fs::write(&path, &text) {
         Ok(()) => {
-            document_store.source.document.source_text = text;
-            document_store.source.document.is_dirty = false;
+            document_store.source.mark_saved();
             vec![
                 Effect::Status(format!("Saved {}", path.display())),
                 Effect::Toast(Toast::success(format!("Saved {}", path.display()))),
@@ -177,16 +178,14 @@ pub fn handle_reload(
     preview_store: &mut PreviewStore,
     workspace_store: &mut WorkspaceStore,
 ) -> Vec<Effect> {
-    document_store.source.invalidate_cache();
-    match document_store.source.document.reload_from_disk() {
-        Ok(()) => {
-            document_store
-                .source
-                .editor
-                .set_document(
-                    &document_store.source.document.file_path,
-                    document_store.source.document.source_text.clone(),
-                );
+    let path = document_store.source.file_path().to_path_buf();
+    match std::fs::read_to_string(&path) {
+        Ok(text) => {
+            document_store.source.replace_text(text);
+            document_store.source.document.is_dirty = false;
+            if let Err(e) = document_store.source.document.rebuild() {
+                tracing::warn!("Document reload rebuild failed: {}", e);
+            }
             let status = if has_source_load_failure(&document_store.source.document.diagnostics) {
                 format!(
                     "Reloaded {} • parse/load error • {}",

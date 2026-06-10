@@ -49,14 +49,11 @@ pub fn handle_editor_changed(
     preview_store: &mut PreviewStore,
     ui_store: &UiStore,
 ) -> Vec<Effect> {
-    document_store
-        .source
-        .document
-        .set_source_text(document_store.source.editor.text().to_string());
+    let text = document_store.source.editor.text().to_string();
+    document_store.source.replace_text(text);
     preview_store.pending_rebuild_at =
         Some(Instant::now() + Duration::from_millis(ui_store.rebuild_debounce_ms));
     preview_store.preview.error = None;
-    document_store.source.document.diagnostics.clear();
     vec![
         Effect::Status("Editing source • rebuild scheduled".to_string()),
         Effect::RebuildScheduled,

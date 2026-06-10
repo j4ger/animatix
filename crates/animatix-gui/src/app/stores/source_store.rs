@@ -1,3 +1,5 @@
+use crate::app::document::source_change::SourceChange;
+use crate::app::document::version::SourceEpoch;
 use crate::document::DocumentSession;
 use crate::editor::EditorBuffer;
 use std::collections::HashMap;
@@ -9,6 +11,9 @@ use kurbo::Rect;
 pub struct SourceStore {
     pub document: DocumentSession,
     pub editor: EditorBuffer,
+
+    // ── Source version tracking ──
+    pub source_epoch: SourceEpoch,
 
     // ── Cached hot-path allocations ──
     /// Cached actor labels from the timeline, to avoid re-collecting every frame.
@@ -28,6 +33,7 @@ impl SourceStore {
         Self {
             document,
             editor,
+            source_epoch: SourceEpoch::initial(),
             cached_actor_labels: Vec::new(),
             cached_actor_keyframes: Vec::new(),
             cached_hit_regions: Vec::new(),
@@ -52,10 +58,47 @@ impl SourceStore {
     /// Callers compute `(stmts_to_source(stmts), SourceIndex::build(stmts))` while
     /// holding the `stmts` borrow, then call this after the borrow ends.
     pub fn commit_source(&mut self, new_source: String, source_index: animatix_syntax::source_index::SourceIndex) {
+        self.source_epoch = self.source_epoch.next();
         self.document.source_text = new_source.clone();
         self.document.is_dirty = true;
         self.editor.replace_text(new_source);
         self.document.source_index = Some(source_index);
+    }
+
+    pub fn text(&self) -> &str {
+        &self.document.source_text
+    }
+
+    pub fn file_path(&self) -> &std::path::Path {
+        &self.document.file_path
+    }
+
+    pub fn epoch(&self) -> SourceEpoch {
+        self.source_epoch
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.document.is_dirty
+    }
+
+    pub fn mark_saved(&mut self) {
+        self.document.is_dirty = false;
+    }
+
+    /// Replace source text from an external change (editor, undo, reload).
+    /// Returns a `SourceChange` with the new epoch.
+    pub fn replace_text(&mut self, text: String) -> SourceChange {
+        let before_epoch = self.source_epoch;
+        self.source_epoch = self.source_epoch.next();
+        self.document.source_text = text.clone();
+        self.document.is_dirty = true;
+        self.editor.replace_text(text.clone());
+        self.invalidate_cache();
+        SourceChange {
+            before_epoch,
+            after_epoch: self.source_epoch,
+            source_len: self.document.source_text.len(),
+        }
     }
 }
 
