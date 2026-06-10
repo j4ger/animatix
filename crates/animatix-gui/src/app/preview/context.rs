@@ -41,11 +41,7 @@ impl PreviewContext<'_> {
     }
 
     pub(crate) fn get_actor_props_at_time(&self, actor: &str, time_ms: u64) -> Option<ActorProps> {
-        let timeline = self.timeline.or_else(|| {
-            let comp = self.composition?;
-            let scene_name = self.active_scene?;
-            comp.scenes.get(scene_name).map(|s| &s.timeline)
-        })?;
+        let timeline = self.timeline?;
         let track = timeline.get_track(actor)?;
         let half = track.size.as_ref().map(|pt| pt.evaluate(time_ms))?;
         let local_size = [half[0] * 2.0, half[1] * 2.0];
@@ -62,11 +58,7 @@ impl PreviewContext<'_> {
     /// Get the text content property name for a text-type actor.
     /// Returns `Some(property_name)` for Text, Math, Code, Typst actors.
     pub(crate) fn get_text_property(&self, actor: &str) -> Option<&'static str> {
-        let timeline = self.timeline.or_else(|| {
-            let comp = self.composition?;
-            let scene_name = self.active_scene?;
-            comp.scenes.get(scene_name).map(|s| &s.timeline)
-        })?;
+        let timeline = self.timeline?;
         let track = timeline.get_track(actor)?;
         match track.kind {
             ActorKindId::Text => Some("text"),
@@ -79,11 +71,7 @@ impl PreviewContext<'_> {
 
     /// Get the current text content of a text-type actor.
     pub(crate) fn get_text_content(&self, actor: &str) -> Option<String> {
-        let timeline = self.timeline.or_else(|| {
-            let comp = self.composition?;
-            let scene_name = self.active_scene?;
-            comp.scenes.get(scene_name).map(|s| &s.timeline)
-        })?;
+        let timeline = self.timeline?;
         let track = timeline.get_track(actor)?;
         let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
         let value = animatix::timeline::read_property_value_or_default(
@@ -194,22 +182,13 @@ impl PreviewContext<'_> {
     }
 
     pub(crate) fn is_layout_managed(&self, actor: &str) -> bool {
-        let timeline = self.timeline.or_else(|| {
-            let comp = self.composition?;
-            let scene_name = self.active_scene?;
-            comp.scenes.get(scene_name).map(|s| &s.timeline)
-        });
-        let Some(timeline) = timeline else { return false; };
+        let Some(timeline) = self.timeline else { return false; };
         let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
         preview::is_layout_managed(actor, timeline, time_ms)
     }
 
     pub(crate) fn find_layout_container(&self, actor: &str) -> Option<(String, animatix::timeline::LayoutType, usize)> {
-        let timeline = self.timeline.or_else(|| {
-            let comp = self.composition?;
-            let scene_name = self.active_scene?;
-            comp.scenes.get(scene_name).map(|s| &s.timeline)
-        })?;
+        let timeline = self.timeline?;
         let container = timeline
             .tracks()
             .iter()

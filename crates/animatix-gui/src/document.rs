@@ -435,23 +435,91 @@ impl DocumentSession {
     }
 
     pub fn active_timeline(&self) -> Option<&Timeline> {
+        self.active_timeline_ref().map(|r| r.timeline)
+    }
+
+    /// Returns an `ActiveTimelineRef` with full scene context.
+    /// For single-scene documents, returns a reference directly.
+    /// For compositions, resolves the active scene (or falls back to
+    /// declaration order / entry scene).
+    pub fn active_timeline_ref(&self) -> Option<crate::app::document::active_timeline::ActiveTimelineRef<'_>> {
+        use crate::app::document::active_timeline::{ActiveSceneId, ActiveTimelineRef};
+
         if let Some(timeline) = self.timeline.as_ref() {
-            return Some(timeline);
+            return Some(ActiveTimelineRef {
+                id: ActiveSceneId::SingleScene,
+                timeline,
+                composition: None,
+                scene_name: None,
+                duration_s: self.duration_s,
+                dimensions: self.scene_dimensions,
+            });
         }
 
         let composition = self.composition.as_ref()?;
-        let active_scene = self
+        let (scene_name, scene) = self
             .active_scene
             .as_deref()
-            .and_then(|name| composition.scenes.get(name))
+            .and_then(|name| composition.scenes.get(name).map(|s| (name, s)))
             .or_else(|| {
                 composition
                     .declaration_order
                     .first()
-                    .and_then(|name| composition.scenes.get(name))
-            });
+                    .and_then(|name| composition.scenes.get(name).map(|s| (name.as_str(), s)))
+            })
 
-        active_scene.map(|scene| &scene.timeline)
+            .or_else(|| {
+                composition.scenes.iter().next().map(|(name, s)| (name.as_str(), s))
+            })?;
+
+        Some(ActiveTimelineRef {
+            id: ActiveSceneId::Scene(scene_name.to_string()),
+            timeline: &scene.timeline,
+            composition: Some(composition),
+            scene_name: Some(scene_name),
+            duration_s: scene.duration_s.max(0.1),
+            dimensions: self.scene_dimensions,
+        })
+    }
+
+    /// Returns a mutable `ActiveTimelineMut` for editing the active scene.
+    /// For single-scene documents, returns the sole timeline mutably.
+    /// For compositions, resolves the active scene similarly.
+    pub fn active_timeline_mut(&mut self) -> Option<crate::app::document::active_timeline::ActiveTimelineMut<'_>> {
+        use crate::app::document::active_timeline::{ActiveSceneId, ActiveTimelineMut};
+
+        if let Some(timeline) = self.timeline.as_mut() {
+            return Some(ActiveTimelineMut {
+                id: ActiveSceneId::SingleScene,
+                timeline,
+                scene_name: None,
+            });
+        }
+
+        let composition = self.composition.as_mut()?;
+        let scene_name = self
+            .active_scene
+            .clone()
+            .or_else(|| {
+                composition
+                    .declaration_order
+                    .first()
+                    .cloned()
+            })
+
+            .or_else(|| {
+                composition.scenes.keys().next().cloned()
+            })?;
+
+        if !composition.scenes.contains_key(&scene_name) {
+            return None;
+        }
+        let scene = composition.scenes.get_mut(&scene_name)?;
+        Some(ActiveTimelineMut {
+            id: ActiveSceneId::Scene(scene_name.clone()),
+            timeline: &mut scene.timeline,
+            scene_name: Some(scene_name),
+        })
     }
 
     pub fn scene_names(&self) -> &[String] {

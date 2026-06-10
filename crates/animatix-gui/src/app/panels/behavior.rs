@@ -3,6 +3,7 @@ use egui_tiles::{Behavior, SimplificationOptions, TileId, UiResponse};
 
 use crate::app::WorkspaceTab;
 use crate::app::design_tokens::*;
+
 use crate::app::panels::{sidebar, editor, inspector, timeline_panel, preview_panel};
 use crate::app::stores;
 use crate::app::stores::{DocumentStore, WorkspaceStore, PreviewStore};
@@ -82,6 +83,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                 editor::editor_ui(&mut ctx, ui);
             }
             WorkspaceTab::Preview => {
+                let active_tl = self.document_store.source.document.active_timeline();
                 let mut ctx = preview_panel::PreviewContext {
                     scene_dimensions: self.document_store.source.document.scene_dimensions,
                     preview: &mut self.preview_store.preview,
@@ -91,7 +93,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     selection: self.selection,
                     selected_actors: self.selected_actors,
                     hit_regions: self.hit_regions,
-                    timeline: self.document_store.source.document.timeline.as_ref(),
+                    timeline: active_tl,
                     pivot_offsets: self.pivot_offsets,
                     tool_mode: self.tool_mode,
                     rotation_snap_degrees: self.rotation_snap_degrees,
@@ -102,9 +104,10 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                 preview_panel::preview_panel_ui(&mut ctx, ui);
             }
             WorkspaceTab::Inspector => {
+                let active_tl = self.document_store.source.document.active_timeline();
                 let mut ctx = inspector::InspectorContext {
                     preview: &mut self.preview_store.preview,
-                    timeline: self.document_store.source.document.timeline.as_ref(),
+                    timeline: active_tl,
                     composition: self.document_store.source.document.composition.as_ref(),
                     active_scene: self.document_store.source.document.active_scene.as_deref(),
                     selected_actors: self.selected_actors,
@@ -118,13 +121,8 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                 inspector::inspector_panel_ui(&mut ctx, ui);
             }
             WorkspaceTab::Timeline => {
-                // Resolve the effective timeline (same fallback logic as timeline_ui).
-                let resolved_timeline = self.document_store.source.document.timeline.as_ref()
-                    .or_else(|| {
-                        let comp = self.document_store.source.document.composition.as_ref()?;
-                        let scene_name = self.document_store.source.document.active_scene.as_deref()?;
-                        comp.scenes.get(scene_name).map(|s| &s.timeline)
-                    });
+                // Resolve the active timeline using the centralized API.
+                let resolved_timeline = self.document_store.source.document.active_timeline();
                 // Populate hot-path caches if stale (use free fn to avoid borrow conflict)
                 if !self.document_store.source.cache_valid {
                     stores::document_store::rebuild_cache(

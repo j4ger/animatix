@@ -55,26 +55,7 @@ pub(crate) fn inspector_panel_ui(ctx: &mut InspectorContext<'_>, ui: &mut egui::
         }
 
         let current_time_s = ctx.preview.playback.current_time_s();
-        let timeline = ctx.timeline.or_else(|| {
-            let comp = ctx.composition?;
-            let active_scene = ctx.active_scene?;
-            let active_has_actor = ctx.selected_actors.iter().next().is_some_and(|sel| {
-                comp.scenes.get(active_scene).is_some_and(|s| s.timeline.has_actor(sel))
-            });
-            if !active_has_actor {
-                let (_, _, transition) = comp.evaluate(current_time_s);
-                if transition.is_some() {
-                    for (name, scene) in &comp.scenes {
-                        if name != active_scene
-                            && ctx.selected_actors.iter().any(|sel| scene.timeline.has_actor(sel))
-                        {
-                            return Some(&scene.timeline);
-                        }
-                    }
-                }
-            }
-            comp.scenes.get(active_scene).map(|s| &s.timeline)
-        });
+        let timeline = ctx.timeline;
         inspector_ui(
             ui,
             timeline,
