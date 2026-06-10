@@ -7,6 +7,8 @@ use animatix::timeline::SceneDimensions;
 use crate::app::document::snapshot::DocumentSnapshot;
 
 /// A render request for the preview surface.
+#[allow(dead_code)]
+/// Service traits decouple shell from WGPU; implementations are in preview_surface.rs.
 pub struct RenderRequest<'a> {
     pub snapshot: &'a DocumentSnapshot,
     pub active_scene: Option<&'a str>,
@@ -15,12 +17,16 @@ pub struct RenderRequest<'a> {
 }
 
 /// Result of a render operation.
+#[allow(dead_code)]
+/// Service traits decouple shell from WGPU; implementations are in preview_surface.rs.
 pub struct RenderResult {
     pub hit_regions: Vec<(String, kurbo::Rect)>,
     pub frame_pixels: Option<Vec<u8>>,
 }
 
 /// Error from the renderer.
+#[allow(dead_code)]
+/// Service traits decouple shell from WGPU; implementations are in preview_surface.rs.
 #[derive(Debug)]
 pub enum RenderServiceError {
     SurfaceLost,
@@ -33,6 +39,8 @@ pub enum RenderServiceError {
 /// The shell calls `render()` each frame with the current document snapshot
 /// and playback state. The renderer produces hit regions and (optionally)
 /// pixel data for screenshot/export.
+#[allow(dead_code)]
+/// Service traits decouple shell from WGPU; implementations are in preview_surface.rs.
 pub trait PreviewRenderer {
     /// Render a frame. Returns hit regions for the rendered frame.
     fn render(&mut self, request: RenderRequest<'_>) -> Result<RenderResult, RenderServiceError>;

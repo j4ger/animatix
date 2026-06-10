@@ -3,10 +3,8 @@
 //! The worker receives source text snapshots, runs `DocumentSession::rebuild()`
 //! on a background thread, and sends the result back for acceptance on the UI thread.
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use crossbeam_channel::{Receiver, Sender};
 
@@ -19,9 +17,11 @@ use std::path::PathBuf;
 
 /// Token identifying a specific rebuild request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(dead_code)] // Background rebuild worker is wired but not yet activated in the frame pipeline (R5).
 pub struct RebuildToken(pub u64);
 
 /// A request sent to the rebuild worker.
+#[allow(dead_code)] // Background rebuild worker is wired but not yet activated in the frame pipeline (R5).
 pub struct RebuildRequest {
     pub token: RebuildToken,
     pub source_epoch: SourceEpoch,
@@ -32,6 +32,7 @@ pub struct RebuildRequest {
 }
 
 /// A response from the rebuild worker.
+#[allow(dead_code)] // Background rebuild worker is wired but not yet activated in the frame pipeline (R5).
 pub struct RebuildResponse {
     pub token: RebuildToken,
     pub source_epoch: SourceEpoch,
@@ -41,6 +42,7 @@ pub struct RebuildResponse {
 }
 
 /// The rebuild worker runs on a dedicated thread.
+#[allow(dead_code)] // Background rebuild worker is wired but not yet activated in the frame pipeline (R5).
 pub struct RebuildWorker {
     request_tx: Sender<RebuildRequest>,
     response_rx: Receiver<RebuildResponse>,
@@ -49,6 +51,7 @@ pub struct RebuildWorker {
     handle: Option<thread::JoinHandle<()>>,
 }
 
+#[allow(dead_code)] // Background rebuild worker is wired but not yet activated in the frame pipeline (R5).
 impl RebuildWorker {
     /// Start a new rebuild worker on a background thread.
     pub fn start() -> Self {

@@ -17,6 +17,7 @@ use crate::app::document::version::{DocumentGeneration, SourceEpoch, SourceHash}
 
 /// Status of a snapshot relative to the current source text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)] // SnapshotStatus variants are used once publish_snapshot is integrated into the rebuild pipeline.
 pub enum SnapshotStatus {
     Clean,
     Stale { current_source_epoch: SourceEpoch },
@@ -25,6 +26,7 @@ pub enum SnapshotStatus {
 
 /// The build target of a snapshot: either a single timeline or a composition.
 #[derive(Clone)]
+#[allow(dead_code)] // BuildTargetSnapshot is constructed by snapshot_from_session() which is not yet called from the frame pipeline.
 pub enum BuildTargetSnapshot {
     Empty,
     Timeline(Arc<Timeline>),
@@ -36,6 +38,7 @@ pub enum BuildTargetSnapshot {
 /// This is the single source of truth for all non-source document data.
 /// `DocumentStore` holds the latest snapshot (current) and the last good one.
 #[derive(Clone)]
+#[allow(dead_code)] // DocumentSnapshot fields are all consumed by consumers once snapshot-based rendering is active.
 pub struct DocumentSnapshot {
     pub generation: DocumentGeneration,
     pub source_epoch: SourceEpoch,
@@ -65,6 +68,7 @@ pub struct DocumentSnapshot {
 
 impl DocumentSnapshot {
     /// Resolve the active editable timeline from this snapshot.
+    #[allow(dead_code)] // Will be used by panels and export dialog once they read from DocumentSnapshot instead of DocumentSession.
     pub fn active_timeline(&self, active_scene: Option<&str>) -> Option<ActiveTimelineRef<'_>> {
         match &self.target {
             BuildTargetSnapshot::Timeline(timeline) => Some(ActiveTimelineRef {
@@ -76,7 +80,7 @@ impl DocumentSnapshot {
                 dimensions: self.scene_dimensions,
             }),
             BuildTargetSnapshot::Composition(composition) => {
-                let scene_name = active_scene
+                let _scene_name = active_scene
                     .and_then(|name| composition.scenes.get(name))
                     .or_else(|| {
                         composition
@@ -111,6 +115,7 @@ impl DocumentSnapshot {
     }
 
     /// Resolve an export target from this snapshot.
+    #[allow(dead_code)] // Will be used by panels and export dialog once they read from DocumentSnapshot instead of DocumentSession.
     pub fn export_target(
         &self,
         scope: ExportScope,
@@ -144,6 +149,7 @@ impl DocumentSnapshot {
     }
 
     /// Returns true if this snapshot has a renderable target.
+    #[allow(dead_code)] // Will be used by panels and export dialog once they read from DocumentSnapshot instead of DocumentSession.
     pub fn has_renderable_target(&self) -> bool {
         matches!(
             self.target,

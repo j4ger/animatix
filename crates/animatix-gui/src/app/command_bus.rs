@@ -5,14 +5,16 @@
 
 use std::collections::VecDeque;
 
-use crate::app::commands::{Effect, ShellAction};
+use crate::app::commands::ShellAction;
 
 /// A typed command bus that collects actions from panels and drains them
 /// in the shell's frame pipeline.
+#[allow(dead_code)] // CommandBus will replace ActionQueue once panels migrate to view models (R7).
 pub struct CommandBus {
     queue: VecDeque<ShellAction>,
 }
 
+#[allow(dead_code)] // CommandBus will replace ActionQueue once panels migrate to view models (R7).
 impl CommandBus {
     pub fn new() -> Self {
         Self { queue: VecDeque::new() }

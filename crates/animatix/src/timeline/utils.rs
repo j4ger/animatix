@@ -10,11 +10,11 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
-/// Thread-local expression evaluation cache.
-///
-/// Caches `(expr_ptr, env_hash) → Value` to avoid re-evaluating the same
-/// expression in the same environment during build. The cache is cleared
-/// between builds via [`clear_eval_cache`].
+// Thread-local expression evaluation cache.
+//
+// Caches `(expr_ptr, env_hash) → Value` to avoid re-evaluating the same
+// expression in the same environment during build. The cache is cleared
+// between builds via [`clear_eval_cache`].
 thread_local! {
     static EVAL_CACHE: RefCell<HashMap<(usize, u64), Value>> =
         RefCell::new(HashMap::new());
@@ -39,7 +39,7 @@ fn env_hash(env: &Environment) -> u64 {
     let mut entries: Vec<(&String, &Value)> = env.overrides.iter()
         .filter(|(_, v)| !matches!(v, Value::NativeFn(_)))
         .collect();
-    entries.sort_by_key(|(k, _)| k.clone());
+    entries.sort_by_key(|(k, _)| (*k).clone());
     for (key, value) in entries {
         key.hash(&mut hasher);
         hash_value(value, &mut hasher);

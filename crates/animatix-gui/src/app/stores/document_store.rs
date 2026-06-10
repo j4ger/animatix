@@ -22,10 +22,16 @@ pub struct DocumentStore {
 
     // ── Immutable snapshot management ──
     /// Current generation counter, incremented on each accepted rebuild.
+    #[allow(dead_code)]
+    /// Snapshot storage is wired but not yet queried by the frame pipeline.
     pub(crate) generation: DocumentGeneration,
     /// The latest completed snapshot (may be failed/stale).
+    #[allow(dead_code)]
+    /// Snapshot storage is wired but not yet queried by the frame pipeline.
     pub(crate) current: Option<Arc<DocumentSnapshot>>,
     /// The latest snapshot with a renderable target (for preview fallback).
+    #[allow(dead_code)]
+    /// Snapshot storage is wired but not yet queried by the frame pipeline.
     pub(crate) last_good: Option<Arc<DocumentSnapshot>>,
 }
 
@@ -77,6 +83,7 @@ impl DocumentStore {
     }
 
     /// Snapshot with UI state capture for richer undo/redo.
+    #[allow(dead_code)]
     pub fn snapshot_with_ui(
         &mut self,
         command: Command,
@@ -91,21 +98,29 @@ impl DocumentStore {
     // ── Snapshot API ──
 
     /// The latest completed snapshot (may be failed or stale).
+    #[allow(dead_code)]
+    /// Snapshot storage is wired but not yet queried by the frame pipeline.
     pub fn current_snapshot(&self) -> Option<Arc<DocumentSnapshot>> {
         self.current.clone()
     }
 
     /// The latest snapshot with a renderable target (for preview fallback).
+    #[allow(dead_code)]
+    /// Snapshot storage is wired but not yet queried by the frame pipeline.
     pub fn last_good_snapshot(&self) -> Option<Arc<DocumentSnapshot>> {
         self.last_good.clone()
     }
 
     /// The current document generation.
+    #[allow(dead_code)]
+    /// Snapshot storage is wired but not yet queried by the frame pipeline.
     pub fn document_generation(&self) -> DocumentGeneration {
         self.generation
     }
 
     /// Publish a new snapshot, incrementing the generation.
+    #[allow(dead_code)]
+    /// Snapshot storage is wired but not yet queried by the frame pipeline.
     pub fn publish_snapshot(&mut self, mut snapshot: DocumentSnapshot) {
         self.generation = self.generation.next();
         snapshot.generation = self.generation;
@@ -125,6 +140,8 @@ impl DocumentStore {
     }
 
     /// Mark the current snapshot as stale due to a source change.
+    #[allow(dead_code)]
+    /// Snapshot storage is wired but not yet queried by the frame pipeline.
     pub fn mark_source_stale(&mut self, epoch: crate::app::document::version::SourceEpoch) {
         if let Some(ref current) = self.current {
             // Don't replace a failed snapshot's status, just add stale note
@@ -140,6 +157,8 @@ impl DocumentStore {
 
     /// Try to rebuild the current document and produce a snapshot.
     /// Returns true if a snapshot was published.
+    #[allow(dead_code)]
+    /// Snapshot storage is wired but not yet queried by the frame pipeline.
     pub fn try_rebuild_snapshot(&mut self) -> bool {
         let hash = {
             use std::hash::{Hash, Hasher};
@@ -185,6 +204,8 @@ impl DocumentStore {
 }
 
 /// Build a DocumentSnapshot from the current DocumentSession state.
+#[allow(dead_code)]
+/// Snapshot storage is wired but not yet queried by the frame pipeline.
 fn snapshot_from_session(doc: &DocumentSession, source_hash: u64) -> DocumentSnapshot {
     let target = if let Some(timeline) = doc.timeline.as_ref() {
         crate::app::document::snapshot::BuildTargetSnapshot::Timeline(std::sync::Arc::new(

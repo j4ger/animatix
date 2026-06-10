@@ -170,7 +170,7 @@ impl<'a> TsConverter<'a> {
     /// Push a diagnostic for an error/missing node.
     fn push_error(&mut self, node: Node, message: String) {
         let start = node.start_position();
-        let end = node.end_position();
+        let _end = node.end_position();
         let span = node.start_byte()..node.end_byte();
         self.diagnostics.push(
             Diagnostic::error(

@@ -37,6 +37,8 @@ pub(crate) struct ExportDialogState {
     pub(crate) hold_s: f32,
     /// Output file path (relative or absolute).
     pub(crate) output_path: String,
+    #[allow(dead_code)]
+    /// Export scope selection UI not yet exposed; defaults to ActiveScene.
     pub(crate) export_scope: ExportScope,
 }
 

@@ -48,11 +48,13 @@ impl HistoryStore {
     }
 
     /// Undo the last operation. Returns the undo entry if available.
+    #[allow(dead_code)] // Convenience methods for future undo/redo handler integration.
     pub fn undo(&mut self) -> Option<UndoEntry> {
         self.undo_stack.pop_back()
     }
 
     /// Redo the last undone operation. Returns the redo entry if available.
+    #[allow(dead_code)] // Convenience methods for future undo/redo handler integration.
     pub fn redo(&mut self) -> Option<UndoEntry> {
         self.redo_stack.pop_back()
     }

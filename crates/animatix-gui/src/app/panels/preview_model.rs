@@ -6,11 +6,13 @@ use std::collections::HashMap;
 use kurbo::Rect;
 
 use crate::app::document::active_timeline::ActiveTimelineRef;
-use crate::app::preview::{DragState, ToolMode, selection::SelectionState};
+use crate::app::preview::ToolMode;
 use crate::app::PreviewPaneState;
 use animatix::timeline::SceneDimensions;
 
 /// Immutable view model for the preview panel.
+#[allow(dead_code)]
+/// View model for panel migration (R7); panels still use mutable context.
 pub struct PreviewPanelModel<'a> {
     pub scene_dimensions: SceneDimensions,
     pub preview: &'a PreviewPaneState,

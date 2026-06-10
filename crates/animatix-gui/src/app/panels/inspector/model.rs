@@ -7,6 +7,8 @@ use crate::app::PreviewPaneState;
 use animatix::timeline::SceneDimensions;
 
 /// Immutable view model for the inspector panel.
+#[allow(dead_code)]
+/// View model for panel migration (R7); panels still use mutable context.
 pub struct InspectorModel<'a> {
     pub preview: &'a PreviewPaneState,
     pub timeline: Option<&'a animatix::timeline::Timeline>,

@@ -8,15 +8,13 @@ use std::collections::HashMap;
 
 use crate::app::document::version::{DocumentGeneration, SourceEpoch, Versioned};
 
-/// Per-scene cached data, indexed by scene name.
-/// For single-scene documents, the key is an empty string.
-pub type SceneMap<T> = HashMap<String, T>;
-
 /// All derived caches for hot-path access.
 ///
 /// Consumers check `generation` and `source_epoch` against the
 /// current `DocumentSnapshot` before using these values.
 #[derive(Clone)]
+#[allow(dead_code)]
+/// DerivedCaches will be populated from DocumentSnapshot for hot-path access once panel migration is complete.
 pub struct DerivedCaches {
     pub generation: DocumentGeneration,
     pub source_epoch: SourceEpoch,

@@ -90,7 +90,7 @@ impl GuiShell {
 
         // During drag: mutate timeline only, defer source write.
         if is_drag {
-            if let Some(mut at) = self.document_store.source.document.active_timeline_mut() {
+            if let Some(at) = self.document_store.source.document.active_timeline_mut() {
                 let timeline = &mut *at.timeline;
                 if let Some(metadata) = timeline.container_metadata_mut().get_mut(&edit.actor) {
                     if let PV::StringList(order) = &edit.value {
@@ -171,7 +171,7 @@ impl GuiShell {
     }
 
     fn apply_timeline_edit(&mut self, edit: &panels::PropertyEdit) {
-        if let Some(mut at) = self.document_store.source.document.active_timeline_mut() {
+        if let Some(at) = self.document_store.source.document.active_timeline_mut() {
             let timeline = &mut *at.timeline;
             if let Some(track) = timeline.tracks_mut().get_mut(&edit.actor) {
                 let time_ms = (edit.time_s.unwrap_or(self.preview_store.preview.playback.current_time_s()) * 1000.0) as u64;

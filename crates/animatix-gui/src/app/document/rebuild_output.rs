@@ -9,6 +9,8 @@ use animatix_syntax::source_index::SourceIndex;
 use std::collections::HashMap;
 
 /// Successful rebuild output, owned for transfer across threads.
+#[allow(dead_code)]
+/// RebuildOutput is used by the background RebuildWorker (R5) which is wired but not yet activated in the frame pipeline.
 pub struct RebuildOutput {
     pub raw_statements: Vec<Stmt>,
     pub expanded_statements: Vec<Stmt>,
@@ -26,6 +28,8 @@ pub struct RebuildOutput {
 }
 
 /// Failed rebuild output with partial data.
+#[allow(dead_code)]
+/// RebuildFailure is used by the background RebuildWorker (R5) which is wired but not yet activated in the frame pipeline.
 pub struct RebuildFailure {
     pub error: String,
     pub diagnostics: Vec<Diagnostic>,

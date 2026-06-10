@@ -7,6 +7,8 @@ use std::path::PathBuf;
 /// after all state mutations for the command have been performed. This separates
 /// side-effect concerns (UI notifications, repaint requests, editor interaction)
 /// from the pure data mutations in the handler.
+#[allow(dead_code)]
+/// Effect enum reserved for future side-effect dispatch.
 #[derive(Debug, Clone)]
 pub enum Effect {
     /// Push a toast notification to the UI overlay.
@@ -314,8 +316,10 @@ use crate::app::document::history::UiSnapshot;
 pub struct UndoEntry {
     pub command: Command,
     pub source_before: String,
+    #[allow(dead_code)] // Used by future redo implementation that restores after-state.
     pub source_after: String,
     pub ui_before: UiSnapshot,
+    #[allow(dead_code)] // Used by future redo implementation that restores after-state.
     pub ui_after: UiSnapshot,
 }
 

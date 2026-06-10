@@ -204,6 +204,8 @@ impl UiStore {
     }
 
     /// Restore UI state from a snapshot.
+    #[allow(dead_code)]
+    /// Restores UI state on undo; handler not yet migrated.
     pub fn restore_snapshot(&mut self, snapshot: crate::app::document::history::UiSnapshot) {
         self.view.active_scene = snapshot.active_scene;
         self.selection.selected_actors = snapshot.selected_actors;
