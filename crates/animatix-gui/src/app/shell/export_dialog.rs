@@ -37,8 +37,7 @@ pub(crate) struct ExportDialogState {
     pub(crate) hold_s: f32,
     /// Output file path (relative or absolute).
     pub(crate) output_path: String,
-    #[allow(dead_code)]
-    /// Export scope selection UI not yet exposed; defaults to ActiveScene.
+    /// Export scope: ActiveScene or WholeComposition.
     pub(crate) export_scope: ExportScope,
 }
 
@@ -361,10 +360,15 @@ impl GuiShell {
     fn render_export_settings(&mut self, ui: &mut egui::Ui) {
         let format = self.export_store.export_state.format;
         let scene_dims = self.document_store.source.document.scene_dimensions;
+        let scope = if self.document_store.source.document.is_composition() {
+            ExportScope::WholeComposition
+        } else {
+            ExportScope::ActiveScene
+        };
         let timeline_duration = self.document_store
             .source
             .document
-            .export_target(ExportScope::ActiveScene)
+            .export_target(scope)
             .map(|t| t.duration_s() as f32);
         let max_time = self.preview_store.preview.playback.duration_s as f32;
         let current_time = self.preview_store.preview.playback.current_time_s() as f32;
@@ -574,6 +578,22 @@ impl GuiShell {
             });
         }
 
+        // Export scope selector (for compositions)
+        if self.document_store.source.document.is_composition() {
+            ui.horizontal(|ui| {
+                ui.label("Export:");
+                let mut scope = self.export_store.export_state.export_scope.clone();
+                let mut changed = false;
+                changed |= ui.selectable_value(&mut scope, ExportScope::ActiveScene, "Active Scene").clicked();
+                changed |= ui.selectable_value(&mut scope, ExportScope::WholeComposition, "Whole Composition").clicked();
+                if changed {
+                    self.export_store.export_state.export_scope = scope;
+                    self.update_default_export_filename();
+                }
+            });
+            ui.add_space(SPACE_S);
+        }
+
         // Default filename hint
         if self.export_store.export_state.output_path.is_empty() {
             let default = self.suggest_export_filename();
@@ -741,12 +761,7 @@ impl GuiShell {
     }
 
     fn start_export(&mut self) {
-        // Determine export scope based on document type
-        let scope = if self.document_store.source.document.is_composition() {
-            ExportScope::WholeComposition
-        } else {
-            ExportScope::ActiveScene
-        };
+        let scope = self.export_store.export_state.export_scope.clone();
 
         let target = match self.document_store.source.document.export_target(scope) {
             Some(t) => t,
@@ -767,20 +782,10 @@ impl GuiShell {
 
         let effective_duration_s = target.duration_s();
 
-        // Extract owned timeline for renderer (Composition rendering not yet fully supported;
-        // fall back to active scene timeline when exporting a whole composition).
-        let timeline = match cloned_target {
-            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => t,
-            crate::app::document::export_target::ExportTargetOwned::Composition(ref _comp) => {
-                match self.document_store.source.document.export_target(ExportScope::ActiveScene) {
-                    Some(crate::app::document::export_target::ExportTargetRef::Timeline { timeline, .. }) => timeline.clone(),
-                    _ => {
-                        self.export_store.export_status = ExportStatus::Failed("No timeline to export".into());
-                        return;
-                    }
-                }
-            }
-        };
+        // Keep the full export target for dispatch below.
+        // Timeline targets go to render_*_timeline_with_progress,
+        // Composition targets go to render_*_composition_with_progress.
+        let has_composition = matches!(cloned_target, crate::app::document::export_target::ExportTargetOwned::Composition(_));
 
         let state = self.export_store.export_state.clone();
         let output_path = if state.output_path.is_empty() {
@@ -862,26 +867,27 @@ impl GuiShell {
             let progress_ref = Some(progress.as_ref());
             let cancel_ref = Some(cancel.as_ref());
             let result = match state.format {
-                ExportFormat::Image => animatix::renderer::render_image_timeline_with_progress(
-                    timeline,
-                    state.width,
-                    state.height,
-                    state.time_s,
-                    &output_path,
-                    debug,
-                    progress_ref,
-                    cancel_ref,
-                ),
-                ExportFormat::WebP => animatix::renderer::render_image_timeline_with_progress(
-                    timeline,
-                    state.width,
-                    state.height,
-                    state.time_s,
-                    &output_path,
-                    debug,
-                    progress_ref,
-                    cancel_ref,
-                ),
+                ExportFormat::Image | ExportFormat::WebP => {
+                    if has_composition {
+                        match &cloned_target {
+                            crate::app::document::export_target::ExportTargetOwned::Composition(comp) => {
+                                animatix::renderer::render_image_composition(
+                                    comp, state.width, state.height, state.time_s, &output_path,
+                                )
+                            }
+                            _ => unreachable!(),
+                        }
+                    } else {
+                        let timeline = match &cloned_target {
+                            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => t.clone(),
+                            _ => unreachable!(),
+                        };
+                        animatix::renderer::render_image_timeline_with_progress(
+                            timeline, state.width, state.height, state.time_s, &output_path,
+                            debug, progress_ref, cancel_ref,
+                        )
+                    }
+                }
                 ExportFormat::Video => {
                     let duration = if state.auto_duration {
                         let d = effective_duration_s as f32 + state.hold_s.max(0.0);
@@ -889,13 +895,31 @@ impl GuiShell {
                     } else {
                         state.duration_s
                     };
-                    animatix::renderer::render_video_timeline_with_progress(
-                        timeline, state.width, state.height, state.fps, duration,
-                        &output_path, debug,
-                        animatix::renderer::ExportSettings::default(),
-                        progress_ref,
-                        cancel_ref,
-                    )
+                    if has_composition {
+                        match &cloned_target {
+                            crate::app::document::export_target::ExportTargetOwned::Composition(comp) => {
+                                animatix::renderer::render_video_composition_with_progress(
+                                    comp, state.width, state.height, state.fps, duration,
+                                    &output_path, debug,
+                                    animatix::renderer::ExportSettings::default(),
+                                    progress_ref, cancel_ref,
+                                )
+                            }
+                            _ => unreachable!(),
+                        }
+                    } else {
+                        let timeline = match &cloned_target {
+                            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => t.clone(),
+                            _ => unreachable!(),
+                        };
+                        animatix::renderer::render_video_timeline_with_progress(
+                            timeline, state.width, state.height, state.fps, duration,
+                            &output_path, debug,
+                            animatix::renderer::ExportSettings::default(),
+                            progress_ref,
+                            cancel_ref,
+                        )
+                    }
                 }
                 ExportFormat::WebM => {
                     let duration = if state.auto_duration {
@@ -904,16 +928,37 @@ impl GuiShell {
                     } else {
                         state.duration_s
                     };
-                    animatix::renderer::render_video_timeline_with_progress(
-                        timeline, state.width, state.height, state.fps, duration,
-                        &output_path, debug,
-                        animatix::renderer::ExportSettings {
-                            video_codec: animatix::renderer::VideoCodec::Vp9,
-                            ..Default::default()
-                        },
-                        progress_ref,
-                        cancel_ref,
-                    )
+                    if has_composition {
+                        match &cloned_target {
+                            crate::app::document::export_target::ExportTargetOwned::Composition(comp) => {
+                                animatix::renderer::render_video_composition_with_progress(
+                                    comp, state.width, state.height, state.fps, duration,
+                                    &output_path, debug,
+                                    animatix::renderer::ExportSettings {
+                                        video_codec: animatix::renderer::VideoCodec::Vp9,
+                                        ..Default::default()
+                                    },
+                                    progress_ref, cancel_ref,
+                                )
+                            }
+                            _ => unreachable!(),
+                        }
+                    } else {
+                        let timeline = match &cloned_target {
+                            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => t.clone(),
+                            _ => unreachable!(),
+                        };
+                        animatix::renderer::render_video_timeline_with_progress(
+                            timeline, state.width, state.height, state.fps, duration,
+                            &output_path, debug,
+                            animatix::renderer::ExportSettings {
+                                video_codec: animatix::renderer::VideoCodec::Vp9,
+                                ..Default::default()
+                            },
+                            progress_ref,
+                            cancel_ref,
+                        )
+                    }
                 }
                 ExportFormat::Mov => {
                     let duration = if state.auto_duration {
@@ -922,13 +967,31 @@ impl GuiShell {
                     } else {
                         state.duration_s
                     };
-                    animatix::renderer::render_video_timeline_with_progress(
-                        timeline, state.width, state.height, state.fps, duration,
-                        &output_path, debug,
-                        animatix::renderer::ExportSettings::default(),
-                        progress_ref,
-                        cancel_ref,
-                    )
+                    if has_composition {
+                        match &cloned_target {
+                            crate::app::document::export_target::ExportTargetOwned::Composition(comp) => {
+                                animatix::renderer::render_video_composition_with_progress(
+                                    comp, state.width, state.height, state.fps, duration,
+                                    &output_path, debug,
+                                    animatix::renderer::ExportSettings::default(),
+                                    progress_ref, cancel_ref,
+                                )
+                            }
+                            _ => unreachable!(),
+                        }
+                    } else {
+                        let timeline = match &cloned_target {
+                            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => t.clone(),
+                            _ => unreachable!(),
+                        };
+                        animatix::renderer::render_video_timeline_with_progress(
+                            timeline, state.width, state.height, state.fps, duration,
+                            &output_path, debug,
+                            animatix::renderer::ExportSettings::default(),
+                            progress_ref,
+                            cancel_ref,
+                        )
+                    }
                 }
                 ExportFormat::Gif => {
                     let duration = if state.auto_duration {
@@ -937,13 +1000,31 @@ impl GuiShell {
                     } else {
                         state.duration_s
                     };
-                    animatix::renderer::render_gif_timeline_with_progress(
-                        timeline, state.width, state.height, state.fps, duration,
-                        &output_path, debug,
-                        animatix::renderer::ExportSettings::default(),
-                        progress_ref,
-                        cancel_ref,
-                    )
+                    if has_composition {
+                        match &cloned_target {
+                            crate::app::document::export_target::ExportTargetOwned::Composition(comp) => {
+                                animatix::renderer::render_gif_composition_with_progress(
+                                    comp, state.width, state.height, state.fps, duration,
+                                    &output_path, debug,
+                                    animatix::renderer::ExportSettings::default(),
+                                    progress_ref, cancel_ref,
+                                )
+                            }
+                            _ => unreachable!(),
+                        }
+                    } else {
+                        let timeline = match &cloned_target {
+                            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => t.clone(),
+                            _ => unreachable!(),
+                        };
+                        animatix::renderer::render_gif_timeline_with_progress(
+                            timeline, state.width, state.height, state.fps, duration,
+                            &output_path, debug,
+                            animatix::renderer::ExportSettings::default(),
+                            progress_ref,
+                            cancel_ref,
+                        )
+                    }
                 }
             };
             (result, result_path)
