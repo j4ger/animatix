@@ -39,7 +39,7 @@ use crate::easing::Easing;
 use crate::timeline::env::{Environment, Value};
 use crate::timeline::property_registry::{ActorField, ValueType};
 use crate::timeline::{
-    AnimationTrack, PropertyTrack, ShapeType, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
+    AnimationTrack, PropertyTrack, ShapeType, TrackAccessor,
 };
 
 // Sibling module imports (accessible via super:: because we're a child of timeline)
@@ -591,7 +591,7 @@ pub(crate) fn inject_property_into_env(
     track: &AnimationTrack,
     time_ms: u64,
 ) {
-    use crate::timeline::property_registry::{PROPERTY_REGISTRY, PropertyFlags};
+    use crate::timeline::property_registry::{PROPERTY_REGISTRY, PropertyFlags, ReadSource};
 
     // Reusable key buffer to avoid repeated small String allocations.
     let mut key = String::with_capacity(label.len() + 24);
@@ -599,87 +599,47 @@ pub(crate) fn inject_property_into_env(
     key.push('.');
     let prefix_len = key.len();
 
-    // ── Automated: inject every registered INJECTABLE property ──
+    // ── Inject every registered INJECTABLE property via its read_source ──
     for schema in PROPERTY_REGISTRY.iter() {
         if !schema.flags.contains(PropertyFlags::INJECTABLE) {
             continue;
         }
-        // Skip group handler fields (no direct track storage).
-        if matches!(schema.field,
-            ActorField::PositionBindingGroup
-            | ActorField::VectorShapeGroup
-            | ActorField::PlotDomainGroup
-            | ActorField::ContainerLayoutGroup
-        ) {
-            continue;
-        }
-        // Read the effective value from the track (with schema default).
-        let pv = read_property_value_or_default(track, schema.field, time_ms, track.kind);
+
+        // Read via the schema's read_source (handles Field, Alias, Component).
+        let pv = match schema.read_source.read(track, time_ms) {
+            Some(pv) => pv,
+            None => {
+                // No track value — fall back to schema default.
+                // For Component sources, extract the indexed component.
+                let write_default = (schema.default_value)(track.kind);
+                match schema.read_source {
+                    ReadSource::Field(_) | ReadSource::Alias(_) => write_default,
+                    ReadSource::Component { index, scale, .. } => {
+                        if let PropertyValue::Vec2(v) = write_default {
+                            PropertyValue::F32(v[index] * scale as f32)
+                        } else {
+                            write_default
+                        }
+                    }
+                    ReadSource::None_ => continue,
+                }
+            }
+        };
 
         // Inject the value and typed sub-keys (x, y, r, g, b, a).
         key.truncate(prefix_len);
         key.push_str(schema.name);
         inject_value(env, &mut key, prefix_len, schema.name, &pv);
 
-        // Inject the _animating_* flag.
-        key.truncate(prefix_len);
-        key.push_str("_animating_");
-        key.push_str(schema.name);
-        let animating = track.is_field_currently_animating(schema.field, time_ms);
-        env.set(&*key, Value::Num(if animating { 1.0 } else { 0.0 }));
+        // Inject the _animating_* flag from the read_source's storage field.
+        if let Some(storage) = schema.read_source.storage_field() {
+            key.truncate(prefix_len);
+            key.push_str("_animating_");
+            key.push_str(schema.name);
+            let animating = track.is_field_currently_animating(storage, time_ms);
+            env.set(&*key, Value::Num(if animating { 1.0 } else { 0.0 }));
+        }
     }
-
-    // ── Non-registered derived / compound values ──
-
-    // width, height, radius_x, radius_y — derived from size.
-    let size_pv = read_property_value_or_default(track, ActorField::Size, time_ms, track.kind);
-    if let PropertyValue::Vec2(half) = size_pv {
-        let full = [half[0] * 2.0, half[1] * 2.0];
-        key.truncate(prefix_len);
-        key.push_str("width");
-        env.set(&*key, Value::Num(full[0] as f64));
-        key.truncate(prefix_len);
-        key.push_str("height");
-        env.set(&*key, Value::Num(full[1] as f64));
-        key.truncate(prefix_len);
-        key.push_str("radius_x");
-        env.set(&*key, Value::Num(half[0] as f64));
-        key.truncate(prefix_len);
-        key.push_str("radius_y");
-        env.set(&*key, Value::Num(half[1] as f64));
-    }
-
-    // at — maps to PositionBindingGroup (group field, skipped above).
-    // Read from the Position storage and inject manually.
-    let at_pv = read_property_value_or_default(track, ActorField::Position, time_ms, track.kind);
-    key.truncate(prefix_len);
-    key.push_str("at");
-    inject_value(env, &mut key, prefix_len, "at", &at_pv);
-    key.truncate(prefix_len);
-    key.push_str("_animating_at");
-    let at_anim = track.is_field_currently_animating(ActorField::Position, time_ms);
-    env.set(&*key, Value::Num(if at_anim { 1.0 } else { 0.0 }));
-
-    // shift — not in the registry (read from MotionOffset directly).
-    let shift_pv = read_property_value_or_default(track, ActorField::MotionOffset, time_ms, track.kind);
-    key.truncate(prefix_len);
-    key.push_str("shift");
-    inject_value(env, &mut key, prefix_len, "shift", &shift_pv);
-    key.truncate(prefix_len);
-    key.push_str("_animating_shift");
-    let shift_anim = track.is_field_currently_animating(ActorField::MotionOffset, time_ms);
-    env.set(&*key, Value::Num(if shift_anim { 1.0 } else { 0.0 }));
-
-    // line_cap / line_join — stored as PropertyTrack<u32>, no ActorField
-    // variant yet, so they can't be dispatched through the registry.
-    let line_cap = track.line_cap.get(time_ms, 0) as f64;
-    key.truncate(prefix_len);
-    key.push_str("line_cap");
-    env.set(&*key, Value::Num(line_cap));
-    let line_join = track.line_join.get(time_ms, 0) as f64;
-    key.truncate(prefix_len);
-    key.push_str("line_join");
-    env.set(&*key, Value::Num(line_join));
 }
 
 /// Inject a `PropertyValue` into the environment, with typed sub-keys
