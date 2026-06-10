@@ -557,17 +557,24 @@ pub fn handle_ungroup_selected_actors(
 
     document_store.snapshot(Command::UngroupSelectedActors);
 
+    // Collect children from timeline outside the mutable borrow on raw_statements.
+    let mut group_children: Vec<(String, Vec<String>)> = Vec::new();
+    if let Some(timeline) = document_store.source.document.active_timeline() {
+        for group in &groups {
+            let children: Vec<String> = timeline
+                .get_track(group)
+                .map(|t| t.children.clone())
+                .unwrap_or_default();
+            group_children.push((group.clone(), children));
+        }
+    }
+
     if let Some(ref mut stmts) = document_store.source.document.raw_statements {
         let snapshot = stmts.clone();
         let mut ungrouped = 0;
-        for group in &groups {
-            // Find children of this group from timeline
-            let children: Vec<String> = document_store.source.document.active_timeline()
-                .and_then(|tl| tl.get_track(group))
-                .map(|t| t.children.clone())
-                .unwrap_or_default();
+        for (group, children) in &group_children {
 
-            for child in &children {
+            for child in children {
                 let reparent = crate::source_edit::SourceEdit::Reparent {
                     actor: child.clone(),
                     new_parent: None,

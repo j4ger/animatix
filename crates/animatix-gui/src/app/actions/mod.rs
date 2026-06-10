@@ -279,7 +279,7 @@ impl GuiShell {
                 return Err(crate::source_edit::SourceEditError::Generic("No AST available".to_string()));
             };
 
-        if let Some(mut at) = self.document_store.source.document.active_timeline_mut() {
+        if let Some(at) = self.document_store.source.document.active_timeline_mut() {
             let timeline = &mut *at.timeline;
             if let Some(metadata) = timeline.container_metadata_mut().get_mut(&edit.actor) {
                 if let PV::StringList(order) = &edit.value {

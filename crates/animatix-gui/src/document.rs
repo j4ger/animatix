@@ -522,6 +522,34 @@ impl DocumentSession {
         })
     }
 
+    /// Resolve an export target for the given scope.
+    /// For single-scene documents, always returns the timeline.
+    /// For compositions, returns the whole composition or active scene timeline.
+    pub fn export_target(&self, scope: crate::app::document::export_target::ExportScope)
+        -> Option<crate::app::document::export_target::ExportTargetRef<'_>>
+    {
+        use crate::app::document::export_target::{ExportScope, ExportTargetRef};
+
+        match scope {
+            ExportScope::ActiveScene | ExportScope::Scene(_) => {
+                let tr = self.active_timeline_ref()?;
+                Some(ExportTargetRef::Timeline {
+                    timeline: tr.timeline,
+                    duration_s: tr.duration_s,
+                    dimensions: tr.dimensions,
+                })
+            }
+            ExportScope::WholeComposition => {
+                let composition = self.composition.as_ref()?;
+                Some(ExportTargetRef::Composition {
+                    composition,
+                    duration_s: composition.global_duration_s.max(0.1),
+                    dimensions: self.scene_dimensions,
+                })
+            }
+        }
+    }
+
     pub fn scene_names(&self) -> &[String] {
         self.composition
             .as_ref()

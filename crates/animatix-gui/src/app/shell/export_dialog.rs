@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::app::design_tokens::*;
+use crate::app::document::export_target::ExportScope;
 use crate::app::components::layout;
 use crate::app::GuiShell;
 
@@ -36,6 +37,7 @@ pub(crate) struct ExportDialogState {
     pub(crate) hold_s: f32,
     /// Output file path (relative or absolute).
     pub(crate) output_path: String,
+    pub(crate) export_scope: ExportScope,
 }
 
 impl Default for ExportDialogState {
@@ -50,6 +52,7 @@ impl Default for ExportDialogState {
             duration_s: 5.0,
             hold_s: 1.0,
             output_path: String::new(),
+            export_scope: ExportScope::ActiveScene,
         }
     }
 }
@@ -356,7 +359,11 @@ impl GuiShell {
     fn render_export_settings(&mut self, ui: &mut egui::Ui) {
         let format = self.export_store.export_state.format;
         let scene_dims = self.document_store.source.document.scene_dimensions;
-        let timeline_duration = self.document_store.source.document.timeline.as_ref().map(|t| t.duration_seconds() as f32);
+        let timeline_duration = self.document_store
+            .source
+            .document
+            .export_target(ExportScope::ActiveScene)
+            .map(|t| t.duration_s() as f32);
         let max_time = self.preview_store.preview.playback.duration_s as f32;
         let current_time = self.preview_store.preview.playback.current_time_s() as f32;
 
@@ -732,11 +739,44 @@ impl GuiShell {
     }
 
     fn start_export(&mut self) {
-        let timeline = match self.document_store.source.document.timeline.clone() {
+        // Determine export scope based on document type
+        let scope = if self.document_store.source.document.is_composition() {
+            ExportScope::WholeComposition
+        } else {
+            ExportScope::ActiveScene
+        };
+
+        let target = match self.document_store.source.document.export_target(scope) {
             Some(t) => t,
             None => {
-                self.export_store.export_status = ExportStatus::Failed("No timeline to export".into());
+                self.export_store.export_status = ExportStatus::Failed("No timeline or composition to export".into());
                 return;
+            }
+        };
+
+        let cloned_target = match target {
+            crate::app::document::export_target::ExportTargetRef::Timeline { timeline, .. } => {
+                crate::app::document::export_target::ExportTargetOwned::Timeline(timeline.clone())
+            }
+            crate::app::document::export_target::ExportTargetRef::Composition { composition, .. } => {
+                crate::app::document::export_target::ExportTargetOwned::Composition(composition.clone())
+            }
+        };
+
+        let effective_duration_s = target.duration_s();
+
+        // Extract owned timeline for renderer (Composition rendering not yet fully supported;
+        // fall back to active scene timeline when exporting a whole composition).
+        let timeline = match cloned_target {
+            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => t,
+            crate::app::document::export_target::ExportTargetOwned::Composition(ref _comp) => {
+                match self.document_store.source.document.export_target(ExportScope::ActiveScene) {
+                    Some(crate::app::document::export_target::ExportTargetRef::Timeline { timeline, .. }) => timeline.clone(),
+                    _ => {
+                        self.export_store.export_status = ExportStatus::Failed("No timeline to export".into());
+                        return;
+                    }
+                }
             }
         };
 
@@ -763,7 +803,7 @@ impl GuiShell {
                     return;
                 }
                 let duration = if state.auto_duration {
-                    let d = timeline.duration_seconds() as f32 + state.hold_s.max(0.0);
+                    let d = effective_duration_s as f32 + state.hold_s.max(0.0);
                     d.max(0.5)
                 } else {
                     state.duration_s
@@ -804,7 +844,7 @@ impl GuiShell {
             ExportFormat::Image | ExportFormat::WebP => 1,
             ExportFormat::Video | ExportFormat::Gif | ExportFormat::WebM | ExportFormat::Mov => {
                 let duration = if state.auto_duration {
-                    let d = timeline.duration_seconds() as f32 + state.hold_s.max(0.0);
+                    let d = effective_duration_s as f32 + state.hold_s.max(0.0);
                     d.max(0.5)
                 } else {
                     state.duration_s
@@ -842,7 +882,7 @@ impl GuiShell {
                 ),
                 ExportFormat::Video => {
                     let duration = if state.auto_duration {
-                        let d = timeline.duration_seconds() as f32 + state.hold_s.max(0.0);
+                        let d = effective_duration_s as f32 + state.hold_s.max(0.0);
                         d.max(0.5)
                     } else {
                         state.duration_s
@@ -857,7 +897,7 @@ impl GuiShell {
                 }
                 ExportFormat::WebM => {
                     let duration = if state.auto_duration {
-                        let d = timeline.duration_seconds() as f32 + state.hold_s.max(0.0);
+                        let d = effective_duration_s as f32 + state.hold_s.max(0.0);
                         d.max(0.5)
                     } else {
                         state.duration_s
@@ -875,7 +915,7 @@ impl GuiShell {
                 }
                 ExportFormat::Mov => {
                     let duration = if state.auto_duration {
-                        let d = timeline.duration_seconds() as f32 + state.hold_s.max(0.0);
+                        let d = effective_duration_s as f32 + state.hold_s.max(0.0);
                         d.max(0.5)
                     } else {
                         state.duration_s
@@ -890,7 +930,7 @@ impl GuiShell {
                 }
                 ExportFormat::Gif => {
                     let duration = if state.auto_duration {
-                        let d = timeline.duration_seconds() as f32 + state.hold_s.max(0.0);
+                        let d = effective_duration_s as f32 + state.hold_s.max(0.0);
                         d.max(0.5)
                     } else {
                         state.duration_s

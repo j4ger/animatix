@@ -7,3 +7,4 @@
 //! See rewrite-plan.md R1 for context.
 
 pub(crate) mod active_timeline;
+pub(crate) mod export_target;
