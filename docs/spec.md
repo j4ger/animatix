@@ -616,7 +616,16 @@ scene.bottom_left  scene.bottom    scene.bottom_right
 
 ### Animation State Flags
 
-For every actor property that has keyframes, a boolean flag `{label}._animating_{property}` is injected into the `always` evaluation environment. This lets reactive blocks detect when a property is being driven by keyframes and defer to interpolation.
+For every INJECTABLE property, a boolean flag `{label}._animating_{property}` is
+injected into the `always` evaluation environment. The flag is `1` when the
+property is **currently interpolating between two keyframes** (the next keyframe
+strictly after the current time has a non-Linear easing, indicating a real
+animation target rather than a build-time snapshot). It is `0` when the property
+is at rest (between animation segments, before the first keyframe, or after the
+last).
+
+This lets reactive blocks detect when a property is being driven by keyframes
+and defer to interpolation:
 
 ```animatix
 always {
@@ -627,7 +636,16 @@ always {
 }
 ```
 
-Available flags follow the property name: `_animating_at`, `_animating_position`, `_animating_size`, `_animating_rotation`, `_animating_scale`, `_animating_transform`, `_animating_color`, `_animating_opacity`, etc.
+> **Why not just check for keyframe existence?** The build pipeline inserts
+> snapshot keyframes (with `Easing::Linear`) as scaffolding for duration-based
+> animations. A property that has keyframes may still be at rest between
+> animation segments. The `_animating_*` flag distinguishes active
+> interpolation (snapshot → target with user-specified easing) from rest
+> (target → next snapshot, both with the same value).
+
+Available flags follow the property name: `_animating_at`, `_animating_position`,
+`_animating_size`, `_animating_rotation`, `_animating_scale`,
+`_animating_transform`, `_animating_color`, `_animating_opacity`, etc.
 
 ---
 

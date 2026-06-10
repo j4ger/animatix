@@ -423,12 +423,33 @@ struct PropertySchema {
     name: &'static str,
     value_type: ValueType,      // F32, Vec2, Color, String, etc.
     flags: PropertyFlags,       // ANIMATED | LAYOUT_AFFECTING | ASSIGNABLE | INJECTABLE
-    field: ActorField,          // Which storage tier to write
+    field: ActorField,          // Which storage tier to WRITE (build-time)
     group: Option<GroupMembership>, // For compound cross-property resolution
+    read_source: ReadSource,    // How to READ (frame-time env injection)
 }
 ```
 
 The `PROPERTY_REGISTRY` is a static sorted slice. Lookup is O(log n) binary search.
+
+### ReadSource — separating write from read
+
+A property's `field` says where to write at BUILD time (parsing, keyframing).
+`read_source` says where to read at FRAME time (env injection for `always` blocks,
+`_animating_*` flags). Most properties use the same storage for both, but some differ:
+
+| Variant | Meaning | Example |
+|---------|---------|---------|
+| `Field(f)` | Read from same field as write target | `rotation`, `opacity` |
+| `Alias(f)` | Write target is a group handler; read from `f` | `at` → `Position` |
+| `Component { field, index, scale }` | Extract scalar from Vec2 field | `width` = `Size.x × 2` |
+| `None_` | Not readable at frame time | `anchor`, `offset` |
+
+### Frame-time env injection
+
+Every frame, `inject_property_into_env()` iterates the registry and injects every
+`INJECTABLE` property into the evaluation environment (`{label}.{name}`) along
+with its `_animating_{name}` flag (see §5 Reactive). The read_source dispatches
+between direct field reads, aliases, and component extraction — no special cases.
 
 ### Engine
 

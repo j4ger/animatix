@@ -26,6 +26,8 @@
 | `offset` | Vec2 | ✓ | ✓ | Everything |
 | `anchor` | SceneAnchor | ✓ | ✓ | Everything |
 | `size` | Vec2 | ✓ | ✓ | Sized actors |
+| `width` | F32 | ✓ | ✓ | Sized actors |
+| `height` | F32 | ✓ | ✓ | Sized actors |
 | `rotation` | F32 | ✓ | ✓ | Everything |
 | `scale` | F32 | ✓ | ✓ | Everything |
 | `transform` | Transform | ✓ | ✓ | Everything |
@@ -62,6 +64,9 @@ Only applicable to `Filter` actors. See [`architecture.md`](architecture.md) §6
 |----------|------|----------|------------|------------|
 | `radius_x` | F32 | ✓ | ✓ | Ellipse |
 | `radius_y` | F32 | ✓ | ✓ | Ellipse |
+| `shift` | Vec2 | ✓ | ✓ | Everything |
+| `line_cap` | U32 | ✓ | ✓ | All shapes |
+| `line_join` | U32 | ✓ | ✓ | All shapes |
 | `from` | Vec2 | ✓ | ✓ | Line |
 | `to` | Vec2 | ✓ | ✓ | Line |
 | `points` | PointList | ✓ | ✓ | Polygon |
@@ -144,3 +149,27 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 ---
 
 *This file is generated from `crates/animatix/src/timeline/property_registry.rs`. If you add a property, update both the registry and this table.*
+
+---
+
+## Environment Injection
+
+Every `INJECTABLE` property is injected into the `always` evaluation environment
+as `{actor}.{property}` (e.g. `ring.size`, `title.color`). The injection is driven
+entirely by the property registry — adding a new `INJECTABLE` entry to
+`PROPERTY_REGISTRY` is sufficient to make it available in `always` blocks.
+
+Most properties are injected from the same storage field they write to at build
+time. For properties that differ (`at`, `width`, `height`, `radius_x`, `radius_y`),
+the schema's `ReadSource` declares the frame-time read strategy:
+
+| Strategy | Schema entry | Read source |
+|----------|-------------|-------------|
+| Alias | `at` writes to `PositionBindingGroup` | Reads from `Position` field |
+| Component | `width` writes to `Size` field | Reads `Size.x × 2` |
+| Component | `height` writes to `Size` field | Reads `Size.y × 2` |
+| Component | `radius_x` writes to `Size` field | Reads `Size.x × 1` |
+| Component | `radius_y` writes to `Size` field | Reads `Size.y × 1` |
+
+Each injectable property also gets an `_animating_{name}` flag in the
+environment (see `spec.md` §10 Reactive System — Animation State Flags).
