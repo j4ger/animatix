@@ -19,6 +19,7 @@ pub(crate) mod insertion;
 pub(crate) mod document;
 pub(crate) mod audio;
 pub(crate) mod command_bus;
+pub(crate) mod services;
 
 use crate::document::{DocumentSession, default_file_path};
 use crate::hot_reload::{HotReloader, ReloadStatus};
