@@ -51,21 +51,47 @@ pub enum Command {
     // ── Scene ─────────────────────────────────────────────────────────
     SelectScene(String),
     ReorderScenes(Vec<String>),
-    SetTransition { from_scene: String, transition: animatix_syntax::ast::Transition },
-    SetPlayTarget { from_scene: String, target: Option<String> },
-    SetSceneDuration { scene: String, duration_s: Option<f64> },
+    SetTransition {
+        from_scene: String,
+        transition: animatix_syntax::ast::Transition,
+    },
+    SetPlayTarget {
+        from_scene: String,
+        target: Option<String>,
+    },
+    SetSceneDuration {
+        scene: String,
+        duration_s: Option<f64>,
+    },
     DuplicateScene(String),
     DeleteScene(String),
 
     // ── Actor ─────────────────────────────────────────────────────────
-    CreateActor { ty: String, label: String, position: [f32; 2], props: Vec<animatix_syntax::ast::Property> },
-    RenameActor { old_label: String, new_label: String },
+    CreateActor {
+        ty: String,
+        label: String,
+        position: [f32; 2],
+        props: Vec<animatix_syntax::ast::Property>,
+    },
+    RenameActor {
+        old_label: String,
+        new_label: String,
+    },
     DuplicateActor(String),
     DuplicateSelectedActors,
     DeleteSelectedActors,
-    ReparentActor { actor: String, new_parent: Option<String> },
-    ExtractScene { actor_labels: Vec<String>, new_scene_name: String },
-    MoveToScene { actor_labels: Vec<String>, target_scene: String },
+    ReparentActor {
+        actor: String,
+        new_parent: Option<String>,
+    },
+    ExtractScene {
+        actor_labels: Vec<String>,
+        new_scene_name: String,
+    },
+    MoveToScene {
+        actor_labels: Vec<String>,
+        target_scene: String,
+    },
     ToggleActorVisibility(String),
     ToggleActorLock(String),
 
@@ -73,10 +99,24 @@ pub enum Command {
     PropertyEdit(PropertyEdit),
 
     // ── Keyframe ──────────────────────────────────────────────────────
-    SetKeyframeEasing { actor: String, property: String, time_s: f64, easing: animatix_syntax::easing::Easing },
-    DeleteKeyframe { actor: String, property: String, time_s: f64 },
+    SetKeyframeEasing {
+        actor: String,
+        property: String,
+        time_s: f64,
+        easing: animatix_syntax::easing::Easing,
+    },
+    DeleteKeyframe {
+        actor: String,
+        property: String,
+        time_s: f64,
+    },
     /// Move a keyframe to a new time. Emitted by timeline drag.
-    MoveKeyframe { actor: String, property: String, old_time_s: f64, new_time_s: f64 },
+    MoveKeyframe {
+        actor: String,
+        property: String,
+        old_time_s: f64,
+        new_time_s: f64,
+    },
     /// Resize an action block's duration. Emitted by timeline drag handles.
     ResizeAction {
         verb: String,
@@ -210,12 +250,10 @@ impl TryFrom<PropertyValue> for animatix_syntax::ast::Expr {
     type Error = String;
     fn try_from(pv: PropertyValue) -> Result<Self, Self::Error> {
         let expr = match &pv {
-            PropertyValue::Vec2([x, y]) => {
-                animatix_syntax::ast::Expr::Tuple(vec![
-                    animatix_syntax::ast::Expr::Num(*x as f64),
-                    animatix_syntax::ast::Expr::Num(*y as f64),
-                ])
-            }
+            PropertyValue::Vec2([x, y]) => animatix_syntax::ast::Expr::Tuple(vec![
+                animatix_syntax::ast::Expr::Num(*x as f64),
+                animatix_syntax::ast::Expr::Num(*y as f64),
+            ]),
             PropertyValue::Float(v) => animatix_syntax::ast::Expr::Num(*v as f64),
             PropertyValue::Color([r, g, b, a]) => {
                 if (*a - 1.0).abs() < 0.001
@@ -242,19 +280,22 @@ impl TryFrom<PropertyValue> for animatix_syntax::ast::Expr {
                         ],
                     )
                 }
-            }
+            },
             PropertyValue::Text(s) => animatix_syntax::ast::Expr::Str(s.clone()),
-            PropertyValue::StringList(items) => {
-                animatix_syntax::ast::Expr::Tuple(items.iter().cloned().map(animatix_syntax::ast::Expr::Ident).collect())
-            }
-            PropertyValue::PointList(points) => {
-                animatix_syntax::ast::Expr::Tuple(points.iter().map(|&[x, y]| {
-                    animatix_syntax::ast::Expr::Tuple(vec![
-                        animatix_syntax::ast::Expr::Num(x as f64),
-                        animatix_syntax::ast::Expr::Num(y as f64),
-                    ])
-                }).collect())
-            }
+            PropertyValue::StringList(items) => animatix_syntax::ast::Expr::Tuple(
+                items.iter().cloned().map(animatix_syntax::ast::Expr::Ident).collect(),
+            ),
+            PropertyValue::PointList(points) => animatix_syntax::ast::Expr::Tuple(
+                points
+                    .iter()
+                    .map(|&[x, y]| {
+                        animatix_syntax::ast::Expr::Tuple(vec![
+                            animatix_syntax::ast::Expr::Num(x as f64),
+                            animatix_syntax::ast::Expr::Num(y as f64),
+                        ])
+                    })
+                    .collect(),
+            ),
         };
         crate::validation::validate_roundtrip(&expr, &pv)?;
         Ok(expr)
@@ -265,13 +306,17 @@ impl TryFrom<PropertyValue> for animatix_syntax::ast::Expr {
 // ── Undo / redo ─────────────────────────────────────────────────────────
 // =========================================================================
 
-/// An entry on the undo stack. Stores the command *and* the source text
-/// before the command was applied, so that undo can restore the exact state.
-/// This is a pragmatic stepping stone toward fully semantic undo.
+use crate::app::document::history::UiSnapshot;
+
+/// An entry on the undo stack. Stores the command, the source text
+/// before/after the command was applied, and UI state snapshots.
 #[derive(Debug, Clone)]
 pub struct UndoEntry {
     pub command: Command,
     pub source_before: String,
+    pub source_after: String,
+    pub ui_before: UiSnapshot,
+    pub ui_after: UiSnapshot,
 }
 
 /// Per-frame action queue consumed by the shell.

@@ -1,9 +1,9 @@
+use crate::app::commands::ActionQueue;
 use crate::app::components::toast::ToastQueue;
 use crate::app::panels::SidebarTab;
-use crate::app::panels::inspector::{PropertyViewMode, KeyframeViewMode};
-use crate::app::preview::{DragState, ToolMode};
+use crate::app::panels::inspector::{KeyframeViewMode, PropertyViewMode};
 use crate::app::preview::selection::SelectionState;
-use crate::app::commands::ActionQueue;
+use crate::app::preview::{DragState, ToolMode};
 use egui_tiles::Tree;
 use std::collections::{HashMap, HashSet};
 
@@ -89,6 +89,16 @@ pub struct ViewStore {
     pub workspace_switcher_open: bool,
     pub command_palette_open: bool,
     pub find_replace_open: bool,
+    /// Currently active scene name (if in a multi-scene composition).
+    pub active_scene: Option<String>,
+    /// Timeline horizontal zoom factor.
+    pub timeline_zoom: f32,
+    /// Timeline horizontal scroll offset.
+    pub timeline_scroll_offset: f32,
+    /// Preview canvas zoom factor.
+    pub preview_zoom: f32,
+    /// Preview canvas pan offset.
+    pub preview_pan: egui::Vec2,
 }
 
 impl ViewStore {
@@ -106,6 +116,11 @@ impl ViewStore {
             workspace_switcher_open: false,
             command_palette_open: false,
             find_replace_open: false,
+            active_scene: None,
+            timeline_zoom: 1.0,
+            timeline_scroll_offset: 0.0,
+            preview_zoom: 1.0,
+            preview_pan: egui::Vec2::ZERO,
         }
     }
 }
@@ -168,6 +183,37 @@ impl UiStore {
             find_query: String::new(),
             replace_query: String::new(),
         }
+    }
+
+    /// Capture current UI state as a snapshot.
+    pub fn snapshot(&self) -> crate::app::document::history::UiSnapshot {
+        use crate::app::document::history::UiSnapshot;
+        UiSnapshot {
+            active_scene: self.view.active_scene.clone(),
+            selected_actors: self.selection.selected_actors.clone(),
+            selected_keyframes: Vec::new(), // TODO: populate from keyframe selection
+            playhead_time_s: 0.0,           // caller should set this from preview store
+            loop_start_s: None,
+            loop_end_s: None,
+            timeline_zoom: self.view.timeline_zoom,
+            timeline_scroll_offset: self.view.timeline_scroll_offset,
+            preview_zoom: self.view.preview_zoom,
+            preview_pan: (self.view.preview_pan.x, self.view.preview_pan.y),
+            tool_mode: self.view.tool_mode,
+        }
+    }
+
+    /// Restore UI state from a snapshot.
+    pub fn restore_snapshot(&mut self, snapshot: crate::app::document::history::UiSnapshot) {
+        self.view.active_scene = snapshot.active_scene;
+        self.selection.selected_actors = snapshot.selected_actors;
+        self.view.timeline_zoom = snapshot.timeline_zoom;
+        self.view.timeline_scroll_offset = snapshot.timeline_scroll_offset;
+        self.view.preview_zoom = snapshot.preview_zoom;
+        self.view.preview_pan = egui::Vec2::new(snapshot.preview_pan.0, snapshot.preview_pan.1);
+        self.view.tool_mode = snapshot.tool_mode;
+        // Clear drag state on restore
+        self.interaction.drag_state = crate::app::preview::DragState::None;
     }
 }
 

@@ -63,7 +63,29 @@ impl DocumentStore {
     /// Convenience: snapshot current source text for undo/redo.
     pub fn snapshot(&mut self, command: Command) {
         let source_before = self.source.document.source_text.clone();
-        self.history.snapshot(command, &source_before);
+        let source_after = self.source.document.source_text.clone();
+        let default_ui = crate::app::document::history::UiSnapshot::default_with_tool(
+            crate::app::preview::ToolMode::Move
+        );
+        self.history.snapshot(
+            command,
+            &source_before,
+            &source_after,
+            default_ui.clone(),
+            default_ui,
+        );
+    }
+
+    /// Snapshot with UI state capture for richer undo/redo.
+    pub fn snapshot_with_ui(
+        &mut self,
+        command: Command,
+        ui_before: crate::app::document::history::UiSnapshot,
+        ui_after: crate::app::document::history::UiSnapshot,
+    ) {
+        let source_before = self.source.document.source_text.clone();
+        let source_after = self.source.document.source_text.clone();
+        self.history.snapshot(command, &source_before, &source_after, ui_before, ui_after);
     }
 
     // ── Snapshot API ──

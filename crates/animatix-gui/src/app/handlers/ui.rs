@@ -51,6 +51,9 @@ pub fn handle_undo(
         document_store.history.redo_stack.push_back(UndoEntry {
             command: entry.command,
             source_before: document_store.source.document.source_text.clone(),
+            source_after: entry.source_before.clone(),
+            ui_before: ui_store.snapshot(),
+            ui_after: entry.ui_before.clone(),
         });
         document_store.source.document.source_text = entry.source_before.clone();
         document_store.source.editor.replace_text(entry.source_before);
@@ -76,6 +79,9 @@ pub fn handle_redo(
         document_store.history.undo_stack.push_back(UndoEntry {
             command: entry.command,
             source_before: document_store.source.document.source_text.clone(),
+            source_after: entry.source_before.clone(),
+            ui_before: ui_store.snapshot(),
+            ui_after: entry.ui_before.clone(),
         });
         document_store.source.document.source_text = entry.source_before.clone();
         document_store.source.editor.replace_text(entry.source_before);
