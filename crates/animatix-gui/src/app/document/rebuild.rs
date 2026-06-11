@@ -17,11 +17,9 @@ use std::path::PathBuf;
 
 /// Token identifying a specific rebuild request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[allow(dead_code)] // Background rebuild worker is wired but not yet activated in the frame pipeline (R5).
 pub struct RebuildToken(pub u64);
 
 /// A request sent to the rebuild worker.
-#[allow(dead_code)] // Background rebuild worker is wired but not yet activated in the frame pipeline (R5).
 pub struct RebuildRequest {
     pub token: RebuildToken,
     pub source_epoch: SourceEpoch,
@@ -32,7 +30,6 @@ pub struct RebuildRequest {
 }
 
 /// A response from the rebuild worker.
-#[allow(dead_code)] // Background rebuild worker is wired but not yet activated in the frame pipeline (R5).
 pub struct RebuildResponse {
     pub token: RebuildToken,
     pub source_epoch: SourceEpoch,
@@ -42,20 +39,18 @@ pub struct RebuildResponse {
 }
 
 /// The rebuild worker runs on a dedicated thread.
-#[allow(dead_code)] // Background rebuild worker is wired but not yet activated in the frame pipeline (R5).
 pub struct RebuildWorker {
-    request_tx: Sender<RebuildRequest>,
+    request_tx: Option<Sender<RebuildRequest>>,
     response_rx: Receiver<RebuildResponse>,
     cancel_source: CancellationSource,
     next_token: u64,
     handle: Option<thread::JoinHandle<()>>,
 }
 
-#[allow(dead_code)] // Background rebuild worker is wired but not yet activated in the frame pipeline (R5).
 impl RebuildWorker {
     /// Start a new rebuild worker on a background thread.
     pub fn start() -> Self {
-        let (req_tx, req_rx) = crossbeam_channel::bounded::<RebuildRequest>(4);
+        let (req_tx, req_rx) = crossbeam_channel::unbounded::<RebuildRequest>();
         let (res_tx, res_rx) = crossbeam_channel::bounded::<RebuildResponse>(4);
 
         let handle = thread::Builder::new()
@@ -66,7 +61,7 @@ impl RebuildWorker {
             .expect("failed to spawn rebuild worker thread");
 
         Self {
-            request_tx: req_tx,
+            request_tx: Some(req_tx),
             response_rx: res_rx,
             cancel_source: CancellationSource::new(),
             next_token: 0,
@@ -76,7 +71,7 @@ impl RebuildWorker {
 
     /// Submit a rebuild request. Previous requests with lower tokens are
     /// automatically cancelled.
-    pub fn submit(&mut self, source: &crate::app::stores::SourceStore) {
+    pub fn submit(&mut self, source: &crate::app::stores::SourceStore) -> RebuildToken {
         use std::hash::{Hash, Hasher};
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         source.text().hash(&mut hasher);
@@ -94,8 +89,9 @@ impl RebuildWorker {
             cancellation: self.cancel_source.token(),
         };
 
-        // Drop old request if channel is full; worker will pick up latest
-        let _ = self.request_tx.try_send(request);
+        let _ = self.request_tx.as_ref().unwrap().send(request);
+
+        RebuildToken(self.next_token)
     }
 
     /// Poll for completed rebuild responses. Returns all available responses.
@@ -194,10 +190,55 @@ impl RebuildWorker {
 
 impl Drop for RebuildWorker {
     fn drop(&mut self) {
-        // The channel will be closed when request_tx is dropped,
-        // causing the worker loop to exit.
+        // Cancel any in-flight rebuild so the worker exits its current work quickly
+        self.cancel_source.cancel(self.next_token + 1);
+        // Take the sender, dropping it closes the channel → worker loop exits
+        self.request_tx.take();
+        // Join the worker thread
         if let Some(handle) = self.handle.take() {
             let _ = handle.join();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::stores::SourceStore;
+    use crate::document::DocumentSession;
+    use crate::editor::EditorBuffer;
+
+    #[test]
+    fn test_submit_returns_token() {
+        let mut worker = RebuildWorker::start();
+
+        let doc = DocumentSession::from_source(
+            std::path::PathBuf::from("test.amx"),
+            "#0s\n".to_string(),
+        )
+        .expect("create session");
+        let editor = EditorBuffer::new(&doc.file_path, doc.source_text.clone());
+        let source = SourceStore::new(doc, editor);
+
+        let token = worker.submit(&source);
+        assert!(token.0 > 0, "submit should return a token with positive value");
+    }
+
+    #[test]
+    fn test_worker_drop_does_not_hang() {
+        let mut worker = RebuildWorker::start();
+
+        let doc = DocumentSession::from_source(
+            std::path::PathBuf::from("test.amx"),
+            "#0s\n".to_string(),
+        )
+        .expect("create session");
+        let editor = EditorBuffer::new(&doc.file_path, doc.source_text.clone());
+        let source = SourceStore::new(doc, editor);
+
+        let _token = worker.submit(&source);
+
+        // Drop the worker — this should not deadlock
+        drop(worker);
     }
 }

@@ -144,6 +144,7 @@ pub struct UiStore {
     pub nudge_step_px: f32,
     pub nudge_step_shift_px: f32,
     pub rotation_snap_degrees: f32,
+    pub snap_fps: f32,
     pub pending_actions: ActionQueue,
     pub toasts: ToastQueue,
     /// Path buffer for the workspace switcher dialog.
@@ -176,6 +177,7 @@ impl UiStore {
             nudge_step_px: 1.0,
             nudge_step_shift_px: 10.0,
             rotation_snap_degrees: 15.0,
+            snap_fps: 60.0,
             pending_actions: ActionQueue::default(),
             toasts: ToastQueue::default(),
             workspace_switcher_path: String::new(),
@@ -238,6 +240,7 @@ mod tests {
         assert_eq!(store.scrub_step_s, 0.1);
         assert_eq!(store.nudge_step_px, 1.0);
         assert_eq!(store.rotation_snap_degrees, 15.0);
+        assert_eq!(store.snap_fps, 60.0);
     }
 
     #[test]

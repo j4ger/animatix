@@ -28,7 +28,6 @@ use animatix::composition::Composition;
 use animatix::timeline::Timeline;
 use egui::{Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, Vec2};
 
-#[allow(dead_code)]
 pub(crate) struct TimelineContext<'a> {
     pub preview: &'a mut PreviewPaneState,
     pub timeline: Option<&'a Timeline>,
@@ -41,6 +40,7 @@ pub(crate) struct TimelineContext<'a> {
     pub actor_labels: &'a [String],
     /// Cached per-actor keyframe property lists.
     pub actor_keyframes: &'a [(String, Vec<(u64, &'static str)>)],
+    pub snap_fps: f32,
 }
 
 /// Render the entire timeline panel.
@@ -169,6 +169,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         selected_actors,
         actor_labels: _,
         actor_keyframes: _,
+        snap_fps: _snap_fps,
     } = ctx;
     // Prune expired keyframe flashes (300 ms lifetime)
     let now = std::time::Instant::now();
@@ -921,7 +922,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                     let snapped = if shift_held {
                                         nt
                                     } else {
-                                        (nt * 60.0).round() / 60.0
+                                        (nt * ctx.snap_fps as f64).round() / ctx.snap_fps as f64
                                     };
                                     new_kf_drag = Some((actor_label.clone(), prop, kf_ms, snapped));
                                     let gx = time_to_x(snapped);

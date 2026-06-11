@@ -17,7 +17,6 @@ use crate::app::document::version::{DocumentGeneration, SourceEpoch, SourceHash}
 
 /// Status of a snapshot relative to the current source text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)] // SnapshotStatus variants are used once publish_snapshot is integrated into the rebuild pipeline.
 pub enum SnapshotStatus {
     Clean,
     Stale { current_source_epoch: SourceEpoch },
@@ -26,7 +25,6 @@ pub enum SnapshotStatus {
 
 /// The build target of a snapshot: either a single timeline or a composition.
 #[derive(Clone)]
-#[allow(dead_code)] // BuildTargetSnapshot is constructed by snapshot_from_session() which is not yet called from the frame pipeline.
 pub enum BuildTargetSnapshot {
     Empty,
     Timeline(Arc<Timeline>),
@@ -38,7 +36,6 @@ pub enum BuildTargetSnapshot {
 /// This is the single source of truth for all non-source document data.
 /// `DocumentStore` holds the latest snapshot (current) and the last good one.
 #[derive(Clone)]
-#[allow(dead_code)] // DocumentSnapshot fields are all consumed by consumers once snapshot-based rendering is active.
 pub struct DocumentSnapshot {
     pub generation: DocumentGeneration,
     pub source_epoch: SourceEpoch,

@@ -6,6 +6,7 @@ use crate::app::document::version::SourceEpoch;
 use crate::app::file_tree::build_file_tree;
 use crate::app::persistence::save_app_state;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore, WorkspaceStore};
+use crate::app::document::rebuild::{RebuildToken, RebuildWorker, RebuildResponse};
 use crate::app::utils::has_source_load_failure;
 use crate::document::DocumentSession;
 use animatix_syntax::diagnostics::diagnostics_phase_summary;
@@ -90,6 +91,9 @@ pub fn handle_open_file(
                     tracing::warn!("Failed to update watched file: {}", e);
                 }
             }
+            // Publish initial snapshot (load already ran rebuild)
+            document_store.clear_snapshots();
+            document_store.publish_rebuild_result(document_store.source.document.last_rebuild_error.is_none());
             let status = if has_source_load_failure(&document_store.source.document.diagnostics) {
                 format!(
                     "Opened {} • parse/load error • {}",
@@ -197,11 +201,12 @@ pub fn handle_reload(
     let path = document_store.source.file_path().to_path_buf();
     match std::fs::read_to_string(&path) {
         Ok(text) => {
-            document_store.source.replace_text(text);
+            document_store.replace_text(text);
             document_store.source.document.is_dirty = false;
             if let Err(e) = document_store.source.document.rebuild() {
                 tracing::warn!("Document reload rebuild failed: {}", e);
             }
+            document_store.publish_rebuild_result(document_store.source.document.last_rebuild_error.is_none());
             let status = if has_source_load_failure(&document_store.source.document.diagnostics) {
                 format!(
                     "Reloaded {} • parse/load error • {}",
@@ -231,6 +236,72 @@ pub fn handle_reload(
     }
 }
 
+/// Shared Ok body for rebuild: publish snapshot, compute status, sync preview, toast.
+pub(crate) fn rebuild_succeeded(
+    document_store: &mut DocumentStore,
+    preview_store: &mut PreviewStore,
+    ui_store: &mut UiStore,
+) -> Vec<Effect> {
+    document_store.publish_rebuild_result(true);
+    let status = if document_store.source.document.diagnostics.is_empty() {
+        format!(
+            "Built timeline • {:.2}s total duration",
+            document_store.source.document.duration_s.max(0.1)
+        )
+    } else {
+        format!(
+            "Built timeline • {:.2}s total duration • {}",
+            document_store.source.document.duration_s.max(0.1),
+            diagnostics_phase_summary(&document_store.source.document.diagnostics)
+        )
+    };
+    sync_preview_from_document(document_store, preview_store, status, false, false);
+    ui_store.toasts.push(Toast::success(format!(
+        "Built timeline • {:.2}s",
+        document_store.source.document.duration_s.max(0.1)
+    )));
+    vec![]
+}
+
+/// Shared Err body for rebuild: last-good fallback, publish failed snapshot, status, error.
+pub(crate) fn rebuild_failed(
+    document_store: &mut DocumentStore,
+    preview_store: &mut PreviewStore,
+    ui_store: &mut UiStore,
+    error: &str,
+) -> Vec<Effect> {
+    document_store.publish_rebuild_result(false);
+
+    preview_store.preview.playback.duration_s = document_store.source.document.duration_s.max(0.1);
+    preview_store.preview.dimensions = document_store.source.document.scene_dimensions;
+
+    // Last-good fallback for duration/dimensions
+    if let Some(last_good) = document_store.last_good_snapshot() {
+        preview_store.preview.playback.duration_s = last_good.duration_s.max(0.1);
+        preview_store.preview.dimensions = last_good.scene_dimensions;
+    }
+
+    let mut status = if has_source_load_failure(&document_store.source.document.diagnostics) {
+        format!(
+            "Rebuild blocked • parse/load error • {}",
+            diagnostics_phase_summary(&document_store.source.document.diagnostics)
+        )
+    } else {
+        "Rebuild blocked".to_string()
+    };
+
+    if document_store.showing_last_good() {
+        status.push_str(" \u{2022} showing last good build");
+    }
+
+    preview_store.preview.playback.clamp_time();
+    preview_store.preview.status = status;
+    preview_store.preview.error = Some(error.to_string());
+    preview_store.preview_dirty = true;
+    ui_store.toasts.push(Toast::error("Rebuild failed"));
+    vec![]
+}
+
 pub fn handle_rebuild(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
@@ -244,46 +315,52 @@ pub fn handle_rebuild(
     match document_store.source.document.rebuild() {
         Ok(()) => {
             preview_store.rebuild_in_progress = false;
-            let status = if document_store.source.document.diagnostics.is_empty() {
-                format!(
-                    "Built timeline • {:.2}s total duration",
-                    document_store.source.document.duration_s.max(0.1)
-                )
-            } else {
-                format!(
-                    "Built timeline • {:.2}s total duration • {}",
-                    document_store.source.document.duration_s.max(0.1),
-                    diagnostics_phase_summary(&document_store.source.document.diagnostics)
-                )
-            };
-            sync_preview_from_document(document_store, preview_store, status, false, false);
-            ui_store
-                .toasts
-                .push(Toast::success(format!(
-                    "Built timeline • {:.2}s",
-                    document_store.source.document.duration_s.max(0.1)
-                )));
-            vec![]
+            rebuild_succeeded(document_store, preview_store, ui_store)
         }
         Err(error) => {
             preview_store.rebuild_in_progress = false;
-            let status = if has_source_load_failure(&document_store.source.document.diagnostics) {
-                format!(
-                    "Rebuild blocked • parse/load error • {}",
-                    diagnostics_phase_summary(&document_store.source.document.diagnostics)
-                )
-            } else {
-                "Rebuild blocked".to_string()
-            };
-            preview_store.preview.playback.duration_s =
-                document_store.source.document.duration_s.max(0.1);
-            preview_store.preview.dimensions = document_store.source.document.scene_dimensions;
-            preview_store.preview.playback.clamp_time();
-            preview_store.preview.status = status;
-            preview_store.preview.error = Some(error.to_string());
-            preview_store.preview_dirty = true;
-            ui_store.toasts.push(Toast::error("Rebuild failed"));
-            vec![]
+            rebuild_failed(document_store, preview_store, ui_store, &error.to_string())
+        }
+    }
+}
+
+/// Submit a rebuild request to the background worker.
+pub fn handle_rebuild_submit(
+    worker: &mut RebuildWorker,
+    document_store: &mut DocumentStore,
+    preview_store: &mut PreviewStore,
+) -> RebuildToken {
+    document_store.source.invalidate_cache();
+    preview_store.rebuild_in_progress = true;
+    preview_store.preview.status = "Building timeline…".to_string();
+    preview_store.preview_dirty = true;
+    worker.submit(&document_store.source)
+}
+
+/// Handle a completed background rebuild response.
+pub fn handle_rebuild_response(
+    document_store: &mut DocumentStore,
+    preview_store: &mut PreviewStore,
+    ui_store: &mut UiStore,
+    response: RebuildResponse,
+) -> Vec<Effect> {
+    // Discard stale responses (a newer rebuild was started)
+    if response.source_epoch != document_store.source.epoch() {
+        return vec![];
+    }
+
+    preview_store.rebuild_in_progress = false;
+
+    match response.result {
+        Ok(output) => {
+            document_store.source.invalidate_cache();
+            document_store.source.document.apply_rebuild_output(output, response.source_hash.0);
+            rebuild_succeeded(document_store, preview_store, ui_store)
+        }
+        Err(failure) => {
+            document_store.source.invalidate_cache();
+            document_store.source.document.apply_rebuild_failure(&failure);
+            rebuild_failed(document_store, preview_store, ui_store, &failure.error)
         }
     }
 }

@@ -220,7 +220,7 @@ impl DocumentController<'_> {
         }
 
         let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
-        self.document_store.source.commit_source(new_source, source_index);
+        self.document_store.commit_source(new_source, source_index);
         self.preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms));
 

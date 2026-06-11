@@ -30,6 +30,7 @@ pub(crate) struct WorkspaceBehavior<'a> {
     pub(crate) keyframe_view_mode: &'a mut crate::app::panels::inspector::KeyframeViewMode,
     pub(crate) keyframe_mode: bool,
     pub(crate) rotation_snap_degrees: f32,
+    pub(crate) snap_fps: f32,
 }
 
 impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
@@ -125,7 +126,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                 let resolved_timeline = self.document_store.source.document.active_timeline();
                 // Populate hot-path caches if stale (use free fn to avoid borrow conflict)
                 if !self.document_store.source.cache_valid {
-                    stores::document_store::rebuild_cache(
+                    crate::app::source_store::rebuild_cache(
                         &mut self.document_store.source.cached_actor_labels,
                         &mut self.document_store.source.cached_actor_keyframes,
                         &mut self.document_store.source.cached_hit_regions,
@@ -144,6 +145,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     selected_actors: self.selected_actors,
                     actor_labels: &self.document_store.source.cached_actor_labels,
                     actor_keyframes: &self.document_store.source.cached_actor_keyframes,
+                    snap_fps: self.snap_fps,
                 };
                 timeline_panel::timeline_panel_ui(&mut ctx, ui);
             }

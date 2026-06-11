@@ -279,7 +279,19 @@ impl AnimatixApp {
     }
 
     fn sync_preview_surface(&mut self, frame: &mut eframe::Frame) -> Result<(), String> {
-        let dimensions = self.shell.document_store.source.document.scene_dimensions;
+        // Capture last-good fallback before any mutable borrows
+        let fallback = if self.shell.document_store.source.document.timeline.is_none()
+            && self.shell.document_store.source.document.composition.is_none()
+        {
+            self.shell.document_store.last_good_snapshot()
+        } else {
+            None
+        };
+
+        let dimensions = fallback
+            .as_ref()
+            .map(|s| s.scene_dimensions)
+            .unwrap_or(self.shell.document_store.source.document.scene_dimensions);
         let render_state = frame
             .wgpu_render_state()
             .ok_or_else(|| "wgpu render state not available".to_string())?;
@@ -294,7 +306,29 @@ impl AnimatixApp {
                 compute_hit_regions: true,
             };
 
-            let render_result = if let Some(composition) = self.shell.document_store.source.document.composition.as_ref()
+            let render_result = if let Some(ref snapshot) = fallback {
+                match &snapshot.target {
+                    crate::app::document::snapshot::BuildTargetSnapshot::Composition(c) => {
+                        self.preview_surface.render_composition(
+                            device,
+                            queue,
+                            c,
+                            self.shell.preview_store.preview.playback.current_time_s(),
+                            debug,
+                        )
+                    }
+                    crate::app::document::snapshot::BuildTargetSnapshot::Timeline(t) => {
+                        self.preview_surface.render(
+                            device,
+                            queue,
+                            t,
+                            self.shell.preview_store.preview.playback.current_time_s(),
+                            debug,
+                        )
+                    }
+                    _ => Ok(()),
+                }
+            } else if let Some(composition) = self.shell.document_store.source.document.composition.as_ref()
             {
                 self.preview_surface.render_composition(
                     device,
@@ -345,13 +379,16 @@ impl AnimatixApp {
             self.shell.preview_store.preview_dirty = false;
 
             // Collect runtime diagnostics from the evaluated timeline(s)
+            // Skip when using fallback — fallback snapshot is immutable, not re-evaluated.
             let mut runtime_diagnostics = Vec::new();
-            if let Some(composition) = self.shell.document_store.source.document.composition.as_ref() {
-                for scene in composition.scenes.values() {
-                    runtime_diagnostics.extend(scene.timeline.runtime_diagnostics());
+            if fallback.is_none() {
+                if let Some(composition) = self.shell.document_store.source.document.composition.as_ref() {
+                    for scene in composition.scenes.values() {
+                        runtime_diagnostics.extend(scene.timeline.runtime_diagnostics());
+                    }
+                } else if let Some(timeline) = self.shell.document_store.source.document.active_timeline() {
+                    runtime_diagnostics.extend(timeline.runtime_diagnostics());
                 }
-            } else if let Some(timeline) = self.shell.document_store.source.document.active_timeline() {
-                runtime_diagnostics.extend(timeline.runtime_diagnostics());
             }
             self.shell.document_store.history.runtime_diagnostics = runtime_diagnostics;
 
@@ -457,7 +494,7 @@ impl eframe::App for AnimatixApp {
         }
 
         // Request repaint if needed
-        if self.shell.is_playing() || self.shell.preview_store.preview_dirty || self.shell.has_pending_rebuild() {
+        if self.shell.is_playing() || self.shell.preview_store.preview_dirty || self.shell.has_pending_rebuild() || self.shell.preview_store.rebuild_in_progress {
             ui.ctx().request_repaint();
         }
     }

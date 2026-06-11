@@ -45,6 +45,7 @@ use crate::app::commands::{ActionQueue, Command, Effect, ShellAction};
 use crate::app::shell::insertion_palette::{InsertionPalette, PaletteMode};
 use crate::app::utils::*;
 use crate::app::stores::*;
+use crate::app::document::rebuild::RebuildWorker;
 
 const INITIAL_WINDOW_SIZE: (f64, f64) = (1440.0, 960.0);
 const DEFAULT_PREVIEW_SIZE: SceneDimensions = SceneDimensions {
@@ -273,6 +274,7 @@ struct GuiShell {
     preview_store: PreviewStore,
     ui_store: UiStore,
     export_store: ExportStore,
+    rebuild_worker: RebuildWorker,
     insertion_palette: InsertionPalette,
 }
 
@@ -297,6 +299,9 @@ impl GuiShell {
                         self.workspace_store.last_reload_time = Some(app_time);
                         self.preview_store.preview.status = "File reloaded".to_string();
                         self.preview_store.preview.error = None;
+                        self.document_store.publish_rebuild_result(
+                            self.document_store.source.document.last_rebuild_error.is_none()
+                        );
                     }
                 }
                 ReloadStatus::NoChange => {}
@@ -340,14 +345,14 @@ impl GuiShell {
                 diagnostics_phase_summary(&document.diagnostics)
             );
         }
-        preview.error = error;
+        preview.error = error.clone();
 
         let editor = EditorBuffer::new(&document.file_path, document.source_text.clone());
 
         let mut ui_store = UiStore::new(tree);
         ui_store.view.welcome_open = is_welcome;
 
-        Self {
+        let mut shell = Self {
             document_store: DocumentStore::new(document, editor),
             workspace_store: WorkspaceStore::new(
                 workspace_root,
@@ -359,8 +364,15 @@ impl GuiShell {
             preview_store: PreviewStore::new(preview),
             ui_store,
             export_store: ExportStore::new(),
+            rebuild_worker: RebuildWorker::start(),
             insertion_palette: InsertionPalette::default(),
+        };
+        if !is_welcome {
+            shell.document_store.publish_rebuild_result(
+                error.is_none() && !has_source_load_failure(&shell.document_store.source.document.diagnostics)
+            );
         }
+        shell
     }
 
     fn is_playing(&self) -> bool {
@@ -402,15 +414,30 @@ impl GuiShell {
             && now >= deadline
         {
             self.preview_store.pending_rebuild_at = None;
-            // Clear any stale error before rebuild so a successful rebuild
-            // doesn't leave an outdated error banner visible.
             self.preview_store.preview.error = None;
-            let effects = crate::app::handlers::file::handle_rebuild(
+            let token = crate::app::handlers::file::handle_rebuild_submit(
+                &mut self.rebuild_worker,
                 &mut self.document_store,
                 &mut self.preview_store,
-                &mut self.ui_store,
             );
-            self.apply_effects(effects);
+            self.preview_store.in_flight_rebuild = Some(token);
+        }
+
+        // Poll for completed rebuild responses
+        for response in self.rebuild_worker.poll() {
+            // Only accept the highest-token response (newest)
+            if self.preview_store.in_flight_rebuild
+                .map_or(true, |token| response.token == token)
+            {
+                let effects = crate::app::handlers::file::handle_rebuild_response(
+                    &mut self.document_store,
+                    &mut self.preview_store,
+                    &mut self.ui_store,
+                    response,
+                );
+                self.apply_effects(effects);
+                self.preview_store.in_flight_rebuild = None;
+            }
         }
     }
 
@@ -700,6 +727,7 @@ impl GuiShell {
             keyframe_view_mode: &mut self.ui_store.keyframe_view_mode,
             keyframe_mode: self.ui_store.keyframe_mode,
             rotation_snap_degrees: self.ui_store.rotation_snap_degrees,
+            snap_fps: self.ui_store.snap_fps,
         };
         tree.ui(&mut behavior, ui);
     }

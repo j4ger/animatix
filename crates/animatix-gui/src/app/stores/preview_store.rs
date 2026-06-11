@@ -1,3 +1,4 @@
+use crate::app::document::rebuild::RebuildToken;
 use crate::app::PreviewPaneState;
 use std::time::Instant;
 
@@ -9,6 +10,8 @@ pub struct PreviewStore {
     pub last_frame_at: Instant,
     /// True while a timeline rebuild is running. Shown in preview status (Phase 6.5).
     pub rebuild_in_progress: bool,
+    /// Token of the latest in-flight background rebuild, if any.
+    pub in_flight_rebuild: Option<RebuildToken>,
 }
 
 impl PreviewStore {
@@ -19,6 +22,7 @@ impl PreviewStore {
             pending_rebuild_at: None,
             last_frame_at: Instant::now(),
             rebuild_in_progress: false,
+            in_flight_rebuild: None,
         }
     }
 

@@ -67,7 +67,7 @@ pub fn handle_rename_actor(
             return vec![];
         }
         let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
-        document_store.source.commit_source(new_source, source_index);
+        document_store.commit_source(new_source, source_index);
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
         preview_store.preview.status = format!("Renamed {} → {}", old_label, new_label);
@@ -337,7 +337,7 @@ pub fn handle_align_actors(
             }
         }
         let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
-        document_store.source.commit_source(new_source, source_index);
+        document_store.commit_source(new_source, source_index);
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
     }
@@ -435,7 +435,7 @@ pub fn handle_distribute_actors(
             }
         }
         let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
-        document_store.source.commit_source(new_source, source_index);
+        document_store.commit_source(new_source, source_index);
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
     }
@@ -524,7 +524,7 @@ pub fn handle_group_selected_actors(
             }
         }
         let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
-        document_store.source.commit_source(new_source, source_index);
+        document_store.commit_source(new_source, source_index);
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
         ui_store.selection.selected_actors.clear();
@@ -597,7 +597,7 @@ pub fn handle_ungroup_selected_actors(
         }
 
         let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
-        document_store.source.commit_source(new_source, source_index);
+        document_store.commit_source(new_source, source_index);
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
         for group in &groups {

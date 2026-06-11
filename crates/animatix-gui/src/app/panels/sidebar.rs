@@ -60,7 +60,6 @@ pub(crate) struct ExplorerContext<'a> {
 
 pub(crate) struct LayersContext<'a> {
     pub timeline: Option<&'a Timeline>,
-    pub composition: Option<&'a animatix::composition::Composition>,
     pub active_scene: Option<&'a str>,
     pub selected_actors: &'a mut HashSet<String>,
     pub collapsed_actors: &'a mut HashSet<String>,
@@ -136,7 +135,6 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                     SidebarTab::Layers => {
                         let mut lctx = LayersContext {
                             timeline: ctx.timeline,
-                            composition: ctx.composition,
                             active_scene: ctx.active_scene,
                             selected_actors: ctx.selected_actors,
                             collapsed_actors: ctx.collapsed_actors,
@@ -536,13 +534,7 @@ fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
 }
 
 fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
-    // For compositions, use the active scene's timeline
-    let timeline = ctx.timeline.or_else(|| {
-        let comp = ctx.composition?;
-        let scene_name = ctx.active_scene?;
-        comp.scenes.get(scene_name).map(|s| &s.timeline)
-    });
-    let Some(timeline) = timeline else {
+    let Some(timeline) = ctx.timeline else {
         layout::empty_state(ui, egui_phosphor::regular::FILM_STRIP, "No timeline loaded", "");
         return;
     };

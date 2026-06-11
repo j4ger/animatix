@@ -17,7 +17,7 @@ pub fn handle_reorder_scenes(
                 animatix_syntax::to_source::stmts_to_source(stmts),
                 animatix_syntax::source_index::SourceIndex::build(stmts),
             );
-            document_store.source.commit_source(new_source, source_index);
+            document_store.commit_source(new_source, source_index);
             preview_store.preview_dirty = true;
             vec![Effect::Status("Scenes reordered".to_string())]
         }
@@ -75,7 +75,7 @@ pub fn handle_duplicate_scene(
         crate::source_edit::SourceEdit::DuplicateScene { name: scene.clone() },
     ).is_ok() {
         let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
-        document_store.source.commit_source(new_source, source_index);
+        document_store.commit_source(new_source, source_index);
         preview_store.preview_dirty = true;
         preview_store.preview.status = format!("Duplicated scene '{}'", scene);
         vec![Effect::Status(format!("Duplicated scene '{}'", scene))]
@@ -101,7 +101,7 @@ pub fn handle_delete_scene(
         crate::source_edit::SourceEdit::DeleteScene { name: scene.clone() },
     ).is_ok() {
         let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
-        document_store.source.commit_source(new_source, source_index);
+        document_store.commit_source(new_source, source_index);
         preview_store.preview_dirty = true;
         ui_store.selection.selected_actors.clear();
         preview_store.preview.status = format!("Deleted scene '{}'", scene);

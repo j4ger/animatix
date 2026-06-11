@@ -57,7 +57,7 @@ pub fn handle_undo(
             ui_after: ui_store.snapshot(),
         });
         // Restore source via SourceStore to update epoch and invalidate caches.
-        document_store.source.replace_text(entry.source_before.clone());
+        document_store.replace_text(entry.source_before.clone());
         // Restore UI state from the recorded before-snapshot.
         ui_store.restore_snapshot(entry.ui_before);
         preview_store.pending_rebuild_at =
@@ -87,7 +87,7 @@ pub fn handle_redo(
             ui_after: ui_store.snapshot(),
         });
         // Restore source via SourceStore to update epoch and invalidate caches.
-        document_store.source.replace_text(entry.source_before.clone());
+        document_store.replace_text(entry.source_before.clone());
         // Restore UI state from the recorded before-snapshot.
         ui_store.restore_snapshot(entry.ui_before);
         preview_store.pending_rebuild_at =

@@ -22,16 +22,10 @@ pub struct DocumentStore {
 
     // ── Immutable snapshot management ──
     /// Current generation counter, incremented on each accepted rebuild.
-    #[allow(dead_code)]
-    /// Snapshot storage is wired but not yet queried by the frame pipeline.
     pub(crate) generation: DocumentGeneration,
     /// The latest completed snapshot (may be failed/stale).
-    #[allow(dead_code)]
-    /// Snapshot storage is wired but not yet queried by the frame pipeline.
     pub(crate) current: Option<Arc<DocumentSnapshot>>,
     /// The latest snapshot with a renderable target (for preview fallback).
-    #[allow(dead_code)]
-    /// Snapshot storage is wired but not yet queried by the frame pipeline.
     pub(crate) last_good: Option<Arc<DocumentSnapshot>>,
 }
 
@@ -98,29 +92,21 @@ impl DocumentStore {
     // ── Snapshot API ──
 
     /// The latest completed snapshot (may be failed or stale).
-    #[allow(dead_code)]
-    /// Snapshot storage is wired but not yet queried by the frame pipeline.
     pub fn current_snapshot(&self) -> Option<Arc<DocumentSnapshot>> {
         self.current.clone()
     }
 
     /// The latest snapshot with a renderable target (for preview fallback).
-    #[allow(dead_code)]
-    /// Snapshot storage is wired but not yet queried by the frame pipeline.
     pub fn last_good_snapshot(&self) -> Option<Arc<DocumentSnapshot>> {
         self.last_good.clone()
     }
 
     /// The current document generation.
-    #[allow(dead_code)]
-    /// Snapshot storage is wired but not yet queried by the frame pipeline.
     pub fn document_generation(&self) -> DocumentGeneration {
         self.generation
     }
 
     /// Publish a new snapshot, incrementing the generation.
-    #[allow(dead_code)]
-    /// Snapshot storage is wired but not yet queried by the frame pipeline.
     pub fn publish_snapshot(&mut self, mut snapshot: DocumentSnapshot) {
         self.generation = self.generation.next();
         snapshot.generation = self.generation;
@@ -139,9 +125,91 @@ impl DocumentStore {
         }
     }
 
+    /// Publish a snapshot from the current session state without re-running rebuild.
+    /// `success` indicates whether the most recent rebuild completed successfully.
+    pub fn publish_rebuild_result(&mut self, success: bool) {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.source.text().hash(&mut hasher);
+        let hash = hasher.finish();
+        
+        if success {
+            // Skip re-publishing if current is already Clean with the same hash
+            if let Some(ref current) = self.current {
+                if current.source_hash == crate::app::document::version::SourceHash(hash) 
+                    && matches!(current.status, crate::app::document::snapshot::SnapshotStatus::Clean) 
+                {
+                    return;
+                }
+            }
+            let snapshot = snapshot_from_session(&self.source.document, hash);
+            self.publish_snapshot(snapshot);
+        } else {
+            // Failed build — publish a Failed snapshot
+            let snapshot = crate::app::document::snapshot::DocumentSnapshot {
+                generation: self.generation.next(),
+                source_epoch: self.source.epoch(),
+                source_hash: crate::app::document::version::SourceHash(hash),
+                status: crate::app::document::snapshot::SnapshotStatus::Failed {
+                    error: "rebuild failed",
+                },
+                raw_statements: None,
+                expanded_statements: None,
+                namespaces: Default::default(),
+                components: Default::default(),
+                module_actions: Default::default(),
+                source_index: None,
+                target: crate::app::document::snapshot::BuildTargetSnapshot::Empty,
+                timeline_index: Default::default(),
+                keyframe_lines: Vec::new(),
+                diagnostics: std::sync::Arc::new(self.source.document.diagnostics.clone()),
+                duration_s: self.source.document.duration_s,
+                scene_dimensions: self.source.document.scene_dimensions,
+            };
+            self.publish_snapshot(snapshot);
+        }
+    }
+
+    /// Clear all snapshots (used when opening a different file).
+    pub fn clear_snapshots(&mut self) {
+        self.generation = crate::app::document::version::DocumentGeneration::initial();
+        self.current = None;
+        self.last_good = None;
+    }
+
+    /// Returns true if the current snapshot is stale (source changed since last rebuild).
+    pub fn snapshot_is_stale(&self) -> bool {
+        self.current.as_ref().map_or(false, |c| {
+            if matches!(c.status, crate::app::document::snapshot::SnapshotStatus::Stale { .. }) {
+                return true;
+            }
+            c.source_epoch != self.source.epoch()
+        })
+    }
+    
+    /// Returns true if the current build failed and we're falling back to last_good.
+    pub fn showing_last_good(&self) -> bool {
+        let current_failed = self.current.as_ref().map_or(false, |c| {
+            matches!(c.status, crate::app::document::snapshot::SnapshotStatus::Failed { .. })
+                || !c.has_renderable_target()
+        });
+        current_failed && self.last_good.is_some()
+    }
+
+    /// Commit source text through DocumentStore, marking the current snapshot as stale.
+    pub fn commit_source(&mut self, new_source: String, source_index: animatix_syntax::source_index::SourceIndex) {
+        self.source.commit_source(new_source, source_index);
+        self.mark_source_stale(self.source.epoch());
+    }
+    
+    /// Replace text through DocumentStore, marking the current snapshot as stale.
+    pub fn replace_text(&mut self, text: String) -> crate::app::document::source_change::SourceChange {
+        let change = self.source.replace_text(text);
+        self.mark_source_stale(change.after_epoch);
+        change
+    }
+
     /// Mark the current snapshot as stale due to a source change.
-    #[allow(dead_code)]
-    /// Snapshot storage is wired but not yet queried by the frame pipeline.
     pub fn mark_source_stale(&mut self, epoch: crate::app::document::version::SourceEpoch) {
         if let Some(ref current) = self.current {
             // Don't replace a failed snapshot's status, just add stale note
@@ -157,49 +225,10 @@ impl DocumentStore {
 
     /// Try to rebuild the current document and produce a snapshot.
     /// Returns true if a snapshot was published.
-    #[allow(dead_code)]
-    /// Snapshot storage is wired but not yet queried by the frame pipeline.
     pub fn try_rebuild_snapshot(&mut self) -> bool {
-        let hash = {
-            use std::hash::{Hash, Hasher};
-            let mut hasher = std::collections::hash_map::DefaultHasher::new();
-            self.source.text().hash(&mut hasher);
-            hasher.finish()
-        };
-
-        let result = self.source.document.rebuild();
-        match result {
-            Ok(()) => {
-                let snapshot = snapshot_from_session(&self.source.document, hash);
-                self.publish_snapshot(snapshot);
-                true
-            },
-            Err(_) => {
-                // Create snapshot with diagnostics from the failed state
-                let snapshot = DocumentSnapshot {
-                    generation: self.generation.next(),
-                    source_epoch: self.source.epoch(),
-                    source_hash: crate::app::document::version::SourceHash(hash),
-                    status: SnapshotStatus::Failed {
-                        error: "rebuild failed",
-                    },
-                    raw_statements: None,
-                    expanded_statements: None,
-                    namespaces: Default::default(),
-                    components: Default::default(),
-                    module_actions: Default::default(),
-                    source_index: None,
-                    target: crate::app::document::snapshot::BuildTargetSnapshot::Empty,
-                    timeline_index: Default::default(),
-                    keyframe_lines: Vec::new(),
-                    diagnostics: Arc::new(self.source.document.diagnostics.clone()),
-                    duration_s: self.source.document.duration_s,
-                    scene_dimensions: self.source.document.scene_dimensions,
-                };
-                self.publish_snapshot(snapshot);
-                false
-            },
-        }
+        let ok = self.source.document.rebuild().is_ok();
+        self.publish_rebuild_result(ok);
+        ok
     }
 }
 
@@ -242,5 +271,203 @@ fn snapshot_from_session(doc: &DocumentSession, source_hash: u64) -> DocumentSna
     }
 }
 
-// Re-export rebuild_cache so callers don't need to change.
-pub use crate::app::stores::source_store::rebuild_cache;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::document::snapshot::{BuildTargetSnapshot, SnapshotStatus};
+    use crate::app::document::version::{DocumentGeneration, SourceEpoch, SourceHash};
+
+    /// Create a minimal DocumentStore.  `publish_first_good` is a helper that
+    /// publishes a basic Timeline snapshot (via publish_snapshot directly, not
+    /// publish_rebuild_result) so that last_good is populated even when the
+    /// session rebuild produces BuildTargetSnapshot::Empty.
+    fn make_store() -> DocumentStore {
+        let doc = DocumentSession::from_source(
+            std::path::PathBuf::from("test.amx"),
+            "#0s\n".to_string(),
+        )
+        .expect("create session");
+        let editor = EditorBuffer::new(&doc.file_path, doc.source_text.clone());
+        DocumentStore::new(doc, editor)
+    }
+
+    fn snapshot_with_timeline(g: DocumentGeneration, epoch: SourceEpoch, hash: u64) -> DocumentSnapshot {
+        DocumentSnapshot {
+            generation: g,
+            source_epoch: epoch,
+            source_hash: SourceHash(hash),
+            status: SnapshotStatus::Clean,
+            raw_statements: None,
+            expanded_statements: None,
+            namespaces: Default::default(),
+            components: Default::default(),
+            module_actions: Default::default(),
+            source_index: None,
+            target: BuildTargetSnapshot::Timeline(Default::default()),
+            timeline_index: Default::default(),
+            keyframe_lines: Vec::new(),
+            diagnostics: Arc::new(Vec::new()),
+            duration_s: 10.0,
+            scene_dimensions: animatix::timeline::SceneDimensions { width: 1920, height: 1080 },
+        }
+    }
+
+    fn snapshot_failed(g: DocumentGeneration, epoch: SourceEpoch, hash: u64) -> DocumentSnapshot {
+        DocumentSnapshot {
+            generation: g,
+            source_epoch: epoch,
+            source_hash: SourceHash(hash),
+            status: SnapshotStatus::Failed { error: "test failure" },
+            raw_statements: None,
+            expanded_statements: None,
+            namespaces: Default::default(),
+            components: Default::default(),
+            module_actions: Default::default(),
+            source_index: None,
+            target: BuildTargetSnapshot::Empty,
+            timeline_index: Default::default(),
+            keyframe_lines: Vec::new(),
+            diagnostics: Arc::new(Vec::new()),
+            duration_s: 0.1,
+            scene_dimensions: animatix::timeline::SceneDimensions { width: 1920, height: 1080 },
+        }
+    }
+
+    #[test]
+    fn test_failed_publish_keeps_last_good() {
+        let mut store = make_store();
+        let e0 = store.source.epoch();
+
+        // Manually set a good snapshot so last_good is populated
+        let good = snapshot_with_timeline(DocumentGeneration::initial(), e0, 1234);
+        store.publish_snapshot(good);
+        assert!(store.last_good.is_some(), "should have last_good after successful publish");
+        let good_gen = store.last_good.as_ref().unwrap().generation;
+
+        // Publish failed snapshot (via the real API)
+        store.publish_rebuild_result(false);
+
+        // last_good should still be from the first publish (unchanged generation)
+        assert!(store.last_good.is_some());
+        assert_eq!(
+            store.last_good.as_ref().unwrap().generation,
+            good_gen,
+            "last_good should be unchanged after failure"
+        );
+
+        // current should be failed
+        assert!(store.current.is_some(), "current should exist after failed publish");
+        assert!(
+            matches!(store.current.as_ref().unwrap().status, SnapshotStatus::Failed { .. }),
+            "current should be Failed"
+        );
+
+        assert!(
+            store.showing_last_good(),
+            "showing_last_good should be true when current failed and last_good exists"
+        );
+    }
+
+    #[test]
+    fn test_replace_text_marks_stale() {
+        let mut store = make_store();
+        let e0 = store.source.epoch();
+
+        // Publish a clean snapshot
+        let good = snapshot_with_timeline(DocumentGeneration::initial(), e0, 1234);
+        store.publish_snapshot(good);
+        assert!(store.current.is_some());
+        assert!(!store.snapshot_is_stale(), "should not be stale initially");
+
+        // Replace text
+        store.replace_text("rect(100, 100) at 0,0\n".to_string());
+        assert!(store.snapshot_is_stale(), "should be stale after replace_text");
+    }
+
+    #[test]
+    fn test_successful_publish_restores_clean() {
+        let mut store = make_store();
+        let e0 = store.source.epoch();
+
+        // Publish Clean
+        let good = snapshot_with_timeline(DocumentGeneration::initial(), e0, 1234);
+        store.publish_snapshot(good);
+        assert!(matches!(
+            store.current.as_ref().unwrap().status,
+            SnapshotStatus::Clean
+        ));
+
+        // Replace text -> Stale
+        store.replace_text("rect(100, 100) at 0,0\n".to_string());
+        assert!(matches!(
+            store.current.as_ref().unwrap().status,
+            SnapshotStatus::Stale { .. }
+        ));
+
+        // Publish successful again -> restores Clean
+        store.publish_rebuild_result(true);
+        assert!(matches!(
+            store.current.as_ref().unwrap().status,
+            SnapshotStatus::Clean
+        ));
+    }
+
+    #[test]
+    fn test_clear_snapshots() {
+        let mut store = make_store();
+        let e0 = store.source.epoch();
+
+        // Publish a snapshot with renderable target so both slots are set
+        let good = snapshot_with_timeline(DocumentGeneration::initial(), e0, 1234);
+        store.publish_snapshot(good);
+        assert!(store.current.is_some(), "current should exist");
+        assert!(store.last_good.is_some(), "last_good should exist");
+
+        // Clear
+        store.clear_snapshots();
+        assert!(store.current.is_none(), "current should be None after clear");
+        assert!(store.last_good.is_none(), "last_good should be None after clear");
+    }
+
+    #[test]
+    fn test_snapshot_is_stale_after_mark_stale() {
+        let mut store = make_store();
+        let e0 = store.source.epoch();
+
+        // Publish a clean snapshot
+        let good = snapshot_with_timeline(DocumentGeneration::initial(), e0, 1234);
+        store.publish_snapshot(good);
+        assert!(!store.snapshot_is_stale(), "should not be stale initially");
+
+        // Increment epoch and mark stale
+        let new_epoch = store.source.source_epoch.next();
+        store.mark_source_stale(new_epoch);
+        assert!(store.snapshot_is_stale(), "should be stale after mark_source_stale");
+    }
+
+    #[test]
+    fn test_showing_last_good() {
+        let mut store = make_store();
+        let e0 = store.source.epoch();
+
+        // Initially, no snapshots
+        assert!(!store.showing_last_good(), "should not show last good with no snapshots");
+
+        // Publish a good snapshot
+        let good = snapshot_with_timeline(DocumentGeneration::initial(), e0, 1234);
+        store.publish_snapshot(good);
+        assert!(
+            !store.showing_last_good(),
+            "should not show last good when current is clean"
+        );
+
+        // Publish failed snapshot -> current is Failed, last_good still exists
+        let failed = snapshot_failed(store.generation.next(), e0, 5678);
+        store.publish_snapshot(failed);
+        assert!(
+            store.showing_last_good(),
+            "should show last good when current failed and last_good exists"
+        );
+    }
+}
+

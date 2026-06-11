@@ -14,12 +14,7 @@
 
 ## P1 — GUI Architecture Integration
 
-| Task | Effort | Notes |
-|------|--------|-------|
-| **Wire snapshots into rebuild path** | 2-3d | `file.rs`, `source_store.rs`, `runtime.rs` — publish `DocumentSnapshot` on every rebuild; mark stale on every source change; render preview from `last_good_snapshot()` when current build failed. Delivers "last-good preview + stale badge" user-visible promise. |
-| **Activate background rebuild worker** | 2-3d | `rebuild.rs`, `mod.rs` — fix `Drop` deadlock; move debounce-expiry path onto `RebuildWorker` with cancellation. Depends on undo/redo epoch fixes. |
-| **Close remaining composition-blind paths** | 1d | `behavior.rs:46` — give sidebar resolved active timeline + asset cache for compositions. |
-| **SnapSettings for keyframe snapping** | 0.5d | Replace hardcoded 60fps in `timeline_panel.rs` with project-configurable FPS from `UiStore`. |
+*(All P1 tasks are complete.)*
 
 ## P2 — Animation Workflow
 

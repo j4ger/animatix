@@ -140,7 +140,7 @@ impl GuiShell {
                                             if crate::source_edit::apply_edit(stmts, edit).is_ok()
                                             {
                                                 let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
-                                                self.document_store.source.commit_source(new_source, source_index);
+                                                self.document_store.commit_source(new_source, source_index);
                                                 self.preview_store.pending_rebuild_at = Some(
                                                     std::time::Instant::now()
                                                         + std::time::Duration::from_millis(
@@ -255,6 +255,21 @@ impl GuiShell {
                                 .speed(10.0)
                                 .range(10..=1000)
                                 .suffix(" entries"),
+                        );
+                    },
+                );
+                ui.add_space(SPACE_S);
+
+                layout::labeled_row(
+                    ui,
+                    RichText::new("Snap FPS").size(FONT_SIZE_S).color(TEXT_SECONDARY),
+                    SETTINGS_INPUT_WIDTH,
+                    |ui| {
+                        ui.add(
+                            egui::DragValue::new(&mut self.ui_store.snap_fps)
+                                .speed(1.0)
+                                .range(1.0..=240.0)
+                                .suffix(" fps"),
                         );
                     },
                 );

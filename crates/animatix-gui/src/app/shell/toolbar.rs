@@ -1,18 +1,14 @@
 use egui::{Align, RichText, Stroke, Vec2};
 
+use crate::app::GuiShell;
+use crate::app::commands::{ActionQueue, Command, ShellAction, ViewAction};
 use crate::app::components::button;
 use crate::app::design_tokens::*;
-use crate::app::commands::{ActionQueue, Command, ShellAction, ViewAction};
-use crate::app::GuiShell;
 
 // TOOLBAR_HEIGHT imported via design_tokens::*
 
 impl GuiShell {
-    pub(crate) fn toolbar_ui(
-        &mut self,
-        ui: &mut egui::Ui,
-        commands: &mut ActionQueue,
-    ) {
+    pub(crate) fn toolbar_ui(&mut self, ui: &mut egui::Ui, commands: &mut ActionQueue) {
         let toolbar_bg = BG_BASE;
         let border_color = BG_WIDGET;
         let text_primary = TEXT_PRIMARY;
@@ -55,23 +51,60 @@ impl GuiShell {
 
                     ui.add(
                         egui::Label::new(
-                            RichText::new(filename_text)
-                                .size(FONT_SIZE_M)
-                                .color(filename_color),
+                            RichText::new(filename_text).size(FONT_SIZE_M).color(filename_color),
                         )
                         .selectable(false),
                     );
 
+                    // Status badge: last-good or stale
+                    if self.document_store.showing_last_good() {
+                        ui.add_space(SPACE_S);
+                        let response = egui::Frame::new()
+                            .fill(DIAGNOSTIC_RED)
+                            .corner_radius(RADIUS_M)
+                            .inner_margin(egui::Margin::symmetric(4, 1))
+                            .show(ui, |ui| {
+                                ui.add(
+                                    egui::Label::new(
+                                        RichText::new("last good")
+                                            .size(FONT_SIZE_XS)
+                                            .color(BG_BASE),
+                                    )
+                                    .selectable(false),
+                                );
+                            });
+                        response.response.on_hover_text(
+                            "Build failed — preview shows the last successful build",
+                        );
+                    } else if self.document_store.snapshot_is_stale() {
+                        ui.add_space(SPACE_S);
+                        let response = egui::Frame::new()
+                            .fill(AMBER)
+                            .corner_radius(RADIUS_M)
+                            .inner_margin(egui::Margin::symmetric(4, 1))
+                            .show(ui, |ui| {
+                                ui.add(
+                                    egui::Label::new(
+                                        RichText::new("stale").size(FONT_SIZE_XS).color(BG_BASE),
+                                    )
+                                    .selectable(false),
+                                );
+                            });
+                        response.response.on_hover_text("Source edited — rebuild pending");
+                    }
+
                     // Filename dropdown
                     ui.menu_button(egui_phosphor::regular::CARET_DOWN, |ui| {
-                        if ui.button(format!("{} Save", egui_phosphor::regular::FLOPPY_DISK))
+                        if ui
+                            .button(format!("{} Save", egui_phosphor::regular::FLOPPY_DISK))
                             .on_hover_text("Save (Ctrl+S)")
                             .clicked()
                         {
                             commands.push_back(ShellAction::Command(Command::Save));
                             ui.close();
                         }
-                        if ui.button(format!("{} Export…", egui_phosphor::regular::EXPORT))
+                        if ui
+                            .button(format!("{} Export…", egui_phosphor::regular::EXPORT))
                             .on_hover_text("Export image, video or GIF")
                             .clicked()
                         {
@@ -79,14 +112,22 @@ impl GuiShell {
                             ui.close();
                         }
                         ui.separator();
-                        if ui.button(format!("{} Reload from disk", egui_phosphor::regular::ARROW_CLOCKWISE))
+                        if ui
+                            .button(format!(
+                                "{} Reload from disk",
+                                egui_phosphor::regular::ARROW_CLOCKWISE
+                            ))
                             .on_hover_text("Reload from disk (Ctrl+R)")
                             .clicked()
                         {
                             commands.push_back(ShellAction::Command(Command::Reload));
                             ui.close();
                         }
-                        if ui.button(format!("{} Rebuild timeline", egui_phosphor::regular::HARD_DRIVES))
+                        if ui
+                            .button(format!(
+                                "{} Rebuild timeline",
+                                egui_phosphor::regular::HARD_DRIVES
+                            ))
                             .on_hover_text("Rebuild timeline (Ctrl+Shift+R)")
                             .clicked()
                         {
@@ -94,12 +135,18 @@ impl GuiShell {
                             ui.close();
                         }
                         ui.separator();
-                        if ui.button(format!("{} Switch workspace…", egui_phosphor::regular::FOLDER_NOTCH))
+                        if ui
+                            .button(format!(
+                                "{} Switch workspace…",
+                                egui_phosphor::regular::FOLDER_NOTCH
+                            ))
                             .on_hover_text("Change workspace directory")
                             .clicked()
                         {
                             if let Some(path) = rfd::FileDialog::new().pick_folder() {
-                                commands.push_back(ShellAction::Command(Command::SwitchWorkspace(path)));
+                                commands.push_back(ShellAction::Command(Command::SwitchWorkspace(
+                                    path,
+                                )));
                             }
                             ui.close();
                         }
@@ -109,7 +156,8 @@ impl GuiShell {
                     if self.document_store.source.document.is_composition() {
                         let scene_names = self.document_store.source.document.scene_names();
                         if scene_names.len() >= 2 {
-                            let active_scene = self.document_store.source.document.active_scene.as_deref();
+                            let active_scene =
+                                self.document_store.source.document.active_scene.as_deref();
                             // Left-align the breadcrumb with some spacing from the filename
                             ui.add_space(SPACE_XL);
                             ui.horizontal(|ui| {
@@ -131,11 +179,14 @@ impl GuiShell {
                                     let btn = egui::Button::new(label)
                                         .frame(false)
                                         .sense(egui::Sense::click());
-                                    if ui.add(btn)
+                                    if ui
+                                        .add(btn)
                                         .on_hover_text(format!("Switch to scene '{}'", name))
                                         .clicked()
                                     {
-                                        commands.push_back(ShellAction::Command(Command::SelectScene(name.clone())));
+                                        commands.push_back(ShellAction::Command(
+                                            Command::SelectScene(name.clone()),
+                                        ));
                                     }
                                 }
                             });
@@ -149,27 +200,43 @@ impl GuiShell {
 
                         // Grid toggle
                         let grid = self.preview_store.preview.overlay.show_grid;
-                        if ui.selectable_label(grid, "Grid")
-                            .on_hover_text("Toggle grid (G)").clicked()
-                        { self.preview_store.preview.overlay.show_grid = !grid; }
+                        if ui
+                            .selectable_label(grid, "Grid")
+                            .on_hover_text("Toggle grid (G)")
+                            .clicked()
+                        {
+                            self.preview_store.preview.overlay.show_grid = !grid;
+                        }
 
                         // Guides toggle
                         let guides = self.preview_store.preview.overlay.show_guides;
-                        if ui.selectable_label(guides, "Guides")
-                            .on_hover_text("Toggle guides").clicked()
-                        { self.preview_store.preview.overlay.show_guides = !guides; }
+                        if ui
+                            .selectable_label(guides, "Guides")
+                            .on_hover_text("Toggle guides")
+                            .clicked()
+                        {
+                            self.preview_store.preview.overlay.show_guides = !guides;
+                        }
 
                         // Labels toggle
                         let labels = self.preview_store.preview.overlay.show_actor_labels;
-                        if ui.selectable_label(labels, "Labels")
-                            .on_hover_text("Toggle actor labels").clicked()
-                        { self.preview_store.preview.overlay.show_actor_labels = !labels; }
+                        if ui
+                            .selectable_label(labels, "Labels")
+                            .on_hover_text("Toggle actor labels")
+                            .clicked()
+                        {
+                            self.preview_store.preview.overlay.show_actor_labels = !labels;
+                        }
 
                         // Bounds toggle (helps analyze container placement)
                         let bounds = self.ui_store.view.debug_bounds;
-                        if ui.selectable_label(bounds, "Bounds")
-                            .on_hover_text("Toggle debug bounding boxes").clicked()
-                        { self.ui_store.view.debug_bounds = !bounds; }
+                        if ui
+                            .selectable_label(bounds, "Bounds")
+                            .on_hover_text("Toggle debug bounding boxes")
+                            .clicked()
+                        {
+                            self.ui_store.view.debug_bounds = !bounds;
+                        }
 
                         ui.separator();
 
@@ -184,7 +251,10 @@ impl GuiShell {
                         } else {
                             ("Fit", 1.0f32)
                         };
-                        if ui.button(RichText::new(zoom_label).size(FONT_SIZE_S).color(TEXT_SECONDARY))
+                        if ui
+                            .button(
+                                RichText::new(zoom_label).size(FONT_SIZE_S).color(TEXT_SECONDARY),
+                            )
                             .on_hover_text("Cycle zoom")
                             .clicked()
                         {
@@ -201,66 +271,63 @@ impl GuiShell {
                     });
 
                     // Right-aligned: inspector + settings + command palette
-                    ui.with_layout(
-                        egui::Layout::right_to_left(Align::Center),
-                        |ui| {
-                            ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
+                    ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
+                        ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
 
-                            // Command palette / shortcut reference button
-                            let shortcut =
-                                if cfg!(target_os = "macos") { "⌘K" } else { "Ctrl+K" };
-                            if button::icon_button(
-                                ui,
-                                egui_phosphor::regular::COMMAND,
-                                &format!("Keyboard shortcuts ({shortcut} / ?)"),
-                            )
-                            .clicked()
-                            {
-                                self.ui_store.view.shortcuts_open = true;
-                            }
+                        // Command palette / shortcut reference button
+                        let shortcut = if cfg!(target_os = "macos") {
+                            "⌘K"
+                        } else {
+                            "Ctrl+K"
+                        };
+                        if button::icon_button(
+                            ui,
+                            egui_phosphor::regular::COMMAND,
+                            &format!("Keyboard shortcuts ({shortcut} / ?)"),
+                        )
+                        .clicked()
+                        {
+                            self.ui_store.view.shortcuts_open = true;
+                        }
 
-                            if button::icon_button(
-                                ui,
-                                egui_phosphor::regular::GEAR,
-                                "Settings",
-                            )
+                        if button::icon_button(ui, egui_phosphor::regular::GEAR, "Settings")
                             .clicked()
-                            {
-                                self.ui_store.view.settings_open = true;
-                            }
+                        {
+                            self.ui_store.view.settings_open = true;
+                        }
 
-                            // Diagnostics toggle
-                            let has_diagnostics = !self.document_store.combined_diagnostics().is_empty();
-                            let diag_active = self.ui_store.view.diagnostics_panel_visible;
-                            if button::toolbar_toggle_button(
-                                ui,
-                                egui_phosphor::regular::WARNING_OCTAGON,
-                                None,
-                                "Toggle diagnostics panel",
-                                diag_active,
-                                has_diagnostics,
-                            )
-                            .clicked()
-                            {
-                                self.ui_store.view.diagnostics_panel_visible = !diag_active;
-                            }
+                        // Diagnostics toggle
+                        let has_diagnostics =
+                            !self.document_store.combined_diagnostics().is_empty();
+                        let diag_active = self.ui_store.view.diagnostics_panel_visible;
+                        if button::toolbar_toggle_button(
+                            ui,
+                            egui_phosphor::regular::WARNING_OCTAGON,
+                            None,
+                            "Toggle diagnostics panel",
+                            diag_active,
+                            has_diagnostics,
+                        )
+                        .clicked()
+                        {
+                            self.ui_store.view.diagnostics_panel_visible = !diag_active;
+                        }
 
-                            // Inspector toggle
-                            let inspector_active = self.ui_store.view.inspector_visible;
-                            if button::toolbar_toggle_button(
-                                ui,
-                                egui_phosphor::regular::SLIDERS,
-                                None,
-                                "Toggle Inspector",
-                                inspector_active,
-                                false,
-                            )
-                            .clicked()
-                            {
-                                commands.push_back(ShellAction::View(ViewAction::ShowInspector));
-                            }
-                        },
-                    );
+                        // Inspector toggle
+                        let inspector_active = self.ui_store.view.inspector_visible;
+                        if button::toolbar_toggle_button(
+                            ui,
+                            egui_phosphor::regular::SLIDERS,
+                            None,
+                            "Toggle Inspector",
+                            inspector_active,
+                            false,
+                        )
+                        .clicked()
+                        {
+                            commands.push_back(ShellAction::View(ViewAction::ShowInspector));
+                        }
+                    });
                 });
             });
 

@@ -336,6 +336,118 @@ impl DocumentSession {
         Ok(())
     }
 
+    /// Apply a successful background rebuild output to this session.
+    /// Carries forward caches (plot_path_cache, modifier programs) from the
+    /// current session since the background worker started from a fresh session.
+    pub fn apply_rebuild_output(&mut self, output: crate::app::document::rebuild_output::RebuildOutput, source_hash: u64) {
+        // Phase 6.4: Preserve plot path cache across rebuilds.
+        let old_plot_cache = self
+            .timeline
+            .as_ref()
+            .map(|t| t.plot_path_cache.clone())
+            .or_else(|| {
+                self.composition.as_ref().and_then(|c| {
+                    c.scenes
+                        .values()
+                        .next()
+                        .map(|s| s.timeline.plot_path_cache.clone())
+                })
+            })
+            .unwrap_or_default();
+
+        // Preserve modifier IR/bytecode programs across rebuilds when unchanged.
+        let old_modifier_data: Option<(u64, Vec<_>, Vec<_>)> = self
+            .timeline
+            .as_ref()
+            .map(|t| {
+                (
+                    t.modifier_hash,
+                    t.modifier_programs.clone(),
+                    t.modifier_bytecode_programs.clone(),
+                )
+            })
+            .or_else(|| {
+                self.composition.as_ref().and_then(|c| {
+                    c.scenes.values().next().map(|s| {
+                        let t = &s.timeline;
+                        (
+                            t.modifier_hash,
+                            t.modifier_programs.clone(),
+                            t.modifier_bytecode_programs.clone(),
+                        )
+                    })
+                })
+            });
+
+        self.last_rebuild_error = None;
+        self.raw_statements = Some(output.raw_statements);
+        self.expanded_statements = Some(output.expanded_statements);
+        self.namespaces = output.namespaces;
+        self.components = output.components;
+        self.module_actions = output.module_actions;
+        self.source_index = Some(output.source_index);
+        self.diagnostics = output.diagnostics;
+        self.timeline_index = output.timeline_index;
+        self.keyframe_lines = output.keyframe_lines;
+        self.duration_s = output.duration_s;
+        self.scene_dimensions = output.scene_dimensions;
+        self.last_source_hash = source_hash;
+
+        // Apply caches and active_scene depending on single- vs multi-scene.
+        if let Some(mut timeline) = output.timeline {
+            timeline.plot_path_cache = old_plot_cache;
+            if let Some((old_hash, old_ir, old_bc)) = &old_modifier_data {
+                if timeline.modifier_hash == *old_hash && !old_ir.is_empty() {
+                    timeline.modifier_programs = old_ir.clone();
+                    timeline.modifier_bytecode_programs = old_bc.clone();
+                }
+            }
+            self.timeline = Some(timeline);
+            self.composition = None;
+            self.active_scene = None;
+        } else if let Some(mut composition) = output.composition {
+            if self
+                .active_scene
+                .as_ref()
+                .is_none_or(|scene| !composition.scenes.contains_key(scene))
+            {
+                self.active_scene = composition.declaration_order.first().cloned();
+            }
+            for scene in composition.scenes.values_mut() {
+                scene.timeline.plot_path_cache.clone_from(&old_plot_cache);
+                if let Some((old_hash, old_ir, old_bc)) = &old_modifier_data {
+                    if scene.timeline.modifier_hash == *old_hash && !old_ir.is_empty() {
+                        scene.timeline.modifier_programs = old_ir.clone();
+                        scene.timeline.modifier_bytecode_programs = old_bc.clone();
+                    }
+                }
+            }
+            self.timeline = None;
+            self.composition = Some(composition);
+        } else {
+            self.timeline = None;
+            self.composition = None;
+            self.active_scene = None;
+        }
+    }
+
+    /// Apply a failed background rebuild output to this session.
+    pub fn apply_rebuild_failure(&mut self, failure: &crate::app::document::rebuild_output::RebuildFailure) {
+        self.last_rebuild_error = Some(failure.error.clone());
+        // Mirror the error arm of rebuild(): clear built state
+        self.raw_statements = None;
+        self.expanded_statements = None;
+        self.timeline = None;
+        self.composition = None;
+        self.active_scene = None;
+        self.diagnostics = failure.diagnostics.clone();
+        self.source_index = failure.partial_source_index.clone();
+        self.timeline_index = TimelineIndex::default();
+        self.keyframe_lines = Vec::new();
+        self.duration_s = 0.1;
+        self.scene_dimensions = SceneDimensions::default();
+    }
+
     /// Load the program, returning a structured result.
     /// Raw statements are the parsed statements before component expansion.
     /// Uses cached ModuleGraph to avoid re-reading unchanged imports.

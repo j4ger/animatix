@@ -617,7 +617,7 @@ circle: Ellipse, at: (200, 200), radius: 50, color: red
         let modified_text = format!("{}\n// comment after save\n", original_text);
         document_store.source.editor.replace_text(modified_text.clone());
         // Sync source store with editor (as handle_editor_changed does)
-        document_store.source.replace_text(modified_text.clone());
+        document_store.replace_text(modified_text.clone());
 
         file::handle_save(&mut document_store, &mut preview_store);
 
