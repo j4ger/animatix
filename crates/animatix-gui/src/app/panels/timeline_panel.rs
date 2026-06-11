@@ -1320,7 +1320,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                         if dresp.hovered() || is_drag { kc } else { kc.linear_multiply(0.7) }, Stroke::NONE));
 
                                     if !is_drag {
-                                        dresp.on_hover_text(format!("{} @ {:.2}s", prop_name, kf_s));
+                                        dresp.clone().on_hover_text(format!("{} @ {:.2}s", prop_name, kf_s));
                                     }
 
                                     // Support dragging for per-property diamonds

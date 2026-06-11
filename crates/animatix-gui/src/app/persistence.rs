@@ -82,12 +82,12 @@ pub(super) fn load_workspace_persistence(path: &Path) -> Option<WorkspacePersist
 // ── Window geometry / workspace layout persistence ─────────────────────
 
 #[derive(Debug, Serialize, Deserialize)]
-struct WorkspacePersistence {
-    tree: Tree<WorkspaceTab>,
+pub(crate) struct WorkspacePersistence {
+    pub(crate) tree: Tree<WorkspaceTab>,
     #[serde(default)]
-    window_size: Option<[f32; 2]>,
+    pub(crate) window_size: Option<[f32; 2]>,
     #[serde(default)]
-    window_maximized: Option<bool>,
+    pub(crate) window_maximized: Option<bool>,
 }
 
 // ── App state persistence (recent file, preferences) ─────────────────────

@@ -83,34 +83,35 @@ pub(crate) fn render_property_spreadsheet(
         );
         ui.add_space(SPACE_S);
 
-        // Add Actor button
-        if ui.button(
-            RichText::new(format!("{} Add", egui_phosphor::regular::PLUS))
-                .size(FONT_SIZE_XS)
-                .color(ACCENT_BLUE),
-        )
-        .on_hover_text("Add a new actor")
-        .clicked()
-        {
-            commands.push_back(ShellAction::Command(Command::CreateActor {
-                ty: "rect".into(),
-                label: format!("actor_{}", timeline.actor_labels().count() + 1),
-                position: [400.0, 300.0],
-                props: vec![],
-            }));
-        }
     });
     ui.add_space(SPACE_M);
 
     let Some(timeline) = timeline else {
         layout::empty_state(
             ui,
-            egui_phosphor::regular::GRID,
+            egui_phosphor::regular::TABLE,
             "No timeline",
             "Open a scene to view the spreadsheet",
         );
         return;
     };
+
+    // Add Actor button
+    if ui.button(
+        RichText::new(format!("{} Add", egui_phosphor::regular::PLUS))
+            .size(FONT_SIZE_XS)
+            .color(ACCENT_BLUE),
+    )
+    .on_hover_text("Add a new actor")
+    .clicked()
+    {
+        commands.push_back(ShellAction::Command(Command::CreateActor {
+            ty: "rect".into(),
+            label: format!("actor_{}", timeline.actor_labels().count() + 1),
+            position: [400.0, 300.0],
+            props: vec![],
+        }));
+    }
 
     let actors: Vec<&String> = {
         let mut labels: Vec<&String> = timeline.actor_labels().collect();

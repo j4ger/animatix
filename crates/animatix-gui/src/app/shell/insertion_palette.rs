@@ -328,8 +328,7 @@ impl GuiShell {
                             let resp = ui.add(
                                 egui::DragValue::new(&mut val)
                                     .speed(1.0)
-                                    .clamp_range(f64::NEG_INFINITY..f64::INFINITY)
-                                    .desired_width(80.0),
+                                    .clamp_range(f64::NEG_INFINITY..=f64::INFINITY),
                             );
                             if resp.changed() || resp.lost_focus() {
                                 *param_value = format_num(val);
@@ -338,7 +337,7 @@ impl GuiShell {
                         Some("Bool") => {
                             let mut bool_val = param_value == "true" || param_value == "1";
                             if ui.checkbox(&mut bool_val, "").changed() {
-                                *param_value = if bool_val { "true" } else { "false" };
+                                *param_value = if bool_val { "true".to_string() } else { "false".to_string() };
                             }
                         }
                         Some("Vec2") => {
@@ -346,9 +345,9 @@ impl GuiShell {
                             let (mut x, mut y) = parse_vec2_value(param_value);
                             ui.add_space(2.0);
                             ui.label("x:");
-                            let rx = ui.add(egui::DragValue::new(&mut x).speed(1.0).desired_width(60.0));
+                            let rx = ui.add(egui::DragValue::new(&mut x).speed(1.0));
                             ui.label("y:");
-                            let ry = ui.add(egui::DragValue::new(&mut y).speed(1.0).desired_width(60.0));
+                            let ry = ui.add(egui::DragValue::new(&mut y).speed(1.0));
                             if rx.changed() || rx.lost_focus() || ry.changed() || ry.lost_focus() {
                                 *param_value = format!("({}, {})", format_num(x), format_num(y));
                             }

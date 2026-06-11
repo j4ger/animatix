@@ -916,15 +916,13 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
                 let slots: Vec<String> = entry.definition.body.iter()
                     .filter_map(|stmt| {
                         if let animatix_syntax::ast::Stmt::ActorDecl { label, children, .. } = stmt {
-                            children.as_ref().and_then(|items| {
-                                if items.iter().any(|item| {
-                                    matches!(item, animatix_syntax::ast::InlineItem::SlotMarker)
-                                }) {
-                                    Some(label.clone())
-                                } else {
-                                    None
-                                }
-                            })
+                            if children.iter().any(|item| {
+                                matches!(item, animatix_syntax::ast::InlineItem::SlotMarker)
+                            }) {
+                                Some(label.clone())
+                            } else {
+                                None
+                            }
                         } else {
                             None
                         }

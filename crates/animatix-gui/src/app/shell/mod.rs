@@ -70,12 +70,12 @@ impl GuiShell {
                 &self.ui_store,
             ),
             Command::FrameStepForward => playback::handle_frame_step_forward(
-                &self.document_store,
+                &mut self.document_store,
                 &mut self.preview_store,
                 &self.ui_store,
             ),
             Command::FrameStepBackward => playback::handle_frame_step_backward(
-                &self.document_store,
+                &mut self.document_store,
                 &mut self.preview_store,
                 &self.ui_store,
             ),

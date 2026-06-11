@@ -58,7 +58,7 @@ pub fn render_performance_hud(
 
     // Background
     painter.rect_filled(hud_rect, 6.0, egui::Color32::from_black_alpha(180));
-    painter.rect_stroke(hud_rect, 6.0, egui::Stroke::new(1.0, egui::Color32::from_gray(80)));
+    painter.rect_stroke(hud_rect, 6.0, egui::Stroke::new(1.0, egui::Color32::from_gray(80)), egui::StrokeKind::Outside);
 
     let text_color = egui::Color32::from_gray(200);
     let font = egui::FontId::monospace(11.0);
@@ -188,6 +188,7 @@ pub fn render_layout_debug(
             container_rect,
             0.0,
             egui::Stroke::new(1.5, container_color),
+            egui::StrokeKind::Outside,
         );
 
         // Draw container type label
@@ -222,6 +223,7 @@ pub fn render_layout_debug(
                 child_rect,
                 0.0,
                 egui::Stroke::new(1.0, slot_color),
+                egui::StrokeKind::Outside,
             );
 
             // Draw intrinsic size label

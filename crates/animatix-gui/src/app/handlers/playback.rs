@@ -115,7 +115,7 @@ pub fn handle_next_keyframe(
 }
 
 pub fn handle_frame_step_forward(
-    document_store: &DocumentStore,
+    document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
     ui_store: &UiStore,
 ) -> Vec<Effect> {
@@ -136,7 +136,7 @@ pub fn handle_frame_step_forward(
 }
 
 pub fn handle_frame_step_backward(
-    document_store: &DocumentStore,
+    document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
     ui_store: &UiStore,
 ) -> Vec<Effect> {

@@ -504,7 +504,7 @@ pub(super) fn inspector_ui(
                         let (label, tooltip) = match view_mode {
                             PropertyViewMode::Semantic => (format!("{} Semantic", egui_phosphor::regular::ROWS), "Switch to spreadsheet view"),
                             PropertyViewMode::Intensity => (format!("{} Stream", egui_phosphor::regular::FIRE), "Switch to semantic view"),
-                            PropertyViewMode::Spreadsheet => (format!("{} Spreadsheet", egui_phosphor::regular::GRID), "Switch to stream view"),
+                            PropertyViewMode::Spreadsheet => (format!("{} Spreadsheet", egui_phosphor::regular::TABLE), "Switch to stream view"),
                         };
                         let btn_width = 130.0;
                         let btn_rect = egui::Rect::from_min_size(
