@@ -4,13 +4,7 @@ Keep track of what is yet to be done here, when a segment is fully done, remove 
 
 ---
 
-## P0 — Critical Bugs (UI Audit)
-
-| # | Task | File(s) | Details |
-|---|------|---------|---------|
-| 1 | **Marquee selection coordinate-space mismatch** | `drag_handler.rs:737-748` | Compares screen-space rect against scene-space actor centers — no coordinate conversion → wrong/no selection at typical zoom. Add `screen_to_scene` transform. |
-| 2 | **Per-property-lane keyframe drag no-op** | `timeline_panel.rs:1340-1366` | `new_kf_drag` never updated after `drag_started`; `MoveKeyframe` check always false. Read pointer position during drag. |
-| 3 | **Ctrl+C/V ungated on `wants_keyboard`** | `app/mod.rs:530-539` | Actor copy/paste fires even when text fields are focused, duplicating actors mid-edit. Guard with `wants_keyboard`. |
+## P0 — Critical Bugs (UI Audit) *(complete)*
 
 ## P1 — High Impact *(complete)*
 

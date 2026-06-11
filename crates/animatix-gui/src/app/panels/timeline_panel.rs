@@ -1364,6 +1364,18 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                     if dresp.drag_started() {
                                         new_kf_drag = Some((actor_label.clone(), prop_name, *kf_ms, kf_s));
                                     }
+                                    // Update dragged time during drag
+                                    if is_drag {
+                                        if let Some(pos) = dresp.interact_pointer_pos() {
+                                            let nt = x_to_time(pos.x);
+                                            let snapped = if shift_held {
+                                                nt
+                                            } else {
+                                                (nt * _snap_fps as f64).round() / _snap_fps as f64
+                                            };
+                                            new_kf_drag = Some((actor_label.clone(), prop_name, *kf_ms, snapped));
+                                        }
+                                    }
                                     if dresp.drag_stopped() && is_drag {
                                         if let Some((ref actor, _, _, n)) = new_kf_drag {
                                             if (n - kf_s).abs() > 0.01 {

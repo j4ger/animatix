@@ -529,11 +529,13 @@ impl GuiShell {
             }
             // Copy selected actors (Ctrl+C)
             if i.modifiers.command && i.key_pressed(egui::Key::C)
+                && !wants_keyboard
                 && !self.ui_store.selection.selected_actors.is_empty() {
                     self.copy_selected_actors();
                 }
             // Paste actors (Ctrl+V)
             if i.modifiers.command && i.key_pressed(egui::Key::V)
+                && !wants_keyboard
                 && !self.ui_store.clipboard.clipboard_actors.is_empty() {
                     commands.push_back(ShellAction::Command(Command::PasteActors));
                 }

@@ -734,7 +734,12 @@ pub(crate) fn handle_preview_drag(
 
         if pointer_released && ctx.selection.marquee_start.is_some() {
             if let (Some(start), Some(current)) = (ctx.selection.marquee_start, ctx.selection.marquee_current) {
-                let marquee_rect = egui::Rect::from_two_pos(start, current);
+                let start_scene = ctx.preview_screen_to_scene(preview_rect, start);
+                let current_scene = ctx.preview_screen_to_scene(preview_rect, current);
+                let marquee_rect = egui::Rect::from_two_pos(
+                    egui::pos2(start_scene.x as f32, start_scene.y as f32),
+                    egui::pos2(current_scene.x as f32, current_scene.y as f32),
+                );
                 let multi = ui.input(|i| i.modifiers.shift || i.modifiers.ctrl || i.modifiers.command);
                 if !multi { ctx.selected_actors.clear(); }
                 for (label, bounds) in ctx.hit_regions {
