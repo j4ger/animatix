@@ -584,7 +584,7 @@ pub(super) fn inspector_ui(
                         (PropertyViewMode::Spreadsheet, egui_phosphor::regular::TABLE, "Sheet"),
                         (PropertyViewMode::Intensity, egui_phosphor::regular::FIRE, "Stream"),
                     ];
-                    for (i, (mode, icon, label)) in modes.iter().enumerate() {
+                    for (_i, (mode, icon, label)) in modes.iter().enumerate() {
                         let is_active = *mode == view_mode;
                         let resp =
                             seg_ui.selectable_label(is_active, format!("{} {}", icon, label));
@@ -705,7 +705,7 @@ pub(super) fn inspector_ui(
             // ── Keyframes ──
             let kf_count = count_keyframes(track);
             layout::card(ui, |ui| {
-                let mut kf_view = *keyframe_view_mode;
+                let kf_view = *keyframe_view_mode;
 
                 layout::section_header(
                     ui,
@@ -734,7 +734,7 @@ pub(super) fn inspector_ui(
                         (KeyframeViewMode::List, egui_phosphor::regular::LIST, "List"),
                         (KeyframeViewMode::Curve, egui_phosphor::regular::CHART_LINE_UP, "Curve"),
                     ];
-                    for (i, (mode, icon, label)) in modes.iter().enumerate() {
+                    for (_i, (mode, icon, label)) in modes.iter().enumerate() {
                         let is_active = *mode == kf_view;
                         let resp =
                             seg_ui.selectable_label(is_active, format!("{} {}", icon, label));

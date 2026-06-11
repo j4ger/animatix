@@ -94,14 +94,8 @@ pub struct ViewStore {
     pub find_replace_open: bool,
     /// Currently active scene name (if in a multi-scene composition).
     pub active_scene: Option<String>,
-    /// Timeline horizontal zoom factor.
-    pub timeline_zoom: f32,
-    /// Timeline horizontal scroll offset.
+    /// Timeline horizontal scroll offset (zoom/pan live in PreviewPaneState.viewport).
     pub timeline_scroll_offset: f32,
-    /// Preview canvas zoom factor.
-    pub preview_zoom: f32,
-    /// Preview canvas pan offset.
-    pub preview_pan: egui::Vec2,
 }
 
 impl ViewStore {
@@ -123,10 +117,7 @@ impl ViewStore {
             command_palette_open: false,
             find_replace_open: false,
             active_scene: None,
-            timeline_zoom: 1.0,
             timeline_scroll_offset: 0.0,
-            preview_zoom: 1.0,
-            preview_pan: egui::Vec2::ZERO,
         }
     }
 }

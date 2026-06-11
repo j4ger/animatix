@@ -585,7 +585,7 @@ impl GuiShell {
                 .fill(egui::Color32::from_rgb(18, 22, 28))
                 .inner_margin(egui::Margin::symmetric(8, 2)))
             .resizable(false)
-            .min_height(20.0)
+            .min_size(20.0)
             .show_inside(ui, |ui| {
                 ui.horizontal(|ui| {
                     let status = &self.preview_store.preview.status;
