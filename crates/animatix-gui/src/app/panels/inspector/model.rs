@@ -2,8 +2,8 @@
 
 use std::collections::HashMap;
 
-use crate::app::panels::inspector::{KeyframeViewMode, PropertyViewMode};
 use crate::app::PreviewPaneState;
+use crate::app::panels::inspector::{KeyframeViewMode, PropertyViewMode};
 use animatix::timeline::SceneDimensions;
 
 /// Immutable view model for the inspector panel.

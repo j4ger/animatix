@@ -870,7 +870,7 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
                     .label_color(TEXT_SECONDARY)
                     .show(ui, row_id);
 
-                if response.row_clicked {
+                if response.response.double_clicked() {
                     // Instantiate component with default props
                     let label = crate::app::utils::labels::unique_label(None, name);
                     let pos = [
@@ -1023,7 +1023,7 @@ fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
                         .label_color(TEXT_SECONDARY)
                         .show(ui, row_id);
 
-                    if response.row_clicked {
+                    if response.response.double_clicked() {
                         let label = crate::app::utils::labels::unique_label(None, "image");
                         let pos = [
                             ctx.scene_dimensions.width as f32 / 2.0,
@@ -1055,7 +1055,7 @@ fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
                         .label_color(TEXT_SECONDARY)
                         .show(ui, row_id);
 
-                    if response.row_clicked {
+                    if response.response.double_clicked() {
                         let label = crate::app::utils::labels::unique_label(None, "svg");
                         let pos = [
                             ctx.scene_dimensions.width as f32 / 2.0,

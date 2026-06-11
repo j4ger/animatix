@@ -202,7 +202,7 @@ impl GuiShell {
                         let grid = self.preview_store.preview.overlay.show_grid;
                         if ui
                             .selectable_label(grid, "Grid")
-                            .on_hover_text("Toggle grid (G)")
+                            .on_hover_text("Toggle grid")
                             .clicked()
                         {
                             self.preview_store.preview.overlay.show_grid = !grid;

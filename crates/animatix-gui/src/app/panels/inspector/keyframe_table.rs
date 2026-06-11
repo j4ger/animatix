@@ -1,13 +1,13 @@
-use animatix_syntax::easing::Easing;
 use animatix::timeline::{
-    ActorField, AnimationTrack, PropertyValue, ShapeType, Timeline,
-    property_has_keyframes, property_keyframe_times, property_keyframe_easing,
-    read_property_value, allowed_property_indices, PROPERTY_REGISTRY,
+    ActorField, AnimationTrack, PROPERTY_REGISTRY, PropertyValue, ShapeType, Timeline,
+    allowed_property_indices, property_has_keyframes, property_keyframe_easing,
+    property_keyframe_times, read_property_value,
 };
+use animatix_syntax::easing::Easing;
 use egui::Vec2;
 
-use crate::app::design_tokens::*;
 use crate::app::commands::{ActionQueue, Command, ShellAction};
+use crate::app::design_tokens::*;
 
 // ─── Data Structures ──────────────────────────────────────────────────────
 
@@ -62,7 +62,15 @@ pub(super) fn render_dope_sheet(
     ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
     for group in &groups {
         for track_info in &group.tracks {
-            render_compact_track_row(ui, group, track_info, current_time_ms, timeline, actor_label, commands);
+            render_compact_track_row(
+                ui,
+                group,
+                track_info,
+                current_time_ms,
+                timeline,
+                actor_label,
+                commands,
+            );
         }
     }
     ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_S);
@@ -166,7 +174,8 @@ fn render_compact_track_row(
                 ui.separator();
                 let current_easing = *easing;
                 for &(id_str, display_name) in animatix_syntax::easing::EASING_REGISTRY {
-                    let variant = animatix_syntax::easing::parse_easing_name(id_str).unwrap_or(Easing::Linear);
+                    let variant = animatix_syntax::easing::parse_easing_name(id_str)
+                        .unwrap_or(Easing::Linear);
                     let is_selected = variant == current_easing;
                     if ui.selectable_label(is_selected, display_name).clicked() {
                         commands.push_back(ShellAction::Command(Command::SetKeyframeEasing {
@@ -194,10 +203,14 @@ fn render_compact_track_row(
 
         // Current time indicator
         let current_fraction = ((current_time_ms as f64 / 1000.0) / duration_s).clamp(0.0, 1.0);
-        let playhead_x = egui::lerp(strip_rect.left()..=strip_rect.right(), current_fraction as f32);
+        let playhead_x =
+            egui::lerp(strip_rect.left()..=strip_rect.right(), current_fraction as f32);
         if playhead_x >= strip_rect.left() && playhead_x <= strip_rect.right() {
             ui.painter().line_segment(
-                [egui::pos2(playhead_x, strip_rect.top()), egui::pos2(playhead_x, strip_rect.bottom())],
+                [
+                    egui::pos2(playhead_x, strip_rect.top()),
+                    egui::pos2(playhead_x, strip_rect.bottom()),
+                ],
                 egui::Stroke::new(STROKE_WIDTH, AMBER),
             );
         }
@@ -210,7 +223,8 @@ fn render_compact_track_row(
         );
         if strip_response.clicked() || strip_response.dragged() {
             if let Some(pos) = strip_response.interact_pointer_pos() {
-                let fraction = ((pos.x - strip_rect.left()) / strip_rect.width()).clamp(0.0, 1.0) as f64;
+                let fraction =
+                    ((pos.x - strip_rect.left()) / strip_rect.width()).clamp(0.0, 1.0) as f64;
                 commands.push_back(ShellAction::Command(Command::ScrubTo(fraction * duration_s)));
             }
         }
@@ -239,9 +253,7 @@ fn render_compact_track_row(
                         .size(FONT_SIZE_XS)
                         .color(color),
                 );
-                ui.label(
-                    egui::RichText::new(value).size(FONT_SIZE_XS).color(TEXT_SECONDARY),
-                );
+                ui.label(egui::RichText::new(value).size(FONT_SIZE_XS).color(TEXT_SECONDARY));
                 ui.label(
                     egui::RichText::new(easing_display_name(*easing))
                         .size(FONT_SIZE_XS)
@@ -313,7 +325,7 @@ fn collect_track_groups(track: &AnimationTrack) -> Vec<TrackGroup> {
             | ActorField::FontSize
             | ActorField::TextPaths => text.push(info),
             ActorField::ImageData | ActorField::SvgPaths => media.push(info),
-            _ => {}
+            _ => {},
         }
     }
 
@@ -362,21 +374,21 @@ fn format_value(value: &PropertyValue, name: &str) -> String {
             } else {
                 format!("{:.2}", v)
             }
-        }
+        },
         PropertyValue::U32(v) => {
             if name == "shape_type" {
                 ShapeType::from(*v).to_string()
             } else {
                 v.to_string()
             }
-        }
+        },
         PropertyValue::Vec2(v) => format!("({:.1}, {:.1})", v[0], v[1]),
         PropertyValue::Vec4(v) => {
             let r = (v[0] * 255.0).round() as u8;
             let g = (v[1] * 255.0).round() as u8;
             let b = (v[2] * 255.0).round() as u8;
             format!("#{:02x}{:02x}{:02x}", r, g, b)
-        }
+        },
         PropertyValue::Color(v) => {
             let r = (v[0] * 255.0).round() as u8;
             let g = (v[1] * 255.0).round() as u8;
@@ -386,14 +398,14 @@ fn format_value(value: &PropertyValue, name: &str) -> String {
             } else {
                 format!("rgba({},{},{},{:.2})", r, g, b, v[3])
             }
-        }
+        },
         PropertyValue::String(v) => {
             if v.len() > 24 {
                 format!("{}…", &v[..24])
             } else {
                 v.clone()
             }
-        }
+        },
         PropertyValue::PointList(v) => format!("[{} pts]", v.len()),
         PropertyValue::CommandList(v) => {
             if v.len() > 24 {
@@ -401,19 +413,22 @@ fn format_value(value: &PropertyValue, name: &str) -> String {
             } else {
                 v.clone()
             }
-        }
+        },
         PropertyValue::PlacementMode(v) => format!("{:?}", v),
         PropertyValue::MorphOptions(v) => format!("{:?}", v),
-        PropertyValue::Transform(v) => format!("[{:.2}, {:.2}, {:.2}, {:.2}, {:.2}, {:.2}]", v[0], v[1], v[2], v[3], v[4], v[5]),
+        PropertyValue::Transform(v) => format!(
+            "[{:.2}, {:.2}, {:.2}, {:.2}, {:.2}, {:.2}]",
+            v[0], v[1], v[2], v[3], v[4], v[5]
+        ),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use animatix_syntax::easing::Easing;
-    use animatix::timeline::track::PropertyTrack;
     use animatix::timeline::ActorKindId;
+    use animatix::timeline::track::PropertyTrack;
+    use animatix_syntax::easing::Easing;
 
     fn make_track(kind: ActorKindId) -> AnimationTrack {
         let mut track = AnimationTrack::new("test".to_string());

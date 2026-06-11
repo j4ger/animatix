@@ -5,9 +5,12 @@
 
 use crate::app::commands::ActionQueue;
 use crate::app::design_tokens::*;
+use animatix::timeline::{
+    AnimationTrack, ValueType, property_keyframe_easing, property_keyframe_times,
+    read_property_value,
+};
 use animatix_syntax::easing::Easing;
-use animatix::timeline::{AnimationTrack, property_keyframe_times, read_property_value, property_keyframe_easing, ValueType};
-use egui::{FontId, Pos2, Sense, Stroke, Vec2, Color32};
+use egui::{Color32, FontId, Pos2, Sense, Stroke, Vec2};
 
 /// Information about a single curve to render.
 #[derive(Debug, Clone)]
@@ -33,7 +36,12 @@ pub fn render_multi_fcurve(
 
     // Background
     painter.rect_filled(rect, RADIUS_M, BG_BASE);
-    painter.rect_stroke(rect, RADIUS_M, Stroke::new(STROKE_WIDTH, BORDER), egui::StrokeKind::Outside);
+    painter.rect_stroke(
+        rect,
+        RADIUS_M,
+        Stroke::new(STROKE_WIDTH, BORDER),
+        egui::StrokeKind::Outside,
+    );
 
     // Collect all animated properties
     let indices = animatix::timeline::allowed_property_indices(track.kind);
@@ -68,7 +76,7 @@ pub fn render_multi_fcurve(
                         field: schema.field,
                     });
                 }
-            }
+            },
             ValueType::Vec2 => {
                 let mut x_points: Vec<(f64, f32)> = Vec::new();
                 let mut y_points: Vec<(f64, f32)> = Vec::new();
@@ -94,7 +102,7 @@ pub fn render_multi_fcurve(
                         field: schema.field,
                     });
                 }
-            }
+            },
             ValueType::Vec4 | ValueType::Color => {
                 let mut r_points: Vec<(f64, f32)> = Vec::new();
                 let mut g_points: Vec<(f64, f32)> = Vec::new();
@@ -139,8 +147,8 @@ pub fn render_multi_fcurve(
                         field: schema.field,
                     });
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 
@@ -157,9 +165,8 @@ pub fn render_multi_fcurve(
 
     // Legend with visibility toggles
     let visibility_id = ui.id().with("graph_visibility");
-    let mut visibility: std::collections::HashMap<String, bool> = ui.data(|d| {
-        d.get_temp(visibility_id).unwrap_or_default()
-    });
+    let mut visibility: std::collections::HashMap<String, bool> =
+        ui.data(|d| d.get_temp(visibility_id).unwrap_or_default());
     for curve in &curves {
         visibility.entry(curve.label.clone()).or_insert(true);
     }
@@ -181,7 +188,11 @@ pub fn render_multi_fcurve(
         if ui.rect_contains_pointer(item_rect) {
             ui.painter().rect_filled(item_rect, RADIUS_S, BG_HOVER);
         }
-        let color_dot = if is_visible { curve.color } else { TEXT_DISABLED };
+        let color_dot = if is_visible {
+            curve.color
+        } else {
+            TEXT_DISABLED
+        };
         ui.painter().circle_filled(
             egui::pos2(item_rect.min.x + 6.0, item_rect.center().y),
             3.0,
@@ -192,11 +203,16 @@ pub fn render_multi_fcurve(
             egui::Align2::LEFT_CENTER,
             &curve.label,
             FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
-            if is_visible { TEXT_SECONDARY } else { TEXT_DISABLED },
+            if is_visible {
+                TEXT_SECONDARY
+            } else {
+                TEXT_DISABLED
+            },
         );
 
         // Click to toggle visibility
-        let item_response = ui.interact(item_rect, ui.id().with(("legend", &curve.label)), Sense::click());
+        let item_response =
+            ui.interact(item_rect, ui.id().with(("legend", &curve.label)), Sense::click());
         if item_response.clicked() {
             visibility.insert(curve.label.clone(), !is_visible);
         }
@@ -212,9 +228,8 @@ pub fn render_multi_fcurve(
     );
 
     // Find global value range across all visible curves
-    let visible_curves: Vec<&CurveInfo> = curves.iter()
-        .filter(|c| *visibility.get(&c.label).unwrap_or(&true))
-        .collect();
+    let visible_curves: Vec<&CurveInfo> =
+        curves.iter().filter(|c| *visibility.get(&c.label).unwrap_or(&true)).collect();
 
     if visible_curves.is_empty() {
         painter.text(
@@ -227,7 +242,8 @@ pub fn render_multi_fcurve(
         return;
     }
 
-    let all_values: Vec<f32> = visible_curves.iter().flat_map(|c| c.points.iter().map(|(_, v)| *v)).collect();
+    let all_values: Vec<f32> =
+        visible_curves.iter().flat_map(|c| c.points.iter().map(|(_, v)| *v)).collect();
     let min_val = all_values.iter().copied().fold(f32::INFINITY, f32::min);
     let max_val = all_values.iter().copied().fold(f32::NEG_INFINITY, f32::max);
     let val_range = (max_val - min_val).max(0.001);
@@ -247,7 +263,10 @@ pub fn render_multi_fcurve(
         let t = i as f32 / 4.0;
         let y = egui::lerp(plot_rect.top()..=plot_rect.bottom(), t);
         painter.line_segment(
-            [Pos2::new(plot_rect.left(), y), Pos2::new(plot_rect.right(), y)],
+            [
+                Pos2::new(plot_rect.left(), y),
+                Pos2::new(plot_rect.right(), y),
+            ],
             Stroke::new(STROKE_WIDTH, grid_line()),
         );
         let val_label = format!("{:.1}", max_val - t * val_range);
@@ -298,7 +317,10 @@ pub fn render_multi_fcurve(
     let current_x = map_point(current_time_s, val_mid).x;
     if current_x >= plot_rect.left() && current_x <= plot_rect.right() {
         painter.line_segment(
-            [Pos2::new(current_x, plot_rect.top()), Pos2::new(current_x, plot_rect.bottom())],
+            [
+                Pos2::new(current_x, plot_rect.top()),
+                Pos2::new(current_x, plot_rect.bottom()),
+            ],
             Stroke::new(1.5, AMBER),
         );
     }
@@ -308,5 +330,3 @@ pub fn render_multi_fcurve(
         ui.ctx().output_mut(|o| o.cursor_icon = egui::CursorIcon::Crosshair);
     }
 }
-
-

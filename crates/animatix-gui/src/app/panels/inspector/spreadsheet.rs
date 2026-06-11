@@ -12,12 +12,14 @@ use std::collections::HashSet;
 
 use egui::{Color32, Pos2, RichText, Vec2};
 
-use animatix::timeline::{AnimationTrack, Timeline, SceneDimensions, lookup_property};
+use animatix::timeline::{AnimationTrack, SceneDimensions, Timeline, lookup_property};
 
-use crate::app::components::layout;
-use crate::app::commands::{ActionQueue, Command, PropertyEdit, PropertyValue as GuiPropertyValue, ShellAction};
-use crate::app::design_tokens::*;
 use super::PropertyViewMode;
+use crate::app::commands::{
+    ActionQueue, Command, PropertyEdit, PropertyValue as GuiPropertyValue, ShellAction,
+};
+use crate::app::components::layout;
+use crate::app::design_tokens::*;
 
 /// The list of spreadsheet columns (property names).
 ///
@@ -67,22 +69,15 @@ pub(crate) fn render_property_spreadsheet(
         ui.add_space(SPACE_M);
         ui.add(
             egui::Label::new(
-                RichText::new(egui_phosphor::regular::TABLE)
-                    .size(FONT_SIZE_S)
-                    .color(AMBER),
+                RichText::new(egui_phosphor::regular::TABLE).size(FONT_SIZE_S).color(AMBER),
             )
             .selectable(false),
         );
         ui.add(
-            egui::Label::new(
-                RichText::new("Spreadsheet")
-                    .size(FONT_SIZE_S)
-                    .color(AMBER),
-            )
-            .selectable(false),
+            egui::Label::new(RichText::new("Spreadsheet").size(FONT_SIZE_S).color(AMBER))
+                .selectable(false),
         );
         ui.add_space(SPACE_S);
-
     });
     ui.add_space(SPACE_M);
 
@@ -97,13 +92,14 @@ pub(crate) fn render_property_spreadsheet(
     };
 
     // Add Actor button
-    if ui.button(
-        RichText::new(format!("{} Add", egui_phosphor::regular::PLUS))
-            .size(FONT_SIZE_XS)
-            .color(ACCENT_BLUE),
-    )
-    .on_hover_text("Add a new actor")
-    .clicked()
+    if ui
+        .button(
+            RichText::new(format!("{} Add", egui_phosphor::regular::PLUS))
+                .size(FONT_SIZE_XS)
+                .color(ACCENT_BLUE),
+        )
+        .on_hover_text("Add a new actor")
+        .clicked()
     {
         commands.push_back(ShellAction::Command(Command::CreateActor {
             ty: "rect".into(),
@@ -133,9 +129,7 @@ pub(crate) fn render_property_spreadsheet(
             ui.add_space(SPACE_M);
             ui.add(
                 egui::Label::new(
-                    RichText::new("No actors in scene")
-                        .size(FONT_SIZE_L)
-                        .color(TEXT_SECONDARY),
+                    RichText::new("No actors in scene").size(FONT_SIZE_L).color(TEXT_SECONDARY),
                 )
                 .selectable(false),
             );
@@ -151,167 +145,182 @@ pub(crate) fn render_property_spreadsheet(
     let value_col_width = 90.0;
 
     // ── Scrollable outer container ──
-    egui::ScrollArea::both()
-        .auto_shrink([false; 2])
-        .show(ui, |ui| {
-            egui::Grid::new(ui.id().with("spreadsheet_grid"))
-                .striped(true)
-                .min_col_width(label_col_width)
-                .spacing(Vec2::new(SPACE_S, 0.0))
-                .show(ui, |ui| {
-                    // ── Column headers (top-left corner + property names) ──
-                    // Top-left corner header
-                    let corner_rect = ui.allocate_exact_size(
+    egui::ScrollArea::both().auto_shrink([false; 2]).show(ui, |ui| {
+        egui::Grid::new(ui.id().with("spreadsheet_grid"))
+            .striped(true)
+            .min_col_width(label_col_width)
+            .spacing(Vec2::new(SPACE_S, 0.0))
+            .show(ui, |ui| {
+                // ── Column headers (top-left corner + property names) ──
+                // Top-left corner header
+                let corner_rect = ui
+                    .allocate_exact_size(
                         Vec2::new(label_col_width, row_height),
                         egui::Sense::hover(),
-                    ).0;
-                    ui.painter().rect_filled(corner_rect, 0.0, BG_SURFACE);
-                    ui.painter().text(
-                        corner_rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        egui_phosphor::regular::TABLE,
-                        egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-                        TEXT_MUTED,
-                    );
+                    )
+                    .0;
+                ui.painter().rect_filled(corner_rect, 0.0, BG_SURFACE);
+                ui.painter().text(
+                    corner_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    egui_phosphor::regular::TABLE,
+                    egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                    TEXT_MUTED,
+                );
 
-                    // Property name headers
-                    for &prop_name in SPREADSHEET_PROPERTIES {
-                        let header_rect = ui.allocate_exact_size(
+                // Property name headers
+                for &prop_name in SPREADSHEET_PROPERTIES {
+                    let header_rect = ui
+                        .allocate_exact_size(
                             Vec2::new(value_col_width, row_height),
                             egui::Sense::hover(),
-                        ).0;
-                        ui.painter().rect_filled(header_rect, 0.0, BG_SURFACE);
-                        ui.painter().text(
-                            header_rect.center(),
-                            egui::Align2::CENTER_CENTER,
-                            prop_name,
-                            egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
-                            TEXT_SECONDARY,
-                        );
+                        )
+                        .0;
+                    ui.painter().rect_filled(header_rect, 0.0, BG_SURFACE);
+                    ui.painter().text(
+                        header_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        prop_name,
+                        egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+                        TEXT_SECONDARY,
+                    );
+                }
+                ui.end_row();
+
+                // ── Data rows ──
+                for &actor_label in &actors {
+                    let Some(track) = timeline.get_track(actor_label) else {
+                        continue;
+                    };
+
+                    let is_selected = selected_actors.contains(actor_label);
+
+                    // ── Actor label cell ──
+                    let (label_rect, label_response) = ui.allocate_exact_size(
+                        Vec2::new(label_col_width, row_height),
+                        egui::Sense::click(),
+                    );
+
+                    // Background for selected or hovered row
+                    let label_bg = if is_selected {
+                        accent_selection()
+                    } else if label_response.hovered() {
+                        BG_HOVER
+                    } else {
+                        Color32::TRANSPARENT
+                    };
+                    if label_bg != Color32::TRANSPARENT {
+                        ui.painter().rect_filled(label_rect, 0.0, label_bg);
                     }
-                    ui.end_row();
 
-                    // ── Data rows ──
-                    for &actor_label in &actors {
-                        let Some(track) = timeline.get_track(actor_label) else {
-                            continue;
-                        };
+                    // Actor icon + label text
+                    let icon = crate::app::icons::actor_icon_str(track.kind);
+                    let label_color = if is_selected {
+                        ACCENT_BLUE
+                    } else {
+                        TEXT_PRIMARY
+                    };
+                    ui.painter().text(
+                        Pos2::new(label_rect.min.x + SPACE_S, label_rect.center().y),
+                        egui::Align2::LEFT_CENTER,
+                        format!("{} {}", icon, actor_label),
+                        egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                        label_color,
+                    );
 
-                        let is_selected = selected_actors.contains(actor_label);
+                    // Click to select
+                    if label_response.clicked() {
+                        let multi = ui.input(|i| i.modifiers.ctrl || i.modifiers.command);
+                        if multi {
+                            // Toggle selection
+                            if is_selected {
+                                selected_actors.remove(actor_label);
+                            } else {
+                                selected_actors.insert(actor_label.clone());
+                            }
+                        } else {
+                            selected_actors.clear();
+                            selected_actors.insert(actor_label.clone());
+                        }
+                    }
 
-                        // ── Actor label cell ──
-                        let (label_rect, label_response) = ui.allocate_exact_size(
-                            Vec2::new(label_col_width, row_height),
+                    // ── Value cells ──
+                    for &prop_name in SPREADSHEET_PROPERTIES {
+                        let (cell_rect, cell_response) = ui.allocate_exact_size(
+                            Vec2::new(value_col_width, row_height),
                             egui::Sense::click(),
                         );
 
-                        // Background for selected or hovered row
-                        let label_bg = if is_selected {
-                            accent_selection()
-                        } else if label_response.hovered() {
-                            BG_HOVER
-                        } else {
-                            Color32::TRANSPARENT
-                        };
-                        if label_bg != Color32::TRANSPARENT {
-                            ui.painter().rect_filled(label_rect, 0.0, label_bg);
+                        // Subtle hover
+                        if cell_response.hovered() {
+                            ui.painter().rect_filled(cell_rect, 0.0, BG_HOVER);
                         }
 
-                        // Actor icon + label text
-                        let icon = crate::app::icons::actor_icon_str(track.kind);
-                        let label_color = if is_selected { ACCENT_BLUE } else { TEXT_PRIMARY };
+                        // Get the value at current time
+                        let value_text = get_property_value_display(track, prop_name, time_ms);
+                        let has_animated_track = has_property_track(track, prop_name);
+                        let field = lookup_property(prop_name).map(|s| s.field);
+                        let has_keyframes = field.is_some()
+                            && animatix::timeline::property_has_keyframes(track, field.unwrap());
+
+                        let value_color = if has_keyframes {
+                            AMBER
+                        } else if !has_animated_track || value_text == "—" {
+                            TEXT_MUTED
+                        } else {
+                            TEXT_SECONDARY
+                        };
+
                         ui.painter().text(
-                            Pos2::new(label_rect.min.x + SPACE_S, label_rect.center().y),
-                            egui::Align2::LEFT_CENTER,
-                            format!("{} {}", icon, actor_label),
-                            egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-                            label_color,
+                            cell_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            &value_text,
+                            egui::FontId::monospace(FONT_SIZE_XS),
+                            value_color,
                         );
 
-                        // Click to select
-                        if label_response.clicked() {
-                            let multi = ui.input(|i| i.modifiers.ctrl || i.modifiers.command);
-                            if multi {
-                                // Toggle selection
-                                if is_selected {
-                                    selected_actors.remove(actor_label);
-                                } else {
-                                    selected_actors.insert(actor_label.clone());
-                                }
-                            } else {
-                                selected_actors.clear();
-                                selected_actors.insert(actor_label.clone());
-                            }
-                        }
-
-                        // ── Value cells ──
-                        for &prop_name in SPREADSHEET_PROPERTIES {
-                            let (cell_rect, cell_response) = ui.allocate_exact_size(
-                                Vec2::new(value_col_width, row_height),
-                                egui::Sense::click(),
-                            );
-
-                            // Subtle hover
-                            if cell_response.hovered() {
-                                ui.painter().rect_filled(cell_rect, 0.0, BG_HOVER);
-                            }
-
-                            // Get the value at current time
-                            let value_text = get_property_value_display(track, prop_name, time_ms);
-                            let has_animated_track = has_property_track(track, prop_name);
-                            let field = lookup_property(prop_name).map(|s| s.field);
-                            let has_keyframes = field.is_some()
-                                && animatix::timeline::property_has_keyframes(track, field.unwrap());
-
-                            let value_color = if has_keyframes {
-                                AMBER
-                            } else if !has_animated_track || value_text == "—" {
-                                TEXT_MUTED
-                            } else {
-                                TEXT_SECONDARY
-                            };
-
-                            ui.painter().text(
-                                cell_rect.center(),
-                                egui::Align2::CENTER_CENTER,
-                                &value_text,
-                                egui::FontId::monospace(FONT_SIZE_XS),
-                                value_color,
-                            );
-
-                            // Context menu on right-click
-                            cell_response.context_menu(|ui| {
-                                ui.set_min_width(160.0);
-                                ui.strong(format!("{} / {}", actor_label, prop_name));
-                                ui.separator();
-                                if ui.button(format!("{} Add keyframe", egui_phosphor::regular::DIAMOND))
-                                    .on_hover_text("Add a keyframe at current time with current value")
-                                    .clicked()
+                        // Context menu on right-click
+                        cell_response.context_menu(|ui| {
+                            ui.set_min_width(160.0);
+                            ui.strong(format!("{} / {}", actor_label, prop_name));
+                            ui.separator();
+                            if ui
+                                .button(format!("{} Add keyframe", egui_phosphor::regular::DIAMOND))
+                                .on_hover_text("Add a keyframe at current time with current value")
+                                .clicked()
+                            {
+                                if let Some(gui_val) =
+                                    get_property_gui_value(track, prop_name, time_ms)
                                 {
-                                    if let Some(gui_val) = get_property_gui_value(track, prop_name, time_ms) {
-                                        commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+                                    commands.push_back(ShellAction::Command(
+                                        Command::PropertyEdit(PropertyEdit {
                                             time_s: None,
                                             actor: actor_label.to_string(),
                                             property: prop_name.to_string(),
                                             value: gui_val,
                                             create_keyframe: true,
-                                        })));
-                                    }
-                                    ui.close();
+                                        }),
+                                    ));
                                 }
-                                if ui.button(format!("{} Open in Inspector", egui_phosphor::regular::ARROW_RIGHT))
-                                    .clicked()
-                                {
-                                    selected_actors.clear();
-                                    selected_actors.insert(actor_label.clone());
-                                    ui.close();
-                                }
-                            });
-                        }
-                        ui.end_row();
+                                ui.close();
+                            }
+                            if ui
+                                .button(format!(
+                                    "{} Open in Inspector",
+                                    egui_phosphor::regular::ARROW_RIGHT
+                                ))
+                                .clicked()
+                            {
+                                selected_actors.clear();
+                                selected_actors.insert(actor_label.clone());
+                                ui.close();
+                            }
+                        });
                     }
-                });
-        });
+                    ui.end_row();
+                }
+            });
+    });
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -319,136 +328,142 @@ pub(crate) fn render_property_spreadsheet(
 /// Get a display string for a property's value at the given time.
 fn get_property_value_display(track: &AnimationTrack, prop_name: &str, time_ms: u64) -> String {
     match prop_name {
-        "position" => {
-            track.position.as_ref().map(|t| {
+        "position" => track
+            .position
+            .as_ref()
+            .map(|t| {
                 let v = t.evaluate_copy(time_ms);
                 format!("({:.0}, {:.0})", v[0], v[1])
-            }).unwrap_or_else(|| "—".into())
-        }
+            })
+            .unwrap_or_else(|| "—".into()),
         "size" => {
-            track.size.as_ref().map(|t| {
-                let v = t.evaluate_copy(time_ms);
-                // Size is stored as half-extents; show full dimensions
-                let w = v[0] * 2.0;
-                let h = v[1] * 2.0;
-                format!("({:.0}, {:.0})", w, h)
-            }).unwrap_or_else(|| "—".into())
-        }
-        "rotation" => {
-            track.rotation.as_ref().map(|t| {
+            track
+                .size
+                .as_ref()
+                .map(|t| {
+                    let v = t.evaluate_copy(time_ms);
+                    // Size is stored as half-extents; show full dimensions
+                    let w = v[0] * 2.0;
+                    let h = v[1] * 2.0;
+                    format!("({:.0}, {:.0})", w, h)
+                })
+                .unwrap_or_else(|| "—".into())
+        },
+        "rotation" => track
+            .rotation
+            .as_ref()
+            .map(|t| {
                 let v = t.evaluate_copy(time_ms);
                 format!("{:.1}°", v.to_degrees())
-            }).unwrap_or_else(|| "—".into())
-        }
-        "scale" => {
-            track.scale.as_ref().map(|t| {
+            })
+            .unwrap_or_else(|| "—".into()),
+        "scale" => track
+            .scale
+            .as_ref()
+            .map(|t| {
                 let v = t.evaluate_copy(time_ms);
                 format!("{:.2}×", v)
-            }).unwrap_or_else(|| "—".into())
-        }
-        "opacity" => {
-            track.opacity.as_ref().map(|t| {
+            })
+            .unwrap_or_else(|| "—".into()),
+        "opacity" => track
+            .opacity
+            .as_ref()
+            .map(|t| {
                 let v = t.evaluate_copy(time_ms);
                 format!("{:.2}", v)
-            }).unwrap_or_else(|| "—".into())
-        }
-        "color" => {
-            track.color.as_ref().map(|t| {
+            })
+            .unwrap_or_else(|| "—".into()),
+        "color" => track
+            .color
+            .as_ref()
+            .map(|t| {
                 let v = t.evaluate_copy(time_ms);
                 format_rgba(v)
-            }).unwrap_or_else(|| "—".into())
-        }
-        "stroke_width" => {
-            track.stroke_width.as_ref().map(|t| {
+            })
+            .unwrap_or_else(|| "—".into()),
+        "stroke_width" => track
+            .stroke_width
+            .as_ref()
+            .map(|t| {
                 let v = t.evaluate_copy(time_ms);
                 format!("{:.1}", v)
-            }).unwrap_or_else(|| "—".into())
-        }
-        "stroke_color" => {
-            track.stroke_color.as_ref().map(|t| {
+            })
+            .unwrap_or_else(|| "—".into()),
+        "stroke_color" => track
+            .stroke_color
+            .as_ref()
+            .map(|t| {
                 let v = t.evaluate_copy(time_ms);
                 format_rgba(v)
-            }).unwrap_or_else(|| "—".into())
-        }
-        "stroke_progress" => {
-            track.stroke_progress.as_ref().map(|t| {
+            })
+            .unwrap_or_else(|| "—".into()),
+        "stroke_progress" => track
+            .stroke_progress
+            .as_ref()
+            .map(|t| {
                 let v = t.evaluate_copy(time_ms);
                 format!("{:.2}", v)
-            }).unwrap_or_else(|| "—".into())
-        }
-        "fill_opacity" => {
-            track.fill_opacity.as_ref().map(|t| {
+            })
+            .unwrap_or_else(|| "—".into()),
+        "fill_opacity" => track
+            .fill_opacity
+            .as_ref()
+            .map(|t| {
                 let v = t.evaluate_copy(time_ms);
                 format!("{:.2}", v)
-            }).unwrap_or_else(|| "—".into())
-        }
+            })
+            .unwrap_or_else(|| "—".into()),
         _ => "—".into(),
     }
 }
 
 /// Get a `GuiPropertyValue` for the property at the given time, for emitting edits.
-fn get_property_gui_value(track: &AnimationTrack, prop_name: &str, time_ms: u64) -> Option<GuiPropertyValue> {
+fn get_property_gui_value(
+    track: &AnimationTrack,
+    prop_name: &str,
+    time_ms: u64,
+) -> Option<GuiPropertyValue> {
     match prop_name {
-        "position" => {
-            track.position.as_ref().map(|t| {
-                let v = t.evaluate_copy(time_ms);
-                GuiPropertyValue::Vec2(v)
-            })
-        }
-        "size" => {
-            track.size.as_ref().map(|t| {
-                let v = t.evaluate_copy(time_ms);
-                GuiPropertyValue::Vec2([v[0] * 2.0, v[1] * 2.0])
-            })
-        }
-        "rotation" => {
-            track.rotation.as_ref().map(|t| {
-                let v = t.evaluate_copy(time_ms);
-                GuiPropertyValue::Float(v)
-            })
-        }
-        "scale" => {
-            track.scale.as_ref().map(|t| {
-                let v = t.evaluate_copy(time_ms);
-                GuiPropertyValue::Float(v)
-            })
-        }
-        "opacity" => {
-            track.opacity.as_ref().map(|t| {
-                let v = t.evaluate_copy(time_ms);
-                GuiPropertyValue::Float(v)
-            })
-        }
-        "color" => {
-            track.color.as_ref().map(|t| {
-                let v = t.evaluate_copy(time_ms);
-                GuiPropertyValue::Color(v)
-            })
-        }
-        "stroke_width" => {
-            track.stroke_width.as_ref().map(|t| {
-                let v = t.evaluate_copy(time_ms);
-                GuiPropertyValue::Float(v)
-            })
-        }
-        "stroke_color" => {
-            track.stroke_color.as_ref().map(|t| {
-                let v = t.evaluate_copy(time_ms);
-                GuiPropertyValue::Color(v)
-            })
-        }
-        "stroke_progress" => {
-            track.stroke_progress.as_ref().map(|t| {
-                let v = t.evaluate_copy(time_ms);
-                GuiPropertyValue::Float(v)
-            })
-        }
-        "fill_opacity" => {
-            track.fill_opacity.as_ref().map(|t| {
-                let v = t.evaluate_copy(time_ms);
-                GuiPropertyValue::Float(v)
-            })
-        }
+        "position" => track.position.as_ref().map(|t| {
+            let v = t.evaluate_copy(time_ms);
+            GuiPropertyValue::Vec2(v)
+        }),
+        "size" => track.size.as_ref().map(|t| {
+            let v = t.evaluate_copy(time_ms);
+            GuiPropertyValue::Vec2([v[0] * 2.0, v[1] * 2.0])
+        }),
+        "rotation" => track.rotation.as_ref().map(|t| {
+            let v = t.evaluate_copy(time_ms);
+            GuiPropertyValue::Float(v)
+        }),
+        "scale" => track.scale.as_ref().map(|t| {
+            let v = t.evaluate_copy(time_ms);
+            GuiPropertyValue::Float(v)
+        }),
+        "opacity" => track.opacity.as_ref().map(|t| {
+            let v = t.evaluate_copy(time_ms);
+            GuiPropertyValue::Float(v)
+        }),
+        "color" => track.color.as_ref().map(|t| {
+            let v = t.evaluate_copy(time_ms);
+            GuiPropertyValue::Color(v)
+        }),
+        "stroke_width" => track.stroke_width.as_ref().map(|t| {
+            let v = t.evaluate_copy(time_ms);
+            GuiPropertyValue::Float(v)
+        }),
+        "stroke_color" => track.stroke_color.as_ref().map(|t| {
+            let v = t.evaluate_copy(time_ms);
+            GuiPropertyValue::Color(v)
+        }),
+        "stroke_progress" => track.stroke_progress.as_ref().map(|t| {
+            let v = t.evaluate_copy(time_ms);
+            GuiPropertyValue::Float(v)
+        }),
+        "fill_opacity" => track.fill_opacity.as_ref().map(|t| {
+            let v = t.evaluate_copy(time_ms);
+            GuiPropertyValue::Float(v)
+        }),
         _ => None,
     }
 }

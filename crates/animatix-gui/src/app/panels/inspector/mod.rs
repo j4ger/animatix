@@ -1,23 +1,25 @@
-use std::collections::{HashMap, HashSet};
 use animatix::timeline::{AnimationTrack, Timeline, collect_all_keyframe_times};
 use egui::{Color32, Pos2, RichText, ScrollArea, Vec2};
+use std::collections::{HashMap, HashSet};
 
-use crate::app::components::{easing_curve_editor, layout, timeline};
-use crate::app::components::easing_curve_editor::EasingCurveState;
-use crate::app::icons::actor_icon_str;
-use crate::app::design_tokens::*;
-use crate::app::commands::{ActionQueue, Command, ShellAction, PropertyEdit, PropertyValue as GuiPropertyValue};
-use crate::app::panels::panel_frame;
 use crate::app::PreviewPaneState;
+use crate::app::commands::{
+    ActionQueue, Command, PropertyEdit, PropertyValue as GuiPropertyValue, ShellAction,
+};
+use crate::app::components::easing_curve_editor::EasingCurveState;
+use crate::app::components::{easing_curve_editor, layout, timeline};
+use crate::app::design_tokens::*;
+use crate::app::icons::actor_icon_str;
+use crate::app::panels::panel_frame;
 
-pub(crate) mod property_groups;
+pub(crate) mod graph_editor;
 pub(crate) mod keyframe_table;
 pub(crate) mod model;
-pub(crate) mod graph_editor;
+pub(crate) mod property_groups;
 pub(crate) mod spreadsheet;
 
+use self::keyframe_table::{count_keyframes, render_dope_sheet};
 use self::property_groups::*;
-use self::keyframe_table::{render_dope_sheet, count_keyframes};
 use self::spreadsheet::render_property_spreadsheet;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -95,92 +97,96 @@ fn render_scene_inspector(
         return;
     };
 
-    ScrollArea::vertical()
-        .auto_shrink([false; 2])
-        .show(ui, |ui| {
-            // ── Scene Header ──
-            let available = ui.available_width();
-            let row_h = ROW_L;
-            let (row_rect, _) = ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
-            ui.painter().text(
-                Pos2::new(row_rect.min.x + SPACE_S, row_rect.center().y),
-                egui::Align2::LEFT_CENTER,
-                format!("{} {}", egui_phosphor::regular::FILM_STRIP, active_scene),
-                egui::FontId::new(FONT_SIZE_XL, egui::FontFamily::Proportional),
-                ACCENT_BLUE,
-            );
-            ui.add_space(SPACE_M);
+    ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
+        // ── Scene Header ──
+        let available = ui.available_width();
+        let row_h = ROW_L;
+        let (row_rect, _) =
+            ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
+        ui.painter().text(
+            Pos2::new(row_rect.min.x + SPACE_S, row_rect.center().y),
+            egui::Align2::LEFT_CENTER,
+            format!("{} {}", egui_phosphor::regular::FILM_STRIP, active_scene),
+            egui::FontId::new(FONT_SIZE_XL, egui::FontFamily::Proportional),
+            ACCENT_BLUE,
+        );
+        ui.add_space(SPACE_M);
 
-            // ── Scene Properties ──
-            layout::card(ui, |ui| {
-                layout::section_header(ui, egui_phosphor::regular::WRENCH, "Properties", None);
+        // ── Scene Properties ──
+        layout::card(ui, |ui| {
+            layout::section_header(ui, egui_phosphor::regular::WRENCH, "Properties", None);
 
-                // Duration (editable — explicit or inferred from timeline keyframes)
-                layout::labeled_row(ui, "Duration", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                    let is_explicit = scene.explicit_duration_s.is_some();
-                    let mut duration_val = scene.duration_s;
-                    let drag = ui.add(
-                        egui::DragValue::new(&mut duration_val)
-                            .speed(0.1)
-                            .suffix(" s")
-                            .max_decimals(2)
-                            .range(0.01..=600.0),
-                    );
-                    let tooltip = if is_explicit {
-                        "Explicit duration (click ⨯ to revert to auto)"
-                    } else {
-                        "Auto-detected from keyframes (drag to set explicit)"
-                    };
-                    let changed = drag.changed();
-                    drag.on_hover_text(tooltip);
-                    if is_explicit {
-                        // Small button to remove explicit duration
-                        if ui.small_button("⨯").on_hover_text("Revert to auto-detected duration").clicked() {
-                            commands.push_back(ShellAction::Command(Command::SetSceneDuration {
-                                scene: active_scene.to_string(),
-                                duration_s: None,
-                            }));
-                        }
-                    }
-                    // Only emit edit if value changed meaningfully
-                    if changed && (duration_val - scene.duration_s).abs() > 0.001 {
+            // Duration (editable — explicit or inferred from timeline keyframes)
+            layout::labeled_row(ui, "Duration", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                let is_explicit = scene.explicit_duration_s.is_some();
+                let mut duration_val = scene.duration_s;
+                let drag = ui.add(
+                    egui::DragValue::new(&mut duration_val)
+                        .speed(0.1)
+                        .suffix(" s")
+                        .max_decimals(2)
+                        .range(0.01..=600.0),
+                );
+                let tooltip = if is_explicit {
+                    "Explicit duration (click ⨯ to revert to auto)"
+                } else {
+                    "Auto-detected from keyframes (drag to set explicit)"
+                };
+                let changed = drag.changed();
+                drag.on_hover_text(tooltip);
+                if is_explicit {
+                    // Small button to remove explicit duration
+                    if ui
+                        .small_button("⨯")
+                        .on_hover_text("Revert to auto-detected duration")
+                        .clicked()
+                    {
                         commands.push_back(ShellAction::Command(Command::SetSceneDuration {
                             scene: active_scene.to_string(),
-                            duration_s: Some(duration_val),
+                            duration_s: None,
                         }));
                     }
-                });
+                }
+                // Only emit edit if value changed meaningfully
+                if changed && (duration_val - scene.duration_s).abs() > 0.001 {
+                    commands.push_back(ShellAction::Command(Command::SetSceneDuration {
+                        scene: active_scene.to_string(),
+                        duration_s: Some(duration_val),
+                    }));
+                }
+            });
 
-                // Start time
-                let start_s = composition.scene_start_times.get(active_scene).copied().unwrap_or(0.0);
-                layout::labeled_row(ui, "Start", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                    ui.add(egui::Label::new(
+            // Start time
+            let start_s = composition.scene_start_times.get(active_scene).copied().unwrap_or(0.0);
+            layout::labeled_row(ui, "Start", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                ui.add(
+                    egui::Label::new(
                         RichText::new(format!("{:.2} s", start_s))
                             .monospace()
                             .size(FONT_SIZE_S)
                             .color(TEXT_SECONDARY),
-                    ).selectable(false));
-                });
+                    )
+                    .selectable(false),
+                );
+            });
 
-                // Background color
-                let bg_color = scene.timeline.background_color_at(0);
-                layout::labeled_row(ui, "Background", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                    let color_rect = egui::Rect::from_min_size(
-                        ui.cursor().min,
-                        Vec2::new(24.0, 24.0),
-                    );
-                    ui.painter().rect_filled(
-                        color_rect,
-                        RADIUS_S,
-                        egui::Color32::from_rgba_premultiplied(
-                            (bg_color[0] * 255.0) as u8,
-                            (bg_color[1] * 255.0) as u8,
-                            (bg_color[2] * 255.0) as u8,
-                            (bg_color[3] * 255.0) as u8,
-                        ),
-                    );
-                    ui.add_space(32.0);
-                    ui.add(egui::Label::new(
+            // Background color
+            let bg_color = scene.timeline.background_color_at(0);
+            layout::labeled_row(ui, "Background", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                let color_rect = egui::Rect::from_min_size(ui.cursor().min, Vec2::new(24.0, 24.0));
+                ui.painter().rect_filled(
+                    color_rect,
+                    RADIUS_S,
+                    egui::Color32::from_rgba_premultiplied(
+                        (bg_color[0] * 255.0) as u8,
+                        (bg_color[1] * 255.0) as u8,
+                        (bg_color[2] * 255.0) as u8,
+                        (bg_color[3] * 255.0) as u8,
+                    ),
+                );
+                ui.add_space(32.0);
+                ui.add(
+                    egui::Label::new(
                         RichText::new(format!(
                             "({:.2}, {:.2}, {:.2}, {:.2})",
                             bg_color[0], bg_color[1], bg_color[2], bg_color[3]
@@ -188,169 +194,226 @@ fn render_scene_inspector(
                         .monospace()
                         .size(FONT_SIZE_S)
                         .color(TEXT_MUTED),
-                    ).selectable(false));
-                });
+                    )
+                    .selectable(false),
+                );
             });
+        });
 
-            ui.add_space(SPACE_M);
+        ui.add_space(SPACE_M);
 
-            // ── Play Edge ──
-            if let Some(edge) = composition.edges.get(active_scene) {
-                layout::card(ui, |ui| {
-                    layout::section_header(ui, egui_phosphor::regular::ARROW_RIGHT, "Transition", None);
+        // ── Play Edge ──
+        if let Some(edge) = composition.edges.get(active_scene) {
+            layout::card(ui, |ui| {
+                layout::section_header(ui, egui_phosphor::regular::ARROW_RIGHT, "Transition", None);
 
-                    // Target scene dropdown
-                    let other_scenes: Vec<&String> = composition.declaration_order.iter()
-                        .filter(|s| *s != active_scene)
-                        .collect();
-                    layout::labeled_row(ui, "Target", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                        egui::ComboBox::from_id_salt(ui.id().with("transition_target"))
-                            .selected_text(&edge.to_scene)
-                            .width(ui.available_width())
-                            .show_ui(ui, |ui| {
-                                for scene_name in &other_scenes {
-                                    if ui.selectable_label(*scene_name == &edge.to_scene, *scene_name).clicked() {
-                                        commands.push_back(ShellAction::Command(Command::SetPlayTarget {
+                // Target scene dropdown
+                let other_scenes: Vec<&String> =
+                    composition.declaration_order.iter().filter(|s| *s != active_scene).collect();
+                layout::labeled_row(ui, "Target", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                    egui::ComboBox::from_id_salt(ui.id().with("transition_target"))
+                        .selected_text(&edge.to_scene)
+                        .width(ui.available_width())
+                        .show_ui(ui, |ui| {
+                            for scene_name in &other_scenes {
+                                if ui
+                                    .selectable_label(*scene_name == &edge.to_scene, *scene_name)
+                                    .clicked()
+                                {
+                                    commands.push_back(ShellAction::Command(
+                                        Command::SetPlayTarget {
                                             from_scene: active_scene.to_string(),
                                             target: Some((*scene_name).clone()),
-                                        }));
-                                    }
+                                        },
+                                    ));
                                 }
-                            });
-                    });
+                            }
+                        });
+                });
 
-                    // Transition type dropdown
-                    let registry = animatix_syntax::transition_registry::REGISTRY;
-                    layout::labeled_row(ui, "Type", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                        egui::ComboBox::from_id_salt(ui.id().with("transition_type"))
-                            .selected_text(animatix_syntax::transition_registry::display_name(&edge.transition.id))
-                            .width(ui.available_width())
-                            .show_ui(ui, |ui| {
-                                for def in registry {
-                                    if ui.selectable_label(def.id == edge.transition.id, def.display_name).clicked() && def.id != edge.transition.id {
-                                        commands.push_back(ShellAction::Command(Command::SetTransition {
+                // Transition type dropdown
+                let registry = animatix_syntax::transition_registry::REGISTRY;
+                layout::labeled_row(ui, "Type", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                    egui::ComboBox::from_id_salt(ui.id().with("transition_type"))
+                        .selected_text(animatix_syntax::transition_registry::display_name(
+                            &edge.transition.id,
+                        ))
+                        .width(ui.available_width())
+                        .show_ui(ui, |ui| {
+                            for def in registry {
+                                if ui
+                                    .selectable_label(
+                                        def.id == edge.transition.id,
+                                        def.display_name,
+                                    )
+                                    .clicked()
+                                    && def.id != edge.transition.id
+                                {
+                                    commands.push_back(ShellAction::Command(
+                                        Command::SetTransition {
                                             from_scene: active_scene.to_string(),
                                             transition: animatix_syntax::ast::Transition {
                                                 id: def.id.to_string(),
                                                 duration_ms: edge.transition.duration_ms,
                                                 easing: edge.transition.easing,
                                             },
-                                        }));
-                                    }
+                                        },
+                                    ));
                                 }
-                            });
-                    });
+                            }
+                        });
+                });
 
-                    // Duration
-                    let mut duration_ms = edge.transition.duration_ms as f64;
-                    layout::labeled_row(ui, "Duration", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                        ui.add(egui::DragValue::new(&mut duration_ms).speed(10.0).suffix(" ms").max_decimals(0));
-                    });
-                    let new_duration_ms = duration_ms.round() as u64;
-                    if new_duration_ms != edge.transition.duration_ms {
-                        commands.push_back(ShellAction::Command(Command::SetTransition {
-                            from_scene: active_scene.to_string(),
-                            transition: animatix_syntax::ast::Transition {
-                                id: edge.transition.id.clone(),
-                                duration_ms: new_duration_ms,
-                                easing: edge.transition.easing,
-                            },
-                        }));
-                    }
+                // Duration
+                let mut duration_ms = edge.transition.duration_ms as f64;
+                layout::labeled_row(ui, "Duration", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                    ui.add(
+                        egui::DragValue::new(&mut duration_ms)
+                            .speed(10.0)
+                            .suffix(" ms")
+                            .max_decimals(0),
+                    );
+                });
+                let new_duration_ms = duration_ms.round() as u64;
+                if new_duration_ms != edge.transition.duration_ms {
+                    commands.push_back(ShellAction::Command(Command::SetTransition {
+                        from_scene: active_scene.to_string(),
+                        transition: animatix_syntax::ast::Transition {
+                            id: edge.transition.id.clone(),
+                            duration_ms: new_duration_ms,
+                            easing: edge.transition.easing,
+                        },
+                    }));
+                }
 
-                    // Easing dropdown
-                    let mut new_custom_easing: Option<animatix_syntax::easing::Easing> = None;
-                    layout::labeled_row(ui, "Easing", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                        let current_easing = edge.transition.easing;
-                        let current_name = animatix_syntax::easing::EASING_REGISTRY.iter()
-                            .find(|(id, _)| animatix_syntax::easing::parse_easing_name(id).unwrap_or(animatix_syntax::easing::Easing::Linear) == current_easing)
-                            .map(|(_, name)| *name)
-                            .unwrap_or("Linear");
-                        egui::ComboBox::from_id_salt(ui.id().with("transition_easing"))
-                            .selected_text(current_name)
-                            .width(ui.available_width())
-                            .show_ui(ui, |ui| {
-                                for &(id_str, display_name) in animatix_syntax::easing::EASING_REGISTRY {
-                                    let variant = animatix_syntax::easing::parse_easing_name(id_str).unwrap_or(animatix_syntax::easing::Easing::Linear);
-                                    if ui.selectable_label(variant == current_easing, display_name).clicked() && variant != current_easing {
-                                        new_custom_easing = Some(variant);
-                                    }
+                // Easing dropdown
+                let mut new_custom_easing: Option<animatix_syntax::easing::Easing> = None;
+                layout::labeled_row(ui, "Easing", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                    let current_easing = edge.transition.easing;
+                    let current_name = animatix_syntax::easing::EASING_REGISTRY
+                        .iter()
+                        .find(|(id, _)| {
+                            animatix_syntax::easing::parse_easing_name(id)
+                                .unwrap_or(animatix_syntax::easing::Easing::Linear)
+                                == current_easing
+                        })
+                        .map(|(_, name)| *name)
+                        .unwrap_or("Linear");
+                    egui::ComboBox::from_id_salt(ui.id().with("transition_easing"))
+                        .selected_text(current_name)
+                        .width(ui.available_width())
+                        .show_ui(ui, |ui| {
+                            for &(id_str, display_name) in animatix_syntax::easing::EASING_REGISTRY
+                            {
+                                let variant = animatix_syntax::easing::parse_easing_name(id_str)
+                                    .unwrap_or(animatix_syntax::easing::Easing::Linear);
+                                if ui
+                                    .selectable_label(variant == current_easing, display_name)
+                                    .clicked()
+                                    && variant != current_easing
+                                {
+                                    new_custom_easing = Some(variant);
                                 }
-                            });
-                    });
-                    if let Some(variant) = new_custom_easing {
+                            }
+                        });
+                });
+                if let Some(variant) = new_custom_easing {
+                    commands.push_back(ShellAction::Command(Command::SetTransition {
+                        from_scene: active_scene.to_string(),
+                        transition: animatix_syntax::ast::Transition {
+                            id: edge.transition.id.clone(),
+                            duration_ms: edge.transition.duration_ms,
+                            easing: variant,
+                        },
+                    }));
+                }
+
+                // Custom easing curve editor
+                if let animatix_syntax::easing::Easing::CubicBezier(cp) = edge.transition.easing {
+                    let state = EasingCurveState::from_array(cp);
+                    if let Some(new_state) = easing_curve_editor::easing_curve_editor(ui, state) {
                         commands.push_back(ShellAction::Command(Command::SetTransition {
                             from_scene: active_scene.to_string(),
                             transition: animatix_syntax::ast::Transition {
                                 id: edge.transition.id.clone(),
                                 duration_ms: edge.transition.duration_ms,
-                                easing: variant,
+                                easing: animatix_syntax::easing::Easing::CubicBezier(
+                                    new_state.to_array(),
+                                ),
                             },
                         }));
                     }
+                }
 
-                    // Custom easing curve editor
-                    if let animatix_syntax::easing::Easing::CubicBezier(cp) = edge.transition.easing {
-                        let state = EasingCurveState::from_array(cp);
-                        if let Some(new_state) = easing_curve_editor::easing_curve_editor(ui, state) {
-                            commands.push_back(ShellAction::Command(Command::SetTransition {
-                                from_scene: active_scene.to_string(),
-                                transition: animatix_syntax::ast::Transition {
-                                    id: edge.transition.id.clone(),
-                                    duration_ms: edge.transition.duration_ms,
-                                    easing: animatix_syntax::easing::Easing::CubicBezier(new_state.to_array()),
-                                },
-                            }));
-                        }
-                    }
-
-                    // Click to jump to target scene
-                    if ui.button(
-                        RichText::new(format!("{} Go to {}", egui_phosphor::regular::ARROW_RIGHT, edge.to_scene))
-                            .size(FONT_SIZE_S)
-                            .color(ACCENT_BLUE),
-                    ).clicked() {
-                        commands.push_back(ShellAction::Command(Command::SelectScene(edge.to_scene.clone())));
-                    }
-                });
-            }
-
-            ui.add_space(SPACE_M);
-
-            // ── Scene List ──
-            layout::card(ui, |ui| {
-                layout::section_header(ui, egui_phosphor::regular::FILM_STRIP, "All Scenes", Some(composition.declaration_order.len()));
-                for scene_name in &composition.declaration_order {
-                    let is_active = scene_name == active_scene;
-                    let response = ui.interact(
-                        egui::Rect::from_min_size(ui.cursor().min, Vec2::new(ui.available_width(), ROW_M)),
-                        ui.id().with(format!("scene_list_{}", scene_name)),
-                        egui::Sense::click(),
-                    );
-                    let bg = if is_active {
-                        accent_selection()
-                    } else if response.hovered() {
-                        BG_HOVER
-                    } else {
-                        Color32::TRANSPARENT
-                    };
-                    if bg != Color32::TRANSPARENT {
-                        ui.painter().rect_filled(response.rect, RADIUS_S, bg);
-                    }
-                    ui.painter().text(
-                        Pos2::new(response.rect.min.x + SPACE_S, response.rect.center().y),
-                        egui::Align2::LEFT_CENTER,
-                        scene_name,
-                        egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-                        if is_active { ACCENT_BLUE } else { TEXT_SECONDARY },
-                    );
-                    if response.clicked() && !is_active {
-                        commands.push_back(ShellAction::Command(Command::SelectScene(scene_name.clone())));
-                    }
-                    ui.allocate_rect(response.rect, egui::Sense::hover());
+                // Click to jump to target scene
+                if ui
+                    .button(
+                        RichText::new(format!(
+                            "{} Go to {}",
+                            egui_phosphor::regular::ARROW_RIGHT,
+                            edge.to_scene
+                        ))
+                        .size(FONT_SIZE_S)
+                        .color(ACCENT_BLUE),
+                    )
+                    .clicked()
+                {
+                    commands.push_back(ShellAction::Command(Command::SelectScene(
+                        edge.to_scene.clone(),
+                    )));
                 }
             });
+        }
+
+        ui.add_space(SPACE_M);
+
+        // ── Scene List ──
+        layout::card(ui, |ui| {
+            layout::section_header(
+                ui,
+                egui_phosphor::regular::FILM_STRIP,
+                "All Scenes",
+                Some(composition.declaration_order.len()),
+            );
+            for scene_name in &composition.declaration_order {
+                let is_active = scene_name == active_scene;
+                let response = ui.interact(
+                    egui::Rect::from_min_size(
+                        ui.cursor().min,
+                        Vec2::new(ui.available_width(), ROW_M),
+                    ),
+                    ui.id().with(format!("scene_list_{}", scene_name)),
+                    egui::Sense::click(),
+                );
+                let bg = if is_active {
+                    accent_selection()
+                } else if response.hovered() {
+                    BG_HOVER
+                } else {
+                    Color32::TRANSPARENT
+                };
+                if bg != Color32::TRANSPARENT {
+                    ui.painter().rect_filled(response.rect, RADIUS_S, bg);
+                }
+                ui.painter().text(
+                    Pos2::new(response.rect.min.x + SPACE_S, response.rect.center().y),
+                    egui::Align2::LEFT_CENTER,
+                    scene_name,
+                    egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                    if is_active {
+                        ACCENT_BLUE
+                    } else {
+                        TEXT_SECONDARY
+                    },
+                );
+                if response.clicked() && !is_active {
+                    commands
+                        .push_back(ShellAction::Command(Command::SelectScene(scene_name.clone())));
+                }
+                ui.allocate_rect(response.rect, egui::Sense::hover());
+            }
         });
+    });
 }
 
 // ─── Internal Entry Point ─────────────────────────────────────────────────
@@ -407,9 +470,7 @@ pub(super) fn inspector_ui(
             ui.add_space(SPACE_M);
             ui.add(
                 egui::Label::new(
-                    RichText::new("No actors in scene")
-                        .size(FONT_SIZE_L)
-                        .color(TEXT_SECONDARY),
+                    RichText::new("No actors in scene").size(FONT_SIZE_L).color(TEXT_SECONDARY),
                 )
                 .selectable(false),
             );
@@ -466,248 +527,235 @@ pub(super) fn inspector_ui(
 
         let multi_count = selected_actors.len();
 
-        ScrollArea::vertical()
-            .auto_shrink([false; 2])
-            .show(ui, |ui| {
-                if multi_count > 1 {
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            RichText::new(format!("{} actors selected", multi_count))
-                                .size(FONT_SIZE_M)
-                                .color(TEXT_SECONDARY),
-                        );
-                    });
-                    ui.add_space(SPACE_S);
-                }
-                render_actor_header(ui, track, current_time_s, commands);
-                ui.add_space(SPACE_M);
-
-                // ── Parent ──
-                render_parent_card(ui, timeline, sel, commands);
-                ui.add_space(SPACE_M);
-
-                // ── Active Properties ──
-                layout::card(ui, |ui| {
-                    let mut view_mode = *property_view_mode;
-
-                    layout::section_header(
-                        ui,
-                        egui_phosphor::regular::WRENCH,
-                        "Properties",
-                        None,
+        ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
+            if multi_count > 1 {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new(format!("{} actors selected", multi_count))
+                            .size(FONT_SIZE_M)
+                            .color(TEXT_SECONDARY),
                     );
-
-                    // View-mode toggle button overlaid on the sticky header row
-                    {
-                        let clip = ui.clip_rect();
-                        let row_top = clip.min.y + SPACE_S + 2.0 + SPACE_S; // matches header row y
-                        let (label, tooltip) = match view_mode {
-                            PropertyViewMode::Semantic => (format!("{} Semantic", egui_phosphor::regular::ROWS), "Switch to spreadsheet view"),
-                            PropertyViewMode::Intensity => (format!("{} Stream", egui_phosphor::regular::FIRE), "Switch to semantic view"),
-                            PropertyViewMode::Spreadsheet => (format!("{} Spreadsheet", egui_phosphor::regular::TABLE), "Switch to stream view"),
-                        };
-                        let btn_width = 130.0;
-                        let btn_rect = egui::Rect::from_min_size(
-                            egui::pos2(clip.max.x - SPACE_S - btn_width, row_top),
-                            egui::Vec2::new(btn_width, ROW_S),
-                        );
-                        let mut btn_ui = ui.new_child(
-                            egui::UiBuilder::new()
-                                .max_rect(btn_rect)
-                                .layout(egui::Layout::right_to_left(egui::Align::Center)),
-                        );
-                        if btn_ui
-                            .button(RichText::new(&label).size(FONT_SIZE_XS).color(TEXT_SECONDARY))
-                            .on_hover_text(tooltip)
-                            .clicked()
-                        {
-                            view_mode = match view_mode {
-                                PropertyViewMode::Semantic => PropertyViewMode::Spreadsheet,
-                                PropertyViewMode::Spreadsheet => PropertyViewMode::Intensity,
-                                PropertyViewMode::Intensity => PropertyViewMode::Semantic,
-                            };
-                            *property_view_mode = view_mode;
-                        }
-                    }
-
-                    let current_time_ms = (current_time_s * 1000.0) as u64;
-                    let groups = build_property_groups(track, current_time_ms);
-                    if groups.is_empty() {
-                        ui.vertical_centered(|ui| {
-                            ui.add_space(SPACE_M);
-                            ui.add(
-                                egui::Label::new(
-                                    RichText::new("No editable properties")
-                                        .size(FONT_SIZE_M)
-                                        .color(TEXT_MUTED),
-                                )
-                                .selectable(false),
-                            );
-                        });
-                    } else {
-                        match view_mode {
-                            PropertyViewMode::Semantic => {
-                                for group in &groups {
-                                    render_property_group(
-                                        ui,
-                                        group,
-                                        &track.label,
-                                        commands,
-                                        keyframe_mode,
-                                        current_time_s,
-                                    );
-                                }
-                            }
-                            PropertyViewMode::Intensity => {
-                                render_property_stream(ui, &groups, &track.label, commands, keyframe_mode, current_time_s, &mut view_mode);
-                            }
-                            PropertyViewMode::Spreadsheet => {
-                                // Drop out of the card context for spreadsheet view
-                                // (spreadsheet renders its own full-width layout)
-                            }
-                        }
-                        // Persist any view-mode change made by the stream click handler
-                        *property_view_mode = view_mode;
-                    }
                 });
+                ui.add_space(SPACE_S);
+            }
+            render_actor_header(ui, track, current_time_s, commands);
+            ui.add_space(SPACE_M);
 
-                ui.add_space(SPACE_M);
+            // ── Parent ──
+            render_parent_card(ui, timeline, sel, commands);
+            ui.add_space(SPACE_M);
 
-                // ── Pivot ──
-                if multi_count == 1 {
-                    layout::card(ui, |ui| {
-                        layout::section_header(
-                            ui,
-                            egui_phosphor::regular::CROSSHAIR,
-                            "Pivot",
-                            None,
-                        );
-                        let pivot = pivot_offsets.entry(sel.clone()).or_insert([0.0, 0.0]);
-                        layout::labeled_row(ui, "X", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                            ui.add(egui::DragValue::new(&mut pivot[0]).speed(1.0).suffix(" px"));
-                        });
-                        layout::labeled_row(ui, "Y", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                            ui.add(egui::DragValue::new(&mut pivot[1]).speed(1.0).suffix(" px"));
-                        });
-                        if ui.button(RichText::new("Reset").size(FONT_SIZE_S).color(TEXT_MUTED))
-                            .on_hover_text("Reset pivot to center")
-                            .clicked()
-                        {
-                            *pivot = [0.0, 0.0];
-                        }
-                    });
-                    ui.add_space(SPACE_M);
-                }
+            // ── Active Properties ──
+            layout::card(ui, |ui| {
+                let mut view_mode = *property_view_mode;
 
-                // ── Container Children ──
-                if timeline.container_metadata().contains_key(sel) {
-                    layout::card(ui, |ui| {
-                        layout::section_header(
-                            ui,
-                            egui_phosphor::regular::ROWS,
-                            "Children",
-                            Some(timeline.layout_children_for(sel).len()),
-                        );
-                        let time_ms = (current_time_s * 1000.0) as u64;
-                        let order = timeline.get_child_order(sel, time_ms);
-                        render_container_children(ui, sel, &order, commands, keyframe_mode);
-                    });
-                    ui.add_space(SPACE_M);
-                }
+                layout::section_header(ui, egui_phosphor::regular::WRENCH, "Properties", None);
 
-                // ── Mini Timeline ──
-                layout::card(ui, |ui| {
-                    layout::section_header(
-                        ui,
-                        egui_phosphor::regular::CLOCK,
-                        "Timeline",
-                        None,
+                // View-mode segmented control
+                {
+                    let clip = ui.clip_rect();
+                    let row_top = clip.min.y + SPACE_S + 2.0 + SPACE_S;
+                    let seg_count = 3;
+                    let seg_width = 80.0;
+                    let total_w = seg_count as f32 * seg_width;
+                    let seg_rect = egui::Rect::from_min_size(
+                        egui::pos2(clip.max.x - SPACE_S - total_w, row_top),
+                        egui::Vec2::new(total_w, ROW_S),
                     );
-                    let duration_s = timeline.duration_seconds().max(0.1);
-                    let all_kf = collect_all_keyframe_times(track);
-                    let strip = timeline::TimelineStrip {
-                        duration_s,
-                        current_time_s,
-                        keyframes: &all_kf,
-                        height: ROW_XS,
-                    };
-                    if let Some(scrub_t) = strip.show(ui) {
-                        commands.push_back(ShellAction::Command(Command::ScrubTo(scrub_t)));
-                    }
-                });
-
-                ui.add_space(SPACE_M);
-
-                // ── Keyframes ──
-                let kf_count = count_keyframes(track);
-                layout::card(ui, |ui| {
-                    let mut kf_view = *keyframe_view_mode;
-
-                    layout::section_header(
-                        ui,
-                        egui_phosphor::regular::KEY,
-                        "Keyframes",
-                        Some(kf_count),
+                    let mut seg_ui = ui.new_child(
+                        egui::UiBuilder::new()
+                            .max_rect(seg_rect)
+                            .layout(egui::Layout::left_to_right(egui::Align::Center)),
                     );
-
-                    // View-mode toggle button overlaid on the sticky header row
-                    {
-                        let clip = ui.clip_rect();
-                        let row_top = clip.min.y + SPACE_S + 2.0 + SPACE_S;
-                        let label = match kf_view {
-                            KeyframeViewMode::List => format!("{} List", egui_phosphor::regular::LIST),
-                            KeyframeViewMode::Curve => format!("{} Curve", egui_phosphor::regular::CHART_LINE_UP),
-                        };
-                        let btn_width = 90.0;
-                        let btn_rect = egui::Rect::from_min_size(
-                            egui::pos2(clip.max.x - SPACE_S - btn_width, row_top),
-                            egui::Vec2::new(btn_width, ROW_S),
-                        );
-                        let mut btn_ui = ui.new_child(
-                            egui::UiBuilder::new()
-                                .max_rect(btn_rect)
-                                .layout(egui::Layout::right_to_left(egui::Align::Center)),
-                        );
-                        let kf_tooltip = match kf_view {
-                            KeyframeViewMode::List => "Switch to curve view",
-                            KeyframeViewMode::Curve => "Switch to list view",
-                        };
-                        if btn_ui
-                            .button(RichText::new(&label).size(FONT_SIZE_XS).color(TEXT_SECONDARY))
-                            .on_hover_text(kf_tooltip)
-                            .clicked()
-                        {
-                            kf_view = match kf_view {
-                                KeyframeViewMode::List => KeyframeViewMode::Curve,
-                                KeyframeViewMode::Curve => KeyframeViewMode::List,
-                            };
-                            *keyframe_view_mode = kf_view;
+                    let modes = [
+                        (PropertyViewMode::Semantic, egui_phosphor::regular::ROWS, "Semantic"),
+                        (PropertyViewMode::Spreadsheet, egui_phosphor::regular::TABLE, "Sheet"),
+                        (PropertyViewMode::Intensity, egui_phosphor::regular::FIRE, "Stream"),
+                    ];
+                    for (i, (mode, icon, label)) in modes.iter().enumerate() {
+                        let is_active = *mode == view_mode;
+                        let resp =
+                            seg_ui.selectable_label(is_active, format!("{} {}", icon, label));
+                        if resp.clicked() && !is_active {
+                            *property_view_mode = *mode;
+                            break;
                         }
                     }
+                }
 
-                    match kf_view {
-                        KeyframeViewMode::List => {
-                            render_dope_sheet(
+                let current_time_ms = (current_time_s * 1000.0) as u64;
+                let groups = build_property_groups(track, current_time_ms);
+                if groups.is_empty() {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(SPACE_M);
+                        ui.add(
+                            egui::Label::new(
+                                RichText::new("No editable properties")
+                                    .size(FONT_SIZE_M)
+                                    .color(TEXT_MUTED),
+                            )
+                            .selectable(false),
+                        );
+                    });
+                } else {
+                    match view_mode {
+                        PropertyViewMode::Semantic => {
+                            for group in &groups {
+                                render_property_group(
+                                    ui,
+                                    group,
+                                    &track.label,
+                                    commands,
+                                    keyframe_mode,
+                                    current_time_s,
+                                );
+                            }
+                        },
+                        PropertyViewMode::Intensity => {
+                            render_property_stream(
                                 ui,
-                                timeline,
-                                track,
-                                (current_time_s * 1000.0) as u64,
-                                sel,
+                                &groups,
+                                &track.label,
                                 commands,
-                            );
-                        }
-                        KeyframeViewMode::Curve => {
-                            graph_editor::render_multi_fcurve(
-                                ui,
-                                track,
-                                timeline.duration_seconds(),
+                                keyframe_mode,
                                 current_time_s,
-                                commands,
+                                &mut view_mode,
                             );
-                        }
+                        },
+                        PropertyViewMode::Spreadsheet => {
+                            // Drop out of the card context for spreadsheet view
+                            // (spreadsheet renders its own full-width layout)
+                        },
+                    }
+                    // Persist any view-mode change made by the stream click handler
+                    *property_view_mode = view_mode;
+                }
+            });
+
+            ui.add_space(SPACE_M);
+
+            // ── Pivot ──
+            if multi_count == 1 {
+                layout::card(ui, |ui| {
+                    layout::section_header(ui, egui_phosphor::regular::CROSSHAIR, "Pivot", None);
+                    let pivot = pivot_offsets.entry(sel.clone()).or_insert([0.0, 0.0]);
+                    layout::labeled_row(ui, "X", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                        ui.add(egui::DragValue::new(&mut pivot[0]).speed(1.0).suffix(" px"));
+                    });
+                    layout::labeled_row(ui, "Y", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                        ui.add(egui::DragValue::new(&mut pivot[1]).speed(1.0).suffix(" px"));
+                    });
+                    if ui
+                        .button(RichText::new("Reset").size(FONT_SIZE_S).color(TEXT_MUTED))
+                        .on_hover_text("Reset pivot to center")
+                        .clicked()
+                    {
+                        *pivot = [0.0, 0.0];
                     }
                 });
+                ui.add_space(SPACE_M);
+            }
+
+            // ── Container Children ──
+            if timeline.container_metadata().contains_key(sel) {
+                layout::card(ui, |ui| {
+                    layout::section_header(
+                        ui,
+                        egui_phosphor::regular::ROWS,
+                        "Children",
+                        Some(timeline.layout_children_for(sel).len()),
+                    );
+                    let time_ms = (current_time_s * 1000.0) as u64;
+                    let order = timeline.get_child_order(sel, time_ms);
+                    render_container_children(ui, sel, &order, commands, keyframe_mode);
+                });
+                ui.add_space(SPACE_M);
+            }
+
+            // ── Mini Timeline ──
+            layout::card(ui, |ui| {
+                layout::section_header(ui, egui_phosphor::regular::CLOCK, "Timeline", None);
+                let duration_s = timeline.duration_seconds().max(0.1);
+                let all_kf = collect_all_keyframe_times(track);
+                let strip = timeline::TimelineStrip {
+                    duration_s,
+                    current_time_s,
+                    keyframes: &all_kf,
+                    height: ROW_XS,
+                };
+                if let Some(scrub_t) = strip.show(ui) {
+                    commands.push_back(ShellAction::Command(Command::ScrubTo(scrub_t)));
+                }
             });
+
+            ui.add_space(SPACE_M);
+
+            // ── Keyframes ──
+            let kf_count = count_keyframes(track);
+            layout::card(ui, |ui| {
+                let mut kf_view = *keyframe_view_mode;
+
+                layout::section_header(
+                    ui,
+                    egui_phosphor::regular::KEY,
+                    "Keyframes",
+                    Some(kf_count),
+                );
+
+                // View-mode segmented control
+                {
+                    let clip = ui.clip_rect();
+                    let row_top = clip.min.y + SPACE_S + 2.0 + SPACE_S;
+                    let seg_count = 2;
+                    let seg_width = 80.0;
+                    let total_w = seg_count as f32 * seg_width;
+                    let seg_rect = egui::Rect::from_min_size(
+                        egui::pos2(clip.max.x - SPACE_S - total_w, row_top),
+                        egui::Vec2::new(total_w, ROW_S),
+                    );
+                    let mut seg_ui = ui.new_child(
+                        egui::UiBuilder::new()
+                            .max_rect(seg_rect)
+                            .layout(egui::Layout::left_to_right(egui::Align::Center)),
+                    );
+                    let modes = [
+                        (KeyframeViewMode::List, egui_phosphor::regular::LIST, "List"),
+                        (KeyframeViewMode::Curve, egui_phosphor::regular::CHART_LINE_UP, "Curve"),
+                    ];
+                    for (i, (mode, icon, label)) in modes.iter().enumerate() {
+                        let is_active = *mode == kf_view;
+                        let resp =
+                            seg_ui.selectable_label(is_active, format!("{} {}", icon, label));
+                        if resp.clicked() && !is_active {
+                            *keyframe_view_mode = *mode;
+                            break;
+                        }
+                    }
+                }
+
+                match kf_view {
+                    KeyframeViewMode::List => {
+                        render_dope_sheet(
+                            ui,
+                            timeline,
+                            track,
+                            (current_time_s * 1000.0) as u64,
+                            sel,
+                            commands,
+                        );
+                    },
+                    KeyframeViewMode::Curve => {
+                        graph_editor::render_multi_fcurve(
+                            ui,
+                            track,
+                            timeline.duration_seconds(),
+                            current_time_s,
+                            commands,
+                        );
+                    },
+                }
+            });
+        });
     } else {
         layout::empty_state(
             ui,
@@ -799,7 +847,8 @@ fn render_property_stream(
 
         // Keyframe count badge (right)
         if entry.keyframe_count > 0 {
-            let count_text = format!("{} {}", egui_phosphor::regular::DIAMOND, entry.keyframe_count);
+            let count_text =
+                format!("{} {}", egui_phosphor::regular::DIAMOND, entry.keyframe_count);
             ui.painter().text(
                 egui::pos2(row_rect.max.x - SPACE_S, baseline_y),
                 egui::Align2::RIGHT_CENTER,
@@ -848,19 +897,15 @@ fn render_actor_header(
     let (row_rect, _) = ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
 
     // ── Left side: icon + name ──
-    let left_rect = egui::Rect::from_min_max(
-        row_rect.min,
-        egui::pos2(row_rect.center().x, row_rect.max.y),
-    );
+    let left_rect =
+        egui::Rect::from_min_max(row_rect.min, egui::pos2(row_rect.center().x, row_rect.max.y));
     ui.scope_builder(egui::UiBuilder::new().max_rect(left_rect), |ui| {
         ui.with_layout(
             egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
             |ui| {
                 ui.add(
                     egui::Label::new(
-                        RichText::new(actor_icon_str(track.kind))
-                            .size(FONT_SIZE_XL)
-                            .color(AMBER),
+                        RichText::new(actor_icon_str(track.kind)).size(FONT_SIZE_XL).color(AMBER),
                     )
                     .selectable(false),
                 );
@@ -869,9 +914,9 @@ fn render_actor_header(
                 // Actor label (click to rename)
                 let edit_id = ui.id().with("actor_name_edit");
                 let is_editing: bool = ui.data(|d| d.get_temp(edit_id)).unwrap_or(false);
-                let mut edit_buffer: String =
-                    ui.data(|d| d.get_temp(edit_id.with("buf")))
-                        .unwrap_or_else(|| track.label.clone());
+                let mut edit_buffer: String = ui
+                    .data(|d| d.get_temp(edit_id.with("buf")))
+                    .unwrap_or_else(|| track.label.clone());
 
                 if is_editing {
                     let response = ui.add(
@@ -898,14 +943,12 @@ fn render_actor_header(
                 } else {
                     let label_response = ui.add(
                         egui::Label::new(
-                            RichText::new(&track.label)
-                                .size(FONT_SIZE_XL)
-                                .color(TEXT_PRIMARY),
+                            RichText::new(&track.label).size(FONT_SIZE_XL).color(TEXT_PRIMARY),
                         )
                         .selectable(false)
                         .sense(egui::Sense::click()),
                     );
-                    if label_response.clicked() {
+                    if label_response.double_clicked() {
                         ui.data_mut(|d| {
                             d.insert_temp(edit_id, true);
                             d.insert_temp(edit_id.with("buf"), track.label.clone());
@@ -917,10 +960,8 @@ fn render_actor_header(
     });
 
     // ── Right side: shape type + first seen time ──
-    let right_rect = egui::Rect::from_min_max(
-        egui::pos2(row_rect.center().x, row_rect.min.y),
-        row_rect.max,
-    );
+    let right_rect =
+        egui::Rect::from_min_max(egui::pos2(row_rect.center().x, row_rect.min.y), row_rect.max);
     ui.scope_builder(egui::UiBuilder::new().max_rect(right_rect), |ui| {
         ui.with_layout(
             egui::Layout::right_to_left(egui::Align::Center).with_main_wrap(false),
@@ -944,9 +985,7 @@ fn render_actor_header(
                     let shape = shape_pt.evaluate(current_time_ms);
                     ui.add(
                         egui::Label::new(
-                            RichText::new(shape.to_string())
-                                .size(FONT_SIZE_S)
-                                .color(TEXT_MUTED),
+                            RichText::new(shape.to_string()).size(FONT_SIZE_S).color(TEXT_MUTED),
                         )
                         .selectable(false),
                     );
@@ -955,8 +994,6 @@ fn render_actor_header(
         );
     });
 }
-
-
 
 // ─── Parent Card ──────────────────────────────────────────────────────────
 
@@ -969,7 +1006,9 @@ fn render_parent_card(
     use crate::app::components::layout;
 
     // Find current parent
-    let current_parent = timeline.tracks().iter()
+    let current_parent = timeline
+        .tracks()
+        .iter()
         .find(|(_, track)| track.children.iter().any(|c| c == actor))
         .map(|(label, _)| label.clone());
 
@@ -977,10 +1016,8 @@ fn render_parent_card(
         layout::section_header(ui, egui_phosphor::regular::TREE_STRUCTURE, "Hierarchy", None);
 
         layout::labeled_row(ui, "Parent", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-            let all_labels: Vec<String> = timeline.tracks().keys()
-                .filter(|&label| label != actor)
-                .cloned()
-                .collect();
+            let all_labels: Vec<String> =
+                timeline.tracks().keys().filter(|&label| label != actor).cloned().collect();
 
             let current_display = current_parent.as_deref().unwrap_or("None (root)");
             egui::ComboBox::from_id_salt(ui.id().with("parent_dropdown"))
@@ -988,12 +1025,13 @@ fn render_parent_card(
                 .width(ui.available_width())
                 .show_ui(ui, |ui| {
                     if ui.selectable_label(current_parent.is_none(), "None (root)").clicked()
-                        && current_parent.is_some() {
-                            commands.push_back(ShellAction::Command(Command::ReparentActor {
-                                actor: actor.to_string(),
-                                new_parent: None,
-                            }));
-                        }
+                        && current_parent.is_some()
+                    {
+                        commands.push_back(ShellAction::Command(Command::ReparentActor {
+                            actor: actor.to_string(),
+                            new_parent: None,
+                        }));
+                    }
                     for label in &all_labels {
                         let is_selected = current_parent.as_deref() == Some(label.as_str());
                         if ui.selectable_label(is_selected, label).clicked() && !is_selected {
@@ -1021,7 +1059,8 @@ fn render_container_children(
     for (i, label) in order.iter().enumerate() {
         let row_id = ui.id().with(format!("child_{}", i));
         let available = ui.available_width();
-        let (row_rect, _) = ui.allocate_exact_size(Vec2::new(available, ROW_M), egui::Sense::hover());
+        let (row_rect, _) =
+            ui.allocate_exact_size(Vec2::new(available, ROW_M), egui::Sense::hover());
 
         // Background
         let bg = if ui.rect_contains_pointer(row_rect) {
@@ -1064,7 +1103,8 @@ fn render_container_children(
 
         // Down button
         let down_rect = egui::Rect::from_min_size(egui::pos2(btn_x, btn_y), btn_size);
-        let down_resp = ui.interact(down_rect, row_id.with("down"), egui::Sense::click())
+        let down_resp = ui
+            .interact(down_rect, row_id.with("down"), egui::Sense::click())
             .on_hover_text("Move down");
         let down_color = if i + 1 >= order.len() {
             TEXT_DISABLED
@@ -1084,7 +1124,8 @@ fn render_container_children(
 
         // Up button
         let up_rect = egui::Rect::from_min_size(egui::pos2(btn_x, btn_y), btn_size);
-        let up_resp = ui.interact(up_rect, row_id.with("up"), egui::Sense::click())
+        let up_resp = ui
+            .interact(up_rect, row_id.with("up"), egui::Sense::click())
             .on_hover_text("Move up");
         let up_color = if i == 0 {
             TEXT_DISABLED
@@ -1105,7 +1146,8 @@ fn render_container_children(
         if up_resp.clicked() && i > 0 {
             let mut new_order = order.to_vec();
             new_order.swap(i, i - 1);
-            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
+            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+                time_s: None,
                 actor: container.to_string(),
                 property: "child_order".into(),
                 value: GuiPropertyValue::StringList(new_order),
@@ -1115,7 +1157,8 @@ fn render_container_children(
         if down_resp.clicked() && i + 1 < order.len() {
             let mut new_order = order.to_vec();
             new_order.swap(i, i + 1);
-            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
+            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+                time_s: None,
                 actor: container.to_string(),
                 property: "child_order".into(),
                 value: GuiPropertyValue::StringList(new_order),
@@ -1140,13 +1183,13 @@ fn format_property_value(kind: &PropertyKind) -> String {
             } else {
                 format!("#{:02x}{:02x}{:02x}{:02x}", r, g, b, (rgba[3] * 255.0) as u8)
             }
-        }
+        },
         PropertyKind::Text(s) => {
             if s.len() > 16 {
                 format!("{}…", &s[..15])
             } else {
                 s.clone()
             }
-        }
+        },
     }
 }

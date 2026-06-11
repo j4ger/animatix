@@ -550,7 +550,7 @@ impl GuiShell {
         let diagnostics = self.document_store.combined_diagnostics();
 
         // Diagnostics panel (collapsible)
-        if self.ui_store.view.diagnostics_panel_visible && !diagnostics.is_empty() {
+        if self.ui_store.view.diagnostics_panel_visible {
             egui::Panel::bottom("diagnostics_panel")
                 .resizable(true)
                 .default_size(180.0)
@@ -558,7 +558,14 @@ impl GuiShell {
                 .max_size(400.0)
                 .show_inside(ui, |ui| {
                     ui.set_width(ui.available_width());
-                    if let Some(target) =
+                    if diagnostics.is_empty() {
+                        ui.vertical_centered(|ui| {
+                            ui.add_space(SPACE_L);
+                            ui.label(egui::RichText::new("No diagnostics — all clear ✓")
+                                .size(FONT_SIZE_S)
+                                .color(TEXT_MUTED));
+                        });
+                    } else if let Some(target) =
                         components::diagnostics::diagnostics_list(
                             ui,
                             &diagnostics,

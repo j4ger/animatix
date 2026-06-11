@@ -4,7 +4,9 @@
 //! [`PreviewOverlay`] which lives in [`PreviewPaneState`](crate::app::PreviewPaneState).
 
 use animatix::timeline::SceneDimensions;
+use crate::app::design_tokens::*;
 use crate::app::preview::performance::PerformanceMetrics;
+use egui::Color32;
 
 /// Toggle-able overlays for the preview canvas.
 #[derive(Debug, Clone)]
@@ -57,10 +59,10 @@ pub fn render_performance_hud(
     );
 
     // Background
-    painter.rect_filled(hud_rect, 6.0, egui::Color32::from_black_alpha(180));
-    painter.rect_stroke(hud_rect, 6.0, egui::Stroke::new(1.0, egui::Color32::from_gray(80)), egui::StrokeKind::Outside);
+    painter.rect_filled(hud_rect, 6.0, BG_BASE.linear_multiply(0.9));
+    painter.rect_stroke(hud_rect, 6.0, egui::Stroke::new(1.0, BORDER), egui::StrokeKind::Outside);
 
-    let text_color = egui::Color32::from_gray(200);
+    let text_color = TEXT_PRIMARY;
     let font = egui::FontId::monospace(11.0);
     let label_w = 90.0;
     let x = hud_rect.left() + 8.0;
@@ -73,7 +75,7 @@ pub fn render_performance_hud(
             egui::Align2::LEFT_TOP,
             label,
             font.clone(),
-            egui::Color32::from_gray(140),
+            TEXT_MUTED,
         );
         painter.text(
             egui::Pos2::new(x + label_w, y),
@@ -95,7 +97,7 @@ pub fn render_performance_hud(
     y += line_h;
     draw_row(painter, y, "Preview", 
         if metrics.is_stale { "STALE" } else { "FRESH" },
-        if metrics.is_stale { egui::Color32::from_rgb(255, 200, 50) } else { egui::Color32::from_rgb(100, 220, 100) });
+        if metrics.is_stale { AMBER } else { GREEN });
     y += line_h;
 
     // Draw a mini FPS sparkline (last 30 frames)
@@ -121,7 +123,7 @@ pub fn render_performance_hud(
         }).collect();
 
         if points.len() >= 2 {
-            painter.add(egui::Shape::line(points, egui::Stroke::new(1.5, egui::Color32::from_rgb(80, 200, 120))));
+            painter.add(egui::Shape::line(points, egui::Stroke::new(1.5, GREEN)));
         }
     }
 }
@@ -149,11 +151,11 @@ pub fn render_layout_debug(
     );
 
     // Container color (blue-ish)
-    let container_color = egui::Color32::from_rgb(80, 200, 255);
+    let container_color = ACCENT_BLUE;
     // Child slot color (amber)
-    let slot_color = egui::Color32::from_rgba_premultiplied(255, 200, 80, 150);
+    let slot_color = Color32::from_rgba_premultiplied(AMBER.r(), AMBER.g(), AMBER.b(), 150);
     // Size label color
-    let size_color = egui::Color32::from_rgb(255, 200, 80);
+    let size_color = AMBER;
     // Spacing region color (semi-transparent red)
     let spacing_color = egui::Color32::from_rgba_premultiplied(200, 80, 80, 60);
 

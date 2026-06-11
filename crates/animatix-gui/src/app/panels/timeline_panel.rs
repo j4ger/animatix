@@ -536,7 +536,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                         ui.add_space(SPACE_S);
 
                         // Go to start
-                        if toolbar_action_button(ui, egui_phosphor::regular::SKIP_BACK, None, "Go to start (Home)", false).clicked() {
+                        if toolbar_action_button(ui, egui_phosphor::regular::SKIP_BACK, None, "Go to start", false).clicked() {
                             commands.push_back(ShellAction::Command(Command::ScrubTo(0.0)));
                         }
 
@@ -566,7 +566,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                         }
 
                         // Go to end
-                        if toolbar_action_button(ui, egui_phosphor::regular::SKIP_FORWARD, None, "Go to end (End)", false).clicked() {
+                        if toolbar_action_button(ui, egui_phosphor::regular::SKIP_FORWARD, None, "Go to end", false).clicked() {
                             commands.push_back(ShellAction::Command(Command::ScrubTo(preview.playback.duration_s)));
                         }
 
@@ -989,12 +989,16 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                         selected_actors.clear();
                         selected_actors.insert(actor_label.clone());
                     }
-                    // Auto-scroll to bring the selected track into view
-                    let track_rect = Rect::from_min_max(
-                        Pos2::new(scroll_rect.left(), at_top),
-                        Pos2::new(scroll_rect.right(), at_bot),
-                    );
-                    ui.scroll_to_rect(track_rect, Some(egui::Align::Center));
+                    // Only scroll if the clicked row is not fully visible
+                    let viewport = ui.clip_rect();
+                    let row_visible = at_top >= viewport.top() && at_bot <= viewport.bottom();
+                    if !row_visible {
+                        let track_rect = Rect::from_min_max(
+                            Pos2::new(scroll_rect.left(), at_top),
+                            Pos2::new(scroll_rect.right(), at_bot),
+                        );
+                        ui.scroll_to_rect(track_rect, Some(egui::Align::Center));
+                    }
                 }
 
                 // Action blocks
@@ -1125,7 +1129,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             let ds = if is_flashed { KF_DIAMOND_HALF * 2.0 } else if is_drag { KF_DIAMOND_HALF * 1.5 } else { KF_DIAMOND_HALF };
                             let kc = if is_flashed { Color32::from_rgb(255, 200, 50) } else if is_ms { ACCENT_BLUE } else if is_act { TEXT_PRIMARY } else { AMBER };
                             let cy = bar_area.center().y;
-                            let dr = Rect::from_center_size(Pos2::new(kf_x, cy), Vec2::new((ds * 3.0).max(16.0), (ds * 3.0).max(16.0)));
+                            let hit_size = (ds * 2.5).max(8.0);
+                            let dr = Rect::from_center_size(Pos2::new(kf_x, cy), Vec2::new(hit_size, hit_size));
                             let dresp = ui.interact(dr, ui.id().with(("kf_diamond", track_idx, kf_ms)), Sense::click_and_drag());
                             painter.add(egui::Shape::convex_polygon(
                                 vec![Pos2::new(kf_x, cy - ds), Pos2::new(kf_x + ds, cy), Pos2::new(kf_x, cy + ds), Pos2::new(kf_x - ds, cy)],
@@ -1319,7 +1324,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                     let base_color = group.map(|g| property_group_color(g)).unwrap_or(AMBER);
                                     let kc = if is_flashed { Color32::from_rgb(255, 200, 50) } else if is_act { TEXT_PRIMARY } else { base_color };
                                     let cy = prop_bar_area.center().y;
-                                    let dr = Rect::from_center_size(Pos2::new(kf_x, cy), Vec2::new((ds * 3.0).max(16.0), (ds * 3.0).max(16.0)));
+                                    let hit_size = (ds * 2.5).max(8.0);
+                                    let dr = Rect::from_center_size(Pos2::new(kf_x, cy), Vec2::new(hit_size, hit_size));
                                     let dresp = ui.interact(dr, ui.id().with(("prop_kf_diamond", track_idx, prop_name, kf_ms)), Sense::click_and_drag());
                                     painter.add(egui::Shape::convex_polygon(
                                         vec![Pos2::new(kf_x, cy - ds), Pos2::new(kf_x + ds, cy), Pos2::new(kf_x, cy + ds), Pos2::new(kf_x - ds, cy)],

@@ -142,7 +142,7 @@ impl InsertionPalette {
                 label: name.clone(),
                 detail: if params_display.is_empty() { "Component".into() } else { format!("Component — {}", params_display.join(", ")) },
                 icon: egui_phosphor::regular::CUBE.to_string(),
-                color: Color32::from_rgb(160, 180, 220),
+                color: ACCENT_CYAN,
                 kind: ItemKind::Component {
                     type_name: name.clone(),
                     params: params_info,
@@ -199,23 +199,23 @@ impl InsertionPalette {
 
 fn category_color(category: animatix::timeline::ActorCategory) -> Color32 {
     match category {
-        animatix::timeline::ActorCategory::Shape => Color32::from_rgb(120, 170, 240),
-        animatix::timeline::ActorCategory::Container => Color32::from_rgb(160, 220, 140),
-        animatix::timeline::ActorCategory::Text => Color32::from_rgb(230, 170, 120),
-        animatix::timeline::ActorCategory::Media => Color32::from_rgb(200, 140, 220),
-        animatix::timeline::ActorCategory::Plot => Color32::from_rgb(140, 200, 220),
+        animatix::timeline::ActorCategory::Shape => ACCENT_BLUE,
+        animatix::timeline::ActorCategory::Container => GREEN,
+        animatix::timeline::ActorCategory::Text => AMBER,
+        animatix::timeline::ActorCategory::Media => PURPLE,
+        animatix::timeline::ActorCategory::Plot => ACCENT_CYAN,
     }
 }
 
 fn action_category_color(category: &str) -> Color32 {
     match category {
-        "Entrance" => Color32::from_rgb(100, 200, 100),
-        "Exit" => Color32::from_rgb(220, 100, 100),
-        "Motion" => Color32::from_rgb(100, 160, 220),
-        "Effects" => Color32::from_rgb(220, 180, 80),
-        "Reveal" => Color32::from_rgb(180, 140, 220),
-        "Reorder" => Color32::from_rgb(140, 200, 180),
-        _ => Color32::from_rgb(160, 160, 160),
+        "Entrance" => GREEN,
+        "Exit" => RED,
+        "Motion" => ACCENT_BLUE,
+        "Effects" => AMBER,
+        "Reveal" => PURPLE,
+        "Reorder" => GREEN,
+        _ => TEXT_SECONDARY,
     }
 }
 
