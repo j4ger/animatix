@@ -665,7 +665,7 @@ Core concepts:
 - `DuplicateSceneName` — error on repeated scene names
 - `PlayTargetNotFound` — error when `play` references a missing scene
 - `PlayCycleDetected` — error when play edges form a cycle
-- `MultiplePlayTargets` — warning when a scene has >1 `play` statement (first wins)
+- `MultiplePlayTargets` — error when a scene has >1 `play` statement (first wins)
 - `OrphanScene` — warning when a scene is not the target of any `play` edge
 - `InvalidConfigValue` — warning when a scene config sets a composition-scoped key
 

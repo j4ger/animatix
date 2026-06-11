@@ -31,13 +31,20 @@ pub(crate) fn push_unsupported_stagger_statement_diagnostic(
     diagnostics: &mut Vec<Diagnostic>,
     kind: &str,
 ) {
+    let message = if kind == "actor declaration" {
+        format!(
+            "Stagger blocks do not support actor declarations. Declare actors before the composition block, then reference them inside."
+        )
+    } else {
+        format!(
+            "Stagger blocks support only actions and assignments; '{kind}' is not supported."
+        )
+    };
     diagnostics.push(
         Diagnostic::error(
             DiagnosticCode::UnsupportedStaggerStatement,
             DiagnosticPhase::Build,
-            format!(
-                "Stagger blocks support only actions and assignments; '{kind}' is not supported."
-            ),
+            message,
         )
         .with_subject("stagger"),
     );

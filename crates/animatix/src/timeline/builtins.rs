@@ -130,6 +130,10 @@ pub fn load_standard_library(env: &mut Environment) {
     env.set("PI", Value::Num(std::f64::consts::PI));
     env.set("E", Value::Num(std::f64::consts::E));
     env.set("TAU", Value::Num(std::f64::consts::TAU));
+    env.set("pi", Value::Num(std::f64::consts::PI));
+    env.set("tau", Value::Num(std::f64::consts::TAU));
+    env.set("two_pi", Value::Num(std::f64::consts::TAU));
+    env.set("e", Value::Num(std::f64::consts::E));
 
     register_num1!(env, "sin", f64::sin);
     register_num1!(env, "cos", f64::cos);

@@ -70,10 +70,14 @@ impl Timeline {
                     Diagnostic::error(
                         DiagnosticCode::UnsupportedSequenceStatement,
                         DiagnosticPhase::Build,
-                        format!(
-                            "Sequence blocks support only actions and assignments; '{}' is not supported.",
-                            sequence_stmt_kind(stmt)
-                        ),
+                        match sequence_stmt_kind(stmt) {
+                            "actor declaration" => format!(
+                                "Sequence blocks do not support actor declarations. Declare actors before the composition block, then reference them inside."
+                            ),
+                            kind => format!(
+                                "Sequence blocks support only actions and assignments; '{kind}' is not supported."
+                            ),
+                        },
                     )
                     .with_subject("sequence"),
                 );

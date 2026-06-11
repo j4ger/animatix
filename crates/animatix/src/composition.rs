@@ -566,7 +566,7 @@ impl Composition {
     // ---------------------------------------------------------------------------
 
     /// Extract the first `play` statement from a scene body.
-    /// Emits a warning if multiple `play` statements are found (only the first is used).
+    /// Emits a diagnostic if multiple `play` statements are found (only the first is used).
     fn extract_play_stmt(
         body: &[Stmt],
         scene_name: &str,
@@ -582,7 +582,7 @@ impl Composition {
             {
                 if result.is_some() {
                     diagnostics.push(
-                        Diagnostic::warning(
+                        Diagnostic::error(
                             DiagnosticCode::MultiplePlayTargets,
                             DiagnosticPhase::Build,
                             format!(
@@ -995,7 +995,7 @@ mod tests {
     }
 
     #[test]
-    fn test_multiple_play_targets_warning() {
+    fn test_multiple_play_targets_error() {
         let source = concat!(
             "# Intro\n",
             "#0s\n",
@@ -1017,7 +1017,7 @@ mod tests {
             .diagnostics
             .iter()
             .any(|d| matches!(d.code, DiagnosticCode::MultiplePlayTargets));
-        assert!(has_multi, "Expected MultiplePlayTargets warning");
+        assert!(has_multi, "Expected MultiplePlayTargets error");
         // First play target should still be used
         let comp = &report.output;
         let edge = comp.edges.get("Intro").unwrap();

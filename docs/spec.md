@@ -1032,6 +1032,8 @@ contours: ContourSet, func: (x, y) => x^2 + y^2, levels: (1, 4, 9), resolution: 
 
 **Built-in math:** `sin(x)`, `cos(x)`, `tan(x)`, `sqrt(x)`, `exp(x)`, `ln(x)`, `atan2(y, x)`, `clamp(val, min, max)`, `abs(x)`, `min(a, b)`, `max(a, b)`, `floor(x)`, `ceil(x)`, `lerp(a, b, t)`, `rand()`, `seeded_rand(seed)`, `format("template {}", value, ...)`
 
+**Built-in constants:** `pi` (π), `tau` / `two_pi` (2π), `e` (Euler's number), `PI`, `TAU`, `E` (uppercase aliases).
+
 **Easing helpers (for use in `always` blocks):** `ease_linear(t)`, `ease_in(t)`, `ease_out(t)`, `ease_in_out(t)`, `bounce(t)`, `elastic(t)`, `back(t)`, `expo(t)` — each takes a progress value `t` in `[0, 1]` and returns the eased progress.
 
 ### Typst vs LaTeX Cheat Sheet
