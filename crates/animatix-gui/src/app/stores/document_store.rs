@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::app::commands::Command;
+use crate::app::document::history::UiSnapshot;
 use crate::app::document::snapshot::{DocumentSnapshot, SnapshotStatus};
 use crate::app::document::version::DocumentGeneration;
 use crate::app::stores::{HistoryStore, SourceStore};
@@ -8,6 +9,13 @@ use crate::document::DocumentSession;
 use crate::editor::EditorBuffer;
 use animatix_syntax::diagnostics::Diagnostic;
 use animatix_syntax::diagnostics::diagnostics_phase_summary;
+
+/// Pending undo snapshot state, captured before a mutation.
+struct PendingSnapshot {
+    command: Command,
+    source_before: String,
+    default_ui: UiSnapshot,
+}
 
 /// Facade that combines `SourceStore` (document + editor + caches) and
 /// `HistoryStore` (undo/redo + render diagnostics).
@@ -27,6 +35,9 @@ pub struct DocumentStore {
     pub(crate) current: Option<Arc<DocumentSnapshot>>,
     /// The latest snapshot with a renderable target (for preview fallback).
     pub(crate) last_good: Option<Arc<DocumentSnapshot>>,
+
+    /// Pending undo snapshot (captured before mutation, finalized after).
+    pending_snapshot: Option<PendingSnapshot>,
 }
 
 impl DocumentStore {
@@ -37,6 +48,7 @@ impl DocumentStore {
             generation: DocumentGeneration::initial(),
             current: None,
             last_good: None,
+            pending_snapshot: None,
         }
     }
 
@@ -60,20 +72,28 @@ impl DocumentStore {
         }
     }
 
-    /// Convenience: snapshot current source text for undo/redo.
+    /// Begin an undo snapshot — captures source text before mutation.
+    /// The snapshot is finalized when `commit_source()` or `replace_text()` is called.
     pub fn snapshot(&mut self, command: Command) {
-        let source_before = self.source.document.source_text.clone();
-        let source_after = self.source.document.source_text.clone();
-        let default_ui = crate::app::document::history::UiSnapshot::default_with_tool(
-            crate::app::preview::ToolMode::Move
-        );
-        self.history.snapshot(
+        self.pending_snapshot = Some(PendingSnapshot {
             command,
-            &source_before,
-            &source_after,
-            default_ui.clone(),
-            default_ui,
-        );
+            source_before: self.source.text().to_string(),
+            default_ui: UiSnapshot::default_with_tool(crate::app::preview::ToolMode::Move),
+        });
+    }
+
+    /// Finalize a pending snapshot by capturing source-after and committing to history.
+    fn finalize_snapshot(&mut self) {
+        if let Some(pending) = self.pending_snapshot.take() {
+            let source_after = self.source.text().to_string();
+            self.history.snapshot(
+                pending.command,
+                &pending.source_before,
+                &source_after,
+                pending.default_ui.clone(),
+                pending.default_ui,
+            );
+        }
     }
 
     /// Snapshot with UI state capture for richer undo/redo.
@@ -200,12 +220,14 @@ impl DocumentStore {
     pub fn commit_source(&mut self, new_source: String, source_index: animatix_syntax::source_index::SourceIndex) {
         self.source.commit_source(new_source, source_index);
         self.mark_source_stale(self.source.epoch());
+        self.finalize_snapshot();
     }
     
     /// Replace text through DocumentStore, marking the current snapshot as stale.
     pub fn replace_text(&mut self, text: String) -> crate::app::document::source_change::SourceChange {
         let change = self.source.replace_text(text);
         self.mark_source_stale(change.after_epoch);
+        self.finalize_snapshot();
         change
     }
 

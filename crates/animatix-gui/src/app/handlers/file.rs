@@ -129,6 +129,11 @@ pub fn handle_switch_workspace(
     document_store: &DocumentStore,
     path: PathBuf,
 ) -> Vec<Effect> {
+    if document_store.source.is_dirty() {
+        return vec![Effect::Toast(Toast::warning(
+            "Save changes before switching workspace"
+        ))];
+    }
     if path.exists() && path.is_dir() {
         workspace_store.workspace_root = path.clone();
         workspace_store.expanded_dirs = std::collections::HashSet::from([path.clone()]);

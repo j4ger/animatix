@@ -924,9 +924,20 @@ impl GuiShell {
                                 .fill(ACCENT_BLUE),
                             );
                         if confirm.clicked() {
-                            let path = PathBuf::from(&self.ui_store.workspace_switcher_path);
-                            commands.push_back(ShellAction::Command(Command::SwitchWorkspace(path)));
-                            self.ui_store.view.workspace_switcher_open = false;
+                            // P0.3: warn if there are unsaved changes before switching workspace
+                            if self.document_store.source.is_dirty() {
+                                self.preview_store.preview.status =
+                                    "Save changes before switching workspace".to_string();
+                                self.ui_store.toasts.push(
+                                    crate::app::components::toast::Toast::warning(
+                                        "Save changes before switching workspace"
+                                    )
+                                );
+                            } else {
+                                let path = PathBuf::from(&self.ui_store.workspace_switcher_path);
+                                commands.push_back(ShellAction::Command(Command::SwitchWorkspace(path)));
+                                self.ui_store.view.workspace_switcher_open = false;
+                            }
                         }
 
                         let cancel = ui

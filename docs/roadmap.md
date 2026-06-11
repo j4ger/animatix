@@ -6,11 +6,7 @@
 
 ## P0 — GUI Correctness
 
-| Task | Effort | Notes |
-|------|--------|-------|
-| **Fix whole-composition export** | 2-3d | `export_dialog.rs` routes `ExportTargetOwned::Composition` to `render_video_composition_with_progress` / `render_gif_composition_with_progress` / `render_image_composition` instead of silently falling back to active scene. Fix duration preview scope mismatch. Add scope picker UI (Whole composition / Active scene). |
-| **Make undo/redo epoch-aware** | 1-2d | `handlers/ui.rs` — route text restoration through `SourceStore::replace_text()` (epoch + cache invalidation). Capture real `source_after` / `ui_before` / `ui_after` in `DocumentStore::snapshot()`. Call `UiStore::restore_snapshot()` in `handle_undo` / `handle_redo`. |
-| **Unsaved-change prompts** | 1d | `handlers/file.rs`, `sidebar.rs` — dirty confirmation modal before open/reload/workspace-switch. |
+*(All P0 tasks are complete.)*
 
 ## P1 — GUI Architecture Integration
 

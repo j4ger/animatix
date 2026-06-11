@@ -316,10 +316,8 @@ use crate::app::document::history::UiSnapshot;
 pub struct UndoEntry {
     pub command: Command,
     pub source_before: String,
-    #[allow(dead_code)] // Used by future redo implementation that restores after-state.
     pub source_after: String,
     pub ui_before: UiSnapshot,
-    #[allow(dead_code)] // Used by future redo implementation that restores after-state.
     pub ui_after: UiSnapshot,
 }
 

@@ -87,9 +87,9 @@ pub fn handle_redo(
             ui_after: ui_store.snapshot(),
         });
         // Restore source via SourceStore to update epoch and invalidate caches.
-        document_store.replace_text(entry.source_before.clone());
-        // Restore UI state from the recorded before-snapshot.
-        ui_store.restore_snapshot(entry.ui_before);
+        document_store.replace_text(entry.source_after.clone());
+        // Restore UI state from the recorded after-snapshot.
+        ui_store.restore_snapshot(entry.ui_after);
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(ui_store.rebuild_debounce_ms));
         preview_store.preview.status = "Redo".to_string();

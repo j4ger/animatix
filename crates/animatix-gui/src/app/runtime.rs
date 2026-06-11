@@ -444,6 +444,13 @@ impl eframe::App for AnimatixApp {
     }
 
     fn on_exit(&mut self) {
+        // Warn if there are unsaved changes (we can't show a modal at this point)
+        if self.shell.document_store.source.is_dirty() {
+            tracing::warn!(
+                "Exiting with unsaved changes in {}",
+                self.shell.document_store.source.file_path().display()
+            );
+        }
         self.shell.save_persistence();
         if self.shell.ui_store.view.welcome_open {
             clear_app_state();
