@@ -1,5 +1,6 @@
 
 pub mod labels;
+pub mod text;
 
 use egui::{Color32, Vec2};
 

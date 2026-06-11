@@ -1,6 +1,6 @@
-use crate::app::commands::{ActionQueue, Command, ShellAction, PropertyEdit, PropertyValue};
+use crate::app::commands::{ActionQueue, Command, ShellAction, ViewAction, PropertyEdit, PropertyValue};
 use crate::app::components::button;
-use crate::app::preview::ActorProps;
+use crate::app::preview::{ActorProps, PreviewTransform};
 use crate::app::design_tokens::*;
 use animatix::timeline::{Timeline, SceneDimensions, read_property_value_or_default, PropertyValue as TlPropertyValue};
 use egui::{Color32, Pos2, Rect, RichText, Sense, Stroke, Vec2};
@@ -20,6 +20,8 @@ pub fn show_property_popup(
     current_time_s: f64,
     scene_dimensions: SceneDimensions,
     zoom: f32,
+    preview_rect: egui::Rect,
+    pan: egui::Vec2,
 ) {
     if is_dragging {
         return; // Auto-hide during canvas drag
@@ -102,7 +104,7 @@ pub fn show_property_popup(
         ui.label(RichText::new(actor).size(FONT_SIZE_M).color(TEXT_PRIMARY).strong());
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if button::icon_button(ui, egui_phosphor::regular::X, "Close").clicked() {
-                // Close is implicit — deselect actor (handled by Esc or clicking elsewhere)
+                commands.push_back(ShellAction::View(ViewAction::DeselectActors));
             }
         });
     });
@@ -133,9 +135,9 @@ pub fn show_property_popup(
     rows_ui.set_clip_rect(content_rect);
 
     // Compute scale factor for converting screen delta to scene delta
-    let preview_rect = ui.max_rect();
-    let scale_x = scene_dimensions.width as f32 / preview_rect.width() * zoom;
-    let scale_y = scene_dimensions.height as f32 / preview_rect.height() * zoom;
+    let scale = PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan).scale();
+    let scale_x = scale.0 as f32;
+    let scale_y = scale.1 as f32;
 
     // Position row
     let has_kf_pos = timeline.map(|tl| tl.has_keyframe_at(actor, "position", time_ms)).unwrap_or(false);

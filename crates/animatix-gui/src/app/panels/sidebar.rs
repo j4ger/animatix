@@ -523,7 +523,7 @@ fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
             if drag_active && ui.input(|i| i.pointer.any_released()) {
                 if let Some((from_idx, _dragged_name)) = ui.data(|d| d.get_temp::<(usize, String)>(drag_data_id)) {
                     let to_idx = ui.data(|d| d.get_temp::<usize>(drop_index_id)).unwrap_or(from_idx);
-                    if from_idx != to_idx && to_idx < scene_names.len() {
+                    if from_idx != to_idx && to_idx <= scene_names.len() {
                         let mut new_order = scene_names.clone();
                         let removed = new_order.remove(from_idx);
                         let insert_at = if to_idx > from_idx { to_idx - 1 } else { to_idx };

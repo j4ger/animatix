@@ -257,6 +257,151 @@ fn bar_interaction(
     }
 }
 
+/// Render the playback transport strip: play/pause/stop buttons, speed
+/// dropdown, loop/ping-pong toggle, zoom controls, and timecode display.
+fn render_transport_strip(
+    ui: &mut egui::Ui,
+    scroll_rect: egui::Rect,
+    strip_top: f32,
+    strip_bot: f32,
+    preview: &mut PreviewPaneState,
+    commands: &mut ActionQueue,
+) {
+    let strip_rect = Rect::from_min_size(
+        Pos2::new(scroll_rect.left(), strip_top),
+        Vec2::new(scroll_rect.width(), PLAYBACK_STRIP_HEIGHT),
+    );
+
+    ui.scope_builder(egui::UiBuilder::new().max_rect(strip_rect), |ui| {
+        // Background fill
+        ui.painter().rect_filled(
+            Rect::from_min_max(
+                Pos2::new(scroll_rect.left(), strip_top),
+                Pos2::new(scroll_rect.right(), strip_bot),
+            ),
+            0.0,
+            BG_BASE,
+        );
+
+        ui.horizontal(|ui| {
+            ui.add_space(SPACE_S);
+
+            // Go to start
+            if toolbar_action_button(ui, egui_phosphor::regular::SKIP_BACK, None, "Go to start", false).clicked() {
+                commands.push_back(ShellAction::Command(Command::ScrubTo(0.0)));
+            }
+
+            // Previous keyframe
+            if toolbar_action_button(ui, egui_phosphor::regular::CARET_LEFT, None, "Previous keyframe", false).clicked() {
+                commands.push_back(ShellAction::Command(Command::PrevKeyframe));
+            }
+
+            // Play / Pause
+            if play_pause_button(ui, preview.playback.is_playing).clicked() {
+                commands.push_back(ShellAction::Command(Command::TogglePlayback));
+            }
+
+            // Next keyframe
+            if toolbar_action_button(ui, egui_phosphor::regular::CARET_RIGHT, None, "Next keyframe", false).clicked() {
+                commands.push_back(ShellAction::Command(Command::NextKeyframe));
+            }
+
+            // Frame-step back
+            if toolbar_action_button(ui, "⏪", None, "Step back one frame", false).clicked() {
+                commands.push_back(ShellAction::Command(Command::FrameStepBackward));
+            }
+
+            // Frame-step forward
+            if toolbar_action_button(ui, "⏩", None, "Step forward one frame", false).clicked() {
+                commands.push_back(ShellAction::Command(Command::FrameStepForward));
+            }
+
+            // Go to end
+            if toolbar_action_button(ui, egui_phosphor::regular::SKIP_FORWARD, None, "Go to end", false).clicked() {
+                commands.push_back(ShellAction::Command(Command::ScrubTo(preview.playback.duration_s)));
+            }
+
+            toolbar_separator(ui);
+
+            // Speed dropdown
+            const SPEEDS: [(f32, &str); 4] = [(0.5, "½×"), (1.0, "1×"), (2.0, "2×"), (4.0, "4×")];
+            let si = SPEEDS.iter().position(|(v, _)| (*v - preview.playback.playback_speed).abs() < f32::EPSILON).unwrap_or(1);
+            if toolbar_action_button(ui, SPEEDS[si].1, None, "Playback speed", false).clicked() {
+                preview.playback.playback_speed = SPEEDS[(si + 1) % SPEEDS.len()].0;
+            }
+
+            // Loop toggle
+            let loop_active = preview.playback.loop_start_s.is_some() && preview.playback.loop_end_s.is_some();
+            if toolbar_toggle_button(ui, egui_phosphor::regular::ARROW_COUNTER_CLOCKWISE, None, "Toggle loop playback", loop_active, false).clicked() {
+                if loop_active {
+                    preview.playback.loop_start_s = None;
+                    preview.playback.loop_end_s = None;
+                } else {
+                    preview.playback.loop_start_s = Some(0.0);
+                    preview.playback.loop_end_s = Some(preview.playback.duration_s);
+                }
+            }
+
+            // Ping-pong toggle
+            let ping_pong_active = preview.playback.ping_pong;
+            if toolbar_toggle_button(ui, egui_phosphor::regular::ARROWS_CLOCKWISE, None, "Toggle ping-pong playback (bounce at boundaries)", ping_pong_active, false).clicked() {
+                preview.playback.ping_pong = !preview.playback.ping_pong;
+                if !preview.playback.ping_pong {
+                    preview.playback.ping_pong_direction = 1;
+                }
+            }
+
+            toolbar_separator(ui);
+
+            // Zoom controls
+            let zoom_text = format!("{:.0}%", preview.timeline_zoom * 100.0);
+            if ui.button(egui::RichText::new(zoom_text).monospace().size(FONT_SIZE_S).color(TEXT_SECONDARY))
+                .on_hover_text("Reset zoom")
+                .clicked()
+            {
+                preview.timeline_zoom = 1.0;
+                preview.timeline_scroll_offset = 0.0;
+            }
+            if toolbar_action_button(ui, egui_phosphor::regular::MINUS, None, "Zoom out", false).clicked() {
+                preview.timeline_zoom = (preview.timeline_zoom * 0.8).max(0.25);
+            }
+            if toolbar_action_button(ui, egui_phosphor::regular::PLUS, None, "Zoom in", false).clicked() {
+                preview.timeline_zoom = (preview.timeline_zoom * 1.25).min(8.0);
+            }
+
+            // Time display (right-aligned) — timecode + fps
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let current_tc = preview.playback.timecode_string();
+                let dur = preview.playback.duration_s.max(0.0);
+                let dh = (dur / 3600.0).floor() as u32;
+                let dm = ((dur % 3600.0) / 60.0).floor() as u32;
+                let ds = (dur % 60.0).floor() as u32;
+                let df = ((dur % 1.0) * preview.playback.fps as f64).floor() as u32;
+                let duration_tc = format!("{:02}:{:02}:{:02}:{:02}", dh, dm, ds, df);
+                let fps_val = preview.playback.fps;
+                ui.vertical(|ui| {
+                    ui.add(egui::Label::new(
+                        egui::RichText::new(format!("{} / {}", current_tc, duration_tc))
+                            .font(FontId::monospace(FONT_SIZE_S))
+                            .color(TEXT_PRIMARY),
+                    ).selectable(false));
+                    ui.add(egui::Label::new(
+                        egui::RichText::new(format!("{:.0} fps", fps_val))
+                            .font(FontId::monospace(FONT_SIZE_XS))
+                            .color(TEXT_SECONDARY),
+                    ).selectable(false));
+                });
+            });
+        });
+    });
+
+    // Bottom border
+    let painter = ui.painter();
+    painter.line_segment(
+        [Pos2::new(scroll_rect.left(), strip_bot - 1.0), Pos2::new(scroll_rect.right(), strip_bot - 1.0)],
+        Stroke::new(STROKE_WIDTH, BORDER));
+}
+
 fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
     let TimelineContext {
         preview,
@@ -403,6 +548,15 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         }
     }
 
+    // ── Transport strip (outside ScrollArea, always visible) ──
+    {
+        let outer_rect = ui.available_rect_before_wrap();
+        let strip_top = outer_rect.top();
+        let strip_bot = strip_top + PLAYBACK_STRIP_HEIGHT;
+        render_transport_strip(ui, outer_rect, strip_top, strip_bot, preview, commands);
+    }
+    ui.add_space(PLAYBACK_STRIP_HEIGHT);
+
     // ── All content lives inside the ScrollArea ──
     // ScrollArea handles: scroll offset persistence, wheel/mouse scrolling,
     // clipping, and content culling.
@@ -470,10 +624,6 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
             let mut content_y = scroll_rect.top();
 
             // ── Compute y positions for all sections ──
-            let strip_top = content_y;
-            let strip_bot = strip_top + PLAYBACK_STRIP_HEIGHT;
-            content_y = strip_bot;
-
             let ruler_top = content_y;
             let ruler_bot = ruler_top + RULER_HEIGHT;
             content_y = ruler_bot;
@@ -514,143 +664,6 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 scroll_rect.width(),
                 content_bottom - ui.cursor().min.y,
             ));
-
-            // ── Playback strip (sub-ui, needs mutable borrow before main painter) ──
-            {
-                let strip_rect = Rect::from_min_size(
-                    Pos2::new(scroll_rect.left(), strip_top),
-                    Vec2::new(scroll_rect.width(), PLAYBACK_STRIP_HEIGHT),
-                );
-
-                ui.scope_builder(egui::UiBuilder::new().max_rect(strip_rect), |ui| {
-                    // Background fill
-                    ui.painter().rect_filled(
-                        Rect::from_min_max(
-                            Pos2::new(scroll_rect.left(), strip_top),
-                            Pos2::new(scroll_rect.right(), strip_bot),
-                        ),
-                        0.0,
-                        BG_BASE,
-                    );
-
-                    ui.horizontal(|ui| {
-                        ui.add_space(SPACE_S);
-
-                        // Go to start
-                        if toolbar_action_button(ui, egui_phosphor::regular::SKIP_BACK, None, "Go to start", false).clicked() {
-                            commands.push_back(ShellAction::Command(Command::ScrubTo(0.0)));
-                        }
-
-                        // Previous keyframe
-                        if toolbar_action_button(ui, egui_phosphor::regular::CARET_LEFT, None, "Previous keyframe", false).clicked() {
-                            commands.push_back(ShellAction::Command(Command::PrevKeyframe));
-                        }
-
-                        // Play / Pause
-                        if play_pause_button(ui, preview.playback.is_playing).clicked() {
-                            commands.push_back(ShellAction::Command(Command::TogglePlayback));
-                        }
-
-                        // Next keyframe
-                        if toolbar_action_button(ui, egui_phosphor::regular::CARET_RIGHT, None, "Next keyframe", false).clicked() {
-                            commands.push_back(ShellAction::Command(Command::NextKeyframe));
-                        }
-
-                        // Frame-step back
-                        if toolbar_action_button(ui, "⏪", None, "Step back one frame", false).clicked() {
-                            commands.push_back(ShellAction::Command(Command::FrameStepBackward));
-                        }
-
-                        // Frame-step forward
-                        if toolbar_action_button(ui, "⏩", None, "Step forward one frame", false).clicked() {
-                            commands.push_back(ShellAction::Command(Command::FrameStepForward));
-                        }
-
-                        // Go to end
-                        if toolbar_action_button(ui, egui_phosphor::regular::SKIP_FORWARD, None, "Go to end", false).clicked() {
-                            commands.push_back(ShellAction::Command(Command::ScrubTo(preview.playback.duration_s)));
-                        }
-
-                        toolbar_separator(ui);
-
-                        // Speed dropdown
-                        const SPEEDS: [(f32, &str); 4] = [(0.5, "½×"), (1.0, "1×"), (2.0, "2×"), (4.0, "4×")];
-                        let si = SPEEDS.iter().position(|(v, _)| (*v - preview.playback.playback_speed).abs() < f32::EPSILON).unwrap_or(1);
-                        if toolbar_action_button(ui, SPEEDS[si].1, None, "Playback speed", false).clicked() {
-                            preview.playback.playback_speed = SPEEDS[(si + 1) % SPEEDS.len()].0;
-                        }
-
-                        // Loop toggle
-                        let loop_active = preview.playback.loop_start_s.is_some() && preview.playback.loop_end_s.is_some();
-                        if toolbar_toggle_button(ui, egui_phosphor::regular::ARROW_COUNTER_CLOCKWISE, None, "Toggle loop playback", loop_active, false).clicked() {
-                            if loop_active {
-                                preview.playback.loop_start_s = None;
-                                preview.playback.loop_end_s = None;
-                            } else {
-                                preview.playback.loop_start_s = Some(0.0);
-                                preview.playback.loop_end_s = Some(preview.playback.duration_s);
-                            }
-                        }
-
-                        // Ping-pong toggle
-                        let ping_pong_active = preview.playback.ping_pong;
-                        if toolbar_toggle_button(ui, egui_phosphor::regular::ARROWS_CLOCKWISE, None, "Toggle ping-pong playback (bounce at boundaries)", ping_pong_active, false).clicked() {
-                            preview.playback.ping_pong = !preview.playback.ping_pong;
-                            if !preview.playback.ping_pong {
-                                preview.playback.ping_pong_direction = 1;
-                            }
-                        }
-
-                        toolbar_separator(ui);
-
-                        // Zoom controls
-                        let zoom_text = format!("{:.0}%", preview.timeline_zoom * 100.0);
-                        if ui.button(egui::RichText::new(zoom_text).monospace().size(FONT_SIZE_S).color(TEXT_SECONDARY))
-                            .on_hover_text("Reset zoom")
-                            .clicked()
-                        {
-                            preview.timeline_zoom = 1.0;
-                            preview.timeline_scroll_offset = 0.0;
-                        }
-                        if toolbar_action_button(ui, egui_phosphor::regular::MINUS, None, "Zoom out", false).clicked() {
-                            preview.timeline_zoom = (preview.timeline_zoom * 0.8).max(0.25);
-                        }
-                        if toolbar_action_button(ui, egui_phosphor::regular::PLUS, None, "Zoom in", false).clicked() {
-                            preview.timeline_zoom = (preview.timeline_zoom * 1.25).min(8.0);
-                        }
-
-                        // Time display (right-aligned) — timecode + fps
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            let current_tc = preview.playback.timecode_string();
-                            let dur = preview.playback.duration_s.max(0.0);
-                            let dh = (dur / 3600.0).floor() as u32;
-                            let dm = ((dur % 3600.0) / 60.0).floor() as u32;
-                            let ds = (dur % 60.0).floor() as u32;
-                            let df = ((dur % 1.0) * preview.playback.fps as f64).floor() as u32;
-                            let duration_tc = format!("{:02}:{:02}:{:02}:{:02}", dh, dm, ds, df);
-                            let fps_val = preview.playback.fps;
-                            ui.vertical(|ui| {
-                                ui.add(egui::Label::new(
-                                    egui::RichText::new(format!("{} / {}", current_tc, duration_tc))
-                                        .font(FontId::monospace(FONT_SIZE_S))
-                                        .color(TEXT_PRIMARY),
-                                ).selectable(false));
-                                ui.add(egui::Label::new(
-                                    egui::RichText::new(format!("{:.0} fps", fps_val))
-                                        .font(FontId::monospace(FONT_SIZE_XS))
-                                        .color(TEXT_SECONDARY),
-                                ).selectable(false));
-                            });
-                        });
-                    });
-                });
-
-                // Bottom border
-                let painter = ui.painter();
-                painter.line_segment(
-                    [Pos2::new(scroll_rect.left(), strip_bot - 1.0), Pos2::new(scroll_rect.right(), strip_bot - 1.0)],
-                    Stroke::new(STROKE_WIDTH, BORDER));
-            }
 
             // ── Get painter (immutable borrow) and draw everything ──
             let painter = ui.painter();

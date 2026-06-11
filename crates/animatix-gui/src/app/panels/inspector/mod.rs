@@ -11,6 +11,7 @@ use crate::app::components::{easing_curve_editor, layout, timeline};
 use crate::app::design_tokens::*;
 use crate::app::icons::actor_icon_str;
 use crate::app::panels::panel_frame;
+use crate::app::utils::text::truncate_chars;
 
 pub(crate) mod graph_editor;
 pub(crate) mod keyframe_table;
@@ -1197,8 +1198,8 @@ fn format_property_value(kind: &PropertyKind) -> String {
             }
         },
         PropertyKind::Text(s) => {
-            if s.len() > 16 {
-                format!("{}…", &s[..15])
+            if s.chars().count() > 16 {
+                format!("{}…", truncate_chars(&s, 15))
             } else {
                 s.clone()
             }

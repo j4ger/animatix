@@ -159,6 +159,9 @@ pub enum Command {
     // ── Insertion Palette ────────────────────────────────────────────
     InsertionFromPalette,
 
+    // ── Find / Replace ────────────────────────────────────────────────
+    FindReplaceAll,
+
     // ── View / Panel State (panel migration phase) ──────────────────
     // #[allow(dead_code)] — infrastructure added in P2 for panel migration to
     // view models + CommandBus. These variants will replace direct mutable
@@ -221,6 +224,7 @@ pub enum ViewAction {
     OpenExportDialog,
     OpenCommandPalette,
     OpenFindReplace,
+    DeselectActors,
 }
 
 // =========================================================================

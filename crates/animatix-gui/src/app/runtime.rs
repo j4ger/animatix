@@ -269,10 +269,10 @@ impl AnimatixApp {
         }
 
         // Zoom-to-selection (F) and zoom-to-all (Shift+F)
-        if ctx.input(|i| i.key_pressed(egui::Key::F) && !i.modifiers.shift) {
+        if ctx.input(|i| i.key_pressed(egui::Key::F) && !i.modifiers.shift && !i.modifiers.command) {
             self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::ZoomToSelection));
         }
-        if ctx.input(|i| i.key_pressed(egui::Key::F) && i.modifiers.shift) {
+        if ctx.input(|i| i.key_pressed(egui::Key::F) && i.modifiers.shift && !i.modifiers.command) {
             self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::ZoomToAll));
         }
 

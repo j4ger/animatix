@@ -5,6 +5,7 @@ use std::sync::Arc;
 use crate::app::design_tokens::*;
 use crate::app::document::export_target::ExportScope;
 use crate::app::components::layout;
+use crate::app::utils::text::{truncate_chars, truncate_middle};
 use crate::app::GuiShell;
 
 
@@ -659,11 +660,7 @@ impl GuiShell {
                 ExportStatus::Idle => {}
                 ExportStatus::Complete { path } => {
                     let path_str = path.display().to_string();
-                    let label = if path_str.len() > 35 {
-                        format!("{}…{}", &path_str[..15], &path_str[path_str.len()-15..])
-                    } else {
-                        path_str
-                    };
+                    let label = truncate_middle(&path_str, 15, 15);
                     let resp = ui.add(
                         egui::Label::new(
                             RichText::new(format!("{} {}", egui_phosphor::regular::CHECK, label))
@@ -677,11 +674,7 @@ impl GuiShell {
                     }
                 }
                 ExportStatus::Failed(err) => {
-                    let truncated = if err.len() > 40 {
-                        format!("{}…", &err[..37])
-                    } else {
-                        err.clone()
-                    };
+                    let truncated = truncate_chars(&err, 37);
                     let resp = ui.add(
                         egui::Label::new(
                             RichText::new(format!("{} {}", egui_phosphor::regular::WARNING, truncated))

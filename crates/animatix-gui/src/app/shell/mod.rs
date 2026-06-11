@@ -306,6 +306,9 @@ impl GuiShell {
             // InsertionFromPalette is a snapshot marker, not dispatched through the handler.
             Command::InsertionFromPalette { .. } => vec![],
 
+            // FindReplaceAll is handled in-place by perform_find_replace_all, not dispatched.
+            Command::FindReplaceAll => vec![],
+
             // ── View / Panel State ───────────────────────────────────
             Command::SetTimelineZoom(zoom) => ui::handle_set_timeline_zoom(
                 &mut self.preview_store,
@@ -378,6 +381,10 @@ impl GuiShell {
             }
             ViewAction::OpenFindReplace => {
                 self.ui_store.view.find_replace_open = true;
+                vec![]
+            }
+            ViewAction::DeselectActors => {
+                self.ui_store.selection.selected_actors.clear();
                 vec![]
             }
         }
