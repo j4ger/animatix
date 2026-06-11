@@ -190,6 +190,15 @@ fn collect_actor_keyframes(track: &animatix::timeline::AnimationTrack) -> Vec<(u
         commands => "commands",
         layout_size => "layout_size",
         vector_paths => "vector_paths",
+        filter_blur => "filter_blur",
+        filter_brightness => "filter_brightness",
+        filter_contrast => "filter_contrast",
+        filter_saturate => "filter_saturate",
+        filter_hue_rotate => "filter_hue_rotate",
+        filter_sepia => "filter_sepia",
+        head_size => "head_size",
+        line_cap => "line_cap",
+        line_join => "line_join",
     }
     result.sort_by_key(|(ms, _)| *ms);
     result.dedup_by(|a, b| a.0 == b.0);
@@ -235,6 +244,15 @@ fn collect_per_property_keyframes(track: &animatix::timeline::AnimationTrack) ->
         commands => "commands",
         layout_size => "layout_size",
         vector_paths => "vector_paths",
+        filter_blur => "filter_blur",
+        filter_brightness => "filter_brightness",
+        filter_contrast => "filter_contrast",
+        filter_saturate => "filter_saturate",
+        filter_hue_rotate => "filter_hue_rotate",
+        filter_sepia => "filter_sepia",
+        head_size => "head_size",
+        line_cap => "line_cap",
+        line_join => "line_join",
     }
     result
 }
@@ -415,12 +433,13 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         actor_labels: _,
         actor_keyframes: _,
         scene_keyframe_times,
-        snap_fps: _snap_fps,
+        ..
     } = ctx;
     // Prune expired keyframe flashes (300 ms lifetime)
     let now = std::time::Instant::now();
     preview.flashed_keyframe_times.retain(|(_, instant)| now.duration_since(*instant) < Duration::from_millis(300));
     let duration_s = preview.playback.duration_s.max(0.1);
+    let snap_fps = ctx.snap_fps;
     let panel_id = ui.id().with("timeline_panel");
 
     // ── Keyframe drag state ──
@@ -1141,7 +1160,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             let is_drag = kf_drag.as_ref().is_some_and(|(l, _, t, _)| l == actor_label && *t == kf_ms);
                             let is_flashed = preview.flashed_keyframe_times.iter().any(|(t, _)| (*t - kf_s).abs() < 0.001);
                             let ds = if is_flashed { KF_DIAMOND_HALF * 2.0 } else if is_drag { KF_DIAMOND_HALF * 1.5 } else { KF_DIAMOND_HALF };
-                            let kc = if is_flashed { Color32::from_rgb(255, 200, 50) } else if is_ms { ACCENT_BLUE } else if is_act { TEXT_PRIMARY } else { AMBER };
+                            let kc = if is_flashed { KF_FLASH } else if is_ms { ACCENT_BLUE } else if is_act { TEXT_PRIMARY } else { AMBER };
                             let cy = bar_area.center().y;
                             let hit_size = (ds * 2.5).max(8.0);
                             let dr = Rect::from_center_size(Pos2::new(kf_x, cy), Vec2::new(hit_size, hit_size));
@@ -1252,27 +1271,16 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             for (actor, time_ms) in &track_selected {
                                 if let Some(tl) = timeline {
                                     if let Some(track) = tl.get_track(actor) {
-                                        // Iterate ALL property tracks directly instead of using collect_actor_keyframes
-                                        // which dedups by time
-                                        macro_rules! delete_kf_at_time {
-                                            ($track:expr, $time_ms:expr, $cmds:expr, $actor:expr, [$($field:ident),*]) => {
-                                                $(
-                                                    if let Some(pt) = &$track.$field {
-                                                        if pt.keyframes.contains_key(&$time_ms) {
-                                                            $cmds.push_back(ShellAction::Command(Command::DeleteKeyframe {
-                                                                actor: $actor.clone(),
-                                                                property: stringify!($field).to_string(),
-                                                                time_s: $time_ms as f64 / 1000.0,
-                                                            }));
-                                                        }
-                                                    }
-                                                )*
-                                            };
+                                        // Use per-property collector to delete all matching keyframes across all properties
+                                        for (prop_name, times) in collect_per_property_keyframes(track) {
+                                            if times.contains(time_ms) {
+                                                commands.push_back(ShellAction::Command(Command::DeleteKeyframe {
+                                                    actor: actor.clone(),
+                                                    property: prop_name.to_string(),
+                                                    time_s: *time_ms as f64 / 1000.0,
+                                                }));
+                                            }
                                         }
-                                        delete_kf_at_time!(track, *time_ms, commands, actor, [
-                                            position, motion_offset, rotation, scale, size,
-                                            color, opacity, stroke_width, stroke_color, stroke_progress, fill_opacity
-                                        ]);
                                     }
                                 }
                             }
@@ -1347,7 +1355,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                     let is_flashed = preview.flashed_keyframe_times.iter().any(|(t, _)| (*t - kf_s).abs() < 0.001);
                                     let ds = if is_flashed { KF_DIAMOND_HALF * 2.0 } else if is_drag { KF_DIAMOND_HALF * 1.5 } else { KF_DIAMOND_HALF };
                                     let base_color = group.map(|g| property_group_color(g)).unwrap_or(AMBER);
-                                    let kc = if is_flashed { Color32::from_rgb(255, 200, 50) } else if is_act { TEXT_PRIMARY } else { base_color };
+                                    let kc = if is_flashed { KF_FLASH } else if is_act { TEXT_PRIMARY } else { base_color };
                                     let cy = prop_bar_area.center().y;
                                     let hit_size = (ds * 2.5).max(8.0);
                                     let dr = Rect::from_center_size(Pos2::new(kf_x, cy), Vec2::new(hit_size, hit_size));
@@ -1371,7 +1379,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                             let snapped = if shift_held {
                                                 nt
                                             } else {
-                                                (nt * _snap_fps as f64).round() / _snap_fps as f64
+                                                (nt * snap_fps as f64).round() / snap_fps as f64
                                             };
                                             new_kf_drag = Some((actor_label.clone(), prop_name, *kf_ms, snapped));
                                         }

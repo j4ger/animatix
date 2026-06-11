@@ -81,6 +81,19 @@ pub(super) fn load_workspace_persistence(path: &Path) -> Option<WorkspacePersist
 
 // ── Window geometry / workspace layout persistence ─────────────────────
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct SettingsPersistence {
+    pub rebuild_debounce_ms: u64,
+    pub scrub_step_s: f64,
+    pub nudge_step_px: f32,
+    pub nudge_step_shift_px: f32,
+    pub rotation_snap_degrees: f32,
+    pub snap_fps: f32,
+    pub keyframe_merge_window_s: f64,
+    pub undo_limit: usize,
+    pub grid_size: f32,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct WorkspacePersistence {
     pub(crate) tree: Tree<WorkspaceTab>,
@@ -88,6 +101,8 @@ pub(crate) struct WorkspacePersistence {
     pub(crate) window_size: Option<[f32; 2]>,
     #[serde(default)]
     pub(crate) window_maximized: Option<bool>,
+    #[serde(default)]
+    pub(crate) settings: Option<SettingsPersistence>,
 }
 
 // ── App state persistence (recent file, preferences) ─────────────────────

@@ -540,7 +540,14 @@ pub(super) fn inspector_ui(
                     );
                     ui.add_space(SPACE_S);
                     ui.label(
-                        RichText::new("Multi-select — edits apply to all selected actors")
+                        RichText::new("Multi-selected — drag/nudge in preview applies to all. Select a single actor to edit properties.")
+                            .size(FONT_SIZE_XS)
+                            .color(TEXT_MUTED),
+                    );
+                    ui.add_space(SPACE_XS);
+                    let names: Vec<&str> = selected_actors.iter().map(String::as_str).collect();
+                    ui.label(
+                        RichText::new(names.join(", "))
                             .size(FONT_SIZE_XS)
                             .color(TEXT_MUTED),
                     );
@@ -562,17 +569,18 @@ pub(super) fn inspector_ui(
             layout::card(ui, |ui| {
                 let mut view_mode = *property_view_mode;
 
+                let header_top = ui.cursor().min.y;
                 layout::section_header(ui, egui_phosphor::regular::WRENCH, "Properties", None);
 
                 // View-mode segmented control
                 {
-                    let clip = ui.clip_rect();
-                    let row_top = clip.min.y + SPACE_S + 2.0 + SPACE_S;
+                    let right = ui.clip_rect().max.x;
+                    let row_top = header_top + SPACE_S + 2.0 + SPACE_S;
                     let seg_count = 3;
                     let seg_width = 80.0;
                     let total_w = seg_count as f32 * seg_width;
                     let seg_rect = egui::Rect::from_min_size(
-                        egui::pos2(clip.max.x - SPACE_S - total_w, row_top),
+                        egui::pos2(right - SPACE_S - total_w, row_top),
                         egui::Vec2::new(total_w, ROW_S),
                     );
                     let mut seg_ui = ui.new_child(
@@ -708,6 +716,7 @@ pub(super) fn inspector_ui(
             layout::card(ui, |ui| {
                 let kf_view = *keyframe_view_mode;
 
+                let header_top = ui.cursor().min.y;
                 layout::section_header(
                     ui,
                     egui_phosphor::regular::KEY,
@@ -717,13 +726,13 @@ pub(super) fn inspector_ui(
 
                 // View-mode segmented control
                 {
-                    let clip = ui.clip_rect();
-                    let row_top = clip.min.y + SPACE_S + 2.0 + SPACE_S;
+                    let right = ui.clip_rect().max.x;
+                    let row_top = header_top + SPACE_S + 2.0 + SPACE_S;
                     let seg_count = 2;
                     let seg_width = 80.0;
                     let total_w = seg_count as f32 * seg_width;
                     let seg_rect = egui::Rect::from_min_size(
-                        egui::pos2(clip.max.x - SPACE_S - total_w, row_top),
+                        egui::pos2(right - SPACE_S - total_w, row_top),
                         egui::Vec2::new(total_w, ROW_S),
                     );
                     let mut seg_ui = ui.new_child(

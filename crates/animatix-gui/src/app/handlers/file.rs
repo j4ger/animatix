@@ -118,7 +118,7 @@ pub fn handle_open_file(
         }
         Err(error) => {
             preview_store.preview.error = Some(error.to_string());
-            preview_store.preview.status = format!("Open failed • {}", path.display());
+            preview_store.preview.set_status_error(format!("Open failed • {}", path.display()));
             vec![]
         }
     }
@@ -300,7 +300,7 @@ pub(crate) fn rebuild_failed(
     }
 
     preview_store.preview.playback.clamp_time();
-    preview_store.preview.status = status;
+    preview_store.preview.set_status_error(status);
     preview_store.preview.error = Some(error.to_string());
     preview_store.preview_dirty = true;
     ui_store.toasts.push(Toast::error("Rebuild failed"));

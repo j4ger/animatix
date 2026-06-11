@@ -23,7 +23,7 @@ pub(crate) fn handle_preview_drag(
 
         let drag_started = response.drag_started()
             || (!is_dragging && ui.input(|i| i.pointer.primary_pressed()));
-        let hit_radius = PREVIEW_HANDLE_HIT_RADIUS * ui.ctx().pixels_per_point();
+        let hit_radius = PREVIEW_HANDLE_HIT_RADIUS;
 
         if drag_started {
             if let (Some(actor), Some(mouse)) = (ctx.selected_actors.iter().next().cloned(), raw_pointer_pos) {
@@ -116,7 +116,7 @@ pub(crate) fn handle_preview_drag(
                                 preview_rect,
                                 kurbo::Point::new(pivot[0] as f64, pivot[1] as f64),
                             );
-                            let rotation_handle_offset = PREVIEW_ROTATION_OFFSET * ui.ctx().pixels_per_point();
+                            let rotation_handle_offset = PREVIEW_ROTATION_OFFSET;
                             let rotation_handle_screen = Pos2::new(
                                 pivot_screen.x,
                                 pivot_screen.y - rotation_handle_offset,

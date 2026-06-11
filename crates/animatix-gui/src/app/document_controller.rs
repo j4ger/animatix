@@ -387,8 +387,7 @@ impl DocumentController<'_> {
     /// NOTE: The caller should have called `snapshot()` before this.
     pub(crate) fn handle_delete_keyframe(&mut self, actor: &str, property: &str, time_s: f64) {
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
-            self.preview_store.preview.status =
-                "Failed to delete keyframe — no AST available".to_string();
+            self.preview_store.preview.set_status_error("Failed to delete keyframe — no AST available");
             return;
         };
 
@@ -409,10 +408,10 @@ impl DocumentController<'_> {
             self.preview_store.preview.status =
                 format!("Deleted keyframe '{}.{}' @ {:.2}s", actor, property, time_s);
         } else {
-            self.preview_store.preview.status = format!(
+            self.preview_store.preview.set_status_error(format!(
                 "Failed to delete keyframe '{}.{}' @ {:.2}s — keyframe not found",
                 actor, property, time_s
-            );
+            ));
         }
     }
 

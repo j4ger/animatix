@@ -381,7 +381,7 @@ impl PreviewContext<'_> {
     pub(crate) fn render_preview_cursor_feedback(&self, ui: &egui::Ui, preview_rect: egui::Rect) {
         let is_dragging = !matches!(self.drag_state, DragState::None);
         let raw_pointer_pos = ui.ctx().input(|i| i.pointer.latest_pos());
-        let hit_radius = PREVIEW_HANDLE_HIT_RADIUS * ui.ctx().pixels_per_point();
+        let hit_radius = PREVIEW_HANDLE_HIT_RADIUS;
 
         if !is_dragging && !self.selection.context_menu_open {
             if let Some(mouse) = raw_pointer_pos {

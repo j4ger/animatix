@@ -23,13 +23,13 @@ impl GuiShell {
         // Non-drag: validate source first, then apply atomically.
         if let Err(err) = self.apply_keyframe_source_edit(&edit) {
             tracing::error!("source edit failed for {}.{}: {}", edit.actor, edit.property, err);
-            self.preview_store.preview.status = format!(
+            self.preview_store.preview.set_status_error(format!(
                 "⚠ Edited {}.{} @ {:.2}s — {}",
                 edit.actor,
                 edit.property,
                 self.preview_store.preview.playback.current_time_s(),
                 err
-            );
+            ));
         } else {
             let prev_time_s = self
                 .document_store
@@ -76,8 +76,7 @@ impl GuiShell {
         // Non-drag: validate source first, then apply atomically.
         if let Err(err) = self.apply_property_source_edit(&edit) {
             tracing::error!("source edit failed for {}.{}: {}", edit.actor, edit.property, err);
-            self.preview_store.preview.status =
-                format!("⚠ Edited {}.{} — {}", edit.actor, edit.property, err);
+            self.preview_store.preview.set_status_error(format!("⚠ Edited {}.{} — {}", edit.actor, edit.property, err));
         } else {
             self.preview_store.preview.status =
                 format!("Edited {}.{} — source updated", edit.actor, edit.property);
@@ -105,8 +104,7 @@ impl GuiShell {
         }
 
         if let Err(err) = self.apply_child_order_source_edit(&edit) {
-            self.preview_store.preview.status =
-                format!("⚠ Edited {}.child_order — {}", edit.actor, err);
+            self.preview_store.preview.set_status_error(format!("⚠ Edited {}.child_order — {}", edit.actor, err));
         } else {
             self.preview_store.preview.status =
                 format!("Edited {}.child_order — source updated", edit.actor);

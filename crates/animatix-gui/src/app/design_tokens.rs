@@ -198,6 +198,18 @@ pub const WELCOME_BTN_WIDTH: f32 = 240.0;
 pub const WELCOME_BTN_HEIGHT: f32 = 36.0;
 pub const WELCOME_TOP_OFFSET_FRAC: f32 = 0.22;
 
+// ── Curve Editor ──
+pub const CURVE_GREEN: Color32 = Color32::from_rgb(100, 255, 100);
+pub const CURVE_BLUE: Color32 = Color32::from_rgb(80, 140, 255);
+pub const CURVE_GRAY: Color32 = Color32::from_rgb(200, 200, 200);
+
+// ── Timeline ──
+/// Keyframe flash highlight color
+pub const KF_FLASH: Color32 = Color32::from_rgb(255, 200, 50);
+
+// ── Insertion Palette ──
+pub const SNIPPET_BLUE: Color32 = Color32::from_rgb(108, 153, 187);
+
 // ── Common Padding / Offset ──
 pub const PAD_XS: f32 = 2.0;
 pub const PAD_S: f32 = 4.0;

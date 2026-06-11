@@ -91,13 +91,13 @@ pub fn render_multi_fcurve(
                 if x_points.len() >= 2 {
                     curves.push(CurveInfo {
                         label: format!("{}.X", schema.name),
-                        color: Color32::from_rgb(255, 100, 100),
+                        color: RED,
                         points: x_points,
                         field: schema.field,
                     });
                     curves.push(CurveInfo {
                         label: format!("{}.Y", schema.name),
-                        color: Color32::from_rgb(100, 255, 100),
+                        color: CURVE_GREEN,
                         points: y_points,
                         field: schema.field,
                     });
@@ -124,25 +124,25 @@ pub fn render_multi_fcurve(
                 if r_points.len() >= 2 {
                     curves.push(CurveInfo {
                         label: format!("{}.R", schema.name),
-                        color: Color32::from_rgb(255, 80, 80),
+                        color: RED,
                         points: r_points,
                         field: schema.field,
                     });
                     curves.push(CurveInfo {
                         label: format!("{}.G", schema.name),
-                        color: Color32::from_rgb(80, 255, 80),
+                        color: CURVE_GREEN,
                         points: g_points,
                         field: schema.field,
                     });
                     curves.push(CurveInfo {
                         label: format!("{}.B", schema.name),
-                        color: Color32::from_rgb(80, 140, 255),
+                        color: CURVE_BLUE,
                         points: b_points,
                         field: schema.field,
                     });
                     curves.push(CurveInfo {
                         label: format!("{}.A", schema.name),
-                        color: Color32::from_rgb(200, 200, 200),
+                        color: CURVE_GRAY,
                         points: a_points,
                         field: schema.field,
                     });

@@ -8,18 +8,7 @@ Keep track of what is yet to be done here, when a segment is fully done, remove 
 
 ## P1 — High Impact *(complete)*
 
-## P2 — Medium
-
-| # | Task | File(s) | Details |
-|---|------|---------|---------|
-| 11 | **Segmented controls float on scroll** | `inspector/mod.rs:567-590, 717-740` | Positioned at `ui.clip_rect().min.y`; glues to viewport top when scrolling. Anchor to card header. |
-| 12 | **Bulk delete keyframes misses fields** | `timeline_panel.rs:1259-1276` | Delete macro covers only 11 fields; keyframes on `text_content`, `font_size`, `shape_type`, `points`, filters are left behind. |
-| 13 | **Create new scene swallows error** | `app/mod.rs:744` | `std::fs::write(...).ok()` silently fails; proceeds with nonexistent file. Report error to user. |
-| 14 | **Settings not persisted across restarts** | `settings.rs`, `persistence.rs:88-94` | Nudge steps, snap FPS, debounce, grid size are lost on restart. Only tree/window geometry survives. |
-| 15 | **Multi-select card shows no editable controls** | `inspector/mod.rs:536-549` | Claims "edits apply to all selected actors" but renders no editable fields. Render controls or update copy. |
-| 16 | **Local palette constants violate design tokens** | `app/mod.rs:585`, `graph_editor.rs:95,100`, `insertion_palette.rs:122`, `timeline_panel.rs:1131,1352` | `design_tokens.rs` forbids local palette constants. Replace with token lookups. |
-| 17 | **Error detection by substring matching** | `app/mod.rs:593` | `contains("error")` fragile. Carry severity alongside status string. |
-| 18 | **HiDPI hit-target double-scaling** | `drag_handler.rs:26,119` | Multiplying hit radii by `pixels_per_point` doubles on HiDPI since egui pointer is already in logical points. |
+## P2 — Medium *(complete)*
 
 ## P3 — Polish & UX Papercuts
 

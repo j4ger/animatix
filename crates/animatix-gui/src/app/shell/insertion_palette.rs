@@ -117,7 +117,7 @@ impl InsertionPalette {
                 label: snippet.label.clone(),
                 detail: snippet.detail.unwrap_or_default(),
                 icon: egui_phosphor::regular::CODE.to_string(),
-                color: Color32::from_rgb(108, 153, 187),
+                color: SNIPPET_BLUE,
                 kind: ItemKind::Snippet {
                     text: snippet.insert_text.unwrap_or(snippet.label),
                 },

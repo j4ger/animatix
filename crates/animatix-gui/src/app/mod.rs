@@ -30,7 +30,7 @@ use animatix::timeline::SceneDimensions;
 use directories::ProjectDirs;
 use egui::{Color32, Stroke, Vec2};
 use file_tree::{build_file_tree, workspace_root_for};
-use persistence::{default_tree, load_workspace_persistence, persistence_path, WorkspacePersistence};
+use persistence::{default_tree, load_workspace_persistence, persistence_path, SettingsPersistence, WorkspacePersistence};
 use crate::app::design_tokens::*;
 #[cfg(test)]
 use preview::fit_preview;
@@ -41,6 +41,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use crate::app::commands::{ActionQueue, Command, Effect, ShellAction};
+use crate::app::components::toast::Toast;
 use crate::app::shell::insertion_palette::{InsertionPalette, PaletteMode};
 use crate::app::utils::*;
 use crate::app::stores::*;
@@ -251,12 +252,21 @@ pub(crate) struct InlineTextEditState {
     pub screen_size: egui::Vec2,
 }
 
+/// Severity level for preview status messages.
+#[derive(Default, Clone, Copy, PartialEq)]
+pub enum StatusSeverity {
+    #[default]
+    Info,
+    Error,
+}
+
 pub(crate) struct PreviewPaneState {
     pub playback: PlaybackController,
     pub viewport: ViewportState,
     pub guides: GuideState,
     pub snap: SnapState,
     pub status: String,
+    pub status_severity: StatusSeverity,
     pub error: Option<String>,
     pub dimensions: SceneDimensions,
     /// Time lens HUD state (Space-drag time scrubbing).
@@ -308,6 +318,7 @@ impl PreviewPaneState {
                 snap_hud_label: None,
             },
             status: "Loaded file".to_string(),
+            status_severity: StatusSeverity::Info,
             error: None,
             dimensions,
             time_lens: crate::app::preview::time_lens::TimeLens::default(),
@@ -318,6 +329,16 @@ impl PreviewPaneState {
             flashed_keyframe_times: Vec::new(),
             inline_edit: None,
         }
+    }
+
+    pub fn set_status_info(&mut self, msg: impl Into<String>) {
+        self.status = msg.into();
+        self.status_severity = StatusSeverity::Info;
+    }
+
+    pub fn set_status_error(&mut self, msg: impl Into<String>) {
+        self.status = msg.into();
+        self.status_severity = StatusSeverity::Error;
     }
 }
 
@@ -341,12 +362,12 @@ impl GuiShell {
                     // LiveDocument: editor is the source of truth. If the editor
                     // has unsaved changes, do NOT silently overwrite them.
                     if self.document_store.source.document.is_dirty {
-                        self.preview_store.preview.status = "External file changed • reload blocked (unsaved edits)".to_string();
+                        self.preview_store.preview.set_status_error("External file changed • reload blocked (unsaved edits)");
                         return;
                     }
                     if let Err(err) = self.document_store.source.document.reload_from_disk() {
                         self.preview_store.preview.error = Some(err.to_string());
-                        self.preview_store.preview.status = "Hot reload failed".to_string();
+                        self.preview_store.preview.set_status_error("Hot reload failed");
                     } else {
                         self.document_store.source.invalidate_cache();
                         self.document_store.source.editor
@@ -401,11 +422,11 @@ impl GuiShell {
         if let Some(status) = status {
             preview.status = status;
         } else if has_source_load_failure(&document.diagnostics) {
-            preview.status = format!(
+            preview.set_status_error(format!(
                 "Opened {} • parse/load error • {}",
                 document.file_path.display(),
                 diagnostics_phase_summary(&document.diagnostics)
-            );
+            ));
         }
         preview.error = error.clone();
 
@@ -413,6 +434,19 @@ impl GuiShell {
 
         let mut ui_store = UiStore::new(tree);
         ui_store.view.welcome_open = is_welcome;
+
+        // Apply persisted settings
+        if let Some(ref s) = persistence.as_ref().and_then(|p| p.settings.as_ref()) {
+            ui_store.rebuild_debounce_ms = s.rebuild_debounce_ms;
+            ui_store.scrub_step_s = s.scrub_step_s;
+            ui_store.nudge_step_px = s.nudge_step_px;
+            ui_store.nudge_step_shift_px = s.nudge_step_shift_px;
+            ui_store.rotation_snap_degrees = s.rotation_snap_degrees;
+            ui_store.snap_fps = s.snap_fps;
+            ui_store.keyframe_merge_window_s = s.keyframe_merge_window_s;
+            preview.overlay.grid_size = s.grid_size;
+            // undo_limit is on DocumentStore created below inside Self {} — skipped for now (default 100 is fine)
+        }
 
         let mut shell = Self {
             document_store: DocumentStore::new(document, editor),
@@ -584,7 +618,7 @@ impl GuiShell {
         // Status bar — thin bar at the bottom showing preview status and scene dimensions
         egui::Panel::bottom("status_bar")
             .frame(egui::Frame::new()
-                .fill(egui::Color32::from_rgb(18, 22, 28))
+                .fill(BG_PANEL)
                 .inner_margin(egui::Margin::symmetric(8, 2)))
             .resizable(false)
             .min_size(20.0)
@@ -592,7 +626,7 @@ impl GuiShell {
                 ui.horizontal(|ui| {
                     let status = &self.preview_store.preview.status;
                     if !status.is_empty() {
-                        let is_error = status.contains("error") || status.contains("Error") || status.contains("fail");
+                        let is_error = self.preview_store.preview.status_severity == StatusSeverity::Error;
                         let color = if is_error { RED } else { TEXT_MUTED };
                         ui.label(egui::RichText::new(status.as_str()).size(FONT_SIZE_XS).color(color));
                     }
@@ -743,7 +777,13 @@ impl GuiShell {
                         );
                         if new_resp.clicked() {
                             let path = default_file_path();
-                            std::fs::write(&path, "#0s\n").ok();
+                            match std::fs::write(&path, "#0s\n") {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    self.ui_store.toasts.push(Toast::error(format!("Failed to create scene: {e}")));
+                                    return; // don't proceed to open
+                                }
+                            }
                             commands.push_back(ShellAction::Command(Command::OpenFile(path)));
                         }
 
@@ -862,7 +902,7 @@ impl GuiShell {
                     self.ui_store.toasts.push(toast);
                 }
                 Effect::Status(status) => {
-                    self.preview_store.preview.status = status;
+                    self.preview_store.preview.set_status_info(status);
                 }
                 Effect::Repaint => {
                     self.preview_store.preview_dirty = true;
@@ -899,6 +939,17 @@ impl GuiShell {
             tree: self.ui_store.view.tree.clone(),
             window_size: Some(self.window_size),
             window_maximized: Some(self.window_maximized),
+            settings: Some(SettingsPersistence {
+                rebuild_debounce_ms: self.ui_store.rebuild_debounce_ms,
+                scrub_step_s: self.ui_store.scrub_step_s,
+                nudge_step_px: self.ui_store.nudge_step_px,
+                nudge_step_shift_px: self.ui_store.nudge_step_shift_px,
+                rotation_snap_degrees: self.ui_store.rotation_snap_degrees,
+                snap_fps: self.ui_store.snap_fps,
+                keyframe_merge_window_s: self.ui_store.keyframe_merge_window_s,
+                undo_limit: self.document_store.history.undo_limit,
+                grid_size: self.preview_store.preview.overlay.grid_size,
+            }),
         };
         if let Ok(serialized) =
             ron::ser::to_string_pretty(&persistence, ron::ser::PrettyConfig::default())
@@ -923,7 +974,11 @@ impl GuiShell {
     }
 
     fn set_status(&mut self, status: String, error: Option<String>) {
-        self.preview_store.preview.status = status;
+        if error.is_some() {
+            self.preview_store.preview.set_status_error(status);
+        } else {
+            self.preview_store.preview.set_status_info(status);
+        }
         self.preview_store.preview.error = error;
     }
 
