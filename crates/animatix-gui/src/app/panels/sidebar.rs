@@ -87,6 +87,10 @@ pub(crate) struct ComponentsContext<'a> {
     pub components: &'a HashMap<String, animatix_syntax::module::ComponentEntry>,
     pub commands: &'a mut ActionQueue,
     pub scene_dimensions: SceneDimensions,
+    /// Source text for finding component definition lines (jump-to-definition).
+    pub source_text: &'a str,
+    /// Sidebar tab for switching to editor on jump-to-definition.
+    pub sidebar_tab: &'a mut SidebarTab,
 }
 
 pub(crate) struct AssetsContext<'a> {
@@ -168,6 +172,8 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                             components: ctx.components,
                             commands: ctx.commands,
                             scene_dimensions: ctx.scene_dimensions,
+                            source_text: ctx.editor.text(),
+                            sidebar_tab: ctx.sidebar_tab,
                         };
                         components_content_ui(&mut cctx, ui);
                     }
@@ -877,6 +883,63 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
                         position: pos,
                         props: vec![],
                     }));
+                }
+
+                // Jump-to-definition button (top-right of component row)
+                ui.horizontal(|ui| {
+                    ui.add_space(ICON_SLOT_WIDTH + SPACE_S + 2.0);
+                    if ui.add(
+                        egui::Button::new(
+                            egui::RichText::new(egui_phosphor::regular::ARROW_SQUARE_OUT)
+                                .size(11.0)
+                                .color(TEXT_MUTED),
+                        )
+                        .frame(false)
+                    ).on_hover_text("Jump to definition").clicked() {
+                        // Search for the component definition line in source text
+                        let patterns = [
+                            format!("pub component {}", name),
+                            format!("component {}", name),
+                        ];
+                        let found_line = ctx.source_text.lines()
+                            .position(|line| patterns.iter().any(|p| line.trim().starts_with(p)));
+                        if let Some(line) = found_line {
+                            ctx.commands.push_back(ShellAction::Command(
+                                Command::ScrollToLine(line, 0)
+                            ));
+                            *ctx.sidebar_tab = SidebarTab::Editor;
+                        }
+                    }
+                });
+
+                // Slots display
+                let slots: Vec<String> = entry.definition.body.iter()
+                    .filter_map(|stmt| {
+                        if let animatix_syntax::ast::Stmt::ActorDecl { label, children, .. } = stmt {
+                            children.as_ref().and_then(|items| {
+                                if items.iter().any(|item| {
+                                    matches!(item, animatix_syntax::ast::InlineItem::SlotMarker)
+                                }) {
+                                    Some(label.clone())
+                                } else {
+                                    None
+                                }
+                            })
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                if !slots.is_empty() {
+                    ui.horizontal(|ui| {
+                        ui.add_space(ICON_SLOT_WIDTH + SPACE_S);
+                        ui.label(
+                            egui::RichText::new(format!("@slots: {}", slots.join(", ")))
+                                .size(FONT_SIZE_XS)
+                                .color(ACCENT_CYAN),
+                        );
+                    });
                 }
 
                 // Show params as sub-label

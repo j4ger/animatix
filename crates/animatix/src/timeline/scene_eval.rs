@@ -1069,7 +1069,7 @@ mod tests {
             assert!(regions.is_empty(), "hit_regions should be empty before evaluate");
         }
 
-        let _scene = timeline.evaluate_with_debug(0.0, dimensions, DebugRenderOptions { draw_bounds: false, compute_hit_regions: true }, &mut None);
+        let _scene = timeline.evaluate_with_debug(0.0, dimensions, DebugRenderOptions { draw_bounds: false, compute_hit_regions: true, ..Default::default() }, &mut None);
 
         // hit_regions should be populated after evaluate
         let regions = timeline.hit_regions.borrow();
@@ -1083,7 +1083,7 @@ mod tests {
         let timeline = make_minimal_timeline();
         let dimensions = SceneDimensions { width: 800, height: 600 };
 
-        let _scene = timeline.evaluate_with_debug(0.0, dimensions, DebugRenderOptions { draw_bounds: false, compute_hit_regions: true }, &mut None);
+        let _scene = timeline.evaluate_with_debug(0.0, dimensions, DebugRenderOptions { draw_bounds: false, compute_hit_regions: true, ..Default::default() }, &mut None);
 
         let regions = timeline.hit_regions.borrow();
         let (label, bounds) = regions.iter().find(|(l, _)| l == "test_box")
@@ -1099,7 +1099,7 @@ mod tests {
     fn evaluate_with_debug_options_skips_cache() {
         let timeline = make_minimal_timeline();
         let dimensions = SceneDimensions { width: 800, height: 600 };
-        let debug_opts = DebugRenderOptions { draw_bounds: true, compute_hit_regions: false };
+        let debug_opts = DebugRenderOptions { draw_bounds: true, compute_hit_regions: false, ..Default::default() };
 
         // Evaluate with debug options (should not cache)
         let _scene = timeline.evaluate_with_debug(0.0, dimensions, debug_opts, &mut None);

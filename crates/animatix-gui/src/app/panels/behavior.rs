@@ -32,6 +32,8 @@ pub(crate) struct WorkspaceBehavior<'a> {
     pub(crate) keyframe_mode: bool,
     pub(crate) rotation_snap_degrees: f32,
     pub(crate) snap_fps: f32,
+    pub(crate) debug_layout: bool,
+    pub(crate) debug_spacing: bool,
 }
 
 impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
@@ -102,6 +104,9 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     composition: self.document_store.source.document.composition.as_ref(),
                     active_scene: self.document_store.source.document.active_scene.as_deref(),
                     keyframe_mode: self.keyframe_mode,
+                    performance_metrics: &mut self.preview_store.performance_metrics,
+                    debug_layout: self.debug_layout,
+                    debug_spacing: self.debug_spacing,
                 };
                 preview_panel::preview_panel_ui(&mut ctx, ui);
             }
@@ -136,6 +141,49 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                         resolved_timeline,
                     );
                 }
+                // Build per-scene keyframe time cache from composition
+                let scene_keyframe_times: HashMap<String, Vec<f64>> = self.document_store.source.document.composition
+                    .as_ref()
+                    .map(|comp| {
+                        comp.declaration_order.iter().filter_map(|name| {
+                            let scene = comp.scenes.get(name)?;
+                            // Collect all keyframe times (in seconds) from all tracks in this scene
+                            let mut times: Vec<f64> = scene.timeline.tracks().values()
+                                .flat_map(|track| {
+                                    let mut track_times = Vec::new();
+                                    use animatix::timeline::PropertyTrack;
+                                    macro_rules! push_kf_times {
+                                        ($($field:ident),* $(,)?) => {
+                                            $(
+                                                if let Some(pt) = &track.$field {
+                                                    track_times.extend(
+                                                        pt.keyframes.keys().map(|ms| *ms as f64 / 1000.0)
+                                                    );
+                                                }
+                                            )*
+                                        };
+                                    }
+                                    push_kf_times! {
+                                        position, motion_offset, rotation, scale, size,
+                                        color, opacity, stroke_width, stroke_color,
+                                        stroke_progress, fill_opacity,
+                                        text_content, font_family, font_size,
+                                        shape_type, line_from, line_to, head_size,
+                                        arc_angles, points, commands, vector_paths,
+                                        layout_size, placement_mode, position_binding,
+                                        filter_blur, filter_brightness, filter_contrast,
+                                        filter_saturate, filter_hue_rotate, filter_sepia,
+                                        line_cap, line_join, morph_options,
+                                    }
+                                    track_times
+                                })
+                                .collect();
+                            times.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                            Some((name.clone(), times))
+                        }).collect()
+                    })
+                    .unwrap_or_default();
+
                 let mut ctx = timeline_panel::TimelineContext {
                     preview: &mut self.preview_store.preview,
                     timeline: resolved_timeline,
@@ -147,6 +195,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     selected_actors: self.selected_actors,
                     actor_labels: &self.document_store.source.cached_actor_labels,
                     actor_keyframes: &self.document_store.source.cached_actor_keyframes,
+                    scene_keyframe_times: &scene_keyframe_times,
                     snap_fps: self.snap_fps,
                 };
                 timeline_panel::timeline_panel_ui(&mut ctx, ui);

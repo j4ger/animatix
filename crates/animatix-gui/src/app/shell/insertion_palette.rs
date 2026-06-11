@@ -33,7 +33,15 @@ pub enum ItemKind {
     Action { verb: String },
     #[allow(dead_code)]
     Snippet { text: String },
-    Component { type_name: String, params: Vec<(String, Option<String>)> },
+    Component { type_name: String, params: Vec<ParamInfo> },
+}
+
+/// Parameter info with type annotation and default value.
+#[derive(Debug, Clone)]
+pub(crate) struct ParamInfo {
+    pub name: String,
+    pub param_type: Option<String>,
+    pub default_str: Option<String>,
 }
 
 /// State for the insertion palette overlay.
@@ -50,7 +58,8 @@ pub struct InsertionPalette {
 #[derive(Debug, Clone)]
 struct ParamFormState {
     type_name: String,
-    params: Vec<(String, String)>, // (name, value)
+    /// (name, optional type name, current value)
+    params: Vec<(String, Option<String>, String)>,
 }
 
 impl Default for InsertionPalette {
@@ -117,9 +126,14 @@ impl InsertionPalette {
 
         // Components
         for (name, entry) in components {
-            let params_info: Vec<(String, Option<String>)> = entry.definition.params.iter().map(|p| {
+            let params_info: Vec<ParamInfo> = entry.definition.params.iter().map(|p| {
                 let default_str = p.default.as_ref().map(|e| animatix_syntax::to_source::expr_to_source(e));
-                (p.name.clone(), default_str)
+                let type_name = p.param_type.as_ref().map(|t| format!("{:?}", t));
+                ParamInfo {
+                    name: p.name.clone(),
+                    param_type: type_name,
+                    default_str,
+                }
             }).collect();
             let params_display: Vec<String> = entry.definition.params.iter().map(|p| {
                 p.default.as_ref().map(|_| p.name.clone()).unwrap_or_else(|| format!("{}?", p.name))
@@ -293,17 +307,60 @@ impl GuiShell {
                     .strong(),
             );
             content.add_space(SPACE_M);
-            for (param_name, param_value) in &mut form.params {
+            for (param_name, param_type, param_value) in &mut form.params {
                 content.horizontal(|ui| {
+                    // Parameter name + type hint
+                    let label = if let Some(t) = param_type {
+                        format!("{}: {}:", param_name, t)
+                    } else {
+                        format!("{}:", param_name)
+                    };
                     ui.label(
-                        RichText::new(format!("{}:", param_name))
+                        RichText::new(label)
                             .size(FONT_SIZE_S)
                             .color(TEXT_SECONDARY),
                     );
-                    ui.add(
-                        egui::TextEdit::singleline(param_value)
-                            .desired_width(f32::INFINITY),
-                    );
+
+                    // Type-specific widget
+                    match param_type.as_deref() {
+                        Some("Num") => {
+                            let mut val = param_value.parse::<f64>().unwrap_or(0.0);
+                            let resp = ui.add(
+                                egui::DragValue::new(&mut val)
+                                    .speed(1.0)
+                                    .clamp_range(f64::NEG_INFINITY..f64::INFINITY)
+                                    .desired_width(80.0),
+                            );
+                            if resp.changed() || resp.lost_focus() {
+                                *param_value = format_num(val);
+                            }
+                        }
+                        Some("Bool") => {
+                            let mut bool_val = param_value == "true" || param_value == "1";
+                            if ui.checkbox(&mut bool_val, "").changed() {
+                                *param_value = if bool_val { "true" } else { "false" };
+                            }
+                        }
+                        Some("Vec2") => {
+                            // Parse existing value or show field pair
+                            let (mut x, mut y) = parse_vec2_value(param_value);
+                            ui.add_space(2.0);
+                            ui.label("x:");
+                            let rx = ui.add(egui::DragValue::new(&mut x).speed(1.0).desired_width(60.0));
+                            ui.label("y:");
+                            let ry = ui.add(egui::DragValue::new(&mut y).speed(1.0).desired_width(60.0));
+                            if rx.changed() || rx.lost_focus() || ry.changed() || ry.lost_focus() {
+                                *param_value = format!("({}, {})", format_num(x), format_num(y));
+                            }
+                        }
+                        _ => {
+                            // Default: text field
+                            ui.add(
+                                egui::TextEdit::singleline(param_value)
+                                    .desired_width(f32::INFINITY),
+                            );
+                        }
+                    }
                 });
                 content.add_space(SPACE_S);
             }
@@ -322,7 +379,7 @@ impl GuiShell {
                 let props: Vec<animatix_syntax::ast::Property> = form
                     .params
                     .iter()
-                    .filter_map(|(name, value)| {
+                    .filter_map(|(name, _type, value)| {
                         if value.trim().is_empty() {
                             return None;
                         }
@@ -597,7 +654,7 @@ impl GuiShell {
                 if !params.is_empty() {
                     self.insertion_palette.param_form = Some(ParamFormState {
                         type_name,
-                        params: params.into_iter().map(|(name, default)| (name, default.unwrap_or_default())).collect(),
+                        params: params.into_iter().map(|p| (p.name, p.param_type, p.default_str.unwrap_or_default())).collect(),
                     });
                     return;
                 }
@@ -679,5 +736,31 @@ impl GuiShell {
         }
 
         self.insertion_palette.close();
+    }
+}
+
+// ── Type-specific widget helpers ─────────────────────────────────────────
+
+/// Format a number without unnecessary trailing zeros.
+fn format_num(val: f64) -> String {
+    if val.fract() == 0.0 && val.abs() < 1_000_000.0 {
+        format!("{}", val as i64)
+    } else if (val * 100.0).fract() == 0.0 {
+        format!("{:.2}", val)
+    } else {
+        format!("{}", val)
+    }
+}
+
+/// Parse a Vec2 value string like "(100, 200)" or "100, 200".
+fn parse_vec2_value(s: &str) -> (f64, f64) {
+    let s = s.trim().trim_start_matches('(').trim_end_matches(')');
+    let parts: Vec<&str> = s.split(',').collect();
+    if parts.len() >= 2 {
+        let x = parts[0].trim().parse::<f64>().unwrap_or(0.0);
+        let y = parts[1].trim().parse::<f64>().unwrap_or(0.0);
+        (x, y)
+    } else {
+        (0.0, 0.0)
     }
 }

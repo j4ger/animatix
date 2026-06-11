@@ -1,4 +1,5 @@
 use crate::app::document::rebuild::RebuildToken;
+use crate::app::preview::performance::PerformanceMetrics;
 use crate::app::PreviewPaneState;
 use std::time::Instant;
 
@@ -12,6 +13,8 @@ pub struct PreviewStore {
     pub rebuild_in_progress: bool,
     /// Token of the latest in-flight background rebuild, if any.
     pub in_flight_rebuild: Option<RebuildToken>,
+    /// Performance metrics for the HUD overlay.
+    pub performance_metrics: PerformanceMetrics,
 }
 
 impl PreviewStore {
@@ -23,6 +26,7 @@ impl PreviewStore {
             last_frame_at: Instant::now(),
             rebuild_in_progress: false,
             in_flight_rebuild: None,
+            performance_metrics: PerformanceMetrics::new(),
         }
     }
 

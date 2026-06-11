@@ -10,6 +10,7 @@ use egui::{Pos2, Vec2};
 use crate::app::commands::{ActionQueue, Command, ShellAction, PropertyEdit, PropertyValue as GuiPropertyValue};
 use crate::app::design_tokens::*;
 use crate::app::preview::{self, selection, ActorProps, DragState};
+use crate::app::preview::performance::PerformanceMetrics;
 use crate::app::{PreviewPaneState, InlineTextEditState};
 use animatix::timeline::{SceneDimensions, Timeline, ActorKindId};
 use egui::Stroke;
@@ -30,6 +31,12 @@ pub(crate) struct PreviewContext<'a> {
     pub composition: Option<&'a animatix::composition::Composition>,
     pub active_scene: Option<&'a str>,
     pub keyframe_mode: bool,
+    /// Performance metrics for the HUD overlay.
+    pub performance_metrics: &'a mut PerformanceMetrics,
+    /// Show layout debug overlay (container labels, slot outlines, sizes).
+    pub debug_layout: bool,
+    /// Show padding/gap regions as overlay.
+    pub debug_spacing: bool,
 }
 
 // ─── Helper methods ─────────────────────────────────────────────────────────
@@ -514,6 +521,11 @@ impl PreviewContext<'_> {
                 }
             }
         }
+
+        // ── Performance HUD ──
+        if self.preview.overlay.show_performance_hud {
+            preview::overlay::render_performance_hud(ui.painter(), preview_rect, self.performance_metrics);
+        }
     }
 
     pub(crate) fn draw_snap_guides(&self, ui: &mut egui::Ui, preview_rect: egui::Rect, primary: &str) {
@@ -752,6 +764,25 @@ impl PreviewContext<'_> {
             ui.painter().rect_filled(marquee_rect, 0.0, crate::app::design_tokens::accent_faint());
             ui.painter().rect_stroke(marquee_rect, 0.0, egui::Stroke::new(STROKE_WIDTH, crate::app::design_tokens::accent_subtle()), egui::StrokeKind::Outside);
         }
+    }
+
+    /// Render layout debug overlay showing container bounds, slot outlines, and sizes.
+    pub(crate) fn render_layout_debug(&self, ui: &mut egui::Ui, preview_rect: egui::Rect) {
+        let Some(timeline) = self.timeline else { return };
+        if !self.debug_layout {
+            return;
+        }
+        let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
+        crate::app::preview::overlay::render_layout_debug(
+            ui.painter(),
+            timeline,
+            time_ms,
+            preview_rect,
+            self.scene_dimensions,
+            self.preview.viewport.preview_zoom,
+            self.preview.viewport.preview_pan,
+            self.debug_spacing,
+        );
     }
 }
 

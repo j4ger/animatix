@@ -3,8 +3,11 @@ pub mod drag_handler;
 pub mod grid;
 pub mod property_popup;
 pub mod overlay;
+pub mod performance;
 pub mod selection;
 pub mod time_lens;
+
+pub use performance::PerformanceMetrics;
 
 use std::collections::HashSet;
 use super::DEFAULT_PREVIEW_SIZE;

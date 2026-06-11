@@ -238,6 +238,36 @@ impl GuiShell {
                             self.ui_store.view.debug_bounds = !bounds;
                         }
 
+                        // Layout debug toggle
+                        let layout_debug = self.ui_store.view.debug_layout;
+                        if ui
+                            .selectable_label(layout_debug, "Layout")
+                            .on_hover_text("Toggle layout debug overlay (container labels, slot outlines, sizes)")
+                            .clicked()
+                        {
+                            self.ui_store.view.debug_layout = !layout_debug;
+                        }
+
+                        // Spacing overlay toggle
+                        let spacing = self.ui_store.view.debug_spacing;
+                        if ui
+                            .selectable_label(spacing, "Spacing")
+                            .on_hover_text("Toggle padding/gap visualization")
+                            .clicked()
+                        {
+                            self.ui_store.view.debug_spacing = !spacing;
+                        }
+
+                        // Performance HUD toggle
+                        let perf = self.preview_store.preview.overlay.show_performance_hud;
+                        if ui
+                            .selectable_label(perf, "Performance")
+                            .on_hover_text("Toggle performance HUD overlay")
+                            .clicked()
+                        {
+                            self.preview_store.preview.overlay.show_performance_hud = !perf;
+                        }
+
                         ui.separator();
 
                         // Zoom cycle button: Fit → 100% → 150% → 200% → Fit

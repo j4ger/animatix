@@ -26,13 +26,15 @@
 
 ## P3 — Polish & Performance
 
-| Task | Effort | Notes |
-|------|--------|-------|
-| **Performance HUD** | 2d | Show rebuild time, render time, GPU texture memory estimate, stale-preview badge. |
-| **Window size persistence** | 1d | Save/restore native window size and maximized state alongside tile layout. |
-| **Storyboard / scene thumbnails** | 3-4d | For multi-scene compositions: thumbnail strip, transition badges, drag-to-reorder. |
-| **Layout debugger overlay** | 2-3d | Show container bounds, layout slots, intrinsic sizes, padding/gaps on canvas. |
-| **Component authoring UI** | 4-6d | Component instances, params, slots, jump-to-definition in the GUI. |
+*(All P3 tasks are complete.)*
+
+| Task | Effort | What was built |
+|------|--------|----------------|
+| **Performance HUD** | 2d | `PerformanceMetrics` (rolling FPS EMA, rebuild/render timing, GPU mem, stale flag, sparkline). `PreviewOverlay::show_performance_hud` toggle. HUD renders in top-right corner with FPS, timings, memory, stale badge + mini sparkline. Toggle via toolbar "Performance" button. `record_tick()`/`record_render()`/`set_stale()` wired in runtime. |
+| **Window size persistence** | 1d | `WorkspacePersistence.window_size` + `window_maximized` with `#[serde(default)]`. Loaded in `run_gui()` to set `ViewportBuilder`. Captured each frame from `frame.info()`. Saved via `save_persistence()` on exit. Backward-compatible with old persistence files. |
+| **Storyboard / scene thumbnails** | 3-4d | Scene blocks in timeline composition track enhanced with keyframe density strips (tiny vertical blue marks at keyframe positions) + duration labels. Edge arrows augmented with transition badges (F/W/C icons) and hover tooltips showing transition type, target, duration. `scene_keyframe_times` cache built in `behavior.rs`. |
+| **Layout debugger overlay** | 2-3d | `DebugRenderOptions.draw_layout_debug` + `draw_spacing` fields. `render_layout_debug()` in overlay.rs draws container outlines with type labels (blue), child slot outlines (amber), intrinsic size labels, and gap/padding bands. Toggled via "Layout" / "Spacing" toolbar buttons. `PreviewContext.debug_layout/debug_spacing` wired through behavior. |
+| **Component authoring UI** | 4-6d | Slots display in Components tab (`@slots: slotname` in cyan). Jump-to-definition button (arrow icon) searches source text for `component Name` and scrolls editor. Richer param form in insertion palette: `DragValue` for Num, checkbox for Bool, dual `DragValue` fields for Vec2, default text for others. `ParamInfo` struct stores type annotations. |
 
 ## Icebox
 

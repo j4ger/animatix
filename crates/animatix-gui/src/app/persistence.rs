@@ -74,9 +74,20 @@ pub(super) fn persistence_path() -> PathBuf {
     PathBuf::from(".animatix-workspace-layout.ron")
 }
 
-pub(super) fn load_workspace_persistence(path: &Path) -> Option<Tree<WorkspaceTab>> {
+pub(super) fn load_workspace_persistence(path: &Path) -> Option<WorkspacePersistence> {
     let content = fs::read_to_string(path).ok()?;
-    ron::from_str::<Tree<WorkspaceTab>>(&content).ok()
+    ron::from_str::<WorkspacePersistence>(&content).ok()
+}
+
+// ── Window geometry / workspace layout persistence ─────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+struct WorkspacePersistence {
+    tree: Tree<WorkspaceTab>,
+    #[serde(default)]
+    window_size: Option<[f32; 2]>,
+    #[serde(default)]
+    window_maximized: Option<bool>,
 }
 
 // ── App state persistence (recent file, preferences) ─────────────────────

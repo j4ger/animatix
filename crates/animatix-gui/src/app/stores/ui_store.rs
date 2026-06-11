@@ -84,6 +84,8 @@ pub struct ViewStore {
     pub settings_open: bool,
     pub tool_mode: ToolMode,
     pub debug_bounds: bool,
+    pub debug_layout: bool,
+    pub debug_spacing: bool,
     pub shortcuts_open: bool,
     pub inspector_visible: bool,
     pub welcome_open: bool,
@@ -112,6 +114,8 @@ impl ViewStore {
             settings_open: false,
             tool_mode: ToolMode::Select,
             debug_bounds: false,
+            debug_layout: false,
+            debug_spacing: false,
             shortcuts_open: false,
             inspector_visible: false,
             welcome_open: false,
@@ -282,6 +286,8 @@ mod tests {
         assert!(!store.view.settings_open);
         assert!(!store.view.shortcuts_open);
         assert!(!store.view.debug_bounds);
+        assert!(!store.view.debug_layout);
+        assert!(!store.view.debug_spacing);
         assert_eq!(store.view.tool_mode, ToolMode::Select);
     }
 }

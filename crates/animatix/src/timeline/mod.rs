@@ -345,6 +345,10 @@ pub struct DebugRenderOptions {
     /// P2.24: When true, compute hit regions during evaluation.
     /// The GUI sets this to true when it needs click-to-select data.
     pub compute_hit_regions: bool,
+    /// Show layout-specific debug info (container labels, slot outlines, sizes).
+    pub draw_layout_debug: bool,
+    /// Show padding and gap regions as semi-transparent overlays.
+    pub draw_spacing: bool,
 }
 
 impl Default for SceneDimensions {

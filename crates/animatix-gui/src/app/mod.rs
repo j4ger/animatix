@@ -31,7 +31,7 @@ use directories::ProjectDirs;
 use egui::{Color32, Stroke, Vec2};
 use egui_tiles::Tree;
 use file_tree::{build_file_tree, workspace_root_for};
-use persistence::{default_tree, load_workspace_persistence, persistence_path};
+use persistence::{default_tree, load_workspace_persistence, persistence_path, WorkspacePersistence};
 use crate::app::design_tokens::*;
 #[cfg(test)]
 use preview::fit_preview;
@@ -67,10 +67,7 @@ pub enum WorkspaceTab {
     Timeline,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct WorkspacePersistence {
-    tree: Tree<WorkspaceTab>,
-}
+
 
 #[derive(Debug, Clone)]
 pub(crate) struct FileTreeEntry {
@@ -333,6 +330,8 @@ struct GuiShell {
     export_store: ExportStore,
     rebuild_worker: RebuildWorker,
     insertion_palette: InsertionPalette,
+    pub(crate) window_size: [f32; 2],
+    pub(crate) window_maximized: bool,
 }
 
 impl GuiShell {
@@ -389,7 +388,14 @@ impl GuiShell {
         let expanded_dirs = HashSet::from([workspace_root.clone()]);
         let file_tree = build_file_tree(&workspace_root, &document.file_path, &expanded_dirs);
         let persistence_path = persistence_path();
-        let tree = load_workspace_persistence(&persistence_path).unwrap_or_else(default_tree);
+        let persistence = load_workspace_persistence(&persistence_path);
+        let tree = persistence.as_ref().map(|p| p.tree.clone()).unwrap_or_else(default_tree);
+        let window_size = persistence.as_ref()
+            .and_then(|p| p.window_size)
+            .unwrap_or([1440.0, 960.0]);
+        let window_maximized = persistence.as_ref()
+            .and_then(|p| p.window_maximized)
+            .unwrap_or(false);
         let hot_reloader = HotReloader::new(&document.file_path).ok();
         let duration_s = document.duration_s.max(0.1);
         let mut preview = PreviewPaneState::new(duration_s, document.scene_dimensions);
@@ -423,6 +429,8 @@ impl GuiShell {
             export_store: ExportStore::new(),
             rebuild_worker: RebuildWorker::start(),
             insertion_palette: InsertionPalette::default(),
+            window_size,
+            window_maximized,
         };
         if !is_welcome {
             shell.document_store.publish_rebuild_result(
@@ -486,12 +494,14 @@ impl GuiShell {
             if self.preview_store.in_flight_rebuild
                 .map_or(true, |token| response.token == token)
             {
+                let elapsed_ms = response.elapsed_ms as f64;
                 let effects = crate::app::handlers::file::handle_rebuild_response(
                     &mut self.document_store,
                     &mut self.preview_store,
                     &mut self.ui_store,
                     response,
                 );
+                self.preview_store.performance_metrics.record_rebuild(elapsed_ms);
                 self.apply_effects(effects);
                 self.preview_store.in_flight_rebuild = None;
             }
@@ -790,6 +800,8 @@ impl GuiShell {
             keyframe_mode: self.ui_store.keyframe_mode,
             rotation_snap_degrees: self.ui_store.rotation_snap_degrees,
             snap_fps: self.ui_store.snap_fps,
+            debug_layout: self.ui_store.view.debug_layout,
+            debug_spacing: self.ui_store.view.debug_spacing,
         };
         tree.ui(&mut behavior, ui);
 
@@ -853,6 +865,8 @@ impl GuiShell {
         }
         let persistence = WorkspacePersistence {
             tree: self.ui_store.view.tree.clone(),
+            window_size: Some(self.window_size),
+            window_maximized: Some(self.window_maximized),
         };
         if let Ok(serialized) =
             ron::ser::to_string_pretty(&persistence, ron::ser::PrettyConfig::default())

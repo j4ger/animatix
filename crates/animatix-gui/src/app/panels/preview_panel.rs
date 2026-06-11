@@ -378,6 +378,11 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                     ctx.preview.viewport.preview_zoom, ctx.preview.viewport.preview_pan, ctx.preview.overlay.grid_size);
             }
 
+            // ── Layout debug overlay ──
+            if ctx.debug_layout {
+                ctx.render_layout_debug(ui, preview_rect);
+            }
+
             // ── Motion paths ──
             ctx.render_motion_paths(ui, preview_rect);
 

@@ -17,7 +17,7 @@
 //! │ Region │ [◀────────────▶]                          │
 //! └────────┴──────────────────────────────────────────-┘
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use crate::app::commands::{ActionQueue, Command, ShellAction};
@@ -88,6 +88,8 @@ pub(crate) struct TimelineContext<'a> {
     pub actor_labels: &'a [String],
     /// Cached per-actor keyframe property lists.
     pub actor_keyframes: &'a [(String, Vec<(u64, &'static str)>)],
+    /// Cached per-scene keyframe time positions (for density strip rendering).
+    pub scene_keyframe_times: &'a HashMap<String, Vec<f64>>,
     pub snap_fps: f32,
 }
 
@@ -261,6 +263,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         selected_actors,
         actor_labels: _,
         actor_keyframes: _,
+        scene_keyframe_times,
         snap_fps: _snap_fps,
     } = ctx;
     // Prune expired keyframe flashes (300 ms lifetime)
@@ -316,7 +319,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         }
     }
 
-    /// Render colored block segments for each scene in a composition track.
+    /// Render colored block segments for each scene in a composition track,
+    /// with a keyframe density strip and duration label inside each block.
     fn render_scene_blocks(
         painter: &egui::Painter,
         composition: &Composition,
@@ -324,6 +328,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         time_to_x: &dyn Fn(f64) -> f32,
         label_color: Color32,
         duration_s: f64,
+        scene_keyframe_times: &HashMap<String, Vec<f64>>,
     ) {
         let palette = [track_block_1(), track_block_2(), track_block_3(), track_block_4(), track_block_5()];
         for (idx, sn) in composition.declaration_order.iter().enumerate() {
@@ -336,13 +341,57 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 Pos2::new(time_to_x(end_s), track_rect.bottom()),
             );
             painter.rect_filled(sr, 2.0, palette[idx % palette.len()]);
+
+            // ── Keyframe density strip ──
+            if let Some(times) = scene_keyframe_times.get(sn) {
+                let strip_y = sr.bottom() - 6.0;
+                let strip_h = 4.0;
+                // Semi-transparent background for the density strip
+                painter.rect_filled(
+                    Rect::from_min_max(
+                        Pos2::new(sr.left(), strip_y),
+                        Pos2::new(sr.right(), strip_y + strip_h),
+                    ),
+                    0.0,
+                    Color32::BLACK.linear_multiply(0.3),
+                );
+                // Draw tiny vertical marks for each keyframe
+                for &kf_time_s in times {
+                    let kf_x = time_to_x(start_s + kf_time_s);
+                    if kf_x >= sr.left() && kf_x <= sr.right() {
+                        painter.line_segment(
+                            [Pos2::new(kf_x, strip_y), Pos2::new(kf_x, strip_y + strip_h)],
+                            Stroke::new(1.0, ACCENT_BLUE),
+                        );
+                    }
+                }
+            }
+
+            // ── Scene name label ──
             if sr.width() > 24.0 {
                 painter.text(
-                    sr.center(),
+                    Pos2::new(sr.center().x, sr.center().y - 2.0),
                     Align2::CENTER_CENTER,
                     sn.as_str(),
                     FontId::monospace(FONT_SIZE_XS),
                     label_color,
+                );
+            }
+
+            // ── Duration label (bottom-left of block) ──
+            if sr.width() > 40.0 {
+                let dur = scene.duration_s;
+                let dur_text = if dur < 1.0 {
+                    format!("{}ms", (dur * 1000.0).round() as u64)
+                } else {
+                    format!("{:.1}s", dur)
+                };
+                painter.text(
+                    Pos2::new(sr.left() + 4.0, sr.bottom() - 2.0),
+                    Align2::LEFT_BOTTOM,
+                    dur_text,
+                    FontId::monospace(FONT_SIZE_XS),
+                    label_color.linear_multiply(0.6),
                 );
             }
         }
@@ -649,7 +698,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 let scene_drag: Option<(String, f32)> = ui.data(|d| d.get_temp(scene_drag_data_id));
                 let mut new_scene_drag: Option<(String, f32)> = scene_drag.clone();
 
-                render_scene_blocks(painter, comp, bar_area, &time_to_x, text_dim(), duration_s);
+                render_scene_blocks(painter, comp, bar_area, &time_to_x, text_dim(), duration_s, scene_keyframe_times);
 
                 // Draw drag ghost if dragging
                 if let Some((ref drag_name, drag_offset_x)) = scene_drag {
@@ -684,10 +733,55 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     let tgt_left = time_to_x(tgt_start);
                     if tgt_left <= src_right { continue; }
                     let cy = bar_area.center().y;
+                    // Draw edge arrow line
                     painter.line_segment([Pos2::new(src_right, cy), Pos2::new(tgt_left, cy)], Stroke::new(STROKE_WIDTH, TEXT_MUTED));
                     painter.add(egui::Shape::convex_polygon(
                         vec![Pos2::new(tgt_left, cy), Pos2::new(tgt_left - 4.0, cy - 2.5), Pos2::new(tgt_left - 4.0, cy + 2.5)],
                         TEXT_MUTED, Stroke::NONE));
+
+                    // ── Transition badge at midpoint ──
+                    let mid_x = (src_right + tgt_left) / 2.0;
+                    let badge_r = 7.0;
+                    let badge_rect = Rect::from_center_size(Pos2::new(mid_x, cy), Vec2::new(badge_r * 2.0, badge_r * 2.0));
+
+                    // Determine transition icon
+                    let icon = match edge.transition.id.as_str() {
+                        "fade" => "F",
+                        "wipe-left" | "wipe-right" | "wipe-up" | "wipe-down" => "W",
+                        "cut" | _ => "C",
+                    };
+
+                    // Badge background circle
+                    painter.circle_filled(Pos2::new(mid_x, cy), badge_r, BG_SURFACE);
+                    painter.circle_stroke(Pos2::new(mid_x, cy), badge_r, Stroke::new(1.0, TEXT_MUTED));
+
+                    // Badge icon text
+                    painter.text(
+                        badge_rect.center(),
+                        Align2::CENTER_CENTER,
+                        icon,
+                        FontId::monospace(FONT_SIZE_XS),
+                        TEXT_PRIMARY,
+                    );
+
+                    // Tooltip on hover
+                    let badge_resp = ui.interact(
+                        badge_rect,
+                        ui.id().with(("transition_badge", src_name, &edge.to_scene)),
+                        Sense::hover(),
+                    );
+                    let dur_s = edge.transition.duration_ms as f64 / 1000.0;
+                    let dur_text = if dur_s < 1.0 {
+                        format!("{}ms", edge.transition.duration_ms)
+                    } else {
+                        format!("{:.1}s", dur_s)
+                    };
+                    badge_resp.on_hover_text(format!(
+                        "{:?} → {} [{}]",
+                        edge.transition.id,
+                        edge.to_scene,
+                        dur_text,
+                    ));
                 }
 
                 draw_loop_region(painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);

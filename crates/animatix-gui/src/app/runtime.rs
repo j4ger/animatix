@@ -1,7 +1,7 @@
 use super::*;
 use crate::app::audio::AudioEngine;
 use crate::app::commands::{Command, ShellAction, ViewAction};
-use crate::app::persistence::{load_app_state, save_app_state, clear_app_state};
+use crate::app::persistence::{load_app_state, load_workspace_persistence, persistence_path, save_app_state, clear_app_state};
 use crate::app::design_tokens::*;
 use eframe::egui;
 
@@ -13,13 +13,30 @@ pub fn run_gui(path: Option<PathBuf>) {
             None => (default_file_path(), true),
         },
     };
+
+    // Load persisted window geometry before constructing NativeOptions
+    let persistence_path = persistence_path();
+    let persistence = load_workspace_persistence(&persistence_path);
+    let window_size = persistence.as_ref().and_then(|p| p.window_size);
+    let window_maximized = persistence
+        .as_ref()
+        .and_then(|p| p.window_maximized)
+        .unwrap_or(false);
+
+    let viewport = egui::ViewportBuilder::default()
+        .with_title("Animatix")
+        .with_inner_size(
+            window_size
+                .map(|[w, h]| egui::Vec2::new(w, h))
+                .unwrap_or(egui::vec2(
+                    INITIAL_WINDOW_SIZE.0 as f32,
+                    INITIAL_WINDOW_SIZE.1 as f32,
+                )),
+        )
+        .with_maximized(window_maximized);
+
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title("Animatix")
-            .with_inner_size(egui::vec2(
-                INITIAL_WINDOW_SIZE.0 as f32,
-                INITIAL_WINDOW_SIZE.1 as f32,
-            )),
+        viewport,
         ..Default::default()
     };
 
@@ -301,9 +318,12 @@ impl AnimatixApp {
         self.preview_surface.set_dimensions(device, dimensions);
 
         if self.shell.preview_store.preview_dirty {
+            let render_start = std::time::Instant::now();
             let debug = animatix::timeline::DebugRenderOptions {
                 draw_bounds: self.shell.ui_store.view.debug_bounds,
                 compute_hit_regions: true,
+                draw_layout_debug: self.shell.ui_store.view.debug_layout,
+                draw_spacing: self.shell.ui_store.view.debug_spacing,
             };
 
             let render_result = if let Some(ref snapshot) = fallback {
@@ -412,6 +432,10 @@ impl AnimatixApp {
                     &self.shell.preview_store.preview,
                     self.shell.document_store.source.document.active_scene.as_deref(),
                 ));
+
+            // Record render time
+            let render_elapsed = render_start.elapsed().as_secs_f64() * 1000.0;
+            self.shell.preview_store.performance_metrics.record_render(render_elapsed);
         } else if self.preview_texture_id.is_none()
             && self.preview_surface.dimensions().width > 0
             && self.preview_surface.dimensions().height > 0
@@ -460,6 +484,14 @@ impl eframe::App for AnimatixApp {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        // Record frame tick for performance HUD
+        self.shell.preview_store.performance_metrics.record_tick();
+
+        // Update stale flag and GPU memory estimate
+        self.shell.preview_store.performance_metrics.set_stale(
+            self.shell.document_store.snapshot_is_stale()
+        );
+
         // Prepare frame (hot reload, playback tick, pending rebuild)
         self.shell.prepare_frame();
 
@@ -499,6 +531,15 @@ impl eframe::App for AnimatixApp {
                 }
             });
         }
+
+        // Capture window geometry for persistence
+        let (size, maximized) = ui.ctx().input(|i| {
+            let rect = i.viewport_rect();
+            let max = i.viewport().maximized.unwrap_or(false);
+            ([rect.size().x, rect.size().y], max)
+        });
+        self.shell.window_size = size;
+        self.shell.window_maximized = maximized;
 
         // Request repaint if needed
         if self.shell.is_playing() || self.shell.preview_store.preview_dirty || self.shell.has_pending_rebuild() || self.shell.preview_store.rebuild_in_progress {

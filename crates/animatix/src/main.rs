@@ -372,9 +372,7 @@ fn main() {
                     fps,
                     effective_duration,
                     &output_file,
-                    DebugRenderOptions { compute_hit_regions: false,
-                        draw_bounds: debug_bounds,
-                    },
+                    DebugRenderOptions { compute_hit_regions: false, draw_bounds: debug_bounds, ..Default::default() },
                     renderer::ExportSettings {
                         max_render_threads: threads,
                         ..Default::default()
@@ -387,9 +385,7 @@ fn main() {
                     fps,
                     effective_duration,
                     &output_file,
-                    DebugRenderOptions { compute_hit_regions: false,
-                        draw_bounds: debug_bounds,
-                    },
+                    DebugRenderOptions { compute_hit_regions: false, draw_bounds: debug_bounds, ..Default::default() },
                     renderer::ExportSettings {
                         max_render_threads: threads,
                         ..Default::default()
@@ -431,9 +427,7 @@ fn main() {
                     fps,
                     effective_duration,
                     &output_file,
-                    DebugRenderOptions { compute_hit_regions: false,
-                        draw_bounds: debug_bounds,
-                    },
+                    DebugRenderOptions { compute_hit_regions: false, draw_bounds: debug_bounds, ..Default::default() },
                     renderer::ExportSettings {
                         max_render_threads: threads,
                         video_codec: codec,
@@ -448,9 +442,7 @@ fn main() {
                         fps,
                         effective_duration,
                         &output_file,
-                        DebugRenderOptions { compute_hit_regions: false,
-                            draw_bounds: debug_bounds,
-                        },
+                        DebugRenderOptions { compute_hit_regions: false, draw_bounds: debug_bounds, ..Default::default() },
                         renderer::ExportSettings {
                             max_render_threads: threads,
                             video_codec: codec,
@@ -504,9 +496,7 @@ fn main() {
                     if let Err(e) = renderer::run_composition_with_options(
                         comp,
                         r#loop,
-                        DebugRenderOptions { compute_hit_regions: false,
-                            draw_bounds: debug_bounds,
-                        },
+                        DebugRenderOptions { compute_hit_regions: false, draw_bounds: debug_bounds, ..Default::default() },
                     ) {
                         error!("Preview failed: {e}");
                         std::process::exit(1);
@@ -516,9 +506,7 @@ fn main() {
                     if let Err(e) = renderer::run_timeline_with_options(
                         timeline,
                         r#loop,
-                        DebugRenderOptions { compute_hit_regions: false,
-                            draw_bounds: debug_bounds,
-                        },
+                        DebugRenderOptions { compute_hit_regions: false, draw_bounds: debug_bounds, ..Default::default() },
                     ) {
                         error!("Preview failed: {e}");
                         std::process::exit(1);
@@ -557,9 +545,7 @@ fn main() {
                     height,
                     time,
                     &output_file,
-                    DebugRenderOptions { compute_hit_regions: false,
-                        draw_bounds: debug_bounds,
-                    },
+                    DebugRenderOptions { compute_hit_regions: false, draw_bounds: debug_bounds, ..Default::default() },
                 ),
             };
             if let Err(e) = result {

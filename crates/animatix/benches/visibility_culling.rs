@@ -53,7 +53,7 @@ fn bench_visibility(c: &mut Criterion) {
             black_box(all_visible.evaluate_with_debug(
                 black_box(0.5),
                 dims,
-                animatix::timeline::DebugRenderOptions { draw_bounds: true, compute_hit_regions: false },
+                animatix::timeline::DebugRenderOptions { draw_bounds: true, compute_hit_regions: false, ..Default::default() },
                 &mut fb,
             ));
         })
@@ -67,7 +67,7 @@ fn bench_visibility(c: &mut Criterion) {
             black_box(mixed.evaluate_with_debug(
                 black_box(0.5),
                 dims,
-                animatix::timeline::DebugRenderOptions { draw_bounds: true, compute_hit_regions: false },
+                animatix::timeline::DebugRenderOptions { draw_bounds: true, compute_hit_regions: false, ..Default::default() },
                 &mut fb,
             ));
         })
@@ -81,7 +81,7 @@ fn bench_visibility(c: &mut Criterion) {
             black_box(all_offscreen.evaluate_with_debug(
                 black_box(0.5),
                 dims,
-                animatix::timeline::DebugRenderOptions { draw_bounds: true, compute_hit_regions: false },
+                animatix::timeline::DebugRenderOptions { draw_bounds: true, compute_hit_regions: false, ..Default::default() },
                 &mut fb,
             ));
         })
