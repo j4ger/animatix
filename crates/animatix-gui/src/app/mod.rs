@@ -579,6 +579,30 @@ impl GuiShell {
                 });
         }
 
+        // Status bar — thin bar at the bottom showing preview status and scene dimensions
+        egui::Panel::bottom("status_bar")
+            .frame(egui::Frame::new()
+                .fill(egui::Color32::from_rgb(18, 22, 28))
+                .inner_margin(egui::Margin::symmetric(8, 2)))
+            .resizable(false)
+            .min_height(20.0)
+            .show_inside(ui, |ui| {
+                ui.horizontal(|ui| {
+                    let status = &self.preview_store.preview.status;
+                    if !status.is_empty() {
+                        let is_error = status.contains("error") || status.contains("Error") || status.contains("fail");
+                        let color = if is_error { RED } else { TEXT_MUTED };
+                        ui.label(egui::RichText::new(status.as_str()).size(FONT_SIZE_XS).color(color));
+                    }
+                    // Right side: scene dimensions
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let dims = &self.document_store.source.document.scene_dimensions;
+                        ui.label(egui::RichText::new(format!("{}×{}", dims.width, dims.height))
+                            .size(FONT_SIZE_XS).color(TEXT_MUTED));
+                    });
+                });
+            });
+
         // Central workspace — edge-to-edge tiles, no outer margin
         // When welcome screen is open, show it instead of the workspace.
         egui::CentralPanel::default()

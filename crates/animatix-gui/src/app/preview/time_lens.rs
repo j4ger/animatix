@@ -44,7 +44,9 @@ impl TimeLens {
         duration_s: f64,
         keyframe_times: &[f64],
     ) -> Option<f64> {
-        let t_held = ui.input(|i| i.key_pressed(egui::Key::T) || i.key_down(egui::Key::T));
+        let wants_keyboard = ui.ctx().egui_wants_keyboard_input();
+        let t_held = !wants_keyboard
+            && ui.input(|i| i.key_pressed(egui::Key::T) || i.key_down(egui::Key::T));
 
         // Activate on T press
         if t_held && !self.active {

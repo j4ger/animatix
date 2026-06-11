@@ -102,8 +102,8 @@ pub(crate) fn render_property_spreadsheet(
         .clicked()
     {
         commands.push_back(ShellAction::Command(Command::CreateActor {
-            ty: "rect".into(),
-            label: format!("actor_{}", timeline.actor_labels().count() + 1),
+            ty: crate::app::panels::default_actor_type().into(),
+            label: crate::app::utils::labels::unique_label(None, "actor"),
             position: [400.0, 300.0],
             props: vec![],
         }));
