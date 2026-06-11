@@ -159,19 +159,35 @@ pub enum Command {
     // ── Insertion Palette ────────────────────────────────────────────
     InsertionFromPalette,
 
-    // ── View / Panel State ───────────────────────────────────────────
+    // ── View / Panel State (panel migration phase) ──────────────────
+    // #[allow(dead_code)] — infrastructure added in P2 for panel migration to
+    // view models + CommandBus. These variants will replace direct mutable
+    // context field access once panels are migrated incrementally.
+    #[allow(dead_code)]
     SetTimelineZoom(f32),
+    #[allow(dead_code)]
     SetTimelineScroll(f32),
+    #[allow(dead_code)]
     SetLoopRegion { start: Option<f64>, end: Option<f64> },
+    #[allow(dead_code)]
     ToggleCollapseActor(String),
+    #[allow(dead_code)]
     TogglePropertyLane(String),
+    #[allow(dead_code)]
     SetPreviewZoom(f32),
+    #[allow(dead_code)]
     SetPreviewZoomCentered { zoom: f32, center_x: f32, center_y: f32 },
+    #[allow(dead_code)]
     SetPreviewPan(egui::Vec2),
+    #[allow(dead_code)]
     SetToolMode(crate::app::preview::ToolMode),
+    #[allow(dead_code)]
     SetSidebarTab(crate::app::panels::SidebarTab),
+    #[allow(dead_code)]
     SetPropertyViewMode(crate::app::panels::inspector::PropertyViewMode),
+    #[allow(dead_code)]
     SetKeyframeViewMode(crate::app::panels::inspector::KeyframeViewMode),
+    #[allow(dead_code)]
     SetPivotOffset { actor: String, offset: [f32; 2] },
 }
 

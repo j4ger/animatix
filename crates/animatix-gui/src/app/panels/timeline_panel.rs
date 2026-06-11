@@ -33,9 +33,11 @@ use egui::{Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, Vec2};
 enum PropertyGroup {
     Transform,
     Style,
+    #[allow(dead_code)] // Reserved for future filter property lanes
     Filter,
     Shape,
     Text,
+    #[allow(dead_code)] // Reserved for future layout property lanes
     Layout,
 }
 
@@ -46,6 +48,7 @@ const PROPERTY_GROUPS: &[(PropertyGroup, &str, &[&str])] = &[
     (PropertyGroup::Text, "Text", &["text_content", "font_family", "font_size", "text_paths"]),
 ];
 
+#[allow(dead_code)] // Reserved for future property lane group headers
 fn property_group_name(prop: &str) -> Option<&'static str> {
     for (_, group_name, props) in PROPERTY_GROUPS {
         if props.contains(&prop) {
@@ -79,14 +82,17 @@ pub(crate) struct TimelineContext<'a> {
     pub preview: &'a mut PreviewPaneState,
     pub timeline: Option<&'a Timeline>,
     pub composition: Option<&'a Composition>,
+    #[allow(dead_code)] // Kept for future composition workrange display
     pub active_scene: Option<&'a str>,
     pub commands: &'a mut ActionQueue,
     pub collapsed_actors: &'a mut HashSet<String>,
     pub expanded_properties: &'a mut HashSet<String>,
     pub selected_actors: &'a mut HashSet<String>,
     /// Cached actor labels (recomputed in behavior.rs when stale).
+    #[allow(dead_code)] // Reserved for future search/filter in timeline
     pub actor_labels: &'a [String],
     /// Cached per-actor keyframe property lists.
+    #[allow(dead_code)] // Reserved for future per-actor keyframe count display
     pub actor_keyframes: &'a [(String, Vec<(u64, &'static str)>)],
     /// Cached per-scene keyframe time positions (for density strip rendering).
     pub scene_keyframe_times: &'a HashMap<String, Vec<f64>>,

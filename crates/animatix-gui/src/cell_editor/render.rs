@@ -689,7 +689,6 @@ fn draw_wavy_underlines(
         let color = match d.severity {
             animatix_syntax::diagnostics::DiagnosticSeverity::Error => dt::RED,
             animatix_syntax::diagnostics::DiagnosticSeverity::Warning => dt::AMBER,
-            _ => continue,
         };
 
         // Y position: baseline below the diagnostic line

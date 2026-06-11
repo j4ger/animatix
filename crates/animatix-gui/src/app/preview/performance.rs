@@ -66,6 +66,7 @@ impl PerformanceMetrics {
     }
 
     /// Set GPU memory estimate.
+    #[allow(dead_code)] // Reserved for GPU memory tracking integration
     pub fn set_gpu_memory(&mut self, mb: f64) {
         self.gpu_memory_mb = mb;
     }

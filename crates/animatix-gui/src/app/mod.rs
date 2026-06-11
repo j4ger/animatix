@@ -29,7 +29,6 @@ use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase, 
 use animatix::timeline::SceneDimensions;
 use directories::ProjectDirs;
 use egui::{Color32, Stroke, Vec2};
-use egui_tiles::Tree;
 use file_tree::{build_file_tree, workspace_root_for};
 use persistence::{default_tree, load_workspace_persistence, persistence_path, WorkspacePersistence};
 use crate::app::design_tokens::*;

@@ -15,10 +15,16 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 
 1. Read relevant docs before changing (`docs/spec.md`, `docs/architecture.md`, etc.).
 2. Keep tests green: run `cargo test -p animatix` and `cargo test -p animatix-gui` before finishing when relevant.
-3. Update docs for user-visible behavior; keep `docs/roadmap.md` as only remaining work (remove completed items).
-4. Ask on unclear design choices and call out design flaws you notice.
-5. When committing, use `cog commit <type> "<summary>" [scope]` after staging files (example: `cog commit feat "add scrubbing" gui`). Use `cog commit --add ...` only if every unstaged change belongs in the commit. Fall back to `git commit -m "type(scope): summary"` only if `cog` is unavailable/blocked, and mention it.
-6. Conventional commit scopes come from `cog.toml`: `animatix`, `gui`, `analyzer`, `lsp`, `syntax`, `parser`, `renderer`, `timeline`, `ci`, `docs`.
+3. **Before committing**: run `cargo check` (0 errors) and `cargo test --no-fail-fast` (all passing). Do not commit with build errors or test failures.
+4. Update docs for user-visible behavior; keep `docs/roadmap.md` as only remaining work (remove completed items).
+5. Ask on unclear design choices and call out design flaws you notice.
+6. When committing, use `cog commit <type> "<summary>" [scope]` after staging files (example: `cog commit feat "add scrubbing" gui`). Use `cog commit --add ...` only if every unstaged change belongs in the commit. Fall back to `git commit -m "type(scope): summary"` only if `cog` is unavailable/blocked, and mention it.
+7. Conventional commit scopes come from `cog.toml`: `animatix`, `gui`, `analyzer`, `lsp`, `syntax`, `parser`, `renderer`, `timeline`, `ci`, `docs`.
+
+## Code Rules
+
+- Every `#[allow(dead_code)]` must have an inline justification comment explaining why the item is intentionally unused (e.g., `// Reserved for future X integration`). `#[allow(dead_code)]` without a comment is not allowed in committed code.
+- Remove truly dead code instead of marking it dead, unless there is a concrete forward-looking reason to keep it.
 
 ## Code Style
 

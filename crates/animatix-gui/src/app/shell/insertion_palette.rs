@@ -328,7 +328,7 @@ impl GuiShell {
                             let resp = ui.add(
                                 egui::DragValue::new(&mut val)
                                     .speed(1.0)
-                                    .clamp_range(f64::NEG_INFINITY..=f64::INFINITY),
+                                    .range(f64::NEG_INFINITY..=f64::INFINITY),
                             );
                             if resp.changed() || resp.lost_focus() {
                                 *param_value = format_num(val);

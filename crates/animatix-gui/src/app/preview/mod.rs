@@ -7,8 +7,6 @@ pub mod performance;
 pub mod selection;
 pub mod time_lens;
 
-pub use performance::PerformanceMetrics;
-
 use std::collections::HashSet;
 use super::DEFAULT_PREVIEW_SIZE;
 use crate::app::design_tokens::*;

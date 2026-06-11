@@ -5,7 +5,6 @@ use crate::app::WorkspaceTab;
 use crate::app::design_tokens::*;
 
 use crate::app::panels::{sidebar, editor, inspector, timeline_panel, preview_panel};
-use crate::app::stores;
 use crate::app::stores::{DocumentStore, WorkspaceStore, PreviewStore};
 use crate::app::commands::ActionQueue;
 use crate::app::preview;
@@ -151,7 +150,6 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                             let mut times: Vec<f64> = scene.timeline.tracks().values()
                                 .flat_map(|track| {
                                     let mut track_times = Vec::new();
-                                    use animatix::timeline::PropertyTrack;
                                     macro_rules! push_kf_times {
                                         ($($field:ident),* $(,)?) => {
                                             $(
