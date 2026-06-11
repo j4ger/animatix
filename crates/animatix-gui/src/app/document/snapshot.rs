@@ -35,7 +35,12 @@ pub enum BuildTargetSnapshot {
 ///
 /// This is the single source of truth for all non-source document data.
 /// `DocumentStore` holds the latest snapshot (current) and the last good one.
+///
+/// Fields are written during construction but not yet read individually —
+/// panels currently consume `DocumentSession` directly. The snapshot API
+/// exists for the panel-migration path (see `panels/*_model.rs`).
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct DocumentSnapshot {
     pub generation: DocumentGeneration,
     pub source_epoch: SourceEpoch,

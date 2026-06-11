@@ -112,6 +112,7 @@ impl DocumentStore {
     // ── Snapshot API ──
 
     /// The latest completed snapshot (may be failed or stale).
+    #[allow(dead_code)] // Reserved for panel migration — panels currently read from DocumentSession directly
     pub fn current_snapshot(&self) -> Option<Arc<DocumentSnapshot>> {
         self.current.clone()
     }
@@ -122,6 +123,7 @@ impl DocumentStore {
     }
 
     /// The current document generation.
+    #[allow(dead_code)] // Reserved for panel migration — generation tracked internally otherwise
     pub fn document_generation(&self) -> DocumentGeneration {
         self.generation
     }
@@ -247,6 +249,7 @@ impl DocumentStore {
 
     /// Try to rebuild the current document and produce a snapshot.
     /// Returns true if a snapshot was published.
+    #[allow(dead_code)] // Reserved for async rebuild path; rebuild currently handled by RebuildWorker
     pub fn try_rebuild_snapshot(&mut self) -> bool {
         let ok = self.source.document.rebuild().is_ok();
         self.publish_rebuild_result(ok);
