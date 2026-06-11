@@ -305,15 +305,10 @@ impl GuiShell {
                         ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
 
                         // Command palette / shortcut reference button
-                        let shortcut = if cfg!(target_os = "macos") {
-                            "⌘K"
-                        } else {
-                            "Ctrl+K"
-                        };
                         if button::icon_button(
                             ui,
                             egui_phosphor::regular::COMMAND,
-                            &format!("Keyboard shortcuts ({shortcut} / ?)"),
+                            "Keyboard shortcuts",
                         )
                         .clicked()
                         {

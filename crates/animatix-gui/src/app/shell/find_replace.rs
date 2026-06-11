@@ -125,6 +125,7 @@ impl GuiShell {
         self.document_store.source.document.expanded_statements = None;
         self.preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms));
+        self.ui_store.find_last_match = None;
         self.preview_store.preview.status = format!("Replaced {} occurrence(s)", count);
     }
 
@@ -136,13 +137,35 @@ impl GuiShell {
         }
 
         let text = self.document_store.source.editor.text();
-        // Simple find — scroll to first occurrence for now
-        if let Some(pos) = text.find(find) {
+        let text_len = text.len();
+
+        // Start searching from after the last match, or from the beginning
+        let start = self.ui_store.find_last_match
+            .map(|p| (p + 1).min(text_len))
+            .unwrap_or(0);
+
+        // Search forward from cursor position
+        if start < text_len {
+            if let Some(pos) = text[start..].find(find) {
+                let abs_pos = start + pos;
+                self.ui_store.find_last_match = Some(abs_pos);
+                let (line, _col) = self.document_store.source.editor.byte_to_line_col(abs_pos);
+                self.document_store.source.editor.scroll_to_line(line);
+                self.preview_store.preview.status = format!("Found at line {}", line + 1);
+                return;
+            }
+        }
+
+        // Not found after cursor — try wrapping from the start
+        if let Some(pos) = text[..start.min(text_len)].find(find) {
+            self.ui_store.find_last_match = Some(pos);
             let (line, _col) = self.document_store.source.editor.byte_to_line_col(pos);
             self.document_store.source.editor.scroll_to_line(line);
-            self.preview_store.preview.status = format!("Found at line {}", line + 1);
-        } else {
-            self.preview_store.preview.status = "No matches found".to_string();
+            self.preview_store.preview.status = format!("Wrapped to top — found at line {}", line + 1);
+            return;
         }
+
+        // No matches at all
+        self.preview_store.preview.status = "No matches found".to_string();
     }
 }

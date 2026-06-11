@@ -146,12 +146,16 @@ pub struct UiStore {
     pub toasts: ToastQueue,
     /// Path buffer for the workspace switcher dialog.
     pub workspace_switcher_path: String,
+    /// Selected index in the command palette list.
+    pub command_palette_selected: usize,
     /// Query string for the command palette.
     pub command_palette_query: String,
     /// Find/replace query string.
     pub find_query: String,
     /// Find/replace replacement string.
     pub replace_query: String,
+    /// Byte offset of the last Find Next match, for cursor-relative search.
+    pub find_last_match: Option<usize>,
 }
 
 impl UiStore {
@@ -178,9 +182,11 @@ impl UiStore {
             pending_actions: ActionQueue::default(),
             toasts: ToastQueue::default(),
             workspace_switcher_path: String::new(),
+            command_palette_selected: 0,
             command_palette_query: String::new(),
             find_query: String::new(),
             replace_query: String::new(),
+            find_last_match: None,
         }
     }
 

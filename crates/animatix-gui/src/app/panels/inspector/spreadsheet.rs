@@ -50,7 +50,7 @@ pub(crate) fn render_property_spreadsheet(
     current_time_s: f64,
     selected_actors: &mut HashSet<String>,
     commands: &mut ActionQueue,
-    _scene_dimensions: SceneDimensions,
+    scene_dimensions: SceneDimensions,
     property_view_mode: &mut PropertyViewMode,
 ) {
     // ── View-mode toggle bar ──
@@ -104,7 +104,7 @@ pub(crate) fn render_property_spreadsheet(
         commands.push_back(ShellAction::Command(Command::CreateActor {
             ty: crate::app::panels::default_actor_type().into(),
             label: crate::app::utils::labels::unique_label(None, "actor"),
-            position: [400.0, 300.0],
+            position: [scene_dimensions.width as f32 / 2.0, scene_dimensions.height as f32 / 2.0],
             props: vec![],
         }));
     }

@@ -49,13 +49,14 @@ impl GuiShell {
                 ui.set_min_width(360.0);
 
                 // Search input
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.ui_store.command_palette_query
-                    )
-                    .hint_text("Type a command…")
-                    .font(egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional))
-                    .desired_width(f32::INFINITY),
+                let search_resp = ui.add(
+                    egui::TextEdit::singleline(&mut self.ui_store.command_palette_query)
+                        .hint_text("Type a command…")
+                        .font(egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional))
+                        .desired_width(f32::INFINITY)
+                        .id_source("cmd_palette_search"),
                 );
+                search_resp.request_focus();
                 ui.add_space(SPACE_M);
                 ui.separator();
                 ui.add_space(SPACE_S);
@@ -70,6 +71,39 @@ impl GuiShell {
                     })
                     .collect();
 
+                // Clamp selected index after filtering
+                if self.ui_store.command_palette_selected >= filtered.len() {
+                    self.ui_store.command_palette_selected = filtered.len().saturating_sub(1);
+                }
+
+                // Keyboard navigation
+                let mut enter_pressed = false;
+                ui.input(|i| {
+                    if i.key_pressed(egui::Key::ArrowDown) {
+                        let len = filtered.len();
+                        if len > 0 {
+                            self.ui_store.command_palette_selected =
+                                (self.ui_store.command_palette_selected + 1) % len;
+                        }
+                    }
+                    if i.key_pressed(egui::Key::ArrowUp) {
+                        let len = filtered.len();
+                        if len > 0 {
+                            self.ui_store.command_palette_selected =
+                                (self.ui_store.command_palette_selected + len - 1) % len;
+                        }
+                    }
+                    if i.key_pressed(egui::Key::Enter) {
+                        enter_pressed = true;
+                    }
+                });
+                if enter_pressed && !filtered.is_empty() {
+                    let item = filtered[self.ui_store.command_palette_selected];
+                    commands.push(item.action.clone());
+                    self.ui_store.view.command_palette_open = false;
+                    self.ui_store.command_palette_query.clear();
+                }
+
                 if filtered.is_empty() {
                     ui.label(
                         egui::RichText::new("No commands match your search")
@@ -80,14 +114,16 @@ impl GuiShell {
                     egui::ScrollArea::vertical()
                         .max_height(320.0)
                         .show(ui, |ui| {
-                            for item in filtered {
+                            for (idx, item) in filtered.iter().enumerate() {
+                                let is_selected = idx == self.ui_store.command_palette_selected;
+
                                 let resp = ui.add(
                                     egui::Button::new(
                                         egui::RichText::new(format!("{}  {}", item.icon, item.label))
                                             .size(FONT_SIZE_M)
                                             .color(TEXT_PRIMARY),
                                     )
-                                    .fill(BG_WIDGET)
+                                    .fill(if is_selected { ACCENT_BLUE.linear_multiply(0.15) } else { BG_WIDGET })
                                     .stroke(egui::Stroke::new(STROKE_WIDTH, BORDER))
                                     .corner_radius(RADIUS_M)
                                     .min_size(egui::vec2(ui.available_width(), ROW_M)),

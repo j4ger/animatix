@@ -377,10 +377,12 @@ impl GuiShell {
             }
             ViewAction::OpenCommandPalette => {
                 self.ui_store.view.command_palette_open = true;
+                self.ui_store.command_palette_selected = 0;
                 vec![]
             }
             ViewAction::OpenFindReplace => {
                 self.ui_store.view.find_replace_open = true;
+                self.ui_store.find_last_match = None;
                 vec![]
             }
             ViewAction::DeselectActors => {

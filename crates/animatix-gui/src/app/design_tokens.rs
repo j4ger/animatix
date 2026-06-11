@@ -193,8 +193,6 @@ pub const MENU_SHADOW_OFFSET_Y: i8 = 4;
 pub const MENU_SHADOW_BLUR: i8 = 12;
 
 // ── Welcome Screen ──
-pub const WELCOME_ICON_SIZE: f32 = 48.0;
-pub const WELCOME_BTN_WIDTH: f32 = 240.0;
 pub const WELCOME_BTN_HEIGHT: f32 = 36.0;
 pub const WELCOME_TOP_OFFSET_FRAC: f32 = 0.22;
 

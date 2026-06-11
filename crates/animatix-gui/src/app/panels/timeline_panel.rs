@@ -696,10 +696,10 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     Rect::from_min_max(Pos2::new(scroll_rect.left(), ruler_top), Pos2::new(bar_origin_x, ruler_bot)),
                     0.0, BG_BASE);
 
-                let tick_step = if duration_s <= 2.0 { 0.25 } else if duration_s <= 5.0 { 0.5 }
-                    else if duration_s <= 15.0 { 1.0 } else if duration_s <= 45.0 { 5.0 } else { 10.0 };
-                let mut t = 0.0;
-                while t <= duration_s {
+                let tick_step = if visible_s <= 2.0 { 0.25 } else if visible_s <= 5.0 { 0.5 }
+                    else if visible_s <= 15.0 { 1.0 } else if visible_s <= 45.0 { 5.0 } else { 10.0 };
+                let mut t = (scroll_s / tick_step).floor() * tick_step;
+                while t <= scroll_s + visible_s {
                     let x = time_to_x(t);
                     if x >= bar_origin_x && x <= bar_origin_x + bar_width {
                         painter.line_segment([Pos2::new(x, ruler_bot - 6.0), Pos2::new(x, ruler_bot)], Stroke::new(STROKE_WIDTH, BORDER));
@@ -987,7 +987,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 }
 
                 // Track label
-                let label_x = prop_toggle_x + if prop_expanded { 16.0 } else { 16.0 } + SPACE_S;
+                let label_x = prop_toggle_x + 16.0 + SPACE_S;
                 let label_text = if actor_label.chars().count() > 16 {
                     actor_label.chars().take(15).collect::<String>() + "…"
                 } else {
@@ -1255,13 +1255,6 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
 
                 // Track bar right-click: bulk operations for selected keyframes
                 let track_bar_resp = ui.interact(bar_area, ui.id().with(("track_bar", track_idx)), Sense::click());
-                if track_bar_resp.secondary_clicked() {
-                    let track_selected: Vec<&(String, u64)> = multi_selected.iter().filter(|(l, _)| l == actor_label).collect();
-                    if !track_selected.is_empty() {
-                        // Show bulk context menu at pointer position
-                        // Use egui's context_menu API on the response
-                    }
-                }
                 track_bar_resp.context_menu(|ui| {
                     let track_selected: Vec<(String, u64)> = multi_selected.iter().filter(|(l, _)| l == actor_label).cloned().collect();
                     if !track_selected.is_empty() {
