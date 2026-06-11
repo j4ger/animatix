@@ -14,7 +14,7 @@ const LENS_INNER_RADIUS: f32 = 40.0;
 
 /// State for the time lens HUD.
 pub struct TimeLens {
-    /// Is Space currently held?
+    /// Is the `T` key currently held?
     pub active: bool,
     /// Cursor position when lens activated.
     pub origin: Pos2,

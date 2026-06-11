@@ -65,8 +65,6 @@
 
 | Task | Reason |
 |------|--------|
-| **Audit finding: design tokens doc drift** | `design_tokens.rs` module doc advertises token groups (`color::SURFACE_BASE`) that don't exist. Actual names are `BG_BASE`, `FONT_SIZE_*`, `RADIUS_*`. |
-| **Audit finding: stale time_lens doc comment** | `time_lens.rs:18` still says "Is Space currently held?" for the `T` key. |
 | **Scene primitive / picture-in-picture** | Transition blending shipped; existing components and `Stack` cover most reuse cases. |
 | **Export performance: pre-compiled plot closures** | Only matters for many plot actors or heavy sampled fields. |
 | **Asset usage tracking** | Show which actors reference an asset; no strong user story yet. |

@@ -1,12 +1,16 @@
 //! Unified design tokens for the entire Animatix GUI.
 //!
-//! All UI modules import from here. No local palette constants allowed.
+//! All UI modules import `use crate::app::design_tokens::*;`. No local palette
+//! constants allowed — all colors, spacing, radii, and font sizes come from here.
 //!
-//! Token groups:
-//! - `color`: SURFACE_BASE, ELEVATED, WIDGET, TEXT_PRIMARY, etc.
-//! - `spacing`: XS, S, M, L, XL, XXL
-//! - `radius`: NONE, SM, MD, LG, FULL
-//! - `typography`: H1, H2, BODY, CAPTION, MONO
+//! Naming conventions:
+//! - Backgrounds: `BG_*` (BG_BASE, BG_SURFACE, BG_WIDGET)
+//! - Text: `TEXT_*` (TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED)
+//! - Accent/semantic: `ACCENT_*`, `GREEN`, `RED`, `AMBER`, `PURPLE`
+//! - Spacing: `SPACE_*` (SPACE_XS, S, M, L, XL, XXL)
+//! - Font sizes: `FONT_SIZE_*` (FONT_SIZE_XS, S, M, L, XL, XXL)
+//! - Radii: `RADIUS_*` (RADIUS_S, M, L, XL)
+//! - Timeline: `TIMELINE_*`
 
 
 use egui::Color32;
