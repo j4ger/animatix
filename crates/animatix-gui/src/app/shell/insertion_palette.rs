@@ -227,13 +227,11 @@ impl GuiShell {
             return;
         }
 
-        // Lazily populate items on first open
-        if self.insertion_palette.items.is_empty() {
-            self.insertion_palette.populate(
-                self.document_store.source.document.active_timeline(),
-                &self.document_store.source.document.components,
-            );
-        }
+        // Repopulate on every open to reflect component/action changes
+        self.insertion_palette.populate(
+            self.document_store.source.document.active_timeline(),
+            &self.document_store.source.document.components,
+        );
 
         let screen_rect = ui.ctx().viewport_rect();
 

@@ -527,17 +527,29 @@ pub(super) fn inspector_ui(
 
         let multi_count = selected_actors.len();
 
-        ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
-            if multi_count > 1 {
-                ui.horizontal(|ui| {
+        if multi_count > 1 {
+            // ── Multi-selection: show info card instead of single-actor properties ──
+            ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
+                layout::card(ui, |ui| {
+                    layout::section_header(
+                        ui,
+                        egui_phosphor::regular::USERS,
+                        &format!("{} actors selected", multi_count),
+                        None,
+                    );
+                    ui.add_space(SPACE_S);
                     ui.label(
-                        RichText::new(format!("{} actors selected", multi_count))
-                            .size(FONT_SIZE_M)
-                            .color(TEXT_SECONDARY),
+                        RichText::new("Multi-select — edits apply to all selected actors")
+                            .size(FONT_SIZE_XS)
+                            .color(TEXT_MUTED),
                     );
                 });
-                ui.add_space(SPACE_S);
-            }
+            });
+            return;
+        }
+
+        // Single-actor selection
+        ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
             render_actor_header(ui, track, current_time_s, commands);
             ui.add_space(SPACE_M);
 

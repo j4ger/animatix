@@ -737,6 +737,25 @@ fn render_actor_tree(
         }
     }
 
+    // Drop-to-root indicator: show a line at the top of depth-0 rows when
+    // the pointer is within the expanded drop zone but not over the row.
+    if is_dragging && depth == 0 {
+        let pointer_pos = ui.input(|i| i.pointer.latest_pos());
+        let in_drop_zone = pointer_pos.is_some_and(|p| {
+            !response.row_rect.contains(p) && response.row_rect.expand(8.0).contains(p)
+        });
+        if in_drop_zone {
+            ui.painter().rect_filled(
+                egui::Rect::from_min_max(
+                    egui::pos2(response.row_rect.left(), response.row_rect.top()),
+                    egui::pos2(response.row_rect.right(), response.row_rect.top() + 2.0),
+                ),
+                0.0,
+                ACCENT_BLUE,
+            );
+        }
+    }
+
     if is_dragging && ui.input(|i| i.pointer.any_released()) {
         let dragged = ui.data(|d| d.get_temp::<String>(drag_data_id)).unwrap_or_default();
         if !dragged.is_empty() && dragged != label {
@@ -746,7 +765,7 @@ fn render_actor_tree(
                 commands.push_back(ShellAction::Command(Command::ReparentActor { actor: dragged.clone(), new_parent: Some(label.to_string()) }));
             } else if !over_this_row && depth == 0 {
                 let over_any_root = pointer_pos.is_some_and(|p| {
-                    response.row_rect.expand(100.0).contains(p)
+                    response.row_rect.expand(8.0).contains(p)
                 });
                 if over_any_root {
                     commands.push_back(ShellAction::Command(Command::ReparentActor { actor: dragged.clone(), new_parent: None }));

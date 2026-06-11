@@ -203,10 +203,7 @@ impl UiStore {
             playhead_time_s: 0.0,           // caller should set this from preview store
             loop_start_s: None,
             loop_end_s: None,
-            timeline_zoom: self.view.timeline_zoom,
             timeline_scroll_offset: self.view.timeline_scroll_offset,
-            preview_zoom: self.view.preview_zoom,
-            preview_pan: (self.view.preview_pan.x, self.view.preview_pan.y),
             tool_mode: self.view.tool_mode,
         }
     }
@@ -217,10 +214,7 @@ impl UiStore {
     pub fn restore_snapshot(&mut self, snapshot: crate::app::document::history::UiSnapshot) {
         self.view.active_scene = snapshot.active_scene;
         self.selection.selected_actors = snapshot.selected_actors;
-        self.view.timeline_zoom = snapshot.timeline_zoom;
         self.view.timeline_scroll_offset = snapshot.timeline_scroll_offset;
-        self.view.preview_zoom = snapshot.preview_zoom;
-        self.view.preview_pan = egui::Vec2::new(snapshot.preview_pan.0, snapshot.preview_pan.1);
         self.view.tool_mode = snapshot.tool_mode;
         // Clear drag state on restore
         self.interaction.drag_state = crate::app::preview::DragState::None;

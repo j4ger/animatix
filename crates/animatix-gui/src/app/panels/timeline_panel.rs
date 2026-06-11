@@ -429,8 +429,9 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
             {
                 let panel_resp = ui.interact(scroll_rect, ui.id().with("timeline_panel_wheel"), Sense::hover());
                 if panel_resp.hovered() {
+                    let modifiers = ui.input(|i| i.modifiers);
                     let wheel = ui.input(|i| i.smooth_scroll_delta);
-                    if wheel.x != 0.0 || wheel.y != 0.0 {
+                    if (wheel.x != 0.0 || wheel.y != 0.0) && (modifiers.ctrl || modifiers.command) {
                         let zoom_delta = if wheel.y != 0.0 { -wheel.y * 0.002 } else { -wheel.x * 0.002 };
                         let old_zoom = preview.timeline_zoom;
                         let new_zoom = (old_zoom * (1.0 + zoom_delta)).clamp(0.25, 8.0);
@@ -1018,7 +1019,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             let color = action_category_color(event.category);
 
                             // Check if this block is being dragged
-                            let is_action_drag = action_drag.as_ref().is_some_and(|(_, ms, _, _, _, _)| *ms == event.start_time_ms);
+                            let is_action_drag = action_drag.as_ref().is_some_and(|(ti, ms, _, _, _, _)| *ti == track_idx && *ms == event.start_time_ms);
 
                             // Draw drag handles (left/right edges)
                             let handle_w = 8.0;
@@ -1235,23 +1236,34 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                         ui.strong(format!("{} selected keyframes", track_selected.len()));
                         ui.separator();
                         if ui.button(format!("{} Delete selected", egui_phosphor::regular::TRASH)).clicked() {
-                            for (actor, time_ms) in track_selected {
+                            for (actor, time_ms) in &track_selected {
                                 if let Some(tl) = timeline {
-                                    if let Some(track) = tl.get_track(&actor) {
-                                        let kf_props = collect_actor_keyframes(track);
-                                        for (kf_ms, prop) in kf_props {
-                                            if kf_ms == time_ms {
-                                                commands.push_back(ShellAction::Command(Command::DeleteKeyframe {
-                                                    actor: actor.clone(),
-                                                    property: prop.to_string(),
-                                                    time_s: kf_ms as f64 / 1000.0,
-                                                }));
-                                            }
+                                    if let Some(track) = tl.get_track(actor) {
+                                        // Iterate ALL property tracks directly instead of using collect_actor_keyframes
+                                        // which dedups by time
+                                        macro_rules! delete_kf_at_time {
+                                            ($track:expr, $time_ms:expr, $cmds:expr, $actor:expr, [$($field:ident),*]) => {
+                                                $(
+                                                    if let Some(pt) = &$track.$field {
+                                                        if pt.keyframes.contains_key(&$time_ms) {
+                                                            $cmds.push_back(ShellAction::Command(Command::DeleteKeyframe {
+                                                                actor: $actor.clone(),
+                                                                property: stringify!($field).to_string(),
+                                                                time_s: $time_ms as f64 / 1000.0,
+                                                            }));
+                                                        }
+                                                    }
+                                                )*
+                                            };
                                         }
+                                        delete_kf_at_time!(track, *time_ms, commands, actor, [
+                                            position, motion_offset, rotation, scale, size,
+                                            color, opacity, stroke_width, stroke_color, stroke_progress, fill_opacity
+                                        ]);
                                     }
                                 }
                             }
-                            multi_selected.retain(|(l, _)| l != actor_label);
+                            multi_selected.clear();
                             ui.close();
                         }
                         ui.separator();

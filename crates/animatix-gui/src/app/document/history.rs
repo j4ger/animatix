@@ -15,10 +15,7 @@ pub struct UiSnapshot {
     pub playhead_time_s: f64,
     pub loop_start_s: Option<f64>,
     pub loop_end_s: Option<f64>,
-    pub timeline_zoom: f32,
     pub timeline_scroll_offset: f32,
-    pub preview_zoom: f32,
-    pub preview_pan: (f32, f32),
     pub tool_mode: crate::app::preview::ToolMode,
 }
 
@@ -31,10 +28,7 @@ impl UiSnapshot {
             playhead_time_s: 0.0,
             loop_start_s: None,
             loop_end_s: None,
-            timeline_zoom: 1.0,
             timeline_scroll_offset: 0.0,
-            preview_zoom: 1.0,
-            preview_pan: (0.0, 0.0),
             tool_mode: tool,
         }
     }
