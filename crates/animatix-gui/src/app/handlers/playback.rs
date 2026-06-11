@@ -114,6 +114,48 @@ pub fn handle_next_keyframe(
     keyframe_effects(document_store, preview_store, ui_store, "Next")
 }
 
+pub fn handle_frame_step_forward(
+    document_store: &DocumentStore,
+    preview_store: &mut PreviewStore,
+    ui_store: &UiStore,
+) -> Vec<Effect> {
+    let fps = ui_store.snap_fps.max(1.0);
+    preview_store.preview.playback.frame_step_forward(fps);
+    preview_store.preview_dirty = true;
+    sync_active_scene_from_time(document_store, preview_store);
+    let mut effects = vec![Effect::Status(format!(
+        "Frame step forward • t = {:.2}s",
+        preview_store.preview.playback.current_time_s
+    ))];
+    effects.extend(editor_sync_effects(
+        document_store,
+        ui_store,
+        preview_store.preview.playback.current_time_s,
+    ));
+    effects
+}
+
+pub fn handle_frame_step_backward(
+    document_store: &DocumentStore,
+    preview_store: &mut PreviewStore,
+    ui_store: &UiStore,
+) -> Vec<Effect> {
+    let fps = ui_store.snap_fps.max(1.0);
+    preview_store.preview.playback.frame_step_backward(fps);
+    preview_store.preview_dirty = true;
+    sync_active_scene_from_time(document_store, preview_store);
+    let mut effects = vec![Effect::Status(format!(
+        "Frame step backward • t = {:.2}s",
+        preview_store.preview.playback.current_time_s
+    ))];
+    effects.extend(editor_sync_effects(
+        document_store,
+        ui_store,
+        preview_store.preview.playback.current_time_s,
+    ));
+    effects
+}
+
 fn sync_active_scene_from_time(
     document_store: &mut DocumentStore,
     preview_store: &PreviewStore,

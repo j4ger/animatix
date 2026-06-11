@@ -28,6 +28,53 @@ use animatix::composition::Composition;
 use animatix::timeline::Timeline;
 use egui::{Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, Vec2};
 
+/// Property groups for per-property lanes
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PropertyGroup {
+    Transform,
+    Style,
+    Filter,
+    Shape,
+    Text,
+    Layout,
+}
+
+const PROPERTY_GROUPS: &[(PropertyGroup, &str, &[&str])] = &[
+    (PropertyGroup::Transform, "Transform", &["position", "motion_offset", "rotation", "scale", "size", "layout_size", "placement_mode", "position_binding"]),
+    (PropertyGroup::Style, "Style", &["color", "opacity", "stroke_width", "stroke_color", "stroke_progress", "fill_opacity", "line_cap", "line_join", "morph_options", "filter_blur", "filter_brightness", "filter_contrast", "filter_saturate", "filter_hue_rotate", "filter_sepia"]),
+    (PropertyGroup::Shape, "Shape", &["shape_type", "line_from", "line_to", "head_size", "arc_angles", "points", "commands", "vector_paths"]),
+    (PropertyGroup::Text, "Text", &["text_content", "font_family", "font_size", "text_paths"]),
+];
+
+fn property_group_name(prop: &str) -> Option<&'static str> {
+    for (_, group_name, props) in PROPERTY_GROUPS {
+        if props.contains(&prop) {
+            return Some(group_name);
+        }
+    }
+    None
+}
+
+fn property_group_for_prop(prop: &str) -> Option<PropertyGroup> {
+    for (group, _, props) in PROPERTY_GROUPS {
+        if props.contains(&prop) {
+            return Some(*group);
+        }
+    }
+    None
+}
+
+fn property_group_color(group: PropertyGroup) -> Color32 {
+    match group {
+        PropertyGroup::Transform => ACCENT_BLUE,
+        PropertyGroup::Style => GREEN,
+        PropertyGroup::Filter => PURPLE,
+        PropertyGroup::Shape => AMBER,
+        PropertyGroup::Text => ACCENT_CYAN,
+        PropertyGroup::Layout => ACCENT_BLUE,
+    }
+}
+
 pub(crate) struct TimelineContext<'a> {
     pub preview: &'a mut PreviewPaneState,
     pub timeline: Option<&'a Timeline>,
@@ -35,6 +82,7 @@ pub(crate) struct TimelineContext<'a> {
     pub active_scene: Option<&'a str>,
     pub commands: &'a mut ActionQueue,
     pub collapsed_actors: &'a mut HashSet<String>,
+    pub expanded_properties: &'a mut HashSet<String>,
     pub selected_actors: &'a mut HashSet<String>,
     /// Cached actor labels (recomputed in behavior.rs when stale).
     pub actor_labels: &'a [String],
@@ -140,6 +188,49 @@ fn collect_actor_keyframes(track: &animatix::timeline::AnimationTrack) -> Vec<(u
     result
 }
 
+/// Collect per-property keyframe times. Returns (property_name, [keyframe_times_ms]).
+fn collect_per_property_keyframes(track: &animatix::timeline::AnimationTrack) -> Vec<(&'static str, Vec<u64>)> {
+    let mut result = Vec::new();
+    use animatix::timeline::PropertyTrack;
+    fn push<T>(result: &mut Vec<(&'static str, Vec<u64>)>, opt: &Option<PropertyTrack<T>>, name: &'static str) {
+        if let Some(pt) = opt {
+            if !pt.keyframes.is_empty() {
+                result.push((name, pt.keyframes.keys().copied().collect()));
+            }
+        }
+    }
+    macro_rules! push_all {
+        ($($field:ident => $name:literal),* $(,)?) => { $(
+            push(&mut result, &track.$field, $name);
+        )* };
+    }
+    push_all! {
+        position => "position",
+        motion_offset => "motion_offset",
+        rotation => "rotation",
+        scale => "scale",
+        size => "size",
+        color => "color",
+        opacity => "opacity",
+        stroke_width => "stroke_width",
+        stroke_color => "stroke_color",
+        stroke_progress => "stroke_progress",
+        fill_opacity => "fill_opacity",
+        text_content => "text_content",
+        font_family => "font_family",
+        font_size => "font_size",
+        shape_type => "shape_type",
+        line_from => "line_from",
+        line_to => "line_to",
+        arc_angles => "arc_angles",
+        points => "points",
+        commands => "commands",
+        layout_size => "layout_size",
+        vector_paths => "vector_paths",
+    }
+    result
+}
+
 /// Handle click-and-drag scrubbing on a timeline bar.
 fn bar_interaction(
     ui: &egui::Ui,
@@ -166,6 +257,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         active_scene: _,
         commands,
         collapsed_actors,
+        expanded_properties,
         selected_actors,
         actor_labels: _,
         actor_keyframes: _,
@@ -338,9 +430,21 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
 
             // Build actor tree from timeline (all actors, not just roots)
             let actor_tree: Vec<(String, usize)> = timeline.map(|tl| build_actor_tree(tl, collapsed_actors)).unwrap_or_default();
+            // Count extra rows for expanded property lanes
+            let mut extra_prop_lanes = 0usize;
+            if let Some(tl) = timeline {
+                for (actor_label, _) in &actor_tree {
+                    if expanded_properties.contains(actor_label) {
+                        if let Some(track) = tl.get_track(actor_label) {
+                            extra_prop_lanes += collect_per_property_keyframes(track).len();
+                        }
+                    }
+                }
+            }
             let actor_track_count = actor_tree.len();
+            let total_track_rows = actor_track_count + extra_prop_lanes;
             let actor_first_top = content_y;
-            let actor_last_bot = actor_first_top + actor_track_count as f32 * TRACK_ROW_HEIGHT;
+            let actor_last_bot = actor_first_top + total_track_rows as f32 * TRACK_ROW_HEIGHT;
             content_y = actor_last_bot;
 
             let rs_top = content_y;
@@ -396,6 +500,16 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             commands.push_back(ShellAction::Command(Command::NextKeyframe));
                         }
 
+                        // Frame-step back
+                        if toolbar_action_button(ui, "⏪", None, "Step back one frame", false).clicked() {
+                            commands.push_back(ShellAction::Command(Command::FrameStepBackward));
+                        }
+
+                        // Frame-step forward
+                        if toolbar_action_button(ui, "⏩", None, "Step forward one frame", false).clicked() {
+                            commands.push_back(ShellAction::Command(Command::FrameStepForward));
+                        }
+
                         // Go to end
                         if toolbar_action_button(ui, egui_phosphor::regular::SKIP_FORWARD, None, "Go to end (End)", false).clicked() {
                             commands.push_back(ShellAction::Command(Command::ScrubTo(preview.playback.duration_s)));
@@ -422,6 +536,15 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             }
                         }
 
+                        // Ping-pong toggle
+                        let ping_pong_active = preview.playback.ping_pong;
+                        if toolbar_toggle_button(ui, egui_phosphor::regular::ARROWS_CLOCKWISE, None, "Toggle ping-pong playback (bounce at boundaries)", ping_pong_active, false).clicked() {
+                            preview.playback.ping_pong = !preview.playback.ping_pong;
+                            if !preview.playback.ping_pong {
+                                preview.playback.ping_pong_direction = 1;
+                            }
+                        }
+
                         toolbar_separator(ui);
 
                         // Zoom controls
@@ -440,16 +563,28 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             preview.timeline_zoom = (preview.timeline_zoom * 1.25).min(8.0);
                         }
 
-                        // Time display (right-aligned)
+                        // Time display (right-aligned) — timecode + fps
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            let time_text = format!("{:.2}s / {:.2}s",
-                                preview.playback.current_time_s(),
-                                preview.playback.duration_s);
-                            ui.add(egui::Label::new(
-                                egui::RichText::new(time_text)
-                                    .font(FontId::monospace(FONT_SIZE_S))
-                                    .color(TEXT_PRIMARY),
-                            ).selectable(false));
+                            let current_tc = preview.playback.timecode_string();
+                            let dur = preview.playback.duration_s.max(0.0);
+                            let dh = (dur / 3600.0).floor() as u32;
+                            let dm = ((dur % 3600.0) / 60.0).floor() as u32;
+                            let ds = (dur % 60.0).floor() as u32;
+                            let df = ((dur % 1.0) * preview.playback.fps as f64).floor() as u32;
+                            let duration_tc = format!("{:02}:{:02}:{:02}:{:02}", dh, dm, ds, df);
+                            let fps_val = preview.playback.fps;
+                            ui.vertical(|ui| {
+                                ui.add(egui::Label::new(
+                                    egui::RichText::new(format!("{} / {}", current_tc, duration_tc))
+                                        .font(FontId::monospace(FONT_SIZE_S))
+                                        .color(TEXT_PRIMARY),
+                                ).selectable(false));
+                                ui.add(egui::Label::new(
+                                    egui::RichText::new(format!("{:.0} fps", fps_val))
+                                        .font(FontId::monospace(FONT_SIZE_XS))
+                                        .color(TEXT_SECONDARY),
+                                ).selectable(false));
+                            });
                         });
                     });
                 });
@@ -631,11 +766,12 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
             }
 
             // ── Actor tracks (tree structure, all actors) ──
+            let mut current_y = actor_first_top;
             for (track_idx, (actor_label, depth)) in actor_tree.iter().enumerate() {
                 let is_collapsed = collapsed_actors.contains(actor_label);
                 let has_children = timeline.and_then(|tl| tl.get_track(actor_label)).is_some_and(|t| !t.children.is_empty());
                 let is_selected = selected_actors.contains(actor_label);
-                let at_top = actor_first_top + track_idx as f32 * TRACK_ROW_HEIGHT;
+                let at_top = current_y;
                 let at_bot = at_top + TRACK_ROW_HEIGHT;
                 let track_rect = Rect::from_min_max(Pos2::new(scroll_rect.left(), at_top), Pos2::new(scroll_rect.right(), at_bot));
 
@@ -690,8 +826,35 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     }
                 }
 
+                // Property expand toggle (LIST icon)
+                let prop_expanded = expanded_properties.contains(actor_label);
+                let prop_toggle_x = chevron_x + if has_children { 18.0 } else { 4.0 };
+                let prop_toggle_rect = Rect::from_min_size(
+                    Pos2::new(prop_toggle_x, at_top + 2.0),
+                    Vec2::new(14.0, TRACK_ROW_HEIGHT - 4.0),
+                );
+                let prop_toggle_resp = ui.interact(
+                    prop_toggle_rect,
+                    ui.id().with(("prop_toggle", actor_label)),
+                    Sense::click(),
+                );
+                painter.text(
+                    prop_toggle_rect.center(),
+                    Align2::CENTER_CENTER,
+                    egui_phosphor::regular::LIST,
+                    FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+                    if prop_expanded { ACCENT_BLUE } else { TEXT_MUTED },
+                );
+                if prop_toggle_resp.clicked() {
+                    if prop_expanded {
+                        expanded_properties.remove(actor_label);
+                    } else {
+                        expanded_properties.insert(actor_label.clone());
+                    }
+                }
+
                 // Track label
-                let label_x = chevron_x + if has_children { 16.0 } else { 4.0 } + SPACE_S;
+                let label_x = prop_toggle_x + if prop_expanded { 16.0 } else { 16.0 } + SPACE_S;
                 let label_text = if actor_label.chars().count() > 16 {
                     actor_label.chars().take(15).collect::<String>() + "…"
                 } else {
@@ -1003,6 +1166,103 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
 
                 // Track separator
                 painter.line_segment([Pos2::new(scroll_rect.left(), at_bot), Pos2::new(scroll_rect.right(), at_bot)], Stroke::new(STROKE_WIDTH, BORDER));
+
+                // Advance y past the main track
+                current_y = at_bot;
+
+                // Per-property lanes (if expanded)
+                if expanded_properties.contains(actor_label) {
+                    if let Some(tl) = timeline {
+                        if let Some(track) = tl.get_track(actor_label) {
+                            let prop_kfs = collect_per_property_keyframes(track);
+                            for (prop_name, kf_times) in &prop_kfs {
+                                let prop_top = current_y;
+                                let prop_bot = prop_top + TRACK_ROW_HEIGHT;
+                                let prop_rect = Rect::from_min_max(Pos2::new(scroll_rect.left(), prop_top), Pos2::new(scroll_rect.right(), prop_bot));
+
+                                // Alternating row (offset from main track)
+                                if track_idx % 2 == 1 {
+                                    painter.rect_filled(prop_rect, 0.0, row_alt());
+                                }
+
+                                // Label column background
+                                painter.rect_filled(Rect::from_min_max(Pos2::new(scroll_rect.left(), prop_top), Pos2::new(bar_origin_x, prop_bot)), 0.0, BG_BASE);
+
+                                // Property label (indented deeper than actor label)
+                                let prop_indent = *depth as f32 * 14.0 + 18.0;
+                                let group = property_group_for_prop(prop_name);
+                                let group_col = group.map(|g| property_group_color(g)).unwrap_or(AMBER);
+
+                                // Small colored dot indicator
+                                let dot_x = scroll_rect.left() + SPACE_S + prop_indent;
+                                painter.circle_filled(Pos2::new(dot_x + 3.0, prop_rect.center().y), 3.0, group_col);
+
+                                let prop_label_x = dot_x + 10.0;
+                                painter.text(
+                                    Pos2::new(prop_label_x, prop_rect.center().y),
+                                    Align2::LEFT_CENTER,
+                                    *prop_name,
+                                    FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+                                    TEXT_MUTED,
+                                );
+
+                                // Keyframe diamonds for this property
+                                let prop_bar_area = Rect::from_min_max(Pos2::new(bar_origin_x, prop_top), Pos2::new(scroll_rect.right(), prop_bot));
+                                for kf_ms in kf_times {
+                                    let kf_s = *kf_ms as f64 / 1000.0;
+                                    let kf_x = time_to_x(kf_s);
+                                    if kf_x < prop_bar_area.left() || kf_x > prop_bar_area.right() { continue; }
+                                    let is_act = (kf_s - preview.playback.current_time_s()).abs() < 0.01;
+                                    let is_drag = kf_drag.as_ref().is_some_and(|(l, _, t, _)| l == actor_label && *t == *kf_ms);
+                                    let is_flashed = preview.flashed_keyframe_times.iter().any(|(t, _)| (*t - kf_s).abs() < 0.001);
+                                    let ds = if is_flashed { KF_DIAMOND_HALF * 2.0 } else if is_drag { KF_DIAMOND_HALF * 1.5 } else { KF_DIAMOND_HALF };
+                                    let base_color = group.map(|g| property_group_color(g)).unwrap_or(AMBER);
+                                    let kc = if is_flashed { Color32::from_rgb(255, 200, 50) } else if is_act { TEXT_PRIMARY } else { base_color };
+                                    let cy = prop_bar_area.center().y;
+                                    let dr = Rect::from_center_size(Pos2::new(kf_x, cy), Vec2::new((ds * 3.0).max(16.0), (ds * 3.0).max(16.0)));
+                                    let dresp = ui.interact(dr, ui.id().with(("prop_kf_diamond", track_idx, prop_name, kf_ms)), Sense::click_and_drag());
+                                    painter.add(egui::Shape::convex_polygon(
+                                        vec![Pos2::new(kf_x, cy - ds), Pos2::new(kf_x + ds, cy), Pos2::new(kf_x, cy + ds), Pos2::new(kf_x - ds, cy)],
+                                        if dresp.hovered() || is_drag { kc } else { kc.linear_multiply(0.7) }, Stroke::NONE));
+
+                                    if !is_drag {
+                                        dresp.on_hover_text(format!("{} @ {:.2}s", prop_name, kf_s));
+                                    }
+
+                                    // Support dragging for per-property diamonds
+                                    if dresp.drag_started() {
+                                        new_kf_drag = Some((actor_label.clone(), prop_name, *kf_ms, kf_s));
+                                    }
+                                    if dresp.drag_stopped() && is_drag {
+                                        if let Some((ref actor, _, _, n)) = new_kf_drag {
+                                            if (n - kf_s).abs() > 0.01 {
+                                                commands.push_back(ShellAction::Command(Command::MoveKeyframe {
+                                                    actor: actor.clone(),
+                                                    property: prop_name.to_string(),
+                                                    old_time_s: kf_s,
+                                                    new_time_s: n,
+                                                }));
+                                            }
+                                        }
+                                        new_kf_drag = None;
+                                    }
+
+                                    // Drag ghost line (rendered by the main loop for all kf_drag)
+                                }
+
+                                draw_loop_region(painter, prop_bar_area.top(), prop_bar_area.bottom(), preview, &time_to_x);
+
+                                // Per-property playhead tick
+                                painter.line_segment([Pos2::new(playhead_x, prop_bar_area.top()), Pos2::new(playhead_x, prop_bar_area.bottom())], Stroke::new(STROKE_WIDTH, text_faint()));
+
+                                // Property lane separator
+                                painter.line_segment([Pos2::new(scroll_rect.left(), prop_bot), Pos2::new(scroll_rect.right(), prop_bot)], Stroke::new(STROKE_WIDTH, BORDER));
+
+                                current_y = prop_bot;
+                            }
+                        }
+                    }
+                }
             }
 
             // ── Range slider for work/export region ──

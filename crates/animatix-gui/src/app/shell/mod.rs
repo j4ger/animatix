@@ -69,6 +69,16 @@ impl GuiShell {
                 &mut self.preview_store,
                 &self.ui_store,
             ),
+            Command::FrameStepForward => playback::handle_frame_step_forward(
+                &self.document_store,
+                &mut self.preview_store,
+                &self.ui_store,
+            ),
+            Command::FrameStepBackward => playback::handle_frame_step_backward(
+                &self.document_store,
+                &mut self.preview_store,
+                &self.ui_store,
+            ),
             Command::SelectScene(scene) => {
                 scene::handle_select_scene(&mut self.document_store, &mut self.preview_store, scene)
             }
@@ -295,6 +305,64 @@ impl GuiShell {
             ),
             // InsertionFromPalette is a snapshot marker, not dispatched through the handler.
             Command::InsertionFromPalette { .. } => vec![],
+
+            // ── View / Panel State ───────────────────────────────────
+            Command::SetTimelineZoom(zoom) => ui::handle_set_timeline_zoom(
+                &mut self.preview_store,
+                zoom,
+            ),
+            Command::SetTimelineScroll(scroll) => ui::handle_set_timeline_scroll(
+                &mut self.preview_store,
+                scroll,
+            ),
+            Command::SetLoopRegion { start, end } => ui::handle_set_loop_region(
+                &mut self.preview_store,
+                start,
+                end,
+            ),
+            Command::ToggleCollapseActor(actor) => ui::handle_toggle_collapse_actor(
+                &mut self.ui_store,
+                actor,
+            ),
+            Command::TogglePropertyLane(actor) => ui::handle_toggle_property_lane(
+                &mut self.ui_store,
+                actor,
+            ),
+            Command::SetPreviewZoom(zoom) => ui::handle_set_preview_zoom(
+                &mut self.preview_store,
+                zoom,
+            ),
+            Command::SetPreviewZoomCentered { zoom, center_x, center_y } => ui::handle_set_preview_zoom_centered(
+                &mut self.preview_store,
+                zoom,
+                center_x,
+                center_y,
+            ),
+            Command::SetPreviewPan(pan) => ui::handle_set_preview_pan(
+                &mut self.preview_store,
+                pan,
+            ),
+            Command::SetToolMode(mode) => ui::handle_set_tool_mode(
+                &mut self.ui_store,
+                mode,
+            ),
+            Command::SetSidebarTab(tab) => ui::handle_set_sidebar_tab(
+                &mut self.ui_store,
+                tab,
+            ),
+            Command::SetPropertyViewMode(mode) => ui::handle_set_property_view_mode(
+                &mut self.ui_store,
+                mode,
+            ),
+            Command::SetKeyframeViewMode(mode) => ui::handle_set_keyframe_view_mode(
+                &mut self.ui_store,
+                mode,
+            ),
+            Command::SetPivotOffset { actor, offset } => ui::handle_set_pivot_offset(
+                &mut self.ui_store,
+                actor,
+                offset,
+            ),
         }
     }
 

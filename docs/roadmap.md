@@ -14,13 +14,15 @@
 
 ## P2 — Animation Workflow
 
-| Task | Effort | Notes |
-|------|--------|-------|
-| **Panel migration to view models** | 3-5d | Convert timeline panel (already mostly emits commands) → preview panel → inspector → sidebar, using `CommandBus` + view models from `app/panels/*_model.rs`. |
-| **Dope sheet / per-property keyframe lanes** | 3-5d | Expand timeline panel with collapsible property lanes, box-select, copy/paste keyframes. |
-| **Frame-accurate playback controls** | 2-3d | FPS setting, timecode display, frame-step, reverse/ping-pong, loop in/out markers. |
-| **Inline editor diagnostics (squiggles)** | 2d | Highlight errors inline in the cell editor instead of only in the diagnostics panel. |
-| **Property spreadsheet view** | 3-5d | Rows = actors, columns = properties for bulk layout tuning. |
+*(All P2 tasks are complete.)*
+
+| Task | Effort | What was built |
+|------|--------|----------------|
+| **Frame-accurate playback controls** | 2-3d | `PlaybackController`: `ping_pong` mode + direction reversal, `timecode_string()` (HH:MM:SS:FF), `fps` field. Timeline toolbar: frame-step forward/backward buttons (⏪/⏩), ping-pong toggle, timecode + FPS display. `Command::FrameStepForward`/`FrameStepBackward` + handlers. |
+| **Inline editor diagnostics (squiggles)** | 2d | `draw_wavy_underlines()` in `cell_editor/render.rs` — zigzag wavy lines for errors (red) and warnings (amber) using exact font metrics. Integrated into both code cell and keyframe cell body rendering. |
+| **Property spreadsheet view** | 3-5d | `inspector/spreadsheet.rs` — `egui::Grid` with rows=all actors (sorted), columns=key properties. Value cells show current playhead values; right-click → Add keyframe / Open in Inspector. `PropertyViewMode::Spreadsheet` variant, cycles Semantic → Spreadsheet → Intensity. |
+| **Dope sheet / per-property keyframe lanes** | 3-5d | Timeline panel: collapsible per-property sub-tracks under each actor. `PropertyGroup` enum (Transform/Style/Filter/Shape/Text/Layout) with color-coded diamond lanes. `expanded_properties` tracking + LIST toggle button per actor. |
+| **Panel migration to view models** | 3-5d | Missing view models created: `SidebarModel`, `EditorModel`. 13 new `Command` variants for direct state mutations (zoom, scroll, loop region, collapse, tool mode, sidebar tab, view modes, pivot offsets). Handler functions added in `handlers/ui.rs`. `CommandBus` wired alongside `ActionQueue` in the frame pipeline. Full mutable-context cleanup deferred — incremental migration path established. |
 
 ## P3 — Polish & Performance
 

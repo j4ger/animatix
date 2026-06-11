@@ -1,7 +1,7 @@
 use egui::{Color32, Frame, Margin, RichText, ScrollArea, Stroke, Vec2};
 
 use crate::app::design_tokens as dt;
-use crate::cell_editor::{Cell, CellEditorState};
+use crate::cell_editor::{Cell, CellDiagnostic, CellEditorState};
 use crate::highlighting::highlight_source;
 
 /// Build analyzer diagnostics for a specific cell (body-relative coordinates).
@@ -353,6 +353,16 @@ fn render_code_cell(
                                 state.pending_cursor_cell = None;
                             }
                             track_focus(index, &response, state);
+
+                            // Draw wavy diagnostic underlines
+                            let cell_underlines: Vec<CellDiagnostic> = state.diagnostics
+                                .iter()
+                                .filter(|d| d.cell_index == index)
+                                .cloned()
+                                .collect();
+                            if !cell_underlines.is_empty() {
+                                draw_wavy_underlines(ui, &cell_underlines, response.rect);
+                            }
                         }
                     });
                 });
@@ -558,6 +568,16 @@ fn render_keyframe_cell(
                                         state.pending_cursor_cell = None;
                                     }
                                     track_focus(index, &response, state);
+
+                                    // Draw wavy diagnostic underlines
+                                    let cell_underlines: Vec<CellDiagnostic> = state.diagnostics
+                                        .iter()
+                                        .filter(|d| d.cell_index == index)
+                                        .cloned()
+                                        .collect();
+                                    if !cell_underlines.is_empty() {
+                                        draw_wavy_underlines(ui, &cell_underlines, response.rect);
+                                    }
                                 });
                         }
                     });
@@ -646,6 +666,61 @@ fn track_focus(index: usize, response: &egui::Response, state: &mut CellEditorSt
     if response.gained_focus() {
         state.focused_cell = Some(index);
         state.highlighted_cell = None;
+    }
+}
+
+/// Draw wavy squiggly underlines for diagnostics below the text.
+///
+/// Uses the egui painter to draw a series of small zigzag segments under each
+/// diagnostic span.  Error diagnostics get red waves, warnings get amber waves.
+fn draw_wavy_underlines(
+    ui: &egui::Ui,
+    diags: &[CellDiagnostic],
+    text_rect: egui::Rect,
+) {
+    let painter = ui.painter();
+    let font_id = egui::FontId::new(14.0, egui::FontFamily::Monospace);
+
+    // Get monospace metrics for position calculation
+    let char_width = ui.fonts_mut(|f| f.glyph_width(&font_id, 'm'));
+    let line_height = ui.fonts_mut(|f| f.row_height(&font_id));
+
+    for d in diags {
+        let color = match d.severity {
+            animatix_syntax::diagnostics::DiagnosticSeverity::Error => dt::RED,
+            animatix_syntax::diagnostics::DiagnosticSeverity::Warning => dt::AMBER,
+            _ => continue,
+        };
+
+        // Y position: baseline below the diagnostic line
+        let y = text_rect.top() + (d.rel_line as f32 + 1.0) * line_height - 2.0;
+
+        // X positions
+        let x_start = text_rect.left() + d.rel_col as f32 * char_width;
+        let x_end = text_rect.left() + d.rel_end_col as f32 * char_width;
+
+        if x_end <= x_start
+            || y < text_rect.top() - line_height
+            || y > text_rect.bottom() + line_height
+        {
+            continue;
+        }
+
+        // Draw wavy line: series of small zigzag segments
+        let width = x_end - x_start;
+        let wave_len = 4.0; // pixels per half-wave
+        let wave_amp = 1.5; // amplitude in pixels
+        let num_segments = (width / wave_len).ceil() as usize;
+        let actual_seg_width = width / num_segments.max(1) as f32;
+
+        let mut points = Vec::with_capacity(num_segments + 1);
+        for i in 0..=num_segments {
+            let x = x_start + i as f32 * actual_seg_width;
+            let y_off = if i % 2 == 0 { 0.0 } else { wave_amp };
+            points.push(egui::Pos2::new(x, y + y_off));
+        }
+
+        painter.add(egui::Shape::line(points, egui::Stroke::new(1.5, color)));
     }
 }
 

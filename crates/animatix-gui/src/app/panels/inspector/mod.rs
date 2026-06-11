@@ -14,14 +14,17 @@ pub(crate) mod property_groups;
 pub(crate) mod keyframe_table;
 pub(crate) mod model;
 pub(crate) mod graph_editor;
+pub(crate) mod spreadsheet;
 
 use self::property_groups::*;
 use self::keyframe_table::{render_dope_sheet, count_keyframes};
+use self::spreadsheet::render_property_spreadsheet;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum PropertyViewMode {
     Semantic,
     Intensity,
+    Spreadsheet,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -436,6 +439,20 @@ pub(super) fn inspector_ui(
         return;
     }
 
+    // ── Spreadsheet mode: show all actors in a table ──
+    if *property_view_mode == PropertyViewMode::Spreadsheet {
+        render_property_spreadsheet(
+            ui,
+            Some(timeline),
+            current_time_s,
+            selected_actors,
+            commands,
+            scene_dimensions,
+            property_view_mode,
+        );
+        return;
+    }
+
     if let Some(sel) = selected_actors.iter().next() {
         let Some(track) = timeline.get_track(sel) else {
             layout::empty_state(
@@ -484,11 +501,12 @@ pub(super) fn inspector_ui(
                     {
                         let clip = ui.clip_rect();
                         let row_top = clip.min.y + SPACE_S + 2.0 + SPACE_S; // matches header row y
-                        let label = match view_mode {
-                            PropertyViewMode::Semantic => format!("{} Semantic", egui_phosphor::regular::ROWS),
-                            PropertyViewMode::Intensity => format!("{} Stream", egui_phosphor::regular::FIRE),
+                        let (label, tooltip) = match view_mode {
+                            PropertyViewMode::Semantic => (format!("{} Semantic", egui_phosphor::regular::ROWS), "Switch to spreadsheet view"),
+                            PropertyViewMode::Intensity => (format!("{} Stream", egui_phosphor::regular::FIRE), "Switch to semantic view"),
+                            PropertyViewMode::Spreadsheet => (format!("{} Spreadsheet", egui_phosphor::regular::GRID), "Switch to stream view"),
                         };
-                        let btn_width = 110.0;
+                        let btn_width = 130.0;
                         let btn_rect = egui::Rect::from_min_size(
                             egui::pos2(clip.max.x - SPACE_S - btn_width, row_top),
                             egui::Vec2::new(btn_width, ROW_S),
@@ -498,17 +516,14 @@ pub(super) fn inspector_ui(
                                 .max_rect(btn_rect)
                                 .layout(egui::Layout::right_to_left(egui::Align::Center)),
                         );
-                        let tooltip = match view_mode {
-                            PropertyViewMode::Semantic => "Switch to stream view",
-                            PropertyViewMode::Intensity => "Switch to semantic view",
-                        };
                         if btn_ui
                             .button(RichText::new(&label).size(FONT_SIZE_XS).color(TEXT_SECONDARY))
                             .on_hover_text(tooltip)
                             .clicked()
                         {
                             view_mode = match view_mode {
-                                PropertyViewMode::Semantic => PropertyViewMode::Intensity,
+                                PropertyViewMode::Semantic => PropertyViewMode::Spreadsheet,
+                                PropertyViewMode::Spreadsheet => PropertyViewMode::Intensity,
                                 PropertyViewMode::Intensity => PropertyViewMode::Semantic,
                             };
                             *property_view_mode = view_mode;
@@ -545,6 +560,10 @@ pub(super) fn inspector_ui(
                             }
                             PropertyViewMode::Intensity => {
                                 render_property_stream(ui, &groups, &track.label, commands, keyframe_mode, current_time_s, &mut view_mode);
+                            }
+                            PropertyViewMode::Spreadsheet => {
+                                // Drop out of the card context for spreadsheet view
+                                // (spreadsheet renders its own full-width layout)
                             }
                         }
                         // Persist any view-mode change made by the stream click handler

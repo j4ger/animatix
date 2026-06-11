@@ -80,7 +80,7 @@ pub(crate) struct FileTreeEntry {
     is_dir: bool,
 }
 
-/// Playback controller: time, duration, play/pause, speed, loop region.
+/// Playback controller: time, duration, play/pause, speed, loop region, ping-pong.
 #[derive(Debug, Clone)]
 pub(crate) struct PlaybackController {
     current_time_s: f64,
@@ -89,6 +89,9 @@ pub(crate) struct PlaybackController {
     pub playback_speed: f32,
     pub loop_start_s: Option<f64>,
     pub loop_end_s: Option<f64>,
+    pub ping_pong: bool,
+    pub ping_pong_direction: i32,
+    pub fps: f32,
 }
 
 impl PlaybackController {
@@ -106,6 +109,30 @@ impl PlaybackController {
     fn clamp_time(&mut self) {
         let max_duration = self.duration_s.max(0.1);
         self.current_time_s = self.current_time_s.clamp(0.0, max_duration);
+    }
+
+    /// Advance by one frame at the given fps. Stops playback.
+    pub(crate) fn frame_step_forward(&mut self, fps: f32) {
+        let step = 1.0 / fps.max(1.0) as f64;
+        self.current_time_s = (self.current_time_s + step).min(self.duration_s);
+        self.is_playing = false;
+    }
+
+    /// Rewind by one frame at the given fps. Stops playback.
+    pub(crate) fn frame_step_backward(&mut self, fps: f32) {
+        let step = 1.0 / fps.max(1.0) as f64;
+        self.current_time_s = (self.current_time_s - step).max(0.0);
+        self.is_playing = false;
+    }
+
+    /// Return the current time formatted as HH:MM:SS:FF at the stored fps.
+    pub(crate) fn timecode_string(&self) -> String {
+        let total_seconds = self.current_time_s.max(0.0);
+        let hours = (total_seconds / 3600.0).floor() as u32;
+        let minutes = ((total_seconds % 3600.0) / 60.0).floor() as u32;
+        let seconds = (total_seconds % 60.0).floor() as u32;
+        let frame = ((total_seconds % 1.0) * self.fps as f64).floor() as u32;
+        format!("{:02}:{:02}:{:02}:{:02}", hours, minutes, seconds, frame)
     }
 
     fn go_to_next_keyframe(&mut self, keyframes: &[f64]) {
@@ -149,20 +176,47 @@ impl PlaybackController {
             return;
         }
 
-        self.current_time_s += delta.as_secs_f64() * self.playback_speed as f64;
+        self.current_time_s += delta.as_secs_f64() * self.playback_speed as f64 * self.ping_pong_direction as f64;
 
-        // Loop region: if A and B are set and we've reached B, jump back to A.
+        // Loop region: if A and B are set, handle boundaries.
         if let (Some(start), Some(end)) = (self.loop_start_s, self.loop_end_s) {
-            if end > start && self.current_time_s >= end {
-                self.current_time_s = start;
-                // Looping takes priority over end-of-timeline stop.
-                return;
+            if end > start {
+                if self.ping_pong {
+                    if self.current_time_s >= end && self.ping_pong_direction > 0 {
+                        self.ping_pong_direction = -1;
+                        self.current_time_s = end;
+                        return;
+                    }
+                    if self.current_time_s <= start && self.ping_pong_direction < 0 {
+                        self.ping_pong_direction = 1;
+                        self.current_time_s = start;
+                        return;
+                    }
+                } else if self.current_time_s >= end {
+                    self.current_time_s = start;
+                    // Looping takes priority over end-of-timeline stop.
+                    return;
+                }
             }
         }
 
+        // Natural boundaries (0 and duration_s)
         if self.current_time_s >= self.duration_s {
-            self.current_time_s = self.duration_s;
-            self.is_playing = false;
+            if self.ping_pong {
+                self.ping_pong_direction = -1;
+                self.current_time_s = self.duration_s;
+            } else {
+                self.current_time_s = self.duration_s;
+                self.is_playing = false;
+            }
+        } else if self.current_time_s <= 0.0 {
+            if self.ping_pong {
+                self.ping_pong_direction = 1;
+                self.current_time_s = 0.0;
+            } else {
+                self.current_time_s = 0.0;
+                self.is_playing = false;
+            }
         }
     }
 }
@@ -237,6 +291,9 @@ impl PreviewPaneState {
                 playback_speed: 1.0,
                 loop_start_s: None,
                 loop_end_s: None,
+                ping_pong: false,
+                ping_pong_direction: 1,
+                fps: 60.0,
             },
             viewport: ViewportState {
                 preview_zoom: 1.0,
@@ -708,6 +765,10 @@ impl GuiShell {
         preview_texture_id: Option<egui::TextureId>,
         commands: &mut ActionQueue,
     ) {
+        // Create CommandBus alongside ActionQueue for incremental migration to view models.
+        // Panels will emit() into the bus once they migrate to immutable view models.
+        let mut command_bus = crate::app::command_bus::CommandBus::new();
+
         let tree = &mut self.ui_store.view.tree;
         let mut behavior = panels::behavior::WorkspaceBehavior {
             document_store: &mut self.document_store,
@@ -716,6 +777,7 @@ impl GuiShell {
             commands,
             preview_texture_id,
             collapsed_actors: &mut self.ui_store.view.collapsed_actors,
+            expanded_properties: &mut self.ui_store.view.expanded_properties,
             selected_actors: &mut self.ui_store.selection.selected_actors,
             hit_regions: &self.ui_store.selection.hit_regions,
             drag_state: &mut self.ui_store.interaction.drag_state,
@@ -730,6 +792,11 @@ impl GuiShell {
             snap_fps: self.ui_store.snap_fps,
         };
         tree.ui(&mut behavior, ui);
+
+        // Drain CommandBus into ActionQueue (used once panels migrate to emit()).
+        for action in command_bus.drain() {
+            commands.push_back(action);
+        }
     }
 
     fn handle_actions(&mut self, actions: ActionQueue) {

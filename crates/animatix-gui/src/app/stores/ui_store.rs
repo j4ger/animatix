@@ -79,6 +79,7 @@ impl ClipboardStore {
 pub struct ViewStore {
     pub tree: Tree<crate::app::WorkspaceTab>,
     pub collapsed_actors: HashSet<String>,
+    pub expanded_properties: HashSet<String>,
     pub diagnostics_panel_visible: bool,
     pub settings_open: bool,
     pub tool_mode: ToolMode,
@@ -106,6 +107,7 @@ impl ViewStore {
         Self {
             tree,
             collapsed_actors: HashSet::new(),
+            expanded_properties: HashSet::new(),
             diagnostics_panel_visible: false,
             settings_open: false,
             tool_mode: ToolMode::Select,

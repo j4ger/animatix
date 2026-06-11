@@ -9,6 +9,8 @@ pub mod inspector;
 pub mod timeline_panel;
 pub(crate) mod preview_model;
 pub(crate) mod timeline_model;
+pub(crate) mod sidebar_model;
+pub(crate) mod editor_model;
 
 pub mod sidebar;
 pub mod editor;

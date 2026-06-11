@@ -49,6 +49,8 @@ pub enum Command {
     ScrubTo(f64),
     PrevKeyframe,
     NextKeyframe,
+    FrameStepForward,
+    FrameStepBackward,
 
     // ── Scene ─────────────────────────────────────────────────────────
     SelectScene(String),
@@ -156,6 +158,21 @@ pub enum Command {
 
     // ── Insertion Palette ────────────────────────────────────────────
     InsertionFromPalette,
+
+    // ── View / Panel State ───────────────────────────────────────────
+    SetTimelineZoom(f32),
+    SetTimelineScroll(f32),
+    SetLoopRegion { start: Option<f64>, end: Option<f64> },
+    ToggleCollapseActor(String),
+    TogglePropertyLane(String),
+    SetPreviewZoom(f32),
+    SetPreviewZoomCentered { zoom: f32, center_x: f32, center_y: f32 },
+    SetPreviewPan(egui::Vec2),
+    SetToolMode(crate::app::preview::ToolMode),
+    SetSidebarTab(crate::app::panels::SidebarTab),
+    SetPropertyViewMode(crate::app::panels::inspector::PropertyViewMode),
+    SetKeyframeViewMode(crate::app::panels::inspector::KeyframeViewMode),
+    SetPivotOffset { actor: String, offset: [f32; 2] },
 }
 
 /// Horizontal or vertical axis for distribute.
