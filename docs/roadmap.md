@@ -52,14 +52,16 @@
 | **P1** | **Include `track_idx` in action drag matching** | 0.5d | `is_action_drag` matches only `start_time_ms` — dragging one block highlights same-time blocks on all tracks. |
 | **P1** | **Fix layer tree drop-to-root 100px halo**: show drop indicator and shrink expand region | 1d | Dropping near (but not on) the tree silently reparents. No feedback shown. |
 | **P1** | **Multi-selection inspector: show all selected actors' common properties** instead of iterating `HashSet` | 1-2d | Currently shows a non-deterministic single actor's properties; edits target that arbitrary actor only. |
-| **P2** | **Replace view-mode cycle button with segmented control** (Semantic / Spreadsheet / Intensity) | 1d | Cycle button shows current mode but advances to next — classic ambiguity. Same for toolbar zoom cycle. |
-| **P2** | **Components/Assets tab: change single-click to double-click for instantiation** | 0.5d | Misclick while browsing mutates the document. Context menu "Instantiate" already exists. |
-| **P2** | **Inspector: change single-click rename to double-click** | 0.5d | Easy to trigger when just trying to focus the inspector. |
-| **P2** | **Diagnostics panel: show empty state when toggled with zero diagnostics** | 0.5d | Current: toggling on with no diagnostics highlights the button but shows nothing. |
-| **P2** | **Update keyboard shortcut cheat sheet** to reflect actual bindings | 1d | Omits F/Shift+F zoom, 1/2/3 scene jump, Ctrl+G group, A/`/` palette, arrow nudge, Ctrl+D. |
-| **P2** | **Replace hardcoded overlay colors with design tokens** | 1d | `overlay.rs` (perf HUD grays, layout debug colors), `insertion_palette.rs` (category colors) bypass `design_tokens.rs`. |
-| **P2** | **Fix timeline click-to-scroll on already-visible row**: only scroll when row is outside viewport | 0.5d | Produces jarring scroll jump on every selection click. |
-| **P2** | **Increase keyframe diamond hit area separation** for dense keyframe runs | 1d | Adjacent diamonds < 16px apart have overlapping interact regions; later-registered one wins. |
+*(All P2 audit tasks are complete.)*
+
+| Priority | Task | Effort | What was built |
+|----------|------|--------|----------------|
+| **P2** | **View-mode & keyframe segmented controls** | 1d | Properties view (Semantic/Sheet/Stream) and Keyframes view (List/Curve) replaced cycle buttons with `selectable_label` segmented controls. |
+| **P2** | **Double-click for instantiation & rename** | 0.5d | Components/Assets tabs: instantiate on double-click only. Inspector: rename actor on double-click only. |
+| **P2** | **Diagnostics panel empty state** | 0.5d | Panel toggles on even with zero diagnostics; shows "No diagnostics — all clear ✓" empty state. |
+| **P2** | **Keyboard shortcut cheat sheet** | 1d | Rewrote to reflect actual bindings (F/Shift+F zoom, 1/2/3 scenes, Ctrl+G group, A/`/` palette, etc.). Removed misleading key names from toolbar/timeline tooltips. |
+| **P2** | **Design token compliance** | 1d | `overlay.rs`: perf HUD and layout debug colors replaced with `BG_BASE`, `BORDER`, `TEXT_PRIMARY`, `AMBER`, `GREEN`, `ACCENT_BLUE`. `insertion_palette.rs`: category colors use design tokens. Added `egui::Color32` import. |
+| **P2** | **Timeline scroll & hit areas** | 1d | Click-to-scroll only fires when row is outside viewport (no jarring jumps). Diamond hit areas reduced from `max(16px)` to `max(8px)` to prevent overlap in dense keyframe runs. |
 
 ## Icebox
 
