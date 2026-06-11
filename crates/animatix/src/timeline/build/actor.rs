@@ -302,6 +302,8 @@ impl Timeline {
             }
         }
 
+        let mut stroke_color_explicitly_set = has_explicit_stroke;
+
         for prop in props {
             let prop_subject = format!("{}.{}", label, prop.name);
             match prop.name.as_str() {
@@ -386,6 +388,7 @@ impl Timeline {
                     stroke_width = v.as_num() as f32;
                 }
                 "stroke_color" | "stroke" => {
+                    stroke_color_explicitly_set = true;
                     if let Some(resolved_color) = parse_color_in_env_with_lookup_diagnostic(
                         label,
                         "stroke_color",
@@ -433,6 +436,11 @@ impl Timeline {
                 }
                 _ => {}
             }
+        }
+
+        // For Line actors, inherit stroke_color from color since Line is stroke-only
+        if !stroke_color_explicitly_set && kind_id == super::ActorKindId::Shape(super::ShapeKind::Line) {
+            stroke_color = color;
         }
 
         if vector_shape.is_some() {

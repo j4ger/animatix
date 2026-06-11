@@ -446,10 +446,13 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
         let construct = ident
             .filter(|s: &String| s.chars().next().is_some_and(|c| c.is_uppercase()))
             .then(
-                ident
+                dotted_ident.clone()
                     .then_ignore(just(':').padded())
                     .then(expr.clone())
-                    .map(|(name, value)| Property { name, value, value_span: None, trailing_comment: None })
+                    .map(|(parts, value)| {
+                        let name = parts.join(".");
+                        Property { name, value, value_span: None, trailing_comment: None }
+                    })
                     .separated_by(just(',').padded())
                     .allow_trailing()
                     .collect::<Vec<_>>()

@@ -210,7 +210,7 @@ guide: Path, commands: {
 ## Graph
 **Status:** Implemented in runtime.
 
-Container establishing logical plotting domains and rendering axes. Supports optional grid lines and ticks.
+A coordinate container that maps child actor positions to math coordinates. Use when you need to plot data (curves, vectors, etc.) with automatic coordinate mapping.
 
 **Properties:**
 - `x_domain`: Tuple `(min, max)`
@@ -285,7 +285,7 @@ Multiple level-set curves for a scalar function.
 ## NumberPlane
 **Status:** Implemented in runtime.
 
-Math coordinate system that auto-generates axes, grid lines, and tick marks. Unlike `Graph`, it does not host child plots — it is a standalone visual coordinate plane.
+A standalone visual coordinate plane with auto-generated axes, grid lines, and tick marks. Use when you need a visual background grid/axes without hosting child plots.
 
 **Properties:**
 - `x_domain`: Tuple `(min, max)` — visible x-axis range

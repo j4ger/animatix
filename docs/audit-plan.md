@@ -281,62 +281,18 @@ defeating the keyframes.
 
 ---
 
-## H5. Degree Support and Math Constants
+## H5. Degree Support and Math Constants — Partially Done
 
-**Design intent:** The `rotate` action and `rotation` property currently use
-radians only. Add `deg()` and `rad()` conversion functions and math constants
-(`pi`, `tau`, `e`).
+**Completed 2026-06-11 (M5 + this):**
+- ✅ Lowercase math constants `pi`, `tau`, `two_pi`, `e` in `builtins.rs`
+- ✅ `deg(x)` and `rad(x)` functions in `builtins.rs`
 
-### Plan
+### Still needed
 
-1. **Add lowercase constants** `pi`, `tau`, `two_pi`, `e` in
-   `crates/animatix/src/timeline/builtins.rs:129`; keep uppercase `PI`, `TAU`,
-   `E` for backwards compatibility.
-
-2. **Add `deg(x)`** as degrees-to-radians and **`rad(x)`** as radians-to-degrees
-   in `crates/animatix/src/timeline/builtins.rs:150`; keep `deg_to_rad` and
-   `rad_to_deg` if they exist.
-
-3. **Extend compiled `always` support** by adding `BuiltinFn::Deg` and
-   `BuiltinFn::Rad` in
-   `crates/animatix/src/timeline/modifier_runtime/ir/types.rs:8`, lowering in
-   `ir/lower.rs:156`, evaluation in `ir/eval.rs:142`, and VM support in
-   `vm.rs:319`.
-
-4. **Update rotate action** docs/signature in
-   `crates/animatix/src/timeline/actions/motion.rs:8` and error text in
-   `crates/animatix/src/timeline/actions/motion.rs:302`.
-
-5. **Update examples:** `examples/04_motion.amx:17`,
-   `examples/04_motion.amx:29`, `examples/16_showcase.amx:37`,
-   `examples/20_feature_reel.amx:50`.
-
-6. **Update docs** in `docs/spec.md:276`, `docs/spec.md:1033`, and
-   `docs/primitives.md` where rotation examples use raw radians.
-
-### Risks
-
-- The requested `rad()` name is counterintuitive if it returns degrees; docs
-  must state exactly what it does.
-- IR/VM must support the same built-ins as tree-walk evaluation or `always`
-  behavior diverges.
-- Existing examples using raw radians remain valid.
-
-### Dependencies
-
-- M5 (math constants) overlaps; implement together.
-
-### Test Strategy
-
-- Add `deg(180) == pi` and `rad(pi) == 180` tests in
-  `crates/animatix/src/timeline/utils.rs`.
-- Add rotate action test using `Expr::Call("deg", ...)` in
-  `crates/animatix/src/timeline/actions/motion.rs`.
-- Verify: `cargo test -p animatix deg`.
-
-### Effort
-
-**Small**
+- Extend compiled `always` support (IR/VM) for `deg`/`rad` builtins.
+- Update rotate action docs/signature in `motion.rs:8`.
+- Update examples using raw radians (covered by L4).
+- Update `docs/spec.md:276` and `docs/primitives.md`.
 
 ---
 
@@ -402,55 +358,17 @@ work. Implement field read and write for `Value::Object`.
 
 ---
 
-## M1. Source `Colorscheme` Dotted Keys
+## M1. Source `Colorscheme` Dotted Keys — ✅ DONE
 
-**Design intent:** `Colorscheme { extends: "...", scene.background: (...) }`
-should work from source — currently only simple identifiers are parsed as
-construct keys.
+**Completed 2026-06-11:** Changed the Chumsky construct expression parser in
+`parser/mod.rs:449` to use `dotted_ident` instead of `ident` for property keys
+inside `TypeName { ... }`. Dotted identifiers like `scene.background` are joined
+with `"."` to form the property name string.
 
-### Plan
+### Tree-sitter follow-up still needed
 
-1. **Change construct property parser** in
-   `crates/animatix-syntax/src/parser/mod.rs:445` from `ident` keys to
-   `dotted_ident` keys.
-
-2. **Ensure `Property.name`** stores joined dotted keys like `scene.background`;
-   `ResolvedColorscheme::from_properties()` already inserts `prop.name` directly
-   in `crates/animatix/src/timeline/colorscheme.rs:204`.
-
-3. **Update tree-sitter grammar** property names in
-   `tree-sitter-animatix/grammar.js:236` to allow `path_expression` for property
-   names, then regenerate `tree-sitter-animatix/src/parser.c`.
-
-4. **Update tree-sitter converter** `convert_property()` in
-   `crates/animatix-syntax/src/ts_convert.rs:835` to collect dotted
-   property-name segments.
-
-5. **Remove the parser limitation note** in `docs/spec.md:215`.
-
-### Risks
-
-- General actor property parsing might begin accepting dotted keys if grammar
-  changes are broad; Chumsky should restrict this to construct keys unless
-  desired.
-- Tree-sitter `property` name fields may become nested nodes, requiring
-  highlight query updates.
-
-### Dependencies
-
-- None.
-
-### Test Strategy
-
-- Add parser test for `Colorscheme { scene.background: (...) }`.
-- Add build test confirming `config { colorscheme: "name" }` uses the overridden
-  background.
-- Verify: `cargo test -p animatix-syntax colorscheme`,
-  `cargo test -p animatix colorscheme`.
-
-### Effort
-
-**Small to medium**
+- Update `tree-sitter-animatix/grammar.js` to accept dotted property names
+  in object expressions (L5 covers this).
 
 ---
 
@@ -509,89 +427,21 @@ assignable but the spec/media code doesn't support timed assignment for SVG.
 
 ---
 
-## M3. `NumberPlane` vs `Graph` Overlap
+## M3. `NumberPlane` vs `Graph` Overlap — ✅ DONE
 
-**Design intent:** Keep both primitives and document the distinction clearly.
-
-### Plan
-
-1. **Keep both primitives** for now.
-
-2. **Update `docs/architecture.md:650`**, which currently says NumberPlane should
-   be a Graph config, to match current runtime reality: they are separate.
-
-3. **Expand `docs/spec.md:989` and `docs/primitives.md:210` / `:285`**:
-   - `Graph` is a coordinate **container** for plots/children, with math→screen
-     mapping.
-   - `NumberPlane` is a standalone axes/grid/ticks visualization, no child
-     hosting.
-
-4. **Add a short note** to `examples/18_number_plane_contours.amx:9` explaining
-   why it uses `NumberPlane` instead of `Graph`.
-
-### Risks
-
-- Long-term primitive overlap remains.
-- If a future merge happens, docs will need another update.
-
-### Dependencies
-
-- None.
-
-### Test Strategy
-
-- Parse examples after doc/example changes: `cargo test -p animatix`.
-- Optional: add a docs lint / manual check for primitive list consistency.
-
-### Effort
-
-**Trivial to small**
+**Completed 2026-06-11:** Updated `docs/architecture.md` and
+`docs/primitives.md` to clarify: Graph is a coordinate container for
+hosting child plots; NumberPlane is a standalone visual coordinate plane
+with auto-generated axes/grid/ticks (no child hosting).
 
 ---
 
-## M4. `stroke` vs `color` on `Line`
+## M4. `stroke` vs `color` on `Line` — ✅ DONE
 
-**Design intent:** On `Line` (which has no fill), `color` should map to stroke
-color for user convenience.
-
-### Plan
-
-1. **In declaration handling** at
-   `crates/animatix/src/timeline/build/actor.rs:321`, when `ty == "Line"` and
-   `color` is set, update both `color` and `stroke_color` unless explicit
-   `stroke` / `stroke_color` also exists.
-
-2. **In assignment handling**, add `LinePrimitive::handle_assignment()` special
-   case in `crates/animatix/src/primitives/line.rs:79` (or earlier in the impl)
-   to map `line.color = ...` to `stroke_color`.
-
-3. **In frame-time overrides**, update `sample_shape_style()` in
-   `crates/animatix/src/primitives/mod.rs:105` so `always { line.color = ... }`
-   affects line stroke unless `stroke` is also overridden.
-
-4. **Update docs** in `docs/primitives.md:143`, `docs/properties.md:38`, and
-   `docs/spec.md:182`.
-
-### Risks
-
-- Existing scenes that set both `color` and `stroke` may change if precedence
-  is wrong; `stroke` should win when both are set.
-- Generic property registry still says `color` writes fill color; this special
-  case must be documented.
-
-### Dependencies
-
-- None.
-
-### Test Strategy
-
-- Add declaration, assignment, and `always` tests for Line color-to-stroke
-  behavior.
-- Verify: `cargo test -p animatix line_color`.
-
-### Effort
-
-**Small**
+**Completed 2026-06-11:** In `build/actor.rs`, added `stroke_color_explicitly_set`
+tracking; when a Line declaration sets `color` without explicit `stroke`/`stroke_color`,
+the color is copied to `stroke_color`. In `assignments.rs`, writing to `line.color = ...`
+also writes to `stroke_color` for Line actors.
 
 ---
 

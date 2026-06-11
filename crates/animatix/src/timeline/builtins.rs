@@ -153,6 +153,8 @@ pub fn load_standard_library(env: &mut Environment) {
     register_num1!(env, "fract", f64::fract);
     register_num1!(env, "deg_to_rad", |n| n * std::f64::consts::PI / 180.0);
     register_num1!(env, "rad_to_deg", |n| n * 180.0 / std::f64::consts::PI);
+    register_num1!(env, "deg", |n| n * std::f64::consts::PI / 180.0);
+    register_num1!(env, "rad", |n| n * 180.0 / std::f64::consts::PI);
 
     register_num2!(env, "min", f64::min);
     register_num2!(env, "max", f64::max);

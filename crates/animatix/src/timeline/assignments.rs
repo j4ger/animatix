@@ -256,6 +256,23 @@ impl Timeline {
             if let Some(pv) = parse_property_value(schema.value_type, value, &eval_env, diagnostics, &assignment_subject) {
                 write_property_field(track, schema.field, pv, t_start_ms, t_end_ms, easing, diagnostics);
 
+                // For Line actors, `color` assignment also sets `stroke_color` (Line is stroke-only)
+                if property == "color" && track.kind == super::ActorKindId::Shape(super::ShapeKind::Line) {
+                    if let Some(spv) = parse_property_value(
+                        schema.value_type, value, &eval_env, diagnostics, &assignment_subject,
+                    ) {
+                        write_property_field(
+                            track,
+                            crate::timeline::ActorField::StrokeColor,
+                            spv,
+                            t_start_ms,
+                            t_end_ms,
+                            easing,
+                            diagnostics,
+                        );
+                    }
+                }
+
                 // If this property affects shape geometry, rebuild vector paths
                 if affects_shape_geometry(property) {
                     rebuild_vector_paths(track, t_start_ms, t_end_ms, easing, diagnostics, Some(&eval_env));

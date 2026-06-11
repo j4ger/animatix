@@ -647,7 +647,7 @@ Not every visual variation needs its own primitive. The rule of thumb:
 
 **Counter-example — `VectorField`:** It exposes `func` that returns a 2-D vector, plus `density` / `grid_size`, and renders arrows rather than a single stroke path. It stays as a separate primitive.
 
-**Counter-example — `NumberPlane`:** Axes + grid + ticks is conceptually just a configurable `Graph`. Rather than a new primitive, `Graph` gains `grid`, `ticks`, and `tick_labels` properties.
+**Counter-example — `NumberPlane`:** NumberPlane is a standalone coordinate system that auto-generates axes, grid lines, and tick marks. Unlike `Graph`, it does not host child plots. `Graph` is a coordinate container for hosting child actors (`PlotCurve`, etc.) with optional grid/ticks.
 
 ---
 
