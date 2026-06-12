@@ -22,19 +22,20 @@
             pkg-config
             rustPlatform.bindgenHook
             alsa-lib
+            alsa-plugins  # Provides libasound_module_pcm_pipewire.so
             tree-sitter
             nodejs
             clang
 
-	    libX11
-	    libXcursor
-	    libXrandr
-	    libXi
-	    libxcb
-	    libxkbcommon
-	    vulkan-loader
+            libX11
+            libXcursor
+            libXrandr
+            libXi
+            libxcb
+            libxkbcommon
+            vulkan-loader
             vulkan-validation-layers
-	    wayland
+            wayland
             mesa
 
             rust-bin.stable.latest.default

@@ -32,7 +32,7 @@ impl TextDeclarationKind {
         match self {
             Self::Text => ModifierHost::Text,
             Self::Code => ModifierHost::Code,
-            Self::Typst => ModifierHost::Text,
+            Self::Typst => ModifierHost::Typst,
         }
     }
 
