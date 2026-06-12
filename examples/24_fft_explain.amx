@@ -1,0 +1,391 @@
+// 24 — FFT Explain: Visual Explanation of the Fast Fourier Transform
+// Scene 1: Time Domain — sine components combine into a complex signal
+// Scene 2: Correlation — DFT concept: probing a signal with reference frequencies
+// Scene 3: Spectrum — magnitude spectrum bars showing frequency decomposition
+//
+// Design exercise: what the language makes easy vs. what it makes hard.
+
+config { resolution: (1280, 720) }
+
+// ─── Shared ──────────────────────────────────────────────────────────────────
+
+pub let comp_colors = (accent.primary, accent.success, accent.warning)
+pub let comp_labels = ("3 Hz", "7 Hz", "11 Hz")
+
+// ─── Scene 1: Time Domain ────────────────────────────────────────────────────
+
+# TimeDomain
+config { colorscheme: "editorial-dark" }
+
+td_title: Text, text: "Time Domain — Signal Decomposition", font_size: 36,
+  color: text.primary, anchor: scene.top, offset: (0, 50)
+td_sub: Text, text: "Any signal is a sum of sine waves", font_size: 18,
+  color: text.secondary, anchor: scene.top, offset: (0, 90)
+
+// Main composite signal graph
+td_main: Graph, x_domain: (0.0, 6.283), y_domain: (-3.2, 3.2),
+  size: (600, 320), at: (320, 460) {
+  // Individual component waves
+  c1: PlotCurve, kind: "cartesian", func: (x) => sin(3.0 * x),
+    color: accent.primary, stroke_width: 1.5
+  c2: PlotCurve, kind: "cartesian", func: (x) => 0.7 * sin(7.0 * x),
+    color: accent.success, stroke_width: 1.5
+  c3: PlotCurve, kind: "cartesian", func: (x) => 0.4 * sin(11.0 * x),
+    color: accent.warning, stroke_width: 1.5
+  // Composite = sum of all three
+  composite: PlotCurve, kind: "cartesian",
+    func: (x) => sin(3.0 * x) + 0.7 * sin(7.0 * x) + 0.4 * sin(11.0 * x),
+    color: accent.danger, stroke_width: 3.0
+}
+
+// Legend panel on the right
+td_legend_bg: Rect, size: (260, 240), color: surface.secondary,
+  at: (980, 460), anchor: scene.center, offset: (0, 0)
+td_legend_title: Text, text: "Components", font_size: 18,
+  color: text.primary, at: (850, 360)
+td_l1_line: Line, from: (860, 400), to: (900, 400),
+  color: accent.primary, stroke_width: 2.5
+td_l1_text: Text, text: "sin(3x) — 3 Hz", font_size: 14,
+  color: text.primary, at: (910, 400)
+td_l2_line: Line, from: (860, 440), to: (900, 440),
+  color: accent.success, stroke_width: 2.5
+td_l2_text: Text, text: "0.7 * sin(7x) — 7 Hz", font_size: 14,
+  color: text.primary, at: (910, 440)
+td_l3_line: Line, from: (860, 480), to: (900, 480),
+  color: accent.warning, stroke_width: 2.5
+td_l3_text: Text, text: "0.4 * sin(11x) — 11 Hz", font_size: 14,
+  color: text.primary, at: (910, 480)
+td_sum_line: Line, from: (860, 520), to: (900, 520),
+  color: accent.danger, stroke_width: 3.0
+td_sum_text: Text, text: "Sum = composite signal", font_size: 14,
+  color: text.primary, at: (910, 520)
+
+// Annotations
+td_note: Text, text: "The DFT asks: how much of each frequency is in this signal?",
+  font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -60)
+
+// Entrances
+#0.5s
+fade-in td_title [600ms, ease: ease-out]
+fade-in td_sub [400ms, delay: 200ms]
+
+#1s
+fade-in td_main [700ms]
+
+#1.5s
+stagger [150ms] {
+  fade-in td_legend_bg [400ms]
+  fade-in td_legend_title [300ms]
+  fade-in td_l1_line [300ms]
+  fade-in td_l1_text [300ms]
+  fade-in td_l2_line [300ms]
+  fade-in td_l2_text [300ms]
+  fade-in td_l3_line [300ms]
+  fade-in td_l3_text [300ms]
+  fade-in td_sum_line [300ms]
+  fade-in td_sum_text [300ms]
+}
+
+#3s
+fade-in td_note [500ms, delay: 300ms]
+
+#5s
+fade-out td_title [400ms]
+fade-out td_sub [400ms]
+fade-out td_main [500ms]
+fade-out td_legend_bg [300ms]
+fade-out td_legend_title [300ms]
+fade-out td_l1_line [300ms]
+fade-out td_l1_text [300ms]
+fade-out td_l2_line [300ms]
+fade-out td_l2_text [300ms]
+fade-out td_l3_line [300ms]
+fade-out td_l3_text [300ms]
+fade-out td_sum_line [300ms]
+fade-out td_sum_text [300ms]
+fade-out td_note [300ms]
+
+play Correlation [fade, 400ms]
+
+// ─── Scene 2: Correlation (DFT Concept) ──────────────────────────────────────
+
+# Correlation
+config { colorscheme: "editorial-dark" }
+
+corr_title: Text, text: "DFT — Probing with Reference Frequencies", font_size: 36,
+  color: text.primary, anchor: scene.top, offset: (0, 50)
+corr_sub: Text, text: "Multiply the signal by sin(f · t), integrate → correlation strength",
+  font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 90)
+
+// Left graph: the signal being probed with a reference sine
+corr_graph: Graph, x_domain: (0.0, 6.283), y_domain: (-3.2, 3.2),
+  size: (500, 280), at: (300, 400) {
+  corr_signal: PlotCurve, kind: "cartesian",
+    func: (x) => sin(3.0 * x) + 0.7 * sin(7.0 * x) + 0.4 * sin(11.0 * x),
+    color: accent.danger, stroke_width: 2.5
+}
+
+// Probe line that sweeps — drawn as a moving vertical line
+corr_probe: Line, from: (0, -160), to: (0, 160),
+  color: accent.primary, stroke_width: 2.0, at: (100, 400)
+
+// Probe frequency indicator
+corr_freq_label: Text, text: "Probe: 3 Hz", font_size: 16,
+  color: accent.primary, at: (300, 110)
+corr_freq_val: Text, text: "f = 3.0 Hz", font_size: 14,
+  color: text.secondary, at: (300, 135)
+
+// Right panel: correlation strength bar
+corr_result_bg: Rect, size: (200, 280), color: surface.secondary,
+  at: (940, 400)
+corr_result_title: Text, text: "Correlation", font_size: 16,
+  color: text.primary, at: (855, 275)
+
+// Correlation result bar — grows when probe matches a signal frequency
+corr_bar: Rect, size: (40, 0), color: accent.primary,
+  at: (940, 520), anchor: scene.bottom
+
+corr_bar_0: Rect, size: (40, 0), color: surface.secondary, at: (940, 520), anchor: scene.bottom
+corr_bar_1: Rect, size: (40, 0), color: surface.secondary, at: (940, 520), anchor: scene.bottom
+
+corr_val_text: Text, text: "0.00", font_size: 20, color: text.primary,
+  at: (940, 540)
+
+// Sweep indicator — shows which frequency is being probed
+corr_sweep_label: Text, text: "Sweeping probe frequency...", font_size: 14,
+  color: text.muted, anchor: scene.bottom, offset: (0, -60)
+
+// Animate probe sweeping through frequencies — the correlation bar grows
+// when probe matches 3 Hz, 7 Hz, or 11 Hz
+always {
+  // t ranges from 0 to 5 in this scene
+  let sweep_freq = 1.0 + (t / 5.0) * 14.0  // sweeps 1 Hz → 15 Hz over scene duration
+  let probe_x = 50.0 + (t / 5.0) * 450.0     // probe moves left to right
+  corr_probe.at = (probe_x, 400.0)
+
+  corr_freq_val.text = format("f = {sweep_freq} Hz", sweep_freq)
+
+  // Correlation peaks at f=3, f=7, f=11 (the signal's components)
+  let dist_3 = abs(sweep_freq - 3.0)
+  let dist_7 = abs(sweep_freq - 7.0)
+  let dist_11 = abs(sweep_freq - 11.0)
+  let closest = min(dist_3, min(dist_7, dist_11))
+
+  // Correlation strength: Gaussian-ish peak at each component frequency
+  let strength = 1.0 / (1.0 + closest * 4.0)
+
+  // Grow the bar
+  corr_bar.size = (40.0, strength * 200.0)
+
+  // Color the bar based on match
+  if closest < 1.0 {
+    if dist_3 < 1.0 {
+      corr_bar.color = accent.primary
+      corr_freq_label.text = format("Match! 3 Hz", sweep_freq)
+      corr_freq_label.color = accent.primary
+    } else {
+      if dist_7 < 1.0 {
+        corr_bar.color = accent.success
+        corr_freq_label.text = format("Match! 7 Hz", sweep_freq)
+        corr_freq_label.color = accent.success
+      } else {
+        corr_bar.color = accent.warning
+        corr_freq_label.text = format("Match! 11 Hz", sweep_freq)
+        corr_freq_label.color = accent.warning
+      }
+    }
+  } else {
+    corr_bar.color = text.muted
+    corr_freq_label.text = format("Probe: {sweep_freq} Hz", sweep_freq)
+    corr_freq_label.color = text.muted
+  }
+
+  corr_val_text.text = format("{strength}", strength)
+}
+
+// Entrances
+#0.5s
+fade-in corr_title [600ms, ease: ease-out]
+fade-in corr_sub [400ms, delay: 200ms]
+
+#1s
+stagger [100ms] {
+  fade-in corr_graph [600ms]
+  fade-in corr_probe [400ms]
+  fade-in corr_freq_label [400ms]
+  fade-in corr_freq_val [400ms]
+}
+
+#1.2s
+stagger [80ms] {
+  fade-in corr_result_bg [400ms]
+  fade-in corr_result_title [300ms]
+  fade-in corr_bar [400ms]
+  fade-in corr_val_text [400ms]
+}
+
+#1.5s
+fade-in corr_sweep_label [400ms]
+
+#5s
+fade-out corr_title [400ms]
+fade-out corr_sub [400ms]
+fade-out corr_graph [400ms]
+fade-out corr_probe [300ms]
+fade-out corr_freq_label [300ms]
+fade-out corr_freq_val [300ms]
+fade-out corr_result_bg [300ms]
+fade-out corr_result_title [300ms]
+fade-out corr_bar [300ms]
+fade-out corr_val_text [300ms]
+fade-out corr_sweep_label [300ms]
+
+play Spectrum [fade, 400ms]
+
+// ─── Scene 3: Spectrum ────────────────────────────────────────────────────────
+
+# Spectrum
+config { colorscheme: "editorial-dark" }
+
+spec_title: Text, text: "Frequency Spectrum — The Result", font_size: 36,
+  color: text.primary, anchor: scene.top, offset: (0, 50)
+spec_sub: Text, text: "The Fourier Transform reveals which frequencies are present and how strong they are",
+  font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 90)
+
+// Frequency axis labels
+spec_axis_label: Text, text: "Frequency (Hz)", font_size: 14,
+  color: text.muted, anchor: scene.bottom, offset: (0, -40)
+
+// 8 frequency bins — manually declared since no bar chart primitive exists
+// Each bar: Rect anchored at bottom, height set to signal magnitude
+spec_bar_bg: Rect, size: (700, 300), color: surface.secondary,
+  at: (640, 470), anchor: scene.center
+
+// Frequency labels for each bar
+spec_f0: Text, text: "1", font_size: 12, color: text.muted, at: (310, 620)
+spec_f1: Text, text: "3", font_size: 12, color: text.muted, at: (400, 620)
+spec_f2: Text, text: "5", font_size: 12, color: text.muted, at: (490, 620)
+spec_f3: Text, text: "7", font_size: 12, color: text.muted, at: (580, 620)
+spec_f4: Text, text: "9", font_size: 12, color: text.muted, at: (670, 620)
+spec_f5: Text, text: "11", font_size: 12, color: text.muted, at: (760, 620)
+spec_f6: Text, text: "13", font_size: 12, color: text.muted, at: (850, 620)
+spec_f7: Text, text: "15", font_size: 12, color: text.muted, at: (940, 620)
+
+spectrum_axis: Line, from: (280, 620), to: (1000, 620), color: text.muted, stroke_width: 1.5
+spectrum_axis_label: Text, text: "Magnitude →", font_size: 12, color: text.muted, at: (270, 310)
+
+// Bar declaration — each bar is a Rect with size (width, height) anchored at bottom center
+// Heights are animated via always to "grow in"
+b0: Rect, size: (36, 0), color: accent.primary,   at: (310, 610), anchor: scene.bottom
+b1: Rect, size: (36, 0), color: accent.success,   at: (400, 610), anchor: scene.bottom
+b2: Rect, size: (36, 0), color: accent.warning,   at: (490, 610), anchor: scene.bottom
+b3: Rect, size: (36, 0), color: accent.danger,    at: (580, 610), anchor: scene.bottom
+b4: Rect, size: (36, 0), color: accent.primary,   at: (670, 610), anchor: scene.bottom
+b5: Rect, size: (36, 0), color: accent.success,   at: (760, 610), anchor: scene.bottom
+b6: Rect, size: (36, 0), color: accent.warning,   at: (850, 610), anchor: scene.bottom
+b7: Rect, size: (36, 0), color: accent.danger,    at: (940, 610), anchor: scene.bottom
+
+// Value labels on top of each peak bar
+spec_val3: Text, text: "1.0", font_size: 12, color: accent.success, at: (400, 280)
+spec_val7: Text, text: "0.7", font_size: 12, color: accent.danger, at: (580, 290)
+spec_val11: Text, text: "0.4", font_size: 12, color: accent.success, at: (760, 300)
+
+// Annotation: highlight the peaks correspond to the original signal components
+spec_arrow_3: Line, from: (400, 260), to: (400, 190), color: accent.success, stroke_width: 1.5
+spec_arrow_3_head: Polygon, points: {(395, 195), (405, 195), (400, 185)}, color: accent.success
+spec_label_3: Text, text: "3 Hz component", font_size: 13, color: accent.success, at: (420, 200)
+
+spec_arrow_7: Line, from: (580, 270), to: (580, 170), color: accent.danger, stroke_width: 1.5
+spec_arrow_7_head: Polygon, points: {(575, 175), (585, 175), (580, 165)}, color: accent.danger
+spec_label_7: Text, text: "7 Hz component", font_size: 13, color: accent.danger, at: (600, 180)
+
+spec_arrow_11: Line, from: (760, 280), to: (760, 220), color: accent.success, stroke_width: 1.5
+spec_arrow_11_head: Polygon, points: {(755, 225), (765, 225), (760, 215)}, color: accent.success
+spec_label_11: Text, text: "11 Hz component", font_size: 13, color: accent.success, at: (780, 230)
+
+// Explanation text at bottom
+spec_explain: Text, text: "Peaks at 3 Hz, 7 Hz, 11 Hz — exactly the frequencies in our original signal!",
+  font_size: 18, color: text.primary, anchor: scene.bottom, offset: (0, -110)
+
+// Grow bars in using always with t-based animation
+always {
+  // Bars grow in over the first 1.5 seconds of scene time
+  let grow_progress = clamp(t / 1.5, 0.0, 1.0)
+  // Ease-out approximation
+  let gp = grow_progress * (2.0 - grow_progress)
+
+  // Bar heights = magnitude at each frequency
+  // Signal has components at 3 Hz (1.0), 7 Hz (0.7), 11 Hz (0.4)
+  b0.size = (36.0, 5.0 * gp)
+  b1.size = (36.0, 220.0 * gp)    // 3 Hz = 1.0 amplitude
+  b2.size = (36.0, 10.0 * gp)
+  b3.size = (36.0, 154.0 * gp)    // 7 Hz = 0.7 amplitude
+  b4.size = (36.0, 8.0 * gp)
+  b5.size = (36.0, 88.0 * gp)     // 11 Hz = 0.4 amplitude
+  b6.size = (36.0, 6.0 * gp)
+  b7.size = (36.0, 4.0 * gp)
+
+  // Pulse the peak bars gently
+  if t > 1.5 {
+    let pulse = 1.0 + 0.05 * sin(t * 2.0)
+    b1.size = (36.0, 220.0 * pulse)
+    b3.size = (36.0, 154.0 * pulse)
+    b5.size = (36.0, 88.0 * pulse)
+  }
+}
+
+// Entrances
+#0.5s
+fade-in spec_title [600ms, ease: ease-out]
+fade-in spec_sub [400ms, delay: 200ms]
+
+#1s
+stagger [80ms] {
+  fade-in spec_bar_bg [500ms]
+  fade-in spectrum_axis [400ms]
+}
+
+#1.2s
+stagger [60ms] {
+  fade-in b0 [300ms]
+  fade-in b1 [300ms]
+  fade-in b2 [300ms]
+  fade-in b3 [300ms]
+  fade-in b4 [300ms]
+  fade-in b5 [300ms]
+  fade-in b6 [300ms]
+  fade-in b7 [300ms]
+}
+
+#1.5s
+stagger [60ms] {
+  fade-in spec_f0 [300ms]
+  fade-in spec_f1 [300ms]
+  fade-in spec_f2 [300ms]
+  fade-in spec_f3 [300ms]
+  fade-in spec_f4 [300ms]
+  fade-in spec_f5 [300ms]
+  fade-in spec_f6 [300ms]
+  fade-in spec_f7 [300ms]
+}
+
+#2s
+stagger [100ms] {
+  fade-in spec_arrow_3 [300ms]
+  fade-in spec_arrow_3_head [300ms]
+  fade-in spec_label_3 [300ms]
+  fade-in spec_arrow_7 [300ms]
+  fade-in spec_arrow_7_head [300ms]
+  fade-in spec_label_7 [300ms]
+  fade-in spec_arrow_11 [300ms]
+  fade-in spec_arrow_11_head [300ms]
+  fade-in spec_label_11 [300ms]
+}
+
+#2.5s
+fade-in spec_val3 [300ms]
+fade-in spec_val7 [300ms]
+fade-in spec_val11 [300ms]
+
+#3s
+fade-in spec_explain [600ms, ease: ease-out]
