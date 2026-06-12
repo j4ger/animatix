@@ -117,7 +117,7 @@ pub(crate) fn sample_recursive_cartesian(
     let val = cache.get(&mid_key).cloned().unwrap_or_else(|| {
         env.set_binding(arg_name, Value::Num(mid_t));
         let result = evaluate_expr(body, env).unwrap_or(Value::Num(f64::NAN));
-        env.clear_binding();
+        env.clear_bindings();
         cache.insert(mid_key, result.clone());
         result
     });
@@ -227,7 +227,7 @@ pub(crate) fn sample_recursive_polar(
     let val = cache.get(&mid_key).cloned().unwrap_or_else(|| {
         env.set_binding(arg_name, Value::Num(mid_t));
         let result = evaluate_expr(body, env).unwrap_or(Value::Num(f64::NAN));
-        env.clear_binding();
+        env.clear_bindings();
         cache.insert(mid_key, result.clone());
         result
     });
@@ -338,7 +338,7 @@ pub(crate) fn sample_recursive_parametric(
     let val = cache.get(&mid_key).cloned().unwrap_or_else(|| {
         env.set_binding(arg_name, Value::Num(mid_t));
         let result = evaluate_expr(body, env).unwrap_or(Value::Vec2([f64::NAN, f64::NAN]));
-        env.clear_binding();
+        env.clear_bindings();
         cache.insert(mid_key, result.clone());
         result
     });
@@ -423,7 +423,7 @@ pub(crate) fn implicit_intersection(
 }
 
 pub(crate) fn evaluate_implicit_value(
-    env: &Environment,
+    env: &mut Environment,
     arg_names: &[String],
     body: &Expr,
     x: f64,
@@ -431,16 +431,15 @@ pub(crate) fn evaluate_implicit_value(
 ) -> f64 {
     let x_name = arg_names.first().map(String::as_str).unwrap_or("x");
     let y_name = arg_names.get(1).map(String::as_str).unwrap_or("y");
-    let mut local_env = env.clone();
-    local_env.set(x_name, Value::Num(x));
-    local_env.set(y_name, Value::Num(y));
-    evaluate_expr(body, &local_env)
+    env.set_binding(x_name, Value::Num(x));
+    env.set_binding(y_name, Value::Num(y));
+    evaluate_expr(body, env)
         .unwrap_or(Value::Num(f64::NAN))
         .as_num()
 }
 
 pub(crate) fn build_implicit_plot_path(
-    env: &Environment,
+    env: &mut Environment,
     arg_names: &[String],
     body: &Expr,
     p_x_domain: &[f64; 2],
@@ -656,7 +655,7 @@ pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &mut Environment) -> V
         env.set_binding(&arg_name, Value::Num(min_t));
         let start_eval = evaluate_expr(&plot.func_body, env)
             .unwrap_or(Value::Num(f64::NAN));
-        env.clear_binding();
+        env.clear_bindings();
         let (start_math_x, start_math_y) = if plot.kind == PlotCurveKind::Cartesian {
             (min_t, start_eval.as_num())
         } else if plot.kind == PlotCurveKind::Parametric {
@@ -680,7 +679,7 @@ pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &mut Environment) -> V
         env.set_binding(&arg_name, Value::Num(max_t));
         let end_eval = evaluate_expr(&plot.func_body, env)
             .unwrap_or(Value::Num(f64::NAN));
-        env.clear_binding();
+        env.clear_bindings();
         let (end_math_x, end_math_y) = if plot.kind == PlotCurveKind::Cartesian {
             (max_t, end_eval.as_num())
         } else if plot.kind == PlotCurveKind::Parametric {

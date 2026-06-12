@@ -18,12 +18,27 @@ use std::hash::{Hash, Hasher};
 thread_local! {
     static EVAL_CACHE: RefCell<HashMap<(usize, u64), Value>> =
         RefCell::new(HashMap::new());
+    /// Flag to disable the eval cache for tight sampling loops.
+    /// When false, evaluate_expr skips env_hash() and the cache entirely.
+    static EVAL_CACHE_ENABLED: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
 }
 
 /// Clear the thread-local expression evaluation cache.
 /// Call this at the start of each build to avoid stale results.
 pub fn clear_eval_cache() {
     EVAL_CACHE.with(|cache| cache.borrow_mut().clear());
+}
+
+/// Disable the expression evaluation cache for the current thread.
+/// Call before entering a tight sampling loop where x/y change every call
+/// and the cache will never hit.
+pub fn disable_eval_cache() {
+    EVAL_CACHE_ENABLED.set(false);
+}
+
+/// Re-enable the expression evaluation cache after a sampling loop.
+pub fn enable_eval_cache() {
+    EVAL_CACHE_ENABLED.set(true);
 }
 
 /// Compute a hash of the environment's override entries.
@@ -44,10 +59,10 @@ fn env_hash(env: &Environment) -> u64 {
         key.hash(&mut hasher);
         hash_value(value, &mut hasher);
     }
-    // Hash single binding if present
-    if let Some((ref name, ref value)) = env.binding {
-        name.hash(&mut hasher);
-        hash_value(value, &mut hasher);
+    // Hash bindings if present
+    for binding in env.bindings.iter().flatten() {
+        binding.0.hash(&mut hasher);
+        hash_value(&binding.1, &mut hasher);
     }
     hasher.finish()
 }
@@ -114,6 +129,12 @@ fn hash_expr_recursive<V: Hasher>(expr: &Expr, hasher: &mut V) {
 /// Uses a thread-local cache keyed on `(expr_content_hash, env_hash)` to
 /// avoid re-evaluating the same expression in the same environment during build.
 pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError> {
+    // Fast path: when cache is disabled (e.g., inside tight plot sampling loops),
+    // skip env_hash() and cache entirely
+    if !EVAL_CACHE_ENABLED.get() {
+        return evaluate_expr_inner(expr, env);
+    }
+
     // Check cache for a hit (only for non-trivial expressions)
     let cache_key = match expr {
         Expr::Num(_) | Expr::Percent(_) | Expr::Str(_) | Expr::Bool(_) | Expr::Null => {

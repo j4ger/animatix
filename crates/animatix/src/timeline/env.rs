@@ -207,9 +207,10 @@ pub struct Environment {
     /// P2.22: Shared base layer. `get()` checks overrides first, then falls back
     /// to base. This avoids copying ~90 stdlib entries on every [`Timeline::build_frame_env`].
     pub(crate) base: Option<Arc<HashMap<String, Value>>>,
-    /// P6.2: Single-variable binding overlay for plot sampling.
+    /// P6.2+: Dual-variable binding overlay for plot sampling.
     /// Avoids cloning the entire overrides HashMap for every sample point.
-    pub(crate) binding: Option<(String, Value)>,
+    /// Two slots allow setting both `x` and `y` for scalar/vector field evaluation.
+    pub(crate) bindings: [Option<(String, Value)>; 2],
 }
 
 impl Default for Environment {
@@ -224,7 +225,7 @@ impl Environment {
         Environment {
             overrides: HashMap::new(),
             base: None,
-            binding: None,
+            bindings: [None, None],
         }
     }
 
@@ -233,7 +234,7 @@ impl Environment {
         Environment {
             overrides: HashMap::with_capacity(capacity),
             base: None,
-            binding: None,
+            bindings: [None, None],
         }
     }
 
@@ -242,7 +243,7 @@ impl Environment {
         Environment {
             overrides: HashMap::new(),
             base: Some(base),
-            binding: None,
+            bindings: [None, None],
         }
     }
 
@@ -272,11 +273,11 @@ impl Environment {
     }
 
     /// Look up a variable by name, returning a clone.
-    /// Checks single binding → overrides → base, in that order.
+    /// Checks bindings → overrides → base, in that order.
     pub fn get(&self, name: &str) -> Option<Value> {
-        if let Some((ref binding_name, ref binding_value)) = self.binding {
-            if binding_name == name {
-                return Some(binding_value.clone());
+        for binding in self.bindings.iter().flatten() {
+            if binding.0 == name {
+                return Some(binding.1.clone());
             }
         }
         self.overrides.get(name).cloned().or_else(|| {
@@ -285,11 +286,11 @@ impl Environment {
     }
 
     /// Look up a variable by name, returning a reference (zero-copy).
-    /// Checks single binding → overrides → base, in that order.
+    /// Checks bindings → overrides → base, in that order.
     pub fn get_ref(&self, name: &str) -> Option<&Value> {
-        if let Some((ref binding_name, ref binding_value)) = self.binding {
-            if binding_name == name {
-                return Some(binding_value);
+        for binding in self.bindings.iter().flatten() {
+            if binding.0 == name {
+                return Some(&binding.1);
             }
         }
         self.overrides.get(name).or_else(|| {
@@ -297,15 +298,30 @@ impl Environment {
         })
     }
 
-    /// Set a single-variable binding overlay.
-    /// Used by plot sampling to avoid cloning the entire environment per sample.
+    /// Set a variable binding overlay. Uses the first available slot, or
+    /// replaces an existing binding with the same name.
     pub fn set_binding(&mut self, name: &str, value: Value) {
-        self.binding = Some((name.to_string(), value));
+        // Replace existing binding with same name, or fill first empty slot
+        for slot in self.bindings.iter_mut() {
+            match slot {
+                Some((existing_name, _)) if existing_name == name => {
+                    *slot = Some((name.to_string(), value));
+                    return;
+                }
+                None => {
+                    *slot = Some((name.to_string(), value));
+                    return;
+                }
+                _ => {}
+            }
+        }
+        // Both slots occupied — replace the first one
+        self.bindings[0] = Some((name.to_string(), value));
     }
 
-    /// Clear the single-variable binding overlay.
-    pub fn clear_binding(&mut self) {
-        self.binding = None;
+    /// Clear all variable binding overlays.
+    pub fn clear_bindings(&mut self) {
+        self.bindings = [None, None];
     }
 
     /// Return all variable names defined in this environment, sorted.

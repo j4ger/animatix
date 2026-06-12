@@ -82,7 +82,7 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
 
         if params.kind == PlotCurveKind::Implicit {
             let path = build_implicit_plot_path(
-                &env_copy,
+                &mut env_copy,
                 args,
                 body,
                 &params.p_x_domain,
@@ -113,7 +113,7 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
             env_copy.set_binding(&arg_name, Value::Num(min_t));
             let start_eval = evaluate_expr(body, &env_copy)
                 .unwrap_or(Value::Num(f64::NAN));
-            env_copy.clear_binding();
+            env_copy.clear_bindings();
             let (start_math_x, start_math_y) = if params.kind == PlotCurveKind::Cartesian {
                 (min_t, start_eval.as_num())
             } else if params.kind == PlotCurveKind::Parametric {
@@ -137,7 +137,7 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
             env_copy.set_binding(&arg_name, Value::Num(max_t));
             let end_eval = evaluate_expr(body, &env_copy)
                 .unwrap_or(Value::Num(f64::NAN));
-            env_copy.clear_binding();
+            env_copy.clear_bindings();
             let (end_math_x, end_math_y) = if params.kind == PlotCurveKind::Cartesian {
                 (max_t, end_eval.as_num())
             } else if params.kind == PlotCurveKind::Parametric {
@@ -834,7 +834,7 @@ impl Timeline {
                 }
             }
         } else if is_vector_field {
-            let eval_env = self.build_eval_env(time_ms as u64);
+            let mut eval_env = self.build_eval_env(time_ms as u64);
             if let Some((args, body)) = func.as_ref() {
                 let full_size = [size[0] as f64 * 2.0, size[1] as f64 * 2.0];
                 let mut scaled_density = density as usize;
@@ -842,7 +842,7 @@ impl Timeline {
                 let mut _tolerance = 0.0f64;
                 self.build_quality.scale_plot_params(&mut _tolerance, &mut _max_depth, &mut scaled_density);
                 vello_paths = build_vector_field_paths(
-                    &eval_env,
+                    &mut eval_env,
                     args,
                     body,
                     x_domain,
@@ -854,7 +854,7 @@ impl Timeline {
                 );
             }
         } else if is_heatmap {
-            let eval_env = self.build_eval_env(time_ms as u64);
+            let mut eval_env = self.build_eval_env(time_ms as u64);
             if let Some((args, body)) = func.as_ref() {
                 let full_size = [size[0] as f64 * 2.0, size[1] as f64 * 2.0];
                 let mut scaled_res = resolution.max(2.0).round() as usize;
@@ -862,7 +862,7 @@ impl Timeline {
                 let mut _tolerance = 0.0f64;
                 self.build_quality.scale_plot_params(&mut _tolerance, &mut _max_depth, &mut scaled_res);
                 vello_paths = build_heatmap_paths(
-                    &eval_env,
+                    &mut eval_env,
                     args,
                     body,
                     x_domain,
@@ -873,7 +873,7 @@ impl Timeline {
                 );
             }
         } else if is_contour_set {
-            let eval_env = self.build_eval_env(time_ms as u64);
+            let mut eval_env = self.build_eval_env(time_ms as u64);
             if let Some((args, body)) = func.as_ref() {
                 let full_size = [size[0] as f64 * 2.0, size[1] as f64 * 2.0];
                 let mut scaled_res = resolution.max(8.0) as usize;
@@ -881,7 +881,7 @@ impl Timeline {
                 let mut _tolerance = 0.0f64;
                 self.build_quality.scale_plot_params(&mut _tolerance, &mut _max_depth, &mut scaled_res);
                 vello_paths = build_contour_set_paths(
-                    &eval_env,
+                    &mut eval_env,
                     args,
                     body,
                     &levels,
@@ -1190,7 +1190,7 @@ fn math_to_screen(
 
 /// Evaluate a scalar field func at (x,y).
 fn evaluate_scalar_field(
-    env: &Environment,
+    env: &mut Environment,
     arg_names: &[String],
     body: &Expr,
     x: f64,
@@ -1198,17 +1198,16 @@ fn evaluate_scalar_field(
 ) -> f64 {
     let x_name = arg_names.first().map(String::as_str).unwrap_or("x");
     let y_name = arg_names.get(1).map(String::as_str).unwrap_or("y");
-    let mut local_env = env.clone();
-    local_env.set(x_name, Value::Num(x));
-    local_env.set(y_name, Value::Num(y));
-    evaluate_expr(body, &local_env)
+    env.set_binding(x_name, Value::Num(x));
+    env.set_binding(y_name, Value::Num(y));
+    evaluate_expr(body, env)
         .unwrap_or(Value::Num(f64::NAN))
         .as_num()
 }
 
 /// Evaluate a vector field func at (x,y), returning (dx, dy).
 fn evaluate_vec2_field(
-    env: &Environment,
+    env: &mut Environment,
     arg_names: &[String],
     body: &Expr,
     x: f64,
@@ -1216,10 +1215,9 @@ fn evaluate_vec2_field(
 ) -> [f64; 2] {
     let x_name = arg_names.first().map(String::as_str).unwrap_or("x");
     let y_name = arg_names.get(1).map(String::as_str).unwrap_or("y");
-    let mut local_env = env.clone();
-    local_env.set(x_name, Value::Num(x));
-    local_env.set(y_name, Value::Num(y));
-    match evaluate_expr(body, &local_env).unwrap_or(Value::Vec2([0.0, 0.0])) {
+    env.set_binding(x_name, Value::Num(x));
+    env.set_binding(y_name, Value::Num(y));
+    match evaluate_expr(body, env).unwrap_or(Value::Vec2([0.0, 0.0])) {
         Value::Vec2(v) => v,
         Value::Num(n) => [n, 0.0],
         _ => [0.0, 0.0],
@@ -1232,7 +1230,7 @@ fn evaluate_vec2_field(
 /// evaluates each sample to get (dx, dy), and draws arrows with a scale
 /// that prevents overlap.
 fn build_vector_field_paths(
-    env: &Environment,
+    env: &mut Environment,
     arg_names: &[String],
     body: &Expr,
     x_domain: [f64; 2],
@@ -1300,7 +1298,7 @@ fn build_vector_field_paths(
 /// sample to [0,1] across the min/max range, and draws filled rectangles
 /// at varying alpha using the actor's `color`.
 fn build_heatmap_paths(
-    env: &Environment,
+    env: &mut Environment,
     arg_names: &[String],
     body: &Expr,
     x_domain: [f64; 2],
@@ -1318,6 +1316,7 @@ fn build_heatmap_paths(
     let mut min_val = f64::MAX;
     let mut max_val = f64::MIN;
 
+    crate::timeline::utils::disable_eval_cache();
     for (yi, row) in values.iter_mut().enumerate() {
         for (xi, val) in row.iter_mut().enumerate() {
             let math_x = x_domain[0] + (xi as f64 + 0.5) * x_step;
@@ -1330,6 +1329,8 @@ fn build_heatmap_paths(
             }
         }
     }
+
+    crate::timeline::utils::enable_eval_cache();
 
     let range = (max_val - min_val).max(1e-10);
     let mut vello_paths = Vec::with_capacity(res * res);
@@ -1376,7 +1377,7 @@ fn build_heatmap_paths(
 /// `build_implicit_plot_path` to trace the zero-contour.  Each level
 /// produces one stroked path.
 fn build_contour_set_paths(
-    env: &Environment,
+    env: &mut Environment,
     arg_names: &[String],
     body: &Expr,
     levels: &[f64],
