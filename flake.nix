@@ -51,6 +51,7 @@
 
           shellHook = ''
 		export LD_LIBRARY_PATH="${builtins.toString (pkgs.lib.makeLibraryPath buildInputs)}";
+		export ALSA_PLUGIN_DIR="${pkgs.pipewire}/lib/alsa-lib";
           '';
         };
       }
