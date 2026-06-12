@@ -36,11 +36,11 @@ auto_row: Row, anchor: scene.center, offset: (0, -20), gap: 12, align: "center" 
 }
 
 const_row: Row, anchor: scene.center, offset: (0, 60), gap: 12, align: "center" {
-  c0: Rect, size: (50, 50), color: RED
-  c1: Rect, size: (50, 50), color: GREEN
-  c2: Rect, size: (50, 50), color: BLUE
-  c3: Rect, size: (50, 50), color: WHITE
-  c4: Rect, size: (50, 50), color: BLACK
+  c0: Rect, size: (50, 50), color: red
+  c1: Rect, size: (50, 50), color: green
+  c2: Rect, size: (50, 50), color: blue
+  c3: Rect, size: (50, 50), color: white
+  c4: Rect, size: (50, 50), color: black
 }
 
 #0.5s

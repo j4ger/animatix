@@ -11,10 +11,10 @@ pub let brand_danger = (1.0, 0.46, 0.54, 1.0)       // Red
 
 // ── Semantic Aliases ───────────────────────────────────────────────────
 
-pub let success = brand_accent
-pub let warning = brand_warm
-pub let info = brand_primary
-pub let error = brand_danger
+pub let success = (0.35, 0.86, 0.63, 1.0)    // green
+pub let warning = (0.98, 0.83, 0.44, 1.0)    // amber
+pub let info = (0.38, 0.78, 1.0, 1.0)        // blue
+pub let error = (1.0, 0.46, 0.54, 1.0)       // red
 
 // ── Spacing / Sizing ───────────────────────────────────────────────────
 

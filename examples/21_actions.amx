@@ -7,7 +7,7 @@ title: Text, text: "Action Surface", font_size: 36, color: text.primary, anchor:
 
 path: Path, commands: {move_to(-60, 30), curve_to(-20, -60, 30, -60, 60, 30)}, stroke: accent.primary, stroke_width: 5, at: (280, 360)
 panel: Rect, size: (120, 90), color: accent.success, at: (500, 360)
-label: Text, text: "reveal", font_size: 28, color: accent.warning, at: (720, 360)
+label: Polygon, points: {(-30, -30), (30, 0), (-30, 30)}, color: accent.warning, at: (720, 360)
 exit_path: Path, commands: {move_to(-50, -30), line_to(50, -30), line_to(0, 50), close()}, stroke: accent.danger, stroke_width: 5, at: (960, 360)
 
 #0.5s

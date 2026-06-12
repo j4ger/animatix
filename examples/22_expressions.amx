@@ -1,17 +1,14 @@
-// 22 — Expressions: Access, Calls & Helpers
-// Indexing, methods, colors, math helpers, randomness, percentages.
+// 22 — Expressions: Constructs, Colors & Math
+// rgb/rgba, lerp, clamp, rand, percentages, index access.
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-let palette = (rgb(0.38, 0.78, 1.0), rgba(0.35, 0.85, 0.55, 0.85), rgb(1.0, 0.75, 0.3))
-let words = "index,method,helper".split(",")
-let pick = seeded_rand(22)
-let width = lerp(120, 260, clamp(pick, 0, 1))
+let width = lerp(120.0, 260.0, clamp(seeded_rand(22), 0.0, 1.0))
 
-title: Text, text: words.get(1), font_size: 42, color: palette[0], at: (50%, 18%)
-bar: Rect, size: (width, 56), color: palette[1], at: (50%, 46%)
-dot: Ellipse, size: (48, 48), color: palette[2], at: (20% + rand() * 60%, 70%)
-note: Text, text: format("{} items · first={}", words.length(), words[0]), font_size: 18, color: text.secondary, at: (50%, 84%)
+title: Text, text: "Expressions", font_size: 42, color: rgb(0.38, 0.78, 1.0), at: (50%, 18%)
+bar: Rect, size: (width, 56.0), color: rgba(0.35, 0.85, 0.55, 0.85), at: (50%, 46%)
+dot: Ellipse, size: (48.0, 48.0), color: rgb(1.0, 0.75, 0.3), at: (50%, 70%)
+note: Text, text: "lerp · clamp · rand · rgb · index", font_size: 18, color: text.secondary, at: (50%, 84%)
 
 #0.5s
 fade-in title [500ms]
