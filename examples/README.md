@@ -1,6 +1,6 @@
 # Animatix Examples
 
-A progressive suite of 23 numbered `.amx` demos (00–22). Each builds on the previous, introducing language features in isolation before the final capstone combines everything.
+A progressive suite of 24 numbered `.amx` demos (00–23). Each builds on the previous, introducing language features in isolation before the final capstone combines everything.
 
 ## Quick Reference
 
@@ -29,6 +29,7 @@ A progressive suite of 23 numbered `.amx` demos (00–22). Each builds on the pr
 | 20 | `20_feature_reel.amx` | **Capstone** — compact showcase combining layout, animation, paths, always |
 | 21 | `21_actions.amx` | **Actions** — move, draw-in, wipe-in, reveal-in, draw-out, wipe-out, reveal-out |
 | 22 | `22_expressions.amx` | **Expressions** — index access, method calls, rgb/rgba, lerp, clamp, rand |
+| 23 | `23_plot_kinds.amx` | **Plot kinds** — polar, parametric, implicit PlotCurve in a standalone demo |
 
 ## Running Examples
 

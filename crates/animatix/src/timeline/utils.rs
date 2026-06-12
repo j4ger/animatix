@@ -39,7 +39,7 @@ fn env_hash(env: &Environment) -> u64 {
     let mut entries: Vec<(&String, &Value)> = env.overrides.iter()
         .filter(|(_, v)| !matches!(v, Value::NativeFn(_)))
         .collect();
-    entries.sort_by_key(|(k, _)| (*k).clone());
+    entries.sort_by(|(a, _), (b, _)| a.cmp(b));
     for (key, value) in entries {
         key.hash(&mut hasher);
         hash_value(value, &mut hasher);
