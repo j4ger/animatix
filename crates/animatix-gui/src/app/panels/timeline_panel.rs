@@ -595,9 +595,11 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
 
             let zoom = preview.timeline_zoom.max(0.1);
             let visible_s = duration_s / zoom as f64;
-            // When zoomed out (zoom < 1.0) the full timeline fits on screen,
-            // so there is nothing to scroll — clamp to 0.
-            let max_scroll = if zoom <= 1.0 { 0.0 } else { duration_s - visible_s };
+            // Allow panning up to the edge of the max context (the visible range
+            // at minimum zoom 0.25), so content/ruler space beyond the timeline
+            // duration is still reachable.
+            let max_context_s = duration_s / 0.25;
+            let max_scroll = (max_context_s - visible_s).max(0.0);
             let scroll_s = preview.timeline_scroll_offset.clamp(0.0, max_scroll);
 
             // ── Wheel navigation (inside the ScrollArea closure, before any
@@ -636,7 +638,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                     scroll_s + visible_s
                                 };
                                 let new_visible = duration_s / new_zoom as f64;
-                                let new_max_scroll = if new_zoom <= 1.0 { 0.0 } else { duration_s - new_visible };
+                                let new_max_scroll = (max_context_s - new_visible).max(0.0);
                                 let frac = ((cursor.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64;
                                 preview.timeline_scroll_offset = (cursor_time - frac * new_visible)
                                     .clamp(0.0, new_max_scroll);
