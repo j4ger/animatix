@@ -163,8 +163,8 @@ impl AudioEngine {
             .ok_or_else(|| format!("Audio '{}' not loaded", seg.source))?;
 
         // Compute the segment's end time
-        let seg_end = if seg.duration_s > 0.0 {
-            seg.start_time_s + seg.duration_s
+        let seg_end = if let Some(dur) = seg.duration_s {
+            seg.start_time_s + dur
         } else {
             seg.start_time_s + audio.duration_s
         };

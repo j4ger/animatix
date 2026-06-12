@@ -337,8 +337,8 @@ pub fn mux_audio_segments(
         let mut chain = format!("[{input_idx}:a:0]");
 
         // Trim to declared duration if specified.
-        if seg.duration_s > 0.0 {
-            chain.push_str(&format!("atrim=end={:.3},", seg.duration_s));
+        if let Some(dur) = seg.duration_s {
+            chain.push_str(&format!("atrim=end={:.3},", dur));
         }
 
         // Apply per-segment volume.

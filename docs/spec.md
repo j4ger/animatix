@@ -1133,13 +1133,13 @@ Named structs can be constructed with field syntax:
 let p = Point { x: 10, y: 20 }
 ```
 
-Returns a `Value::Object` with typed fields. Field access is not yet implemented; objects are primarily used for reactive blocks and function returns.
+Returns a `Value::Object` with typed fields. Field reads (`p.x`) are implemented; e.g. `p.x + p.y` works after `let p = Point { x: 10, y: 20 }`. Field writes (`p.x = 30`) are not yet supported.
 
 ---
 
 ## 16. Known Gaps & Limitations
 
-- **Object Field Access:** `Value::Object` supports construction but field read (`p.x`) and write are not yet implemented.
+- **Object Field Write:** `Value::Object` supports construction and field reads (`p.x`) but field writes (`p.x = 30`) are not yet implemented.
 - **Re-declaration for Morphing/Media:** Morphing text and `Svg.url` assignment currently require re-declaration at a new keyframe (text morphing) or produce immediate/static changes (SVG url). `Image.url` assignment supports full keyframe animation with timed interpolation between sources.
 - ~~**Static Geometry:** Structural geometry inputs like `Polygon.points` and `Path.commands` are declaration-time only and cannot be animated dynamically frame-by-frame.~~ Both now support timed assignments with path morphing.
 

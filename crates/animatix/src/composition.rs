@@ -282,6 +282,11 @@ impl Composition {
 
                     // Build the per-scene timeline: merge prelude + scene body
                     let mut merged_body = shared_prelude.clone();
+                    // Insert scene config as a Stmt::Config before the scene body
+                    merged_body.push(Stmt::Config {
+                        settings: config.clone(),
+                        span: None,
+                    });
                     merged_body.extend(body.clone());
 
                     let build_report = Timeline::build_with_diagnostics_and_font_context(&merged_body, namespaces, font_context.clone(), build_quality);
@@ -377,6 +382,11 @@ impl Composition {
                 if let Some(scene_data) = ns.scenes.get(scene_name) {
                     // Build timeline from the cross-file scene's prelude + body
                     let mut merged = scene_data.file_prelude.clone();
+                    // Insert scene config as a Stmt::Config before the scene body
+                    merged.push(Stmt::Config {
+                        settings: scene_data.config.clone(),
+                        span: scene_data.span,
+                    });
                     merged.extend(scene_data.body.clone());
                     let build_report = Timeline::build_with_diagnostics_and_font_context(
                         &merged, namespaces, font_context.clone(), build_quality,
@@ -426,7 +436,9 @@ impl Composition {
                 // Apply transition overlap
                 if let Some(edge) = edges.get(name) {
                     if edge.transition.duration_ms > 0 {
-                        current_time -= edge.transition.duration_ms as f64 / 1000.0;
+                        let overlap_s = (edge.transition.duration_ms as f64 / 1000.0)
+                            .min(scene.duration_s); // Clamp to scene duration
+                        current_time -= overlap_s;
                     }
                 }
             }
@@ -480,6 +492,9 @@ impl Composition {
         }
 
         if active.len() == 2 {
+            // Sort active scenes by start time so active[0] is the outgoing (earlier) scene
+            active.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+
             // We're in a transition period
             let (from_name, from_start, _from_end) = active[0];
             let (to_name, to_start, _) = active[1];

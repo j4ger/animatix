@@ -520,7 +520,7 @@ pub enum TextKind {
     /// Plain text.
     Text,
     /// Typst math (kept for backward compatibility with old cached paths).
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Kept for backward-compatible cached path decoding
     Math,
     /// Code text.
     Code,

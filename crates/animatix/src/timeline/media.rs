@@ -26,26 +26,6 @@ fn push_media_load_failure_diagnostic(
     );
 }
 
-fn push_unsupported_media_modifier_diagnostics(
-    diagnostics: &mut Vec<Diagnostic>,
-    label: &str,
-    actor_type: &str,
-    modifiers: &[crate::ast::Modifier],
-) {
-    for modifier in modifiers {
-        let modifier_name = modifier.name.as_deref().unwrap_or("duration-shorthand");
-        diagnostics.push(
-            Diagnostic::warning(
-                DiagnosticCode::UnsupportedModifierKey,
-                DiagnosticPhase::Build,
-                format!(
-                    "'{modifier_name}' is not supported on {actor_type} declarations like '{label}'."
-                ),
-            )
-            .with_subject(label),
-        );
-    }
-}
 
 fn seed_svg_track(
     track: &mut AnimationTrack,
@@ -148,9 +128,14 @@ impl Timeline {
     ) {
         let eval_env = self.build_eval_env(time_ms as u64);
         self.add_node(label.to_string(), parent_label);
-        if !modifiers.is_empty() {
-            push_unsupported_media_modifier_diagnostics(diagnostics, label, actor_type, modifiers);
-        }
+        // Parse timing modifiers for Image/Svg declarations (timed re-declarations).
+        use crate::timeline::timing::{
+            parse_timing_modifiers, ModifierHost, ParsedTimingModifiers,
+        };
+        let ParsedTimingModifiers {
+            delay_ms,
+            ..
+        } = parse_timing_modifiers(modifiers, ModifierHost::ActorDeclaration, Some(label), diagnostics);
         // Pre-seed opacity for pre-keyframe first declarations without explicit opacity.
         let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
         let is_first_decl = !self.tracks.contains_key(label);
@@ -257,10 +242,12 @@ impl Timeline {
             }
         }
 
+        let seed_time_ms = (time_ms as u64).saturating_add(delay_ms as u64);
+
         match actor_type {
-            "Svg" => seed_svg_track(track, diagnostics, label, &url, scale, time_ms as u64),
+            "Svg" => seed_svg_track(track, diagnostics, label, &url, scale, seed_time_ms),
             "Image" => {
-                seed_image_track(track, diagnostics, label, &url, authored_size, time_ms as u64)
+                seed_image_track(track, diagnostics, label, &url, authored_size, seed_time_ms)
             }
             _ => {}
         }
@@ -292,6 +279,9 @@ impl Timeline {
         let mut source = String::new();
         let mut volume = 1.0f32;
 
+        // TODO: Eventually sample `source` and `volume` from the property track,
+        //       via the property engine, to support keyframe-based animation.
+        //       Currently these are read directly from the declaration props.
         for prop in props {
             let prop_subject = format!("{}.{}", label, prop.name);
             match prop.name.as_str() {
@@ -342,7 +332,7 @@ impl Timeline {
         } = parse_timing_modifiers(modifiers, ModifierHost::ActorDeclaration, Some(label), diagnostics);
 
         let start_time_s = (time_ms + delay_ms) / 1000.0;
-        let duration_s = if duration_ms > 0.0 { duration_ms / 1000.0 } else { 0.0 };
+        let duration_s = if duration_ms > 0.0 { Some(duration_ms / 1000.0) } else { None };
 
         self.audio_segments.push(AudioSegment {
             source,

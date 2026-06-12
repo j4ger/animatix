@@ -543,11 +543,18 @@ pub(super) async fn render_video_composition_async(
 
     finish_video_encoder(&mut encode_context, &mut format_context, stream_time_base, stream_index)?;
 
-    // Mux audio segments from all scenes in the composition
+    // Mux audio segments from all scenes in the composition, offset by scene start times
     let audio_segments: Vec<AudioSegment> = composition
         .scenes
-        .values()
-        .flat_map(|s| s.timeline.audio_segments.clone())
+        .iter()
+        .flat_map(|(name, s)| {
+            let start_offset = composition.scene_start_times.get(name).copied().unwrap_or(0.0);
+            let mut segments: Vec<AudioSegment> = s.timeline.audio_segments.clone();
+            for seg in &mut segments {
+                seg.start_time_s += start_offset;
+            }
+            segments
+        })
         .collect();
     mux_audio_if_present(&audio_segments, output_file)?;
 

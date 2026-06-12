@@ -368,7 +368,7 @@ pub struct AudioSegment {
     /// Start time within the global timeline in seconds.
     pub start_time_s: f64,
     /// Playback duration in seconds.
-    pub duration_s: f64,
+    pub duration_s: Option<f64>,
     /// Playback volume multiplier (1.0 = full volume).
     pub volume: f32,
 }

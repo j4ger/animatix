@@ -62,7 +62,7 @@ impl std::error::Error for SvgImportError {}
 /// `opacity` is parsed but not used because the importer approximates
 /// gradients as a single solid color (see [`GradientDef::approximate_solid_color`]).
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
+#[allow(dead_code)] // opacity field parsed but unused; flattened to solid color
 struct GradientStop {
     offset: f64,
     r: u8,
@@ -73,7 +73,7 @@ struct GradientStop {
 
 /// A parsed SVG clip path definition.
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
+#[allow(dead_code)] // Reserved for future clip-path rendering
 struct ClipPathDef {
     /// The path data for clipping.
     path_data: String,
@@ -81,7 +81,7 @@ struct ClipPathDef {
 
 /// A parsed SVG mask definition.
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
+#[allow(dead_code)] // Reserved for future mask rendering
 struct MaskDef {
     /// The path data for masking.
     path_data: String,
@@ -92,7 +92,7 @@ struct MaskDef {
 /// Geometric fields (`x1`, `y1`, …) are parsed for completeness but not used
 /// because the importer flattens gradients to a single averaged color.
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
+#[allow(dead_code)] // Geometric fields (x1,y1,x2,y2,cx,cy,r) unused; flattened to solid color
 enum GradientDef {
     Linear {
         x1: f64,
