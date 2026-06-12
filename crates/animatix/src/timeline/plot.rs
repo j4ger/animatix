@@ -460,6 +460,7 @@ pub(crate) fn build_implicit_plot_path(
 
     // Pre-evaluate the function on a grid to avoid redundant AST evaluations.
     let mut grid = vec![vec![f64::NAN; x_cells + 1]; y_cells + 1];
+    crate::timeline::utils::disable_eval_cache();
     for (yi, row) in grid.iter_mut().enumerate() {
         let y = p_y_domain[0] + yi as f64 * dy;
         for (xi, val) in row.iter_mut().enumerate() {
@@ -467,6 +468,7 @@ pub(crate) fn build_implicit_plot_path(
             *val = evaluate_implicit_value(env, arg_names, body, x, y);
         }
     }
+    crate::timeline::utils::enable_eval_cache();
 
     for yi in 0..y_cells {
         let y0 = p_y_domain[0] + yi as f64 * dy;
