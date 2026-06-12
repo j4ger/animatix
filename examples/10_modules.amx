@@ -4,6 +4,7 @@
 import "./lib/palette.amx" as palette
 import "./lib/tokens.amx" as tokens
 import "./lib/reexport.amx" as theme
+import "./lib/card.amx"
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
@@ -25,6 +26,7 @@ reexported: Row, anchor: scene.center, offset: (0, 40), gap: 16, align: "center"
 }
 
 info: Text, text: "tokens.space_md = 16, tokens.font_lg = 24, tokens.radius_md = 8", font_size: 14, color: text.muted, anchor: scene.bottom, offset: (0, -60)
+flat_demo: Card, title: "Flattened", value: "import", accent: palette.primary, anchor: scene.center, offset: (0, 150)
 
 #0.5s
 fade-in heading [600ms, ease: ease-out]
@@ -47,3 +49,6 @@ stagger [80ms] {
 
 #3s
 fade-in info [500ms]
+
+#3.5s
+fade-in flat_demo [500ms]

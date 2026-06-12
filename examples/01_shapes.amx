@@ -13,6 +13,8 @@ gallery: Grid, cols: 4, gap: 24, padding: 60, anchor: scene.center {
   path: Path, commands: {move_to(-30, 20), line_to(0, -30), line_to(30, 20), close()}, color: accent.warning
   line: Line, from: (-40, 0), to: (40, 0), stroke: accent.danger, stroke_width: 4
   image: Image, url: "examples/assets/checker.png", size: (80, 80)
+  mark: Svg, url: "examples/assets/animatix-mark.svg", size: (80, 80)
+  arrow: Arrow, from: (-40, 20), to: (40, -20), stroke: accent.primary, stroke_width: 4, head_size: 16
 }
 
 #0.5s
@@ -26,6 +28,8 @@ stagger [80ms] {
   fade-in path [500ms, ease: ease-out]
   fade-in line [500ms, ease: ease-out]
   fade-in image [500ms, ease: ease-out]
+  fade-in mark [500ms, ease: ease-out]
+  fade-in arrow [500ms, ease: ease-out]
 }
 
 // Color rotation across the gallery
@@ -38,3 +42,5 @@ ellipse.color = accent.danger [600ms]
 polygon.color = accent.primary [600ms]
 path.color = accent.success [600ms]
 line.stroke = accent.warning [600ms]
+mark.color = accent.primary [600ms]
+arrow.stroke = accent.success [600ms]

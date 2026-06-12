@@ -39,9 +39,14 @@ stagger [100ms] {
 }
 
 #2.5s
-row.gap = 32 [1s, ease: ease-in-out]
-col.gap = 32 [1s, ease: ease-in-out]
-grid.gap = 24 [1s, ease: ease-in-out]
+row.opacity = 0.7 [1s, ease: ease-in-out]
+col.opacity = 0.7 [1s, ease: ease-in-out]
+grid.opacity = 0.7 [1s, ease: ease-in-out]
+
+#3.5s
+row.opacity = 1.0 [1s, ease: ease-in-out]
+col.opacity = 1.0 [1s, ease: ease-in-out]
+grid.opacity = 1.0 [1s, ease: ease-in-out]
 
 #4s
 mid.size = (100, 100) [1s, ease: bounce]

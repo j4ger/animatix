@@ -1,7 +1,7 @@
 // 11 — Color System: Semantic Tokens, Auto, Constants, Colorscheme Extends
 // Scheme tokens, color: auto, built-in constants, Colorscheme with extends.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "forest", resolution: (1280, 720) }
 
 heading: Text, text: "Color System", font_size: 40, color: text.primary, anchor: scene.top, offset: (0, 50)
 subtitle: Text, text: "scheme tokens + auto + built-ins + extends", font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 100)

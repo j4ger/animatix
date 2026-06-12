@@ -60,7 +60,6 @@ pulse box [400ms, intensity: 1.3]
 star.transform = (0.6, 0, 0, 0.6, 0, 0) [500ms]
 
 // Continuous breathing via always
-#4s
 always {
   orb.scale = 1.0 + 0.08 * sin(t * 3.0)
   box.scale = 1.0 + 0.08 * sin(t * 3.0 + 2.094)

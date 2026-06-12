@@ -23,6 +23,8 @@ pub component Pressable() {
 // A component whose frame highlights on toggle.
 
 pub component Togglable() {
+  frame: Rect, size: (60, 60), color: surface.primary, anchor: scene.center
+
   action highlight {
     self.frame.color = surface.secondary [200ms]
     self.frame.color = surface.primary [300ms]

@@ -26,8 +26,16 @@ rect: Ellipse, size: (160, 120), color: accent.primary, at: (640, 360) [1s, stra
 #5s
 poly: Polygon, points: {(0, -80), (20, -25), (75, -25), (30, 10), (45, 65), (0, 35), (-45, 65), (-30, 10), (-75, -25), (-20, -25)}, color: accent.success, at: (960, 360) [1.5s, path_arc: 0.3]
 
+// Circle (now Rect) → Diamond with fade strategy
+#6.5s
+circle: Polygon, points: {(0, -75), (75, 0), (0, 75), (-75, 0)}, color: accent.primary, at: (320, 360) [1s, strategy: fade]
+
+// Rect (now Ellipse) → Trapezoid with stretch normalization
+#6.8s
+rect: Path, commands: {move_to(-80, -45), line_to(80, -45), line_to(55, 45), line_to(-55, 45), close()}, color: accent.danger, at: (640, 360) [1s, stretch: true]
+
 // Unify colors as a finale
-#7s
+#8s
 circle.color = accent.warning [800ms]
 rect.color = accent.warning [800ms]
 poly.color = accent.warning [800ms]

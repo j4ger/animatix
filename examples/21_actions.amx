@@ -1,0 +1,27 @@
+// 21 — Actions: Entrances, Motion & Exits
+// Compact sampler for leaf vector reveal actions.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+title: Text, text: "Action Surface", font_size: 36, color: text.primary, anchor: scene.top, offset: (0, 64)
+
+path: Path, commands: {move_to(-60, 30), curve_to(-20, -60, 30, -60, 60, 30)}, stroke: accent.primary, stroke_width: 5, at: (280, 360)
+panel: Rect, size: (120, 90), color: accent.success, at: (500, 360)
+label: Text, text: "reveal", font_size: 28, color: accent.warning, at: (720, 360)
+exit_path: Path, commands: {move_to(-50, -30), line_to(50, -30), line_to(0, 50), close()}, stroke: accent.danger, stroke_width: 5, at: (960, 360)
+
+#0.5s
+fade-in title [500ms]
+draw-in path [700ms]
+wipe-in panel [700ms]
+reveal-in label [700ms]
+fade-in exit_path [500ms]
+
+#1.5s
+move panel [to: (500, 260), 700ms, ease: ease-in-out]
+
+#2.6s
+draw-out path [600ms]
+wipe-out panel [600ms]
+reveal-out label [600ms]
+draw-out exit_path [600ms]

@@ -8,7 +8,7 @@ title: Text, text: "Number Plane & Contours", font_size: 32, color: text.primary
 #0s
 // NumberPlane as a background grid with labeled axes
 grid: NumberPlane, x_domain: (-6, 6), y_domain: (-4, 4), size: (560, 400), at: (420, 380),
-  x_range: (-6, 6, 1), y_range: (-4, 4, 1), grid: true, ticks: true,
+  x_range: (-6, 6, 1), y_range: (-4, 4, 1),
   color: surface.secondary, stroke_width: 1.0
 
 // ContourSet — level-set curves for a 2D scalar function

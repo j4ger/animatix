@@ -13,6 +13,12 @@ field: VectorField, func: (x, y) => (y * 0.4, -x * 0.4), density: 12, color: acc
 
 heat: Heatmap, func: (x, y) => sin(x) * cos(y), resolution: 28, color: accent.warning, x_domain: (-pi, pi), y_domain: (-pi, pi), at: (1140, 160), size: (220, 220)
 
+kinds: Graph, x_domain: (-3, 3), y_domain: (-3, 3), size: (320, 220), at: (640, 610) {
+  rose: PlotCurve, kind: "polar", func: (t) => 1.6 * sin(4 * t), color: accent.primary, stroke_width: 2
+  lissajous: PlotCurve, kind: "parametric", func: (t) => (2.2 * sin(3 * t), 1.4 * cos(2 * t)), color: accent.success, stroke_width: 2
+  circle: PlotCurve, kind: "implicit", func: (x, y) => x^2 + y^2 - 3.0, color: accent.danger, stroke_width: 2
+}
+
 #0.5s
 fade-in title [600ms, ease: ease-out]
 
@@ -21,9 +27,11 @@ stagger [100ms] {
   fade-in main [500ms]
   fade-in field [400ms]
   fade-in heat [400ms]
+  fade-in kinds [400ms]
 }
 
 #3s
 main.size = (570, 440) [1.2s, ease: ease-in-out]
 field.size = (240, 240) [1.2s, ease: ease-in-out]
 heat.size = (240, 240) [1.2s, ease: ease-in-out]
+kinds.size = (350, 240) [1.2s, ease: ease-in-out]

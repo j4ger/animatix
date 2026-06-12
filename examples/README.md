@@ -1,14 +1,14 @@
 # Animatix Examples
 
-A progressive suite of 21 numbered `.amx` demos (00–20). Each builds on the previous, introducing language features in isolation before the final capstone combines everything.
+A progressive suite of 23 numbered `.amx` demos (00–22). Each builds on the previous, introducing language features in isolation before the final capstone combines everything.
 
 ## Quick Reference
 
 | # | File | What It Shows |
 |---|------|---------------|
-| 00 | `00_hello.amx` | **Minimal scene** — one actor, one fade-in |
-| 01 | `01_shapes.amx` | **Primitives** — Rect, Ellipse, Polygon, Path, Image, Svg, Text, Math, Code |
-| 02 | `02_layout.amx` | **Containers** — Row, Col, Grid, Stack with animated layout props |
+| 00 | `00_hello.amx` | **Minimal scene** — title card with staggered fade-in of 4 actors |
+| 01 | `01_shapes.amx` | **Primitives** — Rect, Ellipse, Polygon, Path, Image, Typst, Text, Code |
+| 02 | `02_layout.amx` | **Containers** — Row, Col, Grid, Stack with animation |
 | 03 | `03_timing.amx` | **Timing** — sequence, stagger, easing curves |
 | 04 | `04_motion.amx` | **Actions + reactive** — shift, rotate, scale, fade; `always` expressions |
 | 05 | `05_morph.amx` | **Morphing** — re-declaration triggers shape interpolation |
@@ -26,7 +26,9 @@ A progressive suite of 21 numbered `.amx` demos (00–20). Each builds on the pr
 | 17 | `17_audio_reactive.amx` | **Audio reactive** — embedded soundtrack, `Audio` primitive, waveform bars |
 | 18 | `18_number_plane_contours.amx` | **NumberPlane** — grid backdrop, ContourSet level curves, VectorField |
 | 19 | `19_cross_file_scenes.amx` | **Cross-file scenes** — import scenic modules, `play alias.SceneName` |
-| 20 | `20_feature_reel.amx` | **Capstone** — compact showcase combining layout, animation, paths, morph |
+| 20 | `20_feature_reel.amx` | **Capstone** — compact showcase combining layout, animation, paths, always |
+| 21 | `21_actions.amx` | **Actions** — move, draw-in, wipe-in, reveal-in, draw-out, wipe-out, reveal-out |
+| 22 | `22_expressions.amx` | **Expressions** — index access, method calls, rgb/rgba, lerp, clamp, rand |
 
 ## Running Examples
 

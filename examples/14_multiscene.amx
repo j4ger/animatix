@@ -45,3 +45,28 @@ tag: Text, text: "animatix language", font_size: 20, color: accent.primary, anch
 #0.5s
 fade-in thanks [700ms, ease: ease-out]
 fade-in tag [500ms, delay: 200ms]
+
+#2s
+fade-out thanks [300ms]
+fade-out tag [300ms]
+
+play CutCard [cut, 0ms]
+
+# CutCard
+config { colorscheme: "editorial-dark" }
+cut_label: Text, text: "cut", font_size: 64, color: accent.danger, anchor: scene.center
+play WipeRight [wipe-right, 400ms]
+
+# WipeRight
+config { colorscheme: "editorial-dark" }
+right_label: Text, text: "wipe-right", font_size: 64, color: accent.primary, anchor: scene.center
+play WipeUp [wipe-up, 400ms]
+
+# WipeUp
+config { colorscheme: "editorial-dark" }
+up_label: Text, text: "wipe-up", font_size: 64, color: accent.success, anchor: scene.center
+play WipeDown [wipe-down, 400ms]
+
+# WipeDown
+config { colorscheme: "editorial-dark" }
+down_label: Text, text: "wipe-down", font_size: 64, color: accent.warning, anchor: scene.center

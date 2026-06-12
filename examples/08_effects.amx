@@ -3,19 +3,21 @@
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-bg_mark: Image, url: "examples/assets/animatix-mark.svg", size: (500, 500), anchor: scene.center, opacity: 0.08
+bg_mark: Svg, url: "examples/assets/animatix-mark.svg", size: (500, 500), anchor: scene.center, opacity: 0.08
 
 bg: Filter, blur: 0, brightness: 0.6, anchor: scene.center, at: (640, 360) {
   grid: Image, url: "examples/assets/checker.png", size: (500, 500), anchor: scene.center
 }
 
-// Foreground card on top of blurred background
-fg: Stack, anchor: scene.center {
-  card: Rect, size: (280, 220), color: (0.1, 0.1, 0.12, 0.85), anchor: scene.center
-  label: Text, text: "Filter FX", font_size: 36, color: text.primary, anchor: scene.center
+// Foreground card on top of blurred background (wrapped in Filter for sepia effect)
+fg_filter: Filter, sepia: 0, anchor: scene.center {
+  fg: Stack, anchor: scene.center {
+    card: Rect, size: (280, 220), color: (0.1, 0.1, 0.12, 0.85), anchor: scene.center
+    label: Text, text: "Filter FX", font_size: 36, color: text.primary, anchor: scene.center
+  }
 }
 
-target: Rect, size: (60, 60), color: accent.danger, anchor: scene.center, offset: (0, 70)
+target: Rect, size: (60, 60), color: accent.danger, anchor: scene.center, offset: (0, 100)
 
 title: Text, text: "Filters & Effects", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 60)
 
@@ -32,13 +34,13 @@ bg.blur = 0 [1s, ease: ease-out]
 bg.brightness = 0.6 [1s]
 
 #5s
-fg.sepia = 0
+fg_filter.sepia = 0
 
 #5.5s
-fg.sepia = 0.8 [1s]
+fg_filter.sepia = 0.8 [1s]
 
 #7s
-fg.sepia = 0 [1s]
+fg_filter.sepia = 0 [1s]
 
 #8.5s
 pulse target [400ms, intensity: 1.5]
