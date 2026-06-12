@@ -381,10 +381,18 @@ fn render_transport_strip(
                 preview.timeline_scroll_offset = 0.0;
             }
             if toolbar_action_button(ui, egui_phosphor::regular::MINUS, None, "Zoom out", false).clicked() {
-                preview.timeline_zoom = (preview.timeline_zoom * 0.8).max(0.25);
+                let new_zoom = (preview.timeline_zoom * 0.8).max(0.25);
+                if new_zoom <= 1.0 {
+                    preview.timeline_scroll_offset = 0.0;
+                }
+                preview.timeline_zoom = new_zoom;
             }
             if toolbar_action_button(ui, egui_phosphor::regular::PLUS, None, "Zoom in", false).clicked() {
-                preview.timeline_zoom = (preview.timeline_zoom * 1.25).min(8.0);
+                let new_zoom = (preview.timeline_zoom * 1.25).min(8.0);
+                if new_zoom <= 1.0 {
+                    preview.timeline_scroll_offset = 0.0;
+                }
+                preview.timeline_zoom = new_zoom;
             }
 
             // Time display (right-aligned) — timecode + fps
@@ -397,18 +405,11 @@ fn render_transport_strip(
                 let df = ((dur % 1.0) * preview.playback.fps as f64).floor() as u32;
                 let duration_tc = format!("{:02}:{:02}:{:02}:{:02}", dh, dm, ds, df);
                 let fps_val = preview.playback.fps;
-                ui.vertical(|ui| {
-                    ui.add(egui::Label::new(
-                        egui::RichText::new(format!("{} / {}", current_tc, duration_tc))
-                            .font(FontId::monospace(FONT_SIZE_S))
-                            .color(TEXT_PRIMARY),
-                    ).selectable(false));
-                    ui.add(egui::Label::new(
-                        egui::RichText::new(format!("{:.0} fps", fps_val))
-                            .font(FontId::monospace(FONT_SIZE_XS))
-                            .color(TEXT_SECONDARY),
-                    ).selectable(false));
-                });
+                ui.add(egui::Label::new(
+                    egui::RichText::new(format!("{} / {}  {:.0}fps", current_tc, duration_tc, fps_val))
+                        .font(FontId::monospace(FONT_SIZE_S))
+                        .color(TEXT_PRIMARY),
+                ).selectable(false));
             });
         });
     });
@@ -577,8 +578,9 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
     ui.add_space(PLAYBACK_STRIP_HEIGHT);
 
     // ── All content lives inside the ScrollArea ──
-    // ScrollArea handles: scroll offset persistence, wheel/mouse scrolling,
-    // clipping, and content culling.
+    // Wheel navigation (zoom/pan) is handled inside the closure so we share
+    // the inner coordinate system and can read smooth_scroll_delta before
+    // ScrollArea's post-processing consumes it.
     egui::ScrollArea::vertical()
         .id_salt("timeline_scroll")
         .show(ui, |ui| {
@@ -598,18 +600,32 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
             let max_scroll = if zoom <= 1.0 { 0.0 } else { duration_s - visible_s };
             let scroll_s = preview.timeline_scroll_offset.clamp(0.0, max_scroll);
 
-            // Mouse-wheel zoom on the entire timeline panel
+            // ── Wheel navigation (inside the ScrollArea closure, before any
+            //     painting, so ScrollArea's post-processing can consume whatever
+            //     we leave behind). ──
+            //
+            // Key egui behaviors we must account for:
+            //   • Ctrl/Cmd+wheel → egui converts to zoom_delta(),
+            //     smooth_scroll_delta is ZERO.
+            //   • Shift+wheel    → egui remaps x←x+y, y←0, so wheel.x alone
+            //     captures both plain horizontal and Shift+vertical pan.
+            //   • ScrollArea zeros consumed axes from smooth_scroll_delta
+            //     after the closure returns — we zero whichever axes we
+            //     handle so ScrollArea doesn't re-use them.
+            //   • rect_contains_pointer replaces fragile Sense::hover() which
+            //     can miss events when ScrollArea overlays the area.
             {
-                let panel_resp = ui.interact(scroll_rect, ui.id().with("timeline_panel_wheel"), Sense::hover());
-                if panel_resp.hovered() {
+                if ui.rect_contains_pointer(ui.clip_rect()) {
                     let modifiers = ui.input(|i| i.modifiers);
                     let wheel = ui.input(|i| i.smooth_scroll_delta);
-                    if (wheel.x != 0.0 || wheel.y != 0.0) && (modifiers.ctrl || modifiers.command) {
-                        let zoom_delta = if wheel.y != 0.0 { -wheel.y * 0.002 } else { -wheel.x * 0.002 };
+                    let zoom_factor = ui.input(|i| i.zoom_delta());
+                    let ctrl_or_cmd = modifiers.ctrl || modifiers.command;
+
+                    if ctrl_or_cmd && zoom_factor != 1.0 {
+                        // ── Zoom (cursor-stable) using egui's zoom_factor ──
                         let old_zoom = preview.timeline_zoom;
-                        let new_zoom = (old_zoom * (1.0 + zoom_delta)).clamp(0.25, 8.0);
+                        let new_zoom = (old_zoom * zoom_factor as f32).clamp(0.25, 8.0);
                         if (new_zoom - old_zoom).abs() > 0.001 {
-                            // Keep the time under the cursor stable when zooming
                             if let Some(cursor) = ui.ctx().input(|i| i.pointer.latest_pos()) {
                                 let cursor_time = if cursor.x >= bar_origin_x && cursor.x <= bar_origin_x + bar_width {
                                     let frac = ((cursor.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64;
@@ -620,12 +636,26 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                     scroll_s + visible_s
                                 };
                                 let new_visible = duration_s / new_zoom as f64;
-                                let max_scroll = if new_zoom <= 1.0 { 0.0 } else { duration_s - new_visible };
-                                preview.timeline_scroll_offset = (cursor_time - (cursor.x - bar_origin_x) as f64 / bar_width as f64 * new_visible)
-                                    .clamp(0.0, max_scroll);
+                                let new_max_scroll = if new_zoom <= 1.0 { 0.0 } else { duration_s - new_visible };
+                                let frac = ((cursor.x - bar_origin_x) / bar_width).clamp(0.0, 1.0) as f64;
+                                preview.timeline_scroll_offset = (cursor_time - frac * new_visible)
+                                    .clamp(0.0, new_max_scroll);
                             }
                             preview.timeline_zoom = new_zoom;
                         }
+                        // Zero all axes — Ctrl+scroll should not scroll rows
+                        ui.input_mut(|i| i.smooth_scroll_delta = Vec2::ZERO);
+                    } else if !ctrl_or_cmd && wheel.x.abs() > 0.0 {
+                        // ── Horizontal pan ──
+                        // wheel.x captures both plain horizontal scroll AND
+                        // Shift+scroll (egui remaps Shift to x).
+                        let delta_s = wheel.x as f64 / bar_width as f64 * visible_s;
+                        let new_scroll = (scroll_s + delta_s).clamp(0.0, max_scroll);
+                        if (new_scroll - scroll_s).abs() > 0.001 {
+                            preview.timeline_scroll_offset = new_scroll;
+                        }
+                        // Zero X axis so ScrollArea doesn't re-interpret it
+                        ui.input_mut(|i| i.smooth_scroll_delta.x = 0.0);
                     }
                 }
             }
