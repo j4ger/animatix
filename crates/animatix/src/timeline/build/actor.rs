@@ -182,6 +182,19 @@ impl Timeline {
     ) {
         self.add_node(label.to_string(), parent_label);
 
+        // H2: Math is deprecated, normalize to Typst
+        if ty == "Math" {
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::DeprecatedPrimitive,
+                    DiagnosticPhase::Build,
+                    format!("'Math' is deprecated. Use 'Typst' instead for math expressions."),
+                )
+                .with_subject(label),
+            );
+        }
+        let ty = if ty == "Math" { "Typst" } else { ty };
+
         if let Some(kind) = find_actor_kind(ty) {
             kind.build(
                 self,

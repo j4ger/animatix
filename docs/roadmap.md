@@ -4,16 +4,6 @@ Keep track of what is yet to be done here, when a segment is fully done, remove 
 
 ---
 
-## P0 — Critical Bugs (UI Audit) *(complete)*
-
-## P1 — High Impact *(complete)*
-
-## P2 — Medium *(complete)*
-
-## P3 — Polish & UX Papercuts *(complete)*
-
-## Icebox
-
 ## Icebox
 
 Not strictly needed, ones that require more design, or simply weird thoughts that came to mind. Should be ignored when planning for implementation, in most cases.

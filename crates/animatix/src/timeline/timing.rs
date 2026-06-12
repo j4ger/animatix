@@ -91,7 +91,7 @@ pub(crate) enum ModifierHost {
     Action,
     Assignment,
     Text,
-    Math,
+    Typst,
     Code,
     ActorDeclaration,
 }
@@ -102,7 +102,7 @@ impl ModifierHost {
             ModifierHost::Action => "action",
             ModifierHost::Assignment => "assignment",
             ModifierHost::Text => "text declaration",
-            ModifierHost::Math => "math declaration",
+            ModifierHost::Typst => "typst declaration",
             ModifierHost::Code => "code declaration",
             ModifierHost::ActorDeclaration => "actor declaration",
         }
@@ -112,7 +112,7 @@ impl ModifierHost {
         matches!(
             self,
             ModifierHost::Text
-                | ModifierHost::Math
+                | ModifierHost::Typst
                 | ModifierHost::Code
                 | ModifierHost::ActorDeclaration
         )

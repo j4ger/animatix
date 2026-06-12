@@ -445,7 +445,7 @@ impl Applicable {
                 matches!(kind, Shape(sk) if sk != ShapeKind::Line)
             }
             Applicable::AllDrawables => {
-                matches!(kind, Shape(_) | Text | Math | Code)
+                matches!(kind, Shape(_) | Text | Typst | Code)
             }
             Applicable::SizedActors => {
                 matches!(kind, Shape(_) | Image | Graph | PlotCurve | VectorField | Heatmap | ContourSet | NumberPlane | Row | Col | Grid | Stack | Filter)
@@ -486,7 +486,7 @@ pub struct PropertySchema {
 
     /// Default value for this property when the actor does not declare it.
     /// Computed at runtime because some defaults depend on actor kind
-    /// (e.g. `font_size` is 48 for Text, 36 for Math, 24 for Code).
+    /// (e.g. `font_size` is 48 for Text, 36 for Typst, 24 for Code).
     pub default_value: fn(super::ActorKindId) -> super::property_engine::PropertyValue,
     /// How this property is read at frame time (env injection, `_animating` flags).
     pub read_source: ReadSource,
@@ -537,8 +537,8 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("contrast",      ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::FilterContrast,      None,                             Applicable::ActorKinds(&[A::Filter]), |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("density",       ValueType::F32,         F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::VectorField]), |_| super::property_engine::PropertyValue::F32(16.0)),
     schema!("fill_opacity",  ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::FillOpacity,         None,                             Applicable::AllShapesExceptLine, |_| super::property_engine::PropertyValue::F32(1.0)),
-    schema!("font_family",   ValueType::String,      F::ASSIGNABLE,                ActorField::FontFamily,          None,                             Applicable::ActorKinds(&[A::Text, A::Math, A::Code]), |_| super::property_engine::PropertyValue::String(crate::renderer::text::DEFAULT_FONT_FAMILY.to_string())),
-    schema!("font_size",     ValueType::F32,         F::ASSIGNABLE_A,              ActorField::FontSize,            None,                             Applicable::ActorKinds(&[A::Text, A::Math, A::Code]), |kind| match kind { A::Text => super::property_engine::PropertyValue::F32(48.0), A::Math => super::property_engine::PropertyValue::F32(36.0), A::Code => super::property_engine::PropertyValue::F32(24.0), _ => super::property_engine::PropertyValue::F32(24.0) }),
+    schema!("font_family",   ValueType::String,      F::ASSIGNABLE,                ActorField::FontFamily,          None,                             Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]), |_| super::property_engine::PropertyValue::String(crate::renderer::text::DEFAULT_FONT_FAMILY.to_string())),
+    schema!("font_size",     ValueType::F32,         F::ASSIGNABLE_A,              ActorField::FontSize,            None,                             Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]), |kind| match kind { A::Text => super::property_engine::PropertyValue::F32(48.0), A::Typst => super::property_engine::PropertyValue::F32(36.0), A::Code => super::property_engine::PropertyValue::F32(24.0), _ => super::property_engine::PropertyValue::F32(24.0) }),
     schema!("from",          ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::LineFrom,            Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Line, S::Arrow]), |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])),
     schema!("func",          ValueType::BuildTimeOnly, F::empty(),                 ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve, A::VectorField, A::Heatmap, A::ContourSet]), |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("gap",           ValueType::F32,         F::empty(),                   ActorField::ContainerLayoutGroup, Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }), Applicable::ActorKinds(&[A::Row, A::Col, A::Grid]), |_| super::property_engine::PropertyValue::F32(0.0)),
@@ -551,7 +551,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("levels",        ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::ContourSet]), |_| super::property_engine::PropertyValue::Vec2([0.0, 1.0])),
     schema!("line_cap",      ValueType::U32,         F::ASSIGNABLE_AI,             ActorField::LineCap,             None,                             Applicable::AllShapes, |_| super::property_engine::PropertyValue::U32(0)),
     schema!("line_join",     ValueType::U32,         F::ASSIGNABLE_AI,             ActorField::LineJoin,            None,                             Applicable::AllShapes, |_| super::property_engine::PropertyValue::U32(0)),
-    schema!("math",          ValueType::String,      F::ANIMATED,                  ActorField::TextContent,         None,                             Applicable::ActorKinds(&[A::Math]), |_| super::property_engine::PropertyValue::String(String::new())),
+    schema!("math",          ValueType::String,      F::ANIMATED,                  ActorField::TextContent,         None,                             Applicable::ActorKinds(&[A::Typst]), |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("max_depth",     ValueType::F32,         F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve, A::ContourSet]), |_| super::property_engine::PropertyValue::F32(12.0)),
     schema!("offset",        ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::PositionBindingGroup, Some(GroupMembership { group_id: GroupHandlerId::PositionBinding }), Applicable::Everything, |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0]), ReadSource::None_),
     schema!("opacity",       ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::Opacity,             None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::F32(1.0)),
