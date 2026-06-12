@@ -118,6 +118,8 @@ pub enum DiagnosticCode {
     UnknownComponentProperty,
     /// An `always` block writes to a property that also has keyframes.
     AlwaysOverridesKeyframes,
+    /// An `at` or `position` property was set on a layout-managed child.
+    AbsolutePositionOnLayoutManagedChild,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -171,6 +173,9 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::UnknownComponentProperty => write!(f, "unknown-component-property"),
             DiagnosticCode::AlwaysOverridesKeyframes => {
                 write!(f, "always-overrides-keyframes")
+            }
+            DiagnosticCode::AbsolutePositionOnLayoutManagedChild => {
+                write!(f, "absolute-position-on-layout-managed-child")
             }
         }
     }

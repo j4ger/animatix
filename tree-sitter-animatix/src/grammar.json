@@ -1046,6 +1046,10 @@
             "members": [
               {
                 "type": "SYMBOL",
+                "name": "path_expression"
+              },
+              {
+                "type": "SYMBOL",
                 "name": "identifier"
               },
               {

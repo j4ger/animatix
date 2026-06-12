@@ -359,6 +359,29 @@ let p = Point { x: 10, y: 20 }
           value: (number))))))
 
 ==================
+Object expression with dotted property
+==================
+
+let p = Point { x: 10, scene.background: (0.2, 0.2, 0.3) }
+
+---
+
+(source_file
+  (let_declaration
+    name: (identifier)
+    value: (object_expression
+      type: (identifier)
+      (property_list
+        (property
+          name: (identifier)
+          value: (number))
+        (property
+          name: (path_expression
+            base: (identifier)
+            name: (identifier))
+          value: (tuple_expression (number) (number) (number)))))))
+
+==================
 If expression
 ==================
 

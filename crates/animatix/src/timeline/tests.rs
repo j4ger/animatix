@@ -15,37 +15,35 @@ fn static_scene_cache_populated_after_first_evaluate() {
         },
         Stmt::Keyframe {
             time: crate::ast::Time::Seconds(0.0),
-            body: vec![
-                Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "box1".to_string(),
-                    ty: "Rect".to_string(),
-                    props: vec![
-                        Property {
-                            name: "size".to_string(),
-                            value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "color".to_string(),
-                            value: Expr::Ident("accent.primary".to_string()),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "at".to_string(),
-                            value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                    ],
-                    modifiers: vec![],
-                    children: vec![],
-                    span: None,
-                },
-            ],
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "box1".to_string(),
+                ty: "Rect".to_string(),
+                props: vec![
+                    Property {
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "color".to_string(),
+                        value: Expr::Ident("accent.primary".to_string()),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "at".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            }],
             span: None,
         },
     ];
@@ -53,13 +51,19 @@ fn static_scene_cache_populated_after_first_evaluate() {
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
 
-    let dims = SceneDimensions { width: 1920, height: 1080 };
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
 
     // First evaluation — should populate static subtree cache
     let _scene1 = timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default(), &mut None);
 
     let cache = timeline.static_subtree_cache.borrow();
-    assert!(!cache.is_empty(), "static subtree cache should be populated after first evaluate");
+    assert!(
+        !cache.is_empty(),
+        "static subtree cache should be populated after first evaluate"
+    );
     assert!(cache.contains_key("box1"), "cache should contain box1");
     drop(cache);
 
@@ -85,37 +89,35 @@ fn static_scene_skips_frame_env() {
         },
         Stmt::Keyframe {
             time: crate::ast::Time::Seconds(0.0),
-            body: vec![
-                Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "box1".to_string(),
-                    ty: "Rect".to_string(),
-                    props: vec![
-                        Property {
-                            name: "size".to_string(),
-                            value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "color".to_string(),
-                            value: Expr::Ident("accent.primary".to_string()),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "at".to_string(),
-                            value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                    ],
-                    modifiers: vec![],
-                    children: vec![],
-                    span: None,
-                },
-            ],
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "box1".to_string(),
+                ty: "Rect".to_string(),
+                props: vec![
+                    Property {
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "color".to_string(),
+                        value: Expr::Ident("accent.primary".to_string()),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "at".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            }],
             span: None,
         },
     ];
@@ -137,15 +139,10 @@ fn static_scene_skips_frame_env() {
 #[test]
 fn test_for_iter_values_supports_tuple_literals() {
     let env = Environment::new();
-    let values = for_iter_values(
-        &Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0)]),
-        &env,
-    );
+    let values =
+        for_iter_values(&Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0)]), &env);
 
-    assert_eq!(
-        values,
-        vec![Value::Num(1.0), Value::Num(2.0), Value::Num(3.0)]
-    );
+    assert_eq!(values, vec![Value::Num(1.0), Value::Num(2.0), Value::Num(3.0)]);
 }
 
 #[test]
@@ -183,29 +180,17 @@ fn test_apply_modifier_stmt_supports_conditionals_statelessly() {
     let mut first_overrides = std::collections::HashMap::new();
     let mut first_env =
         timeline.build_frame_env_internal(500, SceneDimensions::default(), &first_overrides);
-    timeline.apply_modifier_stmt(
-        &modifier,
-        &mut first_env,
-        &mut first_overrides,
-    );
+    timeline.apply_modifier_stmt(&modifier, &mut first_env, &mut first_overrides);
 
     let mut second_overrides = std::collections::HashMap::new();
     let mut second_env =
         timeline.build_frame_env_internal(1500, SceneDimensions::default(), &second_overrides);
-    timeline.apply_modifier_stmt(
-        &modifier,
-        &mut second_env,
-        &mut second_overrides,
-    );
+    timeline.apply_modifier_stmt(&modifier, &mut second_env, &mut second_overrides);
 
     let mut repeat_overrides = std::collections::HashMap::new();
     let mut repeat_env =
         timeline.build_frame_env_internal(500, SceneDimensions::default(), &repeat_overrides);
-    timeline.apply_modifier_stmt(
-        &modifier,
-        &mut repeat_env,
-        &mut repeat_overrides,
-    );
+    timeline.apply_modifier_stmt(&modifier, &mut repeat_env, &mut repeat_overrides);
 
     assert_eq!(first_overrides["pulse"]["opacity"], Value::Num(1.0));
     assert_eq!(second_overrides["pulse"]["opacity"], Value::Num(0.0));
@@ -215,30 +200,23 @@ fn test_apply_modifier_stmt_supports_conditionals_statelessly() {
 #[test]
 fn test_colorscheme_primitive_declaration() {
     let ast = vec![
-        Stmt::LetDecl { is_pub: false,
+        Stmt::LetDecl {
+            is_pub: false,
             name: "test-scheme".to_string(),
             value: Expr::Construct(
                 "Colorscheme".to_string(),
                 vec![
                     Property {
                         name: "scene.background".to_string(),
-                        value: Expr::Tuple(vec![
-                            Expr::Num(0.1),
-                            Expr::Num(0.2),
-                            Expr::Num(0.3),
-                        ]),
+                        value: Expr::Tuple(vec![Expr::Num(0.1), Expr::Num(0.2), Expr::Num(0.3)]),
                         value_span: None,
-                    trailing_comment: None,
+                        trailing_comment: None,
                     },
                     Property {
                         name: "text.primary".to_string(),
-                        value: Expr::Tuple(vec![
-                            Expr::Num(0.9),
-                            Expr::Num(0.95),
-                            Expr::Num(1.0),
-                        ]),
+                        value: Expr::Tuple(vec![Expr::Num(0.9), Expr::Num(0.95), Expr::Num(1.0)]),
                         value_span: None,
-                    trailing_comment: None,
+                        trailing_comment: None,
                     },
                 ],
             ),
@@ -249,7 +227,7 @@ fn test_colorscheme_primitive_declaration() {
                 name: "colorscheme".to_string(),
                 value: Expr::Str("test-scheme".to_string()),
                 value_span: None,
-            trailing_comment: None,
+                trailing_comment: None,
             }],
             span: None,
         },
@@ -259,43 +237,30 @@ fn test_colorscheme_primitive_declaration() {
     let timeline = report.output;
 
     assert_eq!(timeline.colorscheme.name, "test-scheme");
-    assert_eq!(
-        timeline.colorscheme.color("scene.background"),
-        Some([0.1, 0.2, 0.3, 1.0])
-    );
-    assert_eq!(
-        timeline.colorscheme.color("text.primary"),
-        Some([0.9, 0.95, 1.0, 1.0])
-    );
+    assert_eq!(timeline.colorscheme.color("scene.background"), Some([0.1, 0.2, 0.3, 1.0]));
+    assert_eq!(timeline.colorscheme.color("text.primary"), Some([0.9, 0.95, 1.0, 1.0]));
 }
 
 #[test]
 fn test_colorscheme_let_declaration() {
     let ast = vec![
-        Stmt::LetDecl { is_pub: false,
+        Stmt::LetDecl {
+            is_pub: false,
             name: "test-scheme-let".to_string(),
             value: Expr::Construct(
                 "Colorscheme".to_string(),
                 vec![
                     Property {
                         name: "scene.background".to_string(),
-                        value: Expr::Tuple(vec![
-                            Expr::Num(0.15),
-                            Expr::Num(0.25),
-                            Expr::Num(0.35),
-                        ]),
+                        value: Expr::Tuple(vec![Expr::Num(0.15), Expr::Num(0.25), Expr::Num(0.35)]),
                         value_span: None,
-                    trailing_comment: None,
+                        trailing_comment: None,
                     },
                     Property {
                         name: "text.primary".to_string(),
-                        value: Expr::Tuple(vec![
-                            Expr::Num(0.85),
-                            Expr::Num(0.9),
-                            Expr::Num(0.95),
-                        ]),
+                        value: Expr::Tuple(vec![Expr::Num(0.85), Expr::Num(0.9), Expr::Num(0.95)]),
                         value_span: None,
-                    trailing_comment: None,
+                        trailing_comment: None,
                     },
                 ],
             ),
@@ -306,7 +271,7 @@ fn test_colorscheme_let_declaration() {
                 name: "colorscheme".to_string(),
                 value: Expr::Str("test-scheme-let".to_string()),
                 value_span: None,
-            trailing_comment: None,
+                trailing_comment: None,
             }],
             span: None,
         },
@@ -316,20 +281,15 @@ fn test_colorscheme_let_declaration() {
     let timeline = report.output;
 
     assert_eq!(timeline.colorscheme.name, "test-scheme-let");
-    assert_eq!(
-        timeline.colorscheme.color("scene.background"),
-        Some([0.15, 0.25, 0.35, 1.0])
-    );
-    assert_eq!(
-        timeline.colorscheme.color("text.primary"),
-        Some([0.85, 0.9, 0.95, 1.0])
-    );
+    assert_eq!(timeline.colorscheme.color("scene.background"), Some([0.15, 0.25, 0.35, 1.0]));
+    assert_eq!(timeline.colorscheme.color("text.primary"), Some([0.85, 0.9, 0.95, 1.0]));
 }
 
 #[test]
 fn test_colorscheme_inheritance() {
     let ast = vec![
-        Stmt::LetDecl { is_pub: false,
+        Stmt::LetDecl {
+            is_pub: false,
             name: "child".to_string(),
             value: Expr::Construct(
                 "Colorscheme".to_string(),
@@ -338,17 +298,13 @@ fn test_colorscheme_inheritance() {
                         name: "extends".to_string(),
                         value: Expr::Str("default-dark".to_string()),
                         value_span: None,
-                    trailing_comment: None,
+                        trailing_comment: None,
                     },
                     Property {
                         name: "scene.background".to_string(),
-                        value: Expr::Tuple(vec![
-                            Expr::Num(0.5),
-                            Expr::Num(0.5),
-                            Expr::Num(0.5),
-                        ]),
+                        value: Expr::Tuple(vec![Expr::Num(0.5), Expr::Num(0.5), Expr::Num(0.5)]),
                         value_span: None,
-                    trailing_comment: None,
+                        trailing_comment: None,
                     },
                 ],
             ),
@@ -359,7 +315,7 @@ fn test_colorscheme_inheritance() {
                 name: "colorscheme".to_string(),
                 value: Expr::Str("child".to_string()),
                 value_span: None,
-            trailing_comment: None,
+                trailing_comment: None,
             }],
             span: None,
         },
@@ -369,42 +325,27 @@ fn test_colorscheme_inheritance() {
     let timeline = report.output;
 
     assert_eq!(timeline.colorscheme.name, "child");
-    assert_eq!(
-        timeline.colorscheme.color("scene.background"),
-        Some([0.5, 0.5, 0.5, 1.0])
-    );
-    assert_eq!(
-        timeline.colorscheme.color("text.primary"),
-        Some([1.0, 1.0, 1.0, 1.0])
-    );
+    assert_eq!(timeline.colorscheme.color("scene.background"), Some([0.5, 0.5, 0.5, 1.0]));
+    assert_eq!(timeline.colorscheme.color("text.primary"), Some([1.0, 1.0, 1.0, 1.0]));
 }
 
 #[test]
 fn test_colorscheme_auto_cycle() {
     let ast = vec![
-        Stmt::LetDecl { is_pub: false,
+        Stmt::LetDecl {
+            is_pub: false,
             name: "auto-test".to_string(),
             value: Expr::Construct(
                 "Colorscheme".to_string(),
-                vec![
-                    Property {
-                        name: "auto".to_string(),
-                        value: Expr::Tuple(vec![
-                            Expr::Tuple(vec![
-                                Expr::Num(1.0),
-                                Expr::Num(0.0),
-                                Expr::Num(0.0),
-                            ]),
-                            Expr::Tuple(vec![
-                                Expr::Num(0.0),
-                                Expr::Num(1.0),
-                                Expr::Num(0.0),
-                            ]),
-                        ]),
-                        value_span: None,
+                vec![Property {
+                    name: "auto".to_string(),
+                    value: Expr::Tuple(vec![
+                        Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(0.0), Expr::Num(0.0)]),
+                        Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(1.0), Expr::Num(0.0)]),
+                    ]),
+                    value_span: None,
                     trailing_comment: None,
-                    },
-                ],
+                }],
             ),
             span: None,
         },
@@ -413,7 +354,7 @@ fn test_colorscheme_auto_cycle() {
                 name: "colorscheme".to_string(),
                 value: Expr::Str("auto-test".to_string()),
                 value_span: None,
-            trailing_comment: None,
+                trailing_comment: None,
             }],
             span: None,
         },
@@ -426,7 +367,7 @@ fn test_colorscheme_auto_cycle() {
                 name: "color".to_string(),
                 value: Expr::Ident("auto".to_string()),
                 value_span: None,
-            trailing_comment: None,
+                trailing_comment: None,
             }],
             modifiers: vec![],
             children: vec![],
@@ -441,7 +382,7 @@ fn test_colorscheme_auto_cycle() {
                 name: "color".to_string(),
                 value: Expr::Ident("auto".to_string()),
                 value_span: None,
-            trailing_comment: None,
+                trailing_comment: None,
             }],
             modifiers: vec![],
             children: vec![],
@@ -463,14 +404,12 @@ fn test_colorscheme_auto_cycle() {
 fn test_runtime_text_recompilation() {
     let ast = vec![
         Stmt::Config {
-            settings: vec![
-                Property {
-                    name: "colorscheme".to_string(),
-                    value: Expr::Str("editorial-dark".to_string()),
-                    value_span: None,
-                    trailing_comment: None,
-                },
-            ],
+            settings: vec![Property {
+                name: "colorscheme".to_string(),
+                value: Expr::Str("editorial-dark".to_string()),
+                value_span: None,
+                trailing_comment: None,
+            }],
             span: None,
         },
         Stmt::Keyframe {
@@ -540,8 +479,20 @@ fn test_runtime_text_recompilation() {
     let timeline = report.output;
 
     // Evaluate at t=0s and t=1.5s
-    let _scene_0s = timeline.evaluate(0.0, SceneDimensions { width: 400, height: 200 });
-    let _scene_1_5s = timeline.evaluate(1.5, SceneDimensions { width: 400, height: 200 });
+    let _scene_0s = timeline.evaluate(
+        0.0,
+        SceneDimensions {
+            width: 400,
+            height: 200,
+        },
+    );
+    let _scene_1_5s = timeline.evaluate(
+        1.5,
+        SceneDimensions {
+            width: 400,
+            height: 200,
+        },
+    );
 
     // The text compiler should have cached entries for both times
     let cache_len = timeline.text_compiler.borrow().cache_len();
@@ -558,26 +509,22 @@ fn test_keyframe_scoped_variables_create_tracks() {
     let ast = vec![
         Stmt::Keyframe {
             time: crate::ast::Time::Seconds(0.0),
-            body: vec![
-                Stmt::LetDecl {
-                    is_pub: false,
-                    name: "freq".to_string(),
-                    value: Expr::Num(1.0),
-                    span: None,
-                },
-            ],
+            body: vec![Stmt::LetDecl {
+                is_pub: false,
+                name: "freq".to_string(),
+                value: Expr::Num(1.0),
+                span: None,
+            }],
             span: None,
         },
         Stmt::Keyframe {
             time: crate::ast::Time::Seconds(3.0),
-            body: vec![
-                Stmt::LetDecl {
-                    is_pub: false,
-                    name: "freq".to_string(),
-                    value: Expr::Num(1.7),
-                    span: None,
-                },
-            ],
+            body: vec![Stmt::LetDecl {
+                is_pub: false,
+                name: "freq".to_string(),
+                value: Expr::Num(1.7),
+                span: None,
+            }],
             span: None,
         },
     ];
@@ -590,7 +537,10 @@ fn test_keyframe_scoped_variables_create_tracks() {
     );
     let timeline = report.output;
 
-    assert!(timeline.variable_tracks.contains_key("freq"), "Expected variable track for 'freq'");
+    assert!(
+        timeline.variable_tracks.contains_key("freq"),
+        "Expected variable track for 'freq'"
+    );
     let freq_track = timeline.variable_tracks.get("freq").unwrap();
     assert_eq!(freq_track.keyframes.len(), 2, "Expected 2 keyframes for freq");
 
@@ -629,37 +579,35 @@ fn test_animated_scene_has_keyframes() {
         },
         Stmt::Keyframe {
             time: crate::ast::Time::Seconds(0.0),
-            body: vec![
-                Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "box0".to_string(),
-                    ty: "Rect".to_string(),
-                    props: vec![
-                        Property {
-                            name: "size".to_string(),
-                            value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "color".to_string(),
-                            value: Expr::Ident("accent.primary".to_string()),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "at".to_string(),
-                            value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                    ],
-                    modifiers: vec![],
-                    children: vec![],
-                    span: None,
-                },
-            ],
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "box0".to_string(),
+                ty: "Rect".to_string(),
+                props: vec![
+                    Property {
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "color".to_string(),
+                        value: Expr::Ident("accent.primary".to_string()),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "at".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            }],
             span: None,
         },
         Stmt::Keyframe {
@@ -707,95 +655,102 @@ fn test_animated_scene_has_keyframes() {
 
     let track = timeline.get_track("box0").expect("box0 should exist");
     assert!(track.has_any_keyframes(), "box0 should have animated keyframes");
-    assert!(track.position.as_ref().map(|t| t.keyframes.len()).unwrap_or(0) >= 2, "position should have at least 2 keyframes");
-    assert!(track.color.as_ref().map(|t| t.keyframes.len()).unwrap_or(0) >= 2, "color should have at least 2 keyframes");
-    assert!(track.opacity.as_ref().map(|t| t.keyframes.len()).unwrap_or(0) >= 2, "opacity should have at least 2 keyframes");
+    assert!(
+        track.position.as_ref().map(|t| t.keyframes.len()).unwrap_or(0) >= 2,
+        "position should have at least 2 keyframes"
+    );
+    assert!(
+        track.color.as_ref().map(|t| t.keyframes.len()).unwrap_or(0) >= 2,
+        "color should have at least 2 keyframes"
+    );
+    assert!(
+        track.opacity.as_ref().map(|t| t.keyframes.len()).unwrap_or(0) >= 2,
+        "opacity should have at least 2 keyframes"
+    );
 }
 
 #[test]
 fn test_keyframe_scoped_variables_injected_into_frame_env() {
-    let ast = vec![
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![
-                Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "tracker".to_string(),
-                    ty: "Ellipse".to_string(),
-                    props: vec![
-                        Property {
-                            name: "radius".to_string(),
-                            value: Expr::Num(10.0),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "at".to_string(),
-                            value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                    ],
-                    modifiers: vec![],
-                    children: vec![],
-                    span: None,
-                },
-                Stmt::LetDecl {
-                    is_pub: false,
-                    name: "freq".to_string(),
-                    value: Expr::Num(2.0),
-                    span: None,
-                },
-                Stmt::Always {
-                    body: vec![Stmt::Assignment {
-                        target: vec!["tracker".to_string()],
-                        property: "at".to_string(),
-                        value: Expr::Tuple(vec![
-                            Expr::Binary(
-                                Box::new(Expr::Num(640.0)),
-                                BinaryOp::Add,
-                                Box::new(Expr::Binary(
-                                    Box::new(Expr::Num(100.0)),
-                                    BinaryOp::Mul,
-                                    Box::new(Expr::Call(
-                                        "cos".to_string(),
-                                        vec![Expr::Binary(
-                                            Box::new(Expr::Ident("freq".to_string())),
-                                            BinaryOp::Mul,
-                                            Box::new(Expr::Ident("t".to_string())),
-                                        )],
-                                    )),
-                                )),
-                            ),
-                            Expr::Binary(
-                                Box::new(Expr::Num(360.0)),
-                                BinaryOp::Add,
-                                Box::new(Expr::Binary(
-                                    Box::new(Expr::Num(100.0)),
-                                    BinaryOp::Mul,
-                                    Box::new(Expr::Call(
-                                        "sin".to_string(),
-                                        vec![Expr::Binary(
-                                            Box::new(Expr::Ident("freq".to_string())),
-                                            BinaryOp::Mul,
-                                            Box::new(Expr::Ident("t".to_string())),
-                                        )],
-                                    )),
-                                )),
-                            ),
-                        ]),
-                        modifiers: vec![],
-                        easing: None,
+    let ast = vec![Stmt::Keyframe {
+        time: crate::ast::Time::Seconds(0.0),
+        body: vec![
+            Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "tracker".to_string(),
+                ty: "Ellipse".to_string(),
+                props: vec![
+                    Property {
+                        name: "radius".to_string(),
+                        value: Expr::Num(10.0),
                         value_span: None,
-                        span: None,
-                    }],
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "at".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            },
+            Stmt::LetDecl {
+                is_pub: false,
+                name: "freq".to_string(),
+                value: Expr::Num(2.0),
+                span: None,
+            },
+            Stmt::Always {
+                body: vec![Stmt::Assignment {
+                    target: vec!["tracker".to_string()],
+                    property: "at".to_string(),
+                    value: Expr::Tuple(vec![
+                        Expr::Binary(
+                            Box::new(Expr::Num(640.0)),
+                            BinaryOp::Add,
+                            Box::new(Expr::Binary(
+                                Box::new(Expr::Num(100.0)),
+                                BinaryOp::Mul,
+                                Box::new(Expr::Call(
+                                    "cos".to_string(),
+                                    vec![Expr::Binary(
+                                        Box::new(Expr::Ident("freq".to_string())),
+                                        BinaryOp::Mul,
+                                        Box::new(Expr::Ident("t".to_string())),
+                                    )],
+                                )),
+                            )),
+                        ),
+                        Expr::Binary(
+                            Box::new(Expr::Num(360.0)),
+                            BinaryOp::Add,
+                            Box::new(Expr::Binary(
+                                Box::new(Expr::Num(100.0)),
+                                BinaryOp::Mul,
+                                Box::new(Expr::Call(
+                                    "sin".to_string(),
+                                    vec![Expr::Binary(
+                                        Box::new(Expr::Ident("freq".to_string())),
+                                        BinaryOp::Mul,
+                                        Box::new(Expr::Ident("t".to_string())),
+                                    )],
+                                )),
+                            )),
+                        ),
+                    ]),
+                    modifiers: vec![],
+                    easing: None,
+                    value_span: None,
                     span: None,
-                },
-            ],
-            span: None,
-        },
-    ];
+                }],
+                span: None,
+            },
+        ],
+        span: None,
+    }];
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
@@ -807,13 +762,16 @@ fn test_keyframe_scoped_variables_injected_into_frame_env() {
 
     // Evaluate at t=0s — with freq=2.0, cos(2*0)=1, sin(2*0)=0
     let mut overrides = std::collections::HashMap::new();
-    let mut env = timeline.build_frame_env_internal(0, SceneDimensions { width: 1280, height: 720 }, &overrides);
+    let mut env = timeline.build_frame_env_internal(
+        0,
+        SceneDimensions {
+            width: 1280,
+            height: 720,
+        },
+        &overrides,
+    );
     for modifier in &timeline.modifiers {
-        timeline.apply_modifier_stmt(
-            modifier,
-            &mut env,
-            &mut overrides,
-        );
+        timeline.apply_modifier_stmt(modifier, &mut env, &mut overrides);
     }
 
     let tracker_at = overrides.get("tracker").and_then(|m| m.get("at"));
@@ -831,69 +789,67 @@ fn test_keyframe_scoped_variables_injected_into_frame_env() {
 
 #[test]
 fn test_reactive_binding_desugars_to_modifier() {
-    let ast = vec![
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![
-                Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "orbiter".to_string(),
-                    ty: "Ellipse".to_string(),
-                    props: vec![
-                        Property {
-                            name: "radius".to_string(),
-                            value: Expr::Num(10.0),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "at".to_string(),
-                            value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                    ],
-                    modifiers: vec![],
-                    children: vec![],
-                    span: None,
-                },
-                Stmt::ReactiveBinding {
-                    target: vec!["orbiter".to_string()],
-                    property: "at".to_string(),
-                    value: Expr::Tuple(vec![
-                        Expr::Binary(
-                            Box::new(Expr::Num(640.0)),
-                            BinaryOp::Add,
-                            Box::new(Expr::Binary(
-                                Box::new(Expr::Num(100.0)),
-                                BinaryOp::Mul,
-                                Box::new(Expr::Call(
-                                    "cos".to_string(),
-                                    vec![Expr::Ident("t".to_string())],
-                                )),
+    let ast = vec![Stmt::Keyframe {
+        time: crate::ast::Time::Seconds(0.0),
+        body: vec![
+            Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "orbiter".to_string(),
+                ty: "Ellipse".to_string(),
+                props: vec![
+                    Property {
+                        name: "radius".to_string(),
+                        value: Expr::Num(10.0),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "at".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            },
+            Stmt::ReactiveBinding {
+                target: vec!["orbiter".to_string()],
+                property: "at".to_string(),
+                value: Expr::Tuple(vec![
+                    Expr::Binary(
+                        Box::new(Expr::Num(640.0)),
+                        BinaryOp::Add,
+                        Box::new(Expr::Binary(
+                            Box::new(Expr::Num(100.0)),
+                            BinaryOp::Mul,
+                            Box::new(Expr::Call(
+                                "cos".to_string(),
+                                vec![Expr::Ident("t".to_string())],
                             )),
-                        ),
-                        Expr::Binary(
-                            Box::new(Expr::Num(360.0)),
-                            BinaryOp::Add,
-                            Box::new(Expr::Binary(
-                                Box::new(Expr::Num(100.0)),
-                                BinaryOp::Mul,
-                                Box::new(Expr::Call(
-                                    "sin".to_string(),
-                                    vec![Expr::Ident("t".to_string())],
-                                )),
+                        )),
+                    ),
+                    Expr::Binary(
+                        Box::new(Expr::Num(360.0)),
+                        BinaryOp::Add,
+                        Box::new(Expr::Binary(
+                            Box::new(Expr::Num(100.0)),
+                            BinaryOp::Mul,
+                            Box::new(Expr::Call(
+                                "sin".to_string(),
+                                vec![Expr::Ident("t".to_string())],
                             )),
-                        ),
-                    ]),
-                    value_span: None,
-                    span: None,
-                },
-            ],
-            span: None,
-        },
-    ];
+                        )),
+                    ),
+                ]),
+                value_span: None,
+                span: None,
+            },
+        ],
+        span: None,
+    }];
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
@@ -911,20 +867,20 @@ fn test_reactive_binding_desugars_to_modifier() {
 
     // Evaluate at t=0s — orbiter should be at (740, 360)
     let mut overrides = std::collections::HashMap::new();
-    let mut env = timeline.build_frame_env_internal(0, SceneDimensions { width: 1280, height: 720 }, &overrides);
+    let mut env = timeline.build_frame_env_internal(
+        0,
+        SceneDimensions {
+            width: 1280,
+            height: 720,
+        },
+        &overrides,
+    );
     for modifier in &timeline.modifiers {
-        timeline.apply_modifier_stmt(
-            modifier,
-            &mut env,
-            &mut overrides,
-        );
+        timeline.apply_modifier_stmt(modifier, &mut env, &mut overrides);
     }
 
     let orbiter_at = overrides.get("orbiter").and_then(|m| m.get("at"));
-    assert!(
-        orbiter_at.is_some(),
-        "Expected orbiter.at override from reactive binding"
-    );
+    assert!(orbiter_at.is_some(), "Expected orbiter.at override from reactive binding");
     if let Some(Value::Vec2([x, y])) = orbiter_at {
         assert!((x - 740.0).abs() < 0.1, "Expected x≈740, got {}", x);
         assert!((y - 360.0).abs() < 0.1, "Expected y≈360, got {}", y);
@@ -951,10 +907,7 @@ fn test_hierarchical_assignment_target() {
     assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
     let ast = ast.expect("parsed AST");
 
-    let report = Timeline::build_with_diagnostics(
-        &ast,
-        &std::collections::HashMap::new(),
-    );
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
     assert!(
         report.diagnostics.is_empty(),
@@ -991,7 +944,8 @@ fn graph_axes_invisible_before_fadein() {
     let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
     assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
     let ast = ast.expect("parsed AST");
-    let report = crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
 
     let track = timeline.tracks.get("g1").expect("g1 track should exist");
@@ -1039,13 +993,12 @@ fn always_overrides_keyframes_warning() {
         },
     ];
 
-    let report =
-        Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
-    let has_warning = report.diagnostics.iter().any(|d| {
-        d.code
-            == animatix_syntax::diagnostics::DiagnosticCode::AlwaysOverridesKeyframes
-    });
+    let has_warning = report
+        .diagnostics
+        .iter()
+        .any(|d| d.code == animatix_syntax::diagnostics::DiagnosticCode::AlwaysOverridesKeyframes);
     assert!(
         has_warning,
         "Expected AlwaysOverridesKeyframes warning when both keyframes and always block target the same property"
@@ -1069,13 +1022,12 @@ fn always_overrides_keyframes_no_warning_without_track() {
         span: None,
     }];
 
-    let report =
-        Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
-    let has_warning = report.diagnostics.iter().any(|d| {
-        d.code
-            == animatix_syntax::diagnostics::DiagnosticCode::AlwaysOverridesKeyframes
-    });
+    let has_warning = report
+        .diagnostics
+        .iter()
+        .any(|d| d.code == animatix_syntax::diagnostics::DiagnosticCode::AlwaysOverridesKeyframes);
     assert!(
         !has_warning,
         "Should NOT emit AlwaysOverridesKeyframes warning when actor doesn't exist in tracks"
@@ -1112,15 +1064,112 @@ fn always_overrides_keyframes_no_warning_without_conflict() {
         },
     ];
 
-    let report =
-        Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
-    let has_warning = report.diagnostics.iter().any(|d| {
-        d.code
-            == animatix_syntax::diagnostics::DiagnosticCode::AlwaysOverridesKeyframes
-    });
+    let has_warning = report
+        .diagnostics
+        .iter()
+        .any(|d| d.code == animatix_syntax::diagnostics::DiagnosticCode::AlwaysOverridesKeyframes);
     assert!(
         !has_warning,
         "Should NOT emit AlwaysOverridesKeyframes warning when the always property has no keyframes"
+    );
+}
+
+#[test]
+fn absolute_position_on_layout_managed_child_warning() {
+    // A child of a Row with explicit `at` should emit a warning.
+    let ast = vec![Stmt::Keyframe {
+        time: crate::ast::Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "row1".to_string(),
+            ty: "Row".to_string(),
+            props: vec![Property {
+                name: "size".to_string(),
+                value: Expr::Tuple(vec![Expr::Num(400.0), Expr::Num(100.0)]),
+                value_span: None,
+                trailing_comment: None,
+            }],
+            modifiers: vec![],
+            children: vec![crate::ast::InlineItem::Labeled {
+                label: "child1".to_string(),
+                ty: "Rect".to_string(),
+                props: vec![
+                    Property {
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "at".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(200.0)]),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+            }],
+            span: None,
+        }],
+        span: None,
+    }];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+
+    let has_warning = report.diagnostics.iter().any(|d| {
+        d.code == animatix_syntax::diagnostics::DiagnosticCode::AbsolutePositionOnLayoutManagedChild
+    });
+    assert!(
+        has_warning,
+        "Expected AbsolutePositionOnLayoutManagedChild warning when a Row child has 'at'"
+    );
+}
+
+#[test]
+fn absolute_position_on_layout_managed_child_no_warning_without_at() {
+    // A child of a Row WITHOUT `at` should NOT emit the warning.
+    let ast = vec![Stmt::Keyframe {
+        time: crate::ast::Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "row1".to_string(),
+            ty: "Row".to_string(),
+            props: vec![Property {
+                name: "size".to_string(),
+                value: Expr::Tuple(vec![Expr::Num(400.0), Expr::Num(100.0)]),
+                value_span: None,
+                trailing_comment: None,
+            }],
+            modifiers: vec![],
+            children: vec![crate::ast::InlineItem::Labeled {
+                label: "child1".to_string(),
+                ty: "Rect".to_string(),
+                props: vec![Property {
+                    name: "size".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+                    value_span: None,
+                    trailing_comment: None,
+                }],
+                modifiers: vec![],
+                children: vec![],
+            }],
+            span: None,
+        }],
+        span: None,
+    }];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+
+    let has_warning = report.diagnostics.iter().any(|d| {
+        d.code == animatix_syntax::diagnostics::DiagnosticCode::AbsolutePositionOnLayoutManagedChild
+    });
+    assert!(
+        !has_warning,
+        "Should NOT emit AbsolutePositionOnLayoutManagedChild warning when child has no 'at'"
     );
 }

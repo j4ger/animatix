@@ -6,77 +6,16 @@
 
 ---
 
-## H1. `at`/`position` vs `transform` in Managed Layouts
+## H1. `at`/`position` vs `transform` in Managed Layouts — ✅ DONE
 
-**Design intent:** `at` is for absolute positioning (forbidden for managed-layout
-children). `transform` is universal and can be applied to managed-layout children
-without interrupting the container's layout.
-
-### Implementation check findings
-
-- `at` / `position` currently opt actors into `PlacementMode::Manual` via
-  `crates/animatix/src/timeline/build/actor.rs:464`,
-  `crates/animatix/src/timeline/build/actor.rs:494`, and
-  `crates/animatix/src/timeline/assignments.rs:142`.
-- `transform` is already universal in
-  `crates/animatix/src/timeline/property_registry.rs:580` and applied after
-  position in `crates/animatix/src/timeline/scene_eval.rs:129`.
-
-### Plan
-
-1. **Add diagnostic code** `AbsolutePositionOnLayoutManagedChild` in
-   `crates/animatix-syntax/src/diagnostics.rs:46`, with display string
-   `absolute-position-on-layout-managed-child`.
-
-2. **Add helper** `Timeline::is_layout_managed_child(parent_label)` near
-   `crates/animatix/src/timeline/build/node.rs:6` or
-   `crates/animatix/src/timeline/layout.rs:31`; return `true` only for
-   `Row`/`Col`/`Grid`/`Stack` parents, not `Group`/`Mask`/`Filter`/`Graph`.
-
-3. **Declarations:** Before
-   `resolve_position_binding_with_lookup_diagnostic()` in
-   `crates/animatix/src/timeline/build/actor.rs:464`, detect `at` or `position`
-   on layout-managed children, emit warning, and ignore the position binding so
-   `mark_track_manual_position()` at `build/actor.rs:494` is not called.
-
-4. **Assignments:** Before the `position`/`at` special case in
-   `crates/animatix/src/timeline/assignments.rs:142`, reject or warn+ignore
-   `child.at = ...` and `child.position = ...` when the target is a managed
-   child.
-
-5. **Keep `transform` untouched;** add a regression test proving `transform`
-   changes render transform but leaves `PlacementMode::LayoutManaged`.
-
-6. **Docs:** Update `docs/spec.md:409`, `docs/spec.md:474`,
-   `docs/architecture.md:113`, and `docs/primitives.md:327` to say managed
-   children use layout position; use `transform`, `shift`, `rotation`, or
-   `scale` for visual offsets.
-
-### Risks
-
-- Existing examples or GUI drag behavior may rely on `at` as a manual escape
-  hatch inside layout containers.
-- `Graph` children intentionally use `at` for math-coordinate mapping; the
-  helper must not treat `Graph` as a managed layout parent.
-- If `position` remains allowed while `at` is forbidden, users still have a
-  bypass; handle both consistently.
-
-### Dependencies
-
-- None, but docs overlap with L2.
-- Tests should account for reorder actions, which require
-  `PlacementMode::LayoutManaged`.
-
-### Test Strategy
-
-- Add timeline tests in `crates/animatix/src/timeline/tests.rs` or
-  `crates/animatix/src/timeline/actions/motion.rs`.
-- Verify: `cargo test -p animatix h1_layout_at`.
-- Run broader: `cargo test -p animatix`.
-
-### Effort
-
-**Medium**
+**Completed 2026-06-11:**
+- Added `DiagnosticCode::AbsolutePositionOnLayoutManagedChild` in `diagnostics.rs`
+- Added build-time warning in `build/actor.rs` when `at`/`position` is set on a
+  child of Row/Col/Grid/Stack parent
+- Updated `docs/spec.md` and `docs/architecture.md` with clear guidance:
+  managed children use layout position; use `transform` for visual offsets
+- Added 2 tests in `tests.rs` (warning fires with `at`, no warning without)
+- `Graph` children are unaffected (Graph is not a layout container)
 
 ---
 
@@ -386,32 +325,15 @@ primitive lists in docs agree.
 
 ---
 
-## L3. Architecture/Properties Generated-Docs Consistency
+## L3. Architecture/Properties Docs Consistency — ✅ DONE
 
-**Design intent:** Fix stale claims in architecture and properties docs.
-
-### Plan
-
-1. **Fix stale claims** in `docs/properties.md:90` and
-   `docs/primitives.md:398` after M2.
-
-2. **Fix `docs/architecture.md:650`** after M3.
-
-3. **Add a note** that `docs/properties.md` must match `PROPERTY_REGISTRY` in
-   `crates/animatix/src/timeline/property_registry.rs:526`.
-
-### Dependencies
-
-- M2, M3, H2 (or can be done as a separate pass).
-
-### Test Strategy
-
-- Manual docs review.
-- Optional: add a small registry-vs-docs checker later.
-
-### Effort
-
-**Trivial to small**
+**Completed 2026-06-11:**
+- Removed redundant "Target (post-split)" section from `architecture.md` (was
+  byte-identical to "Current (post-split)" since the crate split is complete)
+- Updated `properties.md` to match `PROPERTY_REGISTRY`: removed internal-only
+  `placement_mode`/`position_binding`, added `head_size` (Arrow), `x_range`/
+  `y_range` (NumberPlane)
+- Verified `spec.md` has no stale claims
 
 ---
 
@@ -447,37 +369,14 @@ primitive lists in docs agree.
 
 ---
 
-## L5. Tree-Sitter / Analyzer Follow-Through
+## L5. Tree-Sitter Follow-Through — ✅ DONE
 
-**Design intent:** If M1 changes tree-sitter grammar, keep tree-sitter and
-analyzer in sync.
-
-### Plan
-
-1. **If M1 changes tree-sitter grammar**, update
-   `tree-sitter-animatix/grammar.js:236`, regenerate
-   `tree-sitter-animatix/src/parser.c`, and update highlights in
-   `tree-sitter-animatix/queries/highlights.scm:101`.
-
-2. **Add corpus cases** for dotted construct keys in
-   `tree-sitter-animatix/test/corpus/`.
-
-3. **Update analyzer context handling** if property-name nodes can now be
-   `path_expression`.
-
-### Dependencies
-
-- M1.
-
-### Test Strategy
-
-- `cd tree-sitter-animatix && tree-sitter test`.
-- `cargo test -p animatix-analyzer`.
-- `cargo test -p animatix-syntax`.
-
-### Effort
-
-**Small to medium**
+**Completed 2026-06-11:**
+- Added `$.path_expression` to property name choices in `grammar.js`
+- Added corpus test case for `Object expression with dotted property`
+- No ts_convert.rs changes needed (`node_text` already returns full text)
+- 58/58 tree-sitter tests pass
+- `cargo check -p animatix-syntax` passes cleanly
 
 ---
 

@@ -234,7 +234,7 @@ module.exports = grammar({
     ),
 
     property: $ => seq(
-      field('name', choice($.identifier, $.string)),
+      field('name', choice($.path_expression, $.identifier, $.string)),
       ':',
       field('value', $._expression)
     ),

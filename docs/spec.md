@@ -419,6 +419,8 @@ Implemented: `Row`, `Col`, `Grid`, `Stack`, `Group`.
 
 **Declaration-time measure/place contract:** Layout containers consume each child's `size` track at timeline build; children with explicit `at` opt into manual placement instead.
 
+**Warning:** Setting `at` or `position` on a child of a layout container (Row/Col/Grid/Stack) triggers a build-time warning. In a managed layout, `at`/`position` is ignored — the container owns placement. Use `transform` for visual offsets without disrupting the parent's layout algorithm.
+
 ```animatix
 row: Row, gap: 12, padding: 20, align: "center" {
   Rect, color: red
@@ -452,6 +454,8 @@ img: Image, url: "examples/assets/checker.png", at: (100, 100), size: (200, 150)
 | Actor kind | Useful properties |
 |---|---|
 | All actors | `at`, `position`, `anchor`, `offset`, `opacity`, `rotation`, `scale`, `transform` |
+
+> **Layout-managed children** (`Row`/`Col`/`Grid`/`Stack`): `at` and `position` trigger a build-time warning. Use `transform` for visual offsets inside managed layouts — it works seamlessly without disrupting the container's layout algorithm.
 | Sized actors | `size` |
 | Drawables | `color` |
 | Shapes | `stroke`, `stroke_width`, `fill_opacity`, `stroke_progress` |
@@ -477,6 +481,14 @@ All actors support a `transform` property: a 6-element array `[a, b, c, d, tx, t
 
 ```animatix
 sheared: Rect, size: (100, 100), transform: (1, 0.5, 0, 1, 0, 0)
+
+> **Layout compatibility:** Unlike `at`/`position`, `transform` works seamlessly inside managed layouts. A child of a `Row` or `Col` can use `transform` to offset itself visually without the container losing track of its layout slot.
+
+```animatix
+row: Row, gap: 8, padding: 10 {
+  a: Rect, size: (40, 40)                    // normal layout slot
+  b: Rect, size: (40, 40), transform: (1, 0, 0, 1, -5, 0) // shifted left 5px visually, still occupies its slot
+}
 ```
 
 Multiplication order (left to right, applied right-to-left to points):

@@ -138,6 +138,8 @@ Layout consumes a dedicated `layout_size` track per child:
 
 Children without seeded `layout_size` are excluded from layout admission. Legacy `size` still exists for rendering compatibility.
 
+**Warning:** Children of layout containers with explicit `at`/`position` emit `AbsolutePositionOnLayoutManagedChild` warnings at build time. The `transform` property is the correct mechanism for visual offsets inside managed layouts — it applies a local affine transform without removing the child from the layout flow.
+
 ### Dynamic Layout
 
 When `config { dynamic_layout: true }` is enabled, admitted children are re-sampled from `layout_size` per frame and positions are recomputed. Membership remains static (build-time admission only); `gap`, `padding`, `align`, `cols` do not animate.
@@ -707,37 +709,7 @@ crates/
 └── tree-sitter-animatix/  # Tree-sitter grammar
 ```
 
-### Target (post-split)
 
-```
-crates/
-├── animatix-syntax/       # Syntax layer — parser, AST, module system
-│   └── src/
-│       ├── ast.rs         # AST types
-│       ├── parser.rs      # Chumsky parser
-│       ├── diagnostics.rs # Diagnostic types
-│       ├── easing.rs      # Easing function registry
-│       ├── source_index.rs# Source location mapping
-│       ├── to_source.rs   # AST re-serialization
-│       ├── transition_registry.rs
-│       ├── icon_glyphs.rs
-│       └── module/        # Module system (discovery, expand, rewrite)
-│
-├── animatix/              # Runtime engine — timeline, renderer, primitives
-│   └── src/
-│       ├── lib.rs         # Re-exports syntax modules
-│       ├── composition.rs # Multi-scene composition engine
-│       ├── timeline/      # Timeline compilation, actions, morphing, plotting
-│       ├── renderer/      # Vello/WGPU rendering pipeline
-│       ├── primitives/    # Actor primitive system
-│       ├── ir.rs          # Re-export: timeline modifier runtime IR
-│       └── vm.rs          # Re-export: timeline modifier runtime VM
-│
-├── animatix-analyzer/     # Shared language intelligence (depends on syntax)
-├── animatix-lsp/          # LSP server (tower-lsp)
-├── animatix-gui/          # Desktop GUI (eframe/egui)
-└── tree-sitter-animatix/  # Tree-sitter grammar
-```
 
 ## 17. Crate Split (Completed 2026-06-02)
 

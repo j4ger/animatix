@@ -31,8 +31,6 @@
 | `rotation` | F32 | ✓ | ✓ | Everything |
 | `scale` | F32 | ✓ | ✓ | Everything |
 | `transform` | Transform | ✓ | ✓ | Everything |
-| `placement_mode` | PlacementMode | — | — | Everything |
-| `position_binding` | PositionBinding | — | — | Everything |
 
 ## Style
 
@@ -69,6 +67,7 @@ Only applicable to `Filter` actors. See [`architecture.md`](architecture.md) §6
 | `line_join` | U32 | ✓ | ✓ | All shapes |
 | `from` | Vec2 | ✓ | ✓ | Line |
 | `to` | Vec2 | ✓ | ✓ | Line |
+| `head_size` | F32 | ✓ | ✓ | Arrow |
 | `points` | PointList | ✓ | ✓ | Polygon |
 | `commands` | CommandList | ✓ | ✓ | Path |
 
@@ -107,6 +106,8 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 | `func` | BuildTimeOnly | — | — | PlotCurve, VectorField, Heatmap, ContourSet |
 | `x_domain` | Vec2 | — | — | Graph, PlotCurve, VectorField, Heatmap, ContourSet, NumberPlane |
 | `y_domain` | Vec2 | — | — | Graph, PlotCurve, VectorField, Heatmap, ContourSet, NumberPlane |
+| `x_range` | Vec2 | — | — | NumberPlane |
+| `y_range` | Vec2 | — | — | NumberPlane |
 | `t_domain` | Vec2 | — | — | PlotCurve |
 | `kind` | String | — | — | PlotCurve |
 | `resolution` | F32 | — | — | PlotCurve, Heatmap, ContourSet |

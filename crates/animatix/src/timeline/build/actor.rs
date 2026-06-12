@@ -4,8 +4,8 @@
 use super::*;
 use crate::ast::{Expr, InlineItem, Property};
 use crate::timeline::actor_kind::find_actor_kind;
-use crate::timeline::vello_path::VelloPath;
 use crate::timeline::plot::PlotCurveKind;
+use crate::timeline::vello_path::VelloPath;
 
 impl Timeline {
     #[allow(clippy::too_many_arguments)]
@@ -27,7 +27,15 @@ impl Timeline {
     ) -> Vec<VelloPath> {
         let primitive = PrimitiveDescriptor::for_actor_type(ty);
         if primitive.is_graph_host() {
-            return build_graph_axis_paths(size, extracted.x_domain, extracted.y_domain, stroke_color, false, false, false);
+            return build_graph_axis_paths(
+                size,
+                extracted.x_domain,
+                extracted.y_domain,
+                stroke_color,
+                false,
+                false,
+                false,
+            );
         }
 
         // VectorField, Heatmap, ContourSet, NumberPlane are build-time only; no runtime re-evaluation.
@@ -133,10 +141,11 @@ impl Timeline {
             preserve_delayed_values(track, t_start_ms);
         }
         if supports_morph_options {
-            track
-                .morph_options
-                .ensure(MorphOptions::default())
-                .add_keyframe(t_end_ms, morph_options, Easing::Linear);
+            track.morph_options.ensure(MorphOptions::default()).add_keyframe(
+                t_end_ms,
+                morph_options,
+                Easing::Linear,
+            );
         }
 
         insert_end_keyframes(
@@ -174,7 +183,17 @@ impl Timeline {
         self.add_node(label.to_string(), parent_label);
 
         if let Some(kind) = find_actor_kind(ty) {
-            kind.build(self, label, ty, props, modifiers, children, time_ms, parent_label, diagnostics);
+            kind.build(
+                self,
+                label,
+                ty,
+                props,
+                modifiers,
+                children,
+                time_ms,
+                parent_label,
+                diagnostics,
+            );
             return;
         }
 
@@ -210,7 +229,14 @@ impl Timeline {
         };
         let props_ref: &[Property] = &mapped_props;
 
-        let extracted = self.extract_actor_properties(label, ty, props_ref, time_ms, &existing_track, diagnostics);
+        let extracted = self.extract_actor_properties(
+            label,
+            ty,
+            props_ref,
+            time_ms,
+            &existing_track,
+            diagnostics,
+        );
 
         if primitive.is_graph_host() {
             self.env.set(&format!("{}_x_domain", label), Value::Vec2(extracted.x_domain));
@@ -253,7 +279,14 @@ impl Timeline {
         let vector_shape = crate::primitives::find_primitive(ty).filter(|p| p.is_shape());
         let shape_type = shape_type_for_actor(ty).unwrap_or(ShapeType::Rect);
         let mut vector_shape_state = self.build_vector_shape_state(
-            ty, props, time_ms, size, line_from, line_to, arc_angles, diagnostics,
+            ty,
+            props,
+            time_ms,
+            size,
+            line_from,
+            line_to,
+            arc_angles,
+            diagnostics,
         );
         (size, line_from, line_to, arc_angles) = extract_shape_state_values(&vector_shape_state);
 
@@ -262,7 +295,12 @@ impl Timeline {
             delay_ms,
             easing,
             morph_options,
-        } = parse_timing_modifiers(modifiers, ModifierHost::ActorDeclaration, Some(label), diagnostics);
+        } = parse_timing_modifiers(
+            modifiers,
+            ModifierHost::ActorDeclaration,
+            Some(label),
+            diagnostics,
+        );
         let t_start_ms = (time_ms + delay_ms) as u64;
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
         let supports_morph_options = existing_track
@@ -282,7 +320,8 @@ impl Timeline {
         }
 
         let has_explicit_color = props.iter().any(|p| p.name == "color");
-        let has_explicit_stroke = props.iter().any(|p| p.name == "stroke" || p.name == "stroke_color");
+        let has_explicit_stroke =
+            props.iter().any(|p| p.name == "stroke" || p.name == "stroke_color");
         let scheme_primitive = crate::primitives::find_primitive(ty);
         if !has_explicit_color {
             if let Some(primitive) = scheme_primitive {
@@ -307,7 +346,7 @@ impl Timeline {
         for prop in props {
             let prop_subject = format!("{}.{}", label, prop.name);
             match prop.name.as_str() {
-                "at" | "anchor" | "offset" => {}
+                "at" | "anchor" | "offset" => {},
                 "color" => {
                     if matches!(&prop.value, Expr::Ident(name) if name == "auto") {
                         if let Some(actor_color) = self.auto_color_for_label(label) {
@@ -339,7 +378,7 @@ impl Timeline {
                             stroke_color = resolved_color;
                         }
                     }
-                }
+                },
                 "gap" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -349,7 +388,7 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(0.0));
                     gap = v.as_num() as f32;
-                }
+                },
                 "padding" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -359,14 +398,14 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(0.0));
                     padding = v.as_num() as f32;
-                }
+                },
                 "align" => {
                     if let Expr::Str(s) = &prop.value {
                         align = Some(s.clone());
                     } else if let Expr::Ident(s) = &prop.value {
                         align = Some(s.clone());
                     }
-                }
+                },
                 "cols" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -376,7 +415,7 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(1.0));
                     cols = Some(v.as_num().max(1.0) as usize);
-                }
+                },
                 "stroke_width" | "width" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -386,7 +425,7 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(0.0));
                     stroke_width = v.as_num() as f32;
-                }
+                },
                 "stroke_color" | "stroke" => {
                     stroke_color_explicitly_set = true;
                     if let Some(resolved_color) = parse_color_in_env_with_lookup_diagnostic(
@@ -399,7 +438,7 @@ impl Timeline {
                     ) {
                         stroke_color = resolved_color;
                     }
-                }
+                },
                 "stroke_progress" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -409,7 +448,7 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(0.0));
                     stroke_progress = v.as_num() as f32;
-                }
+                },
                 "fill_opacity" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -419,7 +458,7 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(0.0));
                     fill_opacity = v.as_num() as f32;
-                }
+                },
                 _ if vector_shape.is_some() => {
                     if apply_vector_shape_property(
                         ty,
@@ -433,19 +472,22 @@ impl Timeline {
                         (size, line_from, line_to, arc_angles) =
                             extract_shape_state_values(&vector_shape_state);
                     }
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
 
         // For Line actors, inherit stroke_color from color since Line is stroke-only
-        if !stroke_color_explicitly_set && kind_id == super::ActorKindId::Shape(super::ShapeKind::Line) {
+        if !stroke_color_explicitly_set
+            && kind_id == super::ActorKindId::Shape(super::ShapeKind::Line)
+        {
             stroke_color = color;
         }
 
         if vector_shape.is_some() {
             finalize_vector_shape_state(ty, &mut vector_shape_state);
-            (size, line_from, line_to, arc_angles) = extract_shape_state_values(&vector_shape_state);
+            (size, line_from, line_to, arc_angles) =
+                extract_shape_state_values(&vector_shape_state);
         }
 
         if primitive.is_graph_host() || primitive.is_layout_container() {
@@ -468,6 +510,32 @@ impl Timeline {
             &vector_shape_state,
             parent_label,
         );
+
+        // Warn when a child of a layout container uses `at` or `position`.
+        // Layout-managed children should use `transform` for visual offsets.
+        if let Some(parent) = parent_label {
+            if let Some(parent_track) = self.tracks.get(parent) {
+                if matches!(
+                    parent_track.kind,
+                    ActorKindId::Row | ActorKindId::Col | ActorKindId::Grid | ActorKindId::Stack
+                ) {
+                    let has_at = extracted.at_expr.is_some();
+                    let has_position = props.iter().any(|p| p.name == "position");
+                    if has_at || has_position {
+                        diagnostics.push(
+                            Diagnostic::warning(
+                                DiagnosticCode::AbsolutePositionOnLayoutManagedChild,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "Actor '{label}' in container '{parent}' has 'at'/'position' which is ignored in managed layouts. Use 'transform' instead for visual offsets without disrupting layout.",
+                                ),
+                            )
+                            .with_subject(label),
+                        );
+                    }
+                }
+            }
+        }
 
         let position_binding = resolve_position_binding_with_lookup_diagnostic(
             extracted.at_expr.as_ref(),
@@ -502,9 +570,13 @@ impl Timeline {
             mark_track_manual_position(track, t_start_ms);
         } else if primitive.is_layout_container() && parent_label.is_none() {
             preserve_discrete_position_state_before(track, t_start_ms);
-            set_track_position_binding(track, t_start_ms, PositionBinding::ContainerDefault {
-                anchor: SceneAnchor::Center,
-            });
+            set_track_position_binding(
+                track,
+                t_start_ms,
+                PositionBinding::ContainerDefault {
+                    anchor: SceneAnchor::Center,
+                },
+            );
         }
 
         Self::insert_actor_keyframes(
@@ -606,7 +678,9 @@ impl Timeline {
             let eval_env = self.build_eval_env(time_ms as u64);
             for prop in props {
                 if prop.name == "at" || prop.name == "position" {
-                    if let Ok(super::Value::Vec2(pos)) = super::evaluate_expr(&prop.value, &eval_env) {
+                    if let Ok(super::Value::Vec2(pos)) =
+                        super::evaluate_expr(&prop.value, &eval_env)
+                    {
                         position = [pos[0] as f32, pos[1] as f32];
                     }
                 }
@@ -696,7 +770,8 @@ impl Timeline {
                         time_ms,
                         Some(label),
                         diagnostics,
-                    ).ok();
+                    )
+                    .ok();
                 }
 
                 // Y-axis tick labels (positioned to the left of the axis line)
@@ -716,7 +791,8 @@ impl Timeline {
                         time_ms,
                         Some(label),
                         diagnostics,
-                    ).ok();
+                    )
+                    .ok();
                 }
             }
 

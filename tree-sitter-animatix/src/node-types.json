@@ -2009,6 +2009,10 @@
             "named": true
           },
           {
+            "type": "path_expression",
+            "named": true
+          },
+          {
             "type": "string",
             "named": true
           }
