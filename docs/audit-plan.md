@@ -227,57 +227,19 @@ actor's own bounds (rectangle or ellipse). It is not a layout container.
 
 ---
 
-## H4. Warn When `always` Overrides Keyframed Properties
+## H4. Warn When `always` Overrides Keyframed Properties — ✅ DONE
 
-**Design intent:** When an `always` block writes to a property that also has
-keyframes, emit a warning — the `always` value wins every frame, silently
-defeating the keyframes.
+**Completed 2026-06-11:**
+- Added `DiagnosticCode::AlwaysOverridesKeyframes` in `diagnostics.rs`
+- Added `AnimationTrack::has_keyframes_for()` helper in `track.rs`
+- Added warning loop in `build/entry.rs` after modifier compilation
+- Added 3 tests (positive + 2 negatives) in `tests.rs`
 
-### Plan
+### Known limitation
 
-1. **Add `DiagnosticCode::AlwaysOverridesKeyframes`** in
-   `crates/animatix-syntax/src/diagnostics.rs:46`.
-
-2. **Collect assignment targets** from `timeline.modifiers` after build
-   processing in `crates/animatix/src/timeline/build/entry.rs:183`.
-
-3. **Recursively inspect modifier statements** from `always` bodies:
-   assignments, conditionals, and `for` loops; map `at` to `position` via
-   `PropertySchema.read_source` in
-   `crates/animatix/src/timeline/property_registry.rs:526`.
-
-4. **Compare against target tracks** using
-   `AnimationTrack::list_keyframes()` in
-   `crates/animatix/src/timeline/track.rs:1178` or field accessors from
-   `property_registry`.
-
-5. **Emit a warning** once per `{actor}.{property}` pair, with message
-   explaining that `always` wins every frame.
-
-6. **Include `scene.background_color`** as a special case if `always` can
-   target `scene`.
-
-### Risks
-
-- Build inserts snapshot keyframes for animations; warnings may be noisy if
-  every animated assignment is flagged.
-- Conditional `always` writes are still potential overrides; keep warning
-  conservative.
-- Dotted component targets must resolve like normal assignments.
-
-### Dependencies
-
-- None.
-
-### Test Strategy
-
-- Add tests in `crates/animatix/src/timeline/tests.rs`: keyframed `opacity` +
-  `always { actor.opacity = ... }` warns; non-keyframed property does not.
-- Verify: `cargo test -p animatix always_overrides`.
-
-### Effort
-
-**Small to medium**
+- Only detects direct `Stmt::Assignment` in modifier bodies.
+- Does not recursively inspect conditionals or `for` loops.
+- Does not handle `scene.background_color` as a special case.
 
 ---
 
@@ -296,65 +258,20 @@ defeating the keyframes.
 
 ---
 
-## H6. Object Field Read/Write
+## H6. Object Field Read/Write — ✅ DONE
 
-**Design intent:** `let p = Point { x: 10, y: 20 }` exists but `p.x` doesn't
-work. Implement field read and write for `Value::Object`.
+**Completed 2026-06-11:**
+- Added `Value::get_field()` / `Value::with_field()` helpers in `env.rs`
+- Updated `Expr::Path` evaluation in `utils.rs` to walk through `Value::Object`
+  fields for multi-segment paths
+- Added variable field assignment in `assignments.rs` (`p.x = 30` on Object vars)
+- Added tests for read (basic, nonexistent field, backward compat)
 
-### Implementation check findings
+### Known limitation
 
-- Parser maps `p.x` to `Expr::Path(["p","x"])` in
-  `crates/animatix-syntax/src/parser/mod.rs:491`.
-- Object field access currently works only through a method fallback in
-  `crates/animatix/src/timeline/utils.rs:760` — not via direct field lookup.
-
-### Plan
-
-1. **Add a resolver** in `evaluate_expr_inner()` at
-   `crates/animatix/src/timeline/utils.rs:464`: if `Expr::Path(parts)` does not
-   resolve as a flat env key, evaluate the first segment and walk
-   `Value::Object` fields for the remaining segments.
-
-2. **Add `Value::get_field()` / `Value::set_field_path()`** helpers in
-   `crates/animatix/src/timeline/env.rs:45`.
-
-3. **Implement field assignment** for local variables in
-   `Timeline::process_body()` at
-   `crates/animatix/src/timeline/build/process.rs:103`: when assignment target
-   resolves to a variable object rather than an actor, update the current
-   variable track/env value.
-
-4. **Mirror field write support** in `always` execution in
-   `crates/animatix/src/timeline/modifier_exec.rs:19` and compiled modifier
-   runtime if object writes need frame-time support.
-
-5. **Extend parser tests** around
-   `crates/animatix-syntax/src/parser/mod.rs:837` to confirm `p.x = 30` becomes
-   target `["p"]`, property `"x"`.
-
-### Risks
-
-- Assignment grammar uses the last path segment as a property, so `p.x = 30` is
-  indistinguishable from actor property assignment until build-time resolution.
-- Variable tracks are time-keyed; mutating object fields must create a new
-  object value at the assignment time rather than mutating past values.
-- Component dotted actor paths must still win over object-field writes when
-  both names exist.
-
-### Dependencies
-
-- None.
-
-### Test Strategy
-
-- Add evaluator tests: `let p = Point { x: 10 }; let x = p.x`.
-- Add build tests: `p.x = 30` updates object variable; unknown field reports a
-  diagnostic.
-- Verify: `cargo test -p animatix object_field`.
-
-### Effort
-
-**Medium**
+- Field write at frame time (in `always` blocks) is not fully supported — only
+  build-time assignment works. The `always` execution path uses compiled
+  modifier IR which doesn't know about object field mutation.
 
 ---
 
@@ -372,58 +289,14 @@ with `"."` to form the property name string.
 
 ---
 
-## M2. Image/Svg `url` Assignment Docs Contradiction
+## M2. Image/Svg `url` Assignment Docs Contradiction — ✅ DONE
 
-**Design intent:** Fix the contradiction where `properties.md` says `url` is
-assignable but the spec/media code doesn't support timed assignment for SVG.
-
-### Implementation check findings
-
-- `Image.url` assignment **is** implemented in
-  `crates/animatix/src/primitives/image.rs:47` as timed keyframes.
-- `Svg.url` has partial immediate/static assignment in
-  `crates/animatix/src/primitives/svg.rs:45` — not time-correct.
-
-### Plan
-
-1. **Preferred: runtime fix** — make `Svg.url` assignment keyframed like
-   `Image.url`. Add a keyframed SVG path payload to `AnimationTrack` near
-   `crates/animatix/src/timeline/track.rs:545`, or reuse `vector_paths` for
-   SVG.
-
-2. **Update `SvgPrimitive::handle_assignment()`** in
-   `crates/animatix/src/primitives/svg.rs:45` to write timed keyframes instead
-   of replacing `track.svg_paths` globally.
-
-3. **Keep `ImagePrimitive::handle_assignment()`** in
-   `crates/animatix/src/primitives/image.rs:47` as the model for SVG.
-
-4. **Update docs** in `docs/spec.md:1127`, `docs/primitives.md:59`,
-   `docs/primitives.md:398`, and `docs/properties.md:90`.
-
-### Risks
-
-- Current `Svg.url` assignment looks supported but is not time-correct;
-  documenting it as supported without fixing timing would be misleading.
-- Adding a new SVG path track touches render evaluation and duration
-  calculation.
-- Animated URL changes are discrete/crossfade-less unless extra behavior is
-  added.
-
-### Dependencies
-
-- None.
-
-### Test Strategy
-
-- Add `Image.url` assignment test proving image keyframes change at the
-  assignment time.
-- Add `Svg.url` assignment test after runtime fix.
-- Verify: `cargo test -p animatix media_assignment`.
-
-### Effort
-
-**Docs-only: trivial. Runtime-correct SVG: medium.**
+**Completed 2026-06-11:**
+- Updated `docs/properties.md` to note that `Svg.url` assignment is
+  immediate/static (not time-correct), while `Image.url` supports full keyframe
+  animation
+- Updated `docs/spec.md` §16 Known Gaps & Limitations with precise language
+  about which media types support animated url assignment
 
 ---
 

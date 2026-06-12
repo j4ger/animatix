@@ -1005,3 +1005,122 @@ fn graph_axes_invisible_before_fadein() {
     assert_eq!(opacity_at_900, Some(1.0), "opacity should be 1 at t=900ms (fade-in end)");
     assert_eq!(opacity_at_1000, Some(1.0), "opacity should stay 1 after fade-in");
 }
+
+#[test]
+fn always_overrides_keyframes_warning() {
+    // Keyframe at 0s with an Assignment for box1.opacity = 1.0 creates
+    // a keyframe in the opacity track.  Then the always block also writes
+    // to box1.opacity, which should trigger the warning.
+    let ast = vec![
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(0.0),
+            body: vec![Stmt::Assignment {
+                target: vec!["box1".to_string()],
+                property: "opacity".to_string(),
+                value: Expr::Num(1.0),
+                modifiers: vec![],
+                easing: None,
+                value_span: None,
+                span: None,
+            }],
+            span: None,
+        },
+        Stmt::Always {
+            body: vec![Stmt::Assignment {
+                target: vec!["box1".to_string()],
+                property: "opacity".to_string(),
+                value: Expr::Num(0.5),
+                modifiers: vec![],
+                easing: None,
+                value_span: None,
+                span: None,
+            }],
+            span: None,
+        },
+    ];
+
+    let report =
+        Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+
+    let has_warning = report.diagnostics.iter().any(|d| {
+        d.code
+            == animatix_syntax::diagnostics::DiagnosticCode::AlwaysOverridesKeyframes
+    });
+    assert!(
+        has_warning,
+        "Expected AlwaysOverridesKeyframes warning when both keyframes and always block target the same property"
+    );
+}
+
+#[test]
+fn always_overrides_keyframes_no_warning_without_track() {
+    // No keyframe at all, just an always block.  The target actor doesn't
+    // exist in tracks, so no warning should be emitted.
+    let ast = vec![Stmt::Always {
+        body: vec![Stmt::Assignment {
+            target: vec!["box1".to_string()],
+            property: "opacity".to_string(),
+            value: Expr::Num(0.5),
+            modifiers: vec![],
+            easing: None,
+            value_span: None,
+            span: None,
+        }],
+        span: None,
+    }];
+
+    let report =
+        Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+
+    let has_warning = report.diagnostics.iter().any(|d| {
+        d.code
+            == animatix_syntax::diagnostics::DiagnosticCode::AlwaysOverridesKeyframes
+    });
+    assert!(
+        !has_warning,
+        "Should NOT emit AlwaysOverridesKeyframes warning when actor doesn't exist in tracks"
+    );
+}
+
+#[test]
+fn always_overrides_keyframes_no_warning_without_conflict() {
+    // ActorDecl creates a track but the always block writes to a property
+    // that has no keyframes (e.g., rotation is not set by insert_end_keyframes).
+    // No warning should be emitted.
+    let ast = vec![
+        Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "box1".to_string(),
+            ty: "Rect".to_string(),
+            props: vec![],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        },
+        Stmt::Always {
+            body: vec![Stmt::Assignment {
+                target: vec!["box1".to_string()],
+                property: "rotation".to_string(),
+                value: Expr::Num(0.5),
+                modifiers: vec![],
+                easing: None,
+                value_span: None,
+                span: None,
+            }],
+            span: None,
+        },
+    ];
+
+    let report =
+        Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+
+    let has_warning = report.diagnostics.iter().any(|d| {
+        d.code
+            == animatix_syntax::diagnostics::DiagnosticCode::AlwaysOverridesKeyframes
+    });
+    assert!(
+        !has_warning,
+        "Should NOT emit AlwaysOverridesKeyframes warning when the always property has no keyframes"
+    );
+}

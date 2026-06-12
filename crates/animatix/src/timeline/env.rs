@@ -170,6 +170,31 @@ impl Value {
             _ => Vec::new(),
         }
     }
+
+    /// Get a field value from an Object, or None if this is not an Object or field doesn't exist.
+    pub fn get_field(&self, name: &str) -> Option<&Value> {
+        match self {
+            Value::Object(_, fields) => fields.get(name),
+            _ => None,
+        }
+    }
+
+    /// Set a field value on an Object, returning a new Object (immutable).
+    /// If this value is not an Object, creates a new Object with the given field.
+    pub fn with_field(&self, name: &str, value: Value) -> Value {
+        match self {
+            Value::Object(type_name, fields) => {
+                let mut new_fields = fields.clone();
+                new_fields.insert(name.to_string(), value);
+                Value::Object(type_name.clone(), new_fields)
+            }
+            _ => Value::Object(String::new(), {
+                let mut m = std::collections::HashMap::new();
+                m.insert(name.to_string(), value);
+                m
+            }),
+        }
+    }
 }
 
 /// Variable environment for expression evaluation.

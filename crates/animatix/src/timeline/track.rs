@@ -1163,6 +1163,61 @@ impl AnimationTrack {
         }
     }
 
+    /// Check if the property has any keyframes at all (regardless of time).
+    /// The `property` parameter is a string name like `"position"`, `"opacity"`, etc.
+    pub fn has_keyframes_for(&self, property: &str) -> bool {
+        use crate::timeline::property_registry::ActorField;
+        let field = match property {
+            "position" => ActorField::Position,
+            "motion_offset" => ActorField::MotionOffset,
+            "size" => ActorField::Size,
+            "layout_size" => ActorField::LayoutSize,
+            "rotation" => ActorField::Rotation,
+            "scale" => ActorField::Scale,
+            "transform" => ActorField::Transform,
+            "color" => ActorField::Color,
+            "opacity" => ActorField::Opacity,
+            "stroke_width" => ActorField::StrokeWidth,
+            "stroke_color" => ActorField::StrokeColor,
+            "stroke_progress" => ActorField::StrokeProgress,
+            "fill_opacity" => ActorField::FillOpacity,
+            "filter_blur" => ActorField::FilterBlur,
+            "filter_brightness" => ActorField::FilterBrightness,
+            "filter_contrast" => ActorField::FilterContrast,
+            "filter_saturate" => ActorField::FilterSaturate,
+            "filter_hue_rotate" => ActorField::FilterHueRotate,
+            "filter_sepia" => ActorField::FilterSepia,
+            "shape_type" => ActorField::ShapeType,
+            "line_from" => ActorField::LineFrom,
+            "line_to" => ActorField::LineTo,
+            "arc_angles" => ActorField::ArcAngles,
+            "points" => ActorField::Points,
+            "commands" => ActorField::Commands,
+            "head_size" => ActorField::HeadSize,
+            "text_content" => ActorField::TextContent,
+            "font_family" => ActorField::FontFamily,
+            "font_size" => ActorField::FontSize,
+            "placement_mode" => ActorField::PlacementMode,
+            "morph_options" => ActorField::MorphOptions,
+            _ => return false,
+        };
+
+        match self.field_ref(field) {
+            Some(TrackFieldRef::F32(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
+            Some(TrackFieldRef::Vec2(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
+            Some(TrackFieldRef::Vec4(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
+            Some(TrackFieldRef::Transform(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
+            Some(TrackFieldRef::String(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
+            Some(TrackFieldRef::U32(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
+            Some(TrackFieldRef::PointList(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
+            Some(TrackFieldRef::CommandList(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
+            Some(TrackFieldRef::ShapeType(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
+            Some(TrackFieldRef::PlacementMode(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
+            Some(TrackFieldRef::MorphOptions(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
+            None => false,
+        }
+    }
+
     /// List all keyframe times (in ms) for the given property.
     /// The `property` parameter is a string name like `"position"`, `"opacity"`, etc.
     /// Returns a sorted, deduplicated list of timestamps.

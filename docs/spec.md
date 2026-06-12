@@ -1126,7 +1126,7 @@ Returns a `Value::Object` with typed fields. Field access is not yet implemented
 ## 16. Known Gaps & Limitations
 
 - **Object Field Access:** `Value::Object` supports construction but field read (`p.x`) and write are not yet implemented.
-- **Re-declaration for Morphing/Media:** Morphing text or updating SVG/Image sources currently requires re-declaring the entire object at a new keyframe, breaking standard property assignment syntax.
+- **Re-declaration for Morphing/Media:** Morphing text and `Svg.url` assignment currently require re-declaration at a new keyframe (text morphing) or produce immediate/static changes (SVG url). `Image.url` assignment supports full keyframe animation with timed interpolation between sources.
 - ~~**Static Geometry:** Structural geometry inputs like `Polygon.points` and `Path.commands` are declaration-time only and cannot be animated dynamically frame-by-frame.~~ Both now support timed assignments with path morphing.
 
 ---

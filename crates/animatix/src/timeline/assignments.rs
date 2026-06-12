@@ -3,7 +3,7 @@ use super::{
     PositionBinding, ShapeType, Timeline, Value, VectorShapeState, VectorShapeStyle,
     assignment_target_key, best_path_suggestion,
     build_shape_vello_path, build_vector_shape_vello_path,
-    evaluate_expr_with_lookup_diagnostic,
+    evaluate_expr, evaluate_expr_with_lookup_diagnostic,
     mark_track_manual_position, parse_color_in_env_with_lookup_diagnostic,
     parse_timing_modifiers, preserve_discrete_position_state_before,
     preserve_instant_delayed_value, push_unknown_target_path_diagnostic,
@@ -115,6 +115,41 @@ impl Timeline {
         }
 
         // ── Resolve target track ──
+        // ── Variable field assignment (e.g., `p.x = 30` where `p` is a variable holding an Object)
+        if target.len() == 1 {
+            let var_name = &target[0];
+            // Check if this variable exists as a variable track holding an Object value
+            if let Some(current) = self.variable_tracks.get(var_name)
+                .and_then(|track| track.evaluate(time_ms as u64))
+            {
+                if matches!(current, Value::Object(_, _)) {
+                    // Evaluate the assignment value
+                    let eval_val = match evaluate_expr(value, &eval_env) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            diagnostics.push(Diagnostic::error(
+                                DiagnosticCode::InvalidAssignmentTarget,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "Failed to evaluate value for '{}.{}': {}",
+                                    var_name, property, e
+                                ),
+                            ));
+                            return;
+                        }
+                    };
+                    // Update the Object's field (immutable update via with_field)
+                    let new_obj = current.with_field(property, eval_val);
+                    self.variable_tracks
+                        .entry(var_name.clone())
+                        .or_default()
+                        .keyframes
+                        .insert(time_ms as u64, new_obj);
+                    return;
+                }
+            }
+        }
+
         let target_key = match self.resolve_hierarchical_target(target) {
             Some(key) => key,
             None => {

@@ -219,6 +219,29 @@ impl Timeline {
             }
         }
 
+        // Check for always-blocks overriding keyframed properties.
+        for stmt in &timeline.modifiers {
+            if let crate::ast::Stmt::Assignment { target, property, span, .. } = stmt {
+                let actor_key = target.join(".");
+                if let Some(track) = timeline.tracks.get(&actor_key) {
+                    if track.has_keyframes_for(property) {
+                        diagnostics.push(
+                            Diagnostic::warning(
+                                DiagnosticCode::AlwaysOverridesKeyframes,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "Always block writes to `{}` on actor `{}`, which also has keyframe animation. The always value will silently override keyframes every frame.",
+                                    property, actor_key
+                                ),
+                            )
+                            .with_subject(property)
+                            .with_ast_span(*span),
+                        );
+                    }
+                }
+            }
+        }
+
         // P2.22: Freeze the base environment into an Arc for cheap sharing.
         // After build, env is stable; build_frame_env will reference this Arc
         // instead of copying all entries.

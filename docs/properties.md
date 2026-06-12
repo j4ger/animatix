@@ -87,12 +87,18 @@ Only applicable to `Filter` actors. See [`architecture.md`](architecture.md) §6
 
 | Property | Type | Animated | Assignable | Applies to |
 |----------|------|----------|------------|------------|
-| `url` | String | — | ✓ | Image, Svg |
+| `url` | String | — | ✓ | Image, Svg (note) |
 | `source` | String | — | — | Audio |
 | `volume` | F32 | — | — | Audio |
 
 `source` is the path to the audio asset. `volume` is a multiplier (0.0–1.0) applied at export time.
 Audio actors support timing modifiers (`duration`, delay) for clip placement on the global timeline. See [`spec.md`](spec.md) §9 "Audio".
+
+> **Note on `url` assignment:** `Image.url` assignment supports full keyframe
+> animation (timed interpolation between image sources). `Svg.url` assignment
+> is currently immediate/static (not timed); SVG source changes take effect
+> instantly at the assignment time without crossfade. For animated SVG, use
+> re-declaration at a new keyframe.
 
 ## Plotting
 

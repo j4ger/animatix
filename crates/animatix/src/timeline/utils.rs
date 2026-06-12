@@ -463,8 +463,29 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
 
         Expr::Path(parts) => {
             let dotted = parts.join(".");
-            env.get(&dotted)
-                .ok_or(EvalError::UndefinedVariable(dotted))
+            // First try direct lookup (backward compatible with injected
+            // compound sub-keys like "node.position.x").
+            if let Some(val) = env.get(&dotted) {
+                return Ok(val);
+            }
+            // Multi-part path: try walking through object fields.
+            if parts.len() > 1 {
+                let base = env.get(&parts[0])
+                    .ok_or(EvalError::UndefinedVariable(parts[0].clone()))?;
+                let mut current = base;
+                for segment in &parts[1..] {
+                    match current {
+                        Value::Object(_, fields) => {
+                            current = fields.get(segment.as_str())
+                                .ok_or_else(|| EvalError::UndefinedVariable(dotted.clone()))?
+                                .clone();
+                        }
+                        _ => return Err(EvalError::UndefinedVariable(dotted)),
+                    }
+                }
+                return Ok(current);
+            }
+            Err(EvalError::UndefinedVariable(dotted))
         }
 
         Expr::Method(receiver, name, args) => {
@@ -1633,5 +1654,65 @@ mod tests {
         let n2 = match val2 { Value::Num(n) => n, _ => panic!("expected num") };
 
         assert_ne!(n1, n2, "different seeds should produce different values");
+    }
+
+    #[test]
+    fn test_object_field_read_via_path_walk() {
+        // Directly set up an Object in the env and read a field via path walk
+        let mut env = Environment::new();
+        let mut fields = std::collections::HashMap::new();
+        fields.insert("x".to_string(), Value::Num(10.0));
+        fields.insert("y".to_string(), Value::Num(20.0));
+        env.set("p", Value::Object("Point".to_string(), fields));
+
+        // Read p.x via path walk (no dotted sub-key in env)
+        let expr = Expr::Path(vec!["p".to_string(), "x".to_string()]);
+        let result = evaluate_expr(&expr, &env).expect("path walk should succeed");
+        assert_eq!(result, Value::Num(10.0));
+
+        // Read p.y
+        let expr = Expr::Path(vec!["p".to_string(), "y".to_string()]);
+        let result = evaluate_expr(&expr, &env).expect("path walk should succeed");
+        assert_eq!(result, Value::Num(20.0));
+    }
+
+    #[test]
+    fn test_object_field_read_nonexistent_field() {
+        let mut env = Environment::new();
+        let mut fields = std::collections::HashMap::new();
+        fields.insert("x".to_string(), Value::Num(10.0));
+        env.set("p", Value::Object("Point".to_string(), fields));
+
+        // Read p.z — field doesn't exist
+        let expr = Expr::Path(vec!["p".to_string(), "z".to_string()]);
+        let result = evaluate_expr(&expr, &env);
+        assert!(result.is_err(), "expected error for nonexistent field");
+        if let Err(EvalError::UndefinedVariable(path)) = result {
+            assert_eq!(path, "p.z", "error should reference full path");
+        } else {
+            panic!("expected UndefinedVariable error");
+        }
+    }
+
+    #[test]
+    fn test_object_field_read_non_object_intermediate() {
+        let mut env = Environment::new();
+        env.set("x", Value::Num(42.0));
+
+        // x.y — x is a number, not an object
+        let expr = Expr::Path(vec!["x".to_string(), "y".to_string()]);
+        let result = evaluate_expr(&expr, &env);
+        assert!(result.is_err(), "expected error for non-object intermediate");
+    }
+
+    #[test]
+    fn test_path_dotted_backward_compat() {
+        // Direct dotted lookup must still work for injected sub-keys
+        let mut env = Environment::new();
+        env.set("node.at.x", Value::Num(320.0));
+
+        let expr = Expr::Path(vec!["node".to_string(), "at".to_string(), "x".to_string()]);
+        let result = evaluate_expr(&expr, &env).expect("path lookup should succeed");
+        assert_eq!(result, Value::Num(320.0));
     }
 }

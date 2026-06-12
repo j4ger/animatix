@@ -116,6 +116,8 @@ pub enum DiagnosticCode {
     ModifierRuntimeError,
     /// A component instance property does not match any defined parameter.
     UnknownComponentProperty,
+    /// An `always` block writes to a property that also has keyframes.
+    AlwaysOverridesKeyframes,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -167,6 +169,9 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::TypeMismatch => write!(f, "type-mismatch"),
             DiagnosticCode::ModifierRuntimeError => write!(f, "modifier-runtime-error"),
             DiagnosticCode::UnknownComponentProperty => write!(f, "unknown-component-property"),
+            DiagnosticCode::AlwaysOverridesKeyframes => {
+                write!(f, "always-overrides-keyframes")
+            }
         }
     }
 }
