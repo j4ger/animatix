@@ -170,6 +170,8 @@ pub fn compile_expr(expr: &Expr) -> Option<CompiledExpr> {
                 "max" => BuiltinFn::Max,
                 "floor" => BuiltinFn::Floor,
                 "ceil" => BuiltinFn::Ceil,
+                "deg" => BuiltinFn::Deg,
+                "rad" => BuiltinFn::Rad,
                 _ => return None,
             };
             Some(CompiledExpr::CallBuiltin(

@@ -270,6 +270,8 @@ Duplicate modifier keys: last value wins. `ease` without duration = instant chan
 - `rotate item [by: angle, duration]` - Visual transform (applies to actor transform matrix)
 - `item.rotation = value [duration]` - Property-based rotation
 
+> Rotation values are in radians by default. Use the `deg()` helper to convert: `deg(90)` equals ≈1.5708 radians.
+
 Vector reveal actions (`draw-in`, `reveal-in`, `wipe-in`, `wipe-out`, `reveal-out`, `draw-out`) are **leaf-only**; containers/groups report diagnostics.
 
 **Effects actions** add emphasis and attention animations:

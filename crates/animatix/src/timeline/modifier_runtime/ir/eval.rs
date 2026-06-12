@@ -155,6 +155,8 @@ pub fn evaluate_compiled_expr(
                 BuiltinFn::Max => eval_max(&args),
                 BuiltinFn::Floor => eval_floor(&args),
                 BuiltinFn::Ceil => eval_ceil(&args),
+                BuiltinFn::Deg => eval_deg(&args),
+                BuiltinFn::Rad => eval_rad(&args),
             }
         }
         CompiledExpr::Index(container, index) => {
@@ -393,6 +395,26 @@ pub(crate) fn eval_ceil(args: &[Value]) -> Result<Value, EvalError> {
         ));
     }
     Ok(Value::Num(args[0].as_num().ceil()))
+}
+
+pub(crate) fn eval_deg(args: &[Value]) -> Result<Value, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::TypeMismatch(
+            "deg expects 1 argument".to_string(),
+        ));
+    }
+    let x = args[0].as_num();
+    Ok(Value::Num(x * std::f64::consts::PI / 180.0))
+}
+
+pub(crate) fn eval_rad(args: &[Value]) -> Result<Value, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::TypeMismatch(
+            "rad expects 1 argument".to_string(),
+        ));
+    }
+    let x = args[0].as_num();
+    Ok(Value::Num(x * 180.0 / std::f64::consts::PI))
 }
 
 /// Evaluate a method call on a receiver value (modifier IR version).

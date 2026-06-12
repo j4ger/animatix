@@ -36,6 +36,10 @@ pub enum BuiltinFn {
     Floor,
     /// Ceiling function.
     Ceil,
+    /// Convert degrees to radians.
+    Deg,
+    /// Convert radians to degrees.
+    Rad,
 }
 
 /// A compiled expression in the modifier IR.

@@ -1,7 +1,7 @@
 use super::ir::{
     BuiltinFn, CompiledExpr, ModifierExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides,
-    apply_binary_op, eval_abs, eval_atan2, eval_ceil, eval_clamp, eval_cos, eval_exp, eval_floor,
-    eval_format, eval_lerp, eval_log, eval_max, eval_min, eval_sin, eval_sqrt, eval_tan,
+    apply_binary_op, eval_abs, eval_atan2, eval_ceil, eval_clamp, eval_cos, eval_deg, eval_exp, eval_floor,
+    eval_format, eval_lerp, eval_log, eval_max, eval_min, eval_rad, eval_sin, eval_sqrt, eval_tan,
     make_vec_value,
 };
 use crate::ast::BinaryOp;
@@ -332,6 +332,8 @@ impl ModifierVm {
                         BuiltinFn::Max => eval_max(&args),
                         BuiltinFn::Floor => eval_floor(&args),
                         BuiltinFn::Ceil => eval_ceil(&args),
+                        BuiltinFn::Deg => eval_deg(&args),
+                        BuiltinFn::Rad => eval_rad(&args),
                     }?;
                     self.stack.push(result);
                     self.ip += 1;

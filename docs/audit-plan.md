@@ -81,18 +81,14 @@
 
 ---
 
-## H5. Degree Support and Math Constants — Partially Done
+## H5. Degree Support and Math Constants — ✅ DONE
 
-**Completed 2026-06-11 (M5 + this):**
+**Completed 2026-06-11:**
 - ✅ Lowercase math constants `pi`, `tau`, `two_pi`, `e` in `builtins.rs`
-- ✅ `deg(x)` and `rad(x)` functions in `builtins.rs`
-
-### Still needed
-
-- Extend compiled `always` support (IR/VM) for `deg`/`rad` builtins.
-- Update rotate action docs/signature in `motion.rs:8`.
-- Update examples using raw radians (covered by L4).
-- Update `docs/spec.md:276` and `docs/primitives.md`.
+- ✅ `deg(x)` and `rad(x)` functions in tree-walk evaluator
+- ✅ `Deg`/`Rad` variants in IR/VM (`types.rs`, `lower.rs`, `eval.rs`, `vm.rs`)
+- ✅ Rotate action error message updated to suggest `deg()` in `motion.rs`
+- ✅ Rotation docs updated in `docs/spec.md`
 
 ---
 

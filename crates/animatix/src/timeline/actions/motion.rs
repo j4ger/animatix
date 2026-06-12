@@ -16,7 +16,7 @@ fn motion_timing_params() -> Vec<ActionParam> {
         },
         ActionParam {
             name: "angle".to_string(),
-            description: "Target rotation in radians for the rotate action (e.g. [angle: 1.5708])."
+            description: "Target rotation in radians for the rotate action. Use deg() to convert from degrees (e.g. [angle: deg(90)])."
                 .to_string(),
             type_info: "number (radians)".to_string(),
         },
@@ -377,7 +377,7 @@ impl BuiltinAction for Rotate {
             &action.modifiers,
             timeline,
             "by",
-            "Rotate action requires a numeric 'by' modifier in radians such as [by: 1.5708].",
+            "Rotate action requires a numeric 'by' modifier (e.g. [by: 1.5708] for radians, or [by: deg(90)])",
             diagnostics,
         ) else {
             return;
