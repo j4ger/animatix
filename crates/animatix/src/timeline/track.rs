@@ -65,8 +65,6 @@ pub enum ActorKindId {
     Shape(ShapeKind),
     /// Plain text actor.
     Text,
-    /// Math / LaTeX actor.
-    Math,
     /// Code block actor.
     Code,
     /// Typst document actor.
@@ -1316,7 +1314,6 @@ mod tests {
         // Non-shape kinds
         let non_shapes = [
             ActorKindId::Text,
-            ActorKindId::Math,
             ActorKindId::Code,
             ActorKindId::Typst,
             ActorKindId::Image,

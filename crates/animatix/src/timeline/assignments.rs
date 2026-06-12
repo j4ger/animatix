@@ -410,7 +410,6 @@ pub(crate) fn recompile_text_at_assignment(
 
     let text_kind = match track.kind {
         super::ActorKindId::Text => crate::renderer::text::TextKind::Text,
-        super::ActorKindId::Math => crate::renderer::text::TextKind::Math,
         super::ActorKindId::Code => crate::renderer::text::TextKind::Code,
         super::ActorKindId::Typst => crate::renderer::text::TextKind::Typst,
         _ => return Ok(()),

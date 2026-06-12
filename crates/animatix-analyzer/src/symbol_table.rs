@@ -141,7 +141,7 @@ pub struct SceneInfo {
 
 /// Known built-in types in the Animatix DSL.
 const BUILTIN_TYPES: &[&str] = &[
-    "Text", "Math", "Code", "Svg", "Image",
+    "Text", "Code", "Svg", "Image",
     "Rect", "Ellipse", "Line", "Polygon", "Path",
     "Graph", "PlotCurve",
     "Button",
@@ -187,13 +187,7 @@ fn known_properties() -> &'static HashMap<String, Vec<String>> {
     ]);
     map.insert("Text".to_string(), text_props);
 
-    // Math-specific
-    let mut math_props = common.clone();
-    math_props.extend([
-        "content".to_string(),
-        "font_size".to_string(),
-    ]);
-    map.insert("Math".to_string(), math_props);
+
 
     // Code-specific
     let mut code_props = common.clone();
@@ -267,7 +261,7 @@ fn known_property_types() -> &'static HashMap<(String, String), PropertyType> {
     let mut map = HashMap::new();
 
     // Common properties
-    for ty in &["Text", "Math", "Code", "Rect", "Ellipse", "Polygon", "Line", "Button", "Svg", "Image", "Graph", "PlotCurve"] {
+    for ty in &["Text", "Code", "Rect", "Ellipse", "Polygon", "Line", "Button", "Svg", "Image", "Graph", "PlotCurve"] {
         map.insert((ty.to_string(), "position".to_string()), PropertyType::Vec2);
         map.insert((ty.to_string(), "offset".to_string()), PropertyType::Vec2);
         map.insert((ty.to_string(), "scale".to_string()), PropertyType::Num);
@@ -281,10 +275,6 @@ fn known_property_types() -> &'static HashMap<(String, String), PropertyType> {
     map.insert(("Text".to_string(), "font_size".to_string()), PropertyType::Num);
     map.insert(("Text".to_string(), "font_family".to_string()), PropertyType::String);
     map.insert(("Text".to_string(), "text_align".to_string()), PropertyType::String);
-
-    // Math-specific
-    map.insert(("Math".to_string(), "content".to_string()), PropertyType::String);
-    map.insert(("Math".to_string(), "font_size".to_string()), PropertyType::Num);
 
     // Code-specific
     map.insert(("Code".to_string(), "content".to_string()), PropertyType::String);

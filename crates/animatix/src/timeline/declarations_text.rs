@@ -15,7 +15,6 @@ use crate::renderer::error::RenderError;
 #[derive(Clone, Copy)]
 enum TextDeclarationKind {
     Text,
-    Math,
     Code,
     Typst,
 }
@@ -24,7 +23,6 @@ impl TextDeclarationKind {
     fn unnamed_label(self) -> &'static str {
         match self {
             Self::Text => "unnamed_text",
-            Self::Math => "unnamed_math",
             Self::Code => "unnamed_code",
             Self::Typst => "unnamed_typst",
         }
@@ -33,7 +31,6 @@ impl TextDeclarationKind {
     fn modifier_host(self) -> ModifierHost {
         match self {
             Self::Text => ModifierHost::Text,
-            Self::Math => ModifierHost::Math,
             Self::Code => ModifierHost::Code,
             Self::Typst => ModifierHost::Text,
         }
@@ -42,14 +39,13 @@ impl TextDeclarationKind {
     fn default_font_size(self) -> f32 {
         match self {
             Self::Code => 24.0,
-            Self::Text | Self::Math | Self::Typst => 48.0,
+            Self::Text | Self::Typst => 48.0,
         }
     }
 
     fn content_matches(self, property_name: &str) -> bool {
         match self {
             Self::Text => property_name == "text",
-            Self::Math => matches!(property_name, "latex" | "math"),
             Self::Code => property_name == "code",
             Self::Typst => property_name == "content",
         }
@@ -59,9 +55,6 @@ impl TextDeclarationKind {
         match self {
             Self::Text => {
                 "Morph-specific modifiers on text declaration require a re-declaration with non-zero duration; ignoring them for now."
-            }
-            Self::Math => {
-                "Morph-specific modifiers on math declaration require a re-declaration with non-zero duration; ignoring them for now."
             }
             Self::Code => {
                 "Morph-specific modifiers on code declaration require a re-declaration with non-zero duration; ignoring them for now."
@@ -209,7 +202,6 @@ impl Timeline {
         if initial_track_color.is_none() {
             let primitive_type = match kind {
                 TextDeclarationKind::Text => "Text",
-                TextDeclarationKind::Math => "Math",
                 TextDeclarationKind::Code => "Code",
                 TextDeclarationKind::Typst => "Typst",
             };
@@ -239,7 +231,6 @@ impl Timeline {
         // code (inspector, drag handles) can dispatch correctly.
         track.kind = match kind {
             TextDeclarationKind::Text => super::ActorKindId::Text,
-            TextDeclarationKind::Math => super::ActorKindId::Math,
             TextDeclarationKind::Code => super::ActorKindId::Code,
             TextDeclarationKind::Typst => super::ActorKindId::Typst,
         };
@@ -314,9 +305,6 @@ impl Timeline {
             TextDeclarationKind::Text => {
                 crate::renderer::text::compile_text(&text_content, font_size, color, &font_family, self.font_context.as_ref())?
             }
-            TextDeclarationKind::Math => {
-                crate::renderer::text::compile_math(&text_content, font_size, color, &font_family, self.font_context.as_ref())?
-            }
             TextDeclarationKind::Code => {
                 crate::renderer::text::compile_code(&text_content, font_size, color, &font_family, self.font_context.as_ref())?
             }
@@ -370,22 +358,64 @@ impl Timeline {
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Result<(), RenderError> {
-        let kind = match actor_type {
-            "Text" => TextDeclarationKind::Text,
-            "Math" => TextDeclarationKind::Math,
-            "Code" => TextDeclarationKind::Code,
-            "Typst" => TextDeclarationKind::Typst,
+        let (kind, is_deprecated) = match actor_type {
+            "Text" => (TextDeclarationKind::Text, false),
+            "Math" => (TextDeclarationKind::Typst, true),
+            "Code" => (TextDeclarationKind::Code, false),
+            "Typst" => (TextDeclarationKind::Typst, false),
             _ => return Ok(()),
         };
 
-        self.process_text_declaration(
-            kind,
-            Some(label),
-            props,
-            modifiers,
-            time_ms,
-            parent_label,
-            diagnostics,
-        )
+        if is_deprecated {
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::DeprecatedPrimitive,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "'Math' is deprecated. Use 'Typst, content: \"$...$\"' instead for math expressions."
+                    ),
+                )
+                .with_subject(label),
+            );
+
+            // Wrap `math`/`latex`/`text` property content in $...$ Typst math delimiters
+            let mut processed_props = Vec::new();
+            for prop in props {
+                if matches!(prop.name.as_str(), "math" | "latex" | "text") {
+                    let wrapped = match &prop.value {
+                        Expr::Str(s) => Expr::Str(format!("${}$", s)),
+                        other => other.clone(),
+                    };
+                    processed_props.push(Property {
+                        name: "content".to_string(),
+                        value: wrapped,
+                        value_span: prop.value_span,
+                        trailing_comment: prop.trailing_comment.clone(),
+                    });
+                } else {
+                    processed_props.push(prop.clone());
+                }
+            }
+
+            self.process_text_declaration(
+                kind,
+                Some(label),
+                &processed_props,
+                modifiers,
+                time_ms,
+                parent_label,
+                diagnostics,
+            )
+        } else {
+            self.process_text_declaration(
+                kind,
+                Some(label),
+                props,
+                modifiers,
+                time_ms,
+                parent_label,
+                diagnostics,
+            )
+        }
     }
 }

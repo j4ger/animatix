@@ -162,7 +162,6 @@ pub fn hover_at(
 pub fn type_documentation(name: &str) -> &'static str {
     match name {
         "Text" => "Text element with content and styling properties.",
-        "Math" => "Mathematical expression renderer.",
         "Code" => "Code block with syntax highlighting.",
         "Svg" => "SVG image element.",
         "Image" => "Raster image element.",

@@ -316,7 +316,6 @@ fn type_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
     symbols.types.iter().map(|ty| {
         let doc = match ty.as_str() {
             "Text" => Some("Text element with content and styling"),
-            "Math" => Some("Mathematical expression renderer"),
             "Code" => Some("Code block with syntax highlighting"),
             "Svg" => Some("SVG image element"),
             "Image" => Some("Raster image element"),

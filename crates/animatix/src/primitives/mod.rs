@@ -175,7 +175,6 @@ mod arrow;      pub use arrow::ARROW;
 mod polygon;    pub use polygon::POLYGON;
 mod path;       pub use path::PATH;
 mod text;       pub use text::TEXT;
-mod math;       pub use math::MATH;
 mod code;       pub use code::CODE;
 mod image;      pub use image::IMAGE;
 mod svg;        pub use svg::SVG;
@@ -576,7 +575,7 @@ pub static PRIMITIVES: &[&dyn Primitive] = &[
     // Shapes
     &RECT, &ELLIPSE, &LINE, &ARROW, &POLYGON, &PATH,
     // Text
-    &TEXT, &MATH, &CODE, &TYPST,
+    &TEXT, &CODE, &TYPST,
     // Media
     &IMAGE, &SVG, &AUDIO,
     // Plots
@@ -711,7 +710,7 @@ mod tests {
         }
 
         for id in [
-            ActorKindId::Text, ActorKindId::Math, ActorKindId::Code, ActorKindId::Typst,
+            ActorKindId::Text, ActorKindId::Code, ActorKindId::Typst,
             ActorKindId::Image, ActorKindId::Svg,
             ActorKindId::Graph, ActorKindId::PlotCurve,
             ActorKindId::VectorField, ActorKindId::Heatmap, ActorKindId::ContourSet,

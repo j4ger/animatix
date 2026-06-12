@@ -120,6 +120,8 @@ pub enum DiagnosticCode {
     AlwaysOverridesKeyframes,
     /// An `at` or `position` property was set on a layout-managed child.
     AbsolutePositionOnLayoutManagedChild,
+    /// A deprecated primitive was used; the user should migrate to the replacement.
+    DeprecatedPrimitive,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -177,6 +179,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::AbsolutePositionOnLayoutManagedChild => {
                 write!(f, "absolute-position-on-layout-managed-child")
             }
+            DiagnosticCode::DeprecatedPrimitive => write!(f, "deprecated-primitive"),
         }
     }
 }

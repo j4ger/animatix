@@ -5,7 +5,7 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 gallery: Grid, cols: 4, gap: 24, padding: 60, anchor: scene.center {
   text: Text, text: "Typography", font_size: 20, color: accent.primary
-  math: Math, math: "integral_0^infinity e^(-x) dx", font_size: 22, color: accent.success
+  math: Typst, content: "$integral_0^infinity e^(-x) dx$", font_size: 22, color: accent.success
   code: Code, code: "fn animate() { }", font_size: 20, color: accent.warning
   rect: Rect, size: (80, 80), color: accent.danger
   ellipse: Ellipse, size: (80, 80), color: accent.primary

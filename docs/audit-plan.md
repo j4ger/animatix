@@ -19,66 +19,20 @@
 
 ---
 
-## H2. Drop `Math`, Keep `Typst`
+## H2. Drop `Math`, Keep `Typst` — ✅ DONE
 
-**Design intent:** Remove the `Math` primitive entirely. It already compiles
-through the Typst engine. `Typst` (with `content` property) replaces it.
-
-### Implementation check findings
-
-- `Math` is still a full primitive in
-  `crates/animatix/src/primitives/mod.rs:178` and
-  `crates/animatix/src/primitives/mod.rs:579`.
-- `ActorKindId::Math` exists in `crates/animatix/src/timeline/track.rs:63` and
-  has many `match` arms across the codebase.
-- The Typst primitive (`primitives/typst.rs`) is fully functional with
-  `content` property.
-- The spec already includes a "Typst vs LaTeX cheat sheet" under the `Math`
-  section, highlighting the contradiction.
-
-### Plan
-
-1. **Add `content`** as a real Typst property in
-   `crates/animatix/src/timeline/property_registry.rs:526`; make it
-   `ASSIGNABLE_A`, applicable to `ActorKindId::Typst`.
-
-2. **Normalize deprecated `Math` declarations** to `Typst` in
-   `crates/animatix/src/timeline/build/actor.rs:163` and
-   `crates/animatix/src/timeline/declarations_text.rs:363`; map
-   `math`/`latex`/`text` to `content`.
-
-3. **Remove `mod math` and `&MATH`** from
-   `crates/animatix/src/primitives/mod.rs:178` and at
-   `crates/animatix/src/primitives/mod.rs:579`.
-
-4. **Remove `ActorKindId::Math`** from
-   `crates/animatix/src/timeline/track.rs:63`; update every match in
-   `track.rs`, `declarations_text.rs`, `property_registry.rs`, tests, and
-   `recompile_text_at_assignment()` in
-   `crates/animatix/src/timeline/assignments.rs:352`.
-
-5. **Add deprecation diagnostic** (e.g. `DeprecatedPrimitiveAlias`) in
-   `crates/animatix-syntax/src/diagnostics.rs:46` when source uses `Math`.
-
-6. **Update analyzer** builtins in
-   `crates/animatix-analyzer/src/symbol_table.rs:143`, hover in
-   `crates/animatix-analyzer/src/hover.rs:163`, and completion docs in
-   `crates/animatix-analyzer/src/completer.rs:314`.
-
-7. **Update examples** using `Math` to `Typst, content:`:
-   `examples/01_shapes.amx:8`, plus syntax fixtures in
-   `crates/animatix-syntax/src/to_source.rs:163`.
-
-8. **Update docs** in `docs/spec.md:13`, `docs/spec.md:1037`,
-   `docs/primitives.md:27`, and `docs/properties.md:75`.
-
-### Risks
-
-- Removing `ActorKindId::Math` is invasive — touches serialization, analyzer,
-  docs, tests, and examples.
-- Backward compatibility requires `Math` to parse/build as an alias for at
-  least one release.
-- `compile_math()` wraps content as Typst math, while `compile_typst()`
+**Completed 2026-06-11:**
+- Removed `Math` variant from `ActorKindId` and `TextDeclarationKind`
+- Deleted `primitives/math.rs`; removed `&MATH` from primitives/mod.rs
+- Normalized `"Math"` → `TextDeclarationKind::Typst` in `declarations_text.rs`
+  with deprecation warning and `$...$` content wrapping for backward compat
+- Removed `ActorKindId::Math` from `assignments.rs`, `gui/preview/context.rs`,
+  `track.rs`, `primitives/mod.rs`
+- Updated analyzer (`symbol_table.rs`, `hover.rs`, `completer.rs`)
+- Updated `examples/01_shapes.amx`
+- `TextKind::Math` kept in renderer for backward compat with cached paths
+- Backward compatible: old `Math, math: "x^2"` still parses, emits warning,
+  wraps content in `$x^2$`
   compiles full Typst markup; alias behavior must be explicitly chosen.
 
 ### Dependencies

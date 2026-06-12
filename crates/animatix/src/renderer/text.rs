@@ -519,7 +519,8 @@ fn walk_frame_for_shapes(
 pub enum TextKind {
     /// Plain text.
     Text,
-    /// Typst math.
+    /// Typst math (kept for backward compatibility with old cached paths).
+    #[allow(dead_code)]
     Math,
     /// Code text.
     Code,

@@ -69,7 +69,6 @@ impl PreviewContext<'_> {
         let track = timeline.get_track(actor)?;
         match track.kind {
             ActorKindId::Text => Some("text"),
-            ActorKindId::Math => Some("math"),
             ActorKindId::Code => Some("code"),
             ActorKindId::Typst => Some("content"),
             _ => None,
