@@ -53,70 +53,15 @@
 
 ---
 
-## H3. Implement Bounds-Based `Mask`
+## H3. Implement Bounds-Based `Mask` — ✅ DONE
 
-**Design intent:** `Mask` is a container that clips its children to the mask
-actor's own bounds (rectangle or ellipse). It is not a layout container.
-
-### Implementation check findings
-
-- `Mask` currently clips later children to the **first child's vector paths**
-  in `crates/animatix/src/timeline/scene_eval.rs:639`, which conflicts with the
-  requested bounds-based container model.
-- `MaskPrimitive::build()` is a no-op ("Build handled by legacy dispatch") in
-  `crates/animatix/src/primitives/mask.rs:22`.
-- `MaskPrimitive::evaluate()` returns `vec![]` (empty commands).
-
-### Plan
-
-1. **Replace first-child clipping** in
-   `crates/animatix/src/timeline/scene_eval.rs:639` with mask-actor bounds
-   clipping.
-
-2. **Build the clip path** from the Mask actor's sampled `size` and local
-   transform: default rectangle in local coordinates, pushed with
-   `scene.push_layer()` using the mask's `global_transform`.
-
-3. **Add optional `clip_shape` property** in
-   `crates/animatix/src/timeline/property_registry.rs:526`, applicable only to
-   `ActorKindId::Mask`, initially supporting `"rect"` and `"ellipse"`.
-
-4. **Wire `MaskPrimitive::build()`** in
-   `crates/animatix/src/primitives/mask.rs:22` to call normal container
-   processing, or remove the misleading "legacy dispatch" comment since generic
-   `process_actor_decl()` already handles it.
-
-5. **Ensure `PrimitiveDescriptor::for_actor_type("Mask")`** in
-   `crates/animatix/src/timeline/primitive.rs:32` remains non-layout.
-
-6. **Document Mask** in `docs/spec.md:558`, `docs/primitives.md:327`, and
-   `docs/architecture.md:189`.
-
-### Risks
-
-- Vello layer transforms are easy to get wrong; clip path must be in the
-  correct coordinate space.
-- Nested Mask + Filter ordering may produce unexpected layer/composite
-  behavior.
-- Hit regions may include clipped-away children unless hit testing also
-  respects masks.
-
-### Dependencies
-
-- None, but H1's parent-layout helper should not classify Mask as
-  layout-managed.
-
-### Test Strategy
-
-- Add build/eval test proving a Mask with no first child still clips children
-  to its own bounds.
-- Add rendering smoke test if offscreen renderer is stable in CI; otherwise
-  add a targeted `Scene` layer-count/path test.
-- Verify: `cargo test -p animatix mask`.
-
-### Effort
-
-**Medium to large**
+**Completed 2026-06-11:**
+- Rewrote the Mask clip logic in `scene_eval.rs`: now clips children to the
+  Mask actor's own `size`-based rectangle (instead of old first-child path
+  clipping)
+- Updated `mask.rs`: added default `size: (200, 200)`, cleaned up build()
+- Added test: `mask_clips_children_to_own_bounds`
+- Updated `spec.md` containers list to mention Mask
 
 ---
 

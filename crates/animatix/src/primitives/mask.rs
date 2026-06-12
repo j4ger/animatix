@@ -1,6 +1,6 @@
 //! Mask container primitive.
 
-use crate::ast::{InlineItem, Modifier, Property};
+use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive};
 use crate::timeline::SceneDimensions;
@@ -28,7 +28,6 @@ impl Primitive for MaskPrimitive {
         _modifiers: &[Modifier],
         _children: &[InlineItem],
     ) -> Result<(), Vec<Diagnostic>> {
-        // Build handled by legacy dispatch
         Ok(())
     }
 
@@ -44,6 +43,8 @@ impl Primitive for MaskPrimitive {
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
-        vec![]
+        vec![
+            Property::new("size", Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(200.0)])),
+        ]
     }
 }

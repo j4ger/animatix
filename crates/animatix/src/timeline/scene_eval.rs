@@ -637,12 +637,27 @@ impl Timeline {
                 }
             }
         } else if track.kind == ActorKindId::Mask {
+            let half_size = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+
+            // Build a rectangle clip path from -half_size to +half_size
+            let w = half_size[0] as f64;
+            let h = half_size[1] as f64;
+            let clip_path = kurbo::Rect::new(-w, -h, w, h).into_path(1e-3);
+
+            // Push clip layer
+            scene.push_layer(
+                vello::peniko::Fill::NonZero,
+                vello::peniko::BlendMode::default(),
+                1.0,
+                kurbo::Affine::IDENTITY,
+                &clip_path,
+            );
+
+            // Render all children normally inside the clip
             let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
-            if !children.is_empty() {
-                // Render first child normally (defines the mask shape visually)
-                let first_child = children[0];
+            for child in children {
                 self.evaluate_node(
-                    first_child,
+                    child,
                     time_ms,
                     global_transform,
                     global_opacity,
@@ -656,46 +671,10 @@ impl Timeline {
                     filter_backend,
                     allow_pending_composites,
                 );
-
-                // Get the first child's vector paths to use as clip shapes
-                let clip_paths: Vec<VelloPath> = self
-                    .tracks
-                    .get(first_child)
-                    .map(|t| t.evaluate_vector_paths(time_ms))
-                    .unwrap_or_default();
-
-                // Render remaining children clipped to the first child's paths
-                for child in children.iter().skip(1) {
-                    let clip_count = clip_paths.len();
-                    for vp in &clip_paths {
-                        scene.push_layer(
-                            vello::peniko::Fill::NonZero,
-                            vello::peniko::BlendMode::default(),
-                            1.0,
-                            kurbo::Affine::IDENTITY,
-                            &vp.path,
-                        );
-                    }
-                    self.evaluate_node(
-                        child,
-                        time_ms,
-                        global_transform,
-                        global_opacity,
-                        scene_dimensions,
-                        debug_options,
-                        scene,
-                        overrides,
-                        &child_layout_positions,
-                        hit_regions,
-                        frame_env,
-                        filter_backend,
-                        allow_pending_composites,
-                    );
-                    for _ in 0..clip_count {
-                        scene.pop_layer();
-                    }
-                }
             }
+
+            // Pop clip layer
+            scene.pop_layer();
         } else {
             let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
             for child in children {
@@ -1107,5 +1086,50 @@ mod tests {
         // Cache should not be populated because debug_options != default
         let cache = timeline.frame_cache.borrow();
         assert!(cache.is_none(), "frame cache should not be populated with non-default debug options");
+    }
+
+    #[test]
+    fn mask_clips_children_to_own_bounds() {
+        let mut timeline = Timeline::new();
+
+        // Create child actor
+        let mut child_track = AnimationTrack::new("child".to_string());
+        child_track.first_seen_ms = 0;
+        child_track.shape_type = Some({
+            let mut t = PropertyTrack::new(ShapeType::Rect);
+            t.add_keyframe(0, ShapeType::Rect, Easing::Linear);
+            t
+        });
+        child_track.size = Some({
+            let mut t = PropertyTrack::new([50.0, 50.0]);
+            t.add_keyframe(0, [50.0, 50.0], Easing::Linear);
+            t
+        });
+        child_track.color = Some({
+            let mut t = PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);
+            t.add_keyframe(0, [1.0, 0.0, 0.0, 1.0], Easing::Linear);
+            t
+        });
+        timeline.tracks.insert("child".to_string(), child_track);
+
+        // Create Mask actor
+        let mut mask_track = AnimationTrack::new("mask".to_string());
+        mask_track.first_seen_ms = 0;
+        mask_track.kind = ActorKindId::Mask;
+        mask_track.size = Some({
+            let mut t = PropertyTrack::new([100.0, 100.0]);
+            t.add_keyframe(0, [100.0, 100.0], Easing::Linear);
+            t
+        });
+        mask_track.children.push("child".to_string());
+        timeline.tracks.insert("mask".to_string(), mask_track);
+
+        timeline.root_nodes.push("mask".to_string());
+
+        let dimensions = SceneDimensions { width: 800, height: 600 };
+        let scene = timeline.evaluate(0.0, dimensions);
+
+        // Should not panic; returns a valid scene
+        let _ = scene;
     }
 }

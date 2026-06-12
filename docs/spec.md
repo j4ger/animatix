@@ -410,7 +410,7 @@ morpher.size = (100, 100) [2s, ease: ease-out]
 
 > **See [`architecture.md`](architecture.md) §Layout System for full details.**
 
-Implemented: `Row`, `Col`, `Grid`, `Stack`, `Group`.
+Implemented: `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`.
 
 - **Row/Col:** `gap` (spacing), `padding` (inset), `align` ("start" | "center" | "end")
 - **Grid:** `cols` + `gap` + `padding`
