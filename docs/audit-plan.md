@@ -247,35 +247,12 @@ test name and assertion from `test_multiple_play_targets_warning` to
 
 ---
 
-## L2. Primitive List Consistency (Docs)
+## L2. Primitive List Consistency — ✅ DONE
 
-**Design intent:** After H2 (remove `Math`, keep `Typst`), ensure all supported
-primitive lists in docs agree.
-
-### Plan
-
-1. **Update all supported primitive lists** to remove `Math` and add
-   `Typst`/`Mask` where relevant: `docs/spec.md:13`, `docs/spec.md:436`,
-   `docs/spec.md:552`, `docs/primitives.md:27`, `docs/properties.md:75`.
-
-2. **Update analyzer built-ins** in
-   `crates/animatix-analyzer/src/symbol_table.rs:143`.
-
-3. **Update source fixtures** in
-   `crates/animatix-syntax/src/to_source.rs:119`.
-
-### Dependencies
-
-- H2 (must be done first).
-
-### Test Strategy
-
-- `cargo test -p animatix-syntax`.
-- `cargo test -p animatix-analyzer`.
-
-### Effort
-
-**Small**
+**Completed 2026-06-11:**
+- Updated `docs/spec.md` (10 edits: primitive lists, section titles, cheat sheet)
+- Updated `docs/primitives.md` (2 edits: Math→Typst, properties)
+- Updated `docs/properties.md` (4 edits: section header, property rows)
 
 ---
 
@@ -291,35 +268,15 @@ primitive lists in docs agree.
 
 ---
 
-## L4. Example Modernization
+## L4. Example Modernization — ✅ DONE
 
-**Design intent:** After H5/M5 and H2, update examples to use new features
-(`deg()`, `pi`, `Typst` instead of `Math`).
-
-### Plan
-
-1. **After H5/M5**, replace raw radians in
-   `examples/04_motion.amx:17`, `examples/04_motion.amx:29`,
-   `examples/16_showcase.amx:37`, `examples/20_feature_reel.amx:50`.
-
-2. **Replace raw pi-ish domains** in `examples/07_plots.amx:14` and
-   `examples/18_number_plane_contours.amx:26` with `pi`/`tau` where readable.
-
-3. **After H2**, replace `Math` in `examples/01_shapes.amx:8`.
-
-### Dependencies
-
-- H2, H5, M5.
-
-### Test Strategy
-
-- Parse/build examples with existing example test harness if present, otherwise
-  run representative CLI parse/build.
-- Verify: `cargo test -p animatix`.
-
-### Effort
-
-**Small**
+**Completed 2026-06-11:**
+- `04_motion.amx`: `1.5708` → `deg(90)`, `-1.5708` → `deg(-90)`
+- `07_plots.amx`: `(-3.14, 3.14)` → `(-pi, pi)`
+- `16_showcase.amx`: `6.2832` → `tau`, `-3.1416` → `-pi`
+- `18_number_plane_contours.amx`: `(-3.14, 3.14)` → `(-pi, pi)`
+- `20_feature_reel.amx`: `6.2832` → `tau`, `-3.1416` → `-pi`
+- (01_shapes.amx already updated in H2)
 
 ---
 

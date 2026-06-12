@@ -11,7 +11,7 @@ main: Graph, x_domain: (-6, 6), y_domain: (-3, 3), size: (520, 400), at: (640, 3
 
 field: VectorField, func: (x, y) => (y * 0.4, -x * 0.4), density: 12, color: accent.success, x_domain: (-4, 4), y_domain: (-4, 4), at: (140, 160), size: (220, 220)
 
-heat: Heatmap, func: (x, y) => sin(x) * cos(y), resolution: 28, color: accent.warning, x_domain: (-3.14, 3.14), y_domain: (-3.14, 3.14), at: (1140, 160), size: (220, 220)
+heat: Heatmap, func: (x, y) => sin(x) * cos(y), resolution: 28, color: accent.warning, x_domain: (-pi, pi), y_domain: (-pi, pi), at: (1140, 160), size: (220, 220)
 
 #0.5s
 fade-in title [600ms, ease: ease-out]

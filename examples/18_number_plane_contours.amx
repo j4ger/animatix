@@ -23,7 +23,7 @@ field: VectorField, func: (x, y) => (y * 0.5, -x * 0.5), density: 10,
 
 // Heatmap companion on the right
 heat: Heatmap, func: (x, y) => sin(x) * cos(y), resolution: 20,
-  x_domain: (-3.14, 3.14), y_domain: (-3.14, 3.14), size: (240, 240), at: (980, 120),
+  x_domain: (-pi, pi), y_domain: (-pi, pi), size: (240, 240), at: (980, 120),
   color: accent.warning
 
 labels: Text, text: "ContourSet  |  VectorField  |  Heatmap", font_size: 14,

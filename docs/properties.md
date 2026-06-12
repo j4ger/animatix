@@ -71,16 +71,16 @@ Only applicable to `Filter` actors. See [`architecture.md`](architecture.md) §6
 | `points` | PointList | ✓ | ✓ | Polygon |
 | `commands` | CommandList | ✓ | ✓ | Path |
 
-## Text / Math / Code
+## Text / Typst / Code
 
 | Property | Type | Animated | Assignable | Applies to |
 |----------|------|----------|------------|------------|
 | `text` | String | ✓ | ✓ | Text |
-| `math` | String | ✓ | ✓ | Math |
+| `content` | String | ✓ | ✓ | Typst |
 | `code` | String | ✓ | ✓ | Code |
 | `latex` | String | ✓ | — | Deprecated |
-| `font_family` | String | — | ✓ | Text, Math, Code |
-| `font_size` | F32 | ✓ | ✓ | Text, Math, Code |
+| `font_family` | String | — | ✓ | Text, Typst, Code |
+| `font_size` | F32 | ✓ | ✓ | Text, Typst, Code |
 
 ## Media
 

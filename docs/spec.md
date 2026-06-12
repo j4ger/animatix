@@ -10,7 +10,7 @@ Use these rules when generating `.amx` files:
 
 - Start with `config { colorscheme: "editorial-dark", resolution: (1280, 720) }` unless the user asks otherwise.
 - Declare actors as `label: Type, prop: value`; animate later with keyframes (`#1s`) and assignments (`label.prop = value [800ms, ease: ease-out]`).
-- Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Math`, `Code`, `Svg`, `Image`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`.
+- Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Typst`, `Code`, `Svg`, `Image`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`.
 - Avoid common hallucinations: `Circle` (use `Ellipse`), `Triangle` (use `Polygon`), `Chart`/`Diagram` (use `Graph`/`PlotCurve`), and any 3D primitives.
 - Colors are RGBA tuples `(r, g, b, a)`, scheme tokens (`accent.primary`, `text.primary`, etc.), `auto`, or named colors (`RED`/`red`, `GREEN`/`green`, `BLUE`/`blue`, `BLACK`/`black`, `WHITE`/`white`, `YELLOW`/`yellow`, `ORANGE`/`orange`). Do not use hex strings.
 - Timing modifiers use positional duration: `[1s]`, `[800ms, ease: ease-in-out]`, `[delay: 250ms, 0s]`. Do not write `duration: 1s`.
@@ -38,7 +38,7 @@ Use these rules when generating `.amx` files:
 | Expressions | `Expr::Method` | Yes | Runtime-real | Yes | Yes | Method dispatch: `string.length()`, `list.get(0)`, `num.abs()` |
 | Expressions | `Expr::Index` | Yes | Runtime-real | Yes | Yes | Array/vector/string index: `items[0]`, `pos[1]`, `text[0]` |
 | Expressions | `Expr::Construct` | Yes | Runtime-real | Yes | Yes | Object construction: `Point { x: 10, y: 20 }` |
-| Primitives | All shapes (`Text`, `Math`, `Svg`, `Image`, `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, etc.) | Yes | Runtime-real | Yes | Yes | See `examples/01_shapes.amx`, `examples/13_paths.amx`, `examples/20_feature_reel.amx` |
+| Primitives | All shapes (`Text`, `Typst`, `Svg`, `Image`, `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Mask`, etc.) | Yes | Runtime-real | Yes | Yes | See `examples/01_shapes.amx`, `examples/13_paths.amx`, `examples/20_feature_reel.amx` |
 | 3D | `Graph3D`, `Line3D`, `Polyhedron` | — | **Not supported** | — | Yes | Explicitly not planned; all rendering is 2D |
 | Primitives | `Code` | Yes | Runtime-real | Yes | Yes | See `examples/01_shapes.amx` |
 | Plotting | `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane` | Yes | Runtime-real | Yes | Yes | `PlotCurve` with `kind: cartesian|polar|parametric|implicit`. See `examples/07_plots.amx`, `examples/18_number_plane_contours.amx` |
@@ -179,7 +179,7 @@ Colorscheme v1 surface:
 6. Later timed assignments
 7. Frame-local `always` overrides
 
-**Primitive-type defaults:** Text-like (`Text`, `Math`, `Code`) → `text.primary`; shape fills → `surface.primary`; shape strokes (`Line`) → `stroke.default`; plot curves → `accent.primary`.
+**Primitive-type defaults:** Text-like (`Text`, `Typst`, `Code`) → `text.primary`; shape fills → `surface.primary`; shape strokes (`Line`) → `stroke.default`; plot curves → `accent.primary`.
 
 ```animatix
 config { colorscheme: "editorial-dark" }
@@ -241,7 +241,7 @@ config { colorscheme: "forest" }
 | Built-in actions | positional duration + `delay` + `ease` |
 | Property assignments | positional duration + `delay` + `ease` |
 | Actor re-declarations | positional duration + `delay` + `ease` |
-| `Text`/`Math`/`Code` declarations | positional duration + `delay` + `ease` |
+| `Text`/`Typst`/`Code` declarations | positional duration + `delay` + `ease` |
 | Morph keys (`strategy`, `path_arc`, `stretch`) | timed path-morphing re-declarations only |
 
 Duplicate modifier keys: last value wins. `ease` without duration = instant change.
@@ -437,7 +437,7 @@ row: Row, gap: 12, padding: 20, align: "center" {
 
 **Shapes:** `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`
 
-**Text-like:** `Text`, `Math`, `Code`, `Svg`, `Image`
+**Text-like:** `Text`, `Typst`, `Code`, `Svg`, `Image`
 
 **Path commands:** `move_to(...)`, `line_to(...)`, `quad_to(...)`, `curve_to(...)`, `close()`
 
@@ -463,7 +463,7 @@ img: Image, url: "examples/assets/checker.png", at: (100, 100), size: (200, 150)
 | `Arrow` | `from`, `to`, `head_size` |
 | `Polygon` | `points: {(x, y), ...}` |
 | `Path` | `commands: {move_to(...), line_to(...), curve_to(...), close()}` |
-| `Text` / `Math` / `Code` | `text` / `math` / `code`, `font_size`, `font_family` |
+| `Text` / `Typst` / `Code` | `text` / `content` / `code`, `font_size`, `font_family` |
 | `Image` / `Svg` | `url` |
 | `Filter` | `blur`, `brightness`, `contrast`, `saturate`, `hue_rotate`, `sepia` |
 | `Graph` / plots | `x_domain`, `y_domain`, `func`, `kind`, `resolution`, `density`, `levels` |
@@ -563,11 +563,11 @@ During video export, all `Audio` actors from the current scene (or all scenes in
 
 **Shapes:** `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`
 
-**Text-like:** `Text`, `Math`, `Code`, `Svg`, `Image`
+**Text-like:** `Text`, `Typst`, `Code`, `Svg`, `Image`
 
 **Plotting:** `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`
 
-**Containers:** `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`
+**Containers:** `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`
 
 **Other:** `Audio`
 
@@ -998,7 +998,7 @@ When strict mode is enabled:
 
 ---
 
-## 14. Math & Graphs
+## 14. Typst & Graphs
 
 **`Graph`**: Container mapping logical domains to physical bounds. Supports axes, optional grid lines, and ticks.
 ```animatix
@@ -1050,7 +1050,7 @@ contours: ContourSet, func: (x, y) => x^2 + y^2, levels: (1, 4, 9), resolution: 
 
 ### Typst vs LaTeX Cheat Sheet
 
-The `Math` primitive uses **Typst** syntax, not LaTeX. Common mistakes:
+The `Typst` primitive uses **Typst** syntax, not LaTeX. Common mistakes:
 
 | LaTeX | Typst | Notes |
 |-------|-------|-------|

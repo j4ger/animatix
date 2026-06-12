@@ -34,8 +34,8 @@ gem: Polygon, points: {
 }, color: accent.primary [1s, ease: ease-out]
 
 #3s
-rotate orb [by: 6.2832, 2s, ease: linear]
-rotate box [by: -3.1416, 2s, ease: ease-in-out]
+rotate orb [by: tau, 2s, ease: linear]
+rotate box [by: -pi, 2s, ease: ease-in-out]
 
 #3.5s
 star: Path, commands: {

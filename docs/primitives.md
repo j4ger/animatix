@@ -24,18 +24,18 @@ For colorscheme details, see [`architecture.md`](architecture.md) §Colorscheme 
 title: Text { text: "Hello World", font_size: 24, at: (640, 120) }
 ```
 
-## Math
-**Status:** Implemented in parser and runtime.
+## Typst
+**Status:** Implemented in parser and runtime. Replaces the deprecated `Math` primitive.
 
 **Properties:**
-- `math` / `latex`: String
+- `content`: String — Typst markup content (accepts `text`, `math`, `code`, `latex` for backward compatibility)
 - `font_size`: Number
 - `color`: Color
 - `at`: Tuple `(x, y)`
 
 **Example:**
 ```animatix
-eq: Math { math: "x^2 + 3", font_size: 18, at: (640, 360) }
+eq: Typst, content: "x^2 + 3", font_size: 18, at: (640, 360)
 ```
 
 ## Code
@@ -377,7 +377,7 @@ Root layout containers can omit `at` and default to `scene.center`. Scene-relati
 Runtime supports explicit assignment for: `color`, `stroke`, `stroke_width`, `stroke_progress`,
 `fill_opacity`, `size`, `at`/`position`, `radius_x`, `radius_y`, `from`, `to`, `scene.background_color`.
 
-Text/Math/Code use text-path keyframes; shapes use vector-path keyframes.
+Text/Typst/Code use text-path keyframes; shapes use vector-path keyframes.
 
 Nested property targeting via dotted paths works on both sides: `left.badge.color = red`
 (assignment) and `copy.at = left.badge.at` (read). Component reads like `source.at.x`
