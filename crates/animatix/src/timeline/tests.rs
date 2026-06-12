@@ -968,15 +968,32 @@ fn always_overrides_keyframes_warning() {
     let ast = vec![
         Stmt::Keyframe {
             time: crate::ast::Time::Seconds(0.0),
-            body: vec![Stmt::Assignment {
-                target: vec!["box1".to_string()],
-                property: "opacity".to_string(),
-                value: Expr::Num(1.0),
-                modifiers: vec![],
-                easing: None,
-                value_span: None,
-                span: None,
-            }],
+            body: vec![
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    is_anonymous: false,
+                    label: "box1".to_string(),
+                    ty: "Rect".to_string(),
+                    props: vec![Property {
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
+                        value_span: None,
+                        trailing_comment: None,
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                    span: None,
+                },
+                Stmt::Assignment {
+                    target: vec!["box1".to_string()],
+                    property: "opacity".to_string(),
+                    value: Expr::Num(1.0),
+                    modifiers: vec![],
+                    easing: None,
+                    value_span: None,
+                    span: None,
+                },
+            ],
             span: None,
         },
         Stmt::Always {

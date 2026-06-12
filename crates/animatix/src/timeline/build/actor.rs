@@ -263,6 +263,17 @@ impl Timeline {
             );
         }
 
+        // Set track.kind before processing children so the layout-managed-child
+        // check can inspect the parent's kind. Only create track entry if the actor
+        // has children (otherwise skip to avoid breaking is_first_decl).
+        if !children.is_empty() {
+            let early_track = self
+                .tracks
+                .entry(label.to_string())
+                .or_insert_with(|| AnimationTrack::new(label.to_string()));
+            early_track.kind = kind_id;
+        }
+
         self.process_inline_items(time_ms, children, label, diagnostics);
         let eval_env = self.build_eval_env(time_ms as u64);
 
