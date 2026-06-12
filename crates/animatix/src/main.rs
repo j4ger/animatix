@@ -48,19 +48,7 @@ enum Commands {
         #[arg(short, long)]
         force: bool,
     },
-    /// Render a static scene from a given file
-    Render {
-        /// The input Animatix scene file (.amx)
-        input: PathBuf,
 
-        /// Loop the authored timeline in the preview window instead of holding on the last frame
-        #[arg(long)]
-        r#loop: bool,
-
-        /// Draw per-node content bounding boxes for debugging
-        #[arg(long)]
-        debug_bounds: bool,
-    },
     /// Render a specific frame to an image file (PNG)
     Image {
         /// The input Animatix scene file (.amx)
@@ -479,41 +467,7 @@ fn main() {
             }
         }
 
-        Commands::Render {
-            input,
-            r#loop,
-            debug_bounds,
-        } => {
-            info!("Rendering Animatix file: {}", input.display());
-            let (target, _) = load_and_build(&input);
-            match target {
-                BuildTarget::MultiScene(comp) => {
-                    info!(
-                        "Multi-scene composition ({} scenes, {:.2}s total). Previewing with transition blending.",
-                        comp.scenes.len(),
-                        comp.global_duration_s,
-                    );
-                    if let Err(e) = renderer::run_composition_with_options(
-                        comp,
-                        r#loop,
-                        DebugRenderOptions { compute_hit_regions: false, draw_bounds: debug_bounds, ..Default::default() },
-                    ) {
-                        error!("Preview failed: {e}");
-                        std::process::exit(1);
-                    }
-                }
-                BuildTarget::SingleScene(timeline) => {
-                    if let Err(e) = renderer::run_timeline_with_options(
-                        timeline,
-                        r#loop,
-                        DebugRenderOptions { compute_hit_regions: false, draw_bounds: debug_bounds, ..Default::default() },
-                    ) {
-                        error!("Preview failed: {e}");
-                        std::process::exit(1);
-                    }
-                }
-            }
-        }
+
 
         Commands::Image {
             input,

@@ -31,9 +31,7 @@ pub mod render_pipeline;
 #[cfg(feature = "video")]
 /// Video encoding helpers.
 pub mod encode;
-#[cfg(feature = "render")]
-/// Windowed live-preview renderer.
-pub mod window;
+
 
 #[cfg(feature = "render")]
 pub use offscreen::{OffscreenRenderer, RenderedFrame};
@@ -55,5 +53,4 @@ pub use video::{
     ExportSettings, H264Preset, MaxRenderThreads, VideoCodec,
 };
 
-#[cfg(feature = "render")]
-pub use window::{run, run_composition_with_options, run_timeline, run_timeline_with_options};
+
