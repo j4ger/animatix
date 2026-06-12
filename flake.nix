@@ -22,7 +22,7 @@
             pkg-config
             rustPlatform.bindgenHook
             alsa-lib
-            alsa-plugins  # Provides libasound_module_pcm_pipewire.so
+            pipewire  # Provides libasound_module_pcm_pipewire.so for ALSA
             tree-sitter
             nodejs
             clang
