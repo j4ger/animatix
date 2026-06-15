@@ -14,7 +14,7 @@ use crate::ast::*;
 #[derive(Clone)]
 pub(crate) enum FlatItem {
     /// `label: Type [modifiers] [{ children }]`
-    Labeled(String, String, Vec<Modifier>, Vec<InlineItem>),
+    Labeled(String, Option<Expr>, String, Vec<Modifier>, Vec<InlineItem>),
     /// `Type [modifiers] [{ children }]`
     Anonymous(String, Vec<Modifier>, Vec<InlineItem>),
     /// `name: value`
@@ -25,4 +25,6 @@ pub(crate) enum FlatItem {
     SlotMarker,
     /// `@slotname { items }` in component instantiation blocks
     SlotFill(String, Vec<InlineItem>),
+    /// `for item, i in list { ... }` inside container children
+    ForLoop(String, Option<String>, Expr, Vec<InlineItem>),
 }

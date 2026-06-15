@@ -88,11 +88,13 @@ fn inline_stmt(
         }],
         Stmt::ForLoop {
             var,
+            index_var,
             iterable,
             body,
             span,
         } => vec![Stmt::ForLoop {
             var,
+            index_var,
             iterable,
             body: inline_custom_actions(body, registry, module_actions),
             span,
@@ -279,11 +281,13 @@ fn substitute_params_in_stmt(stmt: &Stmt, bindings: &HashMap<String, Expr>) -> S
         },
         Stmt::ForLoop {
             var,
+            index_var,
             iterable,
             body,
             span,
         } => Stmt::ForLoop {
             var,
+            index_var,
             iterable: substitute_params_in_expr(&iterable, bindings),
             body: body
                 .iter()

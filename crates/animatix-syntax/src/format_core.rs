@@ -236,6 +236,7 @@ pub fn format_expr(expr: &Expr) -> String {
 /// Serialize an actor-like declaration (shared by `Stmt::ActorDecl` and `InlineItem`).
 pub fn format_actor_like(
     label: Option<&str>,
+    array_index: Option<&Expr>,
     is_anonymous: bool,
     ty: &str,
     props: &[Property],
@@ -246,7 +247,11 @@ pub fn format_actor_like(
 ) -> String {
     let mut parts = Vec::new();
     if let Some(lbl) = label.filter(|_| !is_anonymous) {
-        parts.push(format!("{}: {}", lbl, ty));
+        if let Some(idx_expr) = array_index {
+            parts.push(format!("{}[{}]: {}", lbl, format_expr(idx_expr), ty));
+        } else {
+            parts.push(format!("{}: {}", lbl, ty));
+        }
     } else {
         parts.push(ty.to_string());
     }
@@ -285,15 +290,17 @@ pub fn format_inline_item(item: &InlineItem, depth: usize, indent_size: usize) -
             props,
             modifiers,
             children,
-        } => format_actor_like(None, true, ty, props, modifiers, children, depth, indent_size),
+        } => format_actor_like(None, None, true, ty, props, modifiers, children, depth, indent_size),
         InlineItem::Labeled {
             label,
+            array_index,
             ty,
             props,
             modifiers,
             children,
         } => format_actor_like(
             Some(label),
+            array_index.as_ref(),
             false,
             ty,
             props,
@@ -302,6 +309,30 @@ pub fn format_inline_item(item: &InlineItem, depth: usize, indent_size: usize) -
             depth,
             indent_size,
         ),
+        InlineItem::ForLoop {
+            var,
+            index_var,
+            iterable,
+            body,
+        } => {
+            let body_str = body
+                .iter()
+                .map(|i| format_inline_item(i, depth + 1, indent_size))
+                .collect::<Vec<_>>()
+                .join(",\n");
+            let index_str = index_var
+                .as_ref()
+                .map(|iv| format!(", {}", iv))
+                .unwrap_or_default();
+            format!(
+                "for {}{} in {} {{\n{}\n{}}}",
+                var,
+                index_str,
+                format_expr(iterable),
+                body_str,
+                " ".repeat(depth * indent_size)
+            )
+        }
         InlineItem::SlotMarker => "@slot".into(),
         InlineItem::SlotFill { slot, items } => {
             let items_str = items
@@ -369,6 +400,7 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             is_pub,
             is_anonymous,
             label,
+            array_index,
             ty,
             props,
             modifiers,
@@ -377,6 +409,7 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
         } => {
             let s = format_actor_like(
                 Some(label),
+                array_index.as_ref(),
                 *is_anonymous,
                 ty,
                 props,
@@ -492,14 +525,20 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
         }
         Stmt::ForLoop {
             var,
+            index_var,
             iterable,
             body,
             ..
         } => {
             let body_str = format_stmts_raw(body, depth + 1, indent_size);
+            let index_str = index_var
+                .as_ref()
+                .map(|iv| format!(", {}", iv))
+                .unwrap_or_default();
             format!(
-                "for {} in {} {{\n{}\n{}}}",
+                "for {}{} in {} {{\n{}\n{}}}",
                 var,
+                index_str,
                 format_expr(iterable),
                 body_str,
                 " ".repeat(indent_size * depth)

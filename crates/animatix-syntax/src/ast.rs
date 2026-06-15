@@ -437,6 +437,9 @@ pub enum InlineItem {
     Labeled {
         /// Item label.
         label: String,
+        /// Array index expression for programmatic actor generation.
+        /// `None` for normal inline declarations.
+        array_index: Option<Expr>,
         /// Actor type name.
         ty: String,
         /// Properties for actor configuration.
@@ -446,11 +449,23 @@ pub enum InlineItem {
         /// Nested child items.
         children: Vec<InlineItem>,
     },
+    /// For loop inside a container's children block (e.g. `for item, i in items { ... }`).
+    /// Body items are generated inline during build.
+    ForLoop {
+        /// Loop variable name.
+        var: String,
+        /// Optional index variable name.
+        index_var: Option<String>,
+        /// Iterable expression.
+        iterable: Expr,
+        /// Body inline items to repeat.
+        body: Vec<InlineItem>,
+    },
     /// `@slot` marker inside a container's children block.
     /// Default items (if any) are non-@slot sibling items in the same
     /// container.
     SlotMarker,
-    /// Filled slot content from a component instantiation site.
+    /// `@slot` fill item.
     /// Maps to a container label inside the component body (e.g. `header {
     /// ... }` maps to the container named `header` that contains a `@slot`
     /// marker).
@@ -502,6 +517,9 @@ pub enum Stmt {
         is_anonymous: bool,
         /// Actor label.
         label: String,
+        /// Array index expression for programmatic actor generation (e.g. `i` in `bars[i]: Rect`).
+        /// `None` for normal actor declarations.
+        array_index: Option<Expr>,
         /// Actor type name.
         ty: String,
         /// Properties for actor configuration.
@@ -621,10 +639,12 @@ pub enum Stmt {
         span: Option<Span>,
     },
 
-    /// For loop: `for item in items { ... }`
+    /// For loop: `for item in items { ... }` or `for item, i in items { ... }`
     ForLoop {
         /// Loop variable name.
         var: String,
+        /// Optional index variable name (e.g. `i` in `for item, i in items`).
+        index_var: Option<String>,
         /// Iterable expression.
         iterable: Expr,
         /// Body statements in the loop.

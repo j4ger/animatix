@@ -379,7 +379,7 @@ impl SymbolTable {
                 }
             }
 
-            Stmt::ForLoop { var, body, span, .. } => {
+            Stmt::ForLoop { var, index_var, body, span, .. } => {
                 self.labels.insert(var.clone(), LabelInfo {
                     name: var.clone(),
                     kind: LabelKind::For,
@@ -388,6 +388,17 @@ impl SymbolTable {
                     span: *span,
                     ty: None,
                 });
+
+                if let Some(iv) = index_var {
+                    self.labels.insert(iv.clone(), LabelInfo {
+                        name: iv.clone(),
+                        kind: LabelKind::For,
+                        line: 0, // populated by Analyzer::enrich_positions from tree-sitter
+                        col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
+                        span: *span,
+                        ty: None,
+                    });
+                }
 
                 for stmt in body {
                     self.collect_stmt(stmt);
@@ -606,6 +617,7 @@ mod tests {
                 is_pub: false,
                 is_anonymous: false,
                 label: "btn".to_string(),
+                array_index: None,
                 ty: "Button".to_string(),
                 props: vec![],
                 modifiers: vec![],
@@ -661,6 +673,7 @@ mod tests {
                 is_pub: false,
                 is_anonymous: false,
                 label: "title".to_string(),
+                array_index: None,
                 ty: "Text".to_string(),
                 props: vec![
                     Property {

@@ -25,12 +25,14 @@ impl Timeline {
                     props,
                     modifiers,
                     children,
+                    ..
                 } => {
                     let id = format!("__anon_{}_{}", parent_label, index);
                     let stmt = Stmt::ActorDecl {
                         is_pub: false,
                         is_anonymous: true,
                         label: id.clone(),
+                        array_index: None,
                         ty: ty.clone(),
                         props: props.clone(),
                         modifiers: modifiers.clone(),
@@ -41,15 +43,18 @@ impl Timeline {
                 }
                 crate::ast::InlineItem::Labeled {
                     label,
+                    array_index,
                     ty,
                     props,
                     modifiers,
                     children,
+                    ..
                 } => {
                     let stmt = Stmt::ActorDecl {
                         is_pub: false,
                         is_anonymous: false,
                         label: label.clone(),
+                        array_index: array_index.clone(),
                         ty: ty.clone(),
                         props: props.clone(),
                         modifiers: modifiers.clone(),
@@ -57,6 +62,15 @@ impl Timeline {
                         span: None,
                     };
                     self.process_body(time_ms, &[stmt], Some(parent_label), diagnostics);
+                }
+                crate::ast::InlineItem::ForLoop { var, index_var, iterable, body, .. } => {
+                    for (idx, value) in crate::timeline::property_lookup::for_iter_values(iterable, &self.env).into_iter().enumerate() {
+                        self.env.set(var, value);
+                        if let Some(iv) = index_var {
+                            self.env.set(iv, crate::timeline::Value::Num(idx as f64));
+                        }
+                        self.process_inline_items(time_ms, body, parent_label, diagnostics);
+                    }
                 }
                 // SlotMarker and SlotFill are resolved during component expansion.
                 // At timeline build time they should never appear in the AST.

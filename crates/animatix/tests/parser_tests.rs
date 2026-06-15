@@ -364,6 +364,7 @@ fn test_actor_decl_full() {
             is_pub: false,
             is_anonymous: false,
             label: "circle".to_string(),
+            array_index: None,
             ty: "Ellipse".to_string(),
             props: vec![
                 Property {
@@ -427,6 +428,7 @@ fn test_actor_decl_colorscheme_alias_parse() {
             is_pub: false,
             is_anonymous: false,
             label: "badge".to_string(),
+            array_index: None,
             ty: "Ellipse".to_string(),
             props: vec![
                 Property {
@@ -457,6 +459,7 @@ fn test_text_colorscheme_alias_parse() {
             is_pub: false,
             is_anonymous: false,
             label: "title".to_string(),
+            array_index: None,
             ty: "Text".to_string(),
             props: vec![
                 Property {
@@ -487,6 +490,7 @@ fn test_modifier_delay_and_duplicates_parse() {
             is_pub: false,
             is_anonymous: false,
             label: "badge".to_string(),
+            array_index: None,
             ty: "Ellipse".to_string(),
             props: vec![Property {
                 name: "radius".to_string(),
@@ -553,6 +557,7 @@ fn test_modifier_delay_and_duplicates_parse() {
             is_pub: false,
             is_anonymous: false,
             label: "card".to_string(),
+            array_index: None,
             ty: "MetricCard".to_string(),
             props: vec![Property {
                 name: "title".to_string(),
@@ -575,6 +580,7 @@ fn test_code_stmt_parse() {
             is_pub: false,
             is_anonymous: false,
             label: "snippet".to_string(),
+            array_index: None,
             ty: "Code".to_string(),
             props: vec![
                 Property {
@@ -607,6 +613,7 @@ fn test_image_stmt() {
             is_pub: false,
             is_anonymous: false,
             label: "photo".to_string(),
+            array_index: None,
             ty: "Image".to_string(),
             props: vec![
                 Property {
@@ -645,6 +652,7 @@ fn test_svg_stmt_preserves_anchor_and_offset() {
             is_pub: false,
             is_anonymous: false,
             label: "icon".to_string(),
+            array_index: None,
             ty: "Svg".to_string(),
             props: vec![
                 Property {
@@ -689,6 +697,7 @@ fn test_image_stmt_preserves_anchor_and_offset() {
             is_pub: false,
             is_anonymous: false,
             label: "photo".to_string(),
+            array_index: None,
             ty: "Image".to_string(),
             props: vec![
                 Property {
@@ -734,6 +743,7 @@ fn test_line_actor_decl() {
             is_pub: false,
             is_anonymous: false,
             label: "axis".to_string(),
+            array_index: None,
             ty: "Line".to_string(),
             props: vec![
                 Property {
@@ -779,6 +789,7 @@ fn test_ellipse_actor_decl() {
             is_pub: false,
             is_anonymous: false,
             label: "halo".to_string(),
+            array_index: None,
             ty: "Ellipse".to_string(),
             props: vec![
                 Property {
@@ -817,6 +828,7 @@ fn test_arc_actor_decl() {
             is_pub: false,
             is_anonymous: false,
             label: "ring".to_string(),
+            array_index: None,
             ty: "Ellipse".to_string(),
             props: vec![
                 Property {
@@ -867,6 +879,7 @@ fn test_polygon_actor_decl() {
             is_pub: false,
             is_anonymous: false,
             label: "badge".to_string(),
+            array_index: None,
             ty: "Polygon".to_string(),
             props: vec![
                 Property {
@@ -910,6 +923,7 @@ fn test_path_actor_decl() {
             is_pub: false,
             is_anonymous: false,
             label: "guide".to_string(),
+            array_index: None,
             ty: "Path".to_string(),
             props: vec![
                 Property {
@@ -967,12 +981,14 @@ fn test_actor_decl_nested() {
             is_pub: false,
             is_anonymous: false,
             label: "group".to_string(),
+            array_index: None,
             ty: "Group".to_string(),
             props: vec![],
             modifiers: vec![],
             children: vec![
                 animatix_syntax::ast::InlineItem::Labeled {
                     label: "a".to_string(),
+                    array_index: None,
                     ty: "Ellipse".to_string(),
                     props: vec![Property {
                         name: "size".to_string(),
@@ -985,6 +1001,7 @@ fn test_actor_decl_nested() {
                 },
                 animatix_syntax::ast::InlineItem::Labeled {
                     label: "b".to_string(),
+                    array_index: None,
                     ty: "Rect".to_string(),
                     props: vec![Property {
                         name: "size".to_string(),
@@ -1009,6 +1026,7 @@ fn test_actor_decl_anonymous() {
             is_pub: false,
             is_anonymous: false,
             label: "group".to_string(),
+            array_index: None,
             ty: "Group".to_string(),
             props: vec![],
             modifiers: vec![],
@@ -1053,12 +1071,14 @@ fn test_actor_decl_nested_with_children() {
             is_pub: false,
             is_anonymous: false,
             label: "group".to_string(),
+            array_index: None,
             ty: "Group".to_string(),
             props: vec![],
             modifiers: vec![],
             children: vec![
                 animatix_syntax::ast::InlineItem::Labeled {
                     label: "a".to_string(),
+            array_index: None,
                     ty: "Ellipse".to_string(),
                     props: vec![Property {
                         name: "size".to_string(),
@@ -1069,6 +1089,7 @@ fn test_actor_decl_nested_with_children() {
                     modifiers: vec![],
                     children: vec![animatix_syntax::ast::InlineItem::Labeled {
                         label: "child".to_string(),
+            array_index: None,
                         ty: "Text".to_string(),
                         props: vec![Property {
                             name: "text".to_string(),
@@ -1082,6 +1103,7 @@ fn test_actor_decl_nested_with_children() {
                 },
                 animatix_syntax::ast::InlineItem::Labeled {
                     label: "b".to_string(),
+                    array_index: None,
                     ty: "Rect".to_string(),
                     props: vec![Property {
                         name: "size".to_string(),
@@ -1327,6 +1349,7 @@ fn test_for_loop() {
         result,
         Stmt::ForLoop {
             var: "item".to_string(),
+            index_var: None,
             iterable: Expr::Ident("buttons".to_string()),
             body: vec![Stmt::Action(Action {
                 verb: "appear".to_string(),
@@ -1347,6 +1370,7 @@ fn test_for_loop_with_range() {
         result,
         Stmt::ForLoop {
             var: "i".to_string(),
+            index_var: None,
             iterable: Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0),]),
             body: vec![Stmt::Action(Action {
                 verb: "scale".to_string(),

@@ -20,21 +20,41 @@ impl Timeline {
                 Stmt::ActorDecl {
                     is_pub: _,
                     label,
+                    array_index,
                     ty,
                     props,
                     modifiers,
                     children,
                     ..
-                } => self.process_actor_decl(
-                    label,
-                    ty,
-                    props,
-                    modifiers,
-                    children,
-                    time_ms,
-                    parent_label,
-                    diagnostics,
-                ),
+                } => {
+                    // Validate that user labels don't use the reserved `__` prefix
+                    if label.starts_with("__") {
+                        diagnostics.push(
+                            Diagnostic::error(
+                                DiagnosticCode::ReservedLabelPrefix,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "Actor label '{}' uses reserved prefix '__' which is 
+                                     reserved for internally generated labels",
+                                    label
+                                ),
+                            )
+                        );
+                    }
+                    let resolved_label = resolve_array_index(
+                        label, array_index, &self.env, diagnostics, time_ms as u64,
+                    );
+                    self.process_actor_decl(
+                        &resolved_label,
+                        ty,
+                        props,
+                        modifiers,
+                        children,
+                        time_ms,
+                        parent_label,
+                        diagnostics,
+                    );
+                }
                 Stmt::Assignment {
                     target,
                     property,
@@ -86,12 +106,16 @@ impl Timeline {
                 }
                 Stmt::ForLoop {
                     var,
+                    index_var,
                     iterable,
                     body,
                     ..
                 } => {
-                    for value in for_iter_values(iterable, &self.env) {
+                    for (idx, value) in for_iter_values(iterable, &self.env).into_iter().enumerate() {
                         self.env.set(var, value);
+                        if let Some(iv) = index_var {
+                            self.env.set(iv, Value::Num(idx as f64));
+                        }
                         self.process_body(time_ms, body, parent_label, diagnostics);
                     }
                 }
@@ -197,4 +221,65 @@ fn categorize_action(verb: &str) -> ActionCategory {
         "draw-in" | "reveal-in" | "draw-out" | "reveal-out" => ActionCategory::Reveal,
         _ => ActionCategory::Motion,
     }
+}
+
+/// Resolve an array-indexed actor label to a concrete timeline label.
+///
+/// For a normal actor (`array_index: None`), returns the label as-is.
+/// For an array actor (`array_index: Some(expr)`), evaluates the index
+/// expression and produces `{array_name}__{index}`.
+///
+/// Example: `bars` with `array_index: Some(Num(0))` → `"bars__0"`
+pub(crate) fn resolve_array_index(
+    label: &str,
+    array_index: &Option<Expr>,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    time_ms: u64,
+) -> String {
+    match array_index {
+        Some(index_expr) => {
+            let eval_env = build_eval_env_static(env, time_ms);
+            match evaluate_expr(index_expr, &eval_env) {
+                Ok(Value::Num(n)) if n >= 0.0 && n == n.floor() => {
+                    format!("{}__{}", label, n as usize)
+                }
+                Ok(Value::Num(n)) => {
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Array index for '{}' must be a non-negative integer, got {}",
+                                label, n
+                            ),
+                        )
+                    );
+                    label.to_string()
+                }
+                _ => {
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Array index for '{}' must evaluate to a number",
+                                label
+                            ),
+                        )
+                    );
+                    label.to_string()
+                }
+            }
+        }
+        None => label.to_string(),
+    }
+}
+
+/// Build an evaluation environment from an existing env + time,
+/// for use in resolving array indices outside a full Timeline context.
+fn build_eval_env_static(env: &Environment, time_ms: u64) -> Environment {
+    let mut eval_env = env.clone();
+    eval_env.set("t", Value::Num(time_ms as f64 / 1000.0));
+    eval_env
 }

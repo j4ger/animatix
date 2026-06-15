@@ -665,6 +665,54 @@ Available flags follow the property name: `_animating_at`, `_animating_position`
 
 ---
 
+### Programmatic Actor Generation
+
+**Status:** Implemented in parser and build.
+
+Actors can be generated programmatically using `for` loops with an index variable
+and array-indexed labels.
+
+```animatix
+for mag, i in magnitudes {
+  bars[i]: Rect, size: (12, mag * 180), color: accent.primary
+}
+```
+
+The `for item, i in list` form binds both the element value and a zero-based
+index. Inside the body, `name[expr]: Type` declares an array actor element:
+`bars[i]` produces labels `bars__0`, `bars__1`, etc.
+
+Generated actors are first-class timeline actors — they support re-declaration
+morphing, property assignment, and all built-in actions.
+
+```animatix
+#0s
+for mag, i in zeros {
+  bars[i]: Rect, size: (12, 0)
+}
+
+#2s
+for mag, i in values {
+  bars[i]: Rect, size: (12, mag * 180) [800ms]
+}
+
+#3s
+bars[2].color = accent.danger
+fade-in bars[0] [300ms]
+```
+
+Array-indexed declarations work inside containers (`Row`, `Col`, `Grid`,
+`Graph`, etc.) and at the top level inside keyframes.
+
+**Limitations:**
+- Generated actor labels use `__` as an internal separator (reserved prefix).
+- Array index expressions must evaluate to non-negative integers.
+- `always` blocks reject actor declarations (array-indexed or otherwise).
+- Very large generated arrays should prefer specialized primitives like
+  `BarChart` for performance.
+
+---
+
 ## 11. Imports, Modules & Namespaces
 
 **Non-aliased imports:** `import "path"` flattens the imported file's statements into the current scene. This is the backward-compatible behavior.

@@ -119,6 +119,7 @@ fn expand_stmt_into(
             merge_registry(registry, sub_registry);
             output.push(Stmt::ForLoop {
                 var: var.clone(),
+                index_var: None,
                 iterable: iterable.clone(),
                 body: expanded_body,
                 span: *span,
@@ -166,6 +167,7 @@ fn expand_stmt_into(
                     is_pub: *is_pub,
                     is_anonymous: false,
                     label: label.clone(),
+                    array_index: None,
                     ty: ty.clone(),
                     props: props.clone(),
                     modifiers: modifiers.clone(),
@@ -213,6 +215,7 @@ fn expand_inline_items(
         match item {
             InlineItem::Labeled {
                 label,
+                array_index: _,
                 ty,
                 props,
                 modifiers,
@@ -232,6 +235,7 @@ fn expand_inline_items(
                     let expanded_children = expand_inline_items(children, components, registry, ctx);
                     result.push(InlineItem::Labeled {
                         label: label.clone(),
+                        array_index: None,
                         ty: ty.clone(),
                         props: props.clone(),
                         modifiers: modifiers.clone(),
@@ -266,6 +270,20 @@ fn expand_inline_items(
                     });
                 }
             }
+            InlineItem::ForLoop {
+                var,
+                index_var,
+                iterable,
+                body,
+            } => {
+                let expanded_body = expand_inline_items(body, components, registry, ctx);
+                result.push(InlineItem::ForLoop {
+                    var: var.clone(),
+                    index_var: index_var.clone(),
+                    iterable: iterable.clone(),
+                    body: expanded_body,
+                });
+            }
             InlineItem::SlotMarker => result.push(InlineItem::SlotMarker),
             InlineItem::SlotFill { slot, items } => {
                 let expanded = expand_inline_items(items, components, registry, ctx);
@@ -291,6 +309,7 @@ fn stmt_to_inline_item(stmt: &Stmt) -> Option<InlineItem> {
             ..
         } => Some(InlineItem::Labeled {
             label: label.clone(),
+            array_index: None,
             ty: ty.clone(),
             props: props.clone(),
             modifiers: modifiers.clone(),
@@ -491,6 +510,7 @@ fn resolve_slots(
                         is_pub: *is_pub,
                         is_anonymous: false,
                         label: label.clone(),
+                        array_index: None,
                         ty: ty.clone(),
                         props: props.clone(),
                         modifiers: modifiers.clone(),

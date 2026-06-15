@@ -521,6 +521,7 @@ mod tests {
             is_pub: false,
             is_anonymous: false,
             label: label.to_string(),
+            array_index: None,
             ty: "Ellipse".to_string(),
             props: vec![Property {
                 name: "size".to_string(),
@@ -773,6 +774,7 @@ mod tests {
                     is_pub: false,
                     is_anonymous: false,
                     label: "row".to_string(),
+                    array_index: None,
                     ty: "Row".to_string(),
                     props: vec![Property {
                         name: "gap".to_string(),
@@ -783,6 +785,7 @@ mod tests {
                     modifiers: vec![],
                     children: vec![crate::ast::InlineItem::Labeled {
                         label: "child".to_string(),
+                        array_index: None,
                         ty: "Ellipse".to_string(),
                         props: vec![Property {
                             name: "size".to_string(),

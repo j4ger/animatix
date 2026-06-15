@@ -682,12 +682,26 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
 
     // --- Inline items parser ---
 
+    // Label expression: `name` or `name[index_expr]` for array actor generation
+    let label_expr = ident
+        .clone()
+        .then(
+            expr.clone()
+                .delimited_by(just('[').padded(), just(']').padded())
+                .or_not(),
+        );
+
     let inline_items = recursive(|inline_items| {
         let children_block = inline_items
             .clone()
             .delimited_by(just('{').padded(), just('}').padded())
             .or_not()
             .map(|c| c.unwrap_or_default());
+
+        let for_inline_index = just(',')
+            .padded()
+            .ignore_then(ident.clone())
+            .or_not();
 
         let flat_item = choice((
             // @slotname { items } in component instantiation blocks
@@ -701,14 +715,29 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 .map(|(name, items)| inline::FlatItem::SlotFill(name, items)),
             // @slot marker in component definition blocks
             just("@slot").padded().to(inline::FlatItem::SlotMarker),
-            // Labeled inline item: label: Type [mods] [{ children }]
-            ident
+            // For loop inside container children: `for item in list { ... }` or `for item, i in list { ... }`
+            text::keyword("for")
+                .ignore_then(ident.clone())
+                .then(for_inline_index)
+                .then_ignore(text::keyword("in").padded())
+                .then(expr.clone())
+                .then(
+                    inline_items
+                        .clone()
+                        .delimited_by(just('{').padded(), just('}').padded()),
+                )
+                .map(|(((var, index_var), iterable), body)| {
+                    inline::FlatItem::ForLoop(var, index_var, iterable, body)
+                }),
+            // Labeled inline item: label: Type [mods] [{ children }] or label[idx]: Type
+            label_expr
+                .clone()
                 .then_ignore(just(':').padded())
                 .then(type_ident)
                 .then(modifiers.clone())
                 .then(children_block.clone())
-                .map(|(((label, ty), mods), children)| {
-                    inline::FlatItem::Labeled(label, ty, mods, children)
+                .map(|((((label, array_index), ty), mods), children)| {
+                    inline::FlatItem::Labeled(label, array_index, ty, mods, children)
                 }),
             // Anonymous inline item: Type [mods] [{ children }]
             type_ident
@@ -732,9 +761,10 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 let mut result = Vec::new();
                 for item in items {
                     match item {
-                        inline::FlatItem::Labeled(label, ty, mods, children) => {
+                        inline::FlatItem::Labeled(label, array_index, ty, mods, children) => {
                             result.push(InlineItem::Labeled {
                                 label,
+                                array_index,
                                 ty,
                                 props: Vec::new(),
                                 modifiers: mods,
@@ -769,6 +799,14 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                         }
                         inline::FlatItem::SlotMarker => {
                             result.push(InlineItem::SlotMarker);
+                        }
+                        inline::FlatItem::ForLoop(var, index_var, iterable, body) => {
+                            result.push(InlineItem::ForLoop {
+                                var,
+                                index_var,
+                                iterable,
+                                body,
+                            });
                         }
                         inline::FlatItem::SlotFill(name, items) => {
                             result.push(InlineItem::SlotFill {
@@ -928,6 +966,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 is_pub: false,
                 is_anonymous: false,
                 label: label.unwrap_or_else(|| "unnamed_svg".to_string()),
+                array_index: None,
                 ty: "Svg".to_string(),
                 props,
                 modifiers: vec![],
@@ -945,6 +984,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 is_pub: false,
                 is_anonymous: false,
                 label: label.unwrap_or_else(|| "unnamed_image".to_string()),
+                array_index: None,
                 ty: "Image".to_string(),
                 props,
                 modifiers: vec![],
@@ -962,6 +1002,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                 is_pub: false,
                 is_anonymous: false,
                 label,
+                array_index: None,
                 ty: "Text".to_string(),
                 props: vec![Property {
                     name: "text".to_string(),
@@ -979,7 +1020,7 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .padded()
             .or_not()
             .map(|p| p.is_some())
-            .then(ident)
+            .then(label_expr.clone())
             .then_ignore(just(':').padded())
             .then(ident)
             .then(
@@ -1003,10 +1044,11 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
                     .map(|c| c.unwrap_or_default()),
             )
             .map(
-                |(((((is_pub, label), ty), props), modifiers), children)| Stmt::ActorDecl {
+                |(((((is_pub, (label, array_index)), ty), props), modifiers), children)| Stmt::ActorDecl {
                     is_pub,
                     is_anonymous: false,
                     label,
+                    array_index,
                     ty,
                     props,
                     modifiers,
@@ -1121,13 +1163,21 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich
             .collect::<Vec<_>>()
             .delimited_by(just('{').padded(), just('}').padded());
 
+        // Optional `, index_var` after the item variable: `for item, i in list`
+        let for_index = just(',')
+            .padded()
+            .ignore_then(ident.clone())
+            .or_not();
+
         let for_stmt = text::keyword("for")
             .ignore_then(ident)
+            .then(for_index)
             .then_ignore(text::keyword("in").padded())
             .then(expr.clone())
             .then(for_loop_body)
-            .map(|((var, iterable), body)| Stmt::ForLoop {
+            .map(|(((var, index_var), iterable), body)| Stmt::ForLoop {
                 var,
+                index_var,
                 iterable,
                 body,
                 span: None,

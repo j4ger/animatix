@@ -124,6 +124,8 @@ pub enum DiagnosticCode {
     DeprecatedPrimitive,
     /// A property value is invalid for the expected type or shape.
     InvalidPropertyValue,
+    /// Actor label uses reserved `__` prefix.
+    ReservedLabelPrefix,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -183,6 +185,7 @@ impl fmt::Display for DiagnosticCode {
             }
             DiagnosticCode::DeprecatedPrimitive => write!(f, "deprecated-primitive"),
             DiagnosticCode::InvalidPropertyValue => write!(f, "invalid-property-value"),
+            DiagnosticCode::ReservedLabelPrefix => write!(f, "reserved-label-prefix"),
         }
     }
 }

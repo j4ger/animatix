@@ -374,6 +374,7 @@ impl<'a> TsConverter<'a> {
             is_pub: false,
             is_anonymous: false,
             label,
+            array_index: None,
             ty,
             props,
             modifiers,
@@ -484,6 +485,7 @@ impl<'a> TsConverter<'a> {
         let body = self.convert_block_body(node);
         Stmt::ForLoop {
             var,
+            index_var: None,
             iterable,
             body,
             span: node_span(node),
@@ -1169,6 +1171,7 @@ impl<'a> TsConverter<'a> {
                 let children = self.convert_children_block_items(node);
                 Some(InlineItem::Labeled {
                     label,
+                    array_index: None,
                     ty,
                     props,
                     modifiers,

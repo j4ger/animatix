@@ -571,6 +571,7 @@ mod tests {
                 is_pub: false,
                 is_anonymous: false,
                 label: "thing".to_string(),
+                array_index: None,
                 ty: "UnknownType".to_string(),
                 props: vec![],
                 modifiers: vec![],
@@ -611,6 +612,7 @@ mod tests {
                 is_pub: false,
                 is_anonymous: false,
                 label: "title".to_string(),
+                array_index: None,
                 ty: "Text".to_string(),
                 props: vec![],
                 modifiers: vec![],
@@ -638,6 +640,7 @@ mod tests {
                 is_pub: false,
                 is_anonymous: false,
                 label: "title".to_string(),
+                array_index: None,
                 ty: "Text".to_string(),
                 props: vec![],
                 modifiers: vec![],
@@ -665,6 +668,7 @@ mod tests {
                 is_pub: false,
                 is_anonymous: false,
                 label: "title".to_string(),
+                array_index: None,
                 ty: "Text".to_string(),
                 props: vec![
                     Property {
@@ -700,6 +704,7 @@ mod tests {
                 is_pub: false,
                 is_anonymous: false,
                 label: "title".to_string(),
+                array_index: None,
                 ty: "Text".to_string(),
                 props: vec![
                     Property {

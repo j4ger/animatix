@@ -183,6 +183,9 @@ impl SourceIndex {
                     }
                     self.walk_inline_items(children);
                 }
+                InlineItem::ForLoop { body, .. } => {
+                    self.walk_inline_items(body);
+                }
                 InlineItem::SlotFill { items, .. } => {
                     self.walk_inline_items(items);
                 }
@@ -207,6 +210,7 @@ mod tests {
             is_pub: false,
             is_anonymous: false,
             label: "btn".to_string(),
+            array_index: None,
             ty: "Button".to_string(),
             props: vec![
                 Property {
@@ -262,6 +266,7 @@ mod tests {
             is_pub: false,
             is_anonymous: false,
             label: "icon".to_string(),
+            array_index: None,
             ty: "Image".to_string(),
             props: vec![Property {
                 name: "at".to_string(),
@@ -358,6 +363,7 @@ mod tests {
                 is_pub: false,
                 is_anonymous: false,
                 label: "card".to_string(),
+                array_index: None,
                 ty: "Rect".to_string(),
                 props: vec![Property {
                     name: "size".to_string(),

@@ -74,6 +74,7 @@ mod tests {
             is_pub: false,
             is_anonymous: false,
             label: label.to_string(),
+            array_index: None,
             ty: "Text".to_string(),
             props: vec![
                 Property {

@@ -414,6 +414,7 @@ fn vm_parity_nested_modifier_targets_match_ir() {
                 is_pub: false,
                 is_anonymous: false,
                 label: "panel.badge".to_string(),
+                array_index: None,
                 ty: "Ellipse".to_string(),
                 props: vec![
                     animatix_syntax::ast::Property {
@@ -443,6 +444,7 @@ fn vm_parity_nested_modifier_targets_match_ir() {
                 is_pub: false,
                 is_anonymous: false,
                 label: "echo".to_string(),
+                array_index: None,
                 ty: "Ellipse".to_string(),
                 props: vec![
                     animatix_syntax::ast::Property {

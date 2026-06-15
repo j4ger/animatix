@@ -120,10 +120,11 @@ pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
                 None,
             ))
         }
-        Stmt::ForLoop { var, iterable, body, .. } => {
+        Stmt::ForLoop { var, index_var, iterable, body, .. } => {
             let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
             Some(Stmt::ForLoop {
                 var: var.clone(),
+                index_var: index_var.clone(),
                 iterable: iterable.clone(),
                 body,
                 span: None,

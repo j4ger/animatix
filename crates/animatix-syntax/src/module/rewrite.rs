@@ -133,6 +133,10 @@ fn inline_item_needs_rewrite(
                 || modifiers.iter().any(|m| expr_needs_rewrite(&m.value, root_label, known_labels, bindings))
                 || children.iter().any(|c| inline_item_needs_rewrite(c, root_label, known_labels, bindings))
         }
+        InlineItem::ForLoop { body, iterable, .. } => {
+            expr_needs_rewrite(iterable, root_label, known_labels, bindings)
+                || body.iter().any(|c| inline_item_needs_rewrite(c, root_label, known_labels, bindings))
+        }
         InlineItem::SlotFill { items, .. } => {
             items.iter().any(|c| inline_item_needs_rewrite(c, root_label, known_labels, bindings))
         }
@@ -161,6 +165,7 @@ pub(super) fn rewrite_stmt(
             is_pub: *is_pub,
             is_anonymous: false,
             label: rewrite_label(label, prefix, root_label, known_labels),
+            array_index: None,
             ty: ty.clone(),
             props: rewrite_properties(props, prefix, root_label, known_labels, bindings),
             modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
@@ -292,6 +297,7 @@ Stmt::Always { body, span, .. } => Stmt::Always {
             ..
         } => Stmt::ForLoop {
             var: var.clone(),
+            index_var: None,
             iterable: rewrite_expr(iterable, prefix, root_label, known_labels, bindings),
             body: if body_needs_rewrite(body, root_label, known_labels, bindings) {
                 body.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
@@ -373,12 +379,14 @@ pub(super) fn rewrite_inline_items(
             },
             InlineItem::Labeled {
                 label,
+                array_index: _,
                 ty,
                 props,
                 modifiers,
                 children,
             } => InlineItem::Labeled {
                 label: rewrite_label(label, prefix, root_label, known_labels),
+                array_index: None,
                 ty: ty.clone(),
                 props: rewrite_properties(props, prefix, root_label, known_labels, bindings),
                 modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
@@ -389,6 +397,17 @@ pub(super) fn rewrite_inline_items(
                     known_labels,
                     bindings,
                 ),
+            },
+            InlineItem::ForLoop {
+                var,
+                index_var,
+                iterable,
+                body,
+            } => InlineItem::ForLoop {
+                var: var.clone(),
+                index_var: index_var.clone(),
+                iterable: rewrite_expr(iterable, prefix, root_label, known_labels, bindings),
+                body: rewrite_inline_items(body, prefix, root_label, known_labels, bindings),
             },
             InlineItem::SlotMarker => InlineItem::SlotMarker,
             InlineItem::SlotFill { slot, items } => InlineItem::SlotFill {
@@ -703,6 +722,7 @@ mod tests {
             is_pub: false,
             is_anonymous: false,
             label: "logo".to_string(),
+            array_index: None,
             ty: "Svg".to_string(),
             props: vec![
                 Property { name: "url".to_string(), value: Expr::Str("examples/vector.svg".to_string()), value_span: None, trailing_comment: None },

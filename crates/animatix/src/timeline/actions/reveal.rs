@@ -388,6 +388,7 @@ mod tests {
             is_pub: false,
             is_anonymous: false,
             label: label.to_string(),
+            array_index: None,
             ty: "Ellipse".to_string(),
             props: vec![
                 Property {
@@ -420,6 +421,7 @@ mod tests {
             is_pub: false,
             is_anonymous: false,
             label: label.to_string(),
+            array_index: None,
             ty: "Image".to_string(),
             props: vec![
                 Property {
@@ -452,6 +454,7 @@ mod tests {
             is_pub: false,
             is_anonymous: false,
             label: label.to_string(),
+            array_index: None,
             ty: "Text".to_string(),
             props: vec![
                 Property {

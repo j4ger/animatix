@@ -19,6 +19,7 @@ fn static_scene_cache_populated_after_first_evaluate() {
                 is_pub: false,
                 is_anonymous: false,
                 label: "box1".to_string(),
+                array_index: None,
                 ty: "Rect".to_string(),
                 props: vec![
                     Property {
@@ -93,6 +94,7 @@ fn static_scene_skips_frame_env() {
                 is_pub: false,
                 is_anonymous: false,
                 label: "box1".to_string(),
+                array_index: None,
                 ty: "Rect".to_string(),
                 props: vec![
                     Property {
@@ -362,6 +364,7 @@ fn test_colorscheme_auto_cycle() {
             is_pub: false,
             is_anonymous: false,
             label: "a".to_string(),
+            array_index: None,
             ty: "Ellipse".to_string(),
             props: vec![Property {
                 name: "color".to_string(),
@@ -377,6 +380,7 @@ fn test_colorscheme_auto_cycle() {
             is_pub: false,
             is_anonymous: false,
             label: "b".to_string(),
+            array_index: None,
             ty: "Ellipse".to_string(),
             props: vec![Property {
                 name: "color".to_string(),
@@ -419,6 +423,7 @@ fn test_runtime_text_recompilation() {
                     is_pub: false,
                     is_anonymous: false,
                     label: "counter".to_string(),
+                    array_index: None,
                     ty: "Text".to_string(),
                     props: vec![
                         Property {
@@ -583,6 +588,7 @@ fn test_animated_scene_has_keyframes() {
                 is_pub: false,
                 is_anonymous: false,
                 label: "box0".to_string(),
+                array_index: None,
                 ty: "Rect".to_string(),
                 props: vec![
                     Property {
@@ -678,6 +684,7 @@ fn test_keyframe_scoped_variables_injected_into_frame_env() {
                 is_pub: false,
                 is_anonymous: false,
                 label: "tracker".to_string(),
+                array_index: None,
                 ty: "Ellipse".to_string(),
                 props: vec![
                     Property {
@@ -796,6 +803,7 @@ fn test_reactive_binding_desugars_to_modifier() {
                 is_pub: false,
                 is_anonymous: false,
                 label: "orbiter".to_string(),
+                array_index: None,
                 ty: "Ellipse".to_string(),
                 props: vec![
                     Property {
@@ -973,6 +981,7 @@ fn always_overrides_keyframes_warning() {
                     is_pub: false,
                     is_anonymous: false,
                     label: "box1".to_string(),
+                    array_index: None,
                     ty: "Rect".to_string(),
                     props: vec![Property {
                         name: "size".to_string(),
@@ -1061,6 +1070,7 @@ fn always_overrides_keyframes_no_warning_without_conflict() {
             is_pub: false,
             is_anonymous: false,
             label: "box1".to_string(),
+            array_index: None,
             ty: "Rect".to_string(),
             props: vec![],
             modifiers: vec![],
@@ -1102,6 +1112,7 @@ fn absolute_position_on_layout_managed_child_warning() {
             is_pub: false,
             is_anonymous: false,
             label: "row1".to_string(),
+            array_index: None,
             ty: "Row".to_string(),
             props: vec![Property {
                 name: "size".to_string(),
@@ -1112,6 +1123,7 @@ fn absolute_position_on_layout_managed_child_warning() {
             modifiers: vec![],
             children: vec![crate::ast::InlineItem::Labeled {
                 label: "child1".to_string(),
+                array_index: None,
                 ty: "Rect".to_string(),
                 props: vec![
                     Property {
@@ -1155,6 +1167,7 @@ fn absolute_position_on_layout_managed_child_no_warning_without_at() {
             is_pub: false,
             is_anonymous: false,
             label: "row1".to_string(),
+            array_index: None,
             ty: "Row".to_string(),
             props: vec![Property {
                 name: "size".to_string(),
@@ -1165,6 +1178,7 @@ fn absolute_position_on_layout_managed_child_no_warning_without_at() {
             modifiers: vec![],
             children: vec![crate::ast::InlineItem::Labeled {
                 label: "child1".to_string(),
+                array_index: None,
                 ty: "Rect".to_string(),
                 props: vec![Property {
                     name: "size".to_string(),

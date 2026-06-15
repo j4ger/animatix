@@ -454,6 +454,7 @@ mod tests {
             is_pub: false,
             is_anonymous: false,
             label: "btn".to_string(),
+            array_index: None,
             ty: "Button".to_string(),
             props: vec![
                 Property {
@@ -479,6 +480,7 @@ mod tests {
             is_pub: false,
             is_anonymous: false,
             label: "btn".to_string(),
+            array_index: None,
             ty: "Button".to_string(),
             props: vec![
                 Property {
@@ -581,6 +583,7 @@ mod tests {
                 is_pub: false,
                 is_anonymous: false,
                 label: "btn".to_string(),
+                array_index: None,
                 ty: "Button".to_string(),
                 props: vec![],
                 modifiers: vec![],
@@ -646,6 +649,7 @@ mod tests {
                 is_pub: false,
                 is_anonymous: false,
                 label: "btn".to_string(),
+                array_index: None,
                 ty: "Button".to_string(),
                 props: vec![],
                 modifiers: vec![],
