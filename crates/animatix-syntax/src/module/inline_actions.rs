@@ -2,6 +2,12 @@ use crate::ast::{Expr, Modifier, Span, Stmt};
 use crate::module::{ActionTemplate, InstanceActionRegistry};
 use std::collections::HashMap;
 
+// NOTE: This function takes ownership of Vec<Stmt> and produces a new
+// Vec<Stmt> (owned tree transformation with potential 1→N expansion).
+// The shared walk primitives work on references, not owned data, and
+// use a FnMut(&T) -> () visitor pattern that cannot propagate the
+// transformed output, making them incompatible.
+
 /// Replace custom component action invocations with their inlined bodies.
 ///
 /// When `pulse btn [200ms]` is encountered and `btn` has a custom action `pulse`,
@@ -45,61 +51,14 @@ fn inline_stmt(
             }
             vec![Stmt::Action(action, span)]
         }
-        Stmt::Keyframe { time, body, span } => vec![Stmt::Keyframe {
-            time,
-            body: inline_custom_actions(body, registry, module_actions),
-            span,
-        }],
-        Stmt::RelativeKeyframe { offset, body, span } => vec![Stmt::RelativeKeyframe {
-            offset,
-            body: inline_custom_actions(body, registry, module_actions),
-            span,
-        }],
-        Stmt::Sequence { body, span } => vec![Stmt::Sequence {
-            body: inline_custom_actions(body, registry, module_actions),
-            span,
-        }],
-        Stmt::Stagger { modifiers, body, span } => vec![Stmt::Stagger {
-            modifiers,
-            body: inline_custom_actions(body, registry, module_actions),
-            span,
-        }],
-        Stmt::Always { body, span } => vec![Stmt::Always {
-            body: inline_custom_actions(body, registry, module_actions),
-            span,
-        }],
-        Stmt::ReactiveBinding { target, property, value, value_span, span } => vec![Stmt::ReactiveBinding {
-            target,
-            property,
-            value,
-            value_span,
-            span,
-        }],
-        Stmt::Conditional {
-            condition,
-            then_branch,
-            else_branch,
-            span,
-        } => vec![Stmt::Conditional {
-            condition,
-            then_branch: inline_custom_actions(then_branch, registry, module_actions),
-            else_branch: else_branch.map(|b| inline_custom_actions(b, registry, module_actions)),
-            span,
-        }],
-        Stmt::ForLoop {
-            var,
-            index_var,
-            iterable,
-            body,
-            span,
-        } => vec![Stmt::ForLoop {
-            var,
-            index_var,
-            iterable,
-            body: inline_custom_actions(body, registry, module_actions),
-            span,
-        }],
-        other => vec![other],
+        // For all other statements, recurse into bodies using shared walk
+        mut stmt => {
+            let bodies = crate::walk::collect_stmt_bodies_mut(&mut stmt);
+            for body in bodies {
+                *body = inline_custom_actions(std::mem::take(body), registry, module_actions);
+            }
+            vec![stmt]
+        }
     }
 }
 

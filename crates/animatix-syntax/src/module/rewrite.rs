@@ -1,20 +1,5 @@
 use super::{Action, ComponentDef, Expr, HashMap, HashSet, InlineItem, Modifier, Property, Stmt};
 
-/// Check if a statement body contains any identifiers or labels that would
-/// require rewriting. Returns false if the body can be cloned as-is.
-fn body_needs_rewrite(
-    stmts: &[Stmt],
-    root_label: Option<&str>,
-    known_labels: &HashSet<String>,
-    bindings: &HashMap<String, Expr>,
-) -> bool {
-    // If there are no bindings and no known labels, nothing can trigger rewriting.
-    if bindings.is_empty() && known_labels.is_empty() && root_label.is_none() {
-        return false;
-    }
-    stmts.iter().any(|stmt| stmt_needs_rewrite(stmt, root_label, known_labels, bindings))
-}
-
 /// Recursively check if a statement contains any identifiers that need rewriting.
 fn stmt_needs_rewrite(
     stmt: &Stmt,
@@ -22,7 +7,8 @@ fn stmt_needs_rewrite(
     known_labels: &HashSet<String>,
     bindings: &HashMap<String, Expr>,
 ) -> bool {
-    match stmt {
+    // Per-variant checks that DON'T involve body recursion
+    let immediate = match stmt {
         Stmt::ActorDecl { label, props, modifiers, children, .. } => {
             root_label == Some(label.as_str())
                 || known_labels.contains(label.as_str())
@@ -35,34 +21,34 @@ fn stmt_needs_rewrite(
                 || expr_needs_rewrite(value, root_label, known_labels, bindings)
                 || modifiers.iter().any(|m| expr_needs_rewrite(&m.value, root_label, known_labels, bindings))
         }
-        Stmt::Keyframe { body, .. }
-        | Stmt::RelativeKeyframe { body, .. }
-        | Stmt::Sequence { body, .. }
-        | Stmt::Always { body, .. }
-        | Stmt::ForLoop { body, .. }
-        | Stmt::ComponentAction { body, .. } => {
-            body_needs_rewrite(body, root_label, known_labels, bindings)
-        }
-        Stmt::Stagger { modifiers, body, .. } => {
-            modifiers.iter().any(|m| expr_needs_rewrite(&m.value, root_label, known_labels, bindings))
-                || body_needs_rewrite(body, root_label, known_labels, bindings)
-        }
-        Stmt::Conditional { condition, then_branch, else_branch, .. } => {
-            expr_needs_rewrite(condition, root_label, known_labels, bindings)
-                || body_needs_rewrite(then_branch, root_label, known_labels, bindings)
-                || else_branch.as_ref().is_some_and(|b| body_needs_rewrite(b, root_label, known_labels, bindings))
-        }
         Stmt::ReactiveBinding { target, value, .. } => {
             target.iter().any(|t| t == "self" || root_label == Some(t.as_str()) || known_labels.contains(t.as_str()))
                 || expr_needs_rewrite(value, root_label, known_labels, bindings)
         }
         Stmt::LetDecl { value, .. } => expr_needs_rewrite(value, root_label, known_labels, bindings),
-        Stmt::ComponentDef(def, _) => body_needs_rewrite(&def.body, root_label, known_labels, bindings),
         Stmt::Config { settings, .. } => {
             settings.iter().any(|p| expr_needs_rewrite(&p.value, root_label, known_labels, bindings))
         }
+        Stmt::Stagger { modifiers, .. } => {
+            modifiers.iter().any(|m| expr_needs_rewrite(&m.value, root_label, known_labels, bindings))
+        }
+        Stmt::Conditional { condition, .. } => {
+            expr_needs_rewrite(condition, root_label, known_labels, bindings)
+        }
         _ => false,
-    }
+    };
+
+    if immediate { return true; }
+
+    // Body recursion uses shared walk — any variant with a body is handled automatically.
+    // If a new Stmt variant with a body is added, update walk.rs and this will work.
+    let mut body_needs = false;
+    crate::walk::recurse_stmt_bodies(stmt, &mut |body| {
+        if !body_needs {
+            body_needs = body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings));
+        }
+    });
+    body_needs
 }
 
 fn expr_needs_rewrite(
@@ -102,28 +88,27 @@ fn inline_item_needs_rewrite(
     known_labels: &HashSet<String>,
     bindings: &HashMap<String, Expr>,
 ) -> bool {
-    match item {
-        InlineItem::Labeled { label, props, modifiers, children, .. } => {
-            root_label == Some(label.as_str())
-                || known_labels.contains(label.as_str())
-                || props.iter().any(|p| expr_needs_rewrite(&p.value, root_label, known_labels, bindings))
-                || modifiers.iter().any(|m| expr_needs_rewrite(&m.value, root_label, known_labels, bindings))
-                || children.iter().any(|c| inline_item_needs_rewrite(c, root_label, known_labels, bindings))
+    let mut needs = false;
+    crate::walk::walk_inline_item(item, &mut |i| {
+        if needs { return; }
+        match i {
+            InlineItem::Labeled { label, props, modifiers, .. } => {
+                needs = root_label == Some(label.as_str())
+                    || known_labels.contains(label.as_str())
+                    || props.iter().any(|p| expr_needs_rewrite(&p.value, root_label, known_labels, bindings))
+                    || modifiers.iter().any(|m| expr_needs_rewrite(&m.value, root_label, known_labels, bindings));
+            }
+            InlineItem::Anonymous { props, modifiers, .. } => {
+                needs = props.iter().any(|p| expr_needs_rewrite(&p.value, root_label, known_labels, bindings))
+                    || modifiers.iter().any(|m| expr_needs_rewrite(&m.value, root_label, known_labels, bindings));
+            }
+            InlineItem::SlotFill { .. } | InlineItem::ForLoop { .. } | InlineItem::SlotMarker => {
+                // These variants don't have immediate rewrite triggers;
+                // their children are handled by walk_inline_item's recursion.
+            }
         }
-        InlineItem::Anonymous { props, modifiers, children, .. } => {
-            props.iter().any(|p| expr_needs_rewrite(&p.value, root_label, known_labels, bindings))
-                || modifiers.iter().any(|m| expr_needs_rewrite(&m.value, root_label, known_labels, bindings))
-                || children.iter().any(|c| inline_item_needs_rewrite(c, root_label, known_labels, bindings))
-        }
-        InlineItem::ForLoop { body, iterable, .. } => {
-            expr_needs_rewrite(iterable, root_label, known_labels, bindings)
-                || body.iter().any(|c| inline_item_needs_rewrite(c, root_label, known_labels, bindings))
-        }
-        InlineItem::SlotFill { items, .. } => {
-            items.iter().any(|c| inline_item_needs_rewrite(c, root_label, known_labels, bindings))
-        }
-        InlineItem::SlotMarker => false,
-    }
+    });
+    needs
 }
 
 pub(super) fn rewrite_stmt(
@@ -173,7 +158,7 @@ pub(super) fn rewrite_stmt(
             span: *span,
         },
         Stmt::Sequence { body, span, .. } => Stmt::Sequence {
-            body: if body_needs_rewrite(body, root_label, known_labels, bindings) {
+            body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
                 body.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
             } else {
                 body.clone()
@@ -182,7 +167,7 @@ pub(super) fn rewrite_stmt(
         },
         Stmt::Stagger { modifiers, body, span, .. } => Stmt::Stagger {
             modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
-            body: if body_needs_rewrite(body, root_label, known_labels, bindings) {
+            body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
                 body.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
             } else {
                 body.clone()
@@ -218,7 +203,7 @@ pub(super) fn rewrite_stmt(
         },
         Stmt::Keyframe { time, body, span, .. } => Stmt::Keyframe {
             time: time.clone(),
-            body: if body_needs_rewrite(body, root_label, known_labels, bindings) {
+            body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
                 body.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
             } else {
                 body.clone()
@@ -227,7 +212,7 @@ pub(super) fn rewrite_stmt(
         },
         Stmt::RelativeKeyframe { offset, body, span, .. } => Stmt::RelativeKeyframe {
             offset: offset.clone(),
-            body: if body_needs_rewrite(body, root_label, known_labels, bindings) {
+            body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
                 body.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
             } else {
                 body.clone()
@@ -235,7 +220,7 @@ pub(super) fn rewrite_stmt(
             span: *span,
         },
 Stmt::Always { body, span, .. } => Stmt::Always {
-			body: if body_needs_rewrite(body, root_label, known_labels, bindings) {
+			body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
 				body.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
 			} else {
 				body.clone()
@@ -257,13 +242,13 @@ Stmt::Always { body, span, .. } => Stmt::Always {
             ..
         } => Stmt::Conditional {
             condition: rewrite_expr(condition, prefix, root_label, known_labels, bindings),
-            then_branch: if body_needs_rewrite(then_branch, root_label, known_labels, bindings) {
+            then_branch: if then_branch.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
                 then_branch.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
             } else {
                 then_branch.clone()
             },
             else_branch: else_branch.as_ref().map(|branch| {
-                if body_needs_rewrite(branch, root_label, known_labels, bindings) {
+                if branch.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
                     branch.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
                 } else {
                     branch.clone()
@@ -281,7 +266,7 @@ Stmt::Always { body, span, .. } => Stmt::Always {
             var: var.clone(),
             index_var: None,
             iterable: rewrite_expr(iterable, prefix, root_label, known_labels, bindings),
-            body: if body_needs_rewrite(body, root_label, known_labels, bindings) {
+            body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
                 body.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
             } else {
                 body.clone()
@@ -292,7 +277,7 @@ Stmt::Always { body, span, .. } => Stmt::Always {
             is_pub: definition.is_pub,
             name: definition.name.clone(),
             params: definition.params.clone(),
-            body: if body_needs_rewrite(&definition.body, root_label, known_labels, bindings) {
+            body: if definition.body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
                 definition.body.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
             } else {
                 definition.body.clone()
@@ -301,7 +286,7 @@ Stmt::Always { body, span, .. } => Stmt::Always {
         Stmt::ComponentAction { name, params, body, span, .. } => Stmt::ComponentAction {
             name: name.clone(),
             params: params.clone(),
-            body: if body_needs_rewrite(body, root_label, known_labels, bindings) {
+            body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
                 body.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
             } else {
                 body.clone()

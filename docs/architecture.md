@@ -709,7 +709,22 @@ crates/
 └── tree-sitter-animatix/  # Tree-sitter grammar
 ```
 
+### Shared Walk Layer
 
+The `walk.rs` module in `animatix-syntax` provides shared AST traversal primitives
+(`walk_stmts`, `walk_expr`, `walk_inline_items`, etc.). These use a visitor pattern
+(`FnMut(&T) -> ()`).
+
+**Not all walk sites can use these primitives.** The following patterns are
+incompatible:
+
+- **Value-returning recursion**: Functions that walk and return a value (e.g.,
+  `format_expr` returns `String`, `infer_expr_type` returns `PropertyType`)
+- **Owned tree transformation**: Functions that take ownership and produce new
+  trees (e.g., `inline_custom_actions`)
+
+These sites use guardrail tests (in `format_core.rs` and `apply.rs`) to ensure
+variant coverage is reviewed when new AST variants are added.
 
 ## 17. Crate Split (Completed 2026-06-02)
 

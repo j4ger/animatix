@@ -9,6 +9,19 @@
 //!   convenient trait (fixed indent = 2).
 //! - [`formatter`](crate::formatter) wraps this module's functions with
 //!   configurable indent and other formatting options.
+//!
+//! # Compatibility with shared walk primitives
+//!
+//! The functions in this module are **incompatible** with the shared walk
+//! primitives in [`walk.rs`](crate::walk) (`walk_stmts`, `walk_expr`, etc.)
+//! because they return `String` and must propagate formatted output up the
+//! recursion. The walk primitives use a `&mut dyn FnMut(&T) -> ()` visitor
+//! pattern which cannot propagate return values.
+//!
+//! Guardrail tests at the bottom of this file (`format_expr_covers_all_expr_variants`,
+//! `format_inline_item_covers_all_inline_item_variants`,
+//! `format_stmt_raw_covers_all_stmt_variants`) ensure that all AST variants are
+//! reviewed when new variants are added.
 
 use crate::ast::*;
 

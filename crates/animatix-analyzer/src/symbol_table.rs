@@ -701,6 +701,10 @@ mod tests {
     }
 }
 
+// NOTE: This function returns PropertyType and recurses by calling itself on
+// child nodes. The shared walk_expr is incompatible because it uses a
+// FnMut(&Expr) -> () visitor pattern that cannot propagate return values.
+
 /// Infer the type of an expression for type checking.
 pub fn infer_expr_type(expr: &Expr) -> PropertyType {
     match expr {
