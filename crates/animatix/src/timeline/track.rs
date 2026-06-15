@@ -85,6 +85,8 @@ pub enum ActorKindId {
     ContourSet,
     /// Number plane / coordinate grid actor.
     NumberPlane,
+    /// Bar chart / column chart actor.
+    BarChart,
     /// Horizontal row layout container.
     Row,
     /// Vertical column layout container.
@@ -1324,6 +1326,7 @@ mod tests {
             ActorKindId::Heatmap,
             ActorKindId::ContourSet,
             ActorKindId::NumberPlane,
+            ActorKindId::BarChart,
             ActorKindId::Row,
             ActorKindId::Col,
             ActorKindId::Grid,

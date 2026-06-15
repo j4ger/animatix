@@ -178,6 +178,7 @@ mod text;       pub use text::TEXT;
 mod code;       pub use code::CODE;
 mod image;      pub use image::IMAGE;
 mod svg;        pub use svg::SVG;
+mod bar_chart;  pub use bar_chart::BAR_CHART;
 mod plot;       pub use plot::{GRAPH, PLOT_CURVE, VECTOR_FIELD, HEATMAP, CONTOUR_SET, NUMBER_PLANE};
 mod row;        pub use row::ROW;
 mod col;        pub use col::COL;
@@ -579,7 +580,7 @@ pub static PRIMITIVES: &[&dyn Primitive] = &[
     // Media
     &IMAGE, &SVG, &AUDIO,
     // Plots
-    &GRAPH, &PLOT_CURVE, &VECTOR_FIELD, &HEATMAP, &CONTOUR_SET, &NUMBER_PLANE,
+    &GRAPH, &PLOT_CURVE, &VECTOR_FIELD, &HEATMAP, &CONTOUR_SET, &NUMBER_PLANE, &BAR_CHART,
     // Containers
     &ROW, &COL, &GRID, &STACK, &GROUP, &MASK, &FILTER,
 ];

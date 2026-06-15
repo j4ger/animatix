@@ -122,6 +122,8 @@ pub enum DiagnosticCode {
     AbsolutePositionOnLayoutManagedChild,
     /// A deprecated primitive was used; the user should migrate to the replacement.
     DeprecatedPrimitive,
+    /// A property value is invalid for the expected type or shape.
+    InvalidPropertyValue,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -180,6 +182,7 @@ impl fmt::Display for DiagnosticCode {
                 write!(f, "absolute-position-on-layout-managed-child")
             }
             DiagnosticCode::DeprecatedPrimitive => write!(f, "deprecated-primitive"),
+            DiagnosticCode::InvalidPropertyValue => write!(f, "invalid-property-value"),
         }
     }
 }

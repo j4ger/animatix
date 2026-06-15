@@ -324,6 +324,60 @@ graph: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (360, 360), at: (640, 
 
 ---
 
+## BarChart
+**Status:** Implemented in runtime.
+
+A bar chart / column chart primitive for data visualization. Produces a set of
+rectangular bars whose heights represent data values, with an optional baseline
+axis. Supports standalone (pixel coordinates) and `Graph`-child (math coordinates)
+modes.
+
+**Properties:**
+- `data`: Tuple of `(key, value)` tuples — the bar data
+- `size`: Tuple `(width, height)` — chart visual bounds
+- `bar_width`: Number or `"auto"` — per-bar width (default auto-distributes)
+- `gap`: Number or `"auto"` — spacing between bars (default auto)
+- `bar_colors`: Tuple of RGBA tuples or `"auto"` — per-bar fill colors
+- `show_axis`: String `"true"` | `"false"` — show baseline axis (default `"true"`)
+- `show_labels`: String `"true"` | `"false"` — show bar labels (default `"true"`)
+- `direction`: `"vertical"` | `"horizontal"` — bar orientation (default `"vertical"`)
+- `max_value`: Number or `"auto"` — y-axis scale cap (default auto)
+- `color`: Color — fallback bar fill color
+- `stroke` / `stroke_color`: Color — bar outline color
+- `stroke_width`: Number — bar outline width
+- `x_domain`: Tuple `(min, max)` — math x-range (inherited from parent `Graph`)
+- `y_domain`: Tuple `(min, max)` — math y-range (inherited from parent `Graph`)
+- `at`: Tuple `(x, y)` — chart position
+- `opacity`: Number — chart opacity
+
+**Standalone example:**
+```animatix
+spectrum: BarChart,
+  data: (("2 Hz", 1.0), ("5 Hz", 0.55), ("9 Hz", 0.3)),
+  size: (600, 260),
+  bar_colors: (accent.danger, accent.success, accent.warning),
+  show_axis: true,
+  at: (640, 420)
+```
+
+**Inside a Graph:**
+```animatix
+graph: Graph, x_domain: (0, 12), y_domain: (0, 1.1), size: (700, 300) {
+  spectrum: BarChart,
+    data: ((2, 1.0), (5, 0.55), (9, 0.3)),
+    bar_width: 0.8,
+    show_axis: false,
+    bar_colors: (accent.danger, accent.success, accent.warning)
+
+  envelope: PlotCurve,
+    kind: "cartesian",
+    func: (x) => exp(-0.2 * x),
+    color: text.muted
+}
+```
+
+---
+
 # 3. Containers
 
 Auto-layout-first model with declaration-time measure/place contract. Explicit `at` opts into handcrafted placement.

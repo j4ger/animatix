@@ -10,7 +10,7 @@ Use these rules when generating `.amx` files:
 
 - Start with `config { colorscheme: "editorial-dark", resolution: (1280, 720) }` unless the user asks otherwise.
 - Declare actors as `label: Type, prop: value`; animate later with keyframes (`#1s`) and assignments (`label.prop = value [800ms, ease: ease-out]`).
-- Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Typst`, `Code`, `Svg`, `Image`, `Audio`, `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`.
+- Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Typst`, `Code`, `Svg`, `Image`, `Audio`, `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`.
 - Avoid common hallucinations: `Circle` (use `Ellipse`), `Triangle` (use `Polygon`), `Chart`/`Diagram` (use `Graph`/`PlotCurve`), and any 3D primitives.
 - Colors are RGBA tuples `(r, g, b, a)`, scheme tokens (`accent.primary`, `text.primary`, etc.), `auto`, or named colors (`RED`/`red`, `GREEN`/`green`, `BLUE`/`blue`, `BLACK`/`black`, `WHITE`/`white`, `YELLOW`/`yellow`, `ORANGE`/`orange`). Do not use hex strings.
 - Timing modifiers use positional duration: `[1s]`, `[800ms, ease: ease-in-out]`, `[delay: 250ms, 0s]`. Do not write `duration: 1s`.
@@ -567,7 +567,7 @@ During video export, all `Audio` actors from the current scene (or all scenes in
 
 **Text-like:** `Text`, `Typst`, `Code`, `Svg`, `Image`
 
-**Plotting:** `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`
+**Plotting:** `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`
 
 **Containers:** `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`
 
@@ -577,7 +577,7 @@ During video export, all `Audio` actors from the current scene (or all scenes in
 > - `Circle` — use `Ellipse` with equal `size`
 > - `Triangle` — use `Polygon` with 3 points
 > - `Graph3D`, `Line3D`, `Polyhedron` — 3D is not supported; all rendering is 2D
-> - `Chart`, `Diagram` — use `Graph` or `PlotCurve`
+> - `Chart`, `Diagram` — use `Graph`, `PlotCurve`, or `BarChart`
 
 ---
 
@@ -606,6 +606,8 @@ pulse.size = if (t % 1.0) < 0.5 { (120, 120) } else { (180, 180) }
 ```
 
 Model: `for` for structure, keyframes for declarative timed animation, `always` for stateless runtime behavior.
+
+**BarChart** — produces a set of rectangular bars from `data: ((key, value), ...)` tuples. Supports standalone mode (pixel coords) and Graph-child mode (math coords). See `examples/fft_explain.amx`.
 
 ### Built-in Variables
 

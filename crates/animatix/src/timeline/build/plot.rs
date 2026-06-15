@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use super::*;
 use crate::ast::{InlineItem, Property};
 use crate::timeline::plot::{PlotCurveKind, ProceduralPlot};
+use crate::timeline::property_registry::lookup_property;
 use crate::timeline::vello_path::VelloPath;
 
 /// Data for tick labels: screen positions and math values.
@@ -696,8 +697,9 @@ impl Timeline {
         let is_vector_field = ty == "VectorField";
         let is_heatmap = ty == "Heatmap";
         let is_contour_set = ty == "ContourSet";
+        let is_bar_chart = ty == "BarChart";
         if let Some((ref args, ref body)) = func {
-            if !is_vector_field && !is_heatmap && !is_contour_set {
+            if !is_vector_field && !is_heatmap && !is_contour_set && !is_bar_chart {
             let (expected_arity, expected_ty) = match kind {
                 PlotCurveKind::Cartesian | PlotCurveKind::Polar => (1, "number"),
                 PlotCurveKind::Parametric => (1, "vec2"),
@@ -896,6 +898,37 @@ impl Timeline {
         } else if is_number_plane {
             vello_paths = build_number_plane_paths(
                 size, x_domain, y_domain, x_range, y_range, stroke_color,
+            );
+        } else if is_bar_chart {
+            // Determine parent graph context (if any)
+            let p_label = parent_label.unwrap_or("").to_string();
+            let parent_size = if let Some(Value::Vec2(sz)) = self.env.get(&format!("{}_size", p_label)) {
+                Some(sz)
+            } else {
+                None
+            };
+            let p_x_domain = if let Some(Value::Vec2(xd)) = self.env.get(&format!("{}_x_domain", p_label)) {
+                xd
+            } else {
+                x_domain
+            };
+            let p_y_domain = if let Some(Value::Vec2(yd)) = self.env.get(&format!("{}_y_domain", p_label)) {
+                yd
+            } else {
+                y_domain
+            };
+
+            vello_paths = build_bar_chart_paths(
+                props,
+                size,
+                color,
+                stroke_color,
+                stroke_width,
+                p_x_domain,
+                p_y_domain,
+                parent_size,
+                diagnostics,
+                label,
             );
         } else if primitive.is_plot_curve() {
             let p_label = parent_label.unwrap_or("").to_string();
@@ -1427,6 +1460,352 @@ fn build_contour_set_paths(
                 line_join: 0,
             });
         }
+    }
+
+    paths
+}
+
+/// Parse bar chart data from a `data` property value.
+///
+/// Supports:
+/// - `((2, 1.0), (5, 0.55), (9, 0.3))` — numeric keys (auto-labeled as "2", "5", "9")
+/// - `(("2 Hz", 1.0), ("5 Hz", 0.55), ("9 Hz", 0.3))` — string-labeled tuples
+/// - `()` — empty data
+pub(crate) fn parse_bar_chart_data(
+    props: &[Property],
+    diagnostics: &mut Vec<Diagnostic>,
+    label: &str,
+) -> Vec<(String, f32)> {
+    let mut data: Vec<(String, f32)> = Vec::new();
+
+    for prop in props {
+        if prop.name != "data" {
+            continue;
+        }
+        let expr = &prop.value;
+        // Expect a tuple (outer list of bars)
+        if let Expr::Tuple(items) = expr {
+            for item in items {
+                match item {
+                    Expr::Tuple(bar) if bar.len() == 2 => {
+                        let key_str = match &bar[0] {
+                            Expr::Num(n) => format_float(*n),
+                            Expr::Str(s) => s.clone(),
+                            _ => {
+                                diagnostics.push(Diagnostic::warning(
+                                    DiagnosticCode::InvalidPropertyValue,
+                                    DiagnosticPhase::Build,
+                                    format!("BarChart '{}' data key must be a number or string", label),
+                                ));
+                                continue;
+                            }
+                        };
+                        let val = match &bar[1] {
+                            Expr::Num(n) => *n as f32,
+                            _ => {
+                                diagnostics.push(Diagnostic::warning(
+                                    DiagnosticCode::InvalidPropertyValue,
+                                    DiagnosticPhase::Build,
+                                    format!("BarChart '{}' data value must be a number", label),
+                                ));
+                                continue;
+                            }
+                        };
+                        data.push((key_str, val));
+                    }
+                    _ => {
+                        diagnostics.push(Diagnostic::warning(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            format!("BarChart '{}' data entry must be a (key, value) tuple", label),
+                        ));
+                    }
+                }
+            }
+        }
+        break; // Only process the first `data` property
+    }
+
+    data
+}
+
+/// Format a number for use as a bar label (strip trailing zeros).
+fn format_float(n: f64) -> String {
+    if n == n.floor() && n.is_finite() {
+        format!("{}", n as i64)
+    } else {
+        format!("{:.2}", n)
+    }
+}
+
+/// Build VelloPaths for a BarChart.
+///
+/// Produces one filled-rectangle path per bar (in declaration order),
+/// optionally preceded by an axis line path.
+///
+/// # Standalone mode
+/// Bars are positioned within the chart's `size` bounds, centered on the actor.
+/// Gap between bars is auto-calculated from `(plot_width - bar_count * bar_width) / (bar_count + 1)`.
+///
+/// # Graph child mode
+/// Bars use math-coordinate mapping via `p_x_domain`, `p_y_domain`, `p_size`.
+/// Labels are in math-space but rendered as child Text tracks (handled by the caller).
+pub(crate) fn build_bar_chart_paths(
+    props: &[Property],
+    size: [f32; 2],        // half-size (same convention as other plot builders)
+    color: [f32; 4],
+    stroke_color: [f32; 4],
+    stroke_width: f32,
+    x_domain: [f64; 2],
+    y_domain: [f64; 2],
+    parent_size: Option<[f64; 2]>,  // Some() when inside a Graph
+    diagnostics: &mut Vec<Diagnostic>,
+    label: &str,
+) -> Vec<VelloPath> {
+    let data = parse_bar_chart_data(props, diagnostics, label);
+    if data.is_empty() {
+        return vec![];
+    }
+
+    // Parse properties
+    let mut bar_width_auto = true;
+    let mut bar_width_val = 20.0f32;
+    let mut gap_auto = true;
+    let mut gap_val = 4.0f32;
+    let mut bar_colors_auto = true;
+    let mut bar_colors: Vec<[f32; 4]> = vec![];
+    let mut show_axis = true;
+    let _direction = "vertical";  // Reserved for horizontal bar support
+    let mut max_value_auto = true;
+    let mut max_value_val = 0.0f32;
+
+    for prop in props {
+        let _subject = format!("{}.{}", label, prop.name);
+        match prop.name.as_str() {
+            "bar_width" => {
+                if let Expr::Num(n) = &prop.value {
+                    bar_width_val = *n as f32;
+                    bar_width_auto = false;
+                }
+            }
+            "gap" => {
+                if let Expr::Num(n) = &prop.value {
+                    gap_val = *n as f32;
+                    gap_auto = false;
+                }
+            }
+            "bar_colors" => {
+                if let Expr::Tuple(colors) = &prop.value {
+                    let mut parsed = Vec::new();
+                    for c in colors {
+                        // Try to parse as RGBA tuple
+                        if let Expr::Tuple(rgba) = c {
+                            if rgba.len() == 4 {
+                                let mut comps = [0.0f32; 4];
+                                let mut ok = true;
+                                for (i, v) in rgba.iter().enumerate() {
+                                    if let Expr::Num(n) = v {
+                                        comps[i] = *n as f32;
+                                    } else {
+                                        ok = false;
+                                        break;
+                                    }
+                                }
+                                if ok {
+                                    parsed.push(comps);
+                                }
+                            }
+                        }
+                    }
+                    if !parsed.is_empty() {
+                        bar_colors = parsed;
+                        bar_colors_auto = false;
+                    }
+                }
+            }
+            "show_axis" => {
+                if let Expr::Str(s) = &prop.value {
+                    show_axis = s == "true" || s == "1";
+                }
+            }
+            "direction" => {
+                // Parsed but not yet used; reserved for horizontal bar support
+            }
+            "max_value" => {
+                if let Expr::Num(n) = &prop.value {
+                    max_value_val = *n as f32;
+                    if max_value_val > 0.0 {
+                        max_value_auto = false;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let n = data.len() as f32;
+    let full_w = (size[0] * 2.0) as f64;
+    let full_h = (size[1] * 2.0) as f64;
+
+    // Graph child mode: use parent domain/size for math→screen mapping
+    let (use_math_coords, plot_w, plot_h, math_x0, math_x1, math_y0, math_y1, baseline_y) =
+        if let Some(p_size) = parent_size {
+            // Inside a Graph — map math coordinates to pixels
+            let pw = p_size[0];
+            let ph = p_size[1];
+            let baseline = if y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
+                // Baseline at y=0 in math coords → screen
+                ph * (1.0 - (0.0 - y_domain[0]) / (y_domain[1] - y_domain[0]))
+            } else {
+                // Baseline at min y
+                ph * (1.0 - (0.0 - y_domain[0]) / (y_domain[1] - y_domain[0]))
+            };
+            (
+                true, pw, ph,
+                x_domain[0], x_domain[1],
+                y_domain[0], y_domain[1],
+                baseline,
+            )
+        } else {
+            // Standalone — pixel coordinates within size bounds
+            let plot_left = -(full_w / 2.0) + 40.0;   // margin for labels
+            let plot_right = full_w / 2.0 - 20.0;
+            let plot_top = -(full_h / 2.0) + 20.0;
+            let plot_bottom = full_h / 2.0 - 40.0;    // margin for labels
+            (
+                false,
+                plot_right - plot_left,
+                plot_bottom - plot_top,
+                plot_left, plot_right,
+                plot_top, plot_bottom,
+                plot_bottom,  // baseline at bottom
+            )
+        };
+
+    // Auto bar width
+    let n_f64 = n as f64;
+    let bw = if bar_width_auto {
+        let total_gap = gap_auto as usize as f64 * n_f64 * 4.0;
+        ((plot_w - total_gap) / n_f64).max(4.0)
+    } else if use_math_coords {
+        // In graph mode, bar_width is in math x-units; convert to pixels
+        let x_range_pixels = plot_w;
+        let x_range_math = math_x1 - math_x0;
+        if x_range_math > 0.0 {
+            bar_width_val as f64 * x_range_pixels / x_range_math
+        } else {
+            bar_width_val as f64
+        }
+    } else {
+        bar_width_val as f64
+    };
+
+    // Gap
+    let n_f64 = n as f64;
+    let gap = if gap_auto {
+        if n_f64 <= 1.0 { 0.0 } else { (plot_w - bw * n_f64) / (n_f64 + 1.0) }
+    } else if use_math_coords {
+        let x_range_pixels = plot_w;
+        let x_range_math = math_x1 - math_x0;
+        if x_range_math > 0.0 {
+            gap_val as f64 * x_range_pixels / x_range_math
+        } else {
+            gap_val as f64
+        }
+    } else {
+        gap_val as f64
+    };
+    let gap = gap.max(1.0);
+
+    // Determine max value for scaling (if using math coords, domain is authoritative)
+    let max_val = if !max_value_auto {
+        max_value_val as f64
+    } else if use_math_coords {
+        math_y1
+    } else {
+        data.iter().map(|(_, v)| *v as f64).fold(0.0f64, f64::max).max(0.001)
+    };
+
+    let mut paths: Vec<VelloPath> = Vec::with_capacity(data.len() + 1);
+
+    // Optional axis line
+    if show_axis {
+        let mut axis = kurbo::BezPath::new();
+        if use_math_coords {
+            let ax0 = -(plot_w / 2.0);
+            let ax1 = plot_w / 2.0;
+            axis.move_to((ax0, baseline_y - plot_h / 2.0));
+            axis.line_to((ax1, baseline_y - plot_h / 2.0));
+        } else {
+            axis.move_to((plot_w / 2.0, baseline_y));
+            axis.line_to((-plot_w / 2.0, baseline_y));
+        };
+        let c = vello::peniko::Color::from_rgba8(
+            (stroke_color[0] * 255.0) as u8,
+            (stroke_color[1] * 255.0) as u8,
+            (stroke_color[2] * 255.0) as u8,
+            (stroke_color[3] * 255.0) as u8,
+        );
+        paths.push(VelloPath {
+            path: axis,
+            fill: None,
+            stroke: Some((c, stroke_width.max(1.0))),
+            line_cap: 0,
+            line_join: 0,
+        });
+    }
+
+    // Per-bar paths
+    for (i, (_label_text, value)) in data.iter().enumerate() {
+        let i_f = i as f64;
+
+        // Bar position: evenly spaced from left to right
+        let bar_x_start = -(plot_w / 2.0) + gap + i_f * (bw + gap);
+        let bar_x_end = bar_x_start + bw;
+
+        // Bar height in screen coords
+        let val_norm = if max_val > 0.0 { *value as f64 / max_val } else { 0.0 };
+        let bar_screen_height = val_norm * plot_h;
+        let bar_top_y = baseline_y - bar_screen_height;
+
+        // Build rectangle path
+        let mut bp = kurbo::BezPath::new();
+        bp.move_to(kurbo::Point::new(bar_x_start, baseline_y));
+        bp.line_to(kurbo::Point::new(bar_x_end, baseline_y));
+        bp.line_to(kurbo::Point::new(bar_x_end, bar_top_y));
+        bp.line_to(kurbo::Point::new(bar_x_start, bar_top_y));
+        bp.close_path();
+
+        // Per-bar color (cycle from list or use default)
+        let bar_c = if !bar_colors_auto && i < bar_colors.len() {
+            bar_colors[i]
+        } else {
+            color
+        };
+        let fill_c = vello::peniko::Color::from_rgba8(
+            (bar_c[0] * 255.0) as u8,
+            (bar_c[1] * 255.0) as u8,
+            (bar_c[2] * 255.0) as u8,
+            (bar_c[3] * 255.0) as u8,
+        );
+
+        paths.push(VelloPath {
+            path: bp,
+            fill: Some(fill_c),
+            stroke: if stroke_width > 0.0 {
+                let sc = vello::peniko::Color::from_rgba8(
+                    (stroke_color[0] * 255.0) as u8,
+                    (stroke_color[1] * 255.0) as u8,
+                    (stroke_color[2] * 255.0) as u8,
+                    (stroke_color[3] * 255.0) as u8,
+                );
+                Some((sc, stroke_width))
+            } else {
+                None
+            },
+            line_cap: 0,
+            line_join: 0,
+        });
     }
 
     paths

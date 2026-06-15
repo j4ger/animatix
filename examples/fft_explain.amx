@@ -1,0 +1,243 @@
+// FFT Explanation Animation
+// A visual walkthrough of the Fast Fourier Transform:
+// time-domain signal → sine decomposition → frequency spectrum
+//
+// MISSING: No step-by-step user control; animation is purely time-driven.
+// MISSING: No bar chart primitive; spectrum bars are manual Rect actors.
+// MISSING: No programmatic iteration over frequency data.
+//
+// Design: 3 acts revealed via multi-scene composition (or sequential fade groups)
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+// =============================================================================
+// Scene 1: Title card
+// =============================================================================
+# TitleCard
+
+bg: Rect, size: fill, color: scene.background, anchor: scene.center
+
+title: Text, text: "Understanding the FFT", font_size: 64,
+  color: text.primary, anchor: scene.center, at: (0, -40)
+
+subtitle: Text, text: "From time domain to frequency domain", font_size: 28,
+  color: text.secondary, anchor: scene.center, at: (0, 40)
+
+// MISSING: draw-in or type-on effect for text would be nice
+#0.5s
+fade-in title [800ms, ease: ease-out]
+
+#1.5s
+fade-in subtitle [600ms, ease: ease-out]
+
+// =============================================================================
+// Scene 2: Show the composite time-domain signal
+// =============================================================================
+# TimeDomain
+
+bg2: Rect, size: fill, color: scene.background, anchor: scene.center
+
+step_title: Text, text: "1. A Complex Waveform", font_size: 40,
+  color: text.primary, at: (0, -300)
+
+signal_graph: Graph, at: (640, 380), size: (900, 300),
+  x_domain: (0, 4), y_domain: (-3, 3) {
+
+  // Composite signal: sum of three sine waves
+  // MISSING: The language has no way to define a function once and reuse it.
+  // MISSING: No variable capture in closures at runtime — `let` is compile-time.
+  composite: PlotCurve, kind: "cartesian",
+    func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t),
+    color: accent.primary, stroke_width: 3
+}
+
+signal_label: Text, text: "x(t) = sin(2π·2t) + 0.55·sin(2π·5t) + 0.3·sin(2π·9t)",
+  font_size: 16, color: text.muted, at: (0, 260)
+
+// MISSING: draw-in on PlotCurve doesn't exist for curve primitives.
+// Workaround: fade-in the whole graph.
+#0.5s
+fade-in step_title [500ms, ease: ease-out]
+
+#1.2s
+fade-in signal_graph [1s, ease: ease-out]
+
+#2.5s
+fade-in signal_label [400ms]
+
+// =============================================================================
+// Scene 3: Decompose into individual sine waves
+// =============================================================================
+// MISSING: Morphing a single PlotCurve into multiple sub-curves would be ideal.
+// Workaround: separate curves for each frequency, revealed sequentially.
+
+# Decomposition
+
+bg3: Rect, size: fill, color: scene.background, anchor: scene.center
+
+step2_title: Text, text: "2. Decompose Into Sine Waves", font_size: 40,
+  color: text.primary, at: (0, -300)
+
+// Graph showing all curves overlaid with offset for clarity
+// MISSING: Cannot stack multiple graphs vertically with shared x-axis easily.
+// Workaround: single large graph, vertically offset curves via opacity reveal.
+
+decomp_graph: Graph, at: (640, 380), size: (900, 320),
+  x_domain: (0, 4), y_domain: (-4, 4) {
+
+  // The original composite (shown faintly as reference)
+  ref_signal: PlotCurve, kind: "cartesian",
+    func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t),
+    color: accent.primary, opacity: 0.3, stroke_width: 2
+
+  // 2 Hz component
+  f1_label: Text, text: "2 Hz", color: accent.danger, at: (3.5, -3.2), font_size: 14
+  sine_2hz: PlotCurve, kind: "cartesian",
+    func: (t) => sin(2 * pi * 2 * t),
+    color: accent.danger, stroke_width: 3
+
+  // 5 Hz component
+  f2_label: Text, text: "5 Hz", color: accent.success, at: (3.5, -0.5), font_size: 14
+  sine_5hz: PlotCurve, kind: "cartesian",
+    func: (t) => 0.55 * sin(2 * pi * 5 * t),
+    color: accent.success, stroke_width: 3
+
+  // 9 Hz component
+  f3_label: Text, text: "9 Hz", color: accent.warning, at: (3.5, 2.2), font_size: 14
+  sine_9hz: PlotCurve, kind: "cartesian",
+    func: (t) => 0.3 * sin(2 * pi * 9 * t),
+    color: accent.warning, stroke_width: 3
+}
+
+// Animate: reveal each component sequentially with a vertical shift effect
+// MISSING: No way to vertically offset individual curves within a Graph.
+// Workaround: each curve is at its natural y-range, visually separated by amplitude.
+
+#0.5s
+fade-in step2_title [500ms, ease: ease-out]
+
+#1s
+fade-in decomp_graph [500ms]
+
+// MISSING: No way to "draw" a PlotCurve incrementally. draw-in doesn't apply.
+// Workaround: fade-in whole curve (loses the educational "tracing" effect).
+#2s
+fade-in ref_signal [300ms]
+
+#3s
+fade-in sine_2hz [500ms, ease: ease-out]
+
+#4s
+fade-in f1_label [300ms]
+
+// MISSING: stagger or delay only affect sequence children, not individual keyframe statements.
+// Workaround: spaced keyframe times (manual stagger).
+#5s
+fade-in sine_5hz [500ms, ease: ease-out]
+
+#5.5s
+fade-in f2_label [300ms]
+
+#6.5s
+fade-in sine_9hz [500ms, ease: ease-out]
+
+#7s
+fade-in f3_label [300ms]
+
+// =============================================================================
+// Scene 4: Frequency spectrum (bar chart)
+// =============================================================================
+// G1 resolved: BarChart primitive replaces manual Rect spectrum.
+
+# Spectrum
+
+bg4: Rect, size: fill, color: scene.background, anchor: scene.center
+
+step3_title: Text, text: "3. Frequency Spectrum", font_size: 40,
+  color: text.primary, at: (0, -300)
+
+// Typst equation showing the decomposition
+equation: Typst, content: "x(t) = sum_(k) A_k sin(2 pi f_k t)",
+  font_size: 24, color: accent.primary, at: (0, -230)
+
+// BarChart replaces ~30 lines of manual Rect + Text actors
+spectrum: BarChart,
+  data: (("2 Hz", 1.0), ("5 Hz", 0.55), ("9 Hz", 0.3)),
+  size: (600, 260),
+  bar_colors: (accent.danger, accent.success, accent.warning),
+  show_axis: true,
+  show_labels: true,
+  at: (640, 420)
+
+// Frequency labels (since BarChart labels use numeric keys; manual for now)
+bar_label_2: Text, text: "2 Hz", font_size: 14, color: text.secondary, at: (-180, 495)
+bar_label_5: Text, text: "5 Hz", font_size: 14, color: text.secondary, at: (0, 495)
+bar_label_9: Text, text: "9 Hz", font_size: 14, color: text.secondary, at: (180, 495)
+
+#0.5s
+fade-in step3_title [500ms, ease: ease-out]
+
+#1.2s
+fade-in equation [500ms]
+
+#2s
+fade-in spectrum [800ms, ease: ease-out]
+
+#2.8s
+fade-in bar_label_2 [300ms]
+fade-in bar_label_5 [300ms]
+fade-in bar_label_9 [300ms]
+
+// =============================================================================
+// Scene 5: Reconstruction — show sum = original signal
+// =============================================================================
+// MISSING: No way to overlay reconstructed signal on top of original for comparison.
+
+# Reconstruction
+
+bg5: Rect, size: fill, color: scene.background, anchor: scene.center
+
+step4_title: Text, text: "4. Reconstruction: Sum = Original", font_size: 40,
+  color: text.primary, at: (0, -300)
+
+// Typst equation: FFT is invertible
+eqn2: Typst, content: "hat(x)(t) = sum_(k=0)^(N-1) X_k e^(2 pi i k t // N)",
+  font_size: 22, color: accent.primary, at: (0, -230)
+
+// Overlaid signals — original faint, reconstructed solid
+// MISSING: No way to animate a curve gradually matching another.
+reconstruct_graph: Graph, at: (640, 380), size: (900, 300),
+  x_domain: (0, 4), y_domain: (-3, 3) {
+
+  original: PlotCurve, kind: "cartesian",
+    func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t),
+    color: text.muted, opacity: 0.5, stroke_width: 2
+
+  // MISSING: Can't animate adding sine waves one at a time to a single curve.
+  // Workaround: show the fully reconstructed signal.
+  reconstructed: PlotCurve, kind: "cartesian",
+    func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t),
+    color: accent.success, stroke_width: 3
+}
+
+reconstruct_label: Text, text: "The sum of components exactly reconstructs the original signal.",
+  font_size: 18, color: text.secondary, at: (0, 260)
+
+#0.5s
+fade-in step4_title [500ms, ease: ease-out]
+
+#1.2s
+fade-in eqn2 [500ms]
+
+#2s
+fade-in reconstruct_graph [800ms, ease: ease-out]
+
+#3.5s
+fade-in reconstruct_label [500ms]
+
+// =============================================================================
+// Summary annotations
+// =============================================================================
+// MISSING: No callout/annotation primitive for educational diagrams.
+// Would be nice to have: Callout { target: sine_2hz, text: "2 Hz component", ... }
+// Would be nice to have: Highlight { target: bar_2, color: yellow, pulse: true }
