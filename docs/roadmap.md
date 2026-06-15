@@ -14,21 +14,18 @@ Keep track of what is yet to be done here, when a segment is fully done, remove 
 |---|---|---|---|---|---|
 | AST change propagation is painful | Resolved | — | — | Shared walk layer in `crates/animatix-syntax/src/walk.rs`; 3 call sites migrated | Residual risk in unmigrated walkers (P1) |
 | No shared AST traversal layer | Resolved | — | — | `walk_stmts`, `walk_expr`, `walk_inline_items` + find helpers shipped in `walk.rs` | — |
-| Parser is a monolith | Yes | Medium | Soon | 4-6 parser files, 2-4 days | Medium-high: grammar precedence and diagnostics are easy to perturb |
+| Parser is a monolith | Resolved | — | — | Split into 5 submodules (`common`, `expr`, `inline`, `stmt`, `top_level`) | — |
 | Two formatters, unclear relationship | Partly | Low | Later | 2-3 syntax/doc files, 0.5-1 day | Low: mostly naming/docs unless merging APIs |
 | `process_plot_actor` returns a 13-tuple | Resolved | — | — | Replaced with `ProcessedPlotActor` named struct | — |
 | Property registry manual sorting | No | Low | Icebox | 1-3 files, 0.5-1 day if ever automated | Medium: proc-macro/build-script complexity exceeds current benefit |
-| Duplicated for-loop iteration logic | Yes | Low | Soon | 2-3 files, 0.5 day | Low: small helper around existing behavior |
-| GUI crate duplicates AST matches | Yes | Medium | Soon | 4-8 GUI/syntax files, 1-2 days after shared walkers exist | Medium: source edit and scene operations depend on exact traversal coverage |
+| Duplicated for-loop iteration logic | Resolved | — | — | Centralized via `Timeline::process_for_loop_stmts` / `process_for_loop_inline_items` | — |
+| GUI crate duplicates AST matches | Partly | Medium | Soon | 4-8 GUI/syntax files; `apply.rs`, `ast_utils.rs`, `scene_edits.rs`, `actor_edits.rs` migrated | Remaining: format_core, inline_actions, rewrite (deep), symbol_table |
 | No compile-time test for exhaustive variant coverage | Partly | Low | Later | 1-2 files, 0.5 day | Low-medium: tests can become brittle without reducing runtime risk |
-| Pre-existing friction points | Yes | Medium | Soon | 2-5 CI/dependency/example files, 1 day | Low-medium: CI/dependency feature changes can affect developer setup |
+| Pre-existing friction points | Resolved | — | — | FFT example already validated in CI + integration tests; CI has ffmpeg; no changes needed | — |
 
 #### P1 Soon
 
-- **Migrate duplicated AST walkers** — Move duplicated tree-walking code in `crates/animatix-syntax/src/format_core.rs`, `crates/animatix-syntax/src/module/discovery.rs`, `crates/animatix-syntax/src/module/expand.rs`, `crates/animatix-syntax/src/module/rewrite.rs`, `crates/animatix-syntax/src/module/inline_actions.rs`, `crates/animatix-analyzer/src/symbol_table.rs`, `crates/animatix-analyzer/src/diagnostics.rs`, and `crates/animatix-gui/src/source_edit/*.rs` onto the shared traversal layer; expected outcome is fewer out-of-sync AST variant matches.
-- **Parser module split** — Extract expression, statement, inline item, and top-level grammar helpers out of `crates/animatix-syntax/src/parser/mod.rs` into the existing `parser/expr.rs`, `parser/stmt.rs`, `parser/inline.rs`, and `parser/top_level.rs`; expected outcome is smaller review surfaces for syntax changes while preserving parser tests.
-- **For-loop lowering helper** — Centralize the `for_iter_values` → bind item/index → recurse sequence currently duplicated in `crates/animatix/src/timeline/build/process.rs` and `crates/animatix/src/timeline/build/container.rs`; expected outcome is one semantic path for programmatic actor generation.
-- **Iteration friction cleanup** — Add explicit CI/example validation for `examples/fft_explain.amx`, keep video/FFmpeg support feature-gated around `rsmpeg` in `crates/animatix/Cargo.toml` and `.github/workflows/ci.yml`, and prefer `..Default::default()` constructors in touched AST/test code where appropriate; expected outcome is less time lost to environment and constructor churn.
+- **Migrate walkers to shared traversal** (partial — `discovery.rs`, `expand.rs`, `diagnostics.rs`, `rewrite.rs` expr, GUI `apply.rs`, `ast_utils.rs`, `scene_edits.rs`, `actor_edits.rs` migrated) — Remaining: `format_core.rs`, `inline_actions.rs`, `rewrite.rs` (stmt/inline helpers), `symbol_table.rs`
 
 #### P2 Later
 
