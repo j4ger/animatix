@@ -71,47 +71,29 @@ fn expr_needs_rewrite(
     known_labels: &HashSet<String>,
     bindings: &HashMap<String, Expr>,
 ) -> bool {
-    match expr {
-        Expr::Ident(name) => {
-            bindings.contains_key(name.as_str())
-                || name == "self"
-                || root_label == Some(name.as_str())
-                || known_labels.contains(name.as_str())
+    let mut needs = false;
+    crate::walk::walk_expr(expr, &mut |e| {
+        if !needs {
+            match e {
+                Expr::Ident(name) => {
+                    needs = bindings.contains_key(name.as_str())
+                        || name == "self"
+                        || root_label == Some(name.as_str())
+                        || known_labels.contains(name.as_str());
+                }
+                Expr::Path(parts) => {
+                    needs = parts.iter().any(|p| {
+                        bindings.contains_key(p.as_str())
+                            || p == "self"
+                            || root_label == Some(p.as_str())
+                            || known_labels.contains(p.as_str())
+                    });
+                }
+                _ => {}
+            }
         }
-        Expr::Path(parts) => {
-            parts.iter().any(|p| {
-                bindings.contains_key(p.as_str())
-                    || p == "self"
-                    || root_label == Some(p.as_str())
-                    || known_labels.contains(p.as_str())
-            })
-        }
-        Expr::Tuple(items) => items.iter().any(|e| expr_needs_rewrite(e, root_label, known_labels, bindings)),
-        Expr::Binary(lhs, _, rhs) => {
-            expr_needs_rewrite(lhs, root_label, known_labels, bindings)
-                || expr_needs_rewrite(rhs, root_label, known_labels, bindings)
-        }
-        Expr::Unary(_, e) => expr_needs_rewrite(e, root_label, known_labels, bindings),
-        Expr::Call(_, args) => args.iter().any(|a| expr_needs_rewrite(a, root_label, known_labels, bindings)),
-        Expr::Method(target, _, args) => {
-            expr_needs_rewrite(target, root_label, known_labels, bindings)
-                || args.iter().any(|a| expr_needs_rewrite(a, root_label, known_labels, bindings))
-        }
-        Expr::Closure(_, body) => expr_needs_rewrite(body, root_label, known_labels, bindings),
-        Expr::Index(container, index) => {
-            expr_needs_rewrite(container, root_label, known_labels, bindings)
-                || expr_needs_rewrite(index, root_label, known_labels, bindings)
-        }
-        Expr::Conditional(cond, then_e, else_e) => {
-            expr_needs_rewrite(cond, root_label, known_labels, bindings)
-                || expr_needs_rewrite(then_e, root_label, known_labels, bindings)
-                || expr_needs_rewrite(else_e, root_label, known_labels, bindings)
-        }
-        Expr::Construct(_, props) => {
-            props.iter().any(|p| expr_needs_rewrite(&p.value, root_label, known_labels, bindings))
-        }
-        _ => false,
-    }
+    });
+    needs
 }
 
 fn inline_item_needs_rewrite(

@@ -2,7 +2,9 @@
 
 use animatix_syntax::ast::{ComponentDef, Expr, InlineItem, Property, Stmt};
 
-use super::apply::{find_actor_decl_mut, find_assignment_mut, find_prop_mut, walk_stmts_mut};
+use animatix_syntax::walk::{walk_inline_items_mut, walk_stmts_mut};
+
+use super::apply::{find_actor_decl_mut, find_assignment_mut, find_prop_mut};
 use super::apply::canonical_to_source;
 use super::SourceEditError;
 
@@ -419,56 +421,45 @@ fn inline_item_has_label(item: &InlineItem, label: &str) -> bool {
 
 /// Rename all references to `old_label` into `new_label` throughout the AST.
 pub(crate) fn rename_all_references(stmts: &mut [Stmt], old_label: &str, new_label: &str) {
+    rename_in_stmt(stmts, old_label, new_label);
+}
+
+/// Rename actor references in a statement list using shared walk primitives.
+///
+/// Uses `walk_stmts_mut` for recursive statement traversal and
+/// `walk_inline_items_mut` for inline item children of ActorDecl nodes.
+fn rename_in_stmt(stmts: &mut [Stmt], old_label: &str, new_label: &str) {
     walk_stmts_mut(stmts, &mut |stmt| {
-        rename_in_stmt(stmt, old_label, new_label);
-    });
-}
-
-/// Rename actor references inside a single statement (non-recursive).
-fn rename_in_stmt(stmt: &mut Stmt, old_label: &str, new_label: &str) {
-    match stmt {
-        Stmt::ActorDecl { label, children, .. } => {
-            if label == old_label {
-                *label = new_label.into();
-            }
-            rename_in_inline_items(children, old_label, new_label);
-        }
-        Stmt::Assignment { target, .. } => {
-            if let Some(last) = target.last_mut() {
-                if last == old_label {
-                    *last = new_label.into();
-                }
-            }
-        }
-        Stmt::Action(action, _) => {
-            for t in action.targets.iter_mut() {
-                if t == old_label {
-                    *t = new_label.into();
-                }
-            }
-        }
-        _ => {}
-    }
-}
-
-fn rename_in_inline_items(items: &mut [InlineItem], old_label: &str, new_label: &str) {
-    for item in items.iter_mut() {
-        match item {
-            InlineItem::Labeled { label, children, .. } => {
+        match stmt {
+            Stmt::ActorDecl { label, children, .. } => {
                 if label == old_label {
-                    *label = new_label.into();
+                    *label = new_label.to_string();
                 }
-                rename_in_inline_items(children, old_label, new_label);
+                walk_inline_items_mut(children, &mut |item| {
+                    if let InlineItem::Labeled { label, .. } = item {
+                        if label == old_label {
+                            *label = new_label.to_string();
+                        }
+                    }
+                });
             }
-            InlineItem::Anonymous { children, .. } => {
-                rename_in_inline_items(children, old_label, new_label);
+            Stmt::Assignment { target, .. } => {
+                for part in target.iter_mut() {
+                    if part == old_label {
+                        *part = new_label.to_string();
+                    }
+                }
             }
-            InlineItem::SlotFill { items: slot_items, .. } => {
-                rename_in_inline_items(slot_items, old_label, new_label);
+            Stmt::Action(action, _) => {
+                for t in action.targets.iter_mut() {
+                    if t == old_label {
+                        *t = new_label.to_string();
+                    }
+                }
             }
             _ => {}
         }
-    }
+    });
 }
 
 // ---------------------------------------------------------------------------
