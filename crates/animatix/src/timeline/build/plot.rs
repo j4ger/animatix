@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use super::*;
 use crate::ast::{InlineItem, Property};
 use crate::timeline::plot::{PlotCurveKind, ProceduralPlot};
-use crate::timeline::property_registry::lookup_property;
 use crate::timeline::vello_path::VelloPath;
 
 /// Data for tick labels: screen positions and math values.
@@ -1648,7 +1647,7 @@ pub(crate) fn build_bar_chart_paths(
     let full_h = (size[1] * 2.0) as f64;
 
     // Graph child mode: use parent domain/size for math→screen mapping
-    let (use_math_coords, plot_w, plot_h, math_x0, math_x1, math_y0, math_y1, baseline_y) =
+    let (use_math_coords, plot_w, plot_h, math_x0, math_x1, _math_y0, math_y1, baseline_y) =
         if let Some(p_size) = parent_size {
             // Inside a Graph — map math coordinates to pixels
             let pw = p_size[0];
