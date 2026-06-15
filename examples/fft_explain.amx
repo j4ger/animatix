@@ -40,15 +40,8 @@ bg2: Rect, size: fill, color: scene.background, anchor: scene.center
 step_title: Text, text: "1. A Complex Waveform", font_size: 40,
   color: text.primary, at: (0, -300)
 
-signal_graph: Graph, at: (640, 380), size: (900, 300),
-  x_domain: (0, 4), y_domain: (-3, 3) {
-
-  // Composite signal: sum of three sine waves
-  // MISSING: The language has no way to define a function once and reuse it.
-  // MISSING: No variable capture in closures at runtime — `let` is compile-time.
-  composite: PlotCurve, kind: "cartesian",
-    func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t),
-    color: accent.primary, stroke_width: 3
+signal_graph: Graph, at: (640, 380), size: (900, 300), x_domain: (0, 4), y_domain: (-3, 3) {
+  composite: PlotCurve, kind: "cartesian", func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t), color: accent.primary, stroke_width: 3
 }
 
 signal_label: Text, text: "x(t) = sin(2π·2t) + 0.55·sin(2π·5t) + 0.3·sin(2π·9t)",
@@ -82,31 +75,14 @@ step2_title: Text, text: "2. Decompose Into Sine Waves", font_size: 40,
 // MISSING: Cannot stack multiple graphs vertically with shared x-axis easily.
 // Workaround: single large graph, vertically offset curves via opacity reveal.
 
-decomp_graph: Graph, at: (640, 380), size: (900, 320),
-  x_domain: (0, 4), y_domain: (-4, 4) {
-
-  // The original composite (shown faintly as reference)
-  ref_signal: PlotCurve, kind: "cartesian",
-    func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t),
-    color: accent.primary, opacity: 0.3, stroke_width: 2
-
-  // 2 Hz component
+decomp_graph: Graph, at: (640, 380), size: (900, 320), x_domain: (0, 4), y_domain: (-4, 4) {
+  ref_signal: PlotCurve, kind: "cartesian", func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t), color: accent.primary, opacity: 0.3, stroke_width: 2
   f1_label: Text, text: "2 Hz", color: accent.danger, at: (3.5, -3.2), font_size: 14
-  sine_2hz: PlotCurve, kind: "cartesian",
-    func: (t) => sin(2 * pi * 2 * t),
-    color: accent.danger, stroke_width: 3
-
-  // 5 Hz component
+  sine_2hz: PlotCurve, kind: "cartesian", func: (t) => sin(2 * pi * 2 * t), color: accent.danger, stroke_width: 3
   f2_label: Text, text: "5 Hz", color: accent.success, at: (3.5, -0.5), font_size: 14
-  sine_5hz: PlotCurve, kind: "cartesian",
-    func: (t) => 0.55 * sin(2 * pi * 5 * t),
-    color: accent.success, stroke_width: 3
-
-  // 9 Hz component
+  sine_5hz: PlotCurve, kind: "cartesian", func: (t) => 0.55 * sin(2 * pi * 5 * t), color: accent.success, stroke_width: 3
   f3_label: Text, text: "9 Hz", color: accent.warning, at: (3.5, 2.2), font_size: 14
-  sine_9hz: PlotCurve, kind: "cartesian",
-    func: (t) => 0.3 * sin(2 * pi * 9 * t),
-    color: accent.warning, stroke_width: 3
+  sine_9hz: PlotCurve, kind: "cartesian", func: (t) => 0.3 * sin(2 * pi * 9 * t), color: accent.warning, stroke_width: 3
 }
 
 // Animate: reveal each component sequentially with a vertical shift effect
@@ -206,18 +182,9 @@ eqn2: Typst, content: "hat(x)(t) = sum_(k=0)^(N-1) X_k e^(2 pi i k t // N)",
 
 // Overlaid signals — original faint, reconstructed solid
 // MISSING: No way to animate a curve gradually matching another.
-reconstruct_graph: Graph, at: (640, 380), size: (900, 300),
-  x_domain: (0, 4), y_domain: (-3, 3) {
-
-  original: PlotCurve, kind: "cartesian",
-    func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t),
-    color: text.muted, opacity: 0.5, stroke_width: 2
-
-  // MISSING: Can't animate adding sine waves one at a time to a single curve.
-  // Workaround: show the fully reconstructed signal.
-  reconstructed: PlotCurve, kind: "cartesian",
-    func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t),
-    color: accent.success, stroke_width: 3
+reconstruct_graph: Graph, at: (640, 380), size: (900, 300), x_domain: (0, 4), y_domain: (-3, 3) {
+  original: PlotCurve, kind: "cartesian", func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t), color: text.muted, opacity: 0.5, stroke_width: 2
+  reconstructed: PlotCurve, kind: "cartesian", func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t), color: accent.success, stroke_width: 3
 }
 
 reconstruct_label: Text, text: "The sum of components exactly reconstructs the original signal.",
