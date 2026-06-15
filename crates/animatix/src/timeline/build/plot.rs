@@ -459,6 +459,7 @@ impl Timeline {
         let mut color = existing_track.color.last(DEFAULT_WHITE);
         let mut stroke_width = existing_track.stroke_width.last(2.0);
         let mut stroke_color = existing_track.stroke_color.last(DEFAULT_WHITE);
+        let mut stroke_progress = existing_track.stroke_progress.last(1.0);
 
         for prop in props {
             let prop_subject = format!("{}.{}", label, prop.name);
@@ -568,6 +569,18 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(0.0));
                     stroke_width = v.as_num() as f32;
+                }
+                "stroke_progress" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(1.0));
+                    if let Value::Num(n) = v {
+                        stroke_progress = n.clamp(0.0, 1.0) as f32;
+                    }
                 }
                 "tolerance" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
@@ -789,7 +802,6 @@ impl Timeline {
         let line_to = existing_track.line_to.last([50.0, 0.0]);
         let arc_angles = existing_track.arc_angles.last(default_arc);
         let shape_type = shape_type_for_actor(ty).unwrap_or(ShapeType::Rect);
-        let stroke_progress = existing_track.stroke_progress.last(1.0);
         let fill_opacity = 0.0f32;
 
         let mut vello_paths = vec![];

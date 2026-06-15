@@ -1057,7 +1057,18 @@ When strict mode is enabled:
 graph: Graph, x_domain: (-5, 5), y_domain: (-10, 30), size: (400, 400)
 ```
 
-**`PlotCurve`**: Single-stroke curve plot. The `kind` property selects the sampling strategy:
+**`PlotCurve`**: Single-stroke curve plot. Supports `stroke_progress` animation
+for incremental trace reveals. Set `stroke_progress: 0` at declaration, then
+animate to `1`:
+
+```animatix
+signal: PlotCurve, kind: "cartesian", func: (x) => sin(x),
+  stroke: accent.primary, stroke_width: 4, stroke_progress: 0
+
+signal.stroke_progress = 1 [1.5s, ease: ease-out]
+```
+
+The `kind` property selects the sampling strategy:
 
 | `kind` | Closure signature | Example |
 |--------|-------------------|---------|

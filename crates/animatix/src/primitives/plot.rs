@@ -82,11 +82,32 @@ impl Primitive for PlotCurvePrimitive {
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
         use crate::primitives::RenderCommand;
+        use crate::timeline::path_progress::trim_path_by_progress;
+        use crate::timeline::TrackAccessor;
+
         if ctx.vector_paths.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(vec![RenderCommand::Paths { paths: ctx.vector_paths.to_vec() }]))
+            return Ok(None);
         }
+
+        // Sample stroke_progress from the track
+        let progress = ctx.track.stroke_progress.get(ctx.time_ms, 1.0) as f64;
+        let progress = progress.clamp(0.0, 1.0);
+
+        let paths: Vec<_> = if progress < 1.0 {
+            ctx.vector_paths.iter().map(|vp| {
+                let mut trimmed = vp.clone();
+                trimmed.path = trim_path_by_progress(&vp.path, progress);
+                if progress <= 0.0 {
+                    // At zero progress, also hide the stroke entirely
+                    trimmed.stroke = None;
+                }
+                trimmed
+            }).collect()
+        } else {
+            ctx.vector_paths.to_vec()
+        };
+
+        Ok(Some(vec![RenderCommand::Paths { paths }]))
     }
 
     fn build(

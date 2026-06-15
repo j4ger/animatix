@@ -421,6 +421,8 @@ pub enum Applicable {
     EveryActorExceptGroup,
     /// Applies to all shape kinds.
     AllShapes,
+    /// All actors with stroke-based path rendering (shapes + PlotCurve).
+    AllStrokePaths,
     /// Applies to all shapes except Line (fill-related properties).
     AllShapesExceptLine,
     /// Applies to shapes and text/math/code (actors with fillable/colorable content).
@@ -444,6 +446,9 @@ impl Applicable {
             Applicable::Everything => true,
             Applicable::EveryActorExceptGroup => !matches!(kind, Group),
             Applicable::AllShapes => matches!(kind, Shape(_)),
+            Applicable::AllStrokePaths => {
+                matches!(kind, Shape(_) | PlotCurve)
+            },
             Applicable::AllShapesExceptLine => {
                 matches!(kind, Shape(sk) if sk != ShapeKind::Line)
             }
@@ -578,9 +583,9 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("show_labels",    ValueType::String,      F::empty(),                   ActorField::NoStorage,              None,                             Applicable::ActorKinds(&[A::BarChart]), |_| super::property_engine::PropertyValue::String("true".to_string())),
     schema!("size",          ValueType::Vec2,        F::ALL,                       ActorField::Size,                None,                             Applicable::SizedActors, |_| super::property_engine::PropertyValue::Vec2([50.0, 50.0])),
     schema!("source",        ValueType::String,      F::ASSIGNABLE,                ActorField::AudioSource,         None,                             Applicable::ActorKinds(&[A::Audio]), |_| super::property_engine::PropertyValue::String(String::new())),
-    schema!("stroke",        ValueType::Color,       F::ASSIGNABLE_AI,             ActorField::StrokeColor,         None,                             Applicable::AllShapes, |_| super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])),
-    schema!("stroke_progress",ValueType::F32,        F::ASSIGNABLE_AI,             ActorField::StrokeProgress,      None,                             Applicable::AllShapes, |_| super::property_engine::PropertyValue::F32(1.0)),
-    schema!("stroke_width",  ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::StrokeWidth,         None,                             Applicable::AllShapes, |_| super::property_engine::PropertyValue::F32(1.0)),
+    schema!("stroke",        ValueType::Color,       F::ASSIGNABLE_AI,             ActorField::StrokeColor,         None,                             Applicable::AllStrokePaths, |_| super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])),
+    schema!("stroke_progress",ValueType::F32,        F::ASSIGNABLE_AI,             ActorField::StrokeProgress,      None,                             Applicable::AllStrokePaths, |_| super::property_engine::PropertyValue::F32(1.0)),
+    schema!("stroke_width",  ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::StrokeWidth,         None,                             Applicable::AllStrokePaths, |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("t_domain",      ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve]), |_| super::property_engine::PropertyValue::Vec2([0.0, 1.0])),
     schema!("text",          ValueType::String,      F::ASSIGNABLE_A,              ActorField::TextContent,         None,                             Applicable::ActorKinds(&[A::Text]), |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("tick_labels",   ValueType::String,      F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph]), |_| super::property_engine::PropertyValue::String("auto".to_string())),

@@ -57,6 +57,7 @@ pub mod modifier_exec;
 /// Path morphing between vector shapes.
 pub mod morph;
 mod plot;
+pub mod path_progress;
 mod position;
 pub(crate) mod property_engine;
 pub mod property_registry;
