@@ -881,6 +881,7 @@ mod tests {
                     is_pub: false,
                     is_anonymous: false,
                     label: "box".to_string(),
+                    array_index: None,
                     ty: "Rect".to_string(),
                     props: vec![Property {
                         name: "size".to_string(),
@@ -967,6 +968,7 @@ mod tests {
                     is_pub: false,
                     is_anonymous: false,
                     label: "box".to_string(),
+                    array_index: None,
                     ty: "Rect".to_string(),
                     props: vec![Property {
                         name: "size".to_string(),

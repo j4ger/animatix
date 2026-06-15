@@ -93,6 +93,7 @@ pub(super) fn insert_actor(
         if let Stmt::ActorDecl { children, .. } = container_decl {
             children.push(InlineItem::Labeled {
                 label: label.into(),
+                array_index: None,
                 ty: ty.into(),
                 props: props.clone(),
                 modifiers: vec![],
@@ -110,6 +111,7 @@ pub(super) fn insert_actor(
             is_pub: false,
             is_anonymous: false,
             label: label.into(),
+            array_index: None,
             ty: ty.into(),
             props,
             modifiers: vec![],
@@ -218,6 +220,7 @@ fn insert_under_parent(stmts: &mut Vec<Stmt>, item: InlineItem, new_parent: Opti
 
                     let group = InlineItem::Labeled {
                         label: format!("{}_group", parent_label),
+                        array_index: None,
                         ty: "Group".into(),
                         props: vec![],
                         modifiers: vec![],
@@ -249,8 +252,9 @@ fn stmt_to_inline_item(stmt: Stmt) -> InlineItem {
                 children,
             }
         }
-        Stmt::ActorDecl { label, ty, props, modifiers, children, .. } => InlineItem::Labeled {
+        Stmt::ActorDecl { label, ty, props, modifiers, children, array_index, .. } => InlineItem::Labeled {
             label,
+            array_index,
             ty,
             props,
             modifiers,
@@ -270,10 +274,11 @@ fn stmt_to_inline_item(stmt: Stmt) -> InlineItem {
 
 fn inline_item_to_stmt(item: InlineItem, index: usize) -> Stmt {
     match item {
-        InlineItem::Labeled { label, ty, props, modifiers, children } => Stmt::ActorDecl {
+        InlineItem::Labeled { label, ty, props, modifiers, children, array_index } => Stmt::ActorDecl {
             is_pub: false,
             is_anonymous: false,
             label,
+            array_index,
             ty,
             props,
             modifiers,
@@ -284,6 +289,7 @@ fn inline_item_to_stmt(item: InlineItem, index: usize) -> Stmt {
             is_pub: false,
             is_anonymous: true,
             label: format!("__anon_root_{}", index),
+            array_index: None,
             ty,
             props,
             modifiers,
@@ -294,6 +300,7 @@ fn inline_item_to_stmt(item: InlineItem, index: usize) -> Stmt {
             is_pub: false,
             is_anonymous: false,
             label: format!("__slot_{}", slot),
+            array_index: None,
             ty: "Group".into(),
             props: vec![],
             modifiers: vec![],
@@ -306,6 +313,7 @@ fn inline_item_to_stmt(item: InlineItem, index: usize) -> Stmt {
                 is_pub: false,
                 is_anonymous: false,
                 label: "__slot_marker".into(),
+                array_index: None,
                 ty: "Group".into(),
                 props: vec![],
                 modifiers: vec![],
@@ -868,6 +876,7 @@ btn.position = (200, 100)"#);
                 is_pub: false,
                 is_anonymous: false,
                 label: "title".into(),
+                array_index: None,
                 ty: "Text".into(),
                 props: vec![Property::new("content", Expr::Str("Hello".into()))],
                 modifiers: vec![],
@@ -923,6 +932,7 @@ btn.position = (200, 100)"#);
                 is_pub: false,
                 is_anonymous: false,
                 label: "container".into(),
+                array_index: None,
                 ty: "Row".into(),
                 props: vec![],
                 modifiers: vec![],
@@ -935,6 +945,7 @@ btn.position = (200, 100)"#);
                 is_pub: false,
                 is_anonymous: false,
                 label: "child".into(),
+                array_index: None,
                 ty: "Text".into(),
                 props: vec![],
                 modifiers: vec![],
