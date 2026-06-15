@@ -5,47 +5,12 @@ use std::collections::HashMap;
 
 pub(super) fn collect_imports(statements: &[Stmt]) -> Vec<(String, Option<String>)> {
     let mut imports = Vec::new();
-    for stmt in statements {
-        collect_imports_from_stmt(stmt, &mut imports);
-    }
+    crate::walk::walk_stmts(statements, &mut |stmt| {
+        if let Stmt::Import { path, alias, .. } = stmt {
+            imports.push((path.clone(), alias.clone()));
+        }
+    });
     imports
-}
-
-fn collect_imports_from_stmt(stmt: &Stmt, imports: &mut Vec<(String, Option<String>)>) {
-    match stmt {
-        Stmt::Import { path, alias, .. } => imports.push((path.clone(), alias.clone())),
-        Stmt::Keyframe { body, .. }
-        | Stmt::RelativeKeyframe { body, .. }
-        | Stmt::Sequence { body, .. }
-        | Stmt::Stagger { body, .. }
-        | Stmt::Always { body, .. }
-        | Stmt::ComponentAction { body, .. }
-        | Stmt::ForLoop { body, .. } => {
-            for stmt in body {
-                collect_imports_from_stmt(stmt, imports);
-            }
-        }
-        Stmt::ComponentDef(def, _) => {
-            for stmt in &def.body {
-                collect_imports_from_stmt(stmt, imports);
-            }
-        }
-        Stmt::Conditional {
-            then_branch,
-            else_branch,
-            ..
-        } => {
-            for stmt in then_branch {
-                collect_imports_from_stmt(stmt, imports);
-            }
-            if let Some(else_body) = else_branch {
-                for stmt in else_body {
-                    collect_imports_from_stmt(stmt, imports);
-                }
-            }
-        }
-        _ => {}
-    }
 }
 
 pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
@@ -154,9 +119,11 @@ pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
 /// Collect all component definitions from a slice of statements.
 pub fn collect_component_defs(statements: &[Stmt]) -> Vec<ComponentDef> {
     let mut definitions = Vec::new();
-    for stmt in statements {
-        collect_component_defs_from_stmt(stmt, &mut definitions);
-    }
+    crate::walk::walk_stmts(statements, &mut |stmt| {
+        if let Stmt::ComponentDef(definition, ..) = stmt {
+            definitions.push(definition.clone());
+        }
+    });
     definitions
 }
 
@@ -195,38 +162,6 @@ pub fn collect_scenes_from_stmts(stmts: &[Stmt]) -> HashMap<String, super::Scene
         }
     }
     scenes
-}
-
-fn collect_component_defs_from_stmt(stmt: &Stmt, definitions: &mut Vec<ComponentDef>) {
-    match stmt {
-        Stmt::ComponentDef(definition, ..) => definitions.push(definition.clone()),
-        Stmt::Keyframe { body, .. }
-        | Stmt::RelativeKeyframe { body, .. }
-        | Stmt::Sequence { body, .. }
-        | Stmt::Stagger { body, .. }
-        | Stmt::Always { body, .. }
-        | Stmt::ComponentAction { body, .. }
-        | Stmt::ForLoop { body, .. } => {
-            for stmt in body {
-                collect_component_defs_from_stmt(stmt, definitions);
-            }
-        }
-        Stmt::Conditional {
-            then_branch,
-            else_branch,
-            ..
-        } => {
-            for stmt in then_branch {
-                collect_component_defs_from_stmt(stmt, definitions);
-            }
-            if let Some(else_body) = else_branch {
-                for stmt in else_body {
-                    collect_component_defs_from_stmt(stmt, definitions);
-                }
-            }
-        }
-        _ => {}
-    }
 }
 
 /// Collect custom action templates from a component definition body.

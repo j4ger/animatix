@@ -64,36 +64,15 @@ pub fn find_keyframes_for_actor(stmts: &[Stmt], actor: &str) -> Vec<Stmt> {
 
 /// Check if a keyframe statement (or any nested child) references the given actor.
 pub fn keyframe_references_actor(stmt: &Stmt, actor: &str) -> bool {
-    match stmt {
-        Stmt::Assignment { target, .. } => target.iter().any(|t| t == actor),
-        Stmt::Keyframe { body, .. }
-        | Stmt::RelativeKeyframe { body, .. }
-        | Stmt::Sequence { body, .. }
-        | Stmt::Stagger { body, .. }
-        | Stmt::Always { body, .. }
-        | Stmt::ComponentDef(animatix_syntax::ast::ComponentDef { body, .. }, _)
-        | Stmt::ComponentAction { body, .. } => {
-            body.iter().any(|child| keyframe_references_actor(child, actor))
+    let mut found = false;
+    animatix_syntax::walk::walk_stmts(std::slice::from_ref(stmt), &mut |s| {
+        if let Stmt::Assignment { target, .. } = s {
+            if target.iter().any(|t| t == actor) {
+                found = true;
+            }
         }
-        Stmt::Conditional {
-            then_branch,
-            else_branch,
-            ..
-        } => {
-            then_branch
-                .iter()
-                .any(|child| keyframe_references_actor(child, actor))
-                || else_branch.as_ref().is_some_and(|eb| {
-                    eb.iter()
-                        .any(|child| keyframe_references_actor(child, actor))
-                })
-        }
-        Stmt::ForLoop { body, .. } => {
-            body.iter()
-                .any(|child| keyframe_references_actor(child, actor))
-        }
-        _ => false,
-    }
+    });
+    found
 }
 
 // ---------------------------------------------------------------------------

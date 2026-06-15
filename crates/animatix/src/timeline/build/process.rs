@@ -2,6 +2,7 @@
 //! sequence, stagger, always, for-loop, and let-decl handlers.
 
 use super::*;
+use crate::ast::InlineItem;
 use tracing::instrument;
 
 impl Timeline {
@@ -111,13 +112,7 @@ impl Timeline {
                     body,
                     ..
                 } => {
-                    for (idx, value) in for_iter_values(iterable, &self.env).into_iter().enumerate() {
-                        self.env.set(var, value);
-                        if let Some(iv) = index_var {
-                            self.env.set(iv, Value::Num(idx as f64));
-                        }
-                        self.process_body(time_ms, body, parent_label, diagnostics);
-                    }
+                    self.process_for_loop_stmts(var, index_var, iterable, body, time_ms, parent_label, diagnostics);
                 }
                 Stmt::Sequence { body, .. } => {
                     self.process_sequence(time_ms, body, parent_label, diagnostics);
@@ -171,6 +166,51 @@ impl Timeline {
                 }
                 Stmt::Keyframe { .. } | Stmt::RelativeKeyframe { .. } | Stmt::Comment(..) | Stmt::Import { .. } | Stmt::Config { .. } | Stmt::Scene { .. } | Stmt::Play { .. } | Stmt::ComponentDef(..) | Stmt::ComponentAction { .. } | Stmt::Conditional { .. } => {}
             }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // For-loop lowering helpers
+    // ─────────────────────────────────────────────────────────────
+
+    /// Lower a for-loop by iterating values, binding the loop variable (and optional index),
+    /// and calling the body processor for each iteration.
+    pub(super) fn process_for_loop_stmts(
+        &mut self,
+        var: &str,
+        index_var: &Option<String>,
+        iterable: &Expr,
+        body: &[Stmt],
+        time_ms: f64,
+        parent_label: Option<&str>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        for (idx, value) in for_iter_values(iterable, &self.env).into_iter().enumerate() {
+            self.env.set(var, value);
+            if let Some(iv) = index_var {
+                self.env.set(iv, Value::Num(idx as f64));
+            }
+            self.process_body(time_ms, body, parent_label, diagnostics);
+        }
+    }
+
+    /// Same as process_for_loop_stmts but for InlineItem bodies.
+    pub(super) fn process_for_loop_inline_items(
+        &mut self,
+        var: &str,
+        index_var: &Option<String>,
+        iterable: &Expr,
+        body: &[InlineItem],
+        time_ms: f64,
+        parent_label: &str,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        for (idx, value) in for_iter_values(iterable, &self.env).into_iter().enumerate() {
+            self.env.set(var, value);
+            if let Some(iv) = index_var {
+                self.env.set(iv, Value::Num(idx as f64));
+            }
+            self.process_inline_items(time_ms, body, parent_label, diagnostics);
         }
     }
 }

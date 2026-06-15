@@ -28,32 +28,11 @@ fn collect_all_labels(stmts: &[Stmt]) -> Vec<String> {
 }
 
 fn collect_labels_recursive(stmts: &[Stmt], out: &mut Vec<String>) {
-    for stmt in stmts {
-        match stmt {
-            Stmt::ActorDecl { label, .. } => out.push(label.clone()),
-            Stmt::Scene { body, .. }
-            | Stmt::Keyframe { body, .. }
-            | Stmt::RelativeKeyframe { body, .. }
-            | Stmt::Sequence { body, .. }
-            | Stmt::Stagger { body, .. }
-            | Stmt::Always { body, .. } => {
-                collect_labels_recursive(body, out);
-            }
-            Stmt::Conditional { then_branch, else_branch, .. } => {
-                collect_labels_recursive(then_branch, out);
-                if let Some(else_b) = else_branch {
-                    collect_labels_recursive(else_b, out);
-                }
-            }
-            Stmt::ForLoop { body, .. } => {
-                collect_labels_recursive(body, out);
-            }
-            Stmt::ComponentDef(def, _) => {
-                collect_labels_recursive(&def.body, out);
-            }
-            _ => {}
+    animatix_syntax::walk::walk_stmts(stmts, &mut |stmt| {
+        if let Stmt::ActorDecl { label, .. } = stmt {
+            out.push(label.clone());
         }
-    }
+    });
 }
 
 fn duplicate_name_in_order(order: &[String]) -> Option<String> {
@@ -524,43 +503,15 @@ fn find_containing_scene_name(stmts: &[Stmt], labels: &[String]) -> Option<Strin
 
 /// Check if a statement tree contains any actor declaration with the given labels.
 fn scene_body_has_any_label(stmts: &[Stmt], labels: &[String]) -> bool {
-    for stmt in stmts {
-        match stmt {
-            Stmt::ActorDecl { label, .. } if labels.contains(label) => return true,
-            Stmt::Scene { body, .. }
-            | Stmt::Keyframe { body, .. }
-            | Stmt::RelativeKeyframe { body, .. }
-            | Stmt::Sequence { body, .. }
-            | Stmt::Stagger { body, .. }
-            | Stmt::Always { body, .. } => {
-                if scene_body_has_any_label(body, labels) {
-                    return true;
-                }
+    let mut found = false;
+    animatix_syntax::walk::walk_stmts(stmts, &mut |stmt| {
+        if let Stmt::ActorDecl { label, .. } = stmt {
+            if labels.contains(label) {
+                found = true;
             }
-            Stmt::Conditional { then_branch, else_branch, .. } => {
-                if scene_body_has_any_label(then_branch, labels) {
-                    return true;
-                }
-                if let Some(else_b) = else_branch {
-                    if scene_body_has_any_label(else_b, labels) {
-                        return true;
-                    }
-                }
-            }
-            Stmt::ForLoop { body, .. } => {
-                if scene_body_has_any_label(body, labels) {
-                    return true;
-                }
-            }
-            Stmt::ComponentDef(def, _) => {
-                if scene_body_has_any_label(&def.body, labels) {
-                    return true;
-                }
-            }
-            _ => {}
         }
-    }
-    false
+    });
+    found
 }
 
 // ---------------------------------------------------------------------------

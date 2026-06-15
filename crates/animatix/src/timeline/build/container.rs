@@ -64,13 +64,7 @@ impl Timeline {
                     self.process_body(time_ms, &[stmt], Some(parent_label), diagnostics);
                 }
                 crate::ast::InlineItem::ForLoop { var, index_var, iterable, body, .. } => {
-                    for (idx, value) in crate::timeline::property_lookup::for_iter_values(iterable, &self.env).into_iter().enumerate() {
-                        self.env.set(var, value);
-                        if let Some(iv) = index_var {
-                            self.env.set(iv, crate::timeline::Value::Num(idx as f64));
-                        }
-                        self.process_inline_items(time_ms, body, parent_label, diagnostics);
-                    }
+                    self.process_for_loop_inline_items(var, index_var, iterable, body, time_ms, parent_label, diagnostics);
                 }
                 // SlotMarker and SlotFill are resolved during component expansion.
                 // At timeline build time they should never appear in the AST.
