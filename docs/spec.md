@@ -1070,6 +1070,28 @@ signal.stroke_progress = 1 [1.5s, ease: ease-out]
 
 The `kind` property selects the sampling strategy:
 
+**Runtime parameters:** PlotCurve closures can reference `let` variables
+and declaration-time numeric properties. These are re-evaluated per frame,
+so curves animate when the referenced values change:
+
+```animatix
+#0s
+let freq = 2
+curve: PlotCurve, kind: "cartesian", func: (x) => sin(freq * x),
+  stroke: accent.primary, stroke_width: 3
+
+always {
+  freq = 2 + 3 * sin(t * 0.5)  // sweep frequency over time
+}
+```
+
+Declaration-time numeric parameters can also be injected directly:
+
+```animatix
+curve: PlotCurve, kind: "cartesian", func: (x) => sin(freq * x),
+  freq: 2, stroke: accent.primary
+```
+
 | `kind` | Closure signature | Example |
 |--------|-------------------|---------|
 | `"cartesian"` | `(x) => y` | `func: (x) => x^2 + 3` |

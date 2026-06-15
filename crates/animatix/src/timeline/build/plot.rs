@@ -1032,6 +1032,36 @@ impl Timeline {
             // redundant per-frame re-sampling.
             if let Some((args, body)) = func.as_ref() {
                 if body.references_ident("t") {
+                    // Collect custom numeric params from declaration props
+                    let mut plot_params: Vec<(String, f64)> = Vec::new();
+                    for prop in props {
+                        // Skip known plot properties
+                        match prop.name.as_str() {
+                            "kind" | "func" | "x_domain" | "y_domain" | "t_domain"
+                            | "tolerance" | "max_depth" | "resolution" | "density"
+                            | "levels" | "grid" | "ticks" | "tick_labels"
+                            | "x_range" | "y_range" | "size" | "at" | "position"
+                            | "color" | "opacity" | "stroke" | "stroke_color"
+                            | "stroke_width" | "stroke_progress" | "fill_opacity"
+                            | "radius" | "radius_x" | "radius_y"
+                            | "from" | "to" | "head_size"
+                            | "text" | "content" | "code" | "font_size" | "font_family"
+                            | "url" | "source" | "volume"
+                            | "anchor" | "offset" | "rotation" | "scale" | "transform"
+                            | "blur" | "brightness" | "contrast" | "saturate"
+                            | "hue_rotate" | "sepia" | "gap" | "padding" | "align"
+                            | "cols" | "data" | "bar_width" | "bar_colors"
+                            | "direction" | "max_value" | "show_axis" | "show_labels" => {}
+                            _ => {
+                                // Treat unknown numeric props as plot parameters
+                                let eval_env = self.build_eval_env(time_ms as u64);
+                                if let Ok(Value::Num(n)) = evaluate_expr(&prop.value, &eval_env) {
+                                    plot_params.push((prop.name.clone(), n));
+                                }
+                            }
+                        }
+                    }
+
                     procedural_plot = Some(ProceduralPlot {
                         kind,
                         func_args: args.clone(),
@@ -1045,6 +1075,7 @@ impl Timeline {
                         resolution: resolution as usize,
                         stroke_width,
                         stroke_color,
+                        params: plot_params,
                     });
                 }
             }

@@ -603,12 +603,22 @@ pub struct ProceduralPlot {
     pub resolution: usize,
     pub stroke_width: f32,
     pub stroke_color: [f32; 4],
+    /// Custom numeric parameters that can be referenced by the func closure.
+    /// Populated from declaration props like `freq: 2`, `amplitude: 1.5`.
+    pub params: Vec<(String, f64)>,
 }
 
 /// Re-sample a procedural plot at frame time using the given environment.
 /// This allows plot functions to reference timeline variables like `t`.
 pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &mut Environment) -> Vec<VelloPath> {
     let mut vello_paths = vec![];
+
+    // Inject custom plot parameters into the environment so closures can reference them.
+    // E.g., `func: (x) => sin(freq * x), freq: 2` → env has `freq = 2` and `{label}.freq = 2`.
+    // (The label is not available here during re-sampling, but bare names are injected.)
+    for (name, val) in &plot.params {
+        env.set(name, crate::timeline::Value::Num(*val));
+    }
 
     let arg_name = if !plot.func_args.is_empty() {
         plot.func_args[0].clone()
