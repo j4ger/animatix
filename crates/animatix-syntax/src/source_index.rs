@@ -86,7 +86,7 @@ impl SourceIndex {
     }
 
     fn walk(&mut self, stmts: &[Stmt]) {
-        for stmt in stmts {
+        crate::walk::walk_stmts(stmts, &mut |stmt| {
             match stmt {
                 Stmt::ActorDecl {
                     label, props, children, ..
@@ -100,7 +100,7 @@ impl SourceIndex {
                             );
                         }
                     }
-                    // Recurse into inline children
+                    // Inline children are not part of the statement walk, walk them separately
                     self.walk_inline_items(children);
                 }
                 Stmt::Assignment {
@@ -127,20 +127,6 @@ impl SourceIndex {
                         );
                     }
                 }
-                Stmt::Keyframe { body, .. }
-                | Stmt::RelativeKeyframe { body, .. }
-                | Stmt::Sequence { body, .. }
-                | Stmt::Stagger { body, .. }
-                | Stmt::Always { body, .. }
-                | Stmt::ForLoop { body, .. } => {
-                    self.walk(body);
-                }
-                Stmt::Conditional { then_branch, else_branch, .. } => {
-                    self.walk(then_branch);
-                    if let Some(else_body) = else_branch {
-                        self.walk(else_body);
-                    }
-                }
                 Stmt::Config { settings, .. } => {
                     // Config properties use "at" syntax
                     for prop in settings {
@@ -154,14 +140,14 @@ impl SourceIndex {
                 }
                 _ => {}
             }
-        }
+        });
     }
 
     fn walk_inline_items(&mut self, items: &[InlineItem]) {
-        for item in items {
+        crate::walk::walk_inline_items(items, &mut |item| {
             match item {
                 InlineItem::Labeled {
-                    label, props, children, ..
+                    label, props, ..
                 } => {
                     for prop in props {
                         if let Some(span) = prop.value_span {
@@ -171,27 +157,14 @@ impl SourceIndex {
                             );
                         }
                     }
-                    self.walk_inline_items(children);
                 }
-                InlineItem::Anonymous { props, children, .. } => {
-                    for prop in props {
-                        if let Some(span) = prop.value_span {
-                            // Anonymous items don't have labels, skip for now
-                            // or we could generate a synthetic key
-                            let _ = (span, prop.name.clone());
-                        }
-                    }
-                    self.walk_inline_items(children);
+                InlineItem::Anonymous { props, .. } => {
+                    // Anonymous items don't have labels, skip for now
+                    let _ = props;
                 }
-                InlineItem::ForLoop { body, .. } => {
-                    self.walk_inline_items(body);
-                }
-                InlineItem::SlotFill { items, .. } => {
-                    self.walk_inline_items(items);
-                }
-                InlineItem::SlotMarker => {}
+                _ => {}
             }
-        }
+        });
     }
 }
 

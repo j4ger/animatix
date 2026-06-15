@@ -13,7 +13,7 @@ pub struct TextPath {
 }
 
 /// A path ready for Vello rendering, with optional fill and stroke.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct VelloPath {
     /// The bezier path geometry.
     pub path: BezPath,

@@ -4,7 +4,8 @@
 //! edits applied directly to the AST. After mutation, the entire AST is
 //! re-serialized via [`animatix_syntax::to_source::stmts_to_source`].
 
-use animatix_syntax::ast::{ComponentDef, Expr, Modifier, Property, Stmt, Time, Transition};
+use animatix_syntax::ast::{Expr, Modifier, Property, Stmt, Transition};
+
 
 // ---------------------------------------------------------------------------
 // Property name mapping
@@ -285,137 +286,9 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
     }
 }
 
-// ---------------------------------------------------------------------------
-// Generic AST traversal
-// ---------------------------------------------------------------------------
-
-/// Depth-first mutable visitor over every statement.
-pub(super) fn walk_stmts_mut(stmts: &mut [Stmt], visitor: &mut dyn FnMut(&mut Stmt)) {
-    for stmt in stmts.iter_mut() {
-        visitor(stmt);
-        match stmt {
-            Stmt::Keyframe { body, .. }
-            | Stmt::RelativeKeyframe { body, .. }
-            | Stmt::Sequence { body, .. }
-            | Stmt::Stagger { body, .. }
-            | Stmt::Always { body, .. }
-            | Stmt::ComponentDef(ComponentDef { body, .. }, _)
-            | Stmt::ComponentAction { body, .. }
-            | Stmt::Scene { body, .. } => {
-                walk_stmts_mut(body, visitor);
-            }
-            Stmt::Conditional { then_branch, else_branch, .. } => {
-                walk_stmts_mut(then_branch, visitor);
-                if let Some(else_b) = else_branch {
-                    walk_stmts_mut(else_b, visitor);
-                }
-            }
-            Stmt::ForLoop { body, .. } => {
-                walk_stmts_mut(body, visitor);
-            }
-            _ => {}
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// AST traversal helpers
-// ---------------------------------------------------------------------------
-
-/// Recurse into a statement's body/children.
-macro_rules! recurse_stmt {
-    ($stmt:expr, $find_fn:ident, $($arg:expr),*) => {
-        match $stmt {
-            Stmt::Keyframe { body, .. }
-            | Stmt::RelativeKeyframe { body, .. }
-            | Stmt::Sequence { body, .. }
-            | Stmt::Stagger { body, .. }
-            | Stmt::Always { body, .. }
-            | Stmt::ComponentDef(ComponentDef { body, .. }, _)
-            | Stmt::ComponentAction { body, .. }
-            | Stmt::Scene { body, .. } => {
-                if let Some(found) = $find_fn(body, $($arg),*) {
-                    return Some(found);
-                }
-            }
-            Stmt::Conditional { then_branch, else_branch, .. } => {
-                if let Some(found) = $find_fn(then_branch, $($arg),*) {
-                    return Some(found);
-                }
-                if let Some(else_b) = else_branch {
-                    if let Some(found) = $find_fn(else_b, $($arg),*) {
-                        return Some(found);
-                    }
-                }
-            }
-            Stmt::ForLoop { body, .. } => {
-                if let Some(found) = $find_fn(body, $($arg),*) {
-                    return Some(found);
-                }
-            }
-            _ => {}
-        }
-    };
-}
-
-/// Find an ActorDecl with the given label anywhere in the statement tree.
-pub fn find_actor_decl<'a>(stmts: &'a [Stmt], label: &str) -> Option<&'a Stmt> {
-    for stmt in stmts.iter() {
-        match stmt {
-            Stmt::ActorDecl { label: l, .. } if l == label => return Some(stmt),
-            _ => recurse_stmt!(stmt, find_actor_decl, label),
-        }
-    }
-    None
-}
-
-pub(super) fn find_actor_decl_mut<'a>(stmts: &'a mut [Stmt], label: &str) -> Option<&'a mut Stmt> {
-    for stmt in stmts.iter_mut() {
-        match stmt {
-            Stmt::ActorDecl { label: l, .. } if l == label => return Some(stmt),
-            _ => recurse_stmt!(stmt, find_actor_decl_mut, label),
-        }
-    }
-    None
-}
-
-/// Find a mutable reference to an Assignment statement for the given actor
-/// and property anywhere in the statement tree.
-pub(super) fn find_assignment_mut<'a>(
-    stmts: &'a mut [Stmt],
-    actor: &str,
-    property: &str,
-) -> Option<&'a mut Stmt> {
-    for stmt in stmts.iter_mut() {
-        match stmt {
-            Stmt::Assignment { target, property: prop, .. }
-                if target.last().is_some_and(|t| t == actor) && prop == property =>
-            {
-                return Some(stmt);
-            }
-            _ => recurse_stmt!(stmt, find_assignment_mut, actor, property),
-        }
-    }
-    None
-}
-
-/// Find a scene declaration by name.
-pub(super) fn find_scene_mut<'a>(stmts: &'a mut [Stmt], name: &str) -> Option<&'a mut Stmt> {
-    stmts.iter_mut().find(|stmt| matches!(stmt, Stmt::Scene { name: scene_name, .. } if scene_name == name))
-}
-
-pub(super) fn time_to_seconds(t: &Time) -> f64 {
-    match t {
-        Time::Seconds(s) => *s,
-        Time::Milliseconds(ms) => *ms as f64 / 1000.0,
-    }
-}
-
-/// Find a property by name inside an actor-like statement.
-pub(super) fn find_prop_mut<'a>(stmt: &'a mut Stmt, name: &str) -> Option<&'a mut Property> {
-    let props: &mut Vec<Property> = match stmt {
-        Stmt::ActorDecl { props, .. } => props,
-        _ => return None,
-    };
-    props.iter_mut().find(|p| p.name == name)
-}
+// Re-export shared traversal from animatix_syntax::walk
+pub use animatix_syntax::walk::find_actor_decl;
+pub(super) use animatix_syntax::walk::{
+    find_actor_decl_mut, find_assignment_mut, find_prop_mut, find_scene_mut, time_to_seconds,
+    walk_stmts_mut,
+};

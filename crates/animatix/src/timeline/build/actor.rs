@@ -5,6 +5,7 @@ use super::*;
 use crate::ast::{Expr, InlineItem, Property};
 use crate::timeline::actor_kind::find_actor_kind;
 use crate::timeline::plot::PlotCurveKind;
+use super::plot::ProcessedPlotActor;
 use crate::timeline::vello_path::VelloPath;
 
 impl Timeline {
@@ -673,7 +674,7 @@ impl Timeline {
             .cloned()
             .unwrap_or_else(|| AnimationTrack::new(label.to_string()));
 
-        if let Some((
+        if let Some(ProcessedPlotActor {
             initial_size,
             line_from,
             line_to,
@@ -687,7 +688,7 @@ impl Timeline {
             vello_paths,
             procedural_plot,
             tick_label_data,
-        )) = self.process_plot_actor(
+        }) = self.process_plot_actor(
             label,
             ty,
             props,

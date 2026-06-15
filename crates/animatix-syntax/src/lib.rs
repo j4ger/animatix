@@ -19,6 +19,7 @@ pub mod parser;
 #[doc(hidden)]
 pub use chumsky;
 pub mod source_index;
+pub mod walk;
 /// Tree-sitter CST → Animatix AST converter for incremental parsing.
 pub mod ts_convert;
 pub mod to_source;

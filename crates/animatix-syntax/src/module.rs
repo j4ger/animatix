@@ -9,6 +9,7 @@ mod rewrite;
 use crate::ast::{
     Action, ComponentDef, Expr, InlineItem, Modifier, ParamDef, Property, Span, Stmt,
 };
+use crate::walk::walk_stmts_mut;
 use crate::parser::{parse_source, ParseError};
 use discovery::{collect_component_actions, collect_component_defs, collect_imports, collect_scenes_from_stmts, strip_imports};
 use expand::expand_statements;
@@ -19,34 +20,13 @@ use std::path::{Path, PathBuf};
 
 /// Walk the AST and convert `Action.byte_span` into `Stmt::Action` line/col spans.
 fn set_action_spans(stmts: &mut [Stmt], source: &str) {
-    for stmt in stmts.iter_mut() {
+    walk_stmts_mut(stmts, &mut |stmt| {
         if let Stmt::Action(action, span) = stmt {
             if let Some(byte_span) = action.byte_span {
                 *span = Some(crate::ast::Span::from_byte_span(source, byte_span));
             }
         }
-        // Recurse into blocks — collect mutable bodies first to avoid borrow issues.
-        let mut bodies: Vec<&mut [Stmt]> = Vec::new();
-        match stmt {
-            Stmt::Keyframe { body, .. }
-            | Stmt::RelativeKeyframe { body, .. }
-            | Stmt::Sequence { body, .. }
-            | Stmt::Stagger { body, .. }
-            | Stmt::Always { body, .. } => bodies.push(body),
-            Stmt::Conditional { then_branch, else_branch, .. } => {
-                bodies.push(then_branch);
-                if let Some(else_body) = else_branch {
-                    bodies.push(else_body);
-                }
-            }
-            Stmt::ForLoop { body, .. } => bodies.push(body),
-            Stmt::ComponentDef(def, _) => bodies.push(&mut def.body),
-            _ => {}
-        }
-        for body in bodies {
-            set_action_spans(body, source);
-        }
-    }
+    });
 }
 
 /// Unique identifier for a loaded source file.

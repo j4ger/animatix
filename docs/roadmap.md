@@ -12,21 +12,16 @@ Keep track of what is yet to be done here, when a segment is fully done, remove 
 
 | Observation | Valid? | Severity | Priority | Fix scope | Risk |
 |---|---|---|---|---|---|
-| AST change propagation is painful | Yes | High | Now | 6-10 files, 1-2 days for traversal layer; broader migration incremental | Medium: traversal mistakes can silently skip nested nodes |
-| No shared AST traversal layer | Yes | High | Now | 3-6 files for shared walkers plus first call-site migrations, 1-2 days | Medium: edit/find behavior can regress if traversal order changes |
+| AST change propagation is painful | Resolved | — | — | Shared walk layer in `crates/animatix-syntax/src/walk.rs`; 3 call sites migrated | Residual risk in unmigrated walkers (P1) |
+| No shared AST traversal layer | Resolved | — | — | `walk_stmts`, `walk_expr`, `walk_inline_items` + find helpers shipped in `walk.rs` | — |
 | Parser is a monolith | Yes | Medium | Soon | 4-6 parser files, 2-4 days | Medium-high: grammar precedence and diagnostics are easy to perturb |
 | Two formatters, unclear relationship | Partly | Low | Later | 2-3 syntax/doc files, 0.5-1 day | Low: mostly naming/docs unless merging APIs |
-| `process_plot_actor` returns a 13-tuple | Yes | Medium | Now | 2 files, 0.5 day | Low: mechanical refactor with compiler coverage |
+| `process_plot_actor` returns a 13-tuple | Resolved | — | — | Replaced with `ProcessedPlotActor` named struct | — |
 | Property registry manual sorting | No | Low | Icebox | 1-3 files, 0.5-1 day if ever automated | Medium: proc-macro/build-script complexity exceeds current benefit |
 | Duplicated for-loop iteration logic | Yes | Low | Soon | 2-3 files, 0.5 day | Low: small helper around existing behavior |
 | GUI crate duplicates AST matches | Yes | Medium | Soon | 4-8 GUI/syntax files, 1-2 days after shared walkers exist | Medium: source edit and scene operations depend on exact traversal coverage |
 | No compile-time test for exhaustive variant coverage | Partly | Low | Later | 1-2 files, 0.5 day | Low-medium: tests can become brittle without reducing runtime risk |
 | Pre-existing friction points | Yes | Medium | Soon | 2-5 CI/dependency/example files, 1 day | Low-medium: CI/dependency feature changes can affect developer setup |
-
-#### P0 Now
-
-- **Shared AST traversal primitives** — Add reusable `walk_stmt`, `walk_stmts`, `walk_inline_item`, `walk_expr`, and mutable variants in `crates/animatix-syntax/src/ast.rs` or a new `crates/animatix-syntax/src/walk.rs`; first migrate `crates/animatix-syntax/src/module.rs`, `crates/animatix-syntax/src/source_index.rs`, and `crates/animatix-gui/src/source_edit/apply.rs` so future AST fields stop requiring broad manual edits.
-- **Named plot actor build output** — Replace `Timeline::process_plot_actor()`'s `Option<(...)>` return in `crates/animatix/src/timeline/build/plot.rs` with a named struct such as `ProcessedPlotActor`, and update `crates/animatix/src/timeline/build/actor.rs`; expected outcome is safer BarChart/plot evolution without tuple-position bugs.
 
 #### P1 Soon
 

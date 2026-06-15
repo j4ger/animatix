@@ -32,6 +32,24 @@ fn tick_labels_has_axis(value: &str, axis: char) -> bool {
     }
 }
 
+/// Processed plot actor data returned by [`Timeline::process_plot_actor`].
+#[derive(Debug, Clone)]
+pub(crate) struct ProcessedPlotActor {
+    pub initial_size: [f32; 2],
+    pub line_from: [f32; 2],
+    pub line_to: [f32; 2],
+    pub arc_angles: [f32; 2],
+    pub color: [f32; 4],
+    pub stroke_width: f32,
+    pub stroke_color: [f32; 4],
+    pub stroke_progress: f32,
+    pub fill_opacity: f32,
+    pub shape_type: ShapeType,
+    pub vello_paths: Vec<VelloPath>,
+    pub procedural_plot: Option<ProceduralPlot>,
+    pub tick_label_data: Option<TickLabelData>,
+}
+
 /// Parameters for building plot curve paths.
 pub(crate) struct PlotCurveParams<'a> {
     pub(super) kind: PlotCurveKind,
@@ -401,7 +419,7 @@ pub(crate) fn build_graph_axis_paths(
 }
 
 impl Timeline {
-    #[allow(clippy::too_many_arguments, clippy::type_complexity)]
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn process_plot_actor(
         &mut self,
         label: &str,
@@ -412,21 +430,7 @@ impl Timeline {
         children: &[InlineItem],
         diagnostics: &mut Vec<Diagnostic>,
         existing_track: &AnimationTrack,
-    ) -> Option<(
-        [f32; 2],
-        [f32; 2],
-        [f32; 2],
-        [f32; 2],
-        [f32; 4],
-        f32,
-        [f32; 4],
-        f32,
-        f32,
-        ShapeType,
-        Vec<VelloPath>,
-        Option<ProceduralPlot>,
-        Option<TickLabelData>,
-    )> {
+    ) -> Option<ProcessedPlotActor> {
         let primitive = PrimitiveDescriptor::for_actor_type(ty);
         if !primitive.is_graph_host() && !primitive.is_plot() {
             return None;
@@ -1034,7 +1038,7 @@ impl Timeline {
             }
         }
 
-        Some((
+        Some(ProcessedPlotActor {
             initial_size,
             line_from,
             line_to,
@@ -1047,12 +1051,12 @@ impl Timeline {
             shape_type,
             vello_paths,
             procedural_plot,
-            if primitive.is_graph_host() && (!tick_label_data.x_labels.is_empty() || !tick_label_data.y_labels.is_empty()) {
+            tick_label_data: if primitive.is_graph_host() && (!tick_label_data.x_labels.is_empty() || !tick_label_data.y_labels.is_empty()) {
                 Some(tick_label_data)
             } else {
                 None
             },
-        ))
+        })
     }
 }
 
