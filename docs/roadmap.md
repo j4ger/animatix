@@ -10,15 +10,17 @@ Keep track of what is yet to be done here, when a segment is fully done, remove 
 
 #### Assessment Summary
 
-| Observation | Valid? | Severity | Priority | Fix scope | Risk |
-|---|---|---|---|---|---|
-| Two formatters, unclear relationship | Partly | Low | Later | 2-3 syntax/doc files, 0.5-1 day | Low: mostly naming/docs unless merging APIs |
-| GUI crate duplicates AST matches | Partly | Medium | Soon | 4-8 GUI/syntax files; `apply.rs`, `ast_utils.rs`, `scene_edits.rs`, `actor_edits.rs` migrated | Remaining: format_core, inline_actions, rewrite (deep), symbol_table |
-| Variant coverage guardrails | Done | — | — | 4 guardrail tests in `format_core.rs` + `apply.rs`; runtime tests alert on new variants | — |
-
-#### P1 Soon
-
-- **Migrate walkers to shared traversal** (partial — `discovery.rs`, `expand.rs`, `diagnostics.rs`, `rewrite.rs` expr, GUI `apply.rs`, `ast_utils.rs`, `scene_edits.rs`, `actor_edits.rs` migrated) — Remaining: `format_core.rs`, `inline_actions.rs`, `rewrite.rs` (stmt/inline helpers), `symbol_table.rs`
+| Observation | Priority | Fix scope |
+|---|---|---|
+| AST change propagation | Done | Shared walk layer + full migration of all 29 identified walker functions across 8 files |
+| Parser monolith | Done | Split into 5 submodules (`common`, `expr`, `inline`, `stmt`, `top_level`) |
+| `process_plot_actor` 13-tuple | Done | Replaced with `ProcessedPlotActor` named struct |
+| Formatter boundary | Done | Module docs in `format_core.rs`/`to_source.rs` + architecture.md note |
+| For-loop duplication | Done | Centralized via `process_for_loop_stmts` / `process_for_loop_inline_items` |
+| GUI AST match duplication | Done | All 7 GUI source_edit walk functions migrated to shared layer |
+| Variant coverage guardrails | Done | 4 guardrail tests + explanatory comments at incompatible sites |
+| Pre-existing friction | Done | Verified: FFT example in CI, ffmpeg gated, no changes needed |
+| Property registry sorting | Icebox | — |
 
 
 ---
