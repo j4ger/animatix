@@ -3,6 +3,7 @@
 use crate::symbol_table::{SymbolTable, LabelKind};
 use animatix_syntax::ast::*;
 use animatix_syntax::parser::ParseError;
+use animatix_syntax::walk;
 use std::collections::HashSet;
 
 
@@ -254,10 +255,10 @@ fn collect_semantic_diagnostics(
     // The analyzer should be I/O free. LSP and GUI layers should validate imports
     // separately using their own file system access.
 
-    // Check each statement
-    for stmt in stmts {
+    // Check each statement (walk_stmts handles recursion into block bodies)
+    walk::walk_stmts(stmts, &mut |stmt| {
         check_stmt(stmt, symbols, tree, source, diagnostics);
-    }
+    });
 }
 
 /// Convert an optional Span to (line, col, end_line, end_col) 0-based positions.
@@ -475,38 +476,7 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, tree: Option<&tree_sitter::Tre
             }
         }
 
-        // Recurse into blocks
-        Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
-            for stmt in body {
-                check_stmt(stmt, symbols, tree, source, diagnostics);
-            }
-        }
-        Stmt::Sequence { body, .. } | Stmt::Stagger { body, .. } | Stmt::Always { body, .. } => {
-            for stmt in body {
-                check_stmt(stmt, symbols, tree, source, diagnostics);
-            }
-        }
-        Stmt::Conditional { then_branch, else_branch, .. } => {
-            for stmt in then_branch {
-                check_stmt(stmt, symbols, tree, source, diagnostics);
-            }
-            if let Some(else_stmts) = else_branch {
-                for stmt in else_stmts {
-                    check_stmt(stmt, symbols, tree, source, diagnostics);
-                }
-            }
-        }
-        Stmt::ForLoop { body, .. } => {
-            for stmt in body {
-                check_stmt(stmt, symbols, tree, source, diagnostics);
-            }
-        }
-        Stmt::ComponentDef(def, ..) => {
-            for stmt in &def.body {
-                check_stmt(stmt, symbols, tree, source, diagnostics);
-            }
-        }
-
+        // Recurse into blocks is handled by walk_stmts caller
         _ => {}
     }
 }

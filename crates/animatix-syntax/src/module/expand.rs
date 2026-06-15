@@ -419,49 +419,20 @@ fn first_labeled_stmt(body: &[Stmt]) -> Option<String> {
 
 fn collect_labels(body: &[Stmt]) -> HashSet<String> {
     let mut labels = HashSet::new();
-    for stmt in body {
-        collect_stmt_labels(stmt, &mut labels);
-    }
-    labels
-}
-
-fn collect_stmt_labels(stmt: &Stmt, labels: &mut HashSet<String>) {
-    match stmt {
-        Stmt::ActorDecl { label, .. } => {
-            labels.insert(label.clone());
-        }
-        Stmt::ReactiveBinding { target, .. } => {
-            if let Some(label) = target.first() {
+    crate::walk::walk_stmts(body, &mut |stmt| {
+        match stmt {
+            Stmt::ActorDecl { label, .. } => {
                 labels.insert(label.clone());
             }
-        }
-        Stmt::Keyframe { body, .. }
-        | Stmt::RelativeKeyframe { body, .. }
-        | Stmt::Sequence { body, .. }
-        | Stmt::Stagger { body, .. }
-        | Stmt::Always { body, .. }
-        | Stmt::ComponentAction { body, .. }
-        | Stmt::ForLoop { body, .. } => {
-            for stmt in body {
-                collect_stmt_labels(stmt, labels);
-            }
-        }
-        Stmt::Conditional {
-            then_branch,
-            else_branch,
-            ..
-        } => {
-            for stmt in then_branch {
-                collect_stmt_labels(stmt, labels);
-            }
-            if let Some(else_branch) = else_branch {
-                for stmt in else_branch {
-                    collect_stmt_labels(stmt, labels);
+            Stmt::ReactiveBinding { target, .. } => {
+                if let Some(label) = target.first() {
+                    labels.insert(label.clone());
                 }
             }
+            _ => {}
         }
-        _ => {}
-    }
+    });
+    labels
 }
 
 fn has_slot_marker(children: &[InlineItem]) -> bool {
