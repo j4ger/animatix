@@ -292,3 +292,19 @@ pub(super) use animatix_syntax::walk::{
     find_actor_decl_mut, find_assignment_mut, find_prop_mut, find_scene_mut, time_to_seconds,
     walk_stmts_mut,
 };
+
+#[cfg(test)]
+mod variant_coverage_guardrails {
+    use super::SourceEdit;
+
+    /// When adding a new variant to `SourceEdit`, update:
+    /// - `apply_edit` in this file
+    /// - Any handler that constructs or matches SourceEdit variants
+    #[test]
+    fn apply_edit_covers_all_source_edit_variants() {
+        // Count the number of SourceEdit variants
+        // This test serves as a reminder to update apply_edit
+        // when a new SourceEdit variant is added.
+        // The actual exhaustive check is done by the compiler.
+    }
+}

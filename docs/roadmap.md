@@ -34,7 +34,6 @@ Keep track of what is yet to be done here, when a segment is fully done, remove 
 
 #### Not Prioritized
 
-- **Auto-sorted property registry** — Keep `crates/animatix/src/timeline/property_registry.rs` as a manually sorted static slice for now because `registry_is_sorted` already catches mistakes and a proc-macro/build-script would add more maintenance surface than it removes.
 
 ---
 
@@ -53,3 +52,4 @@ Not strictly needed, ones that require more design, or simply weird thoughts tha
 | **APNG export** | Request-driven only; GIF covers lightweight previews, video/WebM covers higher-quality sharing. |
 | **Source-diff preview sidecar** | Show the `.amx` diff when dragging actors or editing properties in the inspector. |
 | **Animation heatmap view** | Heatmap of animated property density across time, actors, categories. Useful for large generated `.amx` files. |
+| **Auto-sorted property registry** | Keep manually sorted with `registry_is_sorted` guard; proc-macro adds more maintenance surface than it removes. |

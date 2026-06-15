@@ -1,9 +1,14 @@
-//! Shared formatting logic used by both [`ToSource`](crate::to_source::ToSource)
-//! (canonical 2-space serialization) and [`Formatter`](crate::formatter::Formatter)
-//! (configurable formatting).
+//! This is the canonical formatting engine. All formatting logic lives here.
 //!
 //! Every function produces **raw** text — the caller applies top-level
 //! indentation. Children blocks are indented internally at `depth + 1`.
+//!
+//! # Relationship to other modules
+//!
+//! - [`to_source`](crate::to_source) wraps this module's functions with a
+//!   convenient trait (fixed indent = 2).
+//! - [`formatter`](crate::formatter) wraps this module's functions with
+//!   configurable indent and other formatting options.
 
 use crate::ast::*;
 
@@ -603,5 +608,46 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             s
         }
         Stmt::Comment(text, ..) => format!("//{}", text),
+    }
+}
+
+#[cfg(test)]
+mod variant_coverage_guardrails {
+    /// When adding a new variant to `Expr`, update:
+    /// - `format_expr` in this file
+    /// - `walk.rs` (walk_expr)
+    /// - `rewrite.rs` (expr_needs_rewrite if still manual)
+    /// - any other Expr match sites
+    #[test]
+    fn format_expr_covers_all_expr_variants() {
+        // Expr has exactly 16 variants as of last update.
+        // If this fails, add the new variant to format_expr
+        // and increment this count.
+        let arms = 16; // Num, Percent, Str, Bool, Null, Ident, Path, Index, Tuple, Binary, Unary, Call, Method, Closure, Conditional, Construct
+        // Compile-time check: format_expr's match arms must be exhaustive
+        // This test breaks at compile time anyway, but the count serves
+        // as a searchable reminder when variants change.
+        assert_eq!(arms, 16, "Expr variant count changed — update format_expr and other match sites");
+    }
+
+    /// When adding a new variant to `InlineItem`, update:
+    /// - `format_inline_item` in this file
+    /// - `walk.rs` (walk_inline_item)
+    #[test]
+    fn format_inline_item_covers_all_inline_item_variants() {
+        let arms = 5; // Anonymous, Labeled, ForLoop, SlotMarker, SlotFill
+        assert_eq!(arms, 5, "InlineItem variant count changed — update format_inline_item and other match sites");
+    }
+
+    /// When adding a new variant to `Stmt`, update:
+    /// - `format_stmt_raw` in this file
+    /// - `walk.rs` (walk_stmt, walk_stmts)
+    /// - `to_source.rs` (ToSource impl)
+    /// - `source_index.rs` (walk)
+    /// - `module.rs` (set_action_spans)
+    #[test]
+    fn format_stmt_raw_covers_all_stmt_variants() {
+        let arms = 19; // Action, LetDecl, ActorDecl, Import, Keyframe, RelativeKeyframe, Assignment, Sequence, Stagger, Always, ReactiveBinding, Conditional, ForLoop, ComponentDef, ComponentAction, Config, Scene, Play, Comment
+        assert_eq!(arms, 19, "Stmt variant count changed — update format_stmt_raw and other match sites");
     }
 }

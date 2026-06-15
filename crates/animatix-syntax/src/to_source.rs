@@ -1,12 +1,9 @@
-//! Serialization of AST nodes back to source text.
+//! This is a thin trait wrapper over format_core. It provides ergonomic
+//! `.to_source()` calls with fixed indent = 2.
 //!
-//! This module provides [`ToSource`] — the inverse of the parser. When the GUI
-//! inspector mutates the AST, the entire tree is re-serialized via
-//! [`stmts_to_source`] to produce the updated source text.
-//!
-//! Formatting is normalized (2-space indent); semantic content is preserved.
-//! The heavy lifting lives in [`format_core`](crate::format_core) — this module
-//! is a thin trait wrapper for ergonomic `.to_source()` calls.
+//! All formatting logic lives in [`format_core`](crate::format_core). If you
+//! need configurable formatting, use [`formatter::Formatter`](crate::formatter::Formatter).
+//! This module is the canonical 2-space serialization API.
 
 use crate::ast::*;
 use crate::format_core;
