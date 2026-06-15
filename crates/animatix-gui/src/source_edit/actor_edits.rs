@@ -274,6 +274,17 @@ fn stmt_to_inline_item(stmt: Stmt) -> InlineItem {
 
 fn inline_item_to_stmt(item: InlineItem, index: usize) -> Stmt {
     match item {
+        InlineItem::ForLoop { var, index_var, iterable, body } => {
+            Stmt::ForLoop {
+                var,
+                index_var,
+                iterable,
+                body: body.into_iter().enumerate()
+                    .map(|(i, item)| inline_item_to_stmt(item, i))
+                    .collect(),
+                span: None,
+            }
+        }
         InlineItem::Labeled { label, ty, props, modifiers, children, array_index } => Stmt::ActorDecl {
             is_pub: false,
             is_anonymous: false,
@@ -372,7 +383,7 @@ fn extract_inline_item(stmts: &mut [Stmt], label: &str) -> Option<InlineItem> {
 
 fn extract_from_inline_item(item: &mut InlineItem, label: &str) -> Option<InlineItem> {
     match item {
-        InlineItem::Labeled { children, .. } | InlineItem::Anonymous { children, .. } => {
+        InlineItem::Labeled { children, .. } | InlineItem::Anonymous { children, .. } | InlineItem::ForLoop { body: children, .. } => {
             if let Some(idx) = children.iter().position(|c| inline_item_has_label(c, label)) {
                 return Some(children.remove(idx));
             }
@@ -592,7 +603,7 @@ fn delete_from_inline_items(items: &mut Vec<InlineItem>, label: &str) -> bool {
     for item in items.iter_mut() {
         match item {
             InlineItem::Anonymous { children, .. }
-            | InlineItem::Labeled { children, .. } => {
+            | InlineItem::Labeled { children, .. } | InlineItem::ForLoop { body: children, .. } => {
                 if delete_from_inline_items(children, label) {
                     return true;
                 }
@@ -851,7 +862,7 @@ btn.position = (200, 100)"#);
         fn walk_inline(items: &[InlineItem], found_color: &mut bool, found_position: &mut bool) {
             for item in items {
                 match item {
-                    InlineItem::Labeled { children, .. } | InlineItem::Anonymous { children, .. } => {
+                    InlineItem::Labeled { children, .. } | InlineItem::Anonymous { children, .. } | InlineItem::ForLoop { body: children, .. } => {
                         walk_inline(children, found_color, found_position);
                     }
                     InlineItem::SlotFill { items: slot_items, .. } => {
