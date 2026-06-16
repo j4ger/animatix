@@ -50,11 +50,11 @@ pub fn format_action(a: &Action) -> String {
         parts.push(targets);
     }
     if !a.args.is_empty() {
-        let args = a.args.iter().map(|arg| format_expr(arg)).collect::<Vec<_>>().join(", ");
+        let args = a.args.iter().map(format_expr).collect::<Vec<_>>().join(", ");
         parts.push(args);
     }
     if !a.modifiers.is_empty() {
-        let mods = a.modifiers.iter().map(|m| format_modifier(m)).collect::<Vec<_>>().join(", ");
+        let mods = a.modifiers.iter().map(format_modifier).collect::<Vec<_>>().join(", ");
         parts.push(format!("[{}]", mods));
     }
     parts.join(" ")
@@ -174,7 +174,7 @@ pub fn format_expr(expr: &Expr) -> String {
         Expr::List(items) => {
             let inner = items
                 .iter()
-                .map(|i| format_expr(i))
+                .map(format_expr)
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("{{{}}}", inner)
@@ -185,7 +185,7 @@ pub fn format_expr(expr: &Expr) -> String {
             } else {
                 let inner = items
                     .iter()
-                    .map(|i| format_expr(i))
+                    .map(format_expr)
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!("({})", inner)
@@ -223,7 +223,7 @@ pub fn format_expr(expr: &Expr) -> String {
         Expr::Call(name, args) => {
             let inner = args
                 .iter()
-                .map(|a| format_expr(a))
+                .map(format_expr)
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("{}({})", name, inner)
@@ -231,7 +231,7 @@ pub fn format_expr(expr: &Expr) -> String {
         Expr::Method(obj, name, args) => {
             let inner = args
                 .iter()
-                .map(|a| format_expr(a))
+                .map(format_expr)
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("{}.{}({})", format_expr(obj), name, inner)
@@ -251,7 +251,7 @@ pub fn format_expr(expr: &Expr) -> String {
         Expr::Construct(name, props) => {
             let inner = props
                 .iter()
-                .map(|p| format_property(p))
+                .map(format_property)
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("{} {{ {} }}", name, inner)
@@ -284,7 +284,7 @@ pub fn format_actor_like(
     if !props.is_empty() {
         let props_str = props
             .iter()
-            .map(|p| format_property(p))
+            .map(format_property)
             .collect::<Vec<_>>()
             .join(", ");
         parts.push(format!(", {}", props_str));
@@ -292,7 +292,7 @@ pub fn format_actor_like(
     if !modifiers.is_empty() {
         let mods = modifiers
             .iter()
-            .map(|m| format_modifier(m))
+            .map(format_modifier)
             .collect::<Vec<_>>()
             .join(", ");
         parts.push(format!(" [{}]", mods));
@@ -382,7 +382,7 @@ pub fn format_component_def(def: &ComponentDef, depth: usize, indent_size: usize
     let params = def
         .params
         .iter()
-        .map(|p| format_param_def(p))
+        .map(format_param_def)
         .collect::<Vec<_>>()
         .join(", ");
     let body = format_stmts_raw(&def.body, depth + 1, indent_size);
@@ -483,7 +483,7 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             if !modifiers.is_empty() {
                 let mods = modifiers
                     .iter()
-                    .map(|m| format_modifier(m))
+                    .map(format_modifier)
                     .collect::<Vec<_>>()
                     .join(", ");
                 parts.push(format!(" [{}]", mods));
@@ -501,7 +501,7 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             if !modifiers.is_empty() {
                 let mods = modifiers
                     .iter()
-                    .map(|m| format_modifier(m))
+                    .map(format_modifier)
                     .collect::<Vec<_>>()
                     .join(", ");
                 header.push_str(&format!(" [{}]", mods));
@@ -576,7 +576,7 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
         } => {
             let params_str = params
                 .iter()
-                .map(|p| format_param_def(p))
+                .map(format_param_def)
                 .collect::<Vec<_>>()
                 .join(", ");
             let body_str = format_stmts_raw(body, depth + 1, indent_size);
@@ -591,7 +591,7 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
         Stmt::Config { settings, .. } => {
             let inner = settings
                 .iter()
-                .map(|s| format_property(s))
+                .map(format_property)
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("config {{ {} }}", inner)
@@ -606,7 +606,7 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             if !config.is_empty() {
                 let inner = config
                     .iter()
-                    .map(|s| format_property(s))
+                    .map(format_property)
                     .collect::<Vec<_>>()
                     .join(", ");
                 parts.push(format!("config {{ {} }}", inner));

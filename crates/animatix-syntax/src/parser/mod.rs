@@ -143,7 +143,7 @@ pub fn strip_snippet_tabstops(snippet: &str) -> String {
         if c == '$' && chars.peek() == Some(&'{') {
             chars.next(); // consume '{'
             // Skip the tab-stop number
-            while chars.peek().map_or(false, |ch| ch.is_ascii_digit()) {
+            while chars.peek().is_some_and(|ch| ch.is_ascii_digit()) {
                 chars.next();
             }
             // If there's a ':', collect the default text
