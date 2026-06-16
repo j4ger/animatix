@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: animatix_engine/renderer/pipeline
+title: 渲染管线与导出引擎
+scope:
+    - crates/animatix/src/renderer/
+source_files: []
+depends_on: []
+related_to:
+    - path: animatix_engine/renderer/encode
+    - path: animatix_engine/primitives
+    - path: animatix_engine/timeline_engine/property_and_scene_engine
+    - path: animatix_engine/core
+    - path: animatix_engine/timeline_engine

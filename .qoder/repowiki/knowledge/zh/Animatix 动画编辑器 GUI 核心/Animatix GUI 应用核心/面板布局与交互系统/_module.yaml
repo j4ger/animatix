@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: animatix_gui/app_core/panels
+title: 面板布局与交互系统
+scope:
+    - crates/animatix-gui/src/app/panels/
+source_files: []
+depends_on: []
+related_to:
+    - path: animatix_gui/app_core/preview
+    - path: animatix_gui/app_core/components
+    - path: animatix_gui/app_core/handlers
+    - path: animatix_gui/app_core/stores
+    - path: animatix_gui/app_core/core_utils

@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: animatix_gui
+title: Animatix 动画编辑器 GUI 核心
+scope:
+    - crates/animatix-gui/
+source_files: []
+depends_on: []
+related_to:
+    - path: animatix_analyzer

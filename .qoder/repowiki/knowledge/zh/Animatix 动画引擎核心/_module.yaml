@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: animatix_engine
+title: Animatix 动画引擎核心
+scope:
+    - crates/animatix/
+source_files: []
+depends_on: []
+related_to:
+    - path: animatix_syntax
+    - path: animatix_gui/gui_infra

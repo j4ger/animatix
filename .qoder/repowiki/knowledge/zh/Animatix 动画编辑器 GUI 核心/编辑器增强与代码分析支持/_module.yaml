@@ -1,0 +1,17 @@
+schema_version: 1
+module_path: animatix_gui/editor_support
+title: 编辑器增强与代码分析支持
+scope:
+    - crates/animatix-gui/src/editor/
+    - crates/animatix-gui/src/highlighting.rs
+    - crates/animatix-gui/src/text_diff.rs
+    - crates/animatix-gui/src/validation.rs
+source_files: []
+depends_on: []
+related_to:
+    - path: animatix_analyzer
+    - path: animatix_gui/cell_editor
+    - path: tree_sitter_animatix_crate
+    - path: animatix_gui/source_edit
+    - path: animatix_syntax
+    - path: animatix_gui/app_core/document

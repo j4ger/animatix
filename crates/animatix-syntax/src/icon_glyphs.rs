@@ -56,3 +56,7 @@ pub const MASK_HAPPY: &str = "\u{E9F4}";
 pub const FILTERS: &str = "\u{EB42}";
 /// Phosphor icon glyph for a speaker with high volume.
 pub const SPEAKER_HIGH: &str = "\u{E44A}";
+/// Phosphor icon glyph for an equation / math expression (sigma).
+pub const SIGMA: &str = "\u{E72A}";
+/// Phosphor icon glyph for a text fragment / highlight.
+pub const HIGHLIGHTER: &str = "\u{E48A}";

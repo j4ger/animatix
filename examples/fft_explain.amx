@@ -85,37 +85,43 @@ decomp_graph: Graph, at: (640, 380), size: (900, 320), x_domain: (0, 4), y_domai
   sine_9hz: PlotCurve, kind: "cartesian", func: (t) => 0.3 * sin(2 * pi * 9 * t), color: accent.warning, stroke_width: 3
 }
 
-// Animate: reveal each component sequentially with a vertical shift effect
-// MISSING: No way to vertically offset individual curves within a Graph.
-// Workaround: each curve is at its natural y-range, visually separated by amplitude.
+decomp_eq: Equation, font_size: 22, color: text.muted, at: (0, -230) {
+  pre: Fragment, content: "x(t) = "
+  f1: Fragment, content: "sin(2 pi dot 2t)"
+  mid1: Fragment, content: " + 0.55 dot "
+  f2: Fragment, content: "sin(2 pi dot 5t)"
+  mid2: Fragment, content: " + 0.3 dot "
+  f3: Fragment, content: "sin(2 pi dot 9t)"
+}
 
+// Animate: reveal each component sequentially, highlight equation fragment in sync
 #0.5s
 fade-in step2_title [500ms, ease: ease-out]
 
 #1s
 fade-in decomp_graph [500ms]
+fade-in decomp_eq [500ms]
 
-// MISSING: No way to "draw" a PlotCurve incrementally. draw-in doesn't apply.
-// Workaround: fade-in whole curve (loses the educational "tracing" effect).
 #2s
 fade-in ref_signal [300ms]
 
 #3s
-fade-in sine_2hz [500ms, ease: ease-out]
+highlight decomp_eq.f1 [color: white, blend: difference, 800ms]
+fade-in sine_2hz [800ms]
 
 #4s
 fade-in f1_label [300ms]
 
-// MISSING: stagger or delay only affect sequence children, not individual keyframe statements.
-// Workaround: spaced keyframe times (manual stagger).
 #5s
-fade-in sine_5hz [500ms, ease: ease-out]
+highlight decomp_eq.f2 [color: white, blend: difference, 800ms]
+fade-in sine_5hz [800ms]
 
 #5.5s
 fade-in f2_label [300ms]
 
 #6.5s
-fade-in sine_9hz [500ms, ease: ease-out]
+highlight decomp_eq.f3 [color: white, blend: difference, 800ms]
+fade-in sine_9hz [800ms]
 
 #7s
 fade-in f3_label [300ms]

@@ -509,7 +509,6 @@ fn test_runtime_text_recompilation() {
 }
 
 #[test]
-#[test]
 fn test_keyframe_scoped_variables_create_tracks() {
     let ast = vec![
         Stmt::Keyframe {
@@ -945,7 +944,6 @@ fn test_hierarchical_assignment_target() {
 
 #[test]
 fn graph_axes_invisible_before_fadein() {
-    use crate::timeline::SceneDimensions;
     // Graph declared before any keyframe → default_opacity = 0.0
     // fade-in at #0.5s should animate opacity 0→1
     let source = "g1: Graph, x_domain: (-4, 4), y_domain: (-2, 18), size: (380, 280), at: (280, 200)\n\n#0.5s\nfade-in g1 [400ms]";
@@ -1202,5 +1200,125 @@ fn absolute_position_on_layout_managed_child_no_warning_without_at() {
     assert!(
         !has_warning,
         "Should NOT emit AbsolutePositionOnLayoutManagedChild warning when child has no 'at'"
+    );
+}
+
+#[test]
+fn equation_container_builds_with_fragment_children() {
+    let source = r#"
+        eq: Equation {
+            f1: Fragment, content: "x^2"
+            f2: Fragment, content: "+ y"
+        }
+    "#;
+
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+
+    // Equation container track should exist
+    let eq_track = report.output.tracks.get("eq").expect("eq track should exist");
+
+    // Equation should have Fragment children registered
+    assert!(
+        eq_track.children.contains(&"f1".to_string()),
+        "Equation track should contain child 'f1', got: {:?}",
+        eq_track.children
+    );
+    assert!(
+        eq_track.children.contains(&"f2".to_string()),
+        "Equation track should contain child 'f2', got: {:?}",
+        eq_track.children
+    );
+
+    // Fragment f1 track should exist with content stored
+    let f1_track = report.output.tracks.get("f1").expect("f1 track should exist");
+    let f1_content = f1_track
+        .text_content
+        .as_ref()
+        .expect("f1 should have text_content")
+        .evaluate(0);
+    assert_eq!(f1_content, "x^2", "Expected f1 content 'x^2', got {:?}", f1_content);
+
+    // Fragment f2 track should exist with content stored
+    let f2_track = report.output.tracks.get("f2").expect("f2 track should exist");
+    let f2_content = f2_track
+        .text_content
+        .as_ref()
+        .expect("f2 should have text_content")
+        .evaluate(0);
+    assert_eq!(f2_content, "+ y", "Expected f2 content '+ y', got {:?}", f2_content);
+}
+
+#[test]
+fn equation_fragment_dot_path_assignment() {
+    let source = r#"
+        eq: Equation {
+            f1: Fragment, content: "x^2"
+            f2: Fragment, content: "+ y"
+        }
+
+        #+1s
+        eq.f1.highlight_opacity = 1.0 [800ms]
+        eq.f2.content = "+ z"
+    "#;
+
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+
+    // Filter out non-error diagnostics (e.g. deprecation warnings)
+    let errors: Vec<_> = report
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "Expected no build errors, got: {:?}",
+        errors
+    );
+
+    let timeline = report.output;
+
+    // Fragment f1 should have highlight_opacity animated
+    let f1_track = timeline.tracks.get("f1").expect("f1 track should exist");
+    let highlight_opacity_at_1s = f1_track
+        .highlight_opacity
+        .as_ref()
+        .expect("f1 should have highlight_opacity track")
+        .evaluate(1000);
+    assert!(
+        (highlight_opacity_at_1s - 0.0).abs() < 0.01,
+        "Expected highlight_opacity=0.0 at t=1s (animation start), got {:?}",
+        highlight_opacity_at_1s
+    );
+
+    let highlight_opacity_at_end = f1_track
+        .highlight_opacity
+        .as_ref()
+        .expect("f1 should have highlight_opacity track")
+        .evaluate(1800);
+    assert!(
+        (highlight_opacity_at_end - 1.0).abs() < 0.01,
+        "Expected highlight_opacity=1.0 at t=1.8s (animation end), got {:?}",
+        highlight_opacity_at_end
+    );
+
+    // Fragment f2 should have updated content
+    let f2_track = timeline.tracks.get("f2").expect("f2 track should exist");
+    let f2_content_at_1s = f2_track
+        .text_content
+        .as_ref()
+        .expect("f2 should have text_content")
+        .evaluate(1000);
+    assert_eq!(
+        f2_content_at_1s, "+ z",
+        "Expected f2 content '+ z' at t=1s, got {:?}",
+        f2_content_at_1s
     );
 }

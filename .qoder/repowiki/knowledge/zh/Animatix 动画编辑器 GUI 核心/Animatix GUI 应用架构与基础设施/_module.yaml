@@ -1,0 +1,21 @@
+schema_version: 1
+module_path: animatix_gui/gui_infra
+title: Animatix GUI 应用架构与基础设施
+scope:
+    - crates/animatix-gui/src/lib.rs
+    - crates/animatix-gui/src/main.rs
+    - crates/animatix-gui/src/error.rs
+    - crates/animatix-gui/src/hot_reload.rs
+    - crates/animatix-gui/src/preview_surface.rs
+    - crates/animatix-gui/src/completion_popup.rs
+    - crates/animatix-gui/src/document.rs
+source_files: []
+depends_on: []
+related_to:
+    - path: animatix_gui/app_core
+    - path: animatix_engine
+    - path: animatix_analyzer
+    - path: animatix_gui/app_core/services
+    - path: animatix_gui/app_core/shell
+    - path: animatix_gui/app_core/handlers
+    - path: animatix_gui/source_edit

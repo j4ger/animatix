@@ -1,0 +1,15 @@
+schema_version: 1
+module_path: animatix_gui/cell_editor
+title: 单元格编辑器
+scope:
+    - crates/animatix-gui/src/cell_editor/
+source_files: []
+depends_on: []
+related_to:
+    - path: animatix_gui/editor_support
+    - path: animatix_gui/source_edit
+    - path: animatix_syntax
+    - path: animatix_analyzer
+    - path: animatix_gui/app_core/document
+    - path: animatix_gui/app_core/core_utils
+    - path: animatix_gui/app_core/stores

@@ -103,6 +103,10 @@ pub enum ActorKindId {
     Filter,
     /// Audio track actor.
     Audio,
+    /// Equation container (Typst math with fragment highlighting).
+    Equation,
+    /// Fragment sub-item within an Equation.
+    Fragment,
 }
 
 impl ActorKindId {
@@ -648,6 +652,18 @@ pub struct AnimationTrack {
     // ── Procedural plot (re-sampled at frame time) ──
     /// Procedural plot generator, re-sampled each frame.
     pub procedural_plot: Option<ProceduralPlot>,
+
+    // ── Highlight (for Fragment in Equation) ──
+    /// Highlight background color (RGBA) for equation fragments.
+    pub highlight_color: Option<PropertyTrack<[f32; 4]>>,
+    /// Highlight opacity for equation fragments.
+    pub highlight_opacity: Option<PropertyTrack<f32>>,
+    /// Highlight padding (in logical pixels) around equation fragments.
+    pub highlight_padding: Option<PropertyTrack<f32>>,
+    /// Highlight corner radius for equation fragments.
+    pub highlight_radius: Option<PropertyTrack<f32>>,
+    /// Highlight blend mode for equation fragments (non-animated configuration).
+    pub highlight_blend: vello::peniko::Mix,
 }
 
 impl AnimationTrack {
@@ -714,6 +730,13 @@ impl AnimationTrack {
 
             // Procedural plot
             procedural_plot: None,
+
+            // Highlight (Fragment in Equation)
+            highlight_color: None,
+            highlight_opacity: None,
+            highlight_padding: None,
+            highlight_radius: None,
+            highlight_blend: vello::peniko::Mix::Difference,
         }
     }
 

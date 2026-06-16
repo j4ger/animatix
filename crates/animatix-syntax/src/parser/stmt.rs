@@ -324,14 +324,20 @@ pub(crate) fn parser<'src>(
             .as_context()
             .padded();
 
+        // Action target: dotted path like `actor` or `actor.child` or `parent.child.grandchild`.
+        // Joins segments with '.' into a single string for downstream hierarchical resolution.
+        let action_target = dotted_ident
+            .clone()
+            .map(|segments| segments.join("."));
+
         let action = ident
             .clone()
             .then(
                 // Comma-separated targets: `pulse btn, icon [200ms]`
-                ident
+                action_target
                     .clone()
                     .then(
-                        just(',').padded().ignore_then(ident.clone()).repeated().at_least(1).collect::<Vec<_>>()
+                        just(',').padded().ignore_then(action_target.clone()).repeated().at_least(1).collect::<Vec<_>>()
                     )
                     .map(|(first, rest)| {
                         let mut targets = vec![first];
@@ -340,7 +346,7 @@ pub(crate) fn parser<'src>(
                     })
                     .or(
                         // Space-separated targets (backward compat): `swap bar1 bar2 [500ms]`
-                        ident.clone().repeated().at_least(1).collect::<Vec<_>>()
+                        action_target.clone().repeated().at_least(1).collect::<Vec<_>>()
                     )
                     .or_not()
                     .map(|opt| opt.unwrap_or_default())

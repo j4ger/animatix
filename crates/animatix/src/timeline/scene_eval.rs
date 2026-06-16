@@ -1,6 +1,6 @@
 use super::{
     ActorKindId, AnimationTrack, DebugRenderOptions, EvalError, PlacementMode, PositionBinding, SceneDimensions, Timeline, Value,
-    VelloPath, resolve_bound_position, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
+    VelloPath, resolve_bound_position, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
 };
 use crate::renderer::types::TextPath;
 use kurbo::Shape;
@@ -675,6 +675,142 @@ impl Timeline {
 
             // Pop clip layer
             scene.pop_layer();
+        } else if track.kind == ActorKindId::Equation {
+            // ── Equation: compile all child Fragments as one Typst document ──
+            let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
+
+            // Collect Fragment children with their content and highlight state.
+            struct FragInfo {
+                content: String,
+                hl_color: [f32; 4],
+                hl_opacity: f32,
+                hl_padding: f32,
+                hl_radius: f32,
+                hl_blend: vello::peniko::Mix,
+            }
+            let mut frags: Vec<FragInfo> = Vec::new();
+            for child_label in &children {
+                if let Some(child_track) = self.tracks.get(*child_label) {
+                    if child_track.kind == ActorKindId::Fragment {
+                        let content = child_track.text_content.get(time_ms, String::new());
+                        let hl_color = child_track.highlight_color.get(time_ms, [0.3, 0.5, 1.0, 1.0]);
+                        let hl_opacity = child_track.highlight_opacity.get(time_ms, 0.0);
+                        let hl_padding = child_track.highlight_padding.get(time_ms, 4.0);
+                        let hl_radius = child_track.highlight_radius.get(time_ms, 3.0);
+                        let hl_blend = child_track.highlight_blend;
+                        frags.push(FragInfo { content, hl_color, hl_opacity, hl_padding, hl_radius, hl_blend });
+                    }
+                }
+            }
+
+            if !frags.is_empty() {
+                // Build Typst string: each fragment wrapped in #box() so they
+                // produce separate Groups in the output frame.
+                let typst_body: String = frags.iter().map(|f| {
+                    format!("#box()[{}]", f.content)
+                }).collect::<Vec<_>>().join("");
+
+                // Use equation-level font_size and color from the Equation track.
+                let font_size = track.font_size.get(time_ms, 48.0);
+                let eq_color = track.color.get(time_ms, DEFAULT_WHITE);
+                let font_family = track.font_family.get(time_ms, String::new());
+
+                let typst_color = typst::visualize::Color::from_u8(
+                    (eq_color[0] * 255.0) as u8,
+                    (eq_color[1] * 255.0) as u8,
+                    (eq_color[2] * 255.0) as u8,
+                    (eq_color[3] * 255.0) as u8,
+                );
+
+                // Compile the Typst markup.
+                match crate::renderer::text::compile_typst(
+                    &typst_body,
+                    font_size,
+                    typst_color,
+                    &font_family,
+                    self.font_context.as_ref(),
+                ) {
+                    Ok(frame) => {
+                        // Extract grouped glyphs — one group per #box() wrapper.
+                        let (all_glyphs, ranges) = crate::renderer::text::extract_glyphs_grouped(&frame);
+
+                        // Compute highlight bounding boxes BEFORE moving glyphs into Arc.
+                        let mut highlight_cmds: Vec<crate::primitives::RenderCommand> = Vec::new();
+                        for (frag_idx, frag) in frags.iter().enumerate() {
+                            if frag.hl_opacity > 0.001 && frag_idx < ranges.len() {
+                                let range = &ranges[frag_idx];
+                                let mut min_x = f64::INFINITY;
+                                let mut max_x = f64::NEG_INFINITY;
+                                let mut min_y = f64::INFINITY;
+                                let mut max_y = f64::NEG_INFINITY;
+                                for tp in &all_glyphs[range.start..range.end] {
+                                    use kurbo::Shape;
+                                    let b = tp.path.bounding_box();
+                                    min_x = min_x.min(b.x0);
+                                    max_x = max_x.max(b.x1);
+                                    min_y = min_y.min(b.y0);
+                                    max_y = max_y.max(b.y1);
+                                }
+                                if min_x.is_finite() && max_x.is_finite() {
+                                    let pad = frag.hl_padding as f64;
+                                    let hl_rect = kurbo::Rect::new(
+                                        min_x - pad, min_y - pad,
+                                        max_x + pad, max_y + pad,
+                                    );
+                                    let hl_color = vello::peniko::Color::from_rgba8(
+                                        (frag.hl_color[0] * 255.0) as u8,
+                                        (frag.hl_color[1] * 255.0) as u8,
+                                        (frag.hl_color[2] * 255.0) as u8,
+                                        255,
+                                    );
+                                    highlight_cmds.push(crate::primitives::RenderCommand::HighlightLayer {
+                                        rect: hl_rect,
+                                        color: hl_color,
+                                        blend: frag.hl_blend,
+                                        alpha: frag.hl_opacity,
+                                        corner_radius: frag.hl_radius as f64,
+                                    });
+                                }
+                            }
+                        }
+
+                        // Render all glyphs as a single text command.
+                        if !all_glyphs.is_empty() {
+                            let arc_glyphs: std::sync::Arc<[TextPath]> = all_glyphs.into();
+                            let cmd = crate::primitives::RenderCommand::Text { paths: arc_glyphs };
+                            cmd.execute(scene, &global_transform, global_opacity);
+                        }
+
+                        // Render highlight overlays.
+                        for cmd in &highlight_cmds {
+                            cmd.execute(scene, &global_transform, global_opacity);
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("Equation Typst compilation failed: {e}");
+                    }
+                }
+            }
+
+            // Render Fragment children (they return None from evaluate, so
+            // no visual output, but hit regions and debug overlays still work).
+            for child in children {
+                self.evaluate_node(
+                    child,
+                    time_ms,
+                    global_transform,
+                    global_opacity,
+                    scene_dimensions,
+                    debug_options,
+                    scene,
+                    overrides,
+                    &child_layout_positions,
+                    hit_regions,
+                    frame_env,
+                    filter_backend,
+                    allow_pending_composites,
+                );
+            }
         } else {
             let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
             for child in children {

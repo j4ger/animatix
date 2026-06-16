@@ -673,4 +673,39 @@ mod tests {
             assert!(matches!(&stmts[0], Stmt::Stagger { .. }), "Expected Stagger or Keyframe, got {:?}", stmts[0]);
         }
     }
+
+    #[test]
+    fn parse_action_with_dotted_target() {
+        // Single dotted target: `highlight decomp_eq.f1 [800ms]`
+        let result = parse_snippet("highlight decomp_eq.f1 [800ms]");
+        assert!(result.is_some(), "dotted action target should parse");
+        let stmts = result.unwrap();
+        // May be wrapped in a default keyframe
+        let action = stmts.iter().flat_map(|s| match s {
+            Stmt::Keyframe { body, .. } => body.iter().collect::<Vec<_>>(),
+            other => vec![other],
+        }).find(|s| matches!(s, Stmt::Action(..)));
+        assert!(action.is_some(), "expected Action stmt, got {:?}", stmts);
+        if let Stmt::Action(action, _) = action.unwrap() {
+            assert_eq!(action.verb, "highlight");
+            assert_eq!(action.targets, vec!["decomp_eq.f1"]);
+        }
+    }
+
+    #[test]
+    fn parse_action_with_multiple_dotted_targets() {
+        // Comma-separated dotted targets: `highlight eq.f1, eq.f2 [500ms]`
+        let result = parse_snippet("highlight eq.f1, eq.f2 [500ms]");
+        assert!(result.is_some(), "comma-separated dotted targets should parse");
+        let stmts = result.unwrap();
+        let action = stmts.iter().flat_map(|s| match s {
+            Stmt::Keyframe { body, .. } => body.iter().collect::<Vec<_>>(),
+            other => vec![other],
+        }).find(|s| matches!(s, Stmt::Action(..)));
+        assert!(action.is_some(), "expected Action stmt");
+        if let Stmt::Action(action, _) = action.unwrap() {
+            assert_eq!(action.verb, "highlight");
+            assert_eq!(action.targets, vec!["eq.f1", "eq.f2"]);
+        }
+    }
 }

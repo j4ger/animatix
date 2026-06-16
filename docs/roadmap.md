@@ -23,6 +23,10 @@ Keep track of what is yet to be done here, when a segment is fully done, remove 
 | Property registry sorting | Icebox | — |
 
 
+### Primitives & Syntax
+
+- [ ] Equation: bare string syntax sugar for anonymous Fragments (currently requires explicit `label: Fragment, content: "..."`)
+
 ---
 
 ## Icebox

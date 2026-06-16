@@ -378,6 +378,57 @@ graph: Graph, x_domain: (0, 12), y_domain: (0, 1.1), size: (700, 300) {
 
 ---
 
+## Equation
+**Status:** Implemented in runtime.
+
+Container primitive for typeset equations with individually highlightable fragments.
+Children are `Fragment` primitives whose content is concatenated and compiled as a
+single Typst equation, preserving correct layout and spacing.
+
+**Properties:**
+- `font_size`: Number — font size in points (default 18)
+- `color`: Color — default text color for all fragments (default `text.primary`)
+- `at`: Tuple `(x, y)` — position (default `(0, 0)`)
+
+**Example:**
+```animatix
+eq: Equation, font_size: 22, color: text.muted, at: (0, -230) {
+  pre: Fragment, content: "x(t) = "
+  f1: Fragment, content: "sin(2 pi dot 2t)"
+  mid: Fragment, content: " + "
+  f2: Fragment, content: "sin(2 pi dot 5t)"
+}
+```
+
+## Fragment
+**Status:** Implemented in runtime.
+
+Child primitive of `Equation`. Represents a named, addressable segment of the equation.
+Does not render independently — the parent Equation handles all rendering.
+
+**Properties:**
+- `content`: String — Typst math content for this segment (default `""`)
+- `highlight_color`: Color — color of highlight overlay rectangle (default `white`)
+- `highlight_opacity`: Number — opacity of highlight, 0 = hidden, 1 = full (default `0.0`)
+- `highlight_blend`: String — blend mode: `difference`, `exclusion`, `normal`, `multiply`, `screen` (default `"difference"`)
+- `highlight_padding`: Number — padding around fragment bounding box (default `4.0`)
+- `highlight_radius`: Number — corner radius of highlight rectangle (default `2.0`)
+
+**Actions:**
+- `highlight target [color: C, blend: B, padding: P, radius: R, duration, ease]` — animate `highlight_opacity` from 0 to 1
+- `unhighlight target [duration, ease]` — animate `highlight_opacity` from current to 0
+
+**Example:**
+```animatix
+#2s
+  highlight eq.f1 [color: white, blend: difference, 800ms]
+
+#4s
+  unhighlight eq.f1 [400ms]
+```
+
+---
+
 # 3. Containers
 
 Auto-layout-first model with declaration-time measure/place contract. Explicit `at` opts into handcrafted placement.

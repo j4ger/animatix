@@ -363,6 +363,93 @@ pub fn extract_glyphs(frame: &Frame) -> Vec<TextPath> {
     glyphs
 }
 
+/// Extract glyphs from a Typst frame, grouped by top-level `FrameItem::Group`.
+///
+/// Each `#box()[content]` wrapper in Typst produces a top-level `Group` in the
+/// output frame.  This function returns:
+/// - A flat list of glyph paths (centred as a whole, not per-group).
+/// - A parallel list of index ranges, one per top-level group encountered.
+///
+/// Non-group text items at the top level are collected into an implicit group
+/// appended at the end (only when non-empty).
+pub fn extract_glyphs_grouped(frame: &Frame) -> (Vec<TextPath>, Vec<std::ops::Range<usize>>) {
+    let mut all_glyphs: Vec<TextPath> = Vec::new();
+    let mut ranges: Vec<std::ops::Range<usize>> = Vec::new();
+
+    for (pos, item) in frame.items() {
+        let transform = Transform::translate(pos.x, pos.y);
+        match item {
+            FrameItem::Group(group) => {
+                let start = all_glyphs.len();
+                let group_transform = transform.pre_concat(group.transform);
+                walk_frame_for_glyphs(&group.frame, group_transform, &mut all_glyphs);
+                let end = all_glyphs.len();
+                if end > start {
+                    ranges.push(start..end);
+                }
+            }
+            FrameItem::Text(_) => {
+                // Top-level text not wrapped in a group — collect into an implicit group
+                let start = all_glyphs.len();
+                walk_frame_for_glyphs_text_item(item, transform, &mut all_glyphs);
+                let end = all_glyphs.len();
+                if end > start {
+                    ranges.push(start..end);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Centre all glyphs as a whole (not per-group)
+    center_text_paths(&mut all_glyphs);
+    (all_glyphs, ranges)
+}
+
+/// Helper: extract glyphs from a single `FrameItem::Text` (not recursing into groups).
+fn walk_frame_for_glyphs_text_item(item: &FrameItem, transform: Transform, glyphs: &mut Vec<TextPath>) {
+    if let FrameItem::Text(text) = item {
+        let size = text.size.to_pt() as f32;
+        let units_per_em = text.font.units_per_em() as f32;
+        let font_scale = size / units_per_em;
+        let face = text.font.ttf();
+
+        let mut x_curr = 0.0;
+        for glyph in &text.glyphs {
+            let offset_x = glyph.x_offset.at(text.size).to_pt() as f32;
+            let offset_y = glyph.y_offset.at(text.size).to_pt() as f32;
+            let advance = glyph.x_advance.at(text.size).to_pt() as f32;
+
+            let mut builder = PathBuilder(BezPath::new());
+            if let Some(_bounds) = face.outline_glyph(ttf_parser::GlyphId(glyph.id), &mut builder) {
+                let path = builder.0;
+                let scale_affine = Affine::scale_non_uniform(font_scale as f64, -font_scale as f64);
+                let glyph_translate = Affine::translate(kurbo::Vec2::new(
+                    (x_curr + offset_x) as f64,
+                    offset_y as f64,
+                ));
+                let item_transform = Affine::new([
+                    transform.sx.get(),
+                    transform.ky.get(),
+                    transform.kx.get(),
+                    transform.sy.get(),
+                    transform.tx.to_pt(),
+                    transform.ty.to_pt(),
+                ]);
+                let final_affine = item_transform * glyph_translate * scale_affine;
+                let mut final_path = path;
+                final_path.apply_affine(final_affine);
+                glyphs.push(TextPath {
+                    path: final_path,
+                    color: text.fill.clone(),
+                    opacity: 1.0,
+                });
+            }
+            x_curr += advance;
+        }
+    }
+}
+
 /// Centers text paths around the origin so that layout positioning works correctly.
 /// The layout system positions children by their center point, so text needs to be
 /// centered around (0, 0) for layout alignment to work properly.

@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: tree_sitter_animatix_crate
+title: Animatix DSL Tree-sitter 解析器
+scope:
+    - crates/tree-sitter-animatix/
+source_files: []
+depends_on: []
+related_to:
+    - path: tree_sitter_animatix_grammar
+    - path: animatix_analyzer
+    - path: animatix_gui/editor_support

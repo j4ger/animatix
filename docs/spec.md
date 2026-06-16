@@ -10,7 +10,7 @@ Use these rules when generating `.amx` files:
 
 - Start with `config { colorscheme: "editorial-dark", resolution: (1280, 720) }` unless the user asks otherwise.
 - Declare actors as `label: Type, prop: value`; animate later with keyframes (`#1s`) and assignments (`label.prop = value [800ms, ease: ease-out]`).
-- Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Typst`, `Code`, `Svg`, `Image`, `Audio`, `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`.
+- Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Typst`, `Code`, `Svg`, `Image`, `Audio`, `Equation`, `Fragment`, `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`.
 - Avoid common hallucinations: `Circle` (use `Ellipse`), `Triangle` (use `Polygon`), `Chart`/`Diagram` (use `Graph`/`PlotCurve`), and any 3D primitives.
 - Colors are RGBA tuples `(r, g, b, a)`, scheme tokens (`accent.primary`, `text.primary`, etc.), `auto`, or named colors (`RED`/`red`, `GREEN`/`green`, `BLUE`/`blue`, `BLACK`/`black`, `WHITE`/`white`, `YELLOW`/`yellow`, `ORANGE`/`orange`). Do not use hex strings.
 - Timing modifiers use positional duration: `[1s]`, `[800ms, ease: ease-in-out]`, `[delay: 250ms, 0s]`. Do not write `duration: 1s`.
@@ -251,6 +251,7 @@ Duplicate modifier keys: last value wins. `ease` without duration = instant chan
 - **Entrance:** `fade-in`, `draw-in`, `wipe-in`, `reveal-in`
 - **Exit:** `fade-out`, `wipe-out`, `reveal-out`, `draw-out`
 - **Effects:** `shake`, `pulse`, `bounce`
+- **Equation:** `highlight`, `unhighlight` — animate Fragment highlight overlay
 - **Reorder:** `swap`, `reorder`
 
 **Action signatures for generation:**
@@ -440,6 +441,8 @@ row: Row, gap: 12, padding: 20, align: "center" {
 **Shapes:** `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`
 
 **Text-like:** `Text`, `Typst`, `Code`, `Svg`, `Image`
+
+**Equation:** `Equation` (container), `Fragment` (child) — typeset equations with per-segment highlighting
 
 **Path commands:** `move_to(...)`, `line_to(...)`, `quad_to(...)`, `curve_to(...)`, `close()`
 

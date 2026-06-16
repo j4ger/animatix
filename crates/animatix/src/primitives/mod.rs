@@ -192,6 +192,9 @@ mod typst;      pub use typst::TYPST;
 
 mod audio;      pub use audio::AUDIO;
 
+mod equation; pub use equation::EQUATION;
+mod fragment; pub use fragment::FRAGMENT;
+
 // ── Primitive trait ─────────────────────────────────────────────────────
 
 /// Context passed to `Primitive::build()`.
@@ -288,6 +291,19 @@ pub enum RenderCommand {
         /// Natural (display) width and height in scene units.
         natural_size: [f32; 2],
     },
+    /// A highlight layer drawn with a specific blend mode (for equation fragment highlights).
+    HighlightLayer {
+        /// The rounded rectangle geometry.
+        rect: kurbo::Rect,
+        /// Fill color.
+        color: vello::peniko::Color,
+        /// Blend mode (e.g. Difference, Multiply).
+        blend: vello::peniko::Mix,
+        /// Layer alpha (0.0–1.0).
+        alpha: f32,
+        /// Corner radius.
+        corner_radius: f64,
+    },
 }
 
 impl RenderCommand {
@@ -372,6 +388,24 @@ impl RenderCommand {
                     .with_alpha(opacity);
                 scene.draw_image(&brush, image_transform);
             }
+            RenderCommand::HighlightLayer { rect, color, blend, alpha, corner_radius } => {
+                let rounded = kurbo::RoundedRect::from_rect(*rect, *corner_radius);
+                scene.push_layer(
+                    vello::peniko::Fill::NonZero,
+                    vello::peniko::BlendMode::new(*blend, vello::peniko::Compose::SrcOver),
+                    *alpha * opacity,
+                    *transform,
+                    &rounded,
+                );
+                scene.fill(
+                    vello::peniko::Fill::NonZero,
+                    kurbo::Affine::IDENTITY,
+                    *color,
+                    None,
+                    &rounded,
+                );
+                scene.pop_layer();
+            }
         }
     }
 
@@ -407,6 +441,9 @@ impl RenderCommand {
                         (half_h * 2.0) as f64,
                     ));
                 }
+            }
+            RenderCommand::HighlightLayer { rect, .. } => {
+                bounds = union(bounds, *rect);
             }
         }
         bounds
@@ -583,6 +620,8 @@ pub static PRIMITIVES: &[&dyn Primitive] = &[
     &GRAPH, &PLOT_CURVE, &VECTOR_FIELD, &HEATMAP, &CONTOUR_SET, &NUMBER_PLANE, &BAR_CHART,
     // Containers
     &ROW, &COL, &GRID, &STACK, &GROUP, &MASK, &FILTER,
+    // Equation / Fragment
+    &EQUATION, &FRAGMENT,
 ];
 
 // ── Auto-generated registry ─────────────────────────────────────────────
@@ -719,6 +758,7 @@ mod tests {
             ActorKindId::Row, ActorKindId::Col, ActorKindId::Grid,
             ActorKindId::Stack, ActorKindId::Group, ActorKindId::Mask, ActorKindId::Filter,
             ActorKindId::Audio,
+            ActorKindId::Equation, ActorKindId::Fragment,
         ] {
             assert!(kinds.contains(&id), "Missing ActorKindMeta for {:?}", id);
         }

@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: animatix_engine/timeline_engine/modifier_runtime
+title: 修饰器运行时与字节码虚拟机
+scope:
+    - crates/animatix/src/timeline/modifier_runtime/
+source_files: []
+depends_on: []
+related_to:
+    - path: animatix_engine/timeline_engine/property_and_scene_engine
+    - path: animatix_engine/core
+    - path: animatix_syntax
+    - path: animatix_engine/timeline_engine/actions
+    - path: animatix_engine/primitives

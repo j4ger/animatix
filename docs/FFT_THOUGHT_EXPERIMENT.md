@@ -101,19 +101,25 @@ learner's need to pause, rewind, and examine.
 click to advance scenes in the GUI. But within a scene, there's no pause
 mechanism.
 
-#### G5. No Typst equation animation / progressive highlighting
+#### G5. Typst equation animation / progressive highlighting — Resolved
 
-**What's needed:** The ability to progressively reveal or highlight parts of a
-Typst equation. For example, highlight the term `sin(2π·2t)` as the 2 Hz
-component is being shown.
+An `Equation` container primitive with `Fragment` children has been implemented.
+Each Fragment represents a named semantic segment of the equation that can be
+independently highlighted via a colored rectangle overlay with blend mode
+(Difference/Exclusion). The `highlight`/`unhighlight` actions provide semantic
+shortcuts for animating fragment highlighting.
 
-**Why it's critical:** The core pedagogical technique in math animation is
-connecting visual elements (a sine wave) with their symbolic representation
-(a term in an equation). Without equation highlighting, the connection must be
-made via separate text labels, which is less elegant.
+**Syntax used in the FFT example:**
+```animatix
+equation: Equation, font_size: 22, at: (640, 360) {
+  f1: Fragment, content: "sin(2 pi dot 2t)"
+  mid: Fragment, content: " + "
+  f2: Fragment, content: "sin(2 pi dot 5t)"
+}
 
-**Workaround:** Separate `Text` actors for each term, positioned near the
-equation. Fragile and verbose.
+#2s
+  highlight equation.f1 [color: white, blend: difference, 800ms]
+```
 
 #### G6. No animation of PlotCurve parameters at runtime
 
@@ -271,7 +277,7 @@ simultaneously.
 | G2 | Programmatic actor generation | Critical | Low (manual repetition) | Language |
 | G3 | Draw-in for curves | Critical | Medium (fade + domain trick) | Animation |
 | G4 | Interactive step control | Critical | Medium (GUI scene navigation) | Runtime |
-| G5 | Equation highlighting | Critical | Low (separate Text actors) | Rendering |
+| G5 | Equation highlighting | Resolved | N/A — implemented | Rendering |
 | G6 | Runtime curve parameter animation | Critical | Medium (re-declaration) | Animation |
 | G7 | Callout/annotation primitive | Nice | High (Arrow + Text) | Primitives |
 | G8 | Legend primitive | Nice | High (manual swatches) | Primitives |

@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: animatix_gui/app_core/components
+title: UI 组件库与交互原语
+scope:
+    - crates/animatix-gui/src/app/components/
+source_files: []
+depends_on: []
+related_to:
+    - path: animatix_gui/app_core/panels
+    - path: animatix_gui/app_core/shell
+    - path: animatix_gui/app_core/core_utils
+    - path: animatix_gui/app_core/handlers
+    - path: animatix_gui/app_core/preview

@@ -1,0 +1,28 @@
+schema_version: 1
+module_path: animatix_gui/app_core/core_utils
+title: 应用核心工具与运行时基础设施
+scope:
+    - crates/animatix-gui/src/app/utils/
+    - crates/animatix-gui/src/app/audio.rs
+    - crates/animatix-gui/src/app/command_bus.rs
+    - crates/animatix-gui/src/app/command_handlers.rs
+    - crates/animatix-gui/src/app/commands.rs
+    - crates/animatix-gui/src/app/design_tokens.rs
+    - crates/animatix-gui/src/app/document_controller.rs
+    - crates/animatix-gui/src/app/file_tree.rs
+    - crates/animatix-gui/src/app/icons.rs
+    - crates/animatix-gui/src/app/insertion.rs
+    - crates/animatix-gui/src/app/persistence.rs
+    - crates/animatix-gui/src/app/runtime.rs
+    - crates/animatix-gui/src/app/utils.rs
+source_files: []
+depends_on: []
+related_to:
+    - path: animatix_gui/app_core/handlers
+    - path: animatix_gui/app_core/stores
+    - path: animatix_gui/app_core/preview
+    - path: animatix_gui/app_core/components
+    - path: animatix_gui/source_edit
+    - path: animatix_gui/cell_editor
+    - path: animatix_gui/app_core/document
+    - path: animatix_gui/app_core/panels

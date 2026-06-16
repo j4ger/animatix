@@ -4,6 +4,8 @@ pub mod effects;
 pub mod entrance;
 /// Exit actions that remove actors from view (fade-out).
 pub mod exit;
+/// Highlight actions for equation fragments (highlight, unhighlight).
+pub mod highlight;
 /// Motion actions that transform actor placement (move, shift, rotate, scale).
 pub mod motion;
 /// Action registry types: signatures, parameters, and the [`BuiltinAction`] trait.
@@ -23,6 +25,7 @@ use tracing::{debug, instrument, warn};
 use effects::{Bounce, Pulse, Shake};
 use entrance::{FadeIn, WipeIn};
 use exit::FadeOut;
+use highlight::{Highlight, Unhighlight};
 use motion::{Move, Rotate, Scale, Shift};
 use registry::{ActionSignature, BuiltinAction};
 use reorder::{Reorder, Swap};
@@ -78,6 +81,39 @@ pub(crate) fn ensure_guard_keyframe<T: Interpolate + Clone>(
     }
 }
 
+/// Resolve a possibly-dotted action target (e.g. `"decomp_eq.f1"`) to the
+/// actual track key in `timeline.tracks`.
+///
+/// Resolution order:
+/// 1. If the full string is already a track key, return it directly.
+/// 2. Split by `.` and walk the parent→child hierarchy. Return the leaf
+///    track key if the path is valid.
+/// 3. Return `None` if the path cannot be resolved.
+fn resolve_action_target(timeline: &Timeline, target: &str) -> Option<String> {
+    // Fast path: direct lookup (handles plain identifiers and pre-built keys)
+    if timeline.tracks.contains_key(target) {
+        return Some(target.to_string());
+    }
+
+    // Dotted path: walk hierarchy
+    let segments: Vec<&str> = target.split('.').collect();
+    if segments.len() < 2 {
+        return None;
+    }
+
+    let mut current = segments[0].to_string();
+    for &segment in &segments[1..] {
+        let track = timeline.tracks.get(&current)?;
+        if track.children.contains(&segment.to_string()) {
+            current = segment.to_string();
+        } else {
+            return None;
+        }
+    }
+
+    Some(current)
+}
+
 pub(crate) fn ensure_target_exists(
     timeline: &Timeline,
     target: &str,
@@ -85,7 +121,7 @@ pub(crate) fn ensure_target_exists(
     diagnostics: &mut Vec<Diagnostic>,
     span: Option<crate::ast::Span>,
 ) -> bool {
-    if timeline.tracks.contains_key(target) {
+    if resolve_action_target(timeline, target).is_some() {
         return true;
     }
 
@@ -120,10 +156,12 @@ pub(crate) fn expand_group_targets(
     let mut stack: Vec<String> = targets.to_vec();
 
     while let Some(label) = stack.pop() {
-        if let Some(track) = timeline.tracks.get(&label) {
+        // Resolve dotted paths (e.g. "decomp_eq.f1" → "f1") before track lookup
+        let resolved = resolve_action_target(timeline, &label).unwrap_or(label.clone());
+        if let Some(track) = timeline.tracks.get(&resolved) {
             if track.children.is_empty() {
-                // Leaf actor — keep it
-                result.push(label);
+                // Leaf actor — keep the resolved key
+                result.push(resolved);
             } else if is_layout_container(track.kind) {
                 // Layout container (Row, Col, Grid, etc.) — recurse into children
                 for child in track.children.iter().rev() {
@@ -132,7 +170,7 @@ pub(crate) fn expand_group_targets(
             } else {
                 // Non-layout container with children (e.g. Graph with tick labels)
                 // — keep the container itself as the target
-                result.push(label);
+                result.push(resolved);
             }
         } else {
             // Target doesn't exist — pass through and let the action handler report it
@@ -239,6 +277,8 @@ fn get_builtin_actions() -> Vec<Box<dyn BuiltinAction>> {
         Box::new(Shake),
         Box::new(Pulse),
         Box::new(Bounce),
+        Box::new(Highlight),
+        Box::new(Unhighlight),
         Box::new(Swap),
         Box::new(Reorder),
     ]
