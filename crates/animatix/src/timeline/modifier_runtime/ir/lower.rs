@@ -139,6 +139,11 @@ pub fn compile_expr(expr: &Expr) -> Option<CompiledExpr> {
             .map(compile_expr)
             .collect::<Option<Vec<_>>>()
             .map(CompiledExpr::MakeVec),
+        Expr::List(items) => items
+            .iter()
+            .map(compile_expr)
+            .collect::<Option<Vec<_>>>()
+            .map(CompiledExpr::MakeVec),
         Expr::Unary(op, expr) => Some(CompiledExpr::Unary(
             op.clone(),
             Box::new(compile_expr(expr)?),

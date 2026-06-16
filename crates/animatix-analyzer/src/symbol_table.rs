@@ -720,6 +720,7 @@ pub fn infer_expr_type(expr: &Expr) -> PropertyType {
                 PropertyType::Array
             }
         }
+        Expr::List(_) => PropertyType::Array,
         Expr::Ident(_) => PropertyType::Any,
         Expr::Path(_) => PropertyType::Any, // e.g., text.primary
         Expr::Index(_, _) => PropertyType::Any,

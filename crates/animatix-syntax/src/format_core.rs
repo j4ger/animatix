@@ -171,6 +171,14 @@ pub fn format_expr(expr: &Expr) -> String {
         Expr::Index(base, idx) => {
             format!("{}[{}]", format_expr(base), format_expr(idx))
         }
+        Expr::List(items) => {
+            let inner = items
+                .iter()
+                .map(|i| format_expr(i))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{{{}}}", inner)
+        }
         Expr::Tuple(items) => {
             if items.len() == 1 {
                 format_expr(&items[0])
@@ -633,14 +641,14 @@ mod variant_coverage_guardrails {
     /// - any other Expr match sites
     #[test]
     fn format_expr_covers_all_expr_variants() {
-        // Expr has exactly 16 variants as of last update.
+        // Expr has exactly 17 variants as of last update.
         // If this fails, add the new variant to format_expr
         // and increment this count.
-        let arms = 16; // Num, Percent, Str, Bool, Null, Ident, Path, Index, Tuple, Binary, Unary, Call, Method, Closure, Conditional, Construct
+        let arms = 17; // Num, Percent, Str, Bool, Null, Ident, Path, Index, List, Tuple, Binary, Unary, Call, Method, Closure, Conditional, Construct
         // Compile-time check: format_expr's match arms must be exhaustive
         // This test breaks at compile time anyway, but the count serves
         // as a searchable reminder when variants change.
-        assert_eq!(arms, 16, "Expr variant count changed — update format_expr and other match sites");
+        assert_eq!(arms, 17, "Expr variant count changed — update format_expr and other match sites");
     }
 
     /// When adding a new variant to `InlineItem`, update:

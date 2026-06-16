@@ -15,7 +15,7 @@ p4: Ellipse, size: (50, 50), color: accent.primary, at: (720, 400)
 p5: Ellipse, size: (50, 50), color: accent.success, at: (840, 400)
 
 always {
-  for i in (0, 1, 2, 3, 4, 5) {
+  for i in {0, 1, 2, 3, 4, 5} {
     let offset_y = 80.0 * sin(t * 2.0 + i * 1.047)
     if i == 0 { p0.at = (240.0, 400.0 + offset_y) }
     if i == 1 { p1.at = (360.0, 400.0 + offset_y) }

@@ -64,7 +64,7 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
             .allow_trailing()
             .collect::<Vec<_>>()
             .delimited_by(just('{').padded(), just('}').padded())
-            .map(Expr::Tuple) // Using Tuple for arrays as well per AST
+            .map(Expr::List)
             .boxed();
 
         let call = ident

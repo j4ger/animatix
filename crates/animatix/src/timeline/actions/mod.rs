@@ -624,7 +624,7 @@ mod tests {
             modifiers: vec![
                 Modifier {
                     name: Some("order".to_string()),
-                    value: crate::ast::Expr::Tuple(vec![
+                    value: crate::ast::Expr::List(vec![
                         crate::ast::Expr::Ident("c".to_string()),
                         crate::ast::Expr::Ident("b".to_string()),
                         crate::ast::Expr::Ident("a".to_string()),
@@ -688,7 +688,7 @@ mod tests {
             modifiers: vec![
                 Modifier {
                     name: Some("order".to_string()),
-                    value: crate::ast::Expr::Tuple(vec![
+                    value: crate::ast::Expr::List(vec![
                         crate::ast::Expr::Ident("b".to_string()),
                         crate::ast::Expr::Ident("a".to_string()),
                     ]),
@@ -712,7 +712,7 @@ mod tests {
             modifiers: vec![
                 Modifier {
                     name: Some("order".to_string()),
-                    value: crate::ast::Expr::Tuple(vec![
+                    value: crate::ast::Expr::List(vec![
                         crate::ast::Expr::Ident("a".to_string()),
                         crate::ast::Expr::Ident("b".to_string()),
                     ]),

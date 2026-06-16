@@ -321,10 +321,10 @@ impl TryFrom<PropertyValue> for animatix_syntax::ast::Expr {
                 }
             },
             PropertyValue::Text(s) => animatix_syntax::ast::Expr::Str(s.clone()),
-            PropertyValue::StringList(items) => animatix_syntax::ast::Expr::Tuple(
-                items.iter().cloned().map(animatix_syntax::ast::Expr::Ident).collect(),
+            PropertyValue::StringList(items) => animatix_syntax::ast::Expr::List(
+                items.iter().map(|s| animatix_syntax::ast::Expr::Str(s.clone())).collect(),
             ),
-            PropertyValue::PointList(points) => animatix_syntax::ast::Expr::Tuple(
+            PropertyValue::PointList(points) => animatix_syntax::ast::Expr::List(
                 points
                     .iter()
                     .map(|&[x, y]| {

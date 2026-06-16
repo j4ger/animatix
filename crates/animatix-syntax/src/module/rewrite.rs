@@ -501,6 +501,12 @@ fn rewrite_expr(
                 .map(|item| rewrite_expr(item, prefix, root_label, known_labels, bindings))
                 .collect(),
         ),
+        Expr::List(items) => Expr::List(
+            items
+                .iter()
+                .map(|item| rewrite_expr(item, prefix, root_label, known_labels, bindings))
+                .collect(),
+        ),
         Expr::Binary(lhs, op, rhs) => Expr::Binary(
             Box::new(rewrite_expr(
                 lhs,

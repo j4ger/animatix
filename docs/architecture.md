@@ -370,6 +370,10 @@ The zero-readback path activates only when the filter actor is the last child in
 
 Expressions are evaluated via `evaluate_expr` using an `Environment` (`Rc<RefCell<HashMap<String, Value>>>`).
 
+Key expression variants for compound values:
+- `Expr::Tuple` — Tuple/vector literal `(x, y)`. Fixed-size: Vec2, Vec4.
+- `Expr::List` — List literal `{a, b, c}`. Variadic array, always inferred as `List<T>`.
+
 Built-ins: `sin`, `cos`, `lerp`, `rand`, `format`. Closures use arrow syntax `(x) => x^2`.
 
 The plotting system (`PlotCurve` with `kind: cartesian|polar|parametric|implicit`) samples closure `func` at discrete points with adaptive refinement.

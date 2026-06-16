@@ -328,6 +328,15 @@ fn expr_type(expr: &Expr) -> TypeAnnotation {
         Expr::Str(_) => TypeAnnotation::Str,
         Expr::Bool(_) => TypeAnnotation::Bool,
         Expr::Null => TypeAnnotation::Any,
+        Expr::List(items) => {
+            if items.is_empty() {
+                TypeAnnotation::List(Box::new(TypeAnnotation::Any))
+            } else {
+                // Infer element type from first item, check homogeneity
+                let elem_type = expr_type(&items[0]);
+                TypeAnnotation::List(Box::new(elem_type))
+            }
+        }
         Expr::Tuple(items) => match items.len() {
             2 if items.iter().all(|e| matches!(e, Expr::Num(_) | Expr::Percent(_))) => {
                 TypeAnnotation::Vec2
@@ -399,6 +408,7 @@ fn expr_summary(expr: &Expr) -> String {
         Expr::Str(s) => format!("string {:?}", s),
         Expr::Bool(b) => format!("boolean {}", b),
         Expr::Null => "null".to_string(),
+        Expr::List(items) => format!("list of {} items", items.len()),
         Expr::Tuple(items) => format!("tuple of {} items", items.len()),
         Expr::Ident(name) => format!("identifier '{}'", name),
         Expr::Path(parts) if parts.len() == 1 => format!("identifier '{}'", parts[0]),

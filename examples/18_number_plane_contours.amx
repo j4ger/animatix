@@ -12,7 +12,7 @@ grid: NumberPlane, x_domain: (-6, 6), y_domain: (-4, 4), size: (560, 400), at: (
   color: surface.secondary, stroke_width: 1.0
 
 // ContourSet — level-set curves for a 2D scalar function
-contours: ContourSet, func: (x, y) => x^2 + y^2, levels: (1, 4, 9, 16),
+contours: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16},
   x_domain: (-5, 5), y_domain: (-5, 5), size: (560, 400), at: (420, 380),
   resolution: 96, color: accent.primary, stroke_width: 2.0
 

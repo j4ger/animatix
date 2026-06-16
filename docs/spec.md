@@ -264,7 +264,7 @@ Duplicate modifier keys: last value wins. `ease` without duration = instant chan
 | `scale` | `scale target [by: Num, duration, ease]` |
 | `shake`, `pulse`, `bounce` | `verb target [duration, intensity: Num]` |
 | `swap` | `swap childA, childB [duration, ease]` |
-| `reorder` | `reorder container [order: (childA, childB, ...), duration, ease]` |
+| `reorder` | `reorder container [order: {childA, childB, ...}, duration, ease]` |
 
 **Rotation:** Two ways to rotate:
 - `rotate item [by: angle, duration]` - Visual transform (applies to actor transform matrix)
@@ -329,7 +329,7 @@ The inspector also exposes up/down arrow buttons for each child when a container
 
 **`reorder`**
 
-`reorder container [order: (childA, childB, childC), duration]` — Reorders all children of a container to a specified order. The `order` modifier is required and must be a tuple containing exactly the same labels as the container's current children (no additions or omissions). Requires `dynamic_layout: true`.
+`reorder container [order: {childA, childB, childC}, duration]` — Reorders all children of a container to a specified order. The `order` modifier is required and must be a list containing exactly the same labels as the container's current children (no additions or omissions). Requires `dynamic_layout: true`.
 
 ```animatix
 config { dynamic_layout: true }
@@ -342,11 +342,11 @@ row: Row, gap: 8 {
 
 # Reverse the row
 #2s
-reorder row [order: (c, b, a), 500ms, ease: ease-out]
+reorder row [order: {c, b, a}, 500ms, ease: ease-out]
 
 # Back to original order
 #3s
-reorder row [order: (a, b, c), 500ms, ease: ease-out]
+reorder row [order: {a, b, c}, 500ms, ease: ease-out]
 ```
 
 Overlapping reorders on the same container are disallowed and emit a diagnostic, same as `swap`.
@@ -607,7 +607,7 @@ pulse.size = if (t % 1.0) < 0.5 { (120, 120) } else { (180, 180) }
 
 Model: `for` for structure, keyframes for declarative timed animation, `always` for stateless runtime behavior.
 
-**BarChart** — produces a set of rectangular bars from `data: ((key, value), ...)` tuples. Supports standalone mode (pixel coords) and Graph-child mode (math coords). See `examples/fft_explain.amx`.
+**BarChart** — produces a set of rectangular bars from `data: {(key, value), ...}` lists. Supports standalone mode (pixel coords) and Graph-child mode (math coords). See `examples/fft_explain.amx`.
 
 ### Built-in Variables
 
@@ -925,7 +925,7 @@ pub component Badge(color: Color) {
 | `Color` | RGBA color | `rgb(0.38, 0.78, 1.0)` |
 | `Actor` | Actor reference | `btn`, `self` |
 | `Scene` | Scene reference | `scene` |
-| `List<T>` | Homogeneous list of type `T` | `(1, 2, 3)` (inferred as `List<Num>`) |
+| `List<T>` | Homogeneous list of type `T` | `{1, 2, 3}` (inferred as `List<Num>`) |
 | `Any` | Top type, accepts any value | — |
 
 **Properties of `Color`** (inherited from `Vec4`):
@@ -967,9 +967,9 @@ When no explicit type annotation is given, the type checker infers the type of c
 | Function `rgb(r, g, b)` | `Color` | `rgb(0.38, 0.78, 1.0)` |
 | Function `rgba(r, g, b, a)` | `Color` | `rgba(0.1, 0.5, 0.8, 0.5)` |
 | Actor label | `Actor` | `btn`, `title` |
-| List literal | `List<T>` (element-dependent) | `(1, 2, 3)` → `List<Num>` |
+| List literal | `List<T>` (element-dependent) | `{1, 2, 3}` → `List<Num>` |
 
-**Tuples of other arities** (3-tuple `(a, b, c)`) are treated as generic list values and do not receive a special vector type inference.
+**Tuples of other arities** (3-tuple `(a, b, c)`) are not treated as vector types. For generic list values, use `{...}` syntax.
 
 ### 13.5 Examples
 
@@ -1118,7 +1118,7 @@ heat: Heatmap, func: (x, y) => sin(x) * cos(y), resolution: 32, color: red
 
 **`ContourSet`**: Multiple level-set curves for a scalar function.
 ```animatix
-contours: ContourSet, func: (x, y) => x^2 + y^2, levels: (1, 4, 9), resolution: 96, color: blue
+contours: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9}, resolution: 96, color: blue
 ```
 
 **Closures:**
@@ -1158,6 +1158,18 @@ The `Typst` primitive uses **Typst** syntax, not LaTeX. Common mistakes:
 
 ## 15. Expressions & Access
 
+### List vs Tuple
+
+Animatix distinguishes between **fixed-size tuples** `(...)` and **variable-length lists** `{...}`:
+
+| Syntax | Name | Usage |
+|--------|------|-------|
+| `(x, y)`, `(r, g, b, a)`, `(-6, 6)` | Tuple | Vec2, Vec4, colors, domain ranges (fixed arity) |
+| `{a, b, c}`, `{1, 4, 9}` | List | Points, commands, levels, data, for-iterables (variadic) |
+
+Tuples of length 2 are inferred as `Vec2`, length 4 as `Vec4`. All other tuples produce a generic tuple type.
+Lists are always inferred as `List<T>` and can be empty `{}` or single-element `{42}`.
+
 ### Dotted Paths
 
 **Assignment targets** resolve to runtime actors; final segment = property name.
@@ -1175,7 +1187,7 @@ right.frame.size = (40, 40)
 Values can be indexed by position:
 
 ```animatix
-let items = (10, 20, 30)
+let items = {10, 20, 30}
 let first = items[0]    // 10
 
 let text = "hello"
@@ -1196,7 +1208,7 @@ let text = "hello,world"
 let parts = text.split(",")     // List["hello", "world"]
 let n = text.length()           // 13
 
-let items = (1, 2, 3)
+let items = {1, 2, 3}
 let len = items.length()        // 3
 let second = items.get(1)       // 2
 

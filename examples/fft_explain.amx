@@ -138,9 +138,9 @@ equation: Typst, content: "x(t) = sum_(k) A_k sin(2 pi f_k t)",
 
 // BarChart replaces ~30 lines of manual Rect + Text actors
 spectrum: BarChart,
-  data: (("2 Hz", 1.0), ("5 Hz", 0.55), ("9 Hz", 0.3)),
+  data: {("2 Hz", 1.0), ("5 Hz", 0.55), ("9 Hz", 0.3)},
   size: (600, 260),
-  bar_colors: (accent.danger, accent.success, accent.warning),
+  bar_colors: {accent.danger, accent.success, accent.warning},
   show_axis: true,
   show_labels: true,
   at: (640, 420)

@@ -275,6 +275,9 @@ fn substitute_params_in_expr(expr: &Expr, bindings: &HashMap<String, Expr>) -> E
         Expr::Tuple(items) => Expr::Tuple(
             items.iter().map(|item| substitute_params_in_expr(item, bindings)).collect(),
         ),
+        Expr::List(items) => Expr::List(
+            items.iter().map(|item| substitute_params_in_expr(item, bindings)).collect(),
+        ),
         Expr::Binary(lhs, op, rhs) => Expr::Binary(
             Box::new(substitute_params_in_expr(lhs, bindings)),
             op.clone(),

@@ -1529,8 +1529,8 @@ pub(crate) fn parse_bar_chart_data(
             continue;
         }
         let expr = &prop.value;
-        // Expect a tuple (outer list of bars)
-        if let Expr::Tuple(items) = expr {
+        // Expect a list (outer list of bars)
+        if let Expr::List(items) = expr {
             for item in items {
                 match item {
                     Expr::Tuple(bar) if bar.len() == 2 => {
@@ -1641,7 +1641,7 @@ pub(crate) fn build_bar_chart_paths(
                 }
             }
             "bar_colors" => {
-                if let Expr::Tuple(colors) = &prop.value {
+                if let Expr::List(colors) = &prop.value {
                     let mut parsed = Vec::new();
                     for c in colors {
                         // Try to parse as RGBA tuple

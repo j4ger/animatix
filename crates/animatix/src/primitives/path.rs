@@ -38,7 +38,7 @@ impl Primitive for PathPrimitive {
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            Property::new("commands", Expr::Tuple(vec![
+            Property::new("commands", Expr::List(vec![
                 Expr::Call("move_to".into(), vec![Expr::Num(-50.0), Expr::Num(-50.0)]),
                 Expr::Call("line_to".into(), vec![Expr::Num(50.0), Expr::Num(-50.0)]),
                 Expr::Call("line_to".into(), vec![Expr::Num(50.0), Expr::Num(50.0)]),

@@ -134,7 +134,7 @@ fn test_collections() {
         parse_single_stmt("let arr = {a, b}"),
         Stmt::LetDecl { is_pub: false,
             name: "arr".to_string(),
-            value: Expr::Tuple(vec![
+            value: Expr::List(vec![
                 Expr::Ident("a".to_string()),
                 Expr::Ident("b".to_string())
             ]),
@@ -884,7 +884,7 @@ fn test_polygon_actor_decl() {
             props: vec![
                 Property {
                     name: "points".to_string(),
-                    value: Expr::Tuple(vec![
+                    value: Expr::List(vec![
                         Expr::Tuple(vec![
                             Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(80.0))),
                             Expr::Num(0.0),
@@ -928,7 +928,7 @@ fn test_path_actor_decl() {
             props: vec![
                 Property {
                     name: "commands".to_string(),
-                    value: Expr::Tuple(vec![
+                    value: Expr::List(vec![
                         Expr::Call(
                             "move_to".to_string(),
                             vec![
@@ -1371,7 +1371,7 @@ fn test_for_loop_with_range() {
         Stmt::ForLoop {
             var: "i".to_string(),
             index_var: None,
-            iterable: Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0),]),
+            iterable: Expr::List(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0),]),
             body: vec![Stmt::Action(Action {
                 verb: "scale".to_string(),
                 targets: vec!["btn".to_string()],

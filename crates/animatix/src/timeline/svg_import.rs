@@ -1030,7 +1030,7 @@ fn parse_svg_path_data(d: &str) -> Expr {
         }
     }
 
-    Expr::Tuple(commands)
+    Expr::List(commands)
 }
 
 /// Tokenize an SVG path `d` attribute into command letters and numbers.
@@ -1526,7 +1526,7 @@ fn convert_poly(
     }
 
     let mut props = vec![
-        Property::new("commands", Expr::Tuple(commands)),
+        Property::new("commands", Expr::List(commands)),
         Property::new("at", Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)])),
     ];
 
@@ -1962,7 +1962,7 @@ mod tests {
     #[test]
     fn test_parse_svg_path_simple() {
         let expr = parse_svg_path_data("M10 20 L30 40 Z");
-        let expected = Expr::Tuple(vec![
+        let expected = Expr::List(vec![
             Expr::Call("move_to".into(), vec![Expr::Num(10.0), Expr::Num(20.0)]),
             Expr::Call("line_to".into(), vec![Expr::Num(30.0), Expr::Num(40.0)]),
             Expr::Call("close".into(), vec![]),
@@ -1973,7 +1973,7 @@ mod tests {
     #[test]
     fn test_parse_svg_path_curve() {
         let expr = parse_svg_path_data("M0 0 C10 10 20 20 30 0 Z");
-        let expected = Expr::Tuple(vec![
+        let expected = Expr::List(vec![
             Expr::Call("move_to".into(), vec![Expr::Num(0.0), Expr::Num(0.0)]),
             Expr::Call("curve_to".into(), vec![
                 Expr::Num(10.0), Expr::Num(10.0),
@@ -2413,7 +2413,7 @@ mod tests {
             assert_eq!(ty, "Path");
             // Should have commands with move_to, line_to, line_to, line_to, close
             let cmd_prop = props.iter().find(|p| p.name == "commands").unwrap();
-            if let Expr::Tuple(commands) = &cmd_prop.value {
+            if let Expr::List(commands) = &cmd_prop.value {
                 assert_eq!(commands.len(), 5, "polygon should have 5 commands (4 lines + close)");
                 assert_eq!(
                     commands[0],
@@ -2424,7 +2424,7 @@ mod tests {
                     Expr::Call("close".into(), vec![])
                 );
             } else {
-                panic!("Expected Tuple of commands");
+                panic!("Expected List of commands");
             }
         } else {
             panic!("Expected Path actor for polygon");
@@ -2448,7 +2448,7 @@ mod tests {
         if let Stmt::ActorDecl { ty, props, .. } = &stmts[1] {
             assert_eq!(ty, "Path");
             let cmd_prop = props.iter().find(|p| p.name == "commands").unwrap();
-            if let Expr::Tuple(commands) = &cmd_prop.value {
+            if let Expr::List(commands) = &cmd_prop.value {
                 assert_eq!(commands.len(), 3, "polyline should have 3 commands (move + 2 lines, no close)");
                 assert_eq!(
                     commands[0],
@@ -2457,7 +2457,7 @@ mod tests {
                 // No Z/close command
                 assert!(!commands.iter().any(|c| matches!(c, Expr::Call(name, ..) if name == "close")));
             } else {
-                panic!("Expected Tuple of commands");
+                panic!("Expected List of commands");
             }
         } else {
             panic!("Expected Path actor for polyline");

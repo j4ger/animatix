@@ -328,7 +328,7 @@ impl Primitive for ContourSetPrimitive {
             Property::new("x_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
             Property::new("y_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
             Property::new("resolution", Expr::Num(96.0)),
-            Property::new("levels", Expr::Tuple(vec![Expr::Num(-2.0), Expr::Num(0.0), Expr::Num(2.0)])),
+            Property::new("levels", Expr::List(vec![Expr::Num(-2.0), Expr::Num(0.0), Expr::Num(2.0)])),
             Property::new("func", Expr::Closure(
                 vec!["x".into(), "y".into()],
                 Box::new(Expr::Num(0.0)),

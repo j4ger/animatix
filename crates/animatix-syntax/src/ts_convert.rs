@@ -763,7 +763,7 @@ impl<'a> TsConverter<'a> {
 
     fn convert_set(&mut self, node: Node) -> Option<Expr> {
         let items = self.collect_named_exprs(node);
-        Some(Expr::Tuple(items))
+        Some(Expr::List(items))
     }
 
     fn convert_closure(&mut self, node: Node) -> Option<Expr> {

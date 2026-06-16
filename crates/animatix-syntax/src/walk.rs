@@ -104,6 +104,11 @@ pub fn walk_expr(expr: &Expr, visitor: &mut dyn FnMut(&Expr)) {
                 walk_expr(item, visitor);
             }
         }
+        Expr::List(items) => {
+            for item in items {
+                walk_expr(item, visitor);
+            }
+        }
         Expr::Binary(left, _, right) => {
             walk_expr(left, visitor);
             walk_expr(right, visitor);

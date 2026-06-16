@@ -176,8 +176,8 @@ impl BuiltinAction for Reorder {
         let mut modifiers = base_timing_params();
         modifiers.push(ActionParam {
             name: "order".to_string(),
-            description: "New child order as a tuple of labels (e.g. [order: (c, b, a)]).".to_string(),
-            type_info: "tuple of identifiers".to_string(),
+            description: "New child order as a list of labels (e.g. [order: (c, b, a)]).".to_string(),
+            type_info: "list of identifiers".to_string(),
         });
         ActionSignature {
             name: "reorder".to_string(),
@@ -239,7 +239,7 @@ impl BuiltinAction for Reorder {
         }
 
         let new_order = match order_expr {
-            Some(Expr::Tuple(items)) => {
+            Some(Expr::List(items)) => {
                 let mut labels = Vec::new();
                 for item in items {
                     match item {
@@ -249,7 +249,7 @@ impl BuiltinAction for Reorder {
                                 Diagnostic::warning(
                                     DiagnosticCode::InvalidModifierValue,
                                     DiagnosticPhase::Build,
-                                    "Reorder 'order' modifier must be a tuple of identifier labels (e.g. (c, b, a))."
+                                    "Reorder 'order' modifier must be a list of identifier labels (e.g. (c, b, a))."
                                         .to_string(),
                                 )
                                 .with_subject(format!("{} {}", action.verb, container)),
@@ -265,7 +265,7 @@ impl BuiltinAction for Reorder {
                     Diagnostic::warning(
                         DiagnosticCode::InvalidModifierValue,
                         DiagnosticPhase::Build,
-                        "Reorder action requires an 'order' modifier with a tuple of labels (e.g. [order: (c, b, a)])."
+                        "Reorder action requires an 'order' modifier with a list of labels (e.g. [order: (c, b, a)])."
                             .to_string(),
                     )
                     .with_subject(format!("{} {}", action.verb, container)),

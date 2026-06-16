@@ -114,13 +114,14 @@ fn hash_expr_recursive<V: Hasher>(expr: &Expr, hasher: &mut V) {
         Expr::Path(parts) => { 6u8.hash(hasher); parts.hash(hasher); }
         Expr::Index(a, b) => { 7u8.hash(hasher); hash_expr_recursive(a, hasher); hash_expr_recursive(b, hasher); }
         Expr::Tuple(items) => { 8u8.hash(hasher); items.len().hash(hasher); for e in items { hash_expr_recursive(e, hasher); } }
-        Expr::Binary(a, op, b) => { 9u8.hash(hasher); hash_expr_recursive(a, hasher); format!("{:?}", op).hash(hasher); hash_expr_recursive(b, hasher); }
-        Expr::Unary(op, e) => { 10u8.hash(hasher); format!("{:?}", op).hash(hasher); hash_expr_recursive(e, hasher); }
-        Expr::Call(name, args) => { 11u8.hash(hasher); name.hash(hasher); args.len().hash(hasher); for a in args { hash_expr_recursive(a, hasher); } }
-        Expr::Method(recv, name, args) => { 12u8.hash(hasher); hash_expr_recursive(recv, hasher); name.hash(hasher); args.len().hash(hasher); for a in args { hash_expr_recursive(a, hasher); } }
-        Expr::Closure(params, body) => { 13u8.hash(hasher); params.hash(hasher); hash_expr_recursive(body, hasher); }
-        Expr::Conditional(c, t, e) => { 14u8.hash(hasher); hash_expr_recursive(c, hasher); hash_expr_recursive(t, hasher); hash_expr_recursive(e, hasher); }
-        Expr::Construct(name, _) => { 15u8.hash(hasher); name.hash(hasher); }
+        Expr::List(items) => { 9u8.hash(hasher); items.len().hash(hasher); for e in items { hash_expr_recursive(e, hasher); } }
+        Expr::Binary(a, op, b) => { 10u8.hash(hasher); hash_expr_recursive(a, hasher); format!("{:?}", op).hash(hasher); hash_expr_recursive(b, hasher); }
+        Expr::Unary(op, e) => { 11u8.hash(hasher); format!("{:?}", op).hash(hasher); hash_expr_recursive(e, hasher); }
+        Expr::Call(name, args) => { 12u8.hash(hasher); name.hash(hasher); args.len().hash(hasher); for a in args { hash_expr_recursive(a, hasher); } }
+        Expr::Method(recv, name, args) => { 13u8.hash(hasher); hash_expr_recursive(recv, hasher); name.hash(hasher); args.len().hash(hasher); for a in args { hash_expr_recursive(a, hasher); } }
+        Expr::Closure(params, body) => { 14u8.hash(hasher); params.hash(hasher); hash_expr_recursive(body, hasher); }
+        Expr::Conditional(c, t, e) => { 15u8.hash(hasher); hash_expr_recursive(c, hasher); hash_expr_recursive(t, hasher); hash_expr_recursive(e, hasher); }
+        Expr::Construct(name, _) => { 16u8.hash(hasher); name.hash(hasher); }
     }
 }
 
@@ -203,6 +204,10 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
             }
         }
 
+        Expr::List(items) => {
+            let vals: Vec<Value> = items.iter().map(|i| evaluate_expr(i, env)).collect::<Result<Vec<Value>, _>>()?;
+            Ok(Value::List(vals))
+        }
         Expr::Call(func, args) => evaluate_call(func, args, env),
 
         Expr::Binary(left, op, right) => {

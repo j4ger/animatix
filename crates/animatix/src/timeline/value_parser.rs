@@ -83,8 +83,8 @@ pub(crate) fn parse_value(
             Some(PropertyValue::String(v.as_str()))
         }
         ValueType::PointList => {
-            // Expect an Expr::Tuple of Expr::Tuple[Expr::Num, Expr::Num]
-            if let Expr::Tuple(items) = expr {
+            // Expect an Expr::List of Expr::Tuple[Expr::Num, Expr::Num]
+            if let Expr::List(items) = expr {
                 let mut points = Vec::with_capacity(items.len());
                 for item in items {
                     if let Expr::Tuple(pair) = item {

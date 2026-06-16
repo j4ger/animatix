@@ -155,6 +155,11 @@ pub(crate) fn for_iter_values(iterable: &Expr, env: &Environment) -> Vec<Value> 
             .iter()
             .filter_map(|item| evaluate_expr(item, env).ok())
             .collect(),
+        Expr::List(items) => items
+            .iter()
+            .map(|item| evaluate_expr(item, env))
+            .collect::<Result<Vec<Value>, _>>()
+            .unwrap_or_default(),
         _ => match evaluate_expr(iterable, env) {
             Ok(Value::Vec2([start, end])) => {
                 let start = start as i64;

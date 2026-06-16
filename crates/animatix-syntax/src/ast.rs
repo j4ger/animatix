@@ -123,10 +123,12 @@ pub enum Expr {
     Index(Box<Expr>, Box<Expr>),
 
     // Collections
-    /// Array or tuple literal. Used for both `(x, y)` tuples and `{a, b, c}`
-    /// arrays since they share the same runtime representation (a list of
-    /// values).
+    /// Tuple/vector literal `(x, y)`. Fixed-size: Vec2, Vec4, Color, domains.
+    /// Length 2-4 is inferred as the corresponding vector type at the type level.
     Tuple(Vec<Expr>),
+    /// List literal `{a, b, c}`. Variadic/homogeneous array.
+    /// Used for points, commands, levels, data, for-iterables, etc.
+    List(Vec<Expr>),
 
     // Operators
     /// Binary operation (e.g. `x + y`, `a > b`).
@@ -162,6 +164,7 @@ impl Expr {
                 container.references_ident(name) || index.references_ident(name)
             }
             Expr::Tuple(items) => items.iter().any(|item| item.references_ident(name)),
+            Expr::List(items) => items.iter().any(|item| item.references_ident(name)),
             Expr::Binary(left, _, right) => {
                 left.references_ident(name) || right.references_ident(name)
             }

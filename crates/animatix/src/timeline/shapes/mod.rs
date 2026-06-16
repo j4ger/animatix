@@ -488,10 +488,10 @@ pub fn build_arrow_path(
     path
 }
 
-/// Parse an AST tuple expression into a list of `kurbo::Point`s.
+/// Parse an AST list expression into a list of `kurbo::Point`s.
 pub fn parse_point_list_expr(expr: &Expr, env: &Environment) -> Option<Vec<kurbo::Point>> {
     match expr {
-        Expr::Tuple(items) => {
+        Expr::List(items) => {
             let mut points = Vec::with_capacity(items.len());
             for item in items {
                 let [x, y] = parse_numeric_vec2(item, env)?;
@@ -503,9 +503,9 @@ pub fn parse_point_list_expr(expr: &Expr, env: &Environment) -> Option<Vec<kurbo
     }
 }
 
-/// Parse an AST tuple of path commands (e.g. `move_to`, `line_to`) into a `kurbo::BezPath`.
+/// Parse an AST list of path commands (e.g. `move_to`, `line_to`) into a `kurbo::BezPath`.
 pub fn parse_path_commands_expr(expr: &Expr, env: &Environment) -> Option<kurbo::BezPath> {
-    let Expr::Tuple(items) = expr else {
+    let Expr::List(items) = expr else {
         return None;
     };
 

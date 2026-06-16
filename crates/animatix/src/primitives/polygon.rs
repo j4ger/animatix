@@ -48,7 +48,7 @@ impl Primitive for PolygonPrimitive {
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            Property::new("points", Expr::Tuple(vec![
+            Property::new("points", Expr::List(vec![
                 Expr::Tuple(vec![Expr::Num(-60.0), Expr::Num(60.0)]),
                 Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(-60.0)]),
                 Expr::Tuple(vec![Expr::Num(60.0), Expr::Num(60.0)]),
