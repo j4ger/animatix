@@ -9,9 +9,11 @@ use egui::{Pos2, Vec2};
 
 use crate::app::commands::{ActionQueue, Command, ShellAction, PropertyEdit, PropertyValue as GuiPropertyValue};
 use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
-use crate::app::design_tokens::semantic::status::{WARNING as AMBER, SUCCESS as GREEN};
+use crate::app::design_tokens::semantic::status::WARNING as AMBER;
 use crate::app::design_tokens::semantic::surface::SURFACE as BG_SURFACE;
-use crate::app::design_tokens::semantic::text::{MUTED as TEXT_MUTED, PRIMARY as TEXT_PRIMARY};
+use crate::app::design_tokens::semantic::status::SUCCESS as GREEN;
+use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
+use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::spatial::{RADIUS_M, SPACE_S, STROKE_WIDTH};
 use crate::app::design_tokens::spatial::preview::{HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS, MIN_ZOOM as PREVIEW_MIN_ZOOM};
 use crate::app::design_tokens::typography::{FONT_SIZE_S, FONT_SIZE_XS};
@@ -423,7 +425,7 @@ impl PreviewContext<'_> {
                     };
                     ui.ctx().set_cursor_icon(icon);
                     egui::Tooltip::always_open(ui.ctx().clone(), ui.layer_id(), egui::Id::new("handle_tooltip"), egui::PopupAnchor::Pointer)
-                        .show(|ui| { ui.label(egui::RichText::new(tooltip).size(crate::app::design_tokens::FONT_SIZE_S)); });
+                        .show(|ui| { ui.label(egui::RichText::new(tooltip).size(crate::app::design_tokens::typography::FONT_SIZE_S)); });
                 } else {
                     let is_over_selected = self.selected_actors.iter().next()
                         .and_then(|a| self.hit_regions.iter().find(|(l, _)| l == a).map(|(_, b)| b.contains(scene)))
@@ -520,8 +522,8 @@ impl PreviewContext<'_> {
                     let galley = ui.painter().layout_no_wrap(label.clone(), egui::FontId::proportional(FONT_SIZE_S), GREEN);
                     let padding = Vec2::new(8.0, 4.0);
                     let bg_rect = egui::Rect::from_min_size(hud_pos, galley.size() + padding * 2.0);
-                    ui.painter().rect_filled(bg_rect, 3.0, crate::app::design_tokens::snap_guide_label_bg());
-                    ui.painter().rect_stroke(bg_rect, 3.0, egui::Stroke::new(STROKE_WIDTH, crate::app::design_tokens::snap_guide_line()), egui::StrokeKind::Outside);
+                    ui.painter().rect_filled(bg_rect, 3.0, crate::app::design_tokens::semantic::canvas::snap_guide_label_bg());
+                    ui.painter().rect_stroke(bg_rect, 3.0, egui::Stroke::new(STROKE_WIDTH, crate::app::design_tokens::semantic::canvas::snap_guide_line()), egui::StrokeKind::Outside);
                     ui.painter().galley(hud_pos + padding, galley, GREEN);
                 }
             }
@@ -557,7 +559,7 @@ impl PreviewContext<'_> {
         };
 
         let threshold = 8.0;
-        let guide_color = crate::app::design_tokens::accent_subtle();
+        let guide_color = crate::app::design_tokens::semantic::accent::subtle();
         let guide_stroke = egui::Stroke::new(STROKE_WIDTH, guide_color);
 
         for (label, bounds) in self.hit_regions {
@@ -739,12 +741,12 @@ impl PreviewContext<'_> {
                     }
                     if let Some(prev_ms) = prev_time_ms {
                         if let Some(prev_props) = self.get_actor_props_at_time(actor, prev_ms) {
-                            preview::draw_ghost_overlay(ui.painter(), &prev_props, preview_rect, self.scene_dimensions, preview_rect.size(), self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan, crate::app::design_tokens::ghost_prev());
+                            preview::draw_ghost_overlay(ui.painter(), &prev_props, preview_rect, self.scene_dimensions, preview_rect.size(), self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan, crate::app::design_tokens::semantic::canvas::ghost_prev());
                         }
                     }
                     if let Some(next_ms) = next_time_ms {
                         if let Some(next_props) = self.get_actor_props_at_time(actor, next_ms) {
-                            preview::draw_ghost_overlay(ui.painter(), &next_props, preview_rect, self.scene_dimensions, preview_rect.size(), self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan, crate::app::design_tokens::ghost_next());
+                            preview::draw_ghost_overlay(ui.painter(), &next_props, preview_rect, self.scene_dimensions, preview_rect.size(), self.preview.viewport.preview_zoom, self.preview.viewport.preview_pan, crate::app::design_tokens::semantic::canvas::ghost_next());
                         }
                     }
                 }
@@ -766,8 +768,8 @@ impl PreviewContext<'_> {
 
         if let (Some(start), Some(current)) = (self.selection.marquee_start, self.selection.marquee_current) {
             let marquee_rect = egui::Rect::from_two_pos(start, current);
-            ui.painter().rect_filled(marquee_rect, 0.0, crate::app::design_tokens::accent_faint());
-            ui.painter().rect_stroke(marquee_rect, 0.0, egui::Stroke::new(STROKE_WIDTH, crate::app::design_tokens::accent_subtle()), egui::StrokeKind::Outside);
+            ui.painter().rect_filled(marquee_rect, 0.0, crate::app::design_tokens::semantic::accent::faint());
+            ui.painter().rect_stroke(marquee_rect, 0.0, egui::Stroke::new(STROKE_WIDTH, crate::app::design_tokens::semantic::accent::subtle()), egui::StrokeKind::Outside);
         }
     }
 

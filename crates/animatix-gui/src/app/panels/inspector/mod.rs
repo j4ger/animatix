@@ -11,8 +11,10 @@ use crate::app::components::{easing_curve_editor, layout, timeline};
 use crate::app::design_tokens::semantic::accent::{PRIMARY as semantic_accent_primary, selection as semantic_accent_selection};
 use crate::app::design_tokens::semantic::border::DEFAULT as semantic_border_default;
 use crate::app::design_tokens::semantic::status::WARNING as semantic_status_warning;
-use crate::app::design_tokens::semantic::surface::{HOVER as semantic_surface_hover, WIDGET as BG_WIDGET};
-use crate::app::design_tokens::semantic::text::{PRIMARY as semantic_text_primary, SECONDARY as semantic_text_secondary, MUTED as semantic_text_muted, DISABLED as TEXT_DISABLED};
+use crate::app::design_tokens::semantic::surface::WIDGET;
+use crate::app::design_tokens::semantic::surface::HOVER as semantic_surface_hover;
+use crate::app::design_tokens::semantic::text::DISABLED;
+use crate::app::design_tokens::semantic::text::{PRIMARY as semantic_text_primary, SECONDARY as semantic_text_secondary, MUTED as semantic_text_muted};
 use crate::app::design_tokens::spatial::{RADIUS_S, RADIUS_M, STROKE_WIDTH, SPACE_1 as spatial_space_xs, SPACE_2 as spatial_space_s, SPACE_3 as spatial_space_m, SPACE_4 as spatial_space_l, SPACE_5 as spatial_space_xl, ROW_S as spatial_row_s, ROW_M as spatial_row_m, ROW_L as spatial_row_l, ROW_XS as spatial_row_xs};
 use crate::app::design_tokens::spatial::inspector::{INPUT_WIDTH_FLOAT as INSPECTOR_INPUT_WIDTH_FLOAT, ROW_HEIGHT as INSPECTOR_ROW_HEIGHT};
 use crate::app::design_tokens::typography::{FONT_SIZE_XS, FONT_SIZE_S, FONT_SIZE_M, FONT_SIZE_L, FONT_SIZE_XL};
@@ -1110,7 +1112,7 @@ fn render_container_children(
             ui.painter(),
             egui::pos2(cursor_x, baseline_y - 9.0),
             &badge_text,
-            BG_WIDGET,
+            WIDGET,
             semantic_text_muted,
             None,
         );
@@ -1136,7 +1138,7 @@ fn render_container_children(
             .interact(down_rect, row_id.with("down"), egui::Sense::click())
             .on_hover_text("Move down");
         let down_color = if i + 1 >= order.len() {
-            TEXT_DISABLED
+            DISABLED
         } else if down_resp.hovered() {
             semantic_text_primary
         } else {
@@ -1157,7 +1159,7 @@ fn render_container_children(
             .interact(up_rect, row_id.with("up"), egui::Sense::click())
             .on_hover_text("Move up");
         let up_color = if i == 0 {
-            TEXT_DISABLED
+            DISABLED
         } else if up_resp.hovered() {
             semantic_text_primary
         } else {

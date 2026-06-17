@@ -5,10 +5,12 @@
 
 use animatix::timeline::SceneDimensions;
 use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
-use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
-use crate::app::design_tokens::semantic::status::{WARNING as AMBER, SUCCESS as GREEN};
+use crate::app::design_tokens::semantic::status::WARNING as AMBER;
 use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
-use crate::app::design_tokens::semantic::text::{MUTED as TEXT_MUTED, PRIMARY as TEXT_PRIMARY};
+use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
+use crate::app::design_tokens::semantic::status::SUCCESS as GREEN;
+use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
+use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::preview::performance::PerformanceMetrics;
 use egui::Color32;
 

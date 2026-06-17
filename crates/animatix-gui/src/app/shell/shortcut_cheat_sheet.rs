@@ -1,9 +1,10 @@
 use egui::{Pos2, Rect, RichText, Stroke, Vec2};
 
-use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
-use crate::app::design_tokens::semantic::text::{PRIMARY as TEXT_PRIMARY, SECONDARY as TEXT_SECONDARY};
 use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
+use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
 use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
+use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
+use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
 use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
 use crate::app::design_tokens::spatial::{STROKE_WIDTH, RADIUS_XL, SPACE_L, SPACE_M, SPACE_XS};
 use crate::app::design_tokens::typography::{FONT_SIZE_S, FONT_SIZE_XL};

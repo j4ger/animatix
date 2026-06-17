@@ -9,12 +9,14 @@ pub mod time_lens;
 
 use std::collections::HashSet;
 use super::DEFAULT_PREVIEW_SIZE;
-use crate::app::design_tokens::semantic::accent::{PRIMARY as ACCENT_BLUE, hover as accent_hover};
+use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
+use crate::app::design_tokens::semantic::accent::hover as accent_hover;
 use crate::app::design_tokens::semantic::overlay::{badge_bg, tooltip_bg};
-use crate::app::design_tokens::semantic::status::{WARNING as AMBER, warning_subtle as amber_subtle};
-use crate::app::design_tokens::semantic::text::{PRIMARY as TEXT_PRIMARY, faint as text_faint};
+use crate::app::design_tokens::semantic::status::WARNING as AMBER;
+use crate::app::design_tokens::semantic::status::warning_subtle as amber_subtle;
+use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
+use crate::app::design_tokens::semantic::text::faint as text_faint;
 use crate::app::design_tokens::spatial::STROKE_WIDTH;
-use crate::app::design_tokens::spatial::preview::MIN_ZOOM as PREVIEW_MIN_ZOOM;
 use crate::app::design_tokens::typography::FONT_SIZE_S;
 use animatix::timeline::{PlacementMode, SceneDimensions, Timeline, TrackAccessor};
 use egui::{Color32, FontId, Pos2, Stroke, Vec2};
@@ -255,16 +257,15 @@ pub(super) fn pivot_world(props: &ActorProps) -> [f32; 2] {
     [props.position[0] + rotated[0], props.position[1] + rotated[1]]
 }
 
-use crate::app::design_tokens::spatial::preview::{
-    HANDLE_SIZE as PREVIEW_HANDLE_SIZE,
-    ROTATION_OFFSET as PREVIEW_ROTATION_OFFSET,
-    ROTATION_RADIUS as PREVIEW_ROTATION_RADIUS,
-    DASH_LEN as PREVIEW_DASH_LEN,
-    GAP_LEN as PREVIEW_GAP_LEN,
-    CROSS_SIZE as PREVIEW_CROSS_SIZE,
-    VERTEX_HIT_BUFFER as PREVIEW_VERTEX_HIT_BUFFER,
-    ROTATION_HIT_BUFFER as PREVIEW_ROTATION_HIT_BUFFER,
-};
+use crate::app::design_tokens::spatial::preview::HANDLE_SIZE as PREVIEW_HANDLE_SIZE;
+use crate::app::design_tokens::spatial::preview::ROTATION_OFFSET as PREVIEW_ROTATION_OFFSET;
+use crate::app::design_tokens::spatial::preview::ROTATION_RADIUS as PREVIEW_ROTATION_RADIUS;
+use crate::app::design_tokens::spatial::preview::DASH_LEN as PREVIEW_DASH_LEN;
+use crate::app::design_tokens::spatial::preview::GAP_LEN as PREVIEW_GAP_LEN;
+use crate::app::design_tokens::spatial::preview::CROSS_SIZE as PREVIEW_CROSS_SIZE;
+use crate::app::design_tokens::spatial::preview::VERTEX_HIT_BUFFER as PREVIEW_VERTEX_HIT_BUFFER;
+use crate::app::design_tokens::spatial::preview::ROTATION_HIT_BUFFER as PREVIEW_ROTATION_HIT_BUFFER;
+use crate::app::design_tokens::spatial::preview::MIN_ZOOM as PREVIEW_MIN_ZOOM;
 
 const SELECTION_COLOR: Color32 = ACCENT_BLUE;
 

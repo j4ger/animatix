@@ -131,7 +131,7 @@ pub fn empty_state(ui: &mut egui::Ui, icon: &str, title: &str, subtitle: &str) {
 }
 
 /// Wraps native egui widgets in our themed input frame.
-#[allow(dead_code)]
+#[allow(dead_code)] // Reserved for use by future component widgets that don't need sized fields
 pub fn field(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) -> Response {
     field_sized(ui, None, add_contents)
 }

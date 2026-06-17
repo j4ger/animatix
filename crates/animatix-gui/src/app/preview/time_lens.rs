@@ -5,12 +5,13 @@
 //! Scroll wheel zooms time range. Release `T` → lens vanishes.
 
 use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
-use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
-use crate::app::design_tokens::semantic::canvas::grid_line;
-use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
 use crate::app::design_tokens::semantic::status::WARNING as AMBER;
 use crate::app::design_tokens::semantic::surface::PANEL as BG_PANEL;
-use crate::app::design_tokens::semantic::text::{MUTED as TEXT_MUTED, PRIMARY as TEXT_PRIMARY};
+use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
+use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
+use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
+use crate::app::design_tokens::semantic::canvas::grid_line;
+use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
 use crate::app::design_tokens::spatial::STROKE_WIDTH;
 use crate::app::design_tokens::typography::{FONT_SIZE_L, FONT_SIZE_XS};
 use egui::{FontId, Pos2, Stroke};

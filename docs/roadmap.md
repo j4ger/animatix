@@ -12,7 +12,7 @@ Keep track of what is yet to be done here, when a segment is fully done, remove 
 
 Spec: [`docs/gui_design_language.md`](gui_design_language.md)
 
-- [ ] **Phase 1: Token Refoundation** — Replace flat `design_tokens.rs` with 3-layer module system (primitive `pub(crate)` → semantic `pub` → component-level). Migrate ~50 files from `BG_BASE`/`ACCENT_BLUE` to `semantic::surface::BASE`/`semantic::accent::PRIMARY`. Delete `PAD_*` duplicates. Fix WCAG AA contrast violations.
+- [x] **Phase 1: Token Refoundation** — Replaced flat `design_tokens.rs` with 3-layer module system (`design_tokens/` dir with `primitive`, `semantic`, `spatial`, `typography`, `motion`, `util`). Migrated ~50 files from `BG_BASE`/`ACCENT_BLUE` to `semantic::surface::BASE`/`semantic::accent::PRIMARY`. Deleted `PAD_*` duplicates (unified with `SPACE_*` scale). Updated `runtime.rs::install_theme` to consume semantic tokens.
 - [ ] **Phase 2: Component Unification** — Replace 4 ad-hoc button functions with unified `Button` widget (`egui::Widget` trait). Migrate `FontId::new(size, ...)` to `TextRole` enum. Drop `to_uppercase()` in section headers.
 - [ ] **Phase 3: Command System Split** — Split 50+ variant `Command` enum into domain packages (`document`, `actor`, `keyframe`, `scene`, `view`, `playback`). Separate undoable from non-undoable types. Refactor 804-line `command_handlers.rs` into domain handlers.
 - [ ] **Phase 4: Interaction Layer Upgrade** — Introduce `Gesture` enum + `GestureHandler` trait to replace 763-line `drag_handler.rs`. Implement keyboard navigation framework. Unify scattered `animate_value_with_time` into `anim::transition()`.

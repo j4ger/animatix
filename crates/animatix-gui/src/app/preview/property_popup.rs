@@ -1,10 +1,15 @@
 use crate::app::commands::{ActionQueue, Command, ShellAction, ViewAction, PropertyEdit, PropertyValue};
 use crate::app::components::button;
 use crate::app::preview::{ActorProps, PreviewTransform};
-use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
 use crate::app::design_tokens::semantic::status::WARNING as AMBER;
-use crate::app::design_tokens::semantic::surface::{HOVER as BG_HOVER, SURFACE as BG_SURFACE, WIDGET as BG_WIDGET};
-use crate::app::design_tokens::semantic::text::{DISABLED as TEXT_DISABLED, MUTED as TEXT_MUTED, PRIMARY as TEXT_PRIMARY, SECONDARY as TEXT_SECONDARY};
+use crate::app::design_tokens::semantic::surface::HOVER as BG_HOVER;
+use crate::app::design_tokens::semantic::surface::SURFACE as BG_SURFACE;
+use crate::app::design_tokens::semantic::surface::WIDGET as BG_WIDGET;
+use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
+use crate::app::design_tokens::semantic::text::DISABLED as TEXT_DISABLED;
+use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
+use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
+use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
 use crate::app::design_tokens::spatial::{RADIUS_L, RADIUS_S, ROW_L, SPACE_M, SPACE_S, STROKE_WIDTH};
 use crate::app::design_tokens::typography::{FONT_SIZE_M, FONT_SIZE_S};
 use animatix::timeline::{Timeline, SceneDimensions, read_property_value_or_default, PropertyValue as TlPropertyValue};

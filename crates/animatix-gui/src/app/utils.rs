@@ -6,7 +6,7 @@ use egui::{Color32, Vec2};
 
 #[cfg(test)]
 use crate::app::design_tokens::semantic::status::{DIAGNOSTIC_ERROR, DIAGNOSTIC_WARNING};
-use crate::app::design_tokens::spatial::{SPACE_2 as PAD_S, SPACE_4 as PAD_L, RADIUS_S};
+use crate::app::design_tokens::spatial::{RADIUS_S, SPACE_2, SPACE_4};
 use crate::app::design_tokens::typography::FONT_SIZE_S;
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 #[cfg(test)]
@@ -27,13 +27,13 @@ pub(super) fn draw_badge(
         egui::FontId::proportional(FONT_SIZE_S),
         text_color,
     );
-    let size = galley.size() + Vec2::new(PAD_L * 2.0, PAD_S * 2.0);
+    let size = galley.size() + Vec2::new(SPACE_4 * 2.0, SPACE_2 * 2.0);
     let rect = egui::Rect::from_min_size(pos, size);
     painter.rect_filled(rect, RADIUS_S, bg);
     if let Some(s) = stroke {
         painter.rect_stroke(rect, RADIUS_S, s, egui::StrokeKind::Outside);
     }
-    painter.galley(rect.min + Vec2::new(PAD_L, PAD_S), galley, text_color);
+    painter.galley(rect.min + Vec2::new(SPACE_4, SPACE_2), galley, text_color);
     rect
 }
 
