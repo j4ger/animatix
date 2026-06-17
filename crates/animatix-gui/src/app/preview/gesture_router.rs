@@ -15,6 +15,7 @@ impl GestureRouter {
     ) {
         // Capture drag_state and marquee state before any mutable borrows
         let is_active_pivot = matches!(ctx.drag_state, DragState::MovePivot { .. });
+        let is_active_motion_path = matches!(ctx.drag_state, DragState::MotionPath { .. });
         let is_active_marquee = ctx.selection.marquee_start.is_some();
         let is_active_vertex = matches!(ctx.drag_state, DragState::EditVertices { .. });
         let is_drag_started = response.drag_started();
@@ -60,6 +61,30 @@ impl GestureRouter {
             };
 
             super::gestures::pivot::PivotGesture.handle(&gesture, ctx, preview_rect);
+            return;
+        }
+
+        // Active motion path — routes DragMove / DragEnd to MotionPathGesture
+        if is_active_motion_path {
+            let gesture = if frame.drag_stopped || frame.any_released || !frame.any_down {
+                Gesture::DragEnd {
+                    pos: frame.screen_pos.unwrap_or(Pos2::ZERO),
+                    button: PointerButton::Primary,
+                    modifiers: frame.modifiers,
+                }
+            } else if let Some(pos) = frame.screen_pos {
+                Gesture::DragMove {
+                    pos,
+                    delta: egui::Vec2::ZERO,
+                    button: PointerButton::Primary,
+                    modifiers: frame.modifiers,
+                }
+            } else {
+                super::drag_handler::handle_preview_drag(ctx, ui, preview_rect, response);
+                return;
+            };
+
+            super::gestures::motion_path::MotionPathGesture.handle(&gesture, ctx, preview_rect);
             return;
         }
 
@@ -126,6 +151,14 @@ impl GestureRouter {
                 }
                 if super::gestures::vertex::VertexGesture.handle(&start_gesture, ctx, preview_rect)
                     == GestureResult::Claimed
+                {
+                    return;
+                }
+                if super::gestures::motion_path::MotionPathGesture.handle(
+                    &start_gesture,
+                    ctx,
+                    preview_rect,
+                ) == GestureResult::Claimed
                 {
                     return;
                 }

@@ -228,33 +228,6 @@ pub(crate) fn handle_preview_drag(
                 }
             }
 
-            // ── Motion path keyframe hit test ──
-            if let Some(timeline) = ctx.timeline {
-                if let Some(track) = timeline.get_track(&actor) {
-                    if let Some(pos_track) = &track.position {
-                        for (&time_ms, (pos, _)) in &pos_track.keyframes {
-                            let screen = preview::scene_to_screen(
-                                kurbo::Point::new(pos[0] as f64, pos[1] as f64),
-                                preview_rect,
-                                ctx.scene_dimensions,
-                                preview_rect.size(),
-                                ctx.preview.viewport.preview_zoom,
-                                ctx.preview.viewport.preview_pan,
-                            );
-                            if mouse.distance(screen) <= hit_radius * 2.0 {
-                                *ctx.drag_state = DragState::MotionPath {
-                                    actor: actor.clone(),
-                                    time_ms,
-                                    start_position: *pos,
-                                    start_scene: scene,
-                                };
-                                return true;
-                            }
-                        }
-                    }
-                }
-            }
-
             let hit_body = drag_utils::hit_test_actor_body(scene, props.as_ref());
 
             if hit_body
@@ -606,26 +579,6 @@ pub(crate) fn handle_preview_drag(
                             [start_offset[0] + local_dx, start_offset[1] + local_dy],
                         );
                     }
-                },
-                DragState::MotionPath {
-                    actor,
-                    time_ms,
-                    start_position,
-                    start_scene,
-                } => {
-                    let dx = (scene.x - start_scene.x) as f32;
-                    let dy = (scene.y - start_scene.y) as f32;
-                    let new_pos = [start_position[0] + dx, start_position[1] + dy];
-                    ctx.commands.push_back(
-                        DocumentCommand::PropertyEdit(PropertyEdit {
-                            actor,
-                            property: "position".into(),
-                            value: PropertyValue::Vec2(new_pos),
-                            time_s: Some(time_ms as f64 / 1000.0),
-                            create_keyframe: true,
-                        })
-                        .into(),
-                    );
                 },
                 DragState::EditVertices { .. } => {},
                 DragState::None => {},
