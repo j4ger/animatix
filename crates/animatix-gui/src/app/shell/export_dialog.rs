@@ -674,7 +674,7 @@ impl GuiShell {
                     }
                 }
                 ExportStatus::Failed(err) => {
-                    let truncated = truncate_chars(&err, 37);
+                    let truncated = truncate_chars(err, 37);
                     let resp = ui.add(
                         egui::Label::new(
                             RichText::new(format!("{} {}", egui_phosphor::regular::WARNING, truncated))

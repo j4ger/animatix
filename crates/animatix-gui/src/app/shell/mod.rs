@@ -304,7 +304,7 @@ impl GuiShell {
                 &mut self.ui_store,
             ),
             // InsertionFromPalette is a snapshot marker, not dispatched through the handler.
-            Command::InsertionFromPalette { .. } => vec![],
+            Command::InsertionFromPalette => vec![],
 
             // FindReplaceAll is handled in-place by perform_find_replace_all, not dispatched.
             Command::FindReplaceAll => vec![],

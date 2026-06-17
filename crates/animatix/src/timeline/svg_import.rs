@@ -1644,7 +1644,7 @@ fn add_fill_stroke_props(node: &Node, props: &mut Vec<Property>, gradients: &Has
 
     // Fill color — handles hex, named, rgb(), url(#id) gradient references, and inherit
     let fill_value = node.attribute("fill").or_else(|| {
-        if node.attribute("fill").map_or(false, |v| v.eq_ignore_ascii_case("inherit")) {
+        if node.attribute("fill").is_some_and(|v| v.eq_ignore_ascii_case("inherit")) {
             find_ancestor_attr(node, "fill")
         } else {
             None
@@ -1668,7 +1668,7 @@ fn add_fill_stroke_props(node: &Node, props: &mut Vec<Property>, gradients: &Has
 
     // Stroke color — same as fill, supports url(#id) and inherit
     let stroke_value = node.attribute("stroke").or_else(|| {
-        if node.attribute("stroke").map_or(false, |v| v.eq_ignore_ascii_case("inherit")) {
+        if node.attribute("stroke").is_some_and(|v| v.eq_ignore_ascii_case("inherit")) {
             find_ancestor_attr(node, "stroke")
         } else {
             None

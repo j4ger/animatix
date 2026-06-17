@@ -40,6 +40,9 @@ pub struct DocumentStore {
     pending_snapshot: Option<PendingSnapshot>,
 }
 
+// Snapshot types contain Rc-based interior mutability and are not Send+Sync;
+// Arc is used here intentionally for cheap cloning within the single-threaded GUI.
+#[allow(clippy::arc_with_non_send_sync)]
 impl DocumentStore {
     pub fn new(document: DocumentSession, editor: EditorBuffer) -> Self {
         Self {
@@ -137,7 +140,7 @@ impl DocumentStore {
         let has_renderable = snapshot.has_renderable_target();
         let is_current = !matches!(snapshot.status, SnapshotStatus::Stale { .. });
 
-        let snapshot = Arc::new(snapshot);
+        let snapshot = Arc::new(snapshot); // Arc used for cheap cloning across snapshot consumers in the GUI
 
         if is_current {
             self.current = Some(snapshot.clone());
@@ -201,7 +204,7 @@ impl DocumentStore {
 
     /// Returns true if the current snapshot is stale (source changed since last rebuild).
     pub fn snapshot_is_stale(&self) -> bool {
-        self.current.as_ref().map_or(false, |c| {
+        self.current.as_ref().is_some_and(|c| {
             if matches!(c.status, crate::app::document::snapshot::SnapshotStatus::Stale { .. }) {
                 return true;
             }
@@ -211,7 +214,7 @@ impl DocumentStore {
     
     /// Returns true if the current build failed and we're falling back to last_good.
     pub fn showing_last_good(&self) -> bool {
-        let current_failed = self.current.as_ref().map_or(false, |c| {
+        let current_failed = self.current.as_ref().is_some_and(|c| {
             matches!(c.status, crate::app::document::snapshot::SnapshotStatus::Failed { .. })
                 || !c.has_renderable_target()
         });
@@ -242,7 +245,7 @@ impl DocumentStore {
                 updated.status = SnapshotStatus::Stale {
                     current_source_epoch: epoch,
                 };
-                self.current = Some(Arc::new(updated));
+                self.current = Some(Arc::new(updated)); // Arc used for cheap cloning across snapshot consumers
             }
         }
     }
@@ -258,8 +261,9 @@ impl DocumentStore {
 }
 
 /// Build a DocumentSnapshot from the current DocumentSession state.
-#[allow(dead_code)]
 /// Snapshot storage is wired but not yet queried by the frame pipeline.
+#[allow(dead_code)]
+#[allow(clippy::arc_with_non_send_sync)] // Arc chosen for future async rebuild path compatibility
 fn snapshot_from_session(doc: &DocumentSession, source_hash: u64) -> DocumentSnapshot {
     let target = if let Some(timeline) = doc.timeline.as_ref() {
         crate::app::document::snapshot::BuildTargetSnapshot::Timeline(std::sync::Arc::new(

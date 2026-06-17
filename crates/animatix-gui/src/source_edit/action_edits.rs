@@ -99,7 +99,7 @@ pub(super) fn insert_action(
 /// Finds the action matching `verb` + `targets` within the keyframe at `old_start_s`
 /// and updates its unnamed duration modifier to `new_duration_s`.
 pub(super) fn resize_action(
-    stmts: &mut Vec<Stmt>,
+    stmts: &mut [Stmt],
     verb: &str,
     targets: &[String],
     old_start_s: f64,

@@ -178,13 +178,10 @@ impl CompletionContext {
 fn find_actor_type(node: tree_sitter::Node, source: &str) -> Option<String> {
     let mut current = node.parent()?;
     loop {
-        match current.kind() {
-            "actor_declaration" => {
-                if let Some(type_node) = current.child_by_field_name("type") {
-                    return Some(source[type_node.byte_range()].to_string());
-                }
+        if let "actor_declaration" = current.kind() {
+            if let Some(type_node) = current.child_by_field_name("type") {
+                return Some(source[type_node.byte_range()].to_string());
             }
-            _ => {}
         }
         current = current.parent()?;
     }

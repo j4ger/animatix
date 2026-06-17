@@ -32,9 +32,7 @@ pub(crate) fn push_unsupported_stagger_statement_diagnostic(
     kind: &str,
 ) {
     let message = if kind == "actor declaration" {
-        format!(
-            "Stagger blocks do not support actor declarations. Declare actors before the composition block, then reference them inside."
-        )
+        "Stagger blocks do not support actor declarations. Declare actors before the composition block, then reference them inside.".to_string()
     } else {
         format!(
             "Stagger blocks support only actions and assignments; '{kind}' is not supported."

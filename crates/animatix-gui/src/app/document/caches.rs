@@ -13,12 +13,13 @@ use crate::app::document::version::{DocumentGeneration, SourceEpoch, Versioned};
 /// Consumers check `generation` and `source_epoch` against the
 /// current `DocumentSnapshot` before using these values.
 #[derive(Clone)]
-#[allow(dead_code)]
-/// DerivedCaches will be populated from DocumentSnapshot for hot-path access once panel migration is complete.
+#[allow(dead_code)] // DerivedCaches will be populated from DocumentSnapshot for hot-path access once panel migration is complete.
 pub struct DerivedCaches {
     pub generation: DocumentGeneration,
     pub source_epoch: SourceEpoch,
     pub actor_labels: Versioned<Vec<String>>,
+    // Type reflects the nested actor → keyframes → (time, label) structure needed for timeline hit-testing.
+    #[allow(clippy::type_complexity)]
     pub actor_keyframes: Versioned<Vec<(String, Vec<(u64, &'static str)>)>>,
     pub hit_regions: Versioned<Vec<(String, Rect)>>,
     pub actor_bounds: Versioned<HashMap<String, Rect>>,

@@ -371,9 +371,7 @@ impl Timeline {
                 Diagnostic::warning(
                     DiagnosticCode::DeprecatedPrimitive,
                     DiagnosticPhase::Build,
-                    format!(
-                        "'Math' is deprecated. Use 'Typst, content: \"$...$\"' instead for math expressions."
-                    ),
+                    "'Math' is deprecated. Use 'Typst, content: \"$...$\"' instead for math expressions.".to_string(),
                 )
                 .with_subject(label),
             );

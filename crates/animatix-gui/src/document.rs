@@ -529,7 +529,7 @@ impl DocumentSession {
             .map(|mut seg| {
                 let path = Path::new(&seg.source);
                 if path.is_relative() {
-                    if let Some(resolved) = doc_dir.join(path).canonicalize().ok() {
+                    if let Ok(resolved) = doc_dir.join(path).canonicalize() {
                         seg.source = resolved.to_string_lossy().to_string();
                     }
                 }

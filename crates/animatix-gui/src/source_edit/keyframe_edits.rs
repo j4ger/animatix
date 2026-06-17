@@ -383,10 +383,10 @@ pub(super) fn move_keyframe_time(
 
     // Pre-compute flash indices before any mutation.
     let mut flash_indices = Vec::new();
-    if matches!(stmts[idx], Stmt::RelativeKeyframe { .. }) {
-        if idx + 1 < stmts.len() && matches!(stmts[idx + 1], Stmt::RelativeKeyframe { .. }) {
-            flash_indices.push(idx + 1);
-        }
+    if matches!(stmts[idx], Stmt::RelativeKeyframe { .. })
+        && idx + 1 < stmts.len() && matches!(stmts[idx + 1], Stmt::RelativeKeyframe { .. })
+    {
+        flash_indices.push(idx + 1);
     }
     if matches!(stmts[idx], Stmt::Keyframe { .. }) {
         for (j, stmt) in stmts[(idx + 1)..].iter().enumerate() {

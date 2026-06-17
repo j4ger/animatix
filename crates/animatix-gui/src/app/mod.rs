@@ -436,7 +436,7 @@ impl GuiShell {
         ui_store.view.welcome_open = is_welcome;
 
         // Apply persisted settings
-        if let Some(ref s) = persistence.as_ref().and_then(|p| p.settings.as_ref()) {
+        if let Some(s) = persistence.as_ref().and_then(|p| p.settings.as_ref()) {
             ui_store.rebuild_debounce_ms = s.rebuild_debounce_ms;
             ui_store.scrub_step_s = s.scrub_step_s;
             ui_store.nudge_step_px = s.nudge_step_px;
@@ -525,7 +525,7 @@ impl GuiShell {
         for response in self.rebuild_worker.poll() {
             // Only accept the highest-token response (newest)
             if self.preview_store.in_flight_rebuild
-                .map_or(true, |token| response.token == token)
+                .is_none_or(|token| response.token == token)
             {
                 let elapsed_ms = response.elapsed_ms as f64;
                 let effects = crate::app::handlers::file::handle_rebuild_response(

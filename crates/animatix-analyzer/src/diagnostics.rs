@@ -317,7 +317,6 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, tree: Option<&tree_sitter::Tre
                 // Try to find the verb token in the tree-sitter tree for precise positioning
                 let (vline, vcol, vend_line, vend_col) = tree
                     .and_then(|t| find_token_range(t.root_node(), source, "action_verb", &action.verb))
-                    .map(|(sl, sc, el, ec)| (sl, sc, el, ec))
                     .unwrap_or((line, col, end_line, end_col));
                 diagnostics.push(Diagnostic {
                     severity: DiagnosticSeverity::Warning,

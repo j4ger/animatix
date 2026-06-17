@@ -127,7 +127,7 @@ impl InsertionPalette {
         // Components
         for (name, entry) in components {
             let params_info: Vec<ParamInfo> = entry.definition.params.iter().map(|p| {
-                let default_str = p.default.as_ref().map(|e| animatix_syntax::to_source::expr_to_source(e));
+                let default_str = p.default.as_ref().map(animatix_syntax::to_source::expr_to_source);
                 let type_name = p.param_type.as_ref().map(|t| format!("{:?}", t));
                 ParamInfo {
                     name: p.name.clone(),

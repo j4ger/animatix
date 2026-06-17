@@ -595,7 +595,7 @@ impl Composition {
                 ..
             } = stmt
             {
-                if result.is_some() {
+                if let Some(ref prev_target) = result {
                     diagnostics.push(
                         Diagnostic::error(
                             DiagnosticCode::MultiplePlayTargets,
@@ -603,7 +603,7 @@ impl Composition {
                             format!(
                                 "Scene '{}' has multiple `play` statements; only the first target '{}' is used.",
                                 scene_name,
-                                result.as_ref().unwrap().0,
+                                prev_target.0,
                             ),
                         )
                         .with_subject(scene_name),

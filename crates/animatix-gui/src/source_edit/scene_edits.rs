@@ -62,7 +62,7 @@ pub(super) fn reorder_scenes(stmts: &mut Vec<Stmt>, new_order: Vec<String>) -> R
     }
 
     // Separate scenes from non-scenes, preserving original interleaving positions
-    let original: Vec<Stmt> = stmts.drain(..).collect();
+    let original: Vec<Stmt> = std::mem::take(stmts);
     let scene_map: std::collections::HashMap<String, Stmt> = original
         .iter()
         .filter_map(|stmt| match stmt {

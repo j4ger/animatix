@@ -40,6 +40,7 @@ impl<'a> ExportTargetRef<'a> {
 
 /// Owned export target for background export threads.
 #[derive(Clone)]
+#[allow(clippy::large_enum_variant)] // Timeline is only used in the export path; boxing would add unnecessary indirection.
 pub enum ExportTargetOwned {
     Timeline(Timeline),
     Composition(Composition),

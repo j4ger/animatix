@@ -593,7 +593,7 @@ pub(super) fn inspector_ui(
                         (PropertyViewMode::Spreadsheet, egui_phosphor::regular::TABLE, "Sheet"),
                         (PropertyViewMode::Intensity, egui_phosphor::regular::FIRE, "Stream"),
                     ];
-                    for (_i, (mode, icon, label)) in modes.iter().enumerate() {
+                    for (mode, icon, label) in modes.iter() {
                         let is_active = *mode == view_mode;
                         let resp =
                             seg_ui.selectable_label(is_active, format!("{} {}", icon, label));
@@ -744,7 +744,7 @@ pub(super) fn inspector_ui(
                         (KeyframeViewMode::List, egui_phosphor::regular::LIST, "List"),
                         (KeyframeViewMode::Curve, egui_phosphor::regular::CHART_LINE_UP, "Curve"),
                     ];
-                    for (_i, (mode, icon, label)) in modes.iter().enumerate() {
+                    for (mode, icon, label) in modes.iter() {
                         let is_active = *mode == kf_view;
                         let resp =
                             seg_ui.selectable_label(is_active, format!("{} {}", icon, label));
@@ -1208,7 +1208,7 @@ fn format_property_value(kind: &PropertyKind) -> String {
         },
         PropertyKind::Text(s) => {
             if s.chars().count() > 16 {
-                format!("{}…", truncate_chars(&s, 15))
+                format!("{}…", truncate_chars(s, 15))
             } else {
                 s.clone()
             }

@@ -637,7 +637,7 @@ pub(crate) fn inject_property_into_env(
             key.push_str("_animating_");
             key.push_str(schema.name);
             let animating = track.is_field_currently_animating(storage, time_ms);
-            env.set(&*key, Value::Num(if animating { 1.0 } else { 0.0 }));
+            env.set(&key, Value::Num(if animating { 1.0 } else { 0.0 }));
         }
     }
 }
@@ -714,12 +714,11 @@ pub(crate) fn effective_f32(
     if let Some(Value::Num(v)) = overrides.and_then(|ov| ov.get(name)) {
         return *v as f32;
     }
-    if let Some(schema) = crate::timeline::property_registry::lookup_property(name) {
-        if let Some(pv) = read_property_value(track, schema.field, time_ms) {
-            if let PropertyValue::F32(v) = pv {
-                return v;
-            }
-        }
+    if let Some(schema) = crate::timeline::property_registry::lookup_property(name)
+        && let Some(pv) = read_property_value(track, schema.field, time_ms)
+        && let PropertyValue::F32(v) = pv
+    {
+        return v;
     }
     default
 }
@@ -736,12 +735,11 @@ pub(crate) fn effective_vec2(
     if let Some(Value::Vec2(v)) = overrides.and_then(|ov| ov.get(name)) {
         return [v[0] as f32, v[1] as f32];
     }
-    if let Some(schema) = crate::timeline::property_registry::lookup_property(name) {
-        if let Some(pv) = read_property_value(track, schema.field, time_ms) {
-            if let PropertyValue::Vec2(v) = pv {
-                return v;
-            }
-        }
+    if let Some(schema) = crate::timeline::property_registry::lookup_property(name)
+        && let Some(pv) = read_property_value(track, schema.field, time_ms)
+        && let PropertyValue::Vec2(v) = pv
+    {
+        return v;
     }
     default
 }
@@ -764,12 +762,11 @@ pub(crate) fn effective_transform(
             return t;
         }
     }
-    if let Some(schema) = crate::timeline::property_registry::lookup_property(name) {
-        if let Some(pv) = read_property_value(track, schema.field, time_ms) {
-            if let PropertyValue::Transform(v) = pv {
-                return v;
-            }
-        }
+    if let Some(schema) = crate::timeline::property_registry::lookup_property(name)
+        && let Some(pv) = read_property_value(track, schema.field, time_ms)
+        && let PropertyValue::Transform(v) = pv
+    {
+        return v;
     }
     default
 }

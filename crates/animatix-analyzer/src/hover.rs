@@ -109,7 +109,7 @@ pub fn hover_at(
                         })
                         .collect::<Vec<_>>()
                         .join(", ");
-                    return Some(HoverInfo {
+                    Some(HoverInfo {
                         contents: format!("**Component** `{}`\n\nParameters: ({})", text, params_str),
                         range: Some((
                             node.start_position().row,
@@ -117,7 +117,7 @@ pub fn hover_at(
                             node.end_position().row,
                             node.end_position().column,
                         )),
-                    });
+                    })
                 } else {
                     None
                 }

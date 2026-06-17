@@ -626,7 +626,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     if ctrl_or_cmd && zoom_factor != 1.0 {
                         // ── Zoom (cursor-stable) using egui's zoom_factor ──
                         let old_zoom = preview.timeline_zoom;
-                        let new_zoom = (old_zoom * zoom_factor as f32).clamp(0.25, 8.0);
+                        let new_zoom = (old_zoom * zoom_factor).clamp(0.25, 8.0);
                         if (new_zoom - old_zoom).abs() > 0.001 {
                             if let Some(cursor) = ui.ctx().input(|i| i.pointer.latest_pos()) {
                                 let cursor_time = if cursor.x >= bar_origin_x && cursor.x <= bar_origin_x + bar_width {
@@ -745,7 +745,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
 
             // ── Ruler click-to-scrub ──
             let ruler_rect = Rect::from_min_max(Pos2::new(scroll_rect.left(), ruler_top), Pos2::new(scroll_rect.right(), ruler_bot));
-            bar_interaction(ui, ruler_rect, "ruler", commands, &x_to_time);
+            bar_interaction(ui, ruler_rect, "ruler", commands, x_to_time);
 
             // ── Playhead X position ──
             let playhead_x = time_to_x(preview.playback.current_time_s());
@@ -819,7 +819,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     let icon = match edge.transition.id.as_str() {
                         "fade" => "F",
                         "wipe-left" | "wipe-right" | "wipe-up" | "wipe-down" => "W",
-                        "cut" | _ => "C",
+                        _ => "C",
                     };
 
                     // Badge background circle
@@ -1354,7 +1354,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                 // Property label (indented deeper than actor label)
                                 let prop_indent = *depth as f32 * 14.0 + 18.0;
                                 let group = property_group_for_prop(prop_name);
-                                let group_col = group.map(|g| property_group_color(g)).unwrap_or(AMBER);
+                                let group_col = group.map(property_group_color).unwrap_or(AMBER);
 
                                 // Small colored dot indicator
                                 let dot_x = scroll_rect.left() + SPACE_S + prop_indent;
@@ -1379,7 +1379,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                     let is_drag = kf_drag.as_ref().is_some_and(|(l, _, t, _)| l == actor_label && *t == *kf_ms);
                                     let is_flashed = preview.flashed_keyframe_times.iter().any(|(t, _)| (*t - kf_s).abs() < 0.001);
                                     let ds = if is_flashed { KF_DIAMOND_HALF * 2.0 } else if is_drag { KF_DIAMOND_HALF * 1.5 } else { KF_DIAMOND_HALF };
-                                    let base_color = group.map(|g| property_group_color(g)).unwrap_or(AMBER);
+                                    let base_color = group.map(property_group_color).unwrap_or(AMBER);
                                     let kc = if is_flashed { KF_FLASH } else if is_act { TEXT_PRIMARY } else { base_color };
                                     let cy = prop_bar_area.center().y;
                                     let hit_size = (ds * 2.5).max(8.0);

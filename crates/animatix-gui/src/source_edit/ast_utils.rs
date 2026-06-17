@@ -10,14 +10,14 @@ use std::cell::RefCell;
 thread_local! {
     /// Queue of keyframe absolute times (in seconds) that should be flashed
     /// in the timeline panel because their relative offset was rewritten.
-    pub static ADJUST_FLASH_QUEUE: RefCell<Vec<f64>> = RefCell::new(Vec::new());
+    pub static ADJUST_FLASH_QUEUE: RefCell<Vec<f64>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Compute the absolute time (in seconds) of the keyframe at `idx`.
 pub fn compute_keyframe_abs_time(stmts: &[Stmt], idx: usize) -> f64 {
     let mut t = 0.0;
-    for i in 0..=idx {
-        match &stmts[i] {
+    for stmt in stmts.iter().take(idx + 1) {
+        match stmt {
             Stmt::Keyframe { time, .. } => t = time_to_seconds(time),
             Stmt::RelativeKeyframe { offset, .. } => t += time_to_seconds(offset),
             _ => {}

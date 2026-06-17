@@ -71,9 +71,7 @@ impl Timeline {
                         DiagnosticCode::UnsupportedSequenceStatement,
                         DiagnosticPhase::Build,
                         match sequence_stmt_kind(stmt) {
-                            "actor declaration" => format!(
-                                "Sequence blocks do not support actor declarations. Declare actors before the composition block, then reference them inside."
-                            ),
+                            "actor declaration" => "Sequence blocks do not support actor declarations. Declare actors before the composition block, then reference them inside.".to_string(),
                             kind => format!(
                                 "Sequence blocks support only actions and assignments; '{kind}' is not supported."
                             ),
