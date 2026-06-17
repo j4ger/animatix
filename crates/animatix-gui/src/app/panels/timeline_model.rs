@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use crate::app::PreviewPaneState;
 
 /// Immutable view model for the timeline panel.
-#[allow(dead_code)]
+#[allow(dead_code)] // View model for panel migration (R7); panels still use mutable context.
 /// View model for panel migration (R7); panels still use mutable context.
 pub struct TimelinePanelModel<'a> {
     pub preview: &'a PreviewPaneState,

@@ -11,7 +11,7 @@ use crate::app::preview::ToolMode;
 use animatix::timeline::SceneDimensions;
 
 /// Immutable view model for the preview panel.
-#[allow(dead_code)]
+#[allow(dead_code)] // View model for panel migration (R7); panels still use mutable context.
 /// View model for panel migration (R7); panels still use mutable context.
 pub struct PreviewPanelModel<'a> {
     pub scene_dimensions: SceneDimensions,

@@ -100,7 +100,7 @@ impl DocumentStore {
     }
 
     /// Snapshot with UI state capture for richer undo/redo.
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Snapshot with UI state capture for richer undo/redo; not yet called.
     pub fn snapshot_with_ui(
         &mut self,
         label: UndoLabel,
@@ -272,7 +272,7 @@ impl DocumentStore {
 
 /// Build a DocumentSnapshot from the current DocumentSession state.
 /// Snapshot storage is wired but not yet queried by the frame pipeline.
-#[allow(dead_code)]
+#[allow(dead_code)] // Snapshot storage wired but not yet queried by the frame pipeline.
 #[allow(clippy::arc_with_non_send_sync)] // Arc chosen for future async rebuild path compatibility
 fn snapshot_from_session(doc: &DocumentSession, source_hash: u64) -> DocumentSnapshot {
     let target = if let Some(timeline) = doc.timeline.as_ref() {

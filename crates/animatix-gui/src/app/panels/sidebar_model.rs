@@ -12,7 +12,7 @@ use animatix::timeline::{SceneDimensions, Timeline};
 use animatix_syntax::diagnostics::Diagnostic;
 
 /// Immutable view model for the sidebar panel.
-#[allow(dead_code)]
+#[allow(dead_code)] // View model for panel migration; panels still use mutable context.
 /// View model for panel migration; panels still use mutable context.
 pub struct SidebarModel<'a> {
     pub active_scene: Option<&'a str>,

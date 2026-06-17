@@ -7,7 +7,7 @@ use crate::app::document::snapshot::DocumentSnapshot;
 use animatix::timeline::SceneDimensions;
 
 /// A render request for the preview surface.
-#[allow(dead_code)]
+#[allow(dead_code)] // Service traits decouple shell from WGPU; implementations are in preview_surface.rs.
 /// Service traits decouple shell from WGPU; implementations are in preview_surface.rs.
 pub struct RenderRequest<'a> {
     pub snapshot: &'a DocumentSnapshot,
@@ -17,7 +17,7 @@ pub struct RenderRequest<'a> {
 }
 
 /// Result of a render operation.
-#[allow(dead_code)]
+#[allow(dead_code)] // Service traits decouple shell from WGPU; implementations are in preview_surface.rs.
 /// Service traits decouple shell from WGPU; implementations are in preview_surface.rs.
 pub struct RenderResult {
     pub hit_regions: Vec<(String, kurbo::Rect)>,
@@ -25,7 +25,7 @@ pub struct RenderResult {
 }
 
 /// Error from the renderer.
-#[allow(dead_code)]
+#[allow(dead_code)] // Service traits decouple shell from WGPU; implementations are in preview_surface.rs.
 /// Service traits decouple shell from WGPU; implementations are in preview_surface.rs.
 #[derive(Debug)]
 pub enum RenderServiceError {
@@ -39,7 +39,7 @@ pub enum RenderServiceError {
 /// The shell calls `render()` each frame with the current document snapshot
 /// and playback state. The renderer produces hit regions and (optionally)
 /// pixel data for screenshot/export.
-#[allow(dead_code)]
+#[allow(dead_code)] // Service traits decouple shell from WGPU; implementations are in preview_surface.rs.
 /// Service traits decouple shell from WGPU; implementations are in preview_surface.rs.
 pub trait PreviewRenderer {
     /// Render a frame. Returns hit regions for the rendered frame.

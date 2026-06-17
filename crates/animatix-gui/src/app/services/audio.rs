@@ -5,7 +5,7 @@
 use crate::app::PreviewPaneState;
 
 /// Source of audio data for the preview engine.
-#[allow(dead_code)]
+#[allow(dead_code)] // Service trait decouples shell from audio backend.
 /// Service trait decouples shell from audio backend.
 pub enum AudioSource<'a> {
     Timeline(&'a animatix::timeline::Timeline),
@@ -13,7 +13,7 @@ pub enum AudioSource<'a> {
 }
 
 /// State for audio playback synchronization.
-#[allow(dead_code)]
+#[allow(dead_code)] // Service trait decouples shell from audio backend.
 /// Service trait decouples shell from audio backend.
 pub struct AudioPlaybackState {
     pub current_time_s: f64,
@@ -34,7 +34,7 @@ impl From<&PreviewPaneState> for AudioPlaybackState {
 }
 
 /// Trait for audio preview (sound playback during animation preview).
-#[allow(dead_code)]
+#[allow(dead_code)] // Service trait decouples shell from audio backend.
 /// Service trait decouples shell from audio backend.
 pub trait AudioPreviewEngine {
     /// Sync the audio engine with the current playback state.

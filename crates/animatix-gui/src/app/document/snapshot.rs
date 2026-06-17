@@ -40,7 +40,7 @@ pub enum BuildTargetSnapshot {
 /// panels currently consume `DocumentSession` directly. The snapshot API
 /// exists for the panel-migration path (see `panels/*_model.rs`).
 #[derive(Clone)]
-#[allow(dead_code)]
+#[allow(dead_code)] // DocumentSnapshot is the panel-migration target; not yet consumed by panels
 pub struct DocumentSnapshot {
     pub generation: DocumentGeneration,
     pub source_epoch: SourceEpoch,

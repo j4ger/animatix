@@ -29,7 +29,7 @@ pub enum InsertionRequest {
         targets: Vec<String>,
     },
     /// Insert a raw code snippet.
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reserved for future raw code snippet insertion
     Snippet { text: String },
 }
 
@@ -75,7 +75,7 @@ impl InsertionContext {
     }
 
     /// Resolve insertion target for an action.
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reserved for future action insertion target resolution
     pub fn action_target(&self) -> Option<InsertionTarget> {
         let time = self.resolve_action_time();
         Some(InsertionTarget::KeyframeBody(time))

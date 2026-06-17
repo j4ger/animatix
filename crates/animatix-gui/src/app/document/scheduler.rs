@@ -6,7 +6,7 @@ use crate::app::document::version::SourceEpoch;
 
 /// State of the rebuild scheduler.
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
+#[allow(dead_code)] // RebuildState tracks debounce scheduling in the frame pipeline, not yet connected.
 /// RebuildState tracks debounce scheduling in the frame pipeline, not yet connected.
 pub enum RebuildState {
     Idle,
@@ -16,7 +16,7 @@ pub enum RebuildState {
     },
 }
 
-#[allow(dead_code)]
+#[allow(dead_code)] // RebuildState methods reserved for debounce scheduling, not yet connected.
 impl RebuildState {
     pub fn is_idle(&self) -> bool {
         matches!(self, RebuildState::Idle)

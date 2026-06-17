@@ -77,13 +77,13 @@ impl SourceStore {
         &self.document.file_path
     }
 
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Accessors for epoch and dirty state used by future background rebuild integration.
     /// Accessors for epoch and dirty state used by future background rebuild integration.
     pub fn epoch(&self) -> SourceEpoch {
         self.source_epoch
     }
 
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Accessors for epoch and dirty state used by future background rebuild integration.
     /// Accessors for epoch and dirty state used by future background rebuild integration.
     pub fn is_dirty(&self) -> bool {
         self.document.is_dirty

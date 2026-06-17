@@ -7,7 +7,7 @@ use std::collections::HashSet;
 
 /// Snapshot of UI state that should be restored on undo/redo.
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
+#[allow(dead_code)] // UiSnapshot is for richer undo/redo, not yet wired into history snapshots
 pub struct UiSnapshot {
     pub active_scene: Option<String>,
     pub selected_actors: HashSet<String>,
