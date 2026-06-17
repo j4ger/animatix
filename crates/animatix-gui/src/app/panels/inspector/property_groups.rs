@@ -5,7 +5,7 @@ use animatix::timeline::{
 use egui::{Color32, Stroke, Vec2};
 
 use crate::app::commands::{
-    ActionQueue, Command, DragEvent, PropertyEdit, PropertyValue as GuiPropertyValue, ShellAction,
+    ActionQueue, Command, DocumentCommand, DragEvent, KeyframeCommand, PropertyEdit, PropertyValue as GuiPropertyValue, ShellAction,
 };
 use crate::app::components::row;
 use crate::app::design_tokens::semantic::status::WARNING as semantic_status_warning;
@@ -456,13 +456,13 @@ pub(crate) fn render_property_row(
     // Click keyframe button to create a keyframe (when not already present)
     if kf_btn_resp.clicked() && keyframe_mode && !entry.has_keyframe_at_current_time {
         if let Some(value) = entry_to_gui_value(entry) {
-            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+            commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit {
                 time_s: None,
                 actor: actor_label.to_string(),
                 property: entry.name.to_string(),
                 value,
                 create_keyframe: true,
-            })));
+            }).into());
         }
     }
 
@@ -473,11 +473,11 @@ pub(crate) fn render_property_row(
             ui.strong(format!("Keyframe @ {:.2}s", current_time_s));
             ui.separator();
             if ui.button(format!("{} Delete", egui_phosphor::regular::TRASH)).clicked() {
-                commands.push_back(ShellAction::Command(Command::DeleteKeyframe {
+                commands.push_back(KeyframeCommand::DeleteKeyframe {
                     actor: actor_label.to_string(),
                     property: entry.name.to_string(),
                     time_s: current_time_s,
-                }));
+                }.into());
                 ui.close();
             }
             ui.menu_button(format!("{} Easing", egui_phosphor::regular::WAVEFORM), |ui| {
@@ -485,12 +485,12 @@ pub(crate) fn render_property_row(
                     let variant = animatix_syntax::easing::parse_easing_name(id_str)
                         .unwrap_or(animatix_syntax::easing::Easing::Linear);
                     if ui.selectable_label(false, display_name).clicked() {
-                        commands.push_back(ShellAction::Command(Command::SetKeyframeEasing {
+                        commands.push_back(KeyframeCommand::SetKeyframeEasing {
                             actor: actor_label.to_string(),
                             property: entry.name.to_string(),
                             time_s: current_time_s,
                             easing: variant,
-                        }));
+                        }.into());
                         ui.close();
                     }
                 }
@@ -538,15 +538,14 @@ pub(crate) fn render_property_row(
                                 ));
                             }
                             if rx.changed() || ry.changed() {
-                                commands.push_back(ShellAction::Command(Command::PropertyEdit(
+                                commands.push_back(DocumentCommand::PropertyEdit(
                                     PropertyEdit {
                                         time_s: None,
                                         actor: actor_label.to_string(),
                                         property: entry.name.to_string(),
                                         value: GuiPropertyValue::Vec2([nx, ny]),
                                         create_keyframe: keyframe_mode,
-                                    },
-                                )));
+                                    }).into());
                             }
                         },
                     );
@@ -597,15 +596,15 @@ pub(crate) fn render_property_row(
                                     ));
                                 }
                                 if slider.changed() {
-                                    commands.push_back(ShellAction::Command(
-                                        Command::PropertyEdit(PropertyEdit {
+                                    commands.push_back(DocumentCommand::PropertyEdit(
+                                        PropertyEdit {
                                             time_s: None,
                                             actor: actor_label.to_string(),
                                             property: entry.name.to_string(),
                                             value: GuiPropertyValue::Float(nv),
                                             create_keyframe: keyframe_mode,
-                                        }),
-                                    ));
+                                        },
+                                    ).into());
                                 }
                             },
                         );
@@ -638,15 +637,15 @@ pub(crate) fn render_property_row(
                                 }
                                 if response.changed() {
                                     let out_val = if is_angle { nv.to_radians() } else { nv };
-                                    commands.push_back(ShellAction::Command(
-                                        Command::PropertyEdit(PropertyEdit {
+                                    commands.push_back(DocumentCommand::PropertyEdit(
+                                        PropertyEdit {
                                             time_s: None,
                                             actor: actor_label.to_string(),
                                             property: entry.name.to_string(),
                                             value: GuiPropertyValue::Float(out_val),
                                             create_keyframe: keyframe_mode,
-                                        }),
-                                    ));
+                                        },
+                                    ).into());
                                 }
                             },
                         );
@@ -678,15 +677,14 @@ pub(crate) fn render_property_row(
                                 ));
                             }
                             if response.changed() {
-                                commands.push_back(ShellAction::Command(Command::PropertyEdit(
+                                commands.push_back(DocumentCommand::PropertyEdit(
                                     PropertyEdit {
                                         time_s: None,
                                         actor: actor_label.to_string(),
                                         property: entry.name.to_string(),
                                         value: GuiPropertyValue::Float(nv as f32),
                                         create_keyframe: keyframe_mode,
-                                    },
-                                )));
+                                    }).into());
                             }
                         },
                     );
@@ -721,7 +719,7 @@ pub(crate) fn render_property_row(
                             );
                             if btn.changed() {
                                 let [r, g, b, a] = color.to_array();
-                                commands.push_back(ShellAction::Command(Command::PropertyEdit(
+                                commands.push_back(DocumentCommand::PropertyEdit(
                                     PropertyEdit {
                                         time_s: None,
                                         actor: actor_label.to_string(),
@@ -733,8 +731,7 @@ pub(crate) fn render_property_row(
                                             a as f32 / 255.0,
                                         ]),
                                         create_keyframe: keyframe_mode,
-                                    },
-                                )));
+                                    }).into());
                             }
                         },
                     );
@@ -767,8 +764,8 @@ pub(crate) fn render_property_row(
                                     .show_ui(ui, |ui| {
                                         for v in variants {
                                             if ui.selectable_label(v == text, v).clicked() {
-                                                commands.push_back(ShellAction::Command(
-                                                    Command::PropertyEdit(PropertyEdit {
+                                                commands.push_back(DocumentCommand::PropertyEdit(
+                                                    PropertyEdit {
                                                         time_s: None,
                                                         actor: actor_label.to_string(),
                                                         property: entry.name.to_string(),
@@ -776,8 +773,7 @@ pub(crate) fn render_property_row(
                                                             v.to_string(),
                                                         ),
                                                         create_keyframe: keyframe_mode,
-                                                    }),
-                                                ));
+                                                    }).into());
                                             }
                                         }
                                     });
@@ -798,15 +794,14 @@ pub(crate) fn render_property_row(
                                             let label = format!("Aa   {}", family);
                                             if ui.selectable_label(family == *text, label).clicked()
                                             {
-                                                commands.push_back(ShellAction::Command(
-                                                    Command::PropertyEdit(PropertyEdit {
+                                                commands.push_back(DocumentCommand::PropertyEdit(
+                                                    PropertyEdit {
                                                         time_s: None,
                                                         actor: actor_label.to_string(),
                                                         property: entry.name.to_string(),
                                                         value: GuiPropertyValue::Text(family),
                                                         create_keyframe: keyframe_mode,
-                                                    }),
-                                                ));
+                                                    }).into());
                                             }
                                         }
                                     });
@@ -819,15 +814,15 @@ pub(crate) fn render_property_row(
                                     .desired_width(ui.available_width());
                                 let response = ui.add(edit);
                                 if response.changed() {
-                                    commands.push_back(ShellAction::Command(
-                                        Command::PropertyEdit(PropertyEdit {
+                                    commands.push_back(DocumentCommand::PropertyEdit(
+                                        PropertyEdit {
                                             time_s: None,
                                             actor: actor_label.to_string(),
                                             property: entry.name.to_string(),
                                             value: GuiPropertyValue::Text(buf),
                                             create_keyframe: keyframe_mode,
-                                        }),
-                                    ));
+                                        },
+                                    ).into());
                                 }
                             } else {
                                 ui.add(

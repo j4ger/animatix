@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 
 use egui::{Pos2, Vec2};
 
-use crate::app::commands::{ActionQueue, Command, ShellAction, PropertyEdit, PropertyValue as GuiPropertyValue};
+use crate::app::commands::{ActionQueue, Command, DocumentCommand, SceneCommand, ShellAction, PropertyEdit, PropertyValue as GuiPropertyValue};
 use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
 use crate::app::design_tokens::semantic::status::WARNING as AMBER;
 use crate::app::design_tokens::semantic::surface::SURFACE as BG_SURFACE;
@@ -181,13 +181,13 @@ impl PreviewContext<'_> {
             let new_value = edit.current_value.clone();
             let actor = edit.actor.clone();
             let property = edit.property.clone();
-            self.commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+            self.commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit {
                 time_s: None,
                 actor,
                 property,
                 value: GuiPropertyValue::Text(new_value),
                 create_keyframe: false,
-            })));
+            }).into());
             self.preview.inline_edit = None;
         } else if escape_pressed {
             // Cancel the edit
@@ -337,7 +337,7 @@ impl PreviewContext<'_> {
                         if !active_has_actor {
                             for (scene_name, scene) in &comp.scenes {
                                 if scene.timeline.has_actor(&actor) {
-                                    self.commands.push_back(ShellAction::Command(Command::SelectScene(scene_name.clone())));
+                                    self.commands.push_back(SceneCommand::SelectScene(scene_name.clone()).into());
                                     break;
                                 }
                             }

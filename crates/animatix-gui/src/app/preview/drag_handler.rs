@@ -2,7 +2,7 @@
 
 use egui::Pos2;
 
-use crate::app::commands::{Command, DragEvent, ShellAction, PropertyEdit, PropertyValue};
+use crate::app::commands::{Command, DocumentCommand, DragEvent, ShellAction, PropertyEdit, PropertyValue};
 use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
 use crate::app::design_tokens::semantic::accent::CYAN as ACCENT_CYAN;
 use crate::app::design_tokens::semantic::status::WARNING as AMBER;
@@ -295,18 +295,18 @@ pub(crate) fn handle_preview_drag(
                         let shift = ui.input(|i| i.modifiers.shift);
                         if shift {
                             let current_pos = props.as_ref().map(|p| p.position).unwrap_or([scene.x as f32, scene.y as f32]);
-                            ctx.commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
+                            ctx.commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit { time_s: None,
                                 actor: actor.clone(),
                                 property: "placement_mode".into(),
                                 value: PropertyValue::Text("manual".into()),
                                 create_keyframe: ctx.keyframe_mode,
-                            })));
-                            ctx.commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
+                            }).into());
+                            ctx.commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit { time_s: None,
                                 actor: actor.clone(),
                                 property: "position".into(),
                                 value: PropertyValue::Vec2(current_pos),
                                 create_keyframe: ctx.keyframe_mode,
-                            })));
+                            }).into());
                             let mut actors = Vec::new();
                             for sel in ctx.selected_actors.iter() {
                                 let pos = if let Some(p) = ctx.get_actor_props(sel) {
@@ -504,21 +504,21 @@ pub(crate) fn handle_preview_drag(
                         match binding {
                             PositionBinding::SceneAnchor { anchor, .. } => {
                                 let anchor_pt = animatix::timeline::scene_anchor_point(anchor, ctx.scene_dimensions);
-                                ctx.commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
+                                ctx.commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit { time_s: None,
                                     actor, property: "offset".into(), value: PropertyValue::Vec2([nx - anchor_pt.x as f32, ny - anchor_pt.y as f32]), create_keyframe: ctx.keyframe_mode,
-                                })));
+                                }).into());
                             }
                             PositionBinding::ScenePercent { .. } => {
                                 let w = ctx.scene_dimensions.width.max(1) as f32;
                                 let h = ctx.scene_dimensions.height.max(1) as f32;
-                                ctx.commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
+                                ctx.commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit { time_s: None,
                                     actor, property: "at".into(), value: PropertyValue::Vec2([nx / w, ny / h]), create_keyframe: ctx.keyframe_mode,
-                                })));
+                                }).into());
                             }
                             _ => {
-                                ctx.commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
+                                ctx.commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit { time_s: None,
                                     actor, property: "position".into(), value: PropertyValue::Vec2([nx, ny]), create_keyframe: ctx.keyframe_mode,
-                                })));
+                                }).into());
                             }
                         }
                     }
@@ -565,13 +565,13 @@ pub(crate) fn handle_preview_drag(
 
                     if resize_mode == preview::ResizeMode::Scale {
                         let ratio = new_w / start_size[0].max(1.0);
-                        ctx.commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
+                        ctx.commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit { time_s: None,
                             actor: actor.clone(), property: "scale".into(), value: PropertyValue::Float((start_scale * ratio).max(PREVIEW_MIN_SCALE)), create_keyframe: ctx.keyframe_mode,
-                        })));
+                        }).into());
                     } else {
-                        ctx.commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
+                        ctx.commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit { time_s: None,
                             actor: actor.clone(), property: "size".into(), value: PropertyValue::Vec2([new_w, new_h]), create_keyframe: ctx.keyframe_mode,
-                        })));
+                        }).into());
                     }
 
                     let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
@@ -582,21 +582,21 @@ pub(crate) fn handle_preview_drag(
                     match binding {
                         PositionBinding::SceneAnchor { anchor, .. } => {
                             let anchor_pt = animatix::timeline::scene_anchor_point(anchor, ctx.scene_dimensions);
-                            ctx.commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
+                            ctx.commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit { time_s: None,
                                 actor, property: "offset".into(), value: PropertyValue::Vec2([new_pos_x - anchor_pt.x as f32, new_pos_y - anchor_pt.y as f32]), create_keyframe: ctx.keyframe_mode,
-                            })));
+                            }).into());
                         }
                         PositionBinding::ScenePercent { .. } => {
                             let w = ctx.scene_dimensions.width.max(1) as f32;
                             let h = ctx.scene_dimensions.height.max(1) as f32;
-                            ctx.commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
+                            ctx.commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit { time_s: None,
                                 actor, property: "at".into(), value: PropertyValue::Vec2([new_pos_x / w, new_pos_y / h]), create_keyframe: ctx.keyframe_mode,
-                            })));
+                            }).into());
                         }
                         _ => {
-                            ctx.commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
+                            ctx.commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit { time_s: None,
                                 actor, property: "position".into(), value: PropertyValue::Vec2([new_pos_x, new_pos_y]), create_keyframe: ctx.keyframe_mode,
-                            })));
+                            }).into());
                         }
                     }
                 }
@@ -607,9 +607,9 @@ pub(crate) fn handle_preview_drag(
                     while delta < -std::f32::consts::PI { delta += 2.0 * std::f32::consts::PI; }
                     let mut new_rot = start_rotation + delta;
                     if shift { new_rot = (new_rot / ctx.rotation_snap_degrees.to_radians()).round() * ctx.rotation_snap_degrees.to_radians(); }
-                    ctx.commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
+                    ctx.commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit { time_s: None,
                         actor, property: "rotation".into(), value: PropertyValue::Float(new_rot), create_keyframe: ctx.keyframe_mode,
-                    })));
+                    }).into());
                 }
                 DragState::Reorder { actor, container, source_index: _, target_index: _, layout_type } => {
                     let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
@@ -640,9 +640,9 @@ pub(crate) fn handle_preview_drag(
                         let local_dy = dx * sin + dy * cos;
                         if let Some(pt) = new_points.get_mut(vertex) { pt[0] += local_dx; pt[1] += local_dy; }
                     }
-                    ctx.commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
+                    ctx.commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit { time_s: None,
                         actor, property: "points".into(), value: PropertyValue::PointList(new_points), create_keyframe: ctx.keyframe_mode,
-                    })));
+                    }).into());
                 }
                 DragState::MovePivot { actor, start_offset, start_scene } => {
                     let dx = (scene.x - start_scene.x) as f32;
@@ -659,13 +659,13 @@ pub(crate) fn handle_preview_drag(
                     let dx = (scene.x - start_scene.x) as f32;
                     let dy = (scene.y - start_scene.y) as f32;
                     let new_pos = [start_position[0] + dx, start_position[1] + dy];
-                    ctx.commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+                    ctx.commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit {
                         actor,
                         property: "position".into(),
                         value: PropertyValue::Vec2(new_pos),
                         time_s: Some(time_ms as f64 / 1000.0),
                         create_keyframe: true,
-                    })));
+                    }).into());
                 }
                 DragState::None => {}
             }
@@ -682,9 +682,9 @@ pub(crate) fn handle_preview_drag(
                             if !tl.has_keyframe_at(primary, "position", time_ms) {
                                 if let Some(start_pos) = actors.iter().find(|(l, _)| l == primary).map(|(_, p)| *p) {
                                     if current_props.position != start_pos {
-                                        ctx.commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
+                                        ctx.commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit { time_s: None,
                                             actor: primary.clone(), property: "position".into(), value: PropertyValue::Vec2(current_props.position), create_keyframe: true,
-                                        })));
+                                        }).into());
                                     }
                                 }
                             }
@@ -693,23 +693,23 @@ pub(crate) fn handle_preview_drag(
                     DragState::Scale { actor, start_size, start_position, .. } => {
                         if let Some(current_props) = ctx.get_actor_props(actor) {
                             if !tl.has_keyframe_at(actor, "size", time_ms) && current_props.size != *start_size {
-                                ctx.commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
+                                ctx.commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit { time_s: None,
                                     actor: actor.clone(), property: "size".into(), value: PropertyValue::Vec2(current_props.size), create_keyframe: true,
-                                })));
+                                }).into());
                             }
                             if !tl.has_keyframe_at(actor, "position", time_ms) && current_props.position != *start_position {
-                                ctx.commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
+                                ctx.commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit { time_s: None,
                                     actor: actor.clone(), property: "position".into(), value: PropertyValue::Vec2(current_props.position), create_keyframe: true,
-                                })));
+                                }).into());
                             }
                         }
                     }
                     DragState::Rotate { actor, start_rotation, .. } => {
                         if let Some(current_props) = ctx.get_actor_props(actor) {
                             if !tl.has_keyframe_at(actor, "rotation", time_ms) && current_props.rotation != *start_rotation {
-                                ctx.commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
+                                ctx.commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit { time_s: None,
                                     actor: actor.clone(), property: "rotation".into(), value: PropertyValue::Float(current_props.rotation), create_keyframe: true,
-                                })));
+                                }).into());
                             }
                         }
                     }
@@ -726,9 +726,9 @@ pub(crate) fn handle_preview_drag(
                             let item = new_order.remove(pos);
                             let insert_at = target_index.min(new_order.len());
                             new_order.insert(insert_at, item);
-                            ctx.commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit { time_s: None,
+                            ctx.commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit { time_s: None,
                                 actor: container, property: "child_order".into(), value: PropertyValue::StringList(new_order), create_keyframe: ctx.keyframe_mode,
-                            })));
+                            }).into());
                         }
                     }
                 }

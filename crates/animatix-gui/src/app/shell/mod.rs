@@ -6,7 +6,7 @@ pub mod shortcut_cheat_sheet;
 pub mod toolbar;
 pub mod settings;
 
-use crate::app::commands::{Command, DragEvent, Effect, ShellAction, ViewAction};
+use crate::app::commands::{Command, DocumentCommand, DragEvent, Effect, ShellAction, ViewAction};
 use crate::app::handlers::*;
 use crate::app::GuiShell;
 
@@ -26,7 +26,7 @@ impl GuiShell {
                 if self.document_store.source.is_dirty() {
                     self.ui_store.unsaved_changes.open(
                         format!("Save changes before opening \"{}\"?", path.display()),
-                        ShellAction::Command(Command::OpenFile(path)),
+                        DocumentCommand::OpenFile(path).into(),
                     );
                     return vec![];
                 }
@@ -45,7 +45,7 @@ impl GuiShell {
                 if self.document_store.source.is_dirty() {
                     self.ui_store.unsaved_changes.open(
                         format!("Save changes before switching workspace to \"{}\"?", path.display()),
-                        ShellAction::Command(Command::SwitchWorkspace(path)),
+                        DocumentCommand::SwitchWorkspace(path).into(),
                     );
                     return vec![];
                 }
@@ -60,7 +60,7 @@ impl GuiShell {
                 if self.document_store.source.is_dirty() {
                     self.ui_store.unsaved_changes.open(
                         "Save changes before reloading?".to_string(),
-                        ShellAction::Command(Command::Reload),
+                        DocumentCommand::Reload.into(),
                     );
                     return vec![];
                 }

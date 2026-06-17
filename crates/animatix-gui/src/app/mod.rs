@@ -44,7 +44,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-use crate::app::commands::{ActionQueue, Command, Effect, ShellAction, UndoLabel};
+use crate::app::commands::{ActionQueue, ActorCommand, Command, DocumentCommand, Effect, PlaybackCommand, ShellAction, UndoLabel, ViewCommand};
 use crate::app::components::toast::Toast;
 use crate::app::handlers::file;
 use crate::app::shell::insertion_palette::{InsertionPalette, PaletteMode};
@@ -556,7 +556,7 @@ impl GuiShell {
         let wants_keyboard = ui.ctx().egui_wants_keyboard_input();
         ui.input(|i| {
             if !wants_keyboard && i.key_pressed(egui::Key::Y) && !i.modifiers.command {
-                commands.push_back(ShellAction::Command(Command::ToggleEditorSync));
+                commands.push_back(PlaybackCommand::ToggleEditorSync.into());
             }
             if !wants_keyboard && !i.modifiers.command {
                 if i.key_pressed(egui::Key::A) && i.modifiers.shift && !self.ui_store.selection.selected_actors.is_empty() {
@@ -576,7 +576,7 @@ impl GuiShell {
             if i.modifiers.command && i.key_pressed(egui::Key::V)
                 && !wants_keyboard
                 && !self.ui_store.clipboard.clipboard_actors.is_empty() {
-                    commands.push_back(ShellAction::Command(Command::PasteActors));
+                    commands.push_back(ActorCommand::PasteActors.into());
                 }
         });
 
@@ -614,7 +614,7 @@ impl GuiShell {
                         )
                     {
                         self.ui_store.pending_actions.push_back(
-                            ShellAction::Command(Command::ScrollToLine(target.line, target.column))
+                            ViewCommand::ScrollToLine(target.line, target.column).into()
                         );
                     }
                 });
@@ -810,7 +810,7 @@ impl GuiShell {
                                     return; // don't proceed to open
                                 }
                             }
-                            commands.push_back(ShellAction::Command(Command::OpenFile(path)));
+                            commands.push_back(DocumentCommand::OpenFile(path).into());
                         }
 
                         ui.add_space(SPACE_M);
@@ -835,7 +835,7 @@ impl GuiShell {
                                 .add_filter("Animatix", &["amx"])
                                 .pick_file()
                             {
-                                commands.push_back(ShellAction::Command(Command::OpenFile(path)));
+                                commands.push_back(DocumentCommand::OpenFile(path).into());
                             }
                         }
 
@@ -858,7 +858,7 @@ impl GuiShell {
                         );
                         if ws_resp.clicked() {
                             if let Some(path) = rfd::FileDialog::new().pick_folder() {
-                                commands.push_back(ShellAction::Command(Command::SwitchWorkspace(path)));
+                                commands.push_back(DocumentCommand::SwitchWorkspace(path).into());
                                 self.ui_store.view.welcome_open = false;
                             }
                         }
@@ -1129,7 +1129,7 @@ impl GuiShell {
                                 );
                             } else {
                                 let path = PathBuf::from(&self.ui_store.workspace_switcher_path);
-                                commands.push_back(ShellAction::Command(Command::SwitchWorkspace(path)));
+                                commands.push_back(DocumentCommand::SwitchWorkspace(path).into());
                                 self.ui_store.view.workspace_switcher_open = false;
                             }
                         }

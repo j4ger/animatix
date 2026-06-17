@@ -1,4 +1,4 @@
-use crate::app::commands::{ActionQueue, Command, ShellAction, ViewAction, PropertyEdit, PropertyValue};
+use crate::app::commands::{ActionQueue, Command, DocumentCommand, KeyframeCommand, ShellAction, ViewAction, PropertyEdit, PropertyValue};
 use crate::app::components::button::Button;
 use crate::app::preview::{ActorProps, PreviewTransform};
 use crate::app::design_tokens::semantic::status::WARNING as AMBER;
@@ -230,11 +230,11 @@ fn popup_property_row(
     if diamond_resp.clicked() {
         if has_keyframe {
             // Delete keyframe
-            commands.push_back(ShellAction::Command(Command::DeleteKeyframe {
+            commands.push_back(KeyframeCommand::DeleteKeyframe {
                 actor: actor.to_string(),
                 property: property.to_string(),
                 time_s: current_time_s,
-            }));
+            }.into());
         } else {
             // Create keyframe with current value
             let value = match property {
@@ -244,13 +244,13 @@ fn popup_property_row(
                 "opacity" => PropertyValue::Float(values[0] / 100.0),
                 _ => PropertyValue::Float(values[0]),
             };
-            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+            commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit {
                 time_s: None,
                 actor: actor.to_string(),
                 property: property.to_string(),
                 value,
                 create_keyframe: true,
-            })));
+            }).into());
         }
     }
 
@@ -314,44 +314,44 @@ fn popup_property_row(
         let scene_dy = delta.y * scale_y;
         match property {
             "position" => {
-                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+                commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit {
                     time_s: None,
                     actor: actor.to_string(),
                     property: "position".into(),
                     value: PropertyValue::Vec2([values[0] + scene_dx, values[1] + scene_dy]),
                     create_keyframe: false,
-                })));
+                }).into());
             }
             "size" => {
                 let new_w = (values[0] + scene_dx).max(1.0);
                 let new_h = (values[1] + scene_dy).max(1.0);
-                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+                commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit {
                     time_s: None,
                     actor: actor.to_string(),
                     property: "size".into(),
                     value: PropertyValue::Vec2([new_w, new_h]),
                     create_keyframe: false,
-                })));
+                }).into());
             }
             "rotation" => {
                 let new_deg = (values[0] + delta.x * 0.5).rem_euclid(360.0);
-                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+                commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit {
                     time_s: None,
                     actor: actor.to_string(),
                     property: "rotation".into(),
                     value: PropertyValue::Float(new_deg.to_radians()),
                     create_keyframe: false,
-                })));
+                }).into());
             }
             "opacity" => {
                 let new_opac = (values[0] + delta.x * 0.5).clamp(0.0, 100.0);
-                commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+                commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit {
                     time_s: None,
                     actor: actor.to_string(),
                     property: "opacity".into(),
                     value: PropertyValue::Float(new_opac / 100.0),
                     create_keyframe: false,
-                })));
+                }).into());
             }
             _ => {}
         }

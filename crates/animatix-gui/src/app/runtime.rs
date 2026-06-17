@@ -1,6 +1,6 @@
 use super::*;
 use crate::app::audio::AudioEngine;
-use crate::app::commands::{Command, ShellAction, ViewAction};
+use crate::app::commands::{ActorCommand, Command, DocumentCommand, PlaybackCommand, SceneCommand, ShellAction, ViewAction, ViewCommand};
 use crate::app::persistence::{load_app_state, load_workspace_persistence, persistence_path, save_app_state, clear_app_state};
 use crate::app::design_tokens::semantic::{accent, border, surface, text};
 use crate::app::design_tokens::spatial::{self, component::ICON_SLOT_WIDTH};
@@ -109,30 +109,30 @@ impl AnimatixApp {
 
         // Undo/Redo (works even when editor is focused, for property edits)
         if ctx.input(|i| i.key_pressed(egui::Key::Z) && i.modifiers.ctrl && !i.modifiers.shift) {
-            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::Undo));
+            self.shell.ui_store.pending_actions.push_back(DocumentCommand::Undo.into());
         }
         if ctx.input(|i| {
             i.key_pressed(egui::Key::Z) && i.modifiers.ctrl && i.modifiers.shift
         }) {
-            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::Redo));
+            self.shell.ui_store.pending_actions.push_back(DocumentCommand::Redo.into());
         }
         if ctx.input(|i| i.key_pressed(egui::Key::Y) && i.modifiers.ctrl) {
-            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::Redo));
+            self.shell.ui_store.pending_actions.push_back(DocumentCommand::Redo.into());
         }
 
         // Save (Ctrl+S)
         if ctx.input(|i| i.key_pressed(egui::Key::S) && i.modifiers.ctrl && !i.modifiers.shift) {
-            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::Save));
+            self.shell.ui_store.pending_actions.push_back(DocumentCommand::Save.into());
         }
 
         // Reload (Ctrl+R)
         if ctx.input(|i| i.key_pressed(egui::Key::R) && i.modifiers.ctrl && !i.modifiers.shift) {
-            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::Reload));
+            self.shell.ui_store.pending_actions.push_back(DocumentCommand::Reload.into());
         }
 
         // Rebuild (Ctrl+Shift+R)
         if ctx.input(|i| i.key_pressed(egui::Key::R) && i.modifiers.ctrl && i.modifiers.shift) {
-            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::Rebuild));
+            self.shell.ui_store.pending_actions.push_back(DocumentCommand::Rebuild.into());
         }
 
         // Skip remaining shortcuts when a text input is focused
@@ -141,27 +141,27 @@ impl AnimatixApp {
         }
 
         if ctx.input(|i| i.key_pressed(egui::Key::Space)) {
-            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::TogglePlayback));
+            self.shell.ui_store.pending_actions.push_back(PlaybackCommand::TogglePlayback.into());
         }
 
         // Scene jump hotkeys (1/2/3) — jump to Nth scene in composition
         let scene_names = self.shell.document_store.source.document.scene_names();
         if ctx.input(|i| i.key_pressed(egui::Key::Num1)) && !scene_names.is_empty() {
-            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::SelectScene(scene_names[0].clone())));
+            self.shell.ui_store.pending_actions.push_back(SceneCommand::SelectScene(scene_names[0].clone()).into());
         }
         if ctx.input(|i| i.key_pressed(egui::Key::Num2)) && scene_names.len() >= 2 {
-            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::SelectScene(scene_names[1].clone())));
+            self.shell.ui_store.pending_actions.push_back(SceneCommand::SelectScene(scene_names[1].clone()).into());
         }
         if ctx.input(|i| i.key_pressed(egui::Key::Num3)) && scene_names.len() >= 3 {
-            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::SelectScene(scene_names[2].clone())));
+            self.shell.ui_store.pending_actions.push_back(SceneCommand::SelectScene(scene_names[2].clone()).into());
         }
 
         if ctx.input(|i| i.key_pressed(egui::Key::Comma)) {
-            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::PrevKeyframe));
+            self.shell.ui_store.pending_actions.push_back(PlaybackCommand::PrevKeyframe.into());
         }
 
         if ctx.input(|i| i.key_pressed(egui::Key::Period)) {
-            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::NextKeyframe));
+            self.shell.ui_store.pending_actions.push_back(PlaybackCommand::NextKeyframe.into());
         }
 
         // Arrow keys: nudge selected actors OR scrub timeline
@@ -205,21 +205,21 @@ impl AnimatixApp {
             }
         } else if arrow_left {
             let new_time = self.shell.preview_store.preview.playback.current_time_s() - scrub_step_s;
-            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::ScrubTo(new_time)));
+            self.shell.ui_store.pending_actions.push_back(PlaybackCommand::ScrubTo(new_time).into());
         } else if arrow_right {
             let new_time = self.shell.preview_store.preview.playback.current_time_s() + scrub_step_s;
-            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::ScrubTo(new_time)));
+            self.shell.ui_store.pending_actions.push_back(PlaybackCommand::ScrubTo(new_time).into());
         }
 
         // Delete key: remove selected actor(s)
         if ctx.input(|i| i.key_pressed(egui::Key::Delete)) && has_selection {
-            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::DeleteSelectedActors));
+            self.shell.ui_store.pending_actions.push_back(ActorCommand::DeleteSelectedActors.into());
         }
 
         // Duplicate selected actor(s) (Ctrl+D)
         if ctx.input(|i| i.key_pressed(egui::Key::D) && i.modifiers.ctrl) && has_selection {
             for label in self.shell.ui_store.selection.selected_actors.iter().cloned().collect::<Vec<_>>() {
-                self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::DuplicateActor(label)));
+                self.shell.ui_store.pending_actions.push_back(ActorCommand::DuplicateActor(label).into());
             }
         }
 
@@ -258,10 +258,10 @@ impl AnimatixApp {
 
         // Zoom-to-selection (F) and zoom-to-all (Shift+F)
         if ctx.input(|i| i.key_pressed(egui::Key::F) && !i.modifiers.shift && !i.modifiers.command) {
-            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::ZoomToSelection));
+            self.shell.ui_store.pending_actions.push_back(ViewCommand::ZoomToSelection.into());
         }
         if ctx.input(|i| i.key_pressed(egui::Key::F) && i.modifiers.shift && !i.modifiers.command) {
-            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::ZoomToAll));
+            self.shell.ui_store.pending_actions.push_back(ViewCommand::ZoomToAll.into());
         }
 
         // Command palette (Ctrl+Shift+P)
@@ -276,10 +276,10 @@ impl AnimatixApp {
 
         // Group (Ctrl+G) / Ungroup (Ctrl+Shift+G)
         if ctx.input(|i| i.key_pressed(egui::Key::G) && i.modifiers.ctrl && !i.modifiers.shift) {
-            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::GroupSelectedActors));
+            self.shell.ui_store.pending_actions.push_back(ActorCommand::GroupSelectedActors.into());
         }
         if ctx.input(|i| i.key_pressed(egui::Key::G) && i.modifiers.ctrl && i.modifiers.shift) {
-            self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::UngroupSelectedActors));
+            self.shell.ui_store.pending_actions.push_back(ActorCommand::UngroupSelectedActors.into());
         }
     }
 

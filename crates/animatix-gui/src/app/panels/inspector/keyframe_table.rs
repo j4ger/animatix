@@ -6,7 +6,7 @@ use animatix::timeline::{
 use animatix_syntax::easing::Easing;
 use egui::Vec2;
 
-use crate::app::commands::{ActionQueue, Command, ShellAction};
+use crate::app::commands::{ActionQueue, Command, KeyframeCommand, PlaybackCommand, ShellAction};
 use crate::app::design_tokens::semantic::status::WARNING as semantic_status_warning;
 use crate::app::design_tokens::semantic::surface::{HOVER as semantic_surface_hover, WIDGET as semantic_surface_widget};
 use crate::app::design_tokens::semantic::text::{MUTED as semantic_text_muted, SECONDARY as semantic_text_secondary};
@@ -182,12 +182,12 @@ fn render_compact_track_row(
                         .unwrap_or(Easing::Linear);
                     let is_selected = variant == current_easing;
                     if ui.selectable_label(is_selected, display_name).clicked() {
-                        commands.push_back(ShellAction::Command(Command::SetKeyframeEasing {
+                        commands.push_back(KeyframeCommand::SetKeyframeEasing {
                             actor: actor_label.to_string(),
                             property: track.name.to_string(),
                             time_s: *time_ms as f64 / 1000.0,
                             easing: variant,
-                        }));
+                        }.into());
                         ui.close();
                     }
                 }
@@ -229,7 +229,7 @@ fn render_compact_track_row(
             if let Some(pos) = strip_response.interact_pointer_pos() {
                 let fraction =
                     ((pos.x - strip_rect.left()) / strip_rect.width()).clamp(0.0, 1.0) as f64;
-                commands.push_back(ShellAction::Command(Command::ScrubTo(fraction * duration_s)));
+                commands.push_back(PlaybackCommand::ScrubTo(fraction * duration_s).into());
             }
         }
     }

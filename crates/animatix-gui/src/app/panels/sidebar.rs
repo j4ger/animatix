@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use egui::{RichText, Vec2};
 
-use crate::app::commands::{ActionQueue, Command, ShellAction};
+use crate::app::commands::{ActionQueue, ActorCommand, Command, PlaybackCommand, SceneCommand, ShellAction};
 use crate::app::components::{layout, row};
 use crate::app::components::button::Button;
 use crate::app::components::context_menu::{render_menu, MenuEntry};
@@ -218,12 +218,12 @@ fn editor_content_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
     let response = ctx.editor.show(ui);
     if response.changed() || ctx.editor.text() != ctx.source_dirty.as_str() {
         *ctx.source_dirty = ctx.editor.text().to_string();
-        ctx.commands.push_back(ShellAction::Command(Command::EditorChanged));
+        ctx.commands.push_back(PlaybackCommand::EditorChanged.into());
     }
     if let Some(time_s) = ctx.editor.pending_scrub_to_time.take() {
-        ctx.commands.push_back(ShellAction::Command(Command::ScrubTo(time_s)));
+        ctx.commands.push_back(PlaybackCommand::ScrubTo(time_s).into());
         if !ctx.is_playing {
-            ctx.commands.push_back(ShellAction::Command(Command::TogglePlayback));
+            ctx.commands.push_back(PlaybackCommand::TogglePlayback.into());
         }
     }
 }
@@ -478,7 +478,7 @@ fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
 
                 // Click to activate scene
                 if response.row_clicked {
-                    ctx.commands.push_back(ShellAction::Command(Command::SelectScene(scene_name.clone())));
+                    ctx.commands.push_back(SceneCommand::SelectScene(scene_name.clone()).into());
                 }
 
                 // Context menu
@@ -491,9 +491,9 @@ fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
                     ];
                     if let Some(menu_idx) = render_menu(ui, &entries) {
                         match menu_idx {
-                            0 => ctx.commands.push_back(ShellAction::Command(Command::SelectScene(scene_name.clone()))),
-                            2 => ctx.commands.push_back(ShellAction::Command(Command::DuplicateScene(scene_name.clone()))),
-                            3 => ctx.commands.push_back(ShellAction::Command(Command::DeleteScene(scene_name.clone()))),
+                            0 => ctx.commands.push_back(SceneCommand::SelectScene(scene_name.clone()).into()),
+                            2 => ctx.commands.push_back(SceneCommand::DuplicateScene(scene_name.clone()).into()),
+                            3 => ctx.commands.push_back(SceneCommand::DeleteScene(scene_name.clone()).into()),
                             _ => {}
                         }
                         ui.close();
@@ -534,7 +534,7 @@ fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
                         let removed = new_order.remove(from_idx);
                         let insert_at = if to_idx > from_idx { to_idx - 1 } else { to_idx };
                         new_order.insert(insert_at.min(new_order.len()), removed);
-                        ctx.commands.push_back(ShellAction::Command(Command::ReorderScenes(new_order)));
+                        ctx.commands.push_back(SceneCommand::ReorderScenes(new_order).into());
                     }
                     ui.data_mut(|d| {
                         d.remove::<(usize, String)>(drag_data_id);
@@ -604,12 +604,12 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
                     ctx.scene_dimensions.width as f32 / 2.0,
                     ctx.scene_dimensions.height as f32 / 2.0,
                 ];
-                ctx.commands.push_back(ShellAction::Command(Command::CreateActor {
+                ctx.commands.push_back(ActorCommand::CreateActor {
                     ty: super::default_actor_type().into(),
                     label,
                     position: pos,
                     props: vec![],
-                }));
+                }.into());
             }
         });
         return;
@@ -700,11 +700,11 @@ fn render_actor_tree(
             ui.spacing_mut().item_spacing = Vec2::new(spatial_space_xs, 0.0);
             let eye_btn = ui.add(Button::icon(eye_icon).with_tooltip(if is_visible { "Hide layer" } else { "Show layer" }).icon_color(eye_color).hover_icon_color(semantic_text_primary));
             if eye_btn.clicked() {
-                commands.push_back(ShellAction::Command(Command::ToggleActorVisibility(label.to_string())));
+                commands.push_back(ActorCommand::ToggleActorVisibility(label.to_string()).into());
             }
             let lock_btn = ui.add(Button::icon(lock_icon).with_tooltip(if is_locked { "Unlock layer" } else { "Lock layer" }).icon_color(lock_color).hover_icon_color(semantic_text_primary));
             if lock_btn.clicked() {
-                commands.push_back(ShellAction::Command(Command::ToggleActorLock(label.to_string())));
+                commands.push_back(ActorCommand::ToggleActorLock(label.to_string()).into());
             }
         })
         .show(ui, row_id);
@@ -810,7 +810,7 @@ fn render_actor_tree(
                     // Delete is always the last item
                     selected_actors.clear();
                     selected_actors.insert(label.to_string());
-                    commands.push_back(ShellAction::Command(Command::DeleteSelectedActors));
+                    commands.push_back(ActorCommand::DeleteSelectedActors.into());
                 }
             }
             ui.close();
@@ -890,12 +890,12 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
                         ctx.scene_dimensions.width as f32 / 2.0,
                         ctx.scene_dimensions.height as f32 / 2.0,
                     ];
-                    ctx.commands.push_back(ShellAction::Command(Command::CreateActor {
+                    ctx.commands.push_back(ActorCommand::CreateActor {
                         ty: (*name).clone(),
                         label,
                         position: pos,
                         props: vec![],
-                    }));
+                    }.into());
                 }
 
                 // Jump-to-definition button (top-right of component row)
@@ -984,12 +984,12 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
                             ctx.scene_dimensions.width as f32 / 2.0,
                             ctx.scene_dimensions.height as f32 / 2.0,
                         ];
-                        ctx.commands.push_back(ShellAction::Command(Command::CreateActor {
+                        ctx.commands.push_back(ActorCommand::CreateActor {
                             ty: (*name).clone(),
                             label,
                             position: pos,
                             props: vec![],
-                        }));
+                        }.into());
                         ui.close();
                     }
                 });
@@ -1042,7 +1042,7 @@ fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
                             ctx.scene_dimensions.width as f32 / 2.0,
                             ctx.scene_dimensions.height as f32 / 2.0,
                         ];
-                        ctx.commands.push_back(ShellAction::Command(Command::CreateActor {
+                        ctx.commands.push_back(ActorCommand::CreateActor {
                             ty: "Image".into(),
                             label,
                             position: pos,
@@ -1052,7 +1052,7 @@ fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
                                 value_span: None,
                                 trailing_comment: None,
                             }],
-                        }));
+                        }.into());
                     }
                 }
                 ui.add_space(spatial_space_m);
@@ -1074,7 +1074,7 @@ fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
                             ctx.scene_dimensions.width as f32 / 2.0,
                             ctx.scene_dimensions.height as f32 / 2.0,
                         ];
-                        ctx.commands.push_back(ShellAction::Command(Command::CreateActor {
+                        ctx.commands.push_back(ActorCommand::CreateActor {
                             ty: "Svg".into(),
                             label,
                             position: pos,
@@ -1084,7 +1084,7 @@ fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
                                 value_span: None,
                                 trailing_comment: None,
                             }],
-                        }));
+                        }.into());
                     }
                 }
             }

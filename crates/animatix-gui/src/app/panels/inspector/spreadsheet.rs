@@ -16,7 +16,7 @@ use animatix::timeline::{AnimationTrack, SceneDimensions, Timeline, lookup_prope
 
 use super::PropertyViewMode;
 use crate::app::commands::{
-    ActionQueue, Command, PropertyEdit, PropertyValue as GuiPropertyValue, ShellAction,
+    ActionQueue, ActorCommand, Command, DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue, ShellAction,
 };
 use crate::app::components::layout;
 use crate::app::design_tokens::semantic::accent::{PRIMARY as semantic_accent_primary, selection as semantic_accent_selection};
@@ -106,12 +106,12 @@ pub(crate) fn render_property_spreadsheet(
         .on_hover_text("Add a new actor")
         .clicked()
     {
-        commands.push_back(ShellAction::Command(Command::CreateActor {
+        commands.push_back(ActorCommand::CreateActor {
             ty: crate::app::panels::default_actor_type().into(),
             label: crate::app::utils::labels::unique_label(None, "actor"),
             position: [scene_dimensions.width as f32 / 2.0, scene_dimensions.height as f32 / 2.0],
             props: vec![],
-        }));
+        }.into());
     }
 
     let actors: Vec<&String> = {
@@ -297,15 +297,14 @@ pub(crate) fn render_property_spreadsheet(
                                 if let Some(gui_val) =
                                     get_property_gui_value(track, prop_name, time_ms)
                                 {
-                                    commands.push_back(ShellAction::Command(
-                                        Command::PropertyEdit(PropertyEdit {
+                                    commands.push_back(
+                                        DocumentCommand::PropertyEdit(PropertyEdit {
                                             time_s: None,
                                             actor: actor_label.to_string(),
                                             property: prop_name.to_string(),
                                             value: gui_val,
                                             create_keyframe: true,
-                                        }),
-                                    ));
+                                        }).into());
                                 }
                                 ui.close();
                             }

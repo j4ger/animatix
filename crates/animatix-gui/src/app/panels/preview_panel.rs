@@ -2,7 +2,7 @@
 
 use egui::Vec2;
 
-use crate::app::commands::{Command, ShellAction};
+use crate::app::commands::{ActorCommand, Command, DocumentCommand, PlaybackCommand, ShellAction};
 use crate::app::design_tokens::semantic::border::{DEFAULT as border_default, HOVER as border_hover};
 use crate::app::design_tokens::semantic::surface::{BASE as surface_base, PANEL as surface_panel};
 use crate::app::design_tokens::semantic::text::{MUTED as text_muted, SECONDARY as text_secondary};
@@ -315,7 +315,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
             if let Some(new_time) = ctx.preview.time_lens.update_and_show(
                 ui, ctx.preview.playback.current_time_s(), ctx.preview.playback.duration_s, &all_kf,
             ) {
-                ctx.commands.push_back(ShellAction::Command(Command::ScrubTo(new_time)));
+                ctx.commands.push_back(PlaybackCommand::ScrubTo(new_time).into());
             }
 
             let is_dragging = !matches!(ctx.drag_state, DragState::None);
@@ -420,7 +420,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
 
                         // .amx files: open directly instead of creating an actor
                         if ext == "amx" {
-                            ctx.commands.push_back(ShellAction::Command(Command::OpenFile(path)));
+                            ctx.commands.push_back(DocumentCommand::OpenFile(path).into());
                             continue;
                         }
 
@@ -446,12 +446,12 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                                 trailing_comment: None,
                             }])
                         };
-                        ctx.commands.push_back(ShellAction::Command(Command::CreateActor {
+                        ctx.commands.push_back(ActorCommand::CreateActor {
                             ty,
                             label,
                             position: drop_pos,
                             props,
-                        }));
+                        }.into());
                     }
                 }
             }

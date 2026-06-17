@@ -20,7 +20,7 @@
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
-use crate::app::commands::{ActionQueue, Command, ShellAction};
+use crate::app::commands::{ActionQueue, Command, PlaybackCommand, ShellAction};
 use crate::app::components::button::{self, Button, toolbar_separator};
 use crate::app::components::layout;
 use crate::app::design_tokens::semantic::accent::{PRIMARY as semantic_accent_primary, CYAN as semantic_accent_cyan, selection as semantic_accent_selection};
@@ -273,7 +273,7 @@ fn bar_interaction(
     if response.clicked() || response.dragged() {
         if let Some(pos) = response.interact_pointer_pos() {
             let new_time = x_to_time(pos.x);
-            cmds.push_back(ShellAction::Command(Command::ScrubTo(new_time)));
+            cmds.push_back(PlaybackCommand::ScrubTo(new_time).into());
         }
     }
 }
@@ -309,37 +309,37 @@ fn render_transport_strip(
 
             // Go to start
             if ui.add(Button::ghost("").with_icon(egui_phosphor::regular::SKIP_BACK).with_tooltip("Go to start")).clicked() {
-                commands.push_back(ShellAction::Command(Command::ScrubTo(0.0)));
+                commands.push_back(PlaybackCommand::ScrubTo(0.0).into());
             }
 
             // Previous keyframe
             if ui.add(Button::ghost("").with_icon(egui_phosphor::regular::CARET_LEFT).with_tooltip("Previous keyframe")).clicked() {
-                commands.push_back(ShellAction::Command(Command::PrevKeyframe));
+                commands.push_back(PlaybackCommand::PrevKeyframe.into());
             }
 
             // Play / Pause
             if ui.add(Button::icon(button::play_pause_icon(preview.playback.is_playing)).with_tooltip("Play/Pause (Space)")).clicked() {
-                commands.push_back(ShellAction::Command(Command::TogglePlayback));
+                commands.push_back(PlaybackCommand::TogglePlayback.into());
             }
 
             // Next keyframe
             if ui.add(Button::ghost("").with_icon(egui_phosphor::regular::CARET_RIGHT).with_tooltip("Next keyframe")).clicked() {
-                commands.push_back(ShellAction::Command(Command::NextKeyframe));
+                commands.push_back(PlaybackCommand::NextKeyframe.into());
             }
 
             // Frame-step back
             if ui.add(Button::ghost("").with_icon("⏪").with_tooltip("Step back one frame")).clicked() {
-                commands.push_back(ShellAction::Command(Command::FrameStepBackward));
+                commands.push_back(PlaybackCommand::FrameStepBackward.into());
             }
 
             // Frame-step forward
             if ui.add(Button::ghost("").with_icon("⏩").with_tooltip("Step forward one frame")).clicked() {
-                commands.push_back(ShellAction::Command(Command::FrameStepForward));
+                commands.push_back(PlaybackCommand::FrameStepForward.into());
             }
 
             // Go to end
             if ui.add(Button::ghost("").with_icon(egui_phosphor::regular::SKIP_FORWARD).with_tooltip("Go to end")).clicked() {
-                commands.push_back(ShellAction::Command(Command::ScrubTo(preview.playback.duration_s)));
+                commands.push_back(PlaybackCommand::ScrubTo(preview.playback.duration_s).into());
             }
 
             toolbar_separator(ui);

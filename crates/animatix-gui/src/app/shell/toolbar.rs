@@ -1,7 +1,7 @@
 use egui::{Align, RichText, Stroke, Vec2};
 
 use crate::app::GuiShell;
-use crate::app::commands::{ActionQueue, Command, ShellAction, ViewAction};
+use crate::app::commands::{ActionQueue, Command, DocumentCommand, SceneCommand, ShellAction, ViewAction};
 use crate::app::components::button::Button;
 use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
 use crate::app::design_tokens::semantic::status::WARNING as AMBER;
@@ -132,7 +132,7 @@ impl GuiShell {
                             .on_hover_text("Save (Ctrl+S)")
                             .clicked()
                         {
-                            commands.push_back(ShellAction::Command(Command::Save));
+                            commands.push_back(DocumentCommand::Save.into());
                             ui.close();
                         }
                         if ui
@@ -152,7 +152,7 @@ impl GuiShell {
                             .on_hover_text("Reload from disk (Ctrl+R)")
                             .clicked()
                         {
-                            commands.push_back(ShellAction::Command(Command::Reload));
+                            commands.push_back(DocumentCommand::Reload.into());
                             ui.close();
                         }
                         if ui
@@ -163,7 +163,7 @@ impl GuiShell {
                             .on_hover_text("Rebuild timeline (Ctrl+Shift+R)")
                             .clicked()
                         {
-                            commands.push_back(ShellAction::Command(Command::Rebuild));
+                            commands.push_back(DocumentCommand::Rebuild.into());
                             ui.close();
                         }
                         ui.separator();
@@ -176,9 +176,7 @@ impl GuiShell {
                             .clicked()
                         {
                             if let Some(path) = rfd::FileDialog::new().pick_folder() {
-                                commands.push_back(ShellAction::Command(Command::SwitchWorkspace(
-                                    path,
-                                )));
+                                commands.push_back(DocumentCommand::SwitchWorkspace(path).into());
                             }
                             ui.close();
                         }
@@ -216,9 +214,7 @@ impl GuiShell {
                                         .on_hover_text(format!("Switch to scene '{}'", name))
                                         .clicked()
                                     {
-                                        commands.push_back(ShellAction::Command(
-                                            Command::SelectScene(name.clone()),
-                                        ));
+                                        commands.push_back(SceneCommand::SelectScene(name.clone()).into());
                                     }
                                 }
                             });

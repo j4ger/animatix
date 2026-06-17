@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::app::PreviewPaneState;
 use crate::app::commands::{
-    ActionQueue, Command, PropertyEdit, PropertyValue as GuiPropertyValue, ShellAction,
+    ActionQueue, ActorCommand, Command, DocumentCommand, PlaybackCommand, PropertyEdit, PropertyValue as GuiPropertyValue, SceneCommand, ShellAction,
 };
 use crate::app::components::easing_curve_editor::EasingCurveState;
 use crate::app::components::{easing_curve_editor, layout, timeline};
@@ -151,18 +151,18 @@ fn render_scene_inspector(
                         .on_hover_text("Revert to auto-detected duration")
                         .clicked()
                     {
-                        commands.push_back(ShellAction::Command(Command::SetSceneDuration {
+                        commands.push_back(SceneCommand::SetSceneDuration {
                             scene: active_scene.to_string(),
                             duration_s: None,
-                        }));
+                        }.into());
                     }
                 }
                 // Only emit edit if value changed meaningfully
                 if changed && (duration_val - scene.duration_s).abs() > 0.001 {
-                    commands.push_back(ShellAction::Command(Command::SetSceneDuration {
+                    commands.push_back(SceneCommand::SetSceneDuration {
                         scene: active_scene.to_string(),
                         duration_s: Some(duration_val),
-                    }));
+                    }.into());
                 }
             });
 
@@ -230,12 +230,11 @@ fn render_scene_inspector(
                                     .selectable_label(*scene_name == &edge.to_scene, *scene_name)
                                     .clicked()
                                 {
-                                    commands.push_back(ShellAction::Command(
-                                        Command::SetPlayTarget {
+                                    commands.push_back(
+                                        SceneCommand::SetPlayTarget {
                                             from_scene: active_scene.to_string(),
                                             target: Some((*scene_name).clone()),
-                                        },
-                                    ));
+                                        }.into());
                                 }
                             }
                         });
@@ -259,16 +258,15 @@ fn render_scene_inspector(
                                     .clicked()
                                     && def.id != edge.transition.id
                                 {
-                                    commands.push_back(ShellAction::Command(
-                                        Command::SetTransition {
+                                    commands.push_back(
+                                        SceneCommand::SetTransition {
                                             from_scene: active_scene.to_string(),
                                             transition: animatix_syntax::ast::Transition {
                                                 id: def.id.to_string(),
                                                 duration_ms: edge.transition.duration_ms,
                                                 easing: edge.transition.easing,
                                             },
-                                        },
-                                    ));
+                                        }.into());
                                 }
                             }
                         });
@@ -286,14 +284,14 @@ fn render_scene_inspector(
                 });
                 let new_duration_ms = duration_ms.round() as u64;
                 if new_duration_ms != edge.transition.duration_ms {
-                    commands.push_back(ShellAction::Command(Command::SetTransition {
+                    commands.push_back(SceneCommand::SetTransition {
                         from_scene: active_scene.to_string(),
                         transition: animatix_syntax::ast::Transition {
                             id: edge.transition.id.clone(),
                             duration_ms: new_duration_ms,
                             easing: edge.transition.easing,
                         },
-                    }));
+                    }.into());
                 }
 
                 // Easing dropdown
@@ -328,21 +326,21 @@ fn render_scene_inspector(
                         });
                 });
                 if let Some(variant) = new_custom_easing {
-                    commands.push_back(ShellAction::Command(Command::SetTransition {
+                    commands.push_back(SceneCommand::SetTransition {
                         from_scene: active_scene.to_string(),
                         transition: animatix_syntax::ast::Transition {
                             id: edge.transition.id.clone(),
                             duration_ms: edge.transition.duration_ms,
                             easing: variant,
                         },
-                    }));
+                    }.into());
                 }
 
                 // Custom easing curve editor
                 if let animatix_syntax::easing::Easing::CubicBezier(cp) = edge.transition.easing {
                     let state = EasingCurveState::from_array(cp);
                     if let Some(new_state) = easing_curve_editor::easing_curve_editor(ui, state) {
-                        commands.push_back(ShellAction::Command(Command::SetTransition {
+                        commands.push_back(SceneCommand::SetTransition {
                             from_scene: active_scene.to_string(),
                             transition: animatix_syntax::ast::Transition {
                                 id: edge.transition.id.clone(),
@@ -351,7 +349,7 @@ fn render_scene_inspector(
                                     new_state.to_array(),
                                 ),
                             },
-                        }));
+                        }.into());
                     }
                 }
 
@@ -368,9 +366,9 @@ fn render_scene_inspector(
                     )
                     .clicked()
                 {
-                    commands.push_back(ShellAction::Command(Command::SelectScene(
+                    commands.push_back(SceneCommand::SelectScene(
                         edge.to_scene.clone(),
-                    )));
+                    ).into());
                 }
             });
         }
@@ -418,7 +416,7 @@ fn render_scene_inspector(
                 );
                 if response.clicked() && !is_active {
                     commands
-                        .push_back(ShellAction::Command(Command::SelectScene(scene_name.clone())));
+                        .push_back(SceneCommand::SelectScene(scene_name.clone()).into());
                 }
                 ui.allocate_rect(response.rect, egui::Sense::hover());
             }
@@ -499,12 +497,12 @@ pub(super) fn inspector_ui(
                     scene_dimensions.width as f32 / 2.0,
                     scene_dimensions.height as f32 / 2.0,
                 ];
-                commands.push_back(ShellAction::Command(Command::CreateActor {
+                commands.push_back(ActorCommand::CreateActor {
                     ty: super::default_actor_type().into(),
                     label,
                     position: pos,
                     props: vec![],
-                }));
+                }.into());
             }
         });
         return;
@@ -714,7 +712,7 @@ pub(super) fn inspector_ui(
                     height: spatial_row_xs,
                 };
                 if let Some(scrub_t) = strip.show(ui) {
-                    commands.push_back(ShellAction::Command(Command::ScrubTo(scrub_t)));
+                    commands.push_back(PlaybackCommand::ScrubTo(scrub_t).into());
                 }
             });
 
@@ -960,10 +958,10 @@ fn render_actor_header(
                     if response.lost_focus() {
                         ui.data_mut(|d| d.insert_temp(edit_id, false));
                         if edit_buffer != track.label && !edit_buffer.is_empty() {
-                            commands.push_back(ShellAction::Command(Command::RenameActor {
+                            commands.push_back(ActorCommand::RenameActor {
                                 old_label: track.label.clone(),
                                 new_label: edit_buffer.clone(),
-                            }));
+                            }.into());
                         }
                     }
                     if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
@@ -1058,18 +1056,18 @@ fn render_parent_card(
                     if ui.selectable_label(current_parent.is_none(), "None (root)").clicked()
                         && current_parent.is_some()
                     {
-                        commands.push_back(ShellAction::Command(Command::ReparentActor {
+                        commands.push_back(ActorCommand::ReparentActor {
                             actor: actor.to_string(),
                             new_parent: None,
-                        }));
+                        }.into());
                     }
                     for label in &all_labels {
                         let is_selected = current_parent.as_deref() == Some(label.as_str());
                         if ui.selectable_label(is_selected, label).clicked() && !is_selected {
-                            commands.push_back(ShellAction::Command(Command::ReparentActor {
+                            commands.push_back(ActorCommand::ReparentActor {
                                 actor: actor.to_string(),
                                 new_parent: Some(label.clone()),
-                            }));
+                            }.into());
                         }
                     }
                 });
@@ -1177,24 +1175,24 @@ fn render_container_children(
         if up_resp.clicked() && i > 0 {
             let mut new_order = order.to_vec();
             new_order.swap(i, i - 1);
-            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+            commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit {
                 time_s: None,
                 actor: container.to_string(),
                 property: "child_order".into(),
                 value: GuiPropertyValue::StringList(new_order),
                 create_keyframe: keyframe_mode,
-            })));
+            }).into());
         }
         if down_resp.clicked() && i + 1 < order.len() {
             let mut new_order = order.to_vec();
             new_order.swap(i, i + 1);
-            commands.push_back(ShellAction::Command(Command::PropertyEdit(PropertyEdit {
+            commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit {
                 time_s: None,
                 actor: container.to_string(),
                 property: "child_order".into(),
                 value: GuiPropertyValue::StringList(new_order),
                 create_keyframe: keyframe_mode,
-            })));
+            }).into());
         }
     }
 }
