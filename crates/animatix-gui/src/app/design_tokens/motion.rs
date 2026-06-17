@@ -47,6 +47,59 @@ pub const SPRING_OVERSHOOT: CubicBezier = CubicBezier {
     y2: 1.0,
 };
 
+impl CubicBezier {
+    /// Sample the curve at normalized time `t` ∈ [0, 1] using Newton-Raphson.
+    /// Returns the eased progress value (may overshoot >1 or <0 for spring curves).
+    pub fn sample(self, t: f32) -> f32 {
+        let t = t.clamp(0.0, 1.0);
+
+        // Fast path: linear curve (0,0,1,1)
+        if self.x1 == 0.0 && self.y1 == 0.0 && self.x2 == 1.0 && self.y2 == 1.0 {
+            return t;
+        }
+
+        // Newton-Raphson: find s such that x(s) = t, then return y(s)
+        let mut s = t; // initial guess
+        for _ in 0..6 {
+            let x = cubic_bezier_component(s, self.x1, self.x2);
+            let dx = cubic_bezier_derivative(s, self.x1, self.x2);
+            if dx.abs() < 1e-7 {
+                break;
+            }
+            s = s - (x - t) / dx;
+            s = s.clamp(0.0, 1.0);
+        }
+
+        // Binary search refinement (safe for extreme control points)
+        let mut lo = 0.0_f32;
+        let mut hi = 1.0_f32;
+        for _ in 0..8 {
+            let mid = (lo + hi) / 2.0;
+            let x = cubic_bezier_component(mid, self.x1, self.x2);
+            if (x - t).abs() < 1e-6 {
+                return cubic_bezier_component(mid, self.y1, self.y2);
+            }
+            if x < t {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+
+        cubic_bezier_component(s, self.y1, self.y2)
+    }
+}
+
+fn cubic_bezier_component(s: f32, c1: f32, c2: f32) -> f32 {
+    let s1 = 1.0 - s;
+    3.0 * s1 * s1 * s * c1 + 3.0 * s1 * s * s * c2 + s * s * s
+}
+
+fn cubic_bezier_derivative(s: f32, c1: f32, c2: f32) -> f32 {
+    let s1 = 1.0 - s;
+    3.0 * s1 * s1 * c1 + 6.0 * s1 * s * (c2 - c1) + 3.0 * s * s * (1.0 - c2)
+}
+
 /// A named transition combining duration and easing.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Transition {

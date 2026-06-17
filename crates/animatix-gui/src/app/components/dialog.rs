@@ -9,9 +9,20 @@
 
 use egui::{Align2, Margin, Stroke, Ui};
 
+use crate::app::components::anim;
+use crate::app::design_tokens::motion;
 use crate::app::design_tokens::semantic::{border, overlay, surface, text};
-use crate::app::design_tokens::spatial::{RADIUS_XL, SPACE_XL, STROKE_WIDTH};
+use crate::app::design_tokens::spatial::{self, RADIUS_XL, STROKE_WIDTH};
+use crate::app::design_tokens::spatial::dialog as dialog_token;
 use crate::app::design_tokens::typography::TextRole;
+
+/// Context passed to the dialog body on each frame.
+pub struct DialogCtx {
+    /// Set to `true` on the very first frame the dialog is rendered.
+    /// Useful for requesting initial focus on a widget.
+    #[allow(dead_code)] // Reserved for CommandPalette/FindReplace focus-on-open (Phase 5)
+    pub first_frame: bool,
+}
 
 /// Configuration for a centered modal dialog.
 pub struct DialogSpec<'a> {
@@ -21,6 +32,7 @@ pub struct DialogSpec<'a> {
     pub min_size: [f32; 2],
     pub max_size: Option<[f32; 2]>,
     pub resizable: bool,
+    pub max_viewport_frac: [f32; 2],
     /// Anchor offset from `Align2::CENTER_CENTER`; default `[0.0, 0.0]`.
     pub anchor_offset: [f32; 2],
 }
@@ -33,6 +45,7 @@ impl<'a> DialogSpec<'a> {
             min_size: default_size,
             max_size: None,
             resizable: false,
+            max_viewport_frac: crate::app::design_tokens::spatial::dialog::MAX_VIEWPORT_FRAC,
             anchor_offset: [0.0, 0.0],
         }
     }
@@ -57,6 +70,13 @@ impl<'a> DialogSpec<'a> {
         self
     }
 
+    /// Set custom viewport-relative sizing fractions (width, height).
+    #[allow(dead_code)] // Reserved for migrating Settings and Export dialogs
+    pub fn with_max_viewport_frac(mut self, frac: [f32; 2]) -> Self {
+        self.max_viewport_frac = frac;
+        self
+    }
+
     /// Offset from screen center (e.g. `[0.0, -80.0]` for command palette).
     #[allow(dead_code)] // Reserved for migrating Command Palette dialog
     pub fn with_anchor_offset(mut self, offset: [f32; 2]) -> Self {
@@ -71,30 +91,65 @@ impl<'a> DialogSpec<'a> {
 ///
 /// Returns `true` while the dialog is open, `false` when it should close.
 ///
-/// `body` receives the window's inner `&mut Ui` and must render the title row
-/// (including the close button) plus content.
-pub fn modal(ui: &mut Ui, spec: &DialogSpec, body: impl FnOnce(&mut Ui)) -> bool {
+/// `body` receives the window's inner `&mut Ui` plus a [`DialogCtx`] and
+/// returns `true` if the body requests to close the dialog (e.g., via the
+/// title close button).
+pub fn modal(
+    ui: &mut Ui,
+    spec: &DialogSpec,
+    body: impl FnOnce(&mut Ui, &DialogCtx) -> bool,
+) -> bool {
     let ctx = ui.ctx();
     let screen_rect = ctx.viewport_rect();
 
-    // Dark semi-transparent backdrop
-    ui.painter().rect_filled(screen_rect, 0.0, overlay::backdrop());
+    // ── Animation state ──
+    let anim_id = egui::Id::new(spec.id).with("anim");
+    let closing_id = egui::Id::new(spec.id).with("closing");
 
-    // Close on Escape
-    let mut should_close = ctx.input(|i| i.key_pressed(egui::Key::Escape));
+    // Read current closing state (persists across frames)
+    let is_closing = ctx.data(|d| d.get_temp::<bool>(closing_id).unwrap_or(false));
+
+    // Target: 1.0 = fully open, 0.0 = fully closed
+    let anim_target = if is_closing { 0.0 } else { 1.0 };
+    let progress = anim::animate_toward_eased(ctx, anim_id, anim_target, motion::MODAL);
+
+    // ── Animated backdrop (painted before window, layered behind it) ──
+    let bg = overlay::backdrop();
+    let alpha = (bg.a() as f32 * progress).round() as u8;
+    let backdrop_color =
+        egui::Color32::from_rgba_premultiplied(bg.r(), bg.g(), bg.b(), alpha);
+    ui.painter().rect_filled(screen_rect, 0.0, backdrop_color);
 
     // Close on backdrop click
     let backdrop_id = egui::Id::new(spec.id).with("backdrop");
     let backdrop = ui.interact(screen_rect, backdrop_id, egui::Sense::click());
-    if backdrop.clicked() {
-        should_close = true;
-    }
 
-    // Centered dialog using egui window for proper layout
-    let mut window = egui::Window::new(spec.id)
-        .anchor(Align2::CENTER_CENTER, spec.anchor_offset)
-        .default_size(spec.default_size)
-        .min_size(spec.min_size)
+    // ── Slide offset for window ──
+    let slide_offset = dialog_token::SLIDE_PX * (1.0 - progress);
+
+    // ── Compute viewport-relative effective size ──
+    let viewport = ctx.viewport_rect().size();
+    let effective_size = [
+        spec.default_size[0]
+            .min((viewport.x * spec.max_viewport_frac[0]).max(spec.min_size[0]))
+            .max(spec.min_size[0]),
+        spec.default_size[1]
+            .min((viewport.y * spec.max_viewport_frac[1]).max(spec.min_size[1]))
+            .max(spec.min_size[1]),
+    ];
+
+    // ── Centered dialog using egui window for proper layout ──
+    let window = egui::Window::new(spec.id)
+        .anchor(
+            Align2::CENTER_CENTER,
+            [spec.anchor_offset[0], spec.anchor_offset[1] + slide_offset],
+        )
+        .default_size(effective_size)
+        .min_size(if spec.resizable {
+            spec.min_size
+        } else {
+            effective_size
+        })
         .resizable(spec.resizable)
         .collapsible(false)
         .title_bar(false)
@@ -103,23 +158,59 @@ pub fn modal(ui: &mut Ui, spec: &DialogSpec, body: impl FnOnce(&mut Ui)) -> bool
                 .fill(surface::BASE)
                 .stroke(Stroke::new(STROKE_WIDTH, border::DEFAULT))
                 .corner_radius(RADIUS_XL)
-                .inner_margin(Margin::same(SPACE_XL as i8)),
+                .inner_margin(Margin::same(spatial::dialog::INNER_MARGIN as i8)),
         );
-    if let Some(max) = spec.max_size {
-        window = window.max_size(max);
-    }
+
+    let window = if spec.resizable {
+        if let Some(max) = spec.max_size {
+            window.max_size(max)
+        } else {
+            window
+        }
+    } else {
+        window.max_size(effective_size)
+    };
 
     let resp = window.show(ctx, |window_ui| {
-        window_ui.set_min_width(spec.min_size[0] - 2.0 * SPACE_XL);
-        body(window_ui);
+        window_ui.set_min_width(spec.min_size[0] - 2.0 * spatial::dialog::INNER_MARGIN);
+        // Detect first frame
+        let opened_id = egui::Id::new(spec.id).with("opened");
+        let first_frame = !ctx.data(|d| d.get_temp::<bool>(opened_id).unwrap_or(false));
+        if first_frame {
+            ctx.data_mut(|d| d.insert_temp(opened_id, true));
+        }
+        let dc = DialogCtx { first_frame };
+        body(window_ui, &dc)
     });
 
-    if resp.is_none() {
-        // Window was closed externally (e.g., collapsed away by the area system).
-        should_close = true;
+    // Inner is None if the window was not shown (e.g., collapsed by area system)
+    let body_close = resp.map(|r| r.inner.unwrap_or(true)).unwrap_or(true);
+
+    // ── Close request detection ──
+    let close_requested = ctx.input(|i| i.key_pressed(egui::Key::Escape))
+        || backdrop.clicked()
+        || body_close;
+
+    // Start closing animation (only once, on first close request)
+    if close_requested && !is_closing {
+        ctx.data_mut(|d| d.insert_temp(closing_id, true));
     }
 
-    !should_close // returns `true` while the dialog should stay open
+    // Request repaint during animation for smooth transitions
+    if progress > 0.01 && progress < 0.99 {
+        ctx.request_repaint();
+    }
+
+    // When fully closed, clean up animation state and hide
+    let fully_closed = is_closing && progress < 0.01;
+    if fully_closed {
+        ctx.data_mut(|d| {
+            d.remove::<bool>(closing_id);
+            d.remove::<bool>(egui::Id::new(spec.id).with("opened"));
+        });
+    }
+
+    !fully_closed // returns `true` while the dialog should stay visible (open or animating closed)
 }
 
 /// Renders the standard title row: heading on the left, X close button on the right.
@@ -128,17 +219,9 @@ pub fn modal(ui: &mut Ui, spec: &DialogSpec, body: impl FnOnce(&mut Ui)) -> bool
 pub fn title_row(ui: &mut Ui, title: &str) -> bool {
     let mut close = false;
     ui.horizontal(|ui| {
-        ui.label(
-            egui::RichText::new(title)
-                .size(TextRole::Heading.size())
-                .color(text::PRIMARY),
-        );
+        ui.label(egui::RichText::new(title).size(TextRole::Heading.size()).color(text::PRIMARY));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui
-                .button(egui_phosphor::regular::X)
-                .on_hover_text("Close (Esc)")
-                .clicked()
-            {
+            if ui.button(egui_phosphor::regular::X).on_hover_text("Close (Esc)").clicked() {
                 close = true;
             }
         });

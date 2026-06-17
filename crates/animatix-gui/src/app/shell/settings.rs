@@ -1,12 +1,10 @@
-use egui::{RichText, Stroke};
+use egui::RichText;
 
+use crate::app::components;
 use crate::app::components::layout;
-use crate::app::design_tokens::semantic::border;
-use crate::app::design_tokens::semantic::overlay;
-use crate::app::design_tokens::semantic::surface;
 use crate::app::design_tokens::semantic::text;
 
-use crate::app::design_tokens::spatial::{RADIUS_XL, SPACE_M, SPACE_S, SPACE_XL, STROKE_WIDTH};
+use crate::app::design_tokens::spatial::{SPACE_M, SPACE_S};
 use crate::app::design_tokens::typography::TextRole;
 
 use crate::app::GuiShell;
@@ -15,60 +13,16 @@ const SETTINGS_INPUT_WIDTH: f32 = 120.0;
 
 impl GuiShell {
     pub(crate) fn settings_dialog_ui(&mut self, ui: &mut egui::Ui) {
-        let screen_rect = ui.ctx().viewport_rect();
+        let spec = components::dialog::DialogSpec::new("Settings", [420.0, 520.0])
+            .with_min_size([380.0, 400.0])
+            .with_max_size([600.0, 700.0])
+            .with_resizable(true);
 
-        // Dark semi-transparent backdrop
-        ui.painter().rect_filled(screen_rect, 0.0, overlay::backdrop());
-
-        // Capture clicks on backdrop to close
-        let backdrop_response =
-            ui.interact(screen_rect, ui.id().with("settings_backdrop"), egui::Sense::click());
-        if backdrop_response.clicked() {
-            self.ui_store.view.settings_open = false;
-        }
-
-        // Close on Escape
-        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.ui_store.view.settings_open = false;
-        }
-
-        // Centered dialog using egui window for proper layout
-        let window_response = egui::Window::new("Settings")
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .default_size([420.0, 520.0])
-            .min_size([380.0, 400.0])
-            .max_size([600.0, 700.0])
-            .resizable(true)
-            .collapsible(false)
-            .title_bar(false)
-            .frame(
-                egui::Frame::new()
-                    .fill(surface::BASE)
-                    .stroke(Stroke::new(STROKE_WIDTH, border::DEFAULT))
-                    .corner_radius(RADIUS_XL)
-                    .inner_margin(egui::Margin::same(SPACE_XL as i8)),
-            )
-            .show(ui.ctx(), |ui| {
-                ui.set_min_width(360.0);
-
-                // Title row
-                ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new("Settings")
-                            .size(TextRole::Heading.size())
-                            .color(text::PRIMARY),
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let close_resp = ui.button(egui_phosphor::regular::X)
-                            .on_hover_text("Close (Esc)");
-                        if close_resp.clicked() {
-                            self.ui_store.view.settings_open = false;
-                        }
-                    });
-                });
-                ui.add_space(SPACE_M);
-                ui.separator();
-                ui.add_space(SPACE_M);
+        let open = components::dialog::modal(ui, &spec, |ui, _dc| -> bool {
+            let close = components::dialog::title_row(ui, "Settings");
+            ui.add_space(SPACE_M);
+            ui.separator();
+            ui.add_space(SPACE_M);
 
                 // ── Preview ──
                 layout::section_header(ui, egui_phosphor::regular::GRID_FOUR, "Preview", None);
@@ -289,11 +243,11 @@ impl GuiShell {
                         self.ui_store.keyframe_merge_window_s = (value_ms as f64 / 1000.0).max(0.0);
                     },
                 );
-            });
+        close
+        });
 
-        if window_response.is_none() {
-            // Window was closed via egui chrome
-            self.ui_store.view.settings_open = false;
-        }
+    if !open {
+        self.ui_store.view.settings_open = false;
     }
+}
 }

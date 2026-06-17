@@ -100,6 +100,30 @@ pub mod component {
     pub const ICON_SLOT_WIDTH: f32 = 14.0;
 }
 
+// ── Dialog layout constants ──
+pub mod dialog {
+    use super::SPACE_4;
+    use super::SPACE_5;
+    use super::SPACE_7;
+
+    /// Inner margin applied around all dialog content (12px).
+    pub const INNER_MARGIN: f32 = SPACE_5;
+    /// Minimum gap between dialog edge and screen edge (24px).
+    pub const SCREEN_MARGIN: f32 = SPACE_7;
+    /// Maximum fraction of viewport the dialog may occupy.
+    pub const MAX_VIEWPORT_FRAC: [f32; 2] = [0.85, 0.8];
+    /// Gap between columns in multi-column layouts (8px).
+    pub const COL_GAP: f32 = SPACE_4;
+    /// Fraction of column width reserved for the key label in shortcut rows.
+    pub const KEY_COL_FRAC: f32 = 0.42;
+    /// Maximum pixel width of the key label in shortcut rows.
+    pub const KEY_COL_MAX: f32 = 150.0;
+    /// Below this available width (px), shortcuts collapse to 1 column.
+    pub const SINGLE_COL_THRESHOLD: f32 = 440.0;
+    /// Vertical slide distance (px) for the open/close animation.
+    pub const SLIDE_PX: f32 = 12.0;
+}
+
 // ── Inspector layout ──
 pub mod inspector {
     use super::ROW_M;

@@ -4,7 +4,7 @@ use crate::app::components::{self};
 use crate::app::design_tokens::semantic::accent;
 use crate::app::design_tokens::semantic::text;
 
-use crate::app::design_tokens::spatial::{ROW_S, SPACE_L, SPACE_M, SPACE_XS};
+use crate::app::design_tokens::spatial::{dialog as dialog_token, ROW_S, SPACE_M, SPACE_XS};
 use crate::app::design_tokens::typography::TextRole;
 
 use crate::app::GuiShell;
@@ -81,27 +81,36 @@ impl GuiShell {
         )
         .with_min_size([380.0, 320.0]);
 
-        let open = components::dialog::modal(ui, &spec, |ui| {
-            if components::dialog::title_row(ui, "Keyboard Shortcuts") {
-                self.ui_store.view.shortcuts_open = false;
-            }
+        let open = components::dialog::modal(ui, &spec, |ui, _dc| -> bool {
+            let close = components::dialog::title_row(ui, "Keyboard Shortcuts");
             ui.add_space(SPACE_M);
             ui.separator();
             ui.add_space(SPACE_M);
 
-            let col_w = (ui.available_width() - SPACE_L) / 2.0;
-
             egui::ScrollArea::vertical()
                 .max_height(ui.available_height())
                 .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing = Vec2::new(SPACE_L, 0.0);
+                    let avail_w = ui.available_width();
+                    let n_cols = if avail_w < dialog_token::SINGLE_COL_THRESHOLD { 1 } else { 2 };
+                    let col_w = (avail_w - dialog_token::COL_GAP * (n_cols - 1) as f32) / n_cols as f32;
 
-                        let mid = SHORTCUT_GROUPS.len().div_ceil(2);
-                        shortcut_column(ui, &SHORTCUT_GROUPS[..mid], col_w);
-                        shortcut_column(ui, &SHORTCUT_GROUPS[mid..], col_w);
-                    });
+                    if n_cols == 1 {
+                        // Single column — render all groups
+                        for group in SHORTCUT_GROUPS {
+                            shortcut_column(ui, std::slice::from_ref(group), col_w);
+                        }
+                    } else {
+                        // Two columns — split groups across columns
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing = Vec2::new(dialog_token::COL_GAP, 0.0);
+
+                            let mid = SHORTCUT_GROUPS.len().div_ceil(2);
+                            shortcut_column(ui, &SHORTCUT_GROUPS[..mid], col_w);
+                            shortcut_column(ui, &SHORTCUT_GROUPS[mid..], col_w);
+                        });
+                    }
                 });
+            close
         });
 
         if !open {
@@ -132,7 +141,7 @@ fn shortcut_column(ui: &mut egui::Ui, groups: &[(&str, &[(&str, &str)])], width:
 
 fn shortcut_row(ui: &mut egui::Ui, key: &str, desc: &str, col_w: f32) {
     // Fixed-width key column — prevents long keys from overlapping the description.
-    let key_w = (col_w * 0.42).min(150.0);
+    let key_w = (col_w * dialog_token::KEY_COL_FRAC).min(dialog_token::KEY_COL_MAX);
 
     ui.horizontal(|ui| {
         ui.add_sized(
