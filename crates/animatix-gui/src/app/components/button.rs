@@ -1,8 +1,10 @@
 use egui::{Color32, Response, Sense, Vec2};
 
 use crate::app::design_tokens::semantic::{accent, border, surface, text};
-use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, ROW_L, ROW_M, ROW_S, SPACE_M, STROKE_WIDTH};
-use crate::app::design_tokens::typography::{TextRole};
+use crate::app::design_tokens::spatial::{
+    RADIUS_M, RADIUS_S, ROW_L, ROW_M, ROW_S, SPACE_M, STROKE_WIDTH,
+};
+use crate::app::design_tokens::typography::TextRole;
 
 // ── Button types ──
 
@@ -177,10 +179,9 @@ impl egui::Widget for Button {
         let icon_font = TextRole::Body.font_id();
         let label_font = TextRole::BodyS.font_id();
 
-        let icon_galley = self.icon.map(|i| {
-            ui.painter()
-                .layout_no_wrap(i.to_string(), icon_font.clone(), text::PRIMARY)
-        });
+        let icon_galley = self
+            .icon
+            .map(|i| ui.painter().layout_no_wrap(i.to_string(), icon_font.clone(), text::PRIMARY));
 
         let show_label = self.label.is_some() && self.show_label;
 
@@ -227,7 +228,7 @@ impl egui::Widget for Button {
                 } else {
                     response
                 }
-            }
+            },
             ButtonVariant::Ghost => {
                 let icon_width = icon_galley.as_ref().map_or(0.0, |g| g.size().x);
                 let mut width = icon_width + SPACE_M * 2.0;
@@ -320,7 +321,7 @@ impl egui::Widget for Button {
                 } else {
                     response
                 }
-            }
+            },
             ButtonVariant::Primary | ButtonVariant::Secondary => {
                 let icon_width = icon_galley.as_ref().map_or(0.0, |g| g.size().x);
                 let mut width = SPACE_M * 2.0;
@@ -329,7 +330,8 @@ impl egui::Widget for Button {
                 }
                 let label_str = self.label.as_ref().filter(|_| show_label).cloned();
                 if let Some(ref l) = label_str {
-                    let galley = ui.painter().layout_no_wrap(l.clone(), label_font.clone(), text::PRIMARY);
+                    let galley =
+                        ui.painter().layout_no_wrap(l.clone(), label_font.clone(), text::PRIMARY);
                     width += galley.size().x;
                 }
                 let size = Vec2::new(width.max(row_height * 2.0), row_height);
@@ -339,7 +341,7 @@ impl egui::Widget for Button {
                     let (bg, hover_bg, active_bg) = match self.variant {
                         ButtonVariant::Primary => {
                             (accent::PRIMARY, accent::PRIMARY_HOVER, accent::PRIMARY_ACTIVE)
-                        }
+                        },
                         _ => (surface::WIDGET, surface::HOVER, surface::ACTIVE),
                     };
                     let fill = if response.is_pointer_button_down_on() {
@@ -403,7 +405,7 @@ impl egui::Widget for Button {
                 } else {
                     response
                 }
-            }
+            },
         };
 
         response
@@ -424,7 +426,10 @@ pub fn toolbar_separator(ui: &mut egui::Ui) {
     let height = ROW_M - 4.0;
     let (rect, _) = ui.allocate_exact_size(Vec2::new(1.0, height), Sense::hover());
     ui.painter().line_segment(
-        [egui::pos2(rect.center().x, rect.min.y), egui::pos2(rect.center().x, rect.max.y)],
+        [
+            egui::pos2(rect.center().x, rect.min.y),
+            egui::pos2(rect.center().x, rect.max.y),
+        ],
         egui::Stroke::new(STROKE_WIDTH, border::DEFAULT),
     );
 }

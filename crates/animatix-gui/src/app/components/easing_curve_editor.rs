@@ -63,7 +63,12 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
 
     // Background
     painter.rect_filled(rect, RADIUS_M, surface::BASE);
-    painter.rect_stroke(rect, RADIUS_M, Stroke::new(STROKE_WIDTH, border::DEFAULT), egui::StrokeKind::Outside);
+    painter.rect_stroke(
+        rect,
+        RADIUS_M,
+        Stroke::new(STROKE_WIDTH, border::DEFAULT),
+        egui::StrokeKind::Outside,
+    );
 
     // Grid
     for i in 0..=4 {
@@ -71,20 +76,23 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
         let x = egui::lerp(plot_rect.left()..=plot_rect.right(), t);
         let y = egui::lerp(plot_rect.top()..=plot_rect.bottom(), t);
         painter.line_segment(
-            [Pos2::new(x, plot_rect.top()), Pos2::new(x, plot_rect.bottom())],
+            [
+                Pos2::new(x, plot_rect.top()),
+                Pos2::new(x, plot_rect.bottom()),
+            ],
             Stroke::new(STROKE_WIDTH, canvas::grid_line()),
         );
         painter.line_segment(
-            [Pos2::new(plot_rect.left(), y), Pos2::new(plot_rect.right(), y)],
+            [
+                Pos2::new(plot_rect.left(), y),
+                Pos2::new(plot_rect.right(), y),
+            ],
             Stroke::new(STROKE_WIDTH, canvas::grid_line()),
         );
     }
 
     // Diagonal reference line (linear)
-    painter.line_segment(
-        [map(0.0, 0.0), map(1.0, 1.0)],
-        Stroke::new(1.0, text::DISABLED),
-    );
+    painter.line_segment([map(0.0, 0.0), map(1.0, 1.0)], Stroke::new(1.0, text::DISABLED));
 
     // Draw curve
     let cp = state.to_array();
@@ -120,7 +128,11 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
 
     // P1 handle
     let p1_id = ui.id().with("easing_p1");
-    let p1_response = ui.interact(Rect::from_center_size(p1, Vec2::splat(handle_radius * 2.0)), p1_id, Sense::drag());
+    let p1_response = ui.interact(
+        Rect::from_center_size(p1, Vec2::splat(handle_radius * 2.0)),
+        p1_id,
+        Sense::drag(),
+    );
     if p1_response.dragged() {
         let d = p1_response.drag_delta();
         let dx = d.x / plot_rect.width();
@@ -129,13 +141,21 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
         new_state.p1y = (new_state.p1y + dy).clamp(0.0, 1.0);
         changed = true;
     }
-    let p1_color = if p1_response.dragged() { status::WARNING } else { accent::PRIMARY };
+    let p1_color = if p1_response.dragged() {
+        status::WARNING
+    } else {
+        accent::PRIMARY
+    };
     painter.circle_filled(p1, handle_radius, p1_color);
     painter.circle_stroke(p1, handle_radius + 1.5, Stroke::new(1.5, text::PRIMARY));
 
     // P2 handle
     let p2_id = ui.id().with("easing_p2");
-    let p2_response = ui.interact(Rect::from_center_size(p2, Vec2::splat(handle_radius * 2.0)), p2_id, Sense::drag());
+    let p2_response = ui.interact(
+        Rect::from_center_size(p2, Vec2::splat(handle_radius * 2.0)),
+        p2_id,
+        Sense::drag(),
+    );
     if p2_response.dragged() {
         let d = p2_response.drag_delta();
         let dx = d.x / plot_rect.width();
@@ -144,7 +164,11 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
         new_state.p2y = (new_state.p2y + dy).clamp(0.0, 1.0);
         changed = true;
     }
-    let p2_color = if p2_response.dragged() { status::WARNING } else { accent::PRIMARY };
+    let p2_color = if p2_response.dragged() {
+        status::WARNING
+    } else {
+        accent::PRIMARY
+    };
     painter.circle_filled(p2, handle_radius, p2_color);
     painter.circle_stroke(p2, handle_radius + 1.5, Stroke::new(1.5, text::PRIMARY));
 
@@ -153,11 +177,7 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
         ui.ctx().output_mut(|o| o.cursor_icon = egui::CursorIcon::Crosshair);
     }
 
-    if changed {
-        Some(new_state)
-    } else {
-        None
-    }
+    if changed { Some(new_state) } else { None }
 }
 
 fn cubic_bezier_x(t: f32, cp: [f32; 4]) -> f32 {

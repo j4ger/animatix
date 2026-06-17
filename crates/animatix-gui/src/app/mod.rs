@@ -20,6 +20,7 @@ pub(crate) mod document;
 pub(crate) mod audio;
 pub(crate) mod command_bus;
 pub(crate) mod services;
+pub(crate) mod interaction;
 
 use crate::document::{DocumentSession, default_file_path};
 use crate::hot_reload::{HotReloader, ReloadStatus};

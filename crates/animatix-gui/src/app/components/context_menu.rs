@@ -27,16 +27,16 @@
 use egui::{Align2, Color32, CornerRadius, Id, Margin, Pos2, Rect, Sense, Stroke, Ui, Vec2};
 
 use crate::app::design_tokens::semantic::{accent, border, overlay, surface, text};
-use crate::app::design_tokens::spatial::{
-    menu as menu_spatial, ROW_M, ROW_S, SPACE_L, SPACE_M, SPACE_S, STROKE_WIDTH,
-};
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S};
-use crate::app::design_tokens::typography::{TextRole};
+use crate::app::design_tokens::spatial::{
+    ROW_M, ROW_S, SPACE_L, SPACE_M, SPACE_S, STROKE_WIDTH, menu as menu_spatial,
+};
+use crate::app::design_tokens::typography::TextRole;
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const MENU_ITEM_HEIGHT: f32 = ROW_M; // 24.0
-const MENU_ICON_GAP: f32 = SPACE_S;  // 4.0
+const MENU_ICON_GAP: f32 = SPACE_S; // 4.0
 const MENU_SHORTCUT_GAP: f32 = SPACE_L; // 8.0
 
 // ─── Data Types ─────────────────────────────────────────────────────────────
@@ -141,7 +141,10 @@ pub fn render_menu(ui: &mut Ui, entries: &[MenuEntry]) -> Option<usize> {
 
     // First pass: measure content width
     for entry in entries {
-        if let MenuEntry::Item { label, shortcut, .. } = entry {
+        if let MenuEntry::Item {
+            label, shortcut, ..
+        } = entry
+        {
             let mut needed = layout.text_left;
             // Label
             let label_galley = ui.painter().layout(
@@ -187,13 +190,13 @@ pub fn render_menu(ui: &mut Ui, entries: &[MenuEntry]) -> Option<usize> {
                 if response.clicked && clicked_index.is_none() {
                     clicked_index = Some(i);
                 }
-            }
+            },
             MenuEntry::Header(text) => {
                 render_menu_header(ui, text, content_width);
-            }
+            },
             MenuEntry::Separator => {
                 render_menu_separator(ui, content_width);
-            }
+            },
         }
     }
 
@@ -210,15 +213,9 @@ pub fn render_floating_menu(
     pos: Pos2,
     entries: &[MenuEntry],
 ) -> (Option<usize>, Rect) {
-    let area = egui::Area::new(id)
-        .fixed_pos(pos)
-        .order(egui::Order::Foreground);
+    let area = egui::Area::new(id).fixed_pos(pos).order(egui::Order::Foreground);
 
-    let inner = area.show(ctx, |ui| {
-        menu_frame().show(ui, |ui| {
-            render_menu(ui, entries)
-        }).inner
-    });
+    let inner = area.show(ctx, |ui| menu_frame().show(ui, |ui| render_menu(ui, entries)).inner);
 
     (inner.inner, inner.response.rect)
 }
@@ -251,7 +248,11 @@ fn render_menu_item(
 ) -> MenuItemResponse {
     let (rect, response) = ui.allocate_exact_size(
         Vec2::new(content_width, MENU_ITEM_HEIGHT),
-        if enabled { Sense::click() } else { Sense::hover() },
+        if enabled {
+            Sense::click()
+        } else {
+            Sense::hover()
+        },
     );
 
     // ── Background ──
@@ -348,10 +349,7 @@ fn render_menu_item(
 }
 
 fn render_menu_header(ui: &mut Ui, text: &str, content_width: f32) {
-    let (rect, _) = ui.allocate_exact_size(
-        Vec2::new(content_width, ROW_S),
-        Sense::hover(),
-    );
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(content_width, ROW_S), Sense::hover());
 
     ui.painter().text(
         egui::pos2(rect.min.x + SPACE_M, rect.center().y),
@@ -363,10 +361,7 @@ fn render_menu_header(ui: &mut Ui, text: &str, content_width: f32) {
 }
 
 fn render_menu_separator(ui: &mut Ui, content_width: f32) {
-    let (rect, _) = ui.allocate_exact_size(
-        Vec2::new(content_width, SPACE_M + 1.0),
-        Sense::hover(),
-    );
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(content_width, SPACE_M + 1.0), Sense::hover());
 
     let y = rect.center().y;
     ui.painter().line_segment(

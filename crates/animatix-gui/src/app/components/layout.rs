@@ -2,8 +2,10 @@ use egui::{CornerRadius, Margin, Rect, Response, Stroke, Vec2};
 
 use crate::app::design_tokens::semantic::{accent, border, overlay, surface, text};
 use crate::app::design_tokens::spatial::component::{PILL_TAB_GAP, PILL_TAB_HEIGHT};
-use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, ROW_S, SPACE_M, SPACE_S, SPACE_XL, STROKE_WIDTH};
-use crate::app::design_tokens::typography::{TextRole};
+use crate::app::design_tokens::spatial::{
+    RADIUS_M, RADIUS_S, ROW_S, SPACE_M, SPACE_S, SPACE_XL, STROKE_WIDTH,
+};
+use crate::app::design_tokens::typography::TextRole;
 
 /// A styled container with our surface background, rounded corners,
 /// and layered shadow for depth.
@@ -47,10 +49,8 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
     let is_sticky = paint_y > natural_y;
 
     if is_sticky {
-        let bg_rect = Rect::from_min_size(
-            egui::pos2(paint_x, paint_y),
-            Vec2::new(available, header_height),
-        );
+        let bg_rect =
+            Rect::from_min_size(egui::pos2(paint_x, paint_y), Vec2::new(available, header_height));
         ui.painter().rect_filled(bg_rect, RADIUS_M, surface::SURFACE);
         ui.painter().line_segment(
             [
@@ -61,10 +61,8 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
         );
     }
 
-    let line_rect = Rect::from_min_size(
-        egui::pos2(paint_x, paint_y + SPACE_S),
-        Vec2::new(24.0, line_h),
-    );
+    let line_rect =
+        Rect::from_min_size(egui::pos2(paint_x, paint_y + SPACE_S), Vec2::new(24.0, line_h));
     ui.painter().rect_filled(line_rect, RADIUS_S, accent::PRIMARY);
 
     let row_rect = Rect::from_min_size(
@@ -110,8 +108,10 @@ pub fn empty_state(ui: &mut egui::Ui, icon: &str, title: &str, subtitle: &str) {
     ui.vertical_centered(|ui| {
         ui.add_space(SPACE_XL * 3.0);
         ui.add(
-            egui::Label::new(egui::RichText::new(icon).size(EMPTY_STATE_ICON_SIZE).color(text::MUTED))
-                .selectable(false),
+            egui::Label::new(
+                egui::RichText::new(icon).size(EMPTY_STATE_ICON_SIZE).color(text::MUTED),
+            )
+            .selectable(false),
         );
         ui.add_space(SPACE_M);
         ui.add(
@@ -211,9 +211,7 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
     let gap = PILL_TAB_GAP;
     let tab_w = (available - gap * (tabs.len().saturating_sub(1)) as f32) / tabs.len() as f32;
 
-    let bar_rect = ui
-        .allocate_exact_size(Vec2::new(available, tab_h), egui::Sense::hover())
-        .0;
+    let bar_rect = ui.allocate_exact_size(Vec2::new(available, tab_h), egui::Sense::hover()).0;
     ui.painter().rect_filled(bar_rect, RADIUS_M, surface::WIDGET);
 
     let mut clicked_tab = None;
@@ -230,17 +228,32 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
         let pill = tab_rect.shrink2(Vec2::new(2.0, 2.0));
         if is_active {
             ui.painter().rect_filled(pill, RADIUS_M, surface::SURFACE);
-            ui.painter().rect_stroke(pill, RADIUS_M, Stroke::new(STROKE_WIDTH, border::HOVER), egui::StrokeKind::Inside);
+            ui.painter().rect_stroke(
+                pill,
+                RADIUS_M,
+                Stroke::new(STROKE_WIDTH, border::HOVER),
+                egui::StrokeKind::Inside,
+            );
         } else if response.hovered() {
             ui.painter().rect_filled(pill, RADIUS_M, surface::HOVER);
         }
 
-        let text_color = if is_active { text::PRIMARY } else if response.hovered() { text::SECONDARY } else { text::MUTED };
+        let text_color = if is_active {
+            text::PRIMARY
+        } else if response.hovered() {
+            text::SECONDARY
+        } else {
+            text::MUTED
+        };
         let font_id = TextRole::BodyS.font_id();
         let full_text = format!("{}  {}", icon, label);
         let galley = ui.painter().layout_no_wrap(full_text.clone(), font_id.clone(), text_color);
         let show_label = galley.size().x + SPACE_XL <= tab_w;
-        let display_text = if show_label { full_text } else { icon.to_string() };
+        let display_text = if show_label {
+            full_text
+        } else {
+            icon.to_string()
+        };
         ui.painter().text(
             tab_rect.center(),
             egui::Align2::CENTER_CENTER,

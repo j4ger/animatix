@@ -46,3 +46,24 @@ pub const SPRING_OVERSHOOT: CubicBezier = CubicBezier {
     x2: 0.64,
     y2: 1.0,
 };
+
+/// A named transition combining duration and easing.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Transition {
+    pub duration: f32,
+    pub easing: CubicBezier,
+}
+
+/// Predefined transitions for common interaction patterns.
+pub const HOVER: Transition = Transition {
+    duration: FAST,
+    easing: STANDARD,
+};
+pub const PANEL: Transition = Transition {
+    duration: NORMAL,
+    easing: STANDARD,
+};
+pub const MODAL: Transition = Transition {
+    duration: SLOW,
+    easing: DECELERATE,
+};

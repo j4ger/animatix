@@ -1,9 +1,10 @@
+pub mod anim;
 pub mod button;
 pub mod context_menu;
 pub mod diagnostics;
 pub mod easing_curve_editor;
 pub mod layout;
-pub mod text;
 pub mod row;
+pub mod text;
 pub mod timeline;
 pub mod toast;

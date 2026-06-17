@@ -1,9 +1,9 @@
 use egui::{Color32, Id, Rect, Response, Sense, Vec2};
 
 use crate::app::design_tokens::semantic::{accent, surface, text};
-use crate::app::design_tokens::spatial::{ROW_M, SPACE_L, SPACE_S};
 use crate::app::design_tokens::spatial::component::ICON_SLOT_WIDTH;
-use crate::app::design_tokens::typography::{TextRole};
+use crate::app::design_tokens::spatial::{ROW_M, SPACE_L, SPACE_S};
+use crate::app::design_tokens::typography::TextRole;
 
 /// Response from a `Row`.
 pub struct RowResponse {
@@ -121,8 +121,7 @@ impl<'a> Row<'a> {
             egui::pos2(cursor_x, row_rect.min.y),
             Vec2::new(ICON_SLOT_WIDTH, self.height),
         );
-        let chevron_response =
-            ui.interact(chevron_rect, row_id.with("chevron"), Sense::click());
+        let chevron_response = ui.interact(chevron_rect, row_id.with("chevron"), Sense::click());
 
         if self.has_children {
             let icon = if self.is_expanded {
@@ -151,7 +150,11 @@ impl<'a> Row<'a> {
                 egui::pos2(cursor_x, row_rect.min.y),
                 Vec2::new(ICON_SLOT_WIDTH, self.height),
             );
-            let default_color = if self.is_selected { text::PRIMARY } else { text::MUTED };
+            let default_color = if self.is_selected {
+                text::PRIMARY
+            } else {
+                text::MUTED
+            };
             ui.painter().text(
                 egui::pos2(icon_rect.center().x, baseline_y),
                 egui::Align2::CENTER_CENTER,

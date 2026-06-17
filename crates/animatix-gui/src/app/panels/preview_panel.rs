@@ -12,7 +12,7 @@ use crate::app::design_tokens::spatial::preview::MIN_ZOOM as preview_min_zoom;
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::panels::{nice_tick_interval, RULER_SIZE};
 pub(crate) use crate::app::preview::context::PreviewContext;
-use crate::app::preview::{self, drag_handler::handle_preview_drag, selection, DragState, fit_preview};
+use crate::app::preview::{self, selection, DragState, fit_preview};
 use animatix::timeline::SceneDimensions;
 
 // ─── Free functions for the preview canvas ─────────────────────────────────
@@ -319,7 +319,12 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
             }
 
             let is_dragging = !matches!(ctx.drag_state, DragState::None);
-            if handle_preview_drag(ctx, ui, preview_rect, &response) { return; }
+            crate::app::preview::gesture_router::GestureRouter::handle_preview_gestures(
+                ctx,
+                ui,
+                preview_rect,
+                &response,
+            );
 
             let pointer_pos = ui.ctx().input(|i| i.pointer.latest_pos()).filter(|p| preview_rect.contains(*p));
             let scene_dimensions = ctx.scene_dimensions;

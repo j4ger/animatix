@@ -3,7 +3,7 @@ use egui::{Color32, Rect, RichText, Sense, Stroke, Vec2};
 use crate::app::components::layout::card;
 use crate::app::design_tokens::semantic::{border, diagnostic as diag, status, surface, text};
 use crate::app::design_tokens::spatial::{ROW_L, SPACE_L, SPACE_M, SPACE_S, STROKE_WIDTH};
-use crate::app::design_tokens::typography::{TextRole};
+use crate::app::design_tokens::typography::TextRole;
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticPhase};
 
 /// Where to place the cursor after clicking a diagnostic.
@@ -98,18 +98,14 @@ pub fn diagnostics_list(
 
         ui.add_space(SPACE_S);
 
-        egui::ScrollArea::vertical()
-            .max_height(180.0)
-            .show(ui, |ui| {
-                ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
-                for (i, d) in diagnostics.iter().enumerate() {
-                    if let Some(target) =
-                        diagnostic_row(ui, d, i == diagnostics.len() - 1)
-                    {
-                        clicked_target = Some(target);
-                    }
+        egui::ScrollArea::vertical().max_height(180.0).show(ui, |ui| {
+            ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
+            for (i, d) in diagnostics.iter().enumerate() {
+                if let Some(target) = diagnostic_row(ui, d, i == diagnostics.len() - 1) {
+                    clicked_target = Some(target);
                 }
-            });
+            }
+        });
     });
 
     clicked_target
@@ -122,10 +118,13 @@ fn diagnostic_row(
 ) -> Option<DiagnosticTarget> {
     let available = ui.available_width();
     let row_h = ROW_L;
-    let (row_rect, response) =
-        ui.allocate_exact_size(Vec2::new(available, row_h), Sense::click());
+    let (row_rect, response) = ui.allocate_exact_size(Vec2::new(available, row_h), Sense::click());
 
-    let accent_color = if diagnostic.is_error() { status::ERROR } else { status::WARNING };
+    let accent_color = if diagnostic.is_error() {
+        status::ERROR
+    } else {
+        status::WARNING
+    };
     let icon = if diagnostic.is_error() {
         egui_phosphor::regular::X
     } else {
@@ -141,10 +140,7 @@ fn diagnostic_row(
         ui.painter().rect_filled(row_rect, 0.0, bg);
     }
 
-    let accent_rect = Rect::from_min_size(
-        row_rect.min,
-        Vec2::new(2.0, row_rect.height()),
-    );
+    let accent_rect = Rect::from_min_size(row_rect.min, Vec2::new(2.0, row_rect.height()));
     ui.painter().rect_filled(accent_rect, 0.0, accent_color);
 
     let baseline_y = row_rect.center().y;
@@ -165,12 +161,9 @@ fn diagnostic_row(
 
     let msg = diagnostic.message.lines().next().unwrap_or(&diagnostic.message);
     let font_id = TextRole::Body.font_id();
-    let galley = ui.painter().layout(
-        msg.to_string(),
-        font_id.clone(),
-        text::PRIMARY,
-        msg_max_width,
-    );
+    let galley =
+        ui.painter()
+            .layout(msg.to_string(), font_id.clone(), text::PRIMARY, msg_max_width);
 
     ui.painter().galley(
         egui::pos2(cursor_x, baseline_y - galley.size().y / 2.0),

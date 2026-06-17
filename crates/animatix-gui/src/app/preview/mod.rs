@@ -1,5 +1,7 @@
 pub mod context;
 pub mod drag_handler;
+pub mod gesture;
+pub mod gesture_router;
 pub mod grid;
 pub mod property_popup;
 pub mod overlay;

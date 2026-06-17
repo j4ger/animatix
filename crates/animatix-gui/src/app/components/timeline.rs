@@ -4,13 +4,12 @@ use crate::app::design_tokens::semantic::{border, canvas, status, surface, text}
 use crate::app::design_tokens::spatial::{RADIUS_M, SPACE_S, STROKE_WIDTH};
 
 /// Draws a diamond-shaped keyframe marker.
-pub fn keyframe_dot(
-    painter: &egui::Painter,
-    center: egui::Pos2,
-    size: f32,
-    is_active: bool,
-) {
-    let color = if is_active { text::PRIMARY } else { status::WARNING };
+pub fn keyframe_dot(painter: &egui::Painter, center: egui::Pos2, size: f32, is_active: bool) {
+    let color = if is_active {
+        text::PRIMARY
+    } else {
+        status::WARNING
+    };
     let half = size * 0.5;
     let points = vec![
         center + Vec2::new(0.0, -half),
@@ -45,7 +44,12 @@ impl<'a> TimelineStrip<'a> {
 
         let track = rect.shrink2(Vec2::new(SPACE_S, 3.0));
         painter.rect_filled(track, RADIUS_M, surface::WIDGET);
-        painter.rect_stroke(track, RADIUS_M, egui::Stroke::new(STROKE_WIDTH, border::DEFAULT), egui::StrokeKind::Outside);
+        painter.rect_stroke(
+            track,
+            RADIUS_M,
+            egui::Stroke::new(STROKE_WIDTH, border::DEFAULT),
+            egui::StrokeKind::Outside,
+        );
 
         let sec_step = if self.duration_s > 20.0 { 5.0 } else { 1.0 };
         let mut sec = sec_step;

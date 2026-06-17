@@ -1,7 +1,9 @@
 use crate::app::design_tokens::semantic::{accent, border, status, surface, text};
-use crate::app::design_tokens::spatial::component::{TOAST_HEIGHT, TOAST_MARGIN, TOAST_SPACING, TOAST_WIDTH};
+use crate::app::design_tokens::spatial::component::{
+    TOAST_HEIGHT, TOAST_MARGIN, TOAST_SPACING, TOAST_WIDTH,
+};
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, SPACE_2, SPACE_6, STROKE_WIDTH};
-use crate::app::design_tokens::typography::{TextRole};
+use crate::app::design_tokens::typography::TextRole;
 use egui::{Color32, Pos2, Rect, Vec2};
 use std::time::Instant;
 
@@ -171,10 +173,7 @@ impl ToastQueue {
                 text_color,
                 text_max_w,
             );
-            let text_pos = Pos2::new(
-                text_x,
-                rect.center().y - galley.size().y / 2.0,
-            );
+            let text_pos = Pos2::new(text_x, rect.center().y - galley.size().y / 2.0);
             ui.painter().galley(text_pos, galley, text_color);
             i += 1;
         }
