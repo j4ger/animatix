@@ -8,6 +8,20 @@ use std::path::PathBuf;
 /// side-effect concerns (UI notifications, repaint requests, editor interaction)
 /// from the pure data mutations in the handler.
 #[allow(dead_code)]
+pub mod actor;
+pub mod document;
+pub mod keyframe;
+pub mod playback;
+pub mod scene;
+pub mod view;
+
+pub use actor::ActorCommand;
+pub use document::DocumentCommand;
+pub use keyframe::KeyframeCommand;
+pub use playback::PlaybackCommand;
+pub use scene::SceneCommand;
+pub use view::ViewCommand;
+
 /// Effect enum reserved for future side-effect dispatch.
 #[derive(Debug, Clone)]
 pub enum Effect {
@@ -255,6 +269,37 @@ pub enum ShellAction {
     Command(Command),
     View(ViewAction),
     Drag(DragEvent),
+}
+
+impl From<DocumentCommand> for ShellAction {
+    fn from(c: DocumentCommand) -> Self {
+        ShellAction::Command(c.into())
+    }
+}
+impl From<ActorCommand> for ShellAction {
+    fn from(c: ActorCommand) -> Self {
+        ShellAction::Command(c.into())
+    }
+}
+impl From<KeyframeCommand> for ShellAction {
+    fn from(c: KeyframeCommand) -> Self {
+        ShellAction::Command(c.into())
+    }
+}
+impl From<SceneCommand> for ShellAction {
+    fn from(c: SceneCommand) -> Self {
+        ShellAction::Command(c.into())
+    }
+}
+impl From<PlaybackCommand> for ShellAction {
+    fn from(c: PlaybackCommand) -> Self {
+        ShellAction::Command(c.into())
+    }
+}
+impl From<ViewCommand> for ShellAction {
+    fn from(c: ViewCommand) -> Self {
+        ShellAction::Command(c.into())
+    }
 }
 
 // =========================================================================
