@@ -6,8 +6,7 @@ use crate::app::commands::{
     Command, DocumentCommand, DragEvent, PropertyEdit, PropertyValue, ShellAction,
 };
 use crate::app::design_tokens::spatial::preview::{
-    HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS, MIN_ACTOR_SIZE as PREVIEW_MIN_ACTOR_SIZE,
-    MIN_SCALE as PREVIEW_MIN_SCALE,
+    HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS,
 };
 use crate::app::preview::context::PreviewContext;
 use crate::app::preview::{self, DragState, drag_utils};
@@ -51,56 +50,7 @@ pub(crate) fn handle_preview_drag(
                 match *ctx.tool_mode {
                     preview::ToolMode::Move => {},
                     preview::ToolMode::Vertex => {},
-                    preview::ToolMode::Scale => {
-                        let handle_world = preview::world_handle_positions(p);
-                        let handle_screen: [Pos2; 8] = std::array::from_fn(|i| {
-                            ctx.preview_scene_to_screen(preview_rect, handle_world[i])
-                        });
-                        // Find nearest handle within hit radius
-                        let nearest =
-                            drag_utils::find_nearest_handle(mouse, &handle_screen, hit_radius);
-                        if let Some(idx) = nearest {
-                            let anchor_local = if p.pivot_offset != [0.0, 0.0] {
-                                p.pivot_offset
-                            } else {
-                                preview::handle_anchor_local(idx, p.size)
-                            };
-                            let (resize_mode, start_scale) = ctx
-                                .timeline
-                                .and_then(|t| t.get_track(&actor))
-                                .map(|tr| {
-                                    let mode = if let Some(primitive) =
-                                        animatix::timeline::actor_kind_meta(tr.kind).and_then(|m| {
-                                            animatix::primitives::find_primitive(m.type_name)
-                                        }) {
-                                        match primitive.resize_mode() {
-                                            animatix::timeline::ResizeMode::Scale => {
-                                                preview::ResizeMode::Scale
-                                            },
-                                            _ => preview::ResizeMode::Size,
-                                        }
-                                    } else {
-                                        preview::ResizeMode::Size
-                                    };
-                                    (mode, tr.scale.get(time_ms, 1.0))
-                                })
-                                .unwrap_or((preview::ResizeMode::Size, 1.0));
-                            *ctx.drag_state = DragState::Scale {
-                                actor,
-                                handle: idx,
-                                start_scene: scene,
-                                start_position: p.position,
-                                start_size: p.size,
-                                start_rotation: p.rotation,
-                                anchor_local,
-                                constrain_axis: preview::handle_constrains_axis(idx),
-                                uniform_ratio: ui.input(|i| i.modifiers.shift),
-                                resize_mode,
-                                start_scale,
-                            };
-                            return true;
-                        }
-                    },
+
 
                     preview::ToolMode::Rotate => {},
                     preview::ToolMode::Pivot => {
@@ -119,54 +69,6 @@ pub(crate) fn handle_preview_drag(
                         }
                     },
                     preview::ToolMode::Select => {
-                        let handle_world = preview::world_handle_positions(p);
-                        let handle_screen: [Pos2; 8] = std::array::from_fn(|i| {
-                            ctx.preview_scene_to_screen(preview_rect, handle_world[i])
-                        });
-                        if let Some(idx) =
-                            preview::hit_test_handle(mouse, &handle_screen, hit_radius)
-                        {
-                            let anchor_local = if p.pivot_offset != [0.0, 0.0] {
-                                p.pivot_offset
-                            } else {
-                                preview::handle_anchor_local(idx, p.size)
-                            };
-                            let (resize_mode, start_scale) = ctx
-                                .timeline
-                                .and_then(|t| t.get_track(&actor))
-                                .map(|tr| {
-                                    let mode = if let Some(primitive) =
-                                        animatix::timeline::actor_kind_meta(tr.kind).and_then(|m| {
-                                            animatix::primitives::find_primitive(m.type_name)
-                                        }) {
-                                        match primitive.resize_mode() {
-                                            animatix::timeline::ResizeMode::Scale => {
-                                                preview::ResizeMode::Scale
-                                            },
-                                            _ => preview::ResizeMode::Size,
-                                        }
-                                    } else {
-                                        preview::ResizeMode::Size
-                                    };
-                                    (mode, tr.scale.get(time_ms, 1.0))
-                                })
-                                .unwrap_or((preview::ResizeMode::Size, 1.0));
-                            *ctx.drag_state = DragState::Scale {
-                                actor: actor.clone(),
-                                handle: idx,
-                                start_scene: scene,
-                                start_position: p.position,
-                                start_size: p.size,
-                                start_rotation: p.rotation,
-                                anchor_local,
-                                constrain_axis: preview::handle_constrains_axis(idx),
-                                uniform_ratio: ui.input(|i| i.modifiers.shift),
-                                resize_mode,
-                                start_scale,
-                            };
-                            return true;
-                        }
-
                         let pivot_world_pt = preview::pivot_world(p);
                         let pivot_screen = ctx.preview_scene_to_screen(
                             preview_rect,
@@ -323,108 +225,7 @@ pub(crate) fn handle_preview_drag(
                         drag_utils::emit_position_edit(actor.clone(), nx, ny, ctx);
                     }
                 },
-                DragState::Scale {
-                    actor,
-                    handle,
-                    start_scene,
-                    start_position,
-                    start_size,
-                    start_rotation,
-                    anchor_local,
-                    constrain_axis,
-                    uniform_ratio,
-                    resize_mode,
-                    start_scale,
-                } => {
-                    let dx_world = (scene.x - start_scene.x) as f32;
-                    let dy_world = (scene.y - start_scene.y) as f32;
-                    let cos = (-start_rotation).cos();
-                    let sin = (-start_rotation).sin();
-                    let dx_local = dx_world * cos - dy_world * sin;
-                    let dy_local = dx_world * sin + dy_world * cos;
 
-                    let sign = match handle {
-                        0 => [-1.0, -1.0],
-                        1 => [1.0, -1.0],
-                        2 => [1.0, 1.0],
-                        3 => [-1.0, 1.0],
-                        4 => [0.0, -1.0],
-                        5 => [1.0, 0.0],
-                        6 => [0.0, 1.0],
-                        7 => [-1.0, 0.0],
-                        _ => [1.0, 1.0],
-                    };
-
-                    let mut new_w = start_size[0];
-                    let mut new_h = start_size[1];
-                    if sign[0] != 0.0 {
-                        new_w = (start_size[0] + sign[0] * dx_local).max(PREVIEW_MIN_ACTOR_SIZE);
-                    }
-                    if sign[1] != 0.0 {
-                        new_h = (start_size[1] + sign[1] * dy_local).max(PREVIEW_MIN_ACTOR_SIZE);
-                    }
-
-                    let force_uniform = resize_mode == preview::ResizeMode::Scale;
-                    let uniform = shift || uniform_ratio || force_uniform;
-                    if uniform {
-                        let scale_w = new_w / start_size[0].max(1.0);
-                        let scale_h = new_h / start_size[1].max(1.0);
-                        let s = if constrain_axis && !force_uniform {
-                            if sign[0] == 0.0 { scale_h } else { scale_w }
-                        } else {
-                            scale_w.max(scale_h)
-                        };
-                        new_w = (start_size[0] * s).max(PREVIEW_MIN_ACTOR_SIZE);
-                        new_h = (start_size[1] * s).max(PREVIEW_MIN_ACTOR_SIZE);
-                    }
-
-                    let cos_rot = start_rotation.cos();
-                    let sin_rot = start_rotation.sin();
-                    let old_anchor_local = [anchor_local[0], anchor_local[1]];
-                    let new_anchor_local = [
-                        old_anchor_local[0] * new_w / start_size[0].max(1.0),
-                        old_anchor_local[1] * new_h / start_size[1].max(1.0),
-                    ];
-                    let anchor_world_x = start_position[0] + old_anchor_local[0] * cos_rot
-                        - old_anchor_local[1] * sin_rot;
-                    let anchor_world_y = start_position[1]
-                        + old_anchor_local[0] * sin_rot
-                        + old_anchor_local[1] * cos_rot;
-                    let new_pos_x = anchor_world_x - new_anchor_local[0] * cos_rot
-                        + new_anchor_local[1] * sin_rot;
-                    let new_pos_y = anchor_world_y
-                        - new_anchor_local[0] * sin_rot
-                        - new_anchor_local[1] * cos_rot;
-
-                    if resize_mode == preview::ResizeMode::Scale {
-                        let ratio = new_w / start_size[0].max(1.0);
-                        ctx.commands.push_back(
-                            DocumentCommand::PropertyEdit(PropertyEdit {
-                                time_s: None,
-                                actor: actor.clone(),
-                                property: "scale".into(),
-                                value: PropertyValue::Float(
-                                    (start_scale * ratio).max(PREVIEW_MIN_SCALE),
-                                ),
-                                create_keyframe: ctx.keyframe_mode,
-                            })
-                            .into(),
-                        );
-                    } else {
-                        ctx.commands.push_back(
-                            DocumentCommand::PropertyEdit(PropertyEdit {
-                                time_s: None,
-                                actor: actor.clone(),
-                                property: "size".into(),
-                                value: PropertyValue::Vec2([new_w, new_h]),
-                                create_keyframe: ctx.keyframe_mode,
-                            })
-                            .into(),
-                        );
-                    }
-
-                    drag_utils::emit_position_edit(actor.clone(), new_pos_x, new_pos_y, ctx);
-                },
                 DragState::Reorder {
                     actor,
                     container,
