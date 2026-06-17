@@ -18,6 +18,7 @@ Spec: [`docs/gui_design_language.md`](gui_design_language.md)
 - [x] **Phase 4: Interaction Layer Upgrade** — Added gesture primitives (`Gesture`/`GestureHandler`/`gesture_router.rs`). Extracted shared drag utilities (`drag_utils.rs`). Added keyboard shortcut registry (`interaction/keyboard.rs`) with declarative shortcuts replacing ad-hoc `handle_keyboard_shortcuts`. Added motion helper API (`components/anim.rs`) with `Transition`/`animate_toward`; migrated `animate_value_with_time` call sites.
   - **8 gesture handlers extracted**: `PivotGesture`, `RotateGesture`, `ScaleGesture`, `VertexGesture`, `MotionPathGesture`, `MoveActorGesture`, `ReorderGesture`, `MarqueeGesture`.
   - Legacy `drag_handler.rs` (788 lines) **deleted** — all drag modes flow through `GestureRouter → gestures/*`.
+- [ ] **Phase 5: Dialog Unification** — Migrate remaining 5 Pattern B dialog sites (Settings, FindReplace, CommandPalette, WorkspaceSwitcher, UnsavedChanges) to `components::dialog::modal`. Created reusable `DialogSpec`/`modal`/`title_row` API in Phase 4; only mechanical wiring remains.
 
 ### Primitives & Syntax
 

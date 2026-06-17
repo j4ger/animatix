@@ -1,6 +1,7 @@
 pub mod anim;
 pub mod button;
 pub mod context_menu;
+pub mod dialog;
 pub mod diagnostics;
 pub mod easing_curve_editor;
 pub mod layout;

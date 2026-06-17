@@ -593,7 +593,10 @@ impl GuiShell {
                         ui.vertical_centered(|ui| {
                             ui.add_space(SPACE_L);
                             ui.label(
-                                egui::RichText::new("No diagnostics — all clear ✓")
+                                egui::RichText::new(format!(
+                                "No diagnostics — all clear {}",
+                                egui_phosphor::regular::CHECK_CIRCLE,
+                            ))
                                     .size(TextRole::BodyS.size())
                                     .color(text::MUTED),
                             );

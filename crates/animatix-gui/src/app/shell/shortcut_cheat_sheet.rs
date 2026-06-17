@@ -1,14 +1,13 @@
-use egui::{Pos2, Rect, RichText, Stroke, Vec2};
+use egui::{RichText, Vec2};
 
-use crate::app::GuiShell;
+use crate::app::components::{self};
 use crate::app::design_tokens::semantic::accent;
-use crate::app::design_tokens::semantic::border;
-use crate::app::design_tokens::semantic::overlay;
-use crate::app::design_tokens::semantic::surface;
 use crate::app::design_tokens::semantic::text;
 
-use crate::app::design_tokens::spatial::{RADIUS_XL, SPACE_L, SPACE_M, SPACE_XS, STROKE_WIDTH};
+use crate::app::design_tokens::spatial::{ROW_S, SPACE_L, SPACE_M, SPACE_XS};
 use crate::app::design_tokens::typography::TextRole;
+
+use crate::app::GuiShell;
 
 /// Keyboard shortcut groups.
 const SHORTCUT_GROUPS: &[(&str, &[(&str, &str)])] = &[
@@ -76,75 +75,44 @@ const SHORTCUT_GROUPS: &[(&str, &[(&str, &str)])] = &[
 
 impl GuiShell {
     pub(crate) fn shortcut_cheat_sheet_ui(&mut self, ui: &mut egui::Ui) {
-        let screen_rect = ui.ctx().viewport_rect();
+        let spec = components::dialog::DialogSpec::new(
+            "shortcut_cheat_sheet",
+            [480.0, 540.0],
+        )
+        .with_min_size([380.0, 320.0]);
 
-        // Backdrop
-        ui.painter().rect_filled(screen_rect, 0.0, overlay::backdrop());
+        let open = components::dialog::modal(ui, &spec, |ui| {
+            if components::dialog::title_row(ui, "Keyboard Shortcuts") {
+                self.ui_store.view.shortcuts_open = false;
+            }
+            ui.add_space(SPACE_M);
+            ui.separator();
+            ui.add_space(SPACE_M);
 
-        let backdrop_response =
-            ui.interact(screen_rect, ui.id().with("shortcuts_backdrop"), egui::Sense::click());
-        if backdrop_response.clicked() {
+            let col_w = (ui.available_width() - SPACE_L) / 2.0;
+
+            egui::ScrollArea::vertical()
+                .max_height(ui.available_height())
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing = Vec2::new(SPACE_L, 0.0);
+
+                        let mid = SHORTCUT_GROUPS.len().div_ceil(2);
+                        shortcut_column(ui, &SHORTCUT_GROUPS[..mid], col_w);
+                        shortcut_column(ui, &SHORTCUT_GROUPS[mid..], col_w);
+                    });
+                });
+        });
+
+        if !open {
             self.ui_store.view.shortcuts_open = false;
         }
-
-        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.ui_store.view.shortcuts_open = false;
-        }
-
-        // Centered panel
-        let panel_w = 480.0;
-        let panel_h = 520.0;
-        let panel_pos = Pos2::new(
-            (screen_rect.width() - panel_w) / 2.0 + screen_rect.min.x,
-            (screen_rect.height() - panel_h) / 2.0 + screen_rect.min.y,
-        );
-        let panel_rect = Rect::from_min_size(panel_pos, Vec2::new(panel_w, panel_h));
-
-        ui.painter().rect_filled(panel_rect, RADIUS_XL as u8, surface::BASE);
-        ui.painter().rect_stroke(
-            panel_rect,
-            RADIUS_XL as u8,
-            Stroke::new(STROKE_WIDTH, border::DEFAULT),
-            egui::StrokeKind::Outside,
-        );
-
-        let mut content = ui.new_child(egui::UiBuilder::new().max_rect(panel_rect));
-        content.set_clip_rect(panel_rect);
-        content.add_space(SPACE_L);
-
-        // Title
-        content.horizontal(|ui| {
-            ui.label(
-                RichText::new("Keyboard Shortcuts")
-                    .size(TextRole::Heading.size())
-                    .color(text::PRIMARY)
-                    .strong(),
-            );
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(egui_phosphor::regular::X).on_hover_text("Close (Esc)").clicked() {
-                    self.ui_store.view.shortcuts_open = false;
-                }
-            });
-        });
-        content.add_space(SPACE_L);
-
-        // Two-column layout
-        let col_w = (panel_w - SPACE_L * 3.0) / 2.0;
-        content.horizontal(|ui| {
-            ui.spacing_mut().item_spacing = Vec2::new(SPACE_L, 0.0);
-
-            let left_groups = &SHORTCUT_GROUPS[..SHORTCUT_GROUPS.len() / 2 + 1];
-            let right_groups = &SHORTCUT_GROUPS[SHORTCUT_GROUPS.len() / 2 + 1..];
-
-            shortcut_column(ui, left_groups, col_w);
-            shortcut_column(ui, right_groups, col_w);
-        });
     }
 }
 
 fn shortcut_column(ui: &mut egui::Ui, groups: &[(&str, &[(&str, &str)])], width: f32) {
     ui.vertical(|ui| {
-        ui.set_width(width);
+        ui.set_min_width(width);
         for (title, shortcuts) in groups {
             ui.label(
                 RichText::new(*title)
@@ -155,22 +123,30 @@ fn shortcut_column(ui: &mut egui::Ui, groups: &[(&str, &[(&str, &str)])], width:
             ui.add_space(SPACE_XS);
 
             for (key, desc) in *shortcuts {
-                ui.horizontal(|ui| {
-                    ui.set_width(width);
-                    ui.label(
-                        RichText::new(*key)
-                            .monospace()
-                            .size(TextRole::BodyS.size())
-                            .color(text::SECONDARY),
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(
-                            RichText::new(*desc).size(TextRole::BodyS.size()).color(text::PRIMARY),
-                        );
-                    });
-                });
+                shortcut_row(ui, key, desc, width);
             }
             ui.add_space(SPACE_M);
         }
+    });
+}
+
+fn shortcut_row(ui: &mut egui::Ui, key: &str, desc: &str, col_w: f32) {
+    // Fixed-width key column — prevents long keys from overlapping the description.
+    let key_w = (col_w * 0.42).min(150.0);
+
+    ui.horizontal(|ui| {
+        ui.add_sized(
+            [key_w, ROW_S],
+            egui::Label::new(
+                RichText::new(key)
+                    .monospace()
+                    .size(TextRole::BodyS.size())
+                    .color(text::SECONDARY),
+            )
+            .truncate(),
+        );
+        ui.label(
+            RichText::new(desc).size(TextRole::BodyS.size()).color(text::PRIMARY),
+        );
     });
 }
