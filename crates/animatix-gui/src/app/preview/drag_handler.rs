@@ -47,37 +47,10 @@ pub(crate) fn handle_preview_drag(
 
             if let Some(ref p) = props {
                 let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
-                let vertex_points = ctx
-                    .timeline
-                    .and_then(|t| t.get_track(&actor))
-                    .and_then(|tr| tr.points.as_ref().map(|pt| pt.evaluate(time_ms)))
-                    .filter(|pts| !pts.is_empty());
 
                 match *ctx.tool_mode {
                     preview::ToolMode::Move => {},
-                    preview::ToolMode::Vertex => {
-                        if let Some(ref points) = vertex_points {
-                            if let Some(vidx) = preview::hit_test_vertex(
-                                mouse,
-                                p,
-                                points,
-                                preview_rect,
-                                ctx.scene_dimensions,
-                                preview_rect.size(),
-                                hit_radius * 2.0,
-                                ctx.preview.viewport.preview_zoom,
-                                ctx.preview.viewport.preview_pan,
-                            ) {
-                                *ctx.drag_state = DragState::EditVertices {
-                                    actor,
-                                    vertex: vidx,
-                                    start_points: points.clone(),
-                                    start_scene: scene,
-                                };
-                                return true;
-                            }
-                        }
-                    },
+                    preview::ToolMode::Vertex => {},
                     preview::ToolMode::Scale => {
                         let handle_world = preview::world_handle_positions(p);
                         let handle_screen: [Pos2; 8] = std::array::from_fn(|i| {
@@ -175,28 +148,6 @@ pub(crate) fn handle_preview_drag(
                         }
                     },
                     preview::ToolMode::Select => {
-                        if let Some(ref points) = vertex_points {
-                            if let Some(vidx) = preview::hit_test_vertex(
-                                mouse,
-                                p,
-                                points,
-                                preview_rect,
-                                ctx.scene_dimensions,
-                                preview_rect.size(),
-                                hit_radius,
-                                ctx.preview.viewport.preview_zoom,
-                                ctx.preview.viewport.preview_pan,
-                            ) {
-                                *ctx.drag_state = DragState::EditVertices {
-                                    actor: actor.clone(),
-                                    vertex: vidx,
-                                    start_points: points.clone(),
-                                    start_scene: scene,
-                                };
-                                return true;
-                            }
-                        }
-
                         let handle_world = preview::world_handle_positions(p);
                         let handle_screen: [Pos2; 8] = std::array::from_fn(|i| {
                             ctx.preview_scene_to_screen(preview_rect, handle_world[i])
@@ -637,36 +588,7 @@ pub(crate) fn handle_preview_drag(
                         }
                     }
                 },
-                DragState::EditVertices {
-                    actor,
-                    vertex,
-                    start_points,
-                    start_scene,
-                } => {
-                    let dx = (scene.x - start_scene.x) as f32;
-                    let dy = (scene.y - start_scene.y) as f32;
-                    let mut new_points = start_points.clone();
-                    if let Some(p) = ctx.get_actor_props(&actor) {
-                        let cos = (-p.rotation).cos();
-                        let sin = (-p.rotation).sin();
-                        let local_dx = dx * cos - dy * sin;
-                        let local_dy = dx * sin + dy * cos;
-                        if let Some(pt) = new_points.get_mut(vertex) {
-                            pt[0] += local_dx;
-                            pt[1] += local_dy;
-                        }
-                    }
-                    ctx.commands.push_back(
-                        DocumentCommand::PropertyEdit(PropertyEdit {
-                            time_s: None,
-                            actor,
-                            property: "points".into(),
-                            value: PropertyValue::PointList(new_points),
-                            create_keyframe: ctx.keyframe_mode,
-                        })
-                        .into(),
-                    );
-                },
+
                 DragState::MovePivot {
                     actor,
                     start_offset,
@@ -705,6 +627,7 @@ pub(crate) fn handle_preview_drag(
                         .into(),
                     );
                 },
+                DragState::EditVertices { .. } => {},
                 DragState::None => {},
             }
         }
