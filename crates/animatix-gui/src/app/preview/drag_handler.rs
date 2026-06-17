@@ -395,313 +395,318 @@ pub(crate) fn handle_preview_drag(
         }
     }
 
-    if !is_dragging {
-        if let (Some(mouse), Some(_start)) = (raw_pointer_pos, ctx.selection.marquee_start) {
-            ctx.selection.marquee_current = Some(mouse);
-        }
-    } else if let Some(mouse) = raw_pointer_pos {
-        let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
-        let shift = ui.input(|i| i.modifiers.shift);
+    if is_dragging {
+        if let Some(mouse) = raw_pointer_pos {
+            let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
+            let shift = ui.input(|i| i.modifiers.shift);
 
-        match ctx.drag_state.clone() {
-            DragState::Move {
-                primary: _,
-                actors,
-                start_scene,
-            } => {
-                let raw_dx = (scene.x - start_scene.x) as f32;
-                let raw_dy = (scene.y - start_scene.y) as f32;
-                let (dx, dy) = if shift {
-                    if raw_dx.abs() > raw_dy.abs() {
-                        (raw_dx, 0.0)
+            match ctx.drag_state.clone() {
+                DragState::Move {
+                    primary: _,
+                    actors,
+                    start_scene,
+                } => {
+                    let raw_dx = (scene.x - start_scene.x) as f32;
+                    let raw_dy = (scene.y - start_scene.y) as f32;
+                    let (dx, dy) = if shift {
+                        if raw_dx.abs() > raw_dy.abs() {
+                            (raw_dx, 0.0)
+                        } else {
+                            (0.0, raw_dy)
+                        }
                     } else {
-                        (0.0, raw_dy)
-                    }
-                } else {
-                    (raw_dx, raw_dy)
-                };
-
-                let snap_enabled = ctx.preview.snap.snap_enabled && !ui.input(|i| i.modifiers.alt);
-                let threshold = ctx.preview.snap.snap_threshold;
-
-                let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
-                for (actor, start_position) in actors {
-                    let mut nx = start_position[0] + dx;
-                    let mut ny = start_position[1] + dy;
-
-                    if ctx.preview.overlay.show_grid {
-                        let grid = ctx.preview.overlay.grid_size;
-                        nx = (nx / grid).round() * grid;
-                        ny = (ny / grid).round() * grid;
-                    }
-
-                    if snap_enabled {
-                        let result =
-                            drag_utils::resolve_snap(&actor, nx, ny, threshold, time_ms, ctx);
-                        nx = result.nx;
-                        ny = result.ny;
-                    }
-
-                    drag_utils::emit_position_edit(actor.clone(), nx, ny, ctx);
-                }
-            },
-            DragState::Scale {
-                actor,
-                handle,
-                start_scene,
-                start_position,
-                start_size,
-                start_rotation,
-                anchor_local,
-                constrain_axis,
-                uniform_ratio,
-                resize_mode,
-                start_scale,
-            } => {
-                let dx_world = (scene.x - start_scene.x) as f32;
-                let dy_world = (scene.y - start_scene.y) as f32;
-                let cos = (-start_rotation).cos();
-                let sin = (-start_rotation).sin();
-                let dx_local = dx_world * cos - dy_world * sin;
-                let dy_local = dx_world * sin + dy_world * cos;
-
-                let sign = match handle {
-                    0 => [-1.0, -1.0],
-                    1 => [1.0, -1.0],
-                    2 => [1.0, 1.0],
-                    3 => [-1.0, 1.0],
-                    4 => [0.0, -1.0],
-                    5 => [1.0, 0.0],
-                    6 => [0.0, 1.0],
-                    7 => [-1.0, 0.0],
-                    _ => [1.0, 1.0],
-                };
-
-                let mut new_w = start_size[0];
-                let mut new_h = start_size[1];
-                if sign[0] != 0.0 {
-                    new_w = (start_size[0] + sign[0] * dx_local).max(PREVIEW_MIN_ACTOR_SIZE);
-                }
-                if sign[1] != 0.0 {
-                    new_h = (start_size[1] + sign[1] * dy_local).max(PREVIEW_MIN_ACTOR_SIZE);
-                }
-
-                let force_uniform = resize_mode == preview::ResizeMode::Scale;
-                let uniform = shift || uniform_ratio || force_uniform;
-                if uniform {
-                    let scale_w = new_w / start_size[0].max(1.0);
-                    let scale_h = new_h / start_size[1].max(1.0);
-                    let s = if constrain_axis && !force_uniform {
-                        if sign[0] == 0.0 { scale_h } else { scale_w }
-                    } else {
-                        scale_w.max(scale_h)
+                        (raw_dx, raw_dy)
                     };
-                    new_w = (start_size[0] * s).max(PREVIEW_MIN_ACTOR_SIZE);
-                    new_h = (start_size[1] * s).max(PREVIEW_MIN_ACTOR_SIZE);
-                }
 
-                let cos_rot = start_rotation.cos();
-                let sin_rot = start_rotation.sin();
-                let old_anchor_local = [anchor_local[0], anchor_local[1]];
-                let new_anchor_local = [
-                    old_anchor_local[0] * new_w / start_size[0].max(1.0),
-                    old_anchor_local[1] * new_h / start_size[1].max(1.0),
-                ];
-                let anchor_world_x = start_position[0] + old_anchor_local[0] * cos_rot
-                    - old_anchor_local[1] * sin_rot;
-                let anchor_world_y = start_position[1]
-                    + old_anchor_local[0] * sin_rot
-                    + old_anchor_local[1] * cos_rot;
-                let new_pos_x =
-                    anchor_world_x - new_anchor_local[0] * cos_rot + new_anchor_local[1] * sin_rot;
-                let new_pos_y =
-                    anchor_world_y - new_anchor_local[0] * sin_rot - new_anchor_local[1] * cos_rot;
+                    let snap_enabled =
+                        ctx.preview.snap.snap_enabled && !ui.input(|i| i.modifiers.alt);
+                    let threshold = ctx.preview.snap.snap_threshold;
 
-                if resize_mode == preview::ResizeMode::Scale {
-                    let ratio = new_w / start_size[0].max(1.0);
+                    let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
+                    for (actor, start_position) in actors {
+                        let mut nx = start_position[0] + dx;
+                        let mut ny = start_position[1] + dy;
+
+                        if ctx.preview.overlay.show_grid {
+                            let grid = ctx.preview.overlay.grid_size;
+                            nx = (nx / grid).round() * grid;
+                            ny = (ny / grid).round() * grid;
+                        }
+
+                        if snap_enabled {
+                            let result =
+                                drag_utils::resolve_snap(&actor, nx, ny, threshold, time_ms, ctx);
+                            nx = result.nx;
+                            ny = result.ny;
+                        }
+
+                        drag_utils::emit_position_edit(actor.clone(), nx, ny, ctx);
+                    }
+                },
+                DragState::Scale {
+                    actor,
+                    handle,
+                    start_scene,
+                    start_position,
+                    start_size,
+                    start_rotation,
+                    anchor_local,
+                    constrain_axis,
+                    uniform_ratio,
+                    resize_mode,
+                    start_scale,
+                } => {
+                    let dx_world = (scene.x - start_scene.x) as f32;
+                    let dy_world = (scene.y - start_scene.y) as f32;
+                    let cos = (-start_rotation).cos();
+                    let sin = (-start_rotation).sin();
+                    let dx_local = dx_world * cos - dy_world * sin;
+                    let dy_local = dx_world * sin + dy_world * cos;
+
+                    let sign = match handle {
+                        0 => [-1.0, -1.0],
+                        1 => [1.0, -1.0],
+                        2 => [1.0, 1.0],
+                        3 => [-1.0, 1.0],
+                        4 => [0.0, -1.0],
+                        5 => [1.0, 0.0],
+                        6 => [0.0, 1.0],
+                        7 => [-1.0, 0.0],
+                        _ => [1.0, 1.0],
+                    };
+
+                    let mut new_w = start_size[0];
+                    let mut new_h = start_size[1];
+                    if sign[0] != 0.0 {
+                        new_w = (start_size[0] + sign[0] * dx_local).max(PREVIEW_MIN_ACTOR_SIZE);
+                    }
+                    if sign[1] != 0.0 {
+                        new_h = (start_size[1] + sign[1] * dy_local).max(PREVIEW_MIN_ACTOR_SIZE);
+                    }
+
+                    let force_uniform = resize_mode == preview::ResizeMode::Scale;
+                    let uniform = shift || uniform_ratio || force_uniform;
+                    if uniform {
+                        let scale_w = new_w / start_size[0].max(1.0);
+                        let scale_h = new_h / start_size[1].max(1.0);
+                        let s = if constrain_axis && !force_uniform {
+                            if sign[0] == 0.0 { scale_h } else { scale_w }
+                        } else {
+                            scale_w.max(scale_h)
+                        };
+                        new_w = (start_size[0] * s).max(PREVIEW_MIN_ACTOR_SIZE);
+                        new_h = (start_size[1] * s).max(PREVIEW_MIN_ACTOR_SIZE);
+                    }
+
+                    let cos_rot = start_rotation.cos();
+                    let sin_rot = start_rotation.sin();
+                    let old_anchor_local = [anchor_local[0], anchor_local[1]];
+                    let new_anchor_local = [
+                        old_anchor_local[0] * new_w / start_size[0].max(1.0),
+                        old_anchor_local[1] * new_h / start_size[1].max(1.0),
+                    ];
+                    let anchor_world_x = start_position[0] + old_anchor_local[0] * cos_rot
+                        - old_anchor_local[1] * sin_rot;
+                    let anchor_world_y = start_position[1]
+                        + old_anchor_local[0] * sin_rot
+                        + old_anchor_local[1] * cos_rot;
+                    let new_pos_x = anchor_world_x - new_anchor_local[0] * cos_rot
+                        + new_anchor_local[1] * sin_rot;
+                    let new_pos_y = anchor_world_y
+                        - new_anchor_local[0] * sin_rot
+                        - new_anchor_local[1] * cos_rot;
+
+                    if resize_mode == preview::ResizeMode::Scale {
+                        let ratio = new_w / start_size[0].max(1.0);
+                        ctx.commands.push_back(
+                            DocumentCommand::PropertyEdit(PropertyEdit {
+                                time_s: None,
+                                actor: actor.clone(),
+                                property: "scale".into(),
+                                value: PropertyValue::Float(
+                                    (start_scale * ratio).max(PREVIEW_MIN_SCALE),
+                                ),
+                                create_keyframe: ctx.keyframe_mode,
+                            })
+                            .into(),
+                        );
+                    } else {
+                        ctx.commands.push_back(
+                            DocumentCommand::PropertyEdit(PropertyEdit {
+                                time_s: None,
+                                actor: actor.clone(),
+                                property: "size".into(),
+                                value: PropertyValue::Vec2([new_w, new_h]),
+                                create_keyframe: ctx.keyframe_mode,
+                            })
+                            .into(),
+                        );
+                    }
+
+                    drag_utils::emit_position_edit(actor.clone(), new_pos_x, new_pos_y, ctx);
+                },
+                DragState::Rotate {
+                    actor,
+                    start_angle,
+                    start_rotation,
+                    pivot,
+                } => {
+                    let angle = ((scene.y - pivot[1] as f64) as f32)
+                        .atan2((scene.x - pivot[0] as f64) as f32);
+                    let mut delta = angle - start_angle;
+                    while delta > std::f32::consts::PI {
+                        delta -= 2.0 * std::f32::consts::PI;
+                    }
+                    while delta < -std::f32::consts::PI {
+                        delta += 2.0 * std::f32::consts::PI;
+                    }
+                    let mut new_rot = start_rotation + delta;
+                    if shift {
+                        new_rot = (new_rot / ctx.rotation_snap_degrees.to_radians()).round()
+                            * ctx.rotation_snap_degrees.to_radians();
+                    }
                     ctx.commands.push_back(
                         DocumentCommand::PropertyEdit(PropertyEdit {
                             time_s: None,
-                            actor: actor.clone(),
-                            property: "scale".into(),
-                            value: PropertyValue::Float(
-                                (start_scale * ratio).max(PREVIEW_MIN_SCALE),
-                            ),
+                            actor,
+                            property: "rotation".into(),
+                            value: PropertyValue::Float(new_rot),
                             create_keyframe: ctx.keyframe_mode,
                         })
                         .into(),
                     );
-                } else {
-                    ctx.commands.push_back(
-                        DocumentCommand::PropertyEdit(PropertyEdit {
-                            time_s: None,
-                            actor: actor.clone(),
-                            property: "size".into(),
-                            value: PropertyValue::Vec2([new_w, new_h]),
-                            create_keyframe: ctx.keyframe_mode,
-                        })
-                        .into(),
-                    );
-                }
-
-                drag_utils::emit_position_edit(actor.clone(), new_pos_x, new_pos_y, ctx);
-            },
-            DragState::Rotate {
-                actor,
-                start_angle,
-                start_rotation,
-                pivot,
-            } => {
-                let angle =
-                    ((scene.y - pivot[1] as f64) as f32).atan2((scene.x - pivot[0] as f64) as f32);
-                let mut delta = angle - start_angle;
-                while delta > std::f32::consts::PI {
-                    delta -= 2.0 * std::f32::consts::PI;
-                }
-                while delta < -std::f32::consts::PI {
-                    delta += 2.0 * std::f32::consts::PI;
-                }
-                let mut new_rot = start_rotation + delta;
-                if shift {
-                    new_rot = (new_rot / ctx.rotation_snap_degrees.to_radians()).round()
-                        * ctx.rotation_snap_degrees.to_radians();
-                }
-                ctx.commands.push_back(
-                    DocumentCommand::PropertyEdit(PropertyEdit {
-                        time_s: None,
-                        actor,
-                        property: "rotation".into(),
-                        value: PropertyValue::Float(new_rot),
-                        create_keyframe: ctx.keyframe_mode,
-                    })
-                    .into(),
-                );
-            },
-            DragState::Reorder {
-                actor,
-                container,
-                source_index: _,
-                target_index: _,
-                layout_type,
-            } => {
-                let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
-                if let Some(timeline) = ctx.timeline {
-                    let order = timeline.get_child_order(&container, time_ms);
-                    let siblings: Vec<String> = order.into_iter().filter(|l| l != &actor).collect();
-                    let positions: Vec<f32> = siblings
-                        .iter()
-                        .map(|label| {
-                            ctx.hit_regions
-                                .iter()
-                                .find(|(l, _)| l == label)
-                                .map(|(_, bounds)| {
-                                    if layout_type == animatix::timeline::LayoutType::Row {
-                                        (bounds.x0 + bounds.x1) as f32 / 2.0
-                                    } else {
-                                        (bounds.y0 + bounds.y1) as f32 / 2.0
-                                    }
-                                })
-                                .or_else(|| {
-                                    ctx.get_actor_props(label).map(|p| {
+                },
+                DragState::Reorder {
+                    actor,
+                    container,
+                    source_index: _,
+                    target_index: _,
+                    layout_type,
+                } => {
+                    let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
+                    if let Some(timeline) = ctx.timeline {
+                        let order = timeline.get_child_order(&container, time_ms);
+                        let siblings: Vec<String> =
+                            order.into_iter().filter(|l| l != &actor).collect();
+                        let positions: Vec<f32> = siblings
+                            .iter()
+                            .map(|label| {
+                                ctx.hit_regions
+                                    .iter()
+                                    .find(|(l, _)| l == label)
+                                    .map(|(_, bounds)| {
                                         if layout_type == animatix::timeline::LayoutType::Row {
-                                            p.position[0]
+                                            (bounds.x0 + bounds.x1) as f32 / 2.0
                                         } else {
-                                            p.position[1]
+                                            (bounds.y0 + bounds.y1) as f32 / 2.0
                                         }
                                     })
-                                })
-                                .unwrap_or(if layout_type == animatix::timeline::LayoutType::Row {
-                                    scene.x as f32
-                                } else {
-                                    scene.y as f32
-                                })
-                        })
-                        .collect();
+                                    .or_else(|| {
+                                        ctx.get_actor_props(label).map(|p| {
+                                            if layout_type == animatix::timeline::LayoutType::Row {
+                                                p.position[0]
+                                            } else {
+                                                p.position[1]
+                                            }
+                                        })
+                                    })
+                                    .unwrap_or(
+                                        if layout_type == animatix::timeline::LayoutType::Row {
+                                            scene.x as f32
+                                        } else {
+                                            scene.y as f32
+                                        },
+                                    )
+                            })
+                            .collect();
 
-                    let mouse_coord = if layout_type == animatix::timeline::LayoutType::Row {
-                        scene.x as f32
-                    } else {
-                        scene.y as f32
-                    };
-                    let mut insert_at = positions.len();
-                    for (idx, coord) in positions.iter().enumerate() {
-                        if mouse_coord < *coord {
-                            insert_at = idx;
-                            break;
+                        let mouse_coord = if layout_type == animatix::timeline::LayoutType::Row {
+                            scene.x as f32
+                        } else {
+                            scene.y as f32
+                        };
+                        let mut insert_at = positions.len();
+                        for (idx, coord) in positions.iter().enumerate() {
+                            if mouse_coord < *coord {
+                                insert_at = idx;
+                                break;
+                            }
+                        }
+                        if let DragState::Reorder { target_index, .. } = &mut *ctx.drag_state {
+                            *target_index = insert_at;
                         }
                     }
-                    if let DragState::Reorder { target_index, .. } = &mut *ctx.drag_state {
-                        *target_index = insert_at;
+                },
+                DragState::EditVertices {
+                    actor,
+                    vertex,
+                    start_points,
+                    start_scene,
+                } => {
+                    let dx = (scene.x - start_scene.x) as f32;
+                    let dy = (scene.y - start_scene.y) as f32;
+                    let mut new_points = start_points.clone();
+                    if let Some(p) = ctx.get_actor_props(&actor) {
+                        let cos = (-p.rotation).cos();
+                        let sin = (-p.rotation).sin();
+                        let local_dx = dx * cos - dy * sin;
+                        let local_dy = dx * sin + dy * cos;
+                        if let Some(pt) = new_points.get_mut(vertex) {
+                            pt[0] += local_dx;
+                            pt[1] += local_dy;
+                        }
                     }
-                }
-            },
-            DragState::EditVertices {
-                actor,
-                vertex,
-                start_points,
-                start_scene,
-            } => {
-                let dx = (scene.x - start_scene.x) as f32;
-                let dy = (scene.y - start_scene.y) as f32;
-                let mut new_points = start_points.clone();
-                if let Some(p) = ctx.get_actor_props(&actor) {
-                    let cos = (-p.rotation).cos();
-                    let sin = (-p.rotation).sin();
-                    let local_dx = dx * cos - dy * sin;
-                    let local_dy = dx * sin + dy * cos;
-                    if let Some(pt) = new_points.get_mut(vertex) {
-                        pt[0] += local_dx;
-                        pt[1] += local_dy;
+                    ctx.commands.push_back(
+                        DocumentCommand::PropertyEdit(PropertyEdit {
+                            time_s: None,
+                            actor,
+                            property: "points".into(),
+                            value: PropertyValue::PointList(new_points),
+                            create_keyframe: ctx.keyframe_mode,
+                        })
+                        .into(),
+                    );
+                },
+                DragState::MovePivot {
+                    actor,
+                    start_offset,
+                    start_scene,
+                } => {
+                    let dx = (scene.x - start_scene.x) as f32;
+                    let dy = (scene.y - start_scene.y) as f32;
+                    if let Some(p) = ctx.get_actor_props(&actor) {
+                        let cos = (-p.rotation).cos();
+                        let sin = (-p.rotation).sin();
+                        let local_dx = dx * cos - dy * sin;
+                        let local_dy = dx * sin + dy * cos;
+                        ctx.pivot_offsets.insert(
+                            actor,
+                            [start_offset[0] + local_dx, start_offset[1] + local_dy],
+                        );
                     }
-                }
-                ctx.commands.push_back(
-                    DocumentCommand::PropertyEdit(PropertyEdit {
-                        time_s: None,
-                        actor,
-                        property: "points".into(),
-                        value: PropertyValue::PointList(new_points),
-                        create_keyframe: ctx.keyframe_mode,
-                    })
-                    .into(),
-                );
-            },
-            DragState::MovePivot {
-                actor,
-                start_offset,
-                start_scene,
-            } => {
-                let dx = (scene.x - start_scene.x) as f32;
-                let dy = (scene.y - start_scene.y) as f32;
-                if let Some(p) = ctx.get_actor_props(&actor) {
-                    let cos = (-p.rotation).cos();
-                    let sin = (-p.rotation).sin();
-                    let local_dx = dx * cos - dy * sin;
-                    let local_dy = dx * sin + dy * cos;
-                    ctx.pivot_offsets
-                        .insert(actor, [start_offset[0] + local_dx, start_offset[1] + local_dy]);
-                }
-            },
-            DragState::MotionPath {
-                actor,
-                time_ms,
-                start_position,
-                start_scene,
-            } => {
-                let dx = (scene.x - start_scene.x) as f32;
-                let dy = (scene.y - start_scene.y) as f32;
-                let new_pos = [start_position[0] + dx, start_position[1] + dy];
-                ctx.commands.push_back(
-                    DocumentCommand::PropertyEdit(PropertyEdit {
-                        actor,
-                        property: "position".into(),
-                        value: PropertyValue::Vec2(new_pos),
-                        time_s: Some(time_ms as f64 / 1000.0),
-                        create_keyframe: true,
-                    })
-                    .into(),
-                );
-            },
-            DragState::None => {},
+                },
+                DragState::MotionPath {
+                    actor,
+                    time_ms,
+                    start_position,
+                    start_scene,
+                } => {
+                    let dx = (scene.x - start_scene.x) as f32;
+                    let dy = (scene.y - start_scene.y) as f32;
+                    let new_pos = [start_position[0] + dx, start_position[1] + dy];
+                    ctx.commands.push_back(
+                        DocumentCommand::PropertyEdit(PropertyEdit {
+                            actor,
+                            property: "position".into(),
+                            value: PropertyValue::Vec2(new_pos),
+                            time_s: Some(time_ms as f64 / 1000.0),
+                            create_keyframe: true,
+                        })
+                        .into(),
+                    );
+                },
+                DragState::None => {},
+            }
         }
     }
 
@@ -743,46 +748,6 @@ pub(crate) fn handle_preview_drag(
             }
         }
         ctx.commands.push_back(ShellAction::Drag(DragEvent::DragEnded));
-    }
-
-    if pointer_released && ctx.selection.marquee_start.is_some() {
-        if let (Some(start), Some(current)) =
-            (ctx.selection.marquee_start, ctx.selection.marquee_current)
-        {
-            let start_scene = ctx.preview_screen_to_scene(preview_rect, start);
-            let current_scene = ctx.preview_screen_to_scene(preview_rect, current);
-            let marquee_rect = egui::Rect::from_two_pos(
-                egui::pos2(start_scene.x as f32, start_scene.y as f32),
-                egui::pos2(current_scene.x as f32, current_scene.y as f32),
-            );
-            let multi = ui.input(|i| i.modifiers.shift || i.modifiers.ctrl || i.modifiers.command);
-            if !multi {
-                ctx.selected_actors.clear();
-            }
-            for (label, bounds) in ctx.hit_regions {
-                let is_locked = ctx
-                    .timeline
-                    .and_then(|t| t.get_track(label))
-                    .map(|tr| tr.locked)
-                    .unwrap_or(false);
-                if is_locked {
-                    continue;
-                }
-                let center = egui::pos2(
-                    ((bounds.x0 + bounds.x1) / 2.0) as f32,
-                    ((bounds.y0 + bounds.y1) / 2.0) as f32,
-                );
-                if marquee_rect.contains(center) {
-                    if multi && ctx.selected_actors.contains(label) {
-                        ctx.selected_actors.remove(label);
-                    } else {
-                        ctx.selected_actors.insert(label.clone());
-                    }
-                }
-            }
-        }
-        ctx.selection.marquee_start = None;
-        ctx.selection.marquee_current = None;
     }
     false
 }
