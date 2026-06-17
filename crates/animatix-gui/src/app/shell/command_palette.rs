@@ -3,7 +3,7 @@
 use crate::app::GuiShell;
 use crate::app::commands::ViewAction;
 use crate::app::commands::{
-    ActorCommand, Command, DocumentCommand, PlaybackCommand, ShellAction, ViewCommand,
+    ActorCommand, DocumentCommand, PlaybackCommand, ShellAction, ViewCommand,
 };
 use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
 use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;

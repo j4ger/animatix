@@ -6,11 +6,14 @@ pub enum DocumentCommand {
     Save,
     Reload,
     Rebuild,
+    #[allow(dead_code)] // Constructed via Command directly, not through DocumentCommand
     ToggleExpandDir(std::path::PathBuf),
     SwitchWorkspace(std::path::PathBuf),
     Undo,
     Redo,
+    #[allow(dead_code)] // Constructed via Command directly, not through DocumentCommand
     InsertionFromPalette,
+    #[allow(dead_code)] // Constructed via Command directly, not through DocumentCommand
     FindReplaceAll,
     PropertyEdit(PropertyEdit),
 }

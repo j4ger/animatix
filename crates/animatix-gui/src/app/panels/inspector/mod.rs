@@ -4,8 +4,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::app::PreviewPaneState;
 use crate::app::commands::{
-    ActionQueue, ActorCommand, Command, DocumentCommand, PlaybackCommand, PropertyEdit,
-    PropertyValue as GuiPropertyValue, SceneCommand, ShellAction,
+    ActionQueue, ActorCommand, DocumentCommand, PlaybackCommand, PropertyEdit,
+    PropertyValue as GuiPropertyValue, SceneCommand,
 };
 use crate::app::components::easing_curve_editor::EasingCurveState;
 use crate::app::components::{easing_curve_editor, layout, timeline};

@@ -16,8 +16,8 @@ use animatix::timeline::{AnimationTrack, SceneDimensions, Timeline, lookup_prope
 
 use super::PropertyViewMode;
 use crate::app::commands::{
-    ActionQueue, ActorCommand, Command, DocumentCommand, PropertyEdit,
-    PropertyValue as GuiPropertyValue, ShellAction,
+    ActionQueue, ActorCommand, DocumentCommand, PropertyEdit,
+    PropertyValue as GuiPropertyValue,
 };
 use crate::app::components::layout;
 use crate::app::design_tokens::semantic::accent::{

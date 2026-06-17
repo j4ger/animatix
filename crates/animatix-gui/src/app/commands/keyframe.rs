@@ -11,12 +11,14 @@ pub enum KeyframeCommand {
         property: String,
         time_s: f64,
     },
+    #[allow(dead_code)] // Constructed via Command directly, not through KeyframeCommand
     MoveKeyframe {
         actor: String,
         property: String,
         old_time_s: f64,
         new_time_s: f64,
     },
+    #[allow(dead_code)] // Constructed via Command directly, not through KeyframeCommand
     ResizeAction {
         verb: String,
         targets: Vec<String>,

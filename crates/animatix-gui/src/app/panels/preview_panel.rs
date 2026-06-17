@@ -2,7 +2,7 @@
 
 use egui::Vec2;
 
-use crate::app::commands::{ActorCommand, Command, DocumentCommand, PlaybackCommand, ShellAction};
+use crate::app::commands::{ActorCommand, DocumentCommand, PlaybackCommand};
 use crate::app::design_tokens::semantic::border::{
     DEFAULT as border_default, HOVER as border_hover,
 };

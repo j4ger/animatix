@@ -1,5 +1,5 @@
 use crate::app::commands::{
-    ActionQueue, Command, DocumentCommand, KeyframeCommand, PropertyEdit, PropertyValue,
+    ActionQueue, DocumentCommand, KeyframeCommand, PropertyEdit, PropertyValue,
     ShellAction, ViewAction,
 };
 use crate::app::components::button::Button;

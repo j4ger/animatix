@@ -1,7 +1,7 @@
 use super::*;
 use crate::app::audio::AudioEngine;
 use crate::app::commands::{
-    ActorCommand, Command, DocumentCommand, PlaybackCommand, SceneCommand, ShellAction, ViewAction,
+    ActorCommand, DocumentCommand, PlaybackCommand, SceneCommand, ShellAction, ViewAction,
     ViewCommand,
 };
 use crate::app::design_tokens::semantic::{accent, border, surface, text};

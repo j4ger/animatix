@@ -78,12 +78,19 @@ pub(crate) fn is_over_actor_hit_region(
 pub(crate) struct SnapResult {
     pub nx: f32,
     pub ny: f32,
+    #[allow(dead_code)] // Reserved for snap visual feedback
     pub snapped_guide_h: bool,
+    #[allow(dead_code)] // Reserved for snap visual feedback
     pub snapped_guide_v: bool,
+    #[allow(dead_code)] // Reserved for snap visual feedback
     pub snapped_actor_h: bool,
+    #[allow(dead_code)] // Reserved for snap visual feedback
     pub snapped_actor_v: bool,
+    #[allow(dead_code)] // Reserved for snap visual feedback
     pub snapped_container: bool,
+    #[allow(dead_code)] // Reserved for snap visual feedback
     pub snapped_keyframe: bool,
+    #[allow(dead_code)] // Reserved for snap HUD display
     pub snap_hud_text: Option<String>,
 }
 

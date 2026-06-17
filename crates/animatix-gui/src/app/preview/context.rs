@@ -8,8 +8,8 @@ use std::collections::{HashMap, HashSet};
 use egui::{Pos2, Vec2};
 
 use crate::app::commands::{
-    ActionQueue, Command, DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue,
-    SceneCommand, ShellAction,
+    ActionQueue, DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue,
+    SceneCommand,
 };
 use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
 use crate::app::design_tokens::semantic::status::SUCCESS as GREEN;

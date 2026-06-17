@@ -6,7 +6,7 @@ use animatix::timeline::{
 use animatix_syntax::easing::Easing;
 use egui::Vec2;
 
-use crate::app::commands::{ActionQueue, Command, KeyframeCommand, PlaybackCommand, ShellAction};
+use crate::app::commands::{ActionQueue, KeyframeCommand, PlaybackCommand};
 use crate::app::design_tokens::semantic::status::WARNING as semantic_status_warning;
 use crate::app::design_tokens::semantic::surface::{
     HOVER as semantic_surface_hover, WIDGET as semantic_surface_widget,

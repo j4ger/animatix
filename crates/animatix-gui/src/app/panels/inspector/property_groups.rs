@@ -5,7 +5,7 @@ use animatix::timeline::{
 use egui::{Color32, Stroke, Vec2};
 
 use crate::app::commands::{
-    ActionQueue, Command, DocumentCommand, DragEvent, KeyframeCommand, PropertyEdit,
+    ActionQueue, DocumentCommand, DragEvent, KeyframeCommand, PropertyEdit,
     PropertyValue as GuiPropertyValue, ShellAction,
 };
 use crate::app::components::row;

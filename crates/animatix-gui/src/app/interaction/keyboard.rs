@@ -14,6 +14,7 @@ pub enum ShortcutScope {
 /// A registered shortcut binding.
 #[derive(Debug, Clone)]
 pub struct Shortcut {
+    #[allow(dead_code)] // Reserved for shortcut cheat-sheet display
     pub name: &'static str,
     pub scope: ShortcutScope,
     pub action: KeyboardAction,
@@ -36,7 +37,9 @@ pub enum KeyboardAction {
     TogglePlayback,
     PrevKeyframe,
     NextKeyframe,
+    #[allow(dead_code)] // Reserved for explicit key binding (handled via NudgeSelected fallback)
     FrameStepForward,
+    #[allow(dead_code)] // Reserved for explicit key binding (handled via NudgeSelected fallback)
     FrameStepBackward,
 
     // Actor editing
@@ -76,13 +79,17 @@ pub enum KeyboardAction {
 
 /// Focus context that gates shortcut availability.
 pub struct FocusContext {
+    #[allow(dead_code)] // Reserved for future scope-gating logic
     pub wants_keyboard: bool,
+    #[allow(dead_code)] // Reserved for future scope-gating logic
     pub has_selection: bool,
+    #[allow(dead_code)] // Reserved for future scope-gating logic
     pub drag_active: bool,
     pub inline_edit_active: bool,
     pub command_palette_open: bool,
     pub find_replace_open: bool,
     pub unsaved_dialog_open: bool,
+    #[allow(dead_code)] // Reserved for future scope-gating logic
     pub tool_mode: crate::app::preview::ToolMode,
 }
 
@@ -440,6 +447,16 @@ impl ShortcutRegistry {
                 name: "Pivot Tool",
                 scope: ShortcutScope::Canvas,
                 action: KeyboardAction::SetPivotTool,
+            },
+        );
+
+        // Toggle Inspector (Global)
+        self.register(
+            KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::I),
+            Shortcut {
+                name: "Toggle Inspector",
+                scope: ShortcutScope::Global,
+                action: KeyboardAction::ToggleInspector,
             },
         );
 

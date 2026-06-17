@@ -70,6 +70,7 @@ impl Button {
     }
 
     /// Create a Primary variant button with the given label.
+    #[allow(dead_code)] // Reserved for future button call sites
     pub fn primary(label: impl Into<String>) -> Self {
         Self {
             variant: ButtonVariant::Primary,
@@ -108,12 +109,14 @@ impl Button {
     }
 
     /// Set size to Small.
+    #[allow(dead_code)] // Reserved for future button call sites
     pub fn small(mut self) -> Self {
         self.size = ButtonSize::Small;
         self
     }
 
     /// Set size to Large.
+    #[allow(dead_code)] // Reserved for future button call sites
     pub fn large(mut self) -> Self {
         self.size = ButtonSize::Large;
         self
@@ -126,6 +129,7 @@ impl Button {
     }
 
     /// Set the label (for icon-only buttons that sometimes show text).
+    #[allow(dead_code)] // Reserved for future button call sites
     pub fn with_label(mut self, label: impl Into<String>) -> Self {
         self.label = Some(label.into());
         self
@@ -138,6 +142,7 @@ impl Button {
     }
 
     /// Set the disabled state.
+    #[allow(dead_code)] // Reserved for future button call sites
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
         self
@@ -162,6 +167,7 @@ impl Button {
     }
 
     /// Whether to show the label (default true for label-carrying variants, false for Icon).
+    #[allow(dead_code)] // Reserved for future button call sites
     pub fn show_label(mut self, show: bool) -> Self {
         self.show_label = show;
         self

@@ -2,7 +2,7 @@ use egui::{Align, RichText, Stroke, Vec2};
 
 use crate::app::GuiShell;
 use crate::app::commands::{
-    ActionQueue, Command, DocumentCommand, SceneCommand, ShellAction, ViewAction,
+    ActionQueue, DocumentCommand, SceneCommand, ShellAction, ViewAction,
 };
 use crate::app::components::button::Button;
 use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;

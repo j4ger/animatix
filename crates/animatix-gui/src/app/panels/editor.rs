@@ -1,6 +1,6 @@
 //! Editor panel: source code editor with diagnostics and scrub-to commands.
 
-use crate::app::commands::{ActionQueue, Command, PlaybackCommand, ShellAction};
+use crate::app::commands::{ActionQueue, PlaybackCommand};
 use crate::app::panels::panel_frame;
 use crate::editor::EditorBuffer;
 use animatix_syntax::diagnostics::Diagnostic;

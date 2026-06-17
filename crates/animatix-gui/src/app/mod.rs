@@ -50,7 +50,7 @@ use persistence::{
 use preview::fit_preview;
 
 use crate::app::commands::{
-    ActionQueue, Command, DocumentCommand, Effect, ShellAction, UndoLabel, ViewCommand,
+    ActionQueue, DocumentCommand, Effect, UndoLabel, ViewCommand,
 };
 use crate::app::components::toast::Toast;
 use crate::app::document::rebuild::RebuildWorker;

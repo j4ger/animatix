@@ -1,4 +1,5 @@
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Reserved for ViewCommand infrastructure (panel migration Phase 2)
 pub enum ViewCommand {
     ScrollToLine(usize, usize),
     ZoomToSelection,
