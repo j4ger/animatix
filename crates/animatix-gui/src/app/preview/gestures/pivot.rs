@@ -16,9 +16,10 @@ impl GestureHandler for PivotGesture {
     fn handle(&mut self, gesture: &Gesture, ctx: &mut crate::app::preview::context::PreviewContext, preview_rect: egui::Rect) -> GestureResult {
         match gesture {
             Gesture::DragStart { pos, .. } => {
-                // Only handle Pivot tool mode
-                if *ctx.tool_mode != crate::app::preview::ToolMode::Pivot {
-                    return GestureResult::Ignored;
+                // Only handle Pivot or Select tool mode
+                match *ctx.tool_mode {
+                    crate::app::preview::ToolMode::Pivot | crate::app::preview::ToolMode::Select => {},
+                    _ => return GestureResult::Ignored,
                 }
 
                 let hit_radius = PREVIEW_HANDLE_HIT_RADIUS;

@@ -18,6 +18,7 @@ impl GestureRouter {
         let is_active_rotate = matches!(ctx.drag_state, DragState::Rotate { .. });
         let is_active_scale = matches!(ctx.drag_state, DragState::Scale { .. });
         let is_active_motion_path = matches!(ctx.drag_state, DragState::MotionPath { .. });
+        let is_active_move = matches!(ctx.drag_state, DragState::Move { .. });
         let is_active_marquee = ctx.selection.marquee_start.is_some();
         let is_active_vertex = matches!(ctx.drag_state, DragState::EditVertices { .. });
         let is_drag_started = response.drag_started();
@@ -186,6 +187,30 @@ impl GestureRouter {
             return;
         }
 
+        // Active move — routes DragMove / DragEnd to MoveActorGesture
+        if is_active_move {
+            let gesture = if frame.drag_stopped || frame.any_released || !frame.any_down {
+                Gesture::DragEnd {
+                    pos: frame.screen_pos.unwrap_or(Pos2::ZERO),
+                    button: PointerButton::Primary,
+                    modifiers: frame.modifiers,
+                }
+            } else if let Some(pos) = frame.screen_pos {
+                Gesture::DragMove {
+                    pos,
+                    delta: egui::Vec2::ZERO,
+                    button: PointerButton::Primary,
+                    modifiers: frame.modifiers,
+                }
+            } else {
+                super::drag_handler::handle_preview_drag(ctx, ui, preview_rect, response);
+                return;
+            };
+
+            super::gestures::move_actor::MoveActorGesture.handle(&gesture, ctx, preview_rect);
+            return;
+        }
+
         // ── Drag start: try extracted start handlers before legacy ──
         if is_drag_started {
             if let Some(pos) = frame.screen_pos {
@@ -218,6 +243,11 @@ impl GestureRouter {
                     return;
                 }
                 if super::gestures::vertex::VertexGesture.handle(&start_gesture, ctx, preview_rect)
+                    == GestureResult::Claimed
+                {
+                    return;
+                }
+                if super::gestures::move_actor::MoveActorGesture.handle(&start_gesture, ctx, preview_rect)
                     == GestureResult::Claimed
                 {
                     return;

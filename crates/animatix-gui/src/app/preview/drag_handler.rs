@@ -3,7 +3,7 @@
 use egui::Pos2;
 
 use crate::app::commands::{
-    Command, DocumentCommand, DragEvent, PropertyEdit, PropertyValue, ShellAction,
+    DocumentCommand, DragEvent, PropertyEdit, PropertyValue, ShellAction,
 };
 use crate::app::design_tokens::spatial::preview::{
     HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS,
@@ -52,7 +52,8 @@ pub(crate) fn handle_preview_drag(
                     preview::ToolMode::Vertex => {},
 
 
-                    preview::ToolMode::Rotate => {},
+                    preview::ToolMode::Scale => {},
+                preview::ToolMode::Rotate => {},
                     preview::ToolMode::Pivot => {
                         let pivot_world_pt = preview::pivot_world(p);
                         let pivot_screen = ctx.preview_scene_to_screen(
@@ -86,91 +87,6 @@ pub(crate) fn handle_preview_drag(
                 }
             }
 
-            let hit_body = drag_utils::hit_test_actor_body(scene, props.as_ref());
-
-            if hit_body
-                || ctx
-                    .hit_regions
-                    .iter()
-                    .rev()
-                    .any(|(label, bounds)| label == &actor && bounds.contains(scene))
-            {
-                if ctx.is_layout_managed(&actor) {
-                    let shift = ui.input(|i| i.modifiers.shift);
-                    if shift {
-                        let current_pos = props
-                            .as_ref()
-                            .map(|p| p.position)
-                            .unwrap_or([scene.x as f32, scene.y as f32]);
-                        ctx.commands.push_back(
-                            DocumentCommand::PropertyEdit(PropertyEdit {
-                                time_s: None,
-                                actor: actor.clone(),
-                                property: "placement_mode".into(),
-                                value: PropertyValue::Text("manual".into()),
-                                create_keyframe: ctx.keyframe_mode,
-                            })
-                            .into(),
-                        );
-                        ctx.commands.push_back(
-                            DocumentCommand::PropertyEdit(PropertyEdit {
-                                time_s: None,
-                                actor: actor.clone(),
-                                property: "position".into(),
-                                value: PropertyValue::Vec2(current_pos),
-                                create_keyframe: ctx.keyframe_mode,
-                            })
-                            .into(),
-                        );
-                        let actors = drag_utils::capture_start_positions(
-                            ctx.selected_actors,
-                            |a| ctx.get_actor_props(a),
-                            ctx.hit_regions,
-                        );
-                        *ctx.drag_state = DragState::Move {
-                            primary: actor,
-                            actors,
-                            start_scene: scene,
-                        };
-                        return true;
-                    }
-                    if let Some((container, layout_type, source_index)) =
-                        ctx.find_layout_container(&actor)
-                    {
-                        // Only activate reorder on actual drag movement (not just click)
-                        // This allows double-click to reach the text editing handler
-                        if response.drag_started() {
-                            *ctx.drag_state = DragState::Reorder {
-                                actor,
-                                container,
-                                source_index,
-                                target_index: source_index,
-                                layout_type,
-                            };
-                            return true;
-                        }
-                        // Click without drag: fall through to selection/double-click handlers
-                        // Don't return true here - let selection handler process the click
-                    }
-                }
-
-                let alt = ui.input(|i| i.modifiers.alt);
-                if alt {
-                    ctx.commands.push_back(ShellAction::Command(Command::DuplicateActor(actor)));
-                    return true;
-                }
-
-                let actors = drag_utils::capture_start_positions(
-                    ctx.selected_actors,
-                    |a| ctx.get_actor_props(a),
-                    ctx.hit_regions,
-                );
-                *ctx.drag_state = DragState::Move {
-                    primary: actor,
-                    actors,
-                    start_scene: scene,
-                };
-            }
         } else if let Some(mouse) = raw_pointer_pos {
             ctx.selection.marquee_start = Some(mouse);
             ctx.selection.marquee_current = Some(mouse);
@@ -183,49 +99,6 @@ pub(crate) fn handle_preview_drag(
             let shift = ui.input(|i| i.modifiers.shift);
 
             match ctx.drag_state.clone() {
-                DragState::Move {
-                    primary: _,
-                    actors,
-                    start_scene,
-                } => {
-                    let raw_dx = (scene.x - start_scene.x) as f32;
-                    let raw_dy = (scene.y - start_scene.y) as f32;
-                    let (dx, dy) = if shift {
-                        if raw_dx.abs() > raw_dy.abs() {
-                            (raw_dx, 0.0)
-                        } else {
-                            (0.0, raw_dy)
-                        }
-                    } else {
-                        (raw_dx, raw_dy)
-                    };
-
-                    let snap_enabled =
-                        ctx.preview.snap.snap_enabled && !ui.input(|i| i.modifiers.alt);
-                    let threshold = ctx.preview.snap.snap_threshold;
-
-                    let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
-                    for (actor, start_position) in actors {
-                        let mut nx = start_position[0] + dx;
-                        let mut ny = start_position[1] + dy;
-
-                        if ctx.preview.overlay.show_grid {
-                            let grid = ctx.preview.overlay.grid_size;
-                            nx = (nx / grid).round() * grid;
-                            ny = (ny / grid).round() * grid;
-                        }
-
-                        if snap_enabled {
-                            let result =
-                                drag_utils::resolve_snap(&actor, nx, ny, threshold, time_ms, ctx);
-                            nx = result.nx;
-                            ny = result.ny;
-                        }
-
-                        drag_utils::emit_position_edit(actor.clone(), nx, ny, ctx);
-                    }
-                },
-
                 DragState::Reorder {
                     actor,
                     container,
@@ -306,6 +179,8 @@ pub(crate) fn handle_preview_drag(
                         );
                     }
                 },
+                DragState::Move { .. } => {},
+                DragState::Scale { .. } => {},
                 DragState::Rotate { .. } => {},
                 DragState::MotionPath { .. } => {},
                 DragState::EditVertices { .. } => {},
