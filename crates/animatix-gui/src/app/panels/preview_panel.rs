@@ -3,13 +3,11 @@
 use egui::Vec2;
 
 use crate::app::commands::{ActorCommand, DocumentCommand, PlaybackCommand};
-use crate::app::design_tokens::semantic::border::{
-    DEFAULT as border_default, HOVER as border_hover,
-};
-use crate::app::design_tokens::semantic::status::WARNING as status_warning;
-use crate::app::design_tokens::semantic::surface::{BASE as surface_base, PANEL as surface_panel};
-use crate::app::design_tokens::semantic::text::{MUTED as text_muted, SECONDARY as text_secondary};
-use crate::app::design_tokens::spatial::preview::MIN_ZOOM as preview_min_zoom;
+use crate::app::design_tokens::semantic::border;
+use crate::app::design_tokens::semantic::status;
+use crate::app::design_tokens::semantic::surface;
+use crate::app::design_tokens::semantic::text;
+use crate::app::design_tokens::spatial::preview as preview_spatial;
 use crate::app::design_tokens::spatial::{RADIUS_L, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::panels::{RULER_SIZE, nice_tick_interval};
@@ -83,16 +81,16 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                 ui.painter().rect_stroke(
                     preview_rect,
                     RADIUS_L,
-                    egui::Stroke::new(STROKE_WIDTH, border_default),
+                    egui::Stroke::new(STROKE_WIDTH, border::DEFAULT),
                     egui::StrokeKind::Outside,
                 );
-                ui.painter().rect_filled(preview_rect, RADIUS_L, surface_base);
+                ui.painter().rect_filled(preview_rect, RADIUS_L, surface::BASE);
 
                 // ── Rulers ──
-                let ruler_bg = surface_panel;
-                let ruler_tick_color = text_muted;
-                let ruler_text_color = text_muted;
-                let ruler_label_color = text_secondary;
+                let ruler_bg = surface::PANEL;
+                let ruler_tick_color = text::MUTED;
+                let ruler_text_color = text::MUTED;
+                let ruler_label_color = text::SECONDARY;
 
                 let h_ruler_rect = egui::Rect::from_min_size(
                     egui::pos2(preview_rect.min.x, preview_rect.min.y - RULER_SIZE),
@@ -106,7 +104,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                     egui::pos2(preview_rect.min.x - RULER_SIZE, preview_rect.min.y - RULER_SIZE),
                     Vec2::new(RULER_SIZE, RULER_SIZE),
                 );
-                let ruler_stroke = egui::Stroke::new(STROKE_WIDTH, border_default);
+                let ruler_stroke = egui::Stroke::new(STROKE_WIDTH, border::DEFAULT);
 
                 ui.painter().rect_filled(corner_rect, 0.0, ruler_bg);
                 ui.painter()
@@ -275,7 +273,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                 if let Some((is_vertical, _start_val, _start_pos)) = ruler_drag_active {
                     if let Some(mouse) = raw_pointer_pos {
                         let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
-                        let guide_color = status_warning;
+                        let guide_color = status::WARNING;
                         if is_vertical {
                             let ghost_screen = ctx.preview_scene_to_screen(
                                 preview_rect,
@@ -336,7 +334,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
 
                 // ── Draw existing guides ──
                 if ctx.preview.overlay.show_guides {
-                    let guide_color = status_warning;
+                    let guide_color = status::WARNING;
                     for &guide_y in &ctx.preview.guides.horizontal_guides {
                         let screen_pt = ctx.preview_scene_to_screen(
                             preview_rect,
@@ -375,7 +373,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                     if scroll.y != 0.0 {
                         let zoom_factor = 1.0 + scroll.y * 0.001;
                         let new_zoom = (ctx.preview.viewport.preview_zoom * zoom_factor)
-                            .clamp(preview_min_zoom, 10.0);
+                            .clamp(preview_spatial::MIN_ZOOM, 10.0);
                         let prev_zoom = ctx.preview.viewport.preview_zoom;
                         if let Some(cursor) = ui.ctx().input(|i| i.pointer.latest_pos()) {
                             let cursor_in_rect = preview_rect.contains(cursor);
@@ -538,7 +536,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                         ui.painter().rect_stroke(
                             bounds_screen,
                             0.0,
-                            egui::Stroke::new(STROKE_WIDTH, border_hover),
+                            egui::Stroke::new(STROKE_WIDTH, border::HOVER),
                             egui::StrokeKind::Inside,
                         );
                     }
@@ -560,7 +558,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                             egui::Align2::CENTER_BOTTOM,
                             label,
                             TextRole::Micro.font_id(),
-                            text_muted,
+                            text::MUTED,
                         );
                     }
                 }

@@ -4,25 +4,14 @@
 //! Supports float, Vec2 (X/Y components), and Color (RGBA channels).
 
 use crate::app::commands::ActionQueue;
-use crate::app::design_tokens::semantic::accent::PRIMARY as semantic_accent_primary;
-use crate::app::design_tokens::semantic::border::DEFAULT as semantic_border_default;
-use crate::app::design_tokens::semantic::canvas::grid_line as semantic_canvas_grid_line;
-use crate::app::design_tokens::semantic::curve::{
-    BLUE as semantic_curve_blue, GRAY as semantic_curve_gray, GREEN as semantic_curve_green,
-};
-use crate::app::design_tokens::semantic::status::{
-    ERROR as semantic_status_error, WARNING as semantic_status_warning,
-};
-use crate::app::design_tokens::semantic::surface::{
-    BASE as semantic_surface_base, HOVER as semantic_surface_hover,
-};
-use crate::app::design_tokens::semantic::text::{
-    DISABLED as semantic_text_disabled, MUTED as semantic_text_muted,
-    SECONDARY as semantic_text_secondary,
-};
-use crate::app::design_tokens::spatial::{
-    RADIUS_M, RADIUS_S, SPACE_2 as spatial_space_s, SPACE_3 as spatial_space_m, STROKE_WIDTH,
-};
+use crate::app::design_tokens::semantic::accent;
+use crate::app::design_tokens::semantic::border;
+use crate::app::design_tokens::semantic::canvas;
+use crate::app::design_tokens::semantic::curve;
+use crate::app::design_tokens::semantic::status;
+use crate::app::design_tokens::semantic::surface;
+use crate::app::design_tokens::semantic::text;
+use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, SPACE_2, SPACE_3, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use animatix::timeline::{
     AnimationTrack, ValueType, property_keyframe_easing, property_keyframe_times,
@@ -54,11 +43,11 @@ pub fn render_multi_fcurve(
     let painter = ui.painter_at(rect);
 
     // Background
-    painter.rect_filled(rect, RADIUS_M, semantic_surface_base);
+    painter.rect_filled(rect, RADIUS_M, surface::BASE);
     painter.rect_stroke(
         rect,
         RADIUS_M,
-        Stroke::new(STROKE_WIDTH, semantic_border_default),
+        Stroke::new(STROKE_WIDTH, border::DEFAULT),
         egui::StrokeKind::Outside,
     );
 
@@ -90,7 +79,7 @@ pub fn render_multi_fcurve(
                 if points.len() >= 2 {
                     curves.push(CurveInfo {
                         label: schema.name.to_string(),
-                        color: semantic_accent_primary,
+                        color: accent::PRIMARY,
                         points,
                         field: schema.field,
                     });
@@ -110,13 +99,13 @@ pub fn render_multi_fcurve(
                 if x_points.len() >= 2 {
                     curves.push(CurveInfo {
                         label: format!("{}.X", schema.name),
-                        color: semantic_status_error,
+                        color: status::ERROR,
                         points: x_points,
                         field: schema.field,
                     });
                     curves.push(CurveInfo {
                         label: format!("{}.Y", schema.name),
-                        color: semantic_curve_green,
+                        color: curve::GREEN,
                         points: y_points,
                         field: schema.field,
                     });
@@ -143,25 +132,25 @@ pub fn render_multi_fcurve(
                 if r_points.len() >= 2 {
                     curves.push(CurveInfo {
                         label: format!("{}.R", schema.name),
-                        color: semantic_status_error,
+                        color: status::ERROR,
                         points: r_points,
                         field: schema.field,
                     });
                     curves.push(CurveInfo {
                         label: format!("{}.G", schema.name),
-                        color: semantic_curve_green,
+                        color: curve::GREEN,
                         points: g_points,
                         field: schema.field,
                     });
                     curves.push(CurveInfo {
                         label: format!("{}.B", schema.name),
-                        color: semantic_curve_blue,
+                        color: curve::BLUE,
                         points: b_points,
                         field: schema.field,
                     });
                     curves.push(CurveInfo {
                         label: format!("{}.A", schema.name),
-                        color: semantic_curve_gray,
+                        color: curve::GRAY,
                         points: a_points,
                         field: schema.field,
                     });
@@ -177,7 +166,7 @@ pub fn render_multi_fcurve(
             egui::Align2::CENTER_CENTER,
             "No keyframes to graph",
             TextRole::BodyS.font_id(),
-            semantic_text_muted,
+            text::MUTED,
         );
         return;
     }
@@ -192,8 +181,8 @@ pub fn render_multi_fcurve(
 
     let legend_height = 18.0f32;
     let legend_rect = egui::Rect::from_min_max(
-        egui::pos2(rect.min.x + spatial_space_m, rect.min.y + spatial_space_s),
-        egui::pos2(rect.max.x - spatial_space_m, rect.min.y + spatial_space_s + legend_height),
+        egui::pos2(rect.min.x + SPACE_3, rect.min.y + SPACE_2),
+        egui::pos2(rect.max.x - SPACE_3, rect.min.y + SPACE_2 + legend_height),
     );
 
     let mut legend_x = legend_rect.min.x;
@@ -205,12 +194,12 @@ pub fn render_multi_fcurve(
             Vec2::new(item_width, legend_height),
         );
         if ui.rect_contains_pointer(item_rect) {
-            ui.painter().rect_filled(item_rect, RADIUS_S, semantic_surface_hover);
+            ui.painter().rect_filled(item_rect, RADIUS_S, surface::HOVER);
         }
         let color_dot = if is_visible {
             curve.color
         } else {
-            semantic_text_disabled
+            text::DISABLED
         };
         ui.painter().circle_filled(
             egui::pos2(item_rect.min.x + 6.0, item_rect.center().y),
@@ -223,9 +212,9 @@ pub fn render_multi_fcurve(
             &curve.label,
             TextRole::Micro.font_id(),
             if is_visible {
-                semantic_text_secondary
+                text::SECONDARY
             } else {
-                semantic_text_disabled
+                text::DISABLED
             },
         );
 
@@ -235,15 +224,15 @@ pub fn render_multi_fcurve(
         if item_response.clicked() {
             visibility.insert(curve.label.clone(), !is_visible);
         }
-        legend_x += item_width + spatial_space_s;
+        legend_x += item_width + SPACE_2;
     }
 
     ui.data_mut(|d| d.insert_temp(visibility_id, visibility.clone()));
 
     // Plot area
     let plot_rect = egui::Rect::from_min_max(
-        egui::pos2(rect.min.x + spatial_space_m, legend_rect.max.y + spatial_space_s),
-        egui::pos2(rect.max.x - spatial_space_m, rect.max.y - spatial_space_s),
+        egui::pos2(rect.min.x + SPACE_3, legend_rect.max.y + SPACE_2),
+        egui::pos2(rect.max.x - SPACE_3, rect.max.y - SPACE_2),
     );
 
     // Find global value range across all visible curves
@@ -256,7 +245,7 @@ pub fn render_multi_fcurve(
             egui::Align2::CENTER_CENTER,
             "All curves hidden",
             TextRole::BodyS.font_id(),
-            semantic_text_muted,
+            text::MUTED,
         );
         return;
     }
@@ -286,7 +275,7 @@ pub fn render_multi_fcurve(
                 Pos2::new(plot_rect.left(), y),
                 Pos2::new(plot_rect.right(), y),
             ],
-            Stroke::new(STROKE_WIDTH, semantic_canvas_grid_line()),
+            Stroke::new(STROKE_WIDTH, canvas::grid_line()),
         );
         let val_label = format!("{:.1}", max_val - t * val_range);
         painter.text(
@@ -294,7 +283,7 @@ pub fn render_multi_fcurve(
             egui::Align2::LEFT_CENTER,
             val_label,
             TextRole::Micro.font_id(),
-            semantic_text_muted,
+            text::MUTED,
         );
     }
 
@@ -327,11 +316,7 @@ pub fn render_multi_fcurve(
             let size = if is_current { 4.0 } else { 2.5 };
             painter.circle_filled(p, size, curve.color);
             if is_current {
-                painter.circle_stroke(
-                    p,
-                    size + 2.0,
-                    Stroke::new(STROKE_WIDTH, semantic_status_warning),
-                );
+                painter.circle_stroke(p, size + 2.0, Stroke::new(STROKE_WIDTH, status::WARNING));
             }
         }
     }
@@ -344,7 +329,7 @@ pub fn render_multi_fcurve(
                 Pos2::new(current_x, plot_rect.top()),
                 Pos2::new(current_x, plot_rect.bottom()),
             ],
-            Stroke::new(1.5, semantic_status_warning),
+            Stroke::new(1.5, status::WARNING),
         );
     }
 

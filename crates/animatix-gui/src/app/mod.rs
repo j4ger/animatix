@@ -21,7 +21,7 @@ pub(crate) mod shell;
 pub(crate) mod stores;
 mod utils;
 
-use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
+use crate::app::design_tokens::semantic::overlay;
 use crate::app::design_tokens::semantic::{accent, border, status, surface, text};
 use crate::app::design_tokens::spatial::welcome::{
     BTN_HEIGHT as WELCOME_BTN_HEIGHT, TOP_OFFSET_FRAC as WELCOME_TOP_OFFSET_FRAC,
@@ -49,9 +49,7 @@ use persistence::{
 #[cfg(test)]
 use preview::fit_preview;
 
-use crate::app::commands::{
-    ActionQueue, DocumentCommand, Effect, UndoLabel, ViewCommand,
-};
+use crate::app::commands::{ActionQueue, DocumentCommand, Effect, UndoLabel, ViewCommand};
 use crate::app::components::toast::Toast;
 use crate::app::document::rebuild::RebuildWorker;
 use crate::app::handlers::file;
@@ -1061,7 +1059,7 @@ impl GuiShell {
     /// Workspace switcher dialog — small centered window for typing a directory path.
     fn workspace_switcher_ui(&mut self, ui: &mut egui::Ui) {
         let screen_rect = ui.ctx().viewport_rect();
-        ui.painter().rect_filled(screen_rect, 0.0, overlay_backdrop());
+        ui.painter().rect_filled(screen_rect, 0.0, overlay::backdrop());
 
         // Close on Escape or backdrop click
         if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
@@ -1172,7 +1170,7 @@ impl GuiShell {
     /// Confirmation dialog for unsaved changes (Save / Discard / Cancel).
     fn unsaved_changes_dialog_ui(&mut self, ui: &mut egui::Ui) {
         let screen_rect = ui.ctx().viewport_rect();
-        ui.painter().rect_filled(screen_rect, 0.0, overlay_backdrop());
+        ui.painter().rect_filled(screen_rect, 0.0, overlay::backdrop());
 
         if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.ui_store.unsaved_changes.close();

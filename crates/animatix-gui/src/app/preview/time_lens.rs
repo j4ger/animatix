@@ -4,14 +4,13 @@
 //! Ring shows keyframe dots. Drag horizontally to scrub time.
 //! Scroll wheel zooms time range. Release `T` → lens vanishes.
 
-use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
-use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
+use crate::app::design_tokens::semantic::accent;
+use crate::app::design_tokens::semantic::border;
 use crate::app::design_tokens::semantic::canvas::grid_line;
-use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
-use crate::app::design_tokens::semantic::status::WARNING as AMBER;
-use crate::app::design_tokens::semantic::surface::PANEL as BG_PANEL;
-use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
-use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
+use crate::app::design_tokens::semantic::overlay;
+use crate::app::design_tokens::semantic::status;
+use crate::app::design_tokens::semantic::surface;
+use crate::app::design_tokens::semantic::text;
 use crate::app::design_tokens::spatial::STROKE_WIDTH;
 use crate::app::design_tokens::typography::TextRole;
 use egui::{Pos2, Stroke};
@@ -115,12 +114,16 @@ impl TimeLens {
 
         // Backdrop dim
         let screen_rect = ui.ctx().viewport_rect();
-        painter.rect_filled(screen_rect, 0.0, overlay_backdrop());
+        painter.rect_filled(screen_rect, 0.0, overlay::backdrop());
 
         // Outer ring background
-        painter.circle_filled(center, LENS_RADIUS, BG_PANEL);
-        painter.circle_stroke(center, LENS_RADIUS, Stroke::new(1.5, BORDER));
-        painter.circle_stroke(center, LENS_INNER_RADIUS, Stroke::new(STROKE_WIDTH, BORDER));
+        painter.circle_filled(center, LENS_RADIUS, surface::PANEL);
+        painter.circle_stroke(center, LENS_RADIUS, Stroke::new(1.5, border::DEFAULT));
+        painter.circle_stroke(
+            center,
+            LENS_INNER_RADIUS,
+            Stroke::new(STROKE_WIDTH, border::DEFAULT),
+        );
 
         // Time range on ring: center_time ± visible_range/2
         let range_start = (center_time - self.visible_range_s / 2.0).max(0.0);
@@ -160,7 +163,11 @@ impl TimeLens {
                 center.y + angle.sin() * ((LENS_RADIUS + LENS_INNER_RADIUS) / 2.0),
             );
             let is_current = (kf - center_time).abs() < 0.05;
-            let color = if is_current { AMBER } else { ACCENT_BLUE };
+            let color = if is_current {
+                status::WARNING
+            } else {
+                accent::PRIMARY
+            };
             let size = if is_current { 4.5 } else { 3.0 };
             painter.circle_filled(dot_pos, size, color);
         }
@@ -172,7 +179,7 @@ impl TimeLens {
             egui::Align2::CENTER_CENTER,
             &time_text,
             TextRole::Title.font_id(),
-            TEXT_PRIMARY,
+            text::PRIMARY,
         );
 
         // Range indicator below center
@@ -182,7 +189,7 @@ impl TimeLens {
             egui::Align2::CENTER_CENTER,
             &range_text,
             TextRole::Micro.font_id(),
-            TEXT_MUTED,
+            text::MUTED,
         );
 
         // Current playhead indicator on ring
@@ -195,6 +202,6 @@ impl TimeLens {
             center.x + playhead_angle.cos() * (LENS_RADIUS + 4.0),
             center.y + playhead_angle.sin() * (LENS_RADIUS + 4.0),
         );
-        painter.line_segment([ph_inner, ph_outer], Stroke::new(2.0, AMBER));
+        painter.line_segment([ph_inner, ph_outer], Stroke::new(2.0, status::WARNING));
     }
 }

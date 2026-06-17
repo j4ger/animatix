@@ -4,18 +4,15 @@ use std::sync::Arc;
 
 use crate::app::GuiShell;
 use crate::app::components::layout;
-use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
-use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
-use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
-use crate::app::design_tokens::semantic::status::ERROR as RED;
-use crate::app::design_tokens::semantic::status::SUCCESS as GREEN;
-use crate::app::design_tokens::semantic::status::WARNING as AMBER;
-use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
-use crate::app::design_tokens::semantic::surface::HOVER as BG_HOVER;
-use crate::app::design_tokens::semantic::surface::WIDGET as BG_WIDGET;
-use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
-use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
-use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
+use crate::app::design_tokens::semantic::accent;
+use crate::app::design_tokens::semantic::border;
+use crate::app::design_tokens::semantic::overlay;
+use crate::app::design_tokens::semantic::status;
+
+use crate::app::design_tokens::semantic::surface;
+
+use crate::app::design_tokens::semantic::text;
+
 use crate::app::design_tokens::spatial::{
     RADIUS_M, RADIUS_S, RADIUS_XL, ROW_L, ROW_M, SPACE_L, SPACE_M, SPACE_S, SPACE_XL, SPACE_XS,
     STROKE_WIDTH,
@@ -91,7 +88,7 @@ impl GuiShell {
         let screen_rect = ui.ctx().viewport_rect();
 
         // Dark semi-transparent backdrop
-        ui.painter().rect_filled(screen_rect, 0.0, overlay_backdrop());
+        ui.painter().rect_filled(screen_rect, 0.0, overlay::backdrop());
 
         let is_running = matches!(self.export_store.export_status, ExportStatus::Running);
 
@@ -122,11 +119,11 @@ impl GuiShell {
             egui::Rect::from_center_size(screen_rect.center(), Vec2::new(dialog_w, dialog_h));
 
         // Dialog background
-        ui.painter().rect_filled(dialog_rect, RADIUS_XL, BG_BASE);
+        ui.painter().rect_filled(dialog_rect, RADIUS_XL, surface::BASE);
         ui.painter().rect_stroke(
             dialog_rect,
             RADIUS_XL,
-            Stroke::new(STROKE_WIDTH, BORDER),
+            Stroke::new(STROKE_WIDTH, border::DEFAULT),
             egui::StrokeKind::Inside,
         );
 
@@ -149,7 +146,7 @@ impl GuiShell {
                 egui::Align2::LEFT_CENTER,
                 "Export",
                 TextRole::Heading.font_id(),
-                TEXT_PRIMARY,
+                text::PRIMARY,
             );
 
             // Close button
@@ -161,9 +158,9 @@ impl GuiShell {
             let close_resp =
                 ui.interact(close_rect, ui.id().with("export_close"), egui::Sense::click());
             let close_color = if close_resp.hovered() {
-                TEXT_PRIMARY
+                text::PRIMARY
             } else {
-                TEXT_MUTED
+                text::MUTED
             };
             ui.painter().text(
                 close_rect.center(),
@@ -184,7 +181,7 @@ impl GuiShell {
                     egui::pos2(content_rect.left(), cursor_y),
                     egui::pos2(content_rect.right(), cursor_y),
                 ],
-                Stroke::new(STROKE_WIDTH, BORDER),
+                Stroke::new(STROKE_WIDTH, border::DEFAULT),
             );
             cursor_y += SPACE_L;
 
@@ -249,7 +246,7 @@ impl GuiShell {
         let time = ui.ctx().input(|i| i.time);
         let n_dots = 8;
         let radius = 14.0;
-        let base_alpha = AMBER.a();
+        let base_alpha = status::WARNING.a();
         for i in 0..n_dots {
             let angle = (i as f32 / n_dots as f32) * std::f32::consts::TAU - (time * 3.0) as f32;
             let pos = spinner_center + Vec2::new(angle.cos() * radius, angle.sin() * radius);
@@ -258,7 +255,12 @@ impl GuiShell {
             ui.painter().circle_filled(
                 pos,
                 2.5,
-                Color32::from_rgba_premultiplied(AMBER.r(), AMBER.g(), AMBER.b(), alpha),
+                Color32::from_rgba_premultiplied(
+                    status::WARNING.r(),
+                    status::WARNING.g(),
+                    status::WARNING.b(),
+                    alpha,
+                ),
             );
         }
 
@@ -268,7 +270,7 @@ impl GuiShell {
             egui::Align2::CENTER_CENTER,
             "Exporting…",
             TextRole::Title.font_id(),
-            TEXT_PRIMARY,
+            text::PRIMARY,
         );
 
         // Subtitle
@@ -285,7 +287,7 @@ impl GuiShell {
             egui::Align2::CENTER_CENTER,
             format_label,
             TextRole::BodyS.font_id(),
-            TEXT_MUTED,
+            text::MUTED,
         );
 
         // Progress bar + frame count
@@ -301,11 +303,11 @@ impl GuiShell {
             Vec2::new(bar_w, bar_h),
         );
         // Track
-        ui.painter().rect_filled(bar_rect, bar_h * 0.5, BG_WIDGET);
+        ui.painter().rect_filled(bar_rect, bar_h * 0.5, surface::WIDGET);
         // Fill
         if pct > 0.0 {
             let fill_rect = egui::Rect::from_min_size(bar_rect.min, Vec2::new(bar_w * pct, bar_h));
-            ui.painter().rect_filled(fill_rect, bar_h * 0.5, AMBER);
+            ui.painter().rect_filled(fill_rect, bar_h * 0.5, status::WARNING);
         }
 
         // Frame count / percentage text
@@ -322,7 +324,7 @@ impl GuiShell {
             egui::Align2::CENTER_TOP,
             progress_text,
             TextRole::Micro.font_id(),
-            TEXT_MUTED,
+            text::MUTED,
         );
 
         // Elapsed time
@@ -336,7 +338,7 @@ impl GuiShell {
                 egui::Align2::CENTER_TOP,
                 time_str,
                 TextRole::Micro.font_id(),
-                TEXT_MUTED,
+                text::MUTED,
             );
         }
 
@@ -348,15 +350,15 @@ impl GuiShell {
         );
         let btn_resp = ui.interact(btn_rect, ui.id().with("export_cancel"), egui::Sense::click());
         let btn_bg = if btn_resp.hovered() {
-            BG_HOVER
+            surface::HOVER
         } else {
-            BG_WIDGET
+            surface::WIDGET
         };
         ui.painter().rect_filled(btn_rect, RADIUS_M, btn_bg);
         ui.painter().rect_stroke(
             btn_rect,
             RADIUS_M,
-            Stroke::new(STROKE_WIDTH, BORDER),
+            Stroke::new(STROKE_WIDTH, border::DEFAULT),
             egui::StrokeKind::Inside,
         );
         ui.painter().text(
@@ -365,9 +367,9 @@ impl GuiShell {
             "Cancel",
             TextRole::Body.font_id(),
             if btn_resp.hovered() {
-                TEXT_PRIMARY
+                text::PRIMARY
             } else {
-                TEXT_SECONDARY
+                text::SECONDARY
             },
         );
         if btn_resp.clicked() {
@@ -442,7 +444,7 @@ impl GuiShell {
                         egui::Label::new(
                             RichText::new(format!("{} Scene", egui_phosphor::regular::ARROWS_IN))
                                 .size(TextRole::BodyS.size())
-                                .color(ACCENT_BLUE),
+                                .color(accent::PRIMARY),
                         )
                         .selectable(false),
                     );
@@ -466,10 +468,12 @@ impl GuiShell {
                 for (label, w, h, f) in presets {
                     let resp = ui.add(
                         egui::Button::new(
-                            RichText::new(label).size(TextRole::Micro.size()).color(TEXT_SECONDARY),
+                            RichText::new(label)
+                                .size(TextRole::Micro.size())
+                                .color(text::SECONDARY),
                         )
-                        .fill(BG_WIDGET)
-                        .stroke(Stroke::new(STROKE_WIDTH, BORDER))
+                        .fill(surface::WIDGET)
+                        .stroke(Stroke::new(STROKE_WIDTH, border::DEFAULT))
                         .corner_radius(RADIUS_S)
                         .small(),
                     );
@@ -504,7 +508,7 @@ impl GuiShell {
                             egui::Label::new(
                                 RichText::new(format!("{} Current", egui_phosphor::regular::CLOCK))
                                     .size(TextRole::BodyS.size())
-                                    .color(ACCENT_BLUE),
+                                    .color(accent::PRIMARY),
                             )
                             .selectable(false),
                         );
@@ -544,7 +548,7 @@ impl GuiShell {
                             ui.label(
                                 RichText::new("Hold:")
                                     .size(TextRole::BodyS.size())
-                                    .color(TEXT_SECONDARY),
+                                    .color(text::SECONDARY),
                             );
 
                             let mut hold = *hold_s;
@@ -593,7 +597,7 @@ impl GuiShell {
                         ui.label(
                             RichText::new(format!("Effective duration: {:.2}s", auto_dur))
                                 .size(TextRole::Micro.size())
-                                .color(TEXT_MUTED),
+                                .color(text::MUTED),
                         );
                     }
                 },
@@ -640,7 +644,7 @@ impl GuiShell {
             ui.label(
                 RichText::new(format!("Default: {}", default.display()))
                     .size(TextRole::Micro.size())
-                    .color(TEXT_MUTED),
+                    .color(text::MUTED),
             );
         }
     }
@@ -666,7 +670,9 @@ impl GuiShell {
                 |ui| {
                     ui.add(
                         egui::Label::new(
-                            RichText::new(label).size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
+                            RichText::new(label)
+                                .size(TextRole::BodyS.size())
+                                .color(text::SECONDARY),
                         )
                         .selectable(false),
                     );
@@ -701,7 +707,7 @@ impl GuiShell {
                         egui::Label::new(
                             RichText::new(format!("{} {}", egui_phosphor::regular::CHECK, label))
                                 .size(TextRole::BodyS.size())
-                                .color(GREEN),
+                                .color(status::SUCCESS),
                         )
                         .selectable(false),
                     );
@@ -719,7 +725,7 @@ impl GuiShell {
                                 truncated
                             ))
                             .size(TextRole::BodyS.size())
-                            .color(RED),
+                            .color(status::ERROR),
                         )
                         .selectable(false),
                     );
@@ -743,7 +749,7 @@ impl GuiShell {
                 let btn_size = Vec2::new(120.0, ROW_M);
                 let (btn_rect, btn_resp) = ui.allocate_exact_size(btn_size, egui::Sense::click());
 
-                let btn_bg = AMBER;
+                let btn_bg = status::WARNING;
 
                 ui.painter().rect_filled(btn_rect, RADIUS_M, btn_bg);
                 ui.painter().text(
@@ -751,7 +757,7 @@ impl GuiShell {
                     egui::Align2::CENTER_CENTER,
                     btn_text,
                     TextRole::Body.font_id(),
-                    BG_BASE,
+                    surface::BASE,
                 );
 
                 if btn_resp.clicked() {

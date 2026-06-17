@@ -5,13 +5,13 @@ use crate::app::commands::ViewAction;
 use crate::app::commands::{
     ActorCommand, DocumentCommand, PlaybackCommand, ShellAction, ViewCommand,
 };
-use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
-use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
-use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
-use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
-use crate::app::design_tokens::semantic::surface::WIDGET as BG_WIDGET;
-use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
-use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
+use crate::app::design_tokens::semantic::accent;
+use crate::app::design_tokens::semantic::border;
+use crate::app::design_tokens::semantic::overlay;
+use crate::app::design_tokens::semantic::surface;
+
+use crate::app::design_tokens::semantic::text;
+
 use crate::app::design_tokens::spatial::{
     RADIUS_M, RADIUS_XL, ROW_M, SPACE_M, SPACE_S, SPACE_XL, STROKE_WIDTH,
 };
@@ -27,7 +27,7 @@ struct PaletteItem {
 impl GuiShell {
     pub(crate) fn command_palette_ui(&mut self, ui: &mut egui::Ui) {
         let screen_rect = ui.ctx().viewport_rect();
-        ui.painter().rect_filled(screen_rect, 0.0, overlay_backdrop());
+        ui.painter().rect_filled(screen_rect, 0.0, overlay::backdrop());
 
         // Close on Escape or backdrop click
         if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
@@ -51,8 +51,8 @@ impl GuiShell {
             .title_bar(false)
             .frame(
                 egui::Frame::new()
-                    .fill(BG_BASE)
-                    .stroke(egui::Stroke::new(STROKE_WIDTH, BORDER))
+                    .fill(surface::BASE)
+                    .stroke(egui::Stroke::new(STROKE_WIDTH, border::DEFAULT))
                     .corner_radius(RADIUS_XL)
                     .inner_margin(egui::Margin::same(SPACE_XL as i8)),
             )
@@ -119,7 +119,7 @@ impl GuiShell {
                     ui.label(
                         egui::RichText::new("No commands match your search")
                             .size(TextRole::BodyS.size())
-                            .color(TEXT_MUTED),
+                            .color(text::MUTED),
                     );
                 } else {
                     egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
@@ -130,14 +130,14 @@ impl GuiShell {
                                 egui::Button::new(
                                     egui::RichText::new(format!("{}  {}", item.icon, item.label))
                                         .size(TextRole::Body.size())
-                                        .color(TEXT_PRIMARY),
+                                        .color(text::PRIMARY),
                                 )
                                 .fill(if is_selected {
-                                    ACCENT_BLUE.linear_multiply(0.15)
+                                    accent::PRIMARY.linear_multiply(0.15)
                                 } else {
-                                    BG_WIDGET
+                                    surface::WIDGET
                                 })
-                                .stroke(egui::Stroke::new(STROKE_WIDTH, BORDER))
+                                .stroke(egui::Stroke::new(STROKE_WIDTH, border::DEFAULT))
                                 .corner_radius(RADIUS_M)
                                 .min_size(egui::vec2(ui.available_width(), ROW_M)),
                             );

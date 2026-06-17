@@ -2,7 +2,7 @@ use egui::{Color32, Rect, Stroke, Visuals};
 use egui_tiles::{Behavior, SimplificationOptions, TileId, UiResponse};
 
 use crate::app::WorkspaceTab;
-use crate::app::design_tokens::semantic::accent::{PRIMARY as acc_primary, faint as acc_faint};
+use crate::app::design_tokens::semantic::accent;
 use crate::app::design_tokens::spatial::timeline::RULER_HEIGHT as TIMELINE_RULER_HEIGHT;
 use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 
@@ -286,17 +286,17 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
             egui_tiles::ResizeState::Idle => {
                 Stroke::new(STROKE_WIDTH, style.visuals.widgets.noninteractive.bg_stroke.color)
             },
-            egui_tiles::ResizeState::Hovering => Stroke::new(STROKE_WIDTH, acc_primary),
-            egui_tiles::ResizeState::Dragging => Stroke::new(STROKE_WIDTH, acc_primary),
+            egui_tiles::ResizeState::Hovering => Stroke::new(STROKE_WIDTH, accent::PRIMARY),
+            egui_tiles::ResizeState::Dragging => Stroke::new(STROKE_WIDTH, accent::PRIMARY),
         }
     }
 
     fn drag_preview_stroke(&self, _visuals: &Visuals) -> Stroke {
-        Stroke::new(STROKE_WIDTH, acc_primary)
+        Stroke::new(STROKE_WIDTH, accent::PRIMARY)
     }
 
     fn drag_preview_color(&self, _visuals: &Visuals) -> Color32 {
-        acc_faint()
+        accent::faint()
     }
 
     fn paint_on_top_of_tile(

@@ -6,10 +6,8 @@ use std::collections::HashSet;
 use egui::Pos2;
 
 use crate::app::commands::{DocumentCommand, PropertyEdit, PropertyValue};
-use crate::app::design_tokens::semantic::accent::CYAN as ACCENT_CYAN;
-use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
-use crate::app::design_tokens::semantic::status::SUCCESS as GREEN;
-use crate::app::design_tokens::semantic::status::WARNING as AMBER;
+use crate::app::design_tokens::semantic::accent;
+use crate::app::design_tokens::semantic::status;
 use crate::app::preview::context::PreviewContext;
 use crate::app::preview::{ActorProps, DragState};
 use animatix::timeline::{PositionBinding, TrackAccessor};
@@ -245,13 +243,13 @@ pub(crate) fn resolve_snap(
         || snapped_keyframe
     {
         ctx.preview.snap.snap_line_color = Some(if snapped_guide_h || snapped_guide_v {
-            AMBER
+            status::WARNING
         } else if snapped_keyframe {
-            ACCENT_CYAN
+            accent::CYAN
         } else if snapped_container {
-            ACCENT_BLUE
+            accent::PRIMARY
         } else {
-            GREEN
+            status::SUCCESS
         });
         ctx.preview.snap.snap_hud_label = snap_hud_text.clone();
     }

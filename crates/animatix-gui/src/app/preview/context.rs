@@ -8,15 +8,12 @@ use std::collections::{HashMap, HashSet};
 use egui::{Pos2, Vec2};
 
 use crate::app::commands::{
-    ActionQueue, DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue,
-    SceneCommand,
+    ActionQueue, DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue, SceneCommand,
 };
-use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
-use crate::app::design_tokens::semantic::status::SUCCESS as GREEN;
-use crate::app::design_tokens::semantic::status::WARNING as AMBER;
-use crate::app::design_tokens::semantic::surface::SURFACE as BG_SURFACE;
-use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
-use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
+use crate::app::design_tokens::semantic::accent;
+use crate::app::design_tokens::semantic::status;
+use crate::app::design_tokens::semantic::surface;
+use crate::app::design_tokens::semantic::text;
 use crate::app::design_tokens::spatial::preview::{
     HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS, MIN_ZOOM as PREVIEW_MIN_ZOOM,
 };
@@ -184,11 +181,11 @@ impl PreviewContext<'_> {
         .intersect(preview_rect);
 
         // Draw background
-        ui.painter().rect_filled(editor_rect, RADIUS_M as u8, BG_SURFACE);
+        ui.painter().rect_filled(editor_rect, RADIUS_M as u8, surface::SURFACE);
         ui.painter().rect_stroke(
             editor_rect,
             RADIUS_M as u8,
-            Stroke::new(STROKE_WIDTH, ACCENT_BLUE),
+            Stroke::new(STROKE_WIDTH, accent::PRIMARY),
             egui::StrokeKind::Outside,
         );
 
@@ -626,7 +623,7 @@ impl PreviewContext<'_> {
                     egui::Align2::CENTER_CENTER,
                     "Preview initializing…",
                     egui::TextStyle::Body.resolve(ui.style()),
-                    TEXT_MUTED,
+                    text::MUTED,
                 );
             },
         }
@@ -686,7 +683,7 @@ impl PreviewContext<'_> {
                     let galley = ui.painter().layout_no_wrap(
                         label.clone(),
                         TextRole::BodyS.font_id(),
-                        GREEN,
+                        status::SUCCESS,
                     );
                     let padding = Vec2::new(8.0, 4.0);
                     let bg_rect = egui::Rect::from_min_size(hud_pos, galley.size() + padding * 2.0);
@@ -704,7 +701,7 @@ impl PreviewContext<'_> {
                         ),
                         egui::StrokeKind::Outside,
                     );
-                    ui.painter().galley(hud_pos + padding, galley, GREEN);
+                    ui.painter().galley(hud_pos + padding, galley, status::SUCCESS);
                 }
             }
         }
@@ -875,7 +872,7 @@ impl PreviewContext<'_> {
             kf_points.sort_by_key(|(t, _)| *t);
 
             // Draw path lines
-            let path_color = ACCENT_BLUE.gamma_multiply(0.6);
+            let path_color = accent::PRIMARY.gamma_multiply(0.6);
             let path_stroke = egui::Stroke::new(1.5, path_color);
             for i in 0..kf_points.len().saturating_sub(1) {
                 let p1_screen = preview::scene_to_screen(
@@ -909,14 +906,18 @@ impl PreviewContext<'_> {
                 );
                 let current_time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
                 let is_current = *time_ms == current_time_ms;
-                let dot_color = if is_current { AMBER } else { ACCENT_BLUE };
+                let dot_color = if is_current {
+                    status::WARNING
+                } else {
+                    accent::PRIMARY
+                };
                 let dot_radius = if is_current { 5.0 } else { 3.5 };
                 ui.painter().circle_filled(screen, dot_radius, dot_color);
                 if is_current {
                     ui.painter().circle_stroke(
                         screen,
                         dot_radius + 2.0,
-                        egui::Stroke::new(1.0, AMBER),
+                        egui::Stroke::new(1.0, status::WARNING),
                     );
                 }
 
@@ -927,7 +928,7 @@ impl PreviewContext<'_> {
                     egui::Align2::CENTER_BOTTOM,
                     time_label,
                     TextRole::Micro.font_id(),
-                    TEXT_MUTED,
+                    text::MUTED,
                 );
             }
         }
@@ -1070,8 +1071,8 @@ impl PreviewContext<'_> {
             }
 
             if is_dragging {
-                let measurement_color = ACCENT_BLUE;
-                let text_color = TEXT_PRIMARY;
+                let measurement_color = accent::PRIMARY;
+                let text_color = text::PRIMARY;
                 let font = egui::FontId::monospace(TextRole::Micro.size());
                 match &self.drag_state {
                     DragState::Move {

@@ -4,21 +4,19 @@ use egui::{Color32, Pos2, Rect, RichText, Stroke, Vec2};
 
 use crate::app::GuiShell;
 use crate::app::commands::UndoLabel;
-use crate::app::design_tokens::semantic::accent::CYAN as ACCENT_CYAN;
-use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
-use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
-use crate::app::design_tokens::semantic::border::HOVER as BORDER_HOVER;
-use crate::app::design_tokens::semantic::category::ACTION as PURPLE;
+use crate::app::design_tokens::semantic::accent;
+
+use crate::app::design_tokens::semantic::border;
+
+use crate::app::design_tokens::semantic::category;
 use crate::app::design_tokens::semantic::editor::SNIPPET_BLUE;
-use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
-use crate::app::design_tokens::semantic::status::ERROR as RED;
-use crate::app::design_tokens::semantic::status::SUCCESS as GREEN;
-use crate::app::design_tokens::semantic::status::WARNING as AMBER;
-use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
-use crate::app::design_tokens::semantic::surface::WIDGET as BG_WIDGET;
-use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
-use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
-use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
+use crate::app::design_tokens::semantic::overlay;
+use crate::app::design_tokens::semantic::status;
+
+use crate::app::design_tokens::semantic::surface;
+
+use crate::app::design_tokens::semantic::text;
+
 use crate::app::design_tokens::spatial::{
     RADIUS_M, RADIUS_S, RADIUS_XL, SPACE_L, SPACE_M, SPACE_S, STROKE_WIDTH,
 };
@@ -188,7 +186,7 @@ impl InsertionPalette {
                     format!("Component — {}", params_display.join(", "))
                 },
                 icon: egui_phosphor::regular::CUBE.to_string(),
-                color: ACCENT_CYAN,
+                color: accent::CYAN,
                 kind: ItemKind::Component {
                     type_name: name.clone(),
                     params: params_info,
@@ -245,23 +243,23 @@ impl InsertionPalette {
 
 fn category_color(category: animatix::timeline::ActorCategory) -> Color32 {
     match category {
-        animatix::timeline::ActorCategory::Shape => ACCENT_BLUE,
-        animatix::timeline::ActorCategory::Container => GREEN,
-        animatix::timeline::ActorCategory::Text => AMBER,
-        animatix::timeline::ActorCategory::Media => PURPLE,
-        animatix::timeline::ActorCategory::Plot => ACCENT_CYAN,
+        animatix::timeline::ActorCategory::Shape => accent::PRIMARY,
+        animatix::timeline::ActorCategory::Container => status::SUCCESS,
+        animatix::timeline::ActorCategory::Text => status::WARNING,
+        animatix::timeline::ActorCategory::Media => category::ACTION,
+        animatix::timeline::ActorCategory::Plot => accent::CYAN,
     }
 }
 
 fn action_category_color(category: &str) -> Color32 {
     match category {
-        "Entrance" => GREEN,
-        "Exit" => RED,
-        "Motion" => ACCENT_BLUE,
-        "Effects" => AMBER,
-        "Reveal" => PURPLE,
-        "Reorder" => GREEN,
-        _ => TEXT_SECONDARY,
+        "Entrance" => status::SUCCESS,
+        "Exit" => status::ERROR,
+        "Motion" => accent::PRIMARY,
+        "Effects" => status::WARNING,
+        "Reveal" => category::ACTION,
+        "Reorder" => status::SUCCESS,
+        _ => text::SECONDARY,
     }
 }
 
@@ -280,7 +278,7 @@ impl GuiShell {
         let screen_rect = ui.ctx().viewport_rect();
 
         // Dark semi-transparent backdrop
-        ui.painter().rect_filled(screen_rect, 0.0, overlay_backdrop());
+        ui.painter().rect_filled(screen_rect, 0.0, overlay::backdrop());
 
         // Capture clicks on backdrop to close
         let backdrop_response = ui.interact(
@@ -307,11 +305,11 @@ impl GuiShell {
         let palette_rect = Rect::from_min_size(palette_pos, Vec2::new(palette_w, palette_h));
 
         // Background
-        ui.painter().rect_filled(palette_rect, RADIUS_XL as u8, BG_BASE);
+        ui.painter().rect_filled(palette_rect, RADIUS_XL as u8, surface::BASE);
         ui.painter().rect_stroke(
             palette_rect,
             RADIUS_XL as u8,
-            Stroke::new(STROKE_WIDTH, BORDER),
+            Stroke::new(STROKE_WIDTH, border::DEFAULT),
             egui::StrokeKind::Outside,
         );
 
@@ -325,7 +323,7 @@ impl GuiShell {
             ui.label(
                 RichText::new("Insert")
                     .size(TextRole::Heading.size())
-                    .color(TEXT_PRIMARY)
+                    .color(text::PRIMARY)
                     .strong(),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -342,7 +340,7 @@ impl GuiShell {
             content.label(
                 RichText::new(format!("Configure {}", type_name))
                     .size(TextRole::Title.size())
-                    .color(TEXT_PRIMARY)
+                    .color(text::PRIMARY)
                     .strong(),
             );
             content.add_space(SPACE_M);
@@ -355,7 +353,7 @@ impl GuiShell {
                         format!("{}:", param_name)
                     };
                     ui.label(
-                        RichText::new(label).size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
+                        RichText::new(label).size(TextRole::BodyS.size()).color(text::SECONDARY),
                     );
 
                     // Type-specific widget
@@ -541,16 +539,24 @@ impl GuiShell {
                 let btn = ui.add(
                     egui::Button::new(RichText::new(label).size(TextRole::BodyS.size()).color(
                         if selected {
-                            TEXT_PRIMARY
+                            text::PRIMARY
                         } else {
-                            TEXT_SECONDARY
+                            text::SECONDARY
                         },
                     ))
-                    .fill(if selected { BG_WIDGET } else { BG_BASE })
+                    .fill(if selected {
+                        surface::WIDGET
+                    } else {
+                        surface::BASE
+                    })
                     .corner_radius(RADIUS_M)
                     .stroke(Stroke::new(
                         STROKE_WIDTH,
-                        if selected { BORDER_HOVER } else { BORDER },
+                        if selected {
+                            border::HOVER
+                        } else {
+                            border::DEFAULT
+                        },
                     )),
                 );
                 if btn.clicked() {
@@ -625,9 +631,9 @@ impl GuiShell {
                         row_rect,
                         RADIUS_S as u8,
                         if is_selected {
-                            ACCENT_BLUE.linear_multiply(0.2)
+                            accent::PRIMARY.linear_multiply(0.2)
                         } else {
-                            BG_WIDGET
+                            surface::WIDGET
                         },
                     );
                 }
@@ -648,9 +654,9 @@ impl GuiShell {
                                 RichText::new(&item.label)
                                     .size(TextRole::BodyS.size())
                                     .color(if is_selected {
-                                        TEXT_PRIMARY
+                                        text::PRIMARY
                                     } else {
-                                        TEXT_SECONDARY
+                                        text::SECONDARY
                                     })
                                     .strong(),
                             );
@@ -658,7 +664,7 @@ impl GuiShell {
                                 ui.label(
                                     RichText::new(&item.detail)
                                         .size(TextRole::Micro.size())
-                                        .color(TEXT_MUTED),
+                                        .color(text::MUTED),
                                 );
                             }
                         });

@@ -1,17 +1,12 @@
 use crate::app::commands::{
-    ActionQueue, DocumentCommand, KeyframeCommand, PropertyEdit, PropertyValue,
-    ShellAction, ViewAction,
+    ActionQueue, DocumentCommand, KeyframeCommand, PropertyEdit, PropertyValue, ShellAction,
+    ViewAction,
 };
 use crate::app::components::button::Button;
-use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
-use crate::app::design_tokens::semantic::status::WARNING as AMBER;
-use crate::app::design_tokens::semantic::surface::HOVER as BG_HOVER;
-use crate::app::design_tokens::semantic::surface::SURFACE as BG_SURFACE;
-use crate::app::design_tokens::semantic::surface::WIDGET as BG_WIDGET;
-use crate::app::design_tokens::semantic::text::DISABLED as TEXT_DISABLED;
-use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
-use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
-use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
+use crate::app::design_tokens::semantic::border;
+use crate::app::design_tokens::semantic::status;
+use crate::app::design_tokens::semantic::surface;
+use crate::app::design_tokens::semantic::text;
 use crate::app::design_tokens::spatial::{
     RADIUS_L, RADIUS_S, ROW_L, SPACE_M, SPACE_S, STROKE_WIDTH,
 };
@@ -21,7 +16,6 @@ use animatix::timeline::{
     PropertyValue as TlPropertyValue, SceneDimensions, Timeline, read_property_value_or_default,
 };
 use egui::{Color32, Pos2, Rect, RichText, Sense, Stroke, Vec2};
-
 /// Show the property popup attached to a selected actor.
 ///
 /// Attached to actor's top edge, follows actor, clamped to viewport.
@@ -43,41 +37,34 @@ pub fn show_property_popup(
     if is_dragging {
         return; // Auto-hide during canvas drag
     }
-
     let viewport = ui.max_rect();
     let popup_w = 260.0;
     let popup_h = 170.0; // Slightly taller for better header spacing
-
     // Drag offset state (persisted between frames)
     let drag_offset_id = ui.id().with(("popup_drag_offset", actor));
     let drag_offset: Vec2 = ui.data(|d| d.get_temp(drag_offset_id)).unwrap_or(Vec2::ZERO);
-
     // Position: attached to top edge of actor, centered, with drag offset
     let popup_pos = Pos2::new(
         screen_pos.x - popup_w / 2.0 + drag_offset.x,
         screen_pos.y - popup_h - 12.0 + drag_offset.y,
     );
-
     // Clamp to viewport
     let clamped_pos = Pos2::new(
         popup_pos.x.clamp(viewport.min.x + 4.0, viewport.max.x - popup_w - 4.0),
         popup_pos.y.clamp(viewport.min.y + 4.0, viewport.max.y - popup_h - 4.0),
     );
     let popup_rect = Rect::from_min_size(clamped_pos, Vec2::new(popup_w, popup_h));
-
     // Background
-    ui.painter().rect_filled(popup_rect, RADIUS_L as u8, BG_SURFACE);
+    ui.painter().rect_filled(popup_rect, RADIUS_L as u8, surface::SURFACE);
     ui.painter().rect_stroke(
         popup_rect,
         RADIUS_L as u8,
-        Stroke::new(STROKE_WIDTH, BORDER),
+        Stroke::new(STROKE_WIDTH, border::DEFAULT),
         egui::StrokeKind::Outside,
     );
-
     // Build child UI for content
     let mut content = ui.new_child(egui::UiBuilder::new().max_rect(popup_rect.shrink(SPACE_M)));
     content.set_clip_rect(popup_rect);
-
     // ── Header: actor name + close (draggable) ──
     let header_h = ROW_L; // 28px - comfortable height for header
     let header_rect =
@@ -92,18 +79,16 @@ pub fn show_property_popup(
     if header_resp.double_clicked() {
         ui.data_mut(|d| d.remove::<Vec2>(drag_offset_id));
     }
-
     // Draw header background on hover (drag affordance)
     if header_resp.hovered() {
-        ui.painter().rect_filled(header_rect, RADIUS_S as u8, BG_HOVER);
+        ui.painter().rect_filled(header_rect, RADIUS_S as u8, surface::HOVER);
     }
-
     // Subtle drag handle indicator (6 dots) on the left side of header
     let handle_center = Pos2::new(header_rect.min.x + SPACE_S + 4.0, header_rect.center().y);
     let dot_color = if header_resp.hovered() {
-        TEXT_MUTED
+        text::MUTED
     } else {
-        TEXT_DISABLED
+        text::DISABLED
     };
     for row in 0..3 {
         for col in 0..2 {
@@ -114,14 +99,13 @@ pub fn show_property_popup(
             ui.painter().circle_filled(dot_pos, 1.0, dot_color);
         }
     }
-
     // Header content with proper padding
     let header_content_rect = header_rect.shrink2(Vec2::new(SPACE_S, 0.0));
     let mut header_ui = ui.new_child(egui::UiBuilder::new().max_rect(header_content_rect));
     header_ui.set_clip_rect(header_content_rect);
     header_ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
-        ui.label(RichText::new(actor).size(TextRole::Body.size()).color(TEXT_PRIMARY).strong());
+        ui.label(RichText::new(actor).size(TextRole::Body.size()).color(text::PRIMARY).strong());
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if ui.add(Button::icon(egui_phosphor::regular::X).with_tooltip("Close")).clicked() {
                 commands.push_back(ShellAction::View(ViewAction::DeselectActors));
@@ -129,10 +113,8 @@ pub fn show_property_popup(
         });
     });
     content.add_space(header_h + SPACE_S);
-
     // ── Property rows ──
     let time_ms = (current_time_s * 1000.0) as u64;
-
     // Read opacity from timeline
     let opacity = timeline
         .and_then(|tl| {
@@ -150,20 +132,16 @@ pub fn show_property_popup(
             })
         })
         .unwrap_or(1.0);
-
     let content_rect = Rect::from_min_max(
         content.cursor().min,
         Pos2::new(popup_rect.max.x - SPACE_M, popup_rect.max.y - SPACE_M),
     );
-
     let mut rows_ui = ui.new_child(egui::UiBuilder::new().max_rect(content_rect));
     rows_ui.set_clip_rect(content_rect);
-
     // Compute scale factor for converting screen delta to scene delta
     let scale = PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan).scale();
     let scale_x = scale.0 as f32;
     let scale_y = scale.1 as f32;
-
     // Position row
     let has_kf_pos = timeline
         .map(|tl| tl.has_keyframe_at(actor, "position", time_ms))
@@ -180,7 +158,6 @@ pub fn show_property_popup(
         scale_x,
         scale_y,
     );
-
     // Size row
     let has_kf_size =
         timeline.map(|tl| tl.has_keyframe_at(actor, "size", time_ms)).unwrap_or(false);
@@ -196,7 +173,6 @@ pub fn show_property_popup(
         scale_x,
         scale_y,
     );
-
     // Rotation row
     let has_kf_rot = timeline
         .map(|tl| tl.has_keyframe_at(actor, "rotation", time_ms))
@@ -213,7 +189,6 @@ pub fn show_property_popup(
         scale_x,
         scale_y,
     );
-
     // Opacity row
     let has_kf_opac = timeline
         .map(|tl| tl.has_keyframe_at(actor, "opacity", time_ms))
@@ -231,7 +206,6 @@ pub fn show_property_popup(
         scale_y,
     );
 }
-
 /// Render a property row with a diamond keyframe toggle and inline value editing.
 fn popup_property_row(
     ui: &mut egui::Ui,
@@ -248,12 +222,10 @@ fn popup_property_row(
     let row_h = 24.0;
     let row_rect = Rect::from_min_size(ui.cursor().min, Vec2::new(ui.available_width(), row_h));
     let response = ui.interact(row_rect, ui.id().with((actor, property, "row")), Sense::click());
-
     // Hover background
     if response.hovered() {
-        ui.painter().rect_filled(row_rect, RADIUS_S as u8, BG_HOVER);
+        ui.painter().rect_filled(row_rect, RADIUS_S as u8, surface::HOVER);
     }
-
     // Diamond keyframe toggle (clickable)
     let diamond_size = 8.0;
     let diamond_rect = Rect::from_center_size(
@@ -262,11 +234,10 @@ fn popup_property_row(
     );
     let diamond_resp =
         ui.interact(diamond_rect, ui.id().with((actor, property, "diamond")), Sense::click());
-
     let diamond_color = if has_keyframe || diamond_resp.hovered() {
-        AMBER
+        status::WARNING
     } else {
-        TEXT_MUTED
+        text::MUTED
     };
     let center = diamond_rect.center();
     let fill_color = if has_keyframe {
@@ -284,7 +255,6 @@ fn popup_property_row(
         fill_color,
         Stroke::new(STROKE_WIDTH, diamond_color),
     ));
-
     // Diamond click: create or delete keyframe
     if diamond_resp.clicked() {
         if has_keyframe {
@@ -318,7 +288,6 @@ fn popup_property_row(
             );
         }
     }
-
     // Diamond tooltip
     if diamond_resp.hovered() {
         let tooltip = if has_keyframe {
@@ -328,7 +297,6 @@ fn popup_property_row(
         };
         diamond_resp.clone().on_hover_text(tooltip);
     }
-
     // Label
     let label_x = row_rect.min.x + 22.0;
     ui.painter().text(
@@ -336,16 +304,14 @@ fn popup_property_row(
         egui::Align2::LEFT_CENTER,
         label,
         TextRole::BodyS.font_id(),
-        TEXT_SECONDARY,
+        text::SECONDARY,
     );
-
     // Value area (right-aligned, interactive)
     let value_area_width = 100.0;
     let value_rect = Rect::from_min_size(
         Pos2::new(row_rect.max.x - value_area_width - SPACE_S, row_rect.min.y),
         Vec2::new(value_area_width, row_h),
     );
-
     // Format value string
     let value_str = match property {
         "position" => format!("{:.1}, {:.1}", values[0], values[1]),
@@ -354,28 +320,24 @@ fn popup_property_row(
         "opacity" => format!("{:.0}%", values[0]),
         _ => format!("{:.1}", values[0]),
     };
-
     // Interactive value: drag to change
     let value_resp =
         ui.interact(value_rect, ui.id().with((actor, property, "value")), Sense::click_and_drag());
-
     // Highlight on hover
     if value_resp.hovered() {
-        ui.painter().rect_filled(value_rect, RADIUS_S as u8, BG_WIDGET);
+        ui.painter().rect_filled(value_rect, RADIUS_S as u8, surface::WIDGET);
     }
-
     ui.painter().text(
         value_rect.center(),
         egui::Align2::CENTER_CENTER,
         &value_str,
         TextRole::Mono.font_id(),
         if value_resp.hovered() {
-            TEXT_PRIMARY
+            text::PRIMARY
         } else {
-            TEXT_MUTED
+            text::MUTED
         },
     );
-
     // Drag on value to change
     if value_resp.dragged() {
         let delta = value_resp.drag_delta();
@@ -438,12 +400,10 @@ fn popup_property_row(
             _ => {},
         }
     }
-
     // Drag tooltip
     if value_resp.hovered() && !value_resp.dragged() {
         value_resp.clone().on_hover_text("Drag to change value");
     }
-
     // Row tooltip on hover (when not on value area)
     if response.hovered() && !value_resp.hovered() && !diamond_resp.hovered() {
         let tooltip = if has_keyframe {
@@ -453,6 +413,5 @@ fn popup_property_row(
         };
         response.clone().on_hover_text(tooltip);
     }
-
     ui.allocate_rect(row_rect, Sense::hover());
 }

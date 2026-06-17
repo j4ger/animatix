@@ -1,11 +1,11 @@
 use egui::{RichText, Stroke};
 
 use crate::app::components::layout;
-use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
-use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
-use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
-use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
-use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
+use crate::app::design_tokens::semantic::border;
+use crate::app::design_tokens::semantic::overlay;
+use crate::app::design_tokens::semantic::surface;
+use crate::app::design_tokens::semantic::text;
+
 use crate::app::design_tokens::spatial::{RADIUS_XL, SPACE_M, SPACE_S, SPACE_XL, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 
@@ -18,7 +18,7 @@ impl GuiShell {
         let screen_rect = ui.ctx().viewport_rect();
 
         // Dark semi-transparent backdrop
-        ui.painter().rect_filled(screen_rect, 0.0, overlay_backdrop());
+        ui.painter().rect_filled(screen_rect, 0.0, overlay::backdrop());
 
         // Capture clicks on backdrop to close
         let backdrop_response =
@@ -43,8 +43,8 @@ impl GuiShell {
             .title_bar(false)
             .frame(
                 egui::Frame::new()
-                    .fill(BG_BASE)
-                    .stroke(Stroke::new(STROKE_WIDTH, BORDER))
+                    .fill(surface::BASE)
+                    .stroke(Stroke::new(STROKE_WIDTH, border::DEFAULT))
                     .corner_radius(RADIUS_XL)
                     .inner_margin(egui::Margin::same(SPACE_XL as i8)),
             )
@@ -56,7 +56,7 @@ impl GuiShell {
                     ui.label(
                         RichText::new("Settings")
                             .size(TextRole::Heading.size())
-                            .color(TEXT_PRIMARY),
+                            .color(text::PRIMARY),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let close_resp = ui.button(egui_phosphor::regular::X)
@@ -76,7 +76,7 @@ impl GuiShell {
 
                 layout::labeled_row(
                     ui,
-                    RichText::new("Grid size").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
+                    RichText::new("Grid size").size(TextRole::BodyS.size()).color(text::SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
@@ -109,7 +109,7 @@ impl GuiShell {
                 ];
                 layout::labeled_row(
                     ui,
-                    RichText::new("Theme").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
+                    RichText::new("Theme").size(TextRole::BodyS.size()).color(text::SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         egui::ComboBox::from_id_salt(ui.id().with("colorscheme"))
@@ -163,7 +163,7 @@ impl GuiShell {
 
                 layout::labeled_row(
                     ui,
-                    RichText::new("Nudge step").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
+                    RichText::new("Nudge step").size(TextRole::BodyS.size()).color(text::SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
@@ -178,7 +178,7 @@ impl GuiShell {
 
                 layout::labeled_row(
                     ui,
-                    RichText::new("Nudge step (Shift)").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
+                    RichText::new("Nudge step (Shift)").size(TextRole::BodyS.size()).color(text::SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
@@ -193,7 +193,7 @@ impl GuiShell {
 
                 layout::labeled_row(
                     ui,
-                    RichText::new("Rotation snap").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
+                    RichText::new("Rotation snap").size(TextRole::BodyS.size()).color(text::SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
@@ -212,7 +212,7 @@ impl GuiShell {
 
                 layout::labeled_row(
                     ui,
-                    RichText::new("Scrub step").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
+                    RichText::new("Scrub step").size(TextRole::BodyS.size()).color(text::SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
@@ -231,7 +231,7 @@ impl GuiShell {
 
                 layout::labeled_row(
                     ui,
-                    RichText::new("Rebuild debounce").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
+                    RichText::new("Rebuild debounce").size(TextRole::BodyS.size()).color(text::SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
@@ -246,7 +246,7 @@ impl GuiShell {
 
                 layout::labeled_row(
                     ui,
-                    RichText::new("Undo limit").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
+                    RichText::new("Undo limit").size(TextRole::BodyS.size()).color(text::SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
@@ -261,7 +261,7 @@ impl GuiShell {
 
                 layout::labeled_row(
                     ui,
-                    RichText::new("Snap FPS").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
+                    RichText::new("Snap FPS").size(TextRole::BodyS.size()).color(text::SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
@@ -276,7 +276,7 @@ impl GuiShell {
 
                 layout::labeled_row(
                     ui,
-                    RichText::new("Keyframe merge window").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
+                    RichText::new("Keyframe merge window").size(TextRole::BodyS.size()).color(text::SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         let mut value_ms = (self.ui_store.keyframe_merge_window_s * 1000.0) as f32;

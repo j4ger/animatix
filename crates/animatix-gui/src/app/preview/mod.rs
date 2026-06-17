@@ -11,12 +11,12 @@ pub mod selection;
 pub mod time_lens;
 
 use super::DEFAULT_PREVIEW_SIZE;
-use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
+use crate::app::design_tokens::semantic::accent;
 use crate::app::design_tokens::semantic::accent::hover as accent_hover;
 use crate::app::design_tokens::semantic::overlay::{badge_bg, tooltip_bg};
-use crate::app::design_tokens::semantic::status::WARNING as AMBER;
+use crate::app::design_tokens::semantic::status;
 use crate::app::design_tokens::semantic::status::warning_subtle as amber_subtle;
-use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
+use crate::app::design_tokens::semantic::text;
 use crate::app::design_tokens::semantic::text::faint as text_faint;
 use crate::app::design_tokens::spatial::STROKE_WIDTH;
 use crate::app::design_tokens::typography::TextRole;
@@ -273,7 +273,7 @@ use crate::app::design_tokens::spatial::preview::ROTATION_OFFSET as PREVIEW_ROTA
 use crate::app::design_tokens::spatial::preview::ROTATION_RADIUS as PREVIEW_ROTATION_RADIUS;
 use crate::app::design_tokens::spatial::preview::VERTEX_HIT_BUFFER as PREVIEW_VERTEX_HIT_BUFFER;
 
-const SELECTION_COLOR: Color32 = ACCENT_BLUE;
+const SELECTION_COLOR: Color32 = accent::PRIMARY;
 
 pub(super) fn is_layout_managed(actor: &str, timeline: &Timeline, time_ms: u64) -> bool {
     timeline
@@ -509,7 +509,7 @@ pub(super) fn draw_selection_overlay(
         // Corner handles (indices 0-3): filled circles with slight larger presence
         let corner_radius = PREVIEW_HANDLE_SIZE * 0.6 * pixels_per_point;
         for &pos in handle_screen[..4].iter() {
-            painter.circle_filled(pos, corner_radius, TEXT_PRIMARY);
+            painter.circle_filled(pos, corner_radius, text::PRIMARY);
             painter.circle_stroke(pos, corner_radius, Stroke::new(1.5, SELECTION_COLOR));
         }
 
@@ -518,7 +518,7 @@ pub(super) fn draw_selection_overlay(
         for &pos in handle_screen[4..].iter() {
             let handle_rect =
                 egui::Rect::from_center_size(pos, Vec2::new(edge_handle_px, edge_handle_px));
-            painter.rect_filled(handle_rect, 1.0, TEXT_PRIMARY);
+            painter.rect_filled(handle_rect, 1.0, text::PRIMARY);
             painter.rect_stroke(
                 handle_rect,
                 1.0,
@@ -570,7 +570,7 @@ pub(super) fn draw_selection_overlay(
             Stroke::new(STROKE_WIDTH, SELECTION_COLOR),
         );
         let rot_radius = PREVIEW_ROTATION_RADIUS * pixels_per_point;
-        painter.circle_filled(rot_screen, rot_radius, TEXT_PRIMARY);
+        painter.circle_filled(rot_screen, rot_radius, text::PRIMARY);
         painter.circle_stroke(rot_screen, rot_radius, Stroke::new(STROKE_WIDTH, SELECTION_COLOR));
 
         // Pivot marker (crosshair) — always drawn so it can be dragged
@@ -585,7 +585,7 @@ pub(super) fn draw_selection_overlay(
                 pan,
             );
             let cross_size = PREVIEW_CROSS_SIZE * pixels_per_point;
-            let cross_color = AMBER;
+            let cross_color = status::WARNING;
             painter.line_segment(
                 [
                     Pos2::new(pivot_screen.x - cross_size, pivot_screen.y),
@@ -649,7 +649,7 @@ pub(super) fn draw_selection_overlay(
                 *pos,
                 Vec2::new(PREVIEW_HANDLE_SIZE, PREVIEW_HANDLE_SIZE),
             );
-            painter.rect_filled(handle_rect, 1.0, TEXT_PRIMARY);
+            painter.rect_filled(handle_rect, 1.0, text::PRIMARY);
             painter.rect_stroke(
                 handle_rect,
                 1.0,
@@ -662,7 +662,7 @@ pub(super) fn draw_selection_overlay(
         let top_center = Pos2::new(sel_rect.center().x, sel_rect.top());
         let rot_center = Pos2::new(top_center.x, top_center.y - PREVIEW_ROTATION_OFFSET);
         painter.line_segment([top_center, rot_center], Stroke::new(STROKE_WIDTH, SELECTION_COLOR));
-        painter.circle_filled(rot_center, PREVIEW_ROTATION_RADIUS, TEXT_PRIMARY);
+        painter.circle_filled(rot_center, PREVIEW_ROTATION_RADIUS, text::PRIMARY);
         painter.circle_stroke(
             rot_center,
             PREVIEW_ROTATION_RADIUS,
@@ -733,7 +733,7 @@ pub(super) fn draw_multi_selection_overlay(
     let handle_px = PREVIEW_HANDLE_SIZE * pixels_per_point;
     for pos in &handle_positions {
         let handle_rect = egui::Rect::from_center_size(*pos, Vec2::new(handle_px, handle_px));
-        painter.rect_filled(handle_rect, 1.0, TEXT_PRIMARY);
+        painter.rect_filled(handle_rect, 1.0, text::PRIMARY);
         painter.rect_stroke(
             handle_rect,
             1.0,
@@ -839,7 +839,7 @@ pub(super) fn draw_reorder_overlay(
         (coords[target_index - 1] + coords[target_index]) * 0.5
     };
 
-    let accent = ACCENT_BLUE;
+    let accent = accent::PRIMARY;
     let insertion_screen = if is_row {
         let insertion_pt = scene_to_screen(
             kurbo::Point::new(insertion_coord as f64, 0.0),
@@ -883,7 +883,7 @@ pub(super) fn draw_reorder_overlay(
         insertion_screen,
         &badge_text,
         badge_bg(),
-        TEXT_PRIMARY,
+        text::PRIMARY,
         Some(Stroke::new(STROKE_WIDTH, accent)),
     );
 
@@ -920,7 +920,7 @@ pub(super) fn draw_reorder_overlay(
 
     let tooltip_pos = preview_rect.left_top() + Vec2::new(10.0, 10.0);
     let tooltip_text = format!("Reorder: move to position {}", target_index + 1);
-    let galley = painter.layout_no_wrap(tooltip_text, TextRole::BodyS.font_id(), TEXT_PRIMARY);
+    let galley = painter.layout_no_wrap(tooltip_text, TextRole::BodyS.font_id(), text::PRIMARY);
     let tooltip_rect = egui::Rect::from_min_size(tooltip_pos, galley.size() + Vec2::new(12.0, 8.0));
     painter.rect_filled(tooltip_rect, 4.0, tooltip_bg());
     painter.rect_stroke(
@@ -929,7 +929,7 @@ pub(super) fn draw_reorder_overlay(
         Stroke::new(STROKE_WIDTH, accent),
         egui::StrokeKind::Outside,
     );
-    painter.galley(tooltip_rect.min + Vec2::new(6.0, 4.0), galley, TEXT_PRIMARY);
+    painter.galley(tooltip_rect.min + Vec2::new(6.0, 4.0), galley, text::PRIMARY);
 }
 
 /// Returns the 8 scale handle centre positions for an axis-aligned rect (legacy fallback).
@@ -1019,8 +1019,16 @@ pub(super) fn draw_vertex_handles(
         let world = local_to_world(pt, props.position, props.rotation);
         let screen = scene_to_screen(world, preview_rect, scene_dimensions, desired, zoom, pan);
         let is_active = active_vertex == Some(i);
-        let fill = if is_active { ACCENT_BLUE } else { TEXT_PRIMARY };
-        let stroke_color = if is_active { AMBER } else { SELECTION_COLOR };
+        let fill = if is_active {
+            accent::PRIMARY
+        } else {
+            text::PRIMARY
+        };
+        let stroke_color = if is_active {
+            status::WARNING
+        } else {
+            SELECTION_COLOR
+        };
         let radius = if is_active {
             (VERTEX_RADIUS + 1.5) * pixels_per_point
         } else {

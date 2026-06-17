@@ -1,12 +1,12 @@
 use egui::{Pos2, Rect, RichText, Stroke, Vec2};
 
 use crate::app::GuiShell;
-use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
-use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
-use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
-use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
-use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
-use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
+use crate::app::design_tokens::semantic::accent;
+use crate::app::design_tokens::semantic::border;
+use crate::app::design_tokens::semantic::overlay;
+use crate::app::design_tokens::semantic::surface;
+use crate::app::design_tokens::semantic::text;
+
 use crate::app::design_tokens::spatial::{RADIUS_XL, SPACE_L, SPACE_M, SPACE_XS, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 
@@ -79,7 +79,7 @@ impl GuiShell {
         let screen_rect = ui.ctx().viewport_rect();
 
         // Backdrop
-        ui.painter().rect_filled(screen_rect, 0.0, overlay_backdrop());
+        ui.painter().rect_filled(screen_rect, 0.0, overlay::backdrop());
 
         let backdrop_response =
             ui.interact(screen_rect, ui.id().with("shortcuts_backdrop"), egui::Sense::click());
@@ -100,11 +100,11 @@ impl GuiShell {
         );
         let panel_rect = Rect::from_min_size(panel_pos, Vec2::new(panel_w, panel_h));
 
-        ui.painter().rect_filled(panel_rect, RADIUS_XL as u8, BG_BASE);
+        ui.painter().rect_filled(panel_rect, RADIUS_XL as u8, surface::BASE);
         ui.painter().rect_stroke(
             panel_rect,
             RADIUS_XL as u8,
-            Stroke::new(STROKE_WIDTH, BORDER),
+            Stroke::new(STROKE_WIDTH, border::DEFAULT),
             egui::StrokeKind::Outside,
         );
 
@@ -117,7 +117,7 @@ impl GuiShell {
             ui.label(
                 RichText::new("Keyboard Shortcuts")
                     .size(TextRole::Heading.size())
-                    .color(TEXT_PRIMARY)
+                    .color(text::PRIMARY)
                     .strong(),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -147,7 +147,10 @@ fn shortcut_column(ui: &mut egui::Ui, groups: &[(&str, &[(&str, &str)])], width:
         ui.set_width(width);
         for (title, shortcuts) in groups {
             ui.label(
-                RichText::new(*title).size(TextRole::BodyS.size()).color(ACCENT_BLUE).strong(),
+                RichText::new(*title)
+                    .size(TextRole::BodyS.size())
+                    .color(accent::PRIMARY)
+                    .strong(),
             );
             ui.add_space(SPACE_XS);
 
@@ -158,11 +161,11 @@ fn shortcut_column(ui: &mut egui::Ui, groups: &[(&str, &[(&str, &str)])], width:
                         RichText::new(*key)
                             .monospace()
                             .size(TextRole::BodyS.size())
-                            .color(TEXT_SECONDARY),
+                            .color(text::SECONDARY),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(
-                            RichText::new(*desc).size(TextRole::BodyS.size()).color(TEXT_PRIMARY),
+                            RichText::new(*desc).size(TextRole::BodyS.size()).color(text::PRIMARY),
                         );
                     });
                 });

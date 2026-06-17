@@ -6,9 +6,9 @@
 use super::*;
 use crate::app::components::context_menu::{MenuEntry, render_floating_menu};
 use crate::app::design_tokens::semantic::accent::{ghost as accent_ghost, strong as accent_strong};
-use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
+use crate::app::design_tokens::semantic::border;
 use crate::app::design_tokens::semantic::overlay::badge_bg;
-use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
+use crate::app::design_tokens::semantic::text;
 use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use egui::{Pos2, Vec2};
@@ -240,7 +240,7 @@ pub(crate) fn draw_hover_highlight(
     // Tooltip with actor name
     let tooltip_pos = egui::pos2(hover_rect.center().x, hover_rect.top() - 20.0);
     let galley =
-        painter.layout_no_wrap(hovered_actor.to_string(), TextRole::BodyS.font_id(), TEXT_PRIMARY);
+        painter.layout_no_wrap(hovered_actor.to_string(), TextRole::BodyS.font_id(), text::PRIMARY);
     let tooltip_size = galley.size();
     let tooltip_rect =
         egui::Rect::from_center_size(tooltip_pos, tooltip_size + Vec2::new(8.0, 4.0));
@@ -249,13 +249,13 @@ pub(crate) fn draw_hover_highlight(
     painter.rect_stroke(
         tooltip_rect,
         RADIUS_M,
-        Stroke::new(STROKE_WIDTH, BORDER),
+        Stroke::new(STROKE_WIDTH, border::DEFAULT),
         egui::StrokeKind::Outside,
     );
     painter.galley(
         tooltip_rect.left_center() + Vec2::new(4.0, -tooltip_size.y / 2.0),
         galley,
-        TEXT_PRIMARY,
+        text::PRIMARY,
     );
 }
 
@@ -275,12 +275,12 @@ pub(crate) fn draw_cycle_indicator(
     let indicator_text = format!("{}/{}", cycle_index + 1, total_candidates);
     let indicator_pos = egui::pos2(mouse_pos.x + 16.0, mouse_pos.y - 8.0);
 
-    let galley = painter.layout_no_wrap(indicator_text, TextRole::BodyS.font_id(), TEXT_PRIMARY);
+    let galley = painter.layout_no_wrap(indicator_text, TextRole::BodyS.font_id(), text::PRIMARY);
     let size = galley.size();
     let rect = egui::Rect::from_center_size(indicator_pos, size + Vec2::new(6.0, 3.0));
 
     painter.rect_filled(rect, RADIUS_M, accent_strong());
-    painter.galley(rect.left_center() + Vec2::new(3.0, -size.y / 2.0), galley, TEXT_PRIMARY);
+    painter.galley(rect.left_center() + Vec2::new(3.0, -size.y / 2.0), galley, text::PRIMARY);
 }
 
 #[cfg(test)]

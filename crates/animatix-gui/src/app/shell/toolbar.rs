@@ -1,18 +1,15 @@
 use egui::{Align, RichText, Stroke, Vec2};
 
 use crate::app::GuiShell;
-use crate::app::commands::{
-    ActionQueue, DocumentCommand, SceneCommand, ShellAction, ViewAction,
-};
+use crate::app::commands::{ActionQueue, DocumentCommand, SceneCommand, ShellAction, ViewAction};
 use crate::app::components::button::Button;
-use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
-use crate::app::design_tokens::semantic::status::DIAGNOSTIC_ERROR as DIAGNOSTIC_RED;
-use crate::app::design_tokens::semantic::status::WARNING as AMBER;
-use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
-use crate::app::design_tokens::semantic::surface::WIDGET as BG_WIDGET;
-use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
-use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
-use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
+use crate::app::design_tokens::semantic::accent;
+use crate::app::design_tokens::semantic::status;
+
+use crate::app::design_tokens::semantic::surface;
+
+use crate::app::design_tokens::semantic::text;
+
 use crate::app::design_tokens::spatial::toolbar::HEIGHT as TOOLBAR_HEIGHT;
 use crate::app::design_tokens::spatial::{RADIUS_M, SPACE_L, SPACE_S, SPACE_XL, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
@@ -21,9 +18,9 @@ use crate::app::design_tokens::typography::TextRole;
 
 impl GuiShell {
     pub(crate) fn toolbar_ui(&mut self, ui: &mut egui::Ui, commands: &mut ActionQueue) {
-        let toolbar_bg = BG_BASE;
-        let border_color = BG_WIDGET;
-        let text_primary = TEXT_PRIMARY;
+        let toolbar_bg = surface::BASE;
+        let border_color = surface::WIDGET;
+        let text_primary = text::PRIMARY;
 
         let frame_response = egui::Frame::new()
             .fill(toolbar_bg)
@@ -38,7 +35,7 @@ impl GuiShell {
                     // App mark
                     let (mark_rect, _response) =
                         ui.allocate_exact_size(Vec2::new(8.0, 8.0), egui::Sense::hover());
-                    ui.painter().rect_filled(mark_rect, 2.0, ACCENT_BLUE);
+                    ui.painter().rect_filled(mark_rect, 2.0, accent::PRIMARY);
 
                     // Filename with dirty indicator
                     let filename = self
@@ -56,7 +53,7 @@ impl GuiShell {
                         filename.to_string()
                     };
                     let filename_color = if self.document_store.source.document.is_dirty {
-                        AMBER
+                        status::WARNING
                     } else {
                         text_primary
                     };
@@ -74,7 +71,7 @@ impl GuiShell {
                     if self.document_store.showing_last_good() {
                         ui.add_space(SPACE_S);
                         let response = egui::Frame::new()
-                            .fill(DIAGNOSTIC_RED)
+                            .fill(status::DIAGNOSTIC_ERROR)
                             .corner_radius(RADIUS_M)
                             .inner_margin(egui::Margin::symmetric(4, 1))
                             .show(ui, |ui| {
@@ -82,7 +79,7 @@ impl GuiShell {
                                     egui::Label::new(
                                         RichText::new("last good")
                                             .size(TextRole::Micro.size())
-                                            .color(BG_BASE),
+                                            .color(surface::BASE),
                                     )
                                     .selectable(false),
                                 );
@@ -93,7 +90,7 @@ impl GuiShell {
                     } else if self.document_store.snapshot_is_stale() {
                         ui.add_space(SPACE_S);
                         let response = egui::Frame::new()
-                            .fill(AMBER)
+                            .fill(status::WARNING)
                             .corner_radius(RADIUS_M)
                             .inner_margin(egui::Margin::symmetric(4, 1))
                             .show(ui, |ui| {
@@ -101,7 +98,7 @@ impl GuiShell {
                                     egui::Label::new(
                                         RichText::new("stale")
                                             .size(TextRole::Micro.size())
-                                            .color(BG_BASE),
+                                            .color(surface::BASE),
                                     )
                                     .selectable(false),
                                 );
@@ -119,7 +116,7 @@ impl GuiShell {
                         );
                         let pulse = ((t as f64 * std::f64::consts::TAU).sin() * 0.3 + 0.7) as f32;
                         let response = egui::Frame::new()
-                            .fill(ACCENT_BLUE.linear_multiply(pulse))
+                            .fill(accent::PRIMARY.linear_multiply(pulse))
                             .corner_radius(RADIUS_M)
                             .inner_margin(egui::Margin::symmetric(4, 1))
                             .show(ui, |ui| {
@@ -127,7 +124,7 @@ impl GuiShell {
                                     egui::Label::new(
                                         RichText::new(egui_phosphor::regular::ARROW_CLOCKWISE)
                                             .size(TextRole::Micro.size())
-                                            .color(BG_BASE),
+                                            .color(surface::BASE),
                                     )
                                     .selectable(false),
                                 );
@@ -207,11 +204,15 @@ impl GuiShell {
                                         ui.label(
                                             RichText::new(egui_phosphor::regular::ARROW_RIGHT)
                                                 .size(TextRole::BodyS.size())
-                                                .color(TEXT_MUTED),
+                                                .color(text::MUTED),
                                         );
                                     }
                                     let is_active = active_scene == Some(name.as_str());
-                                    let color = if is_active { TEXT_PRIMARY } else { TEXT_MUTED };
+                                    let color = if is_active {
+                                        text::PRIMARY
+                                    } else {
+                                        text::MUTED
+                                    };
                                     let label = RichText::new(name.as_str())
                                         .size(TextRole::BodyS.size())
                                         .color(color)
@@ -269,7 +270,7 @@ impl GuiShell {
                         ui.menu_button(
                             RichText::new("Debug")
                                 .size(TextRole::BodyS.size())
-                                .color(TEXT_SECONDARY),
+                                .color(text::SECONDARY),
                             |ui| {
                                 let mut bounds = self.ui_store.view.debug_bounds;
                                 if ui.checkbox(&mut bounds, "Bounds").clicked() {
@@ -308,7 +309,7 @@ impl GuiShell {
                         ui.menu_button(
                             RichText::new(zoom_label)
                                 .size(TextRole::BodyS.size())
-                                .color(TEXT_SECONDARY),
+                                .color(text::SECONDARY),
                             |ui| {
                                 ui.set_min_width(80.0);
                                 if ui.selectable_label(false, "Fit").clicked() {

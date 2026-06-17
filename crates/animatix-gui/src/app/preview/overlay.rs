@@ -3,13 +3,11 @@
 //! All preview overlays (grid, guides, labels, etc.) are controlled through
 //! [`PreviewOverlay`] which lives in [`PreviewPaneState`](crate::app::PreviewPaneState).
 
-use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
-use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
-use crate::app::design_tokens::semantic::status::SUCCESS as GREEN;
-use crate::app::design_tokens::semantic::status::WARNING as AMBER;
-use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
-use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
-use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
+use crate::app::design_tokens::semantic::accent;
+use crate::app::design_tokens::semantic::border;
+use crate::app::design_tokens::semantic::status;
+use crate::app::design_tokens::semantic::surface;
+use crate::app::design_tokens::semantic::text;
 use crate::app::preview::performance::PerformanceMetrics;
 use animatix::timeline::SceneDimensions;
 use egui::Color32;
@@ -65,10 +63,15 @@ pub fn render_performance_hud(
     );
 
     // Background
-    painter.rect_filled(hud_rect, 6.0, BG_BASE.linear_multiply(0.9));
-    painter.rect_stroke(hud_rect, 6.0, egui::Stroke::new(1.0, BORDER), egui::StrokeKind::Outside);
+    painter.rect_filled(hud_rect, 6.0, surface::BASE.linear_multiply(0.9));
+    painter.rect_stroke(
+        hud_rect,
+        6.0,
+        egui::Stroke::new(1.0, border::DEFAULT),
+        egui::StrokeKind::Outside,
+    );
 
-    let text_color = TEXT_PRIMARY;
+    let text_color = text::PRIMARY;
     let font = egui::FontId::monospace(11.0);
     let label_w = 90.0;
     let x = hud_rect.left() + 8.0;
@@ -82,7 +85,7 @@ pub fn render_performance_hud(
                 egui::Align2::LEFT_TOP,
                 label,
                 font.clone(),
-                TEXT_MUTED,
+                text::MUTED,
             );
             painter.text(
                 egui::Pos2::new(x + label_w, y),
@@ -107,7 +110,11 @@ pub fn render_performance_hud(
         y,
         "Preview",
         if metrics.is_stale { "STALE" } else { "FRESH" },
-        if metrics.is_stale { AMBER } else { GREEN },
+        if metrics.is_stale {
+            status::WARNING
+        } else {
+            status::SUCCESS
+        },
     );
     y += line_h;
 
@@ -137,7 +144,7 @@ pub fn render_performance_hud(
             .collect();
 
         if points.len() >= 2 {
-            painter.add(egui::Shape::line(points, egui::Stroke::new(1.5, GREEN)));
+            painter.add(egui::Shape::line(points, egui::Stroke::new(1.5, status::SUCCESS)));
         }
     }
 }
@@ -160,11 +167,16 @@ pub fn render_layout_debug(
     let tx = crate::app::preview::PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan);
 
     // Container color (blue-ish)
-    let container_color = ACCENT_BLUE;
+    let container_color = accent::PRIMARY;
     // Child slot color (amber)
-    let slot_color = Color32::from_rgba_premultiplied(AMBER.r(), AMBER.g(), AMBER.b(), 150);
+    let slot_color = Color32::from_rgba_premultiplied(
+        status::WARNING.r(),
+        status::WARNING.g(),
+        status::WARNING.b(),
+        150,
+    );
     // Size label color
-    let size_color = AMBER;
+    let size_color = status::WARNING;
     // Spacing region color (semi-transparent red)
     let spacing_color = egui::Color32::from_rgba_premultiplied(200, 80, 80, 60);
 

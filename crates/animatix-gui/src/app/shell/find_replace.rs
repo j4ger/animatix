@@ -2,13 +2,13 @@
 
 use crate::app::GuiShell;
 use crate::app::commands::UndoLabel;
-use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
-use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
-use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
-use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
-use crate::app::design_tokens::semantic::surface::WIDGET as BG_WIDGET;
-use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
-use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
+use crate::app::design_tokens::semantic::accent;
+use crate::app::design_tokens::semantic::border;
+use crate::app::design_tokens::semantic::overlay;
+use crate::app::design_tokens::semantic::surface;
+
+use crate::app::design_tokens::semantic::text;
+
 use crate::app::design_tokens::spatial::{
     RADIUS_XL, ROW_M, SPACE_M, SPACE_S, SPACE_XL, STROKE_WIDTH,
 };
@@ -17,7 +17,7 @@ use crate::app::design_tokens::typography::TextRole;
 impl GuiShell {
     pub(crate) fn find_replace_ui(&mut self, ui: &mut egui::Ui) {
         let screen_rect = ui.ctx().viewport_rect();
-        ui.painter().rect_filled(screen_rect, 0.0, overlay_backdrop());
+        ui.painter().rect_filled(screen_rect, 0.0, overlay::backdrop());
 
         // Close on Escape or backdrop click
         if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
@@ -38,8 +38,8 @@ impl GuiShell {
             .title_bar(false)
             .frame(
                 egui::Frame::new()
-                    .fill(BG_BASE)
-                    .stroke(egui::Stroke::new(STROKE_WIDTH, BORDER))
+                    .fill(surface::BASE)
+                    .stroke(egui::Stroke::new(STROKE_WIDTH, border::DEFAULT))
                     .corner_radius(RADIUS_XL)
                     .inner_margin(egui::Margin::same(SPACE_XL as i8)),
             )
@@ -50,7 +50,7 @@ impl GuiShell {
                     ui.label(
                         egui::RichText::new("Find & Replace")
                             .size(TextRole::Heading.size())
-                            .color(TEXT_PRIMARY),
+                            .color(text::PRIMARY),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.button(egui_phosphor::regular::X).clicked() {
@@ -63,7 +63,7 @@ impl GuiShell {
                 ui.add_space(SPACE_M);
 
                 ui.label(
-                    egui::RichText::new("Find").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
+                    egui::RichText::new("Find").size(TextRole::BodyS.size()).color(text::SECONDARY),
                 );
                 ui.add(
                     egui::TextEdit::singleline(&mut self.ui_store.find_query)
@@ -75,7 +75,7 @@ impl GuiShell {
                 ui.label(
                     egui::RichText::new("Replace with")
                         .size(TextRole::BodyS.size())
-                        .color(TEXT_SECONDARY),
+                        .color(text::SECONDARY),
                 );
                 ui.add(
                     egui::TextEdit::singleline(&mut self.ui_store.replace_query)
@@ -91,9 +91,9 @@ impl GuiShell {
                             egui::Button::new(
                                 egui::RichText::new("Replace All")
                                     .size(TextRole::BodyS.size())
-                                    .color(TEXT_PRIMARY),
+                                    .color(text::PRIMARY),
                             )
-                            .fill(ACCENT_BLUE),
+                            .fill(accent::PRIMARY),
                         );
                         if replace_all.clicked() {
                             self.perform_find_replace_all();
@@ -104,9 +104,9 @@ impl GuiShell {
                             egui::Button::new(
                                 egui::RichText::new("Find Next")
                                     .size(TextRole::BodyS.size())
-                                    .color(TEXT_SECONDARY),
+                                    .color(text::SECONDARY),
                             )
-                            .fill(BG_WIDGET),
+                            .fill(surface::WIDGET),
                         );
                         if find_next.clicked() {
                             self.find_next_in_editor();
