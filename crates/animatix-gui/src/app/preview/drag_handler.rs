@@ -2,15 +2,10 @@
 
 use egui::Pos2;
 
-use crate::app::commands::{
-    DocumentCommand, DragEvent, PropertyEdit, PropertyValue, ShellAction,
-};
-use crate::app::design_tokens::spatial::preview::{
-    HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS,
-};
+use crate::app::commands::{DragEvent, ShellAction};
+use crate::app::design_tokens::spatial::preview::HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS;
 use crate::app::preview::context::PreviewContext;
 use crate::app::preview::{self, DragState, drag_utils};
-use animatix::timeline::TrackAccessor;
 
 pub(crate) fn handle_preview_drag(
     ctx: &mut PreviewContext<'_>,
@@ -51,9 +46,8 @@ pub(crate) fn handle_preview_drag(
                     preview::ToolMode::Move => {},
                     preview::ToolMode::Vertex => {},
 
-
                     preview::ToolMode::Scale => {},
-                preview::ToolMode::Rotate => {},
+                    preview::ToolMode::Rotate => {},
                     preview::ToolMode::Pivot => {
                         let pivot_world_pt = preview::pivot_world(p);
                         let pivot_screen = ctx.preview_scene_to_screen(
@@ -86,7 +80,6 @@ pub(crate) fn handle_preview_drag(
                     },
                 }
             }
-
         } else if let Some(mouse) = raw_pointer_pos {
             ctx.selection.marquee_start = Some(mouse);
             ctx.selection.marquee_current = Some(mouse);
@@ -99,68 +92,6 @@ pub(crate) fn handle_preview_drag(
             let shift = ui.input(|i| i.modifiers.shift);
 
             match ctx.drag_state.clone() {
-                DragState::Reorder {
-                    actor,
-                    container,
-                    source_index: _,
-                    target_index: _,
-                    layout_type,
-                } => {
-                    let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
-                    if let Some(timeline) = ctx.timeline {
-                        let order = timeline.get_child_order(&container, time_ms);
-                        let siblings: Vec<String> =
-                            order.into_iter().filter(|l| l != &actor).collect();
-                        let positions: Vec<f32> = siblings
-                            .iter()
-                            .map(|label| {
-                                ctx.hit_regions
-                                    .iter()
-                                    .find(|(l, _)| l == label)
-                                    .map(|(_, bounds)| {
-                                        if layout_type == animatix::timeline::LayoutType::Row {
-                                            (bounds.x0 + bounds.x1) as f32 / 2.0
-                                        } else {
-                                            (bounds.y0 + bounds.y1) as f32 / 2.0
-                                        }
-                                    })
-                                    .or_else(|| {
-                                        ctx.get_actor_props(label).map(|p| {
-                                            if layout_type == animatix::timeline::LayoutType::Row {
-                                                p.position[0]
-                                            } else {
-                                                p.position[1]
-                                            }
-                                        })
-                                    })
-                                    .unwrap_or(
-                                        if layout_type == animatix::timeline::LayoutType::Row {
-                                            scene.x as f32
-                                        } else {
-                                            scene.y as f32
-                                        },
-                                    )
-                            })
-                            .collect();
-
-                        let mouse_coord = if layout_type == animatix::timeline::LayoutType::Row {
-                            scene.x as f32
-                        } else {
-                            scene.y as f32
-                        };
-                        let mut insert_at = positions.len();
-                        for (idx, coord) in positions.iter().enumerate() {
-                            if mouse_coord < *coord {
-                                insert_at = idx;
-                                break;
-                            }
-                        }
-                        if let DragState::Reorder { target_index, .. } = &mut *ctx.drag_state {
-                            *target_index = insert_at;
-                        }
-                    }
-                },
-
                 DragState::MovePivot {
                     actor,
                     start_offset,
@@ -183,6 +114,7 @@ pub(crate) fn handle_preview_drag(
                 DragState::Scale { .. } => {},
                 DragState::Rotate { .. } => {},
                 DragState::MotionPath { .. } => {},
+                DragState::Reorder { .. } => {},
                 DragState::EditVertices { .. } => {},
                 DragState::None => {},
             }
@@ -196,36 +128,6 @@ pub(crate) fn handle_preview_drag(
         let old_drag_state = ctx.drag_state.clone();
         drag_utils::finalize_drag_keyframes(&old_drag_state, ctx);
 
-        if let DragState::Reorder {
-            actor,
-            container,
-            source_index,
-            target_index,
-            ..
-        } = ctx.drag_state.clone()
-        {
-            if source_index != target_index {
-                let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
-                if let Some(timeline) = ctx.timeline {
-                    let mut new_order = timeline.get_child_order(&container, time_ms);
-                    if let Some(pos) = new_order.iter().position(|label| label == &actor) {
-                        let item = new_order.remove(pos);
-                        let insert_at = target_index.min(new_order.len());
-                        new_order.insert(insert_at, item);
-                        ctx.commands.push_back(
-                            DocumentCommand::PropertyEdit(PropertyEdit {
-                                time_s: None,
-                                actor: container,
-                                property: "child_order".into(),
-                                value: PropertyValue::StringList(new_order),
-                                create_keyframe: ctx.keyframe_mode,
-                            })
-                            .into(),
-                        );
-                    }
-                }
-            }
-        }
         ctx.commands.push_back(ShellAction::Drag(DragEvent::DragEnded));
     }
     false
