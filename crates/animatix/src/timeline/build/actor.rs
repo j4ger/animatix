@@ -189,7 +189,7 @@ impl Timeline {
                 Diagnostic::warning(
                     DiagnosticCode::DeprecatedPrimitive,
                     DiagnosticPhase::Build,
-                    format!("'Math' is deprecated. Use 'Typst' instead for math expressions."),
+                    "'Math' is deprecated. Use 'Typst' instead for math expressions.".to_string(),
                 )
                 .with_subject(label),
             );
@@ -739,6 +739,21 @@ impl Timeline {
                 .or_insert_with(|| AnimationTrack::new(label.to_string()));
             track.kind = kind_id;
             track.procedural_plot = procedural_plot;
+
+            // Seed plot_param_tracks with initial declaration values.
+            // Only create tracks that don't already exist so re-declarations
+            // preserve existing keyframes.
+            if let Some(ref plot) = track.procedural_plot {
+                for (name, default_val) in &plot.params {
+                    track.plot_param_tracks
+                        .entry(name.clone())
+                        .or_insert_with(|| {
+                            let mut t = super::PropertyTrack::new(*default_val);
+                            t.add_keyframe(0, *default_val, super::Easing::Linear);
+                            t
+                        });
+                }
+            }
 
             if track.first_seen_ms == u64::MAX {
                 track.first_seen_ms = t_start_ms;

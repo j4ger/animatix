@@ -314,10 +314,58 @@ impl Timeline {
                 }
             }
         } else {
-            // Unknown property — report diagnostic
-            push_unsupported_assignment_property_diagnostic(
-                diagnostics, &assignment_subject, &target_key, property,
-            );
+            // Check if this is a plot parameter assignment
+            let is_plot_param = track.procedural_plot.as_ref()
+                .map(|p| p.param_names.iter().any(|n| n == property))
+                .unwrap_or(false);
+
+            if is_plot_param {
+                let target_val = match evaluate_expr(value, &eval_env) {
+                    Ok(Value::Num(n)) => n,
+                    Ok(_) => {
+                        diagnostics.push(Diagnostic::error(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Plot parameter '{}' on '{}' must be numeric",
+                                property, target_key
+                            ),
+                        ).with_subject(&assignment_subject));
+                        return;
+                    }
+                    Err(e) => {
+                        diagnostics.push(Diagnostic::error(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Failed to evaluate plot parameter '{}.{}': {}",
+                                target_key, property, e
+                            ),
+                        ).with_subject(&assignment_subject));
+                        return;
+                    }
+                };
+
+                let has_duration = t_end_ms > t_start_ms;
+                let prop_name = property.to_string();
+                let param_track = track.plot_param_tracks
+                    .entry(prop_name)
+                    .or_insert_with(|| super::PropertyTrack::new(target_val));
+
+                if has_duration {
+                    let start_val = param_track.evaluate(t_start_ms);
+                    param_track.add_keyframe(t_start_ms, start_val, Easing::Linear);
+                } else if instant_delayed && t_start_ms > 0 {
+                    let prev_val = param_track.evaluate(t_start_ms - 1);
+                    param_track.add_keyframe(t_start_ms - 1, prev_val, Easing::Linear);
+                }
+                param_track.add_keyframe(t_end_ms, target_val, easing);
+            } else {
+                // Unknown property — report diagnostic
+                push_unsupported_assignment_property_diagnostic(
+                    diagnostics, &assignment_subject, &target_key, property,
+                );
+            }
         }
     }
 }

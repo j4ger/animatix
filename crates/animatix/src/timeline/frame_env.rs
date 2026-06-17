@@ -87,9 +87,14 @@ impl Timeline {
                 env.set(name, value);
             }
         }
-        // Fast path: no modifiers means no property lookups at frame time.
-        // Skip the per-track property evaluation entirely.
-        if self.modifier_programs.is_empty() && self.modifiers.is_empty() {
+        // Fast path: no modifiers and no procedural plots means no property
+        // lookups at frame time. Skip the per-track property evaluation entirely.
+        // Procedural plots still need actor property keys (e.g. `curve.freq`)
+        // injected so their closures can resolve runtime parameters.
+        if self.modifier_programs.is_empty()
+            && self.modifiers.is_empty()
+            && !self.has_procedural_plots()
+        {
             return env;
         }
         self.inject_runtime_lookup_values(

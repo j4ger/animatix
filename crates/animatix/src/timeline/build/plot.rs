@@ -1027,45 +1027,54 @@ impl Timeline {
                 vello_paths = build_plot_curve_paths(&curve_params);
             }
 
-            // Only create a procedural_plot for dynamic plots (funcs that reference `t`).
-            // Static plots use the build-time sampled paths directly, avoiding
-            // redundant per-frame re-sampling.
-            if let Some((args, body)) = func.as_ref() {
-                if body.references_ident("t") {
-                    // Collect custom numeric params from declaration props
-                    let mut plot_params: Vec<(String, f64)> = Vec::new();
-                    for prop in props {
-                        // Skip known plot properties
-                        match prop.name.as_str() {
-                            "kind" | "func" | "x_domain" | "y_domain" | "t_domain"
-                            | "tolerance" | "max_depth" | "resolution" | "density"
-                            | "levels" | "grid" | "ticks" | "tick_labels"
-                            | "x_range" | "y_range" | "size" | "at" | "position"
-                            | "color" | "opacity" | "stroke" | "stroke_color"
-                            | "stroke_width" | "stroke_progress" | "fill_opacity"
-                            | "radius" | "radius_x" | "radius_y"
-                            | "from" | "to" | "head_size"
-                            | "text" | "content" | "code" | "font_size" | "font_family"
-                            | "url" | "source" | "volume"
-                            | "anchor" | "offset" | "rotation" | "scale" | "transform"
-                            | "blur" | "brightness" | "contrast" | "saturate"
-                            | "hue_rotate" | "sepia" | "gap" | "padding" | "align"
-                            | "cols" | "data" | "bar_width" | "bar_colors"
-                            | "direction" | "max_value" | "show_axis" | "show_labels" => {}
-                            _ => {
-                                // Treat unknown numeric props as plot parameters
-                                let eval_env = self.build_eval_env(time_ms as u64);
-                                if let Ok(Value::Num(n)) = evaluate_expr(&prop.value, &eval_env) {
-                                    plot_params.push((prop.name.clone(), n));
-                                }
+            // Collect custom numeric params from declaration props.
+            // Done unconditionally so that plots with keyframeable params
+            // (even without `t` in the func body) get a procedural_plot.
+            let mut plot_params: Vec<(String, f64)> = Vec::new();
+            if let Some((_, _)) = func.as_ref() {
+                for prop in props {
+                    // Skip known plot properties
+                    match prop.name.as_str() {
+                        "kind" | "func" | "x_domain" | "y_domain" | "t_domain"
+                        | "tolerance" | "max_depth" | "resolution" | "density"
+                        | "levels" | "grid" | "ticks" | "tick_labels"
+                        | "x_range" | "y_range" | "size" | "at" | "position"
+                        | "color" | "opacity" | "stroke" | "stroke_color"
+                        | "stroke_width" | "stroke_progress" | "fill_opacity"
+                        | "radius" | "radius_x" | "radius_y"
+                        | "from" | "to" | "head_size"
+                        | "text" | "content" | "code" | "font_size" | "font_family"
+                        | "url" | "source" | "volume"
+                        | "anchor" | "offset" | "rotation" | "scale" | "transform"
+                        | "blur" | "brightness" | "contrast" | "saturate"
+                        | "hue_rotate" | "sepia" | "gap" | "padding" | "align"
+                        | "cols" | "data" | "bar_width" | "bar_colors"
+                        | "direction" | "max_value" | "show_axis" | "show_labels" => {}
+                        _ => {
+                            // Treat unknown numeric props as plot parameters
+                            let eval_env = self.build_eval_env(time_ms as u64);
+                            if let Ok(Value::Num(n)) = evaluate_expr(&prop.value, &eval_env) {
+                                plot_params.push((prop.name.clone(), n));
                             }
                         }
                     }
+                }
+            }
+
+            // Create a procedural_plot for dynamic plots (funcs that reference `t`)
+            // OR plots with custom numeric params that can be keyframed.
+            // Pure-static plots (no `t`, no params) use the build-time sampled
+            // paths directly, avoiding redundant per-frame re-sampling.
+            if let Some((args, body)) = func.as_ref() {
+                if body.references_ident("t") || !plot_params.is_empty() {
+                    let param_names: Vec<String> = plot_params.iter().map(|(n, _)| n.clone()).collect();
 
                     procedural_plot = Some(ProceduralPlot {
                         kind,
                         func_args: args.clone(),
                         func_body: (**body).clone(),
+                        actor_label: label.to_string(),
+                        param_names,
                         p_x_domain,
                         p_y_domain,
                         p_size,

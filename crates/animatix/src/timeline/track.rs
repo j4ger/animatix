@@ -6,6 +6,7 @@ use crate::timeline::morph::{
 use crate::timeline::plot::ProceduralPlot;
 use crate::timeline::shapes::ShapeType;
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 /// Default half-size for layout bounds (`[50.0, 50.0]`).
 pub const DEFAULT_LAYOUT_HALF_SIZE: [f32; 2] = [50.0, 50.0];
@@ -238,6 +239,12 @@ pub trait Interpolate {
 impl Interpolate for f32 {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
         self + (other - self) * t.clamp(0.0, 1.0)
+    }
+}
+
+impl Interpolate for f64 {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        self + (other - self) * t.clamp(0.0, 1.0) as f64
     }
 }
 
@@ -653,6 +660,11 @@ pub struct AnimationTrack {
     /// Procedural plot generator, re-sampled each frame.
     pub procedural_plot: Option<ProceduralPlot>,
 
+    // ── Plot parameter keyframe tracks ──
+    /// Per-parameter keyframe tracks for procedural plot actors.
+    /// Maps parameter name (e.g. "freq") to an f64 property track.
+    pub plot_param_tracks: HashMap<String, PropertyTrack<f64>>,
+
     // ── Highlight (for Fragment in Equation) ──
     /// Highlight background color (RGBA) for equation fragments.
     pub highlight_color: Option<PropertyTrack<[f32; 4]>>,
@@ -731,6 +743,9 @@ impl AnimationTrack {
             // Procedural plot
             procedural_plot: None,
 
+            // Plot parameter tracks
+            plot_param_tracks: HashMap::new(),
+
             // Highlight (Fragment in Equation)
             highlight_color: None,
             highlight_opacity: None,
@@ -785,7 +800,7 @@ impl AnimationTrack {
 
     /// Return the maximum keyframe time across all property tracks.
     pub fn max_keyframe_time(&self) -> Option<u64> {
-        let times: Vec<Option<u64>> = vec![
+        let mut times: Vec<Option<u64>> = vec![
             self.position.last_time(), self.motion_offset.last_time(),
             self.rotation.last_time(), self.scale.last_time(),
             self.placement_mode.last_time(), self.position_binding.last_time(),
@@ -804,6 +819,10 @@ impl AnimationTrack {
             self.filter_hue_rotate.last_time(), self.filter_sepia.last_time(),
             self.head_size.last_time(),
         ];
+        // Include plot parameter tracks
+        for param_track in self.plot_param_tracks.values() {
+            times.push(param_track.last_keyframe_time());
+        }
         times.into_iter().flatten().max()
     }
 
@@ -829,6 +848,7 @@ impl AnimationTrack {
             || check!(self.filter_contrast) || check!(self.filter_saturate)
             || check!(self.filter_hue_rotate) || check!(self.filter_sepia)
             || check!(self.head_size)
+            || self.plot_param_tracks.values().any(|t| !t.is_effectively_static())
     }
 }
 

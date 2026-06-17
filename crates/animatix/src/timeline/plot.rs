@@ -594,6 +594,10 @@ pub struct ProceduralPlot {
     pub kind: PlotCurveKind,
     pub func_args: Vec<String>,
     pub func_body: Expr,
+    /// Label of the actor that owns this procedural plot.
+    pub actor_label: String,
+    /// Declared parameter names (e.g. ["freq", "amp"]) for actor-local injection.
+    pub param_names: Vec<String>,
     pub p_x_domain: [f64; 2],
     pub p_y_domain: [f64; 2],
     pub p_size: [f64; 2],
@@ -613,11 +617,13 @@ pub struct ProceduralPlot {
 pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &mut Environment) -> Vec<VelloPath> {
     let mut vello_paths = vec![];
 
-    // Inject custom plot parameters into the environment so closures can reference them.
-    // E.g., `func: (x) => sin(freq * x), freq: 2` → env has `freq = 2` and `{label}.freq = 2`.
-    // (The label is not available here during re-sampling, but bare names are injected.)
+    // Inject custom plot parameters as fallback defaults: only set the build-time
+    // static value when the frame environment does not already carry an override
+    // for the same name (e.g. from `always { freq = ... }` or a keyframe `let`).
     for (name, val) in &plot.params {
-        env.set(name, crate::timeline::Value::Num(*val));
+        if env.get(name).is_none() {
+            env.set(name, crate::timeline::Value::Num(*val));
+        }
     }
 
     let arg_name = if !plot.func_args.is_empty() {

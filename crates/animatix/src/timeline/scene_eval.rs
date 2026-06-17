@@ -209,7 +209,7 @@ impl Timeline {
         };
 
         // The actor must be in the root set (no orphan check)
-        if path.len() < 1 {
+        if path.is_empty() {
             return false;
         }
 
@@ -402,6 +402,27 @@ impl Timeline {
             } else {
                 self.build_frame_env_internal(time_ms, scene_dimensions, overrides)
             };
+
+            // Inject plot parameter values from keyframe tracks into the
+            // evaluation environment so that `sample_procedural_plot` sees
+            // the animated value rather than the build-time static default.
+            for name in &procedural_plot.param_names {
+                if let Some(param_track) = track.plot_param_tracks.get(name) {
+                    let val = param_track.evaluate(time_ms);
+                    let num_val = crate::timeline::Value::Num(val);
+                    // Set the dotted key (e.g. "curve.freq") for explicit references
+                    local_env.set(
+                        &format!("{}.{}", procedural_plot.actor_label, name),
+                        num_val.clone(),
+                    );
+                    // Set the bare name (e.g. "freq") for closure captures,
+                    // but don't shadow closure sample arguments.
+                    if !procedural_plot.func_args.contains(name) {
+                        local_env.set(name, num_val);
+                    }
+                }
+            }
+
             vector_paths = crate::timeline::plot::sample_procedural_plot(procedural_plot, &mut local_env);
         }
 
