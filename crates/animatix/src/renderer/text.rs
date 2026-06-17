@@ -293,16 +293,20 @@ pub fn compile_math(math: &str, font_size: f32, color: typst::visualize::Color, 
 /// Compile Typst markup into a frame.
 pub fn compile_typst(typst_markup: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Result<Frame, RenderError> {
     let font = resolve_font_family(font_family, font_ctx);
+    // Include math font so that $...$ math expressions compile correctly.
+    // Mirror the compile_math show-rule for math.equation font.
     let markup = format!(
-        "#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\")\n{}",
+        "#set text(size: {}pt, fill: rgb(\"{}\"), font: (\"{}\", \"{}\")); #show math.equation: set text(font: \"{}\")\n{}",
         font_size,
         color.to_hex(),
         font,
+        DEFAULT_MATH_FONT_FAMILY,
+        DEFAULT_MATH_FONT_FAMILY,
         typst_markup
     );
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
-    let world = TypstWorld::with_fonts(source, &[&font], font_ctx)?;
+    let world = TypstWorld::with_fonts(source, &[&font, DEFAULT_MATH_FONT_FAMILY], font_ctx)?;
     let document: typst::layout::PagedDocument = typst::compile(&world).output
         .map_err(|_| RenderError::TextCompilation("failed to compile Typst document".to_string()))?;
 

@@ -139,7 +139,7 @@ step3_title: Text, text: "3. Frequency Spectrum", font_size: 40,
   color: text.primary, at: (0, -300)
 
 // Typst equation showing the decomposition
-equation: Typst, content: "x(t) = sum_(k) A_k sin(2 pi f_k t)",
+equation: Typst, content: "$x(t) = sum_(k) A_k sin(2 pi f_k t)$",
   font_size: 24, color: accent.primary, at: (0, -230)
 
 // BarChart replaces ~30 lines of manual Rect + Text actors
@@ -183,7 +183,7 @@ step4_title: Text, text: "4. Reconstruction: Sum = Original", font_size: 40,
   color: text.primary, at: (0, -300)
 
 // Typst equation: FFT is invertible
-eqn2: Typst, content: "hat(x)(t) = sum_(k=0)^(N-1) X_k e^(2 pi i k t // N)",
+eqn2: Typst, content: "$hat(x)(t) = sum_(k=0)^(N-1) X_k e^((2 pi i k t) / N)$",
   font_size: 22, color: accent.primary, at: (0, -230)
 
 // Overlaid signals — original faint, reconstructed solid
