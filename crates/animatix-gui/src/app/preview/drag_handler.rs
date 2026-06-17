@@ -7,7 +7,7 @@ use crate::app::commands::{
 };
 use crate::app::design_tokens::spatial::preview::{
     HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS, MIN_ACTOR_SIZE as PREVIEW_MIN_ACTOR_SIZE,
-    MIN_SCALE as PREVIEW_MIN_SCALE, ROTATION_OFFSET as PREVIEW_ROTATION_OFFSET,
+    MIN_SCALE as PREVIEW_MIN_SCALE,
 };
 use crate::app::preview::context::PreviewContext;
 use crate::app::preview::{self, DragState, drag_utils};
@@ -101,37 +101,8 @@ pub(crate) fn handle_preview_drag(
                             return true;
                         }
                     },
-                    preview::ToolMode::Rotate => {
-                        // Only start rotation if cursor is near the rotation handle or actor body
-                        let pivot = preview::pivot_world(p);
-                        let pivot_screen = ctx.preview_scene_to_screen(
-                            preview_rect,
-                            kurbo::Point::new(pivot[0] as f64, pivot[1] as f64),
-                        );
-                        let rotation_handle_offset = PREVIEW_ROTATION_OFFSET;
-                        let rotation_handle_screen =
-                            Pos2::new(pivot_screen.x, pivot_screen.y - rotation_handle_offset);
-                        let near_rotation_handle = drag_utils::is_near_rotation_handle(
-                            mouse,
-                            rotation_handle_screen,
-                            hit_radius,
-                        );
-                        // Check if cursor is within actor bounds
-                        let near_actor_body =
-                            drag_utils::is_over_actor_hit_region(scene, &actor, ctx.hit_regions);
 
-                        if near_rotation_handle || near_actor_body {
-                            let angle = ((scene.y - pivot[1] as f64) as f32)
-                                .atan2((scene.x - pivot[0] as f64) as f32);
-                            *ctx.drag_state = DragState::Rotate {
-                                actor,
-                                start_angle: angle,
-                                start_rotation: p.rotation,
-                                pivot,
-                            };
-                            return true;
-                        }
-                    },
+                    preview::ToolMode::Rotate => {},
                     preview::ToolMode::Pivot => {
                         let pivot_world_pt = preview::pivot_world(p);
                         let pivot_screen = ctx.preview_scene_to_screen(
@@ -192,21 +163,6 @@ pub(crate) fn handle_preview_drag(
                                 uniform_ratio: ui.input(|i| i.modifiers.shift),
                                 resize_mode,
                                 start_scale,
-                            };
-                            return true;
-                        }
-
-                        let rot_world = preview::rotation_handle_world(p);
-                        let rot_screen = ctx.preview_scene_to_screen(preview_rect, rot_world);
-                        if preview::hit_test_rotation_handle(mouse, rot_screen, hit_radius) {
-                            let pivot = preview::pivot_world(p);
-                            let angle = ((scene.y - pivot[1] as f64) as f32)
-                                .atan2((scene.x - pivot[0] as f64) as f32);
-                            *ctx.drag_state = DragState::Rotate {
-                                actor: actor.clone(),
-                                start_angle: angle,
-                                start_rotation: p.rotation,
-                                pivot,
                             };
                             return true;
                         }
@@ -469,37 +425,6 @@ pub(crate) fn handle_preview_drag(
 
                     drag_utils::emit_position_edit(actor.clone(), new_pos_x, new_pos_y, ctx);
                 },
-                DragState::Rotate {
-                    actor,
-                    start_angle,
-                    start_rotation,
-                    pivot,
-                } => {
-                    let angle = ((scene.y - pivot[1] as f64) as f32)
-                        .atan2((scene.x - pivot[0] as f64) as f32);
-                    let mut delta = angle - start_angle;
-                    while delta > std::f32::consts::PI {
-                        delta -= 2.0 * std::f32::consts::PI;
-                    }
-                    while delta < -std::f32::consts::PI {
-                        delta += 2.0 * std::f32::consts::PI;
-                    }
-                    let mut new_rot = start_rotation + delta;
-                    if shift {
-                        new_rot = (new_rot / ctx.rotation_snap_degrees.to_radians()).round()
-                            * ctx.rotation_snap_degrees.to_radians();
-                    }
-                    ctx.commands.push_back(
-                        DocumentCommand::PropertyEdit(PropertyEdit {
-                            time_s: None,
-                            actor,
-                            property: "rotation".into(),
-                            value: PropertyValue::Float(new_rot),
-                            create_keyframe: ctx.keyframe_mode,
-                        })
-                        .into(),
-                    );
-                },
                 DragState::Reorder {
                     actor,
                     container,
@@ -580,6 +505,8 @@ pub(crate) fn handle_preview_drag(
                         );
                     }
                 },
+                DragState::Rotate { .. } => {},
+                DragState::MotionPath { .. } => {},
                 DragState::EditVertices { .. } => {},
                 DragState::None => {},
             }

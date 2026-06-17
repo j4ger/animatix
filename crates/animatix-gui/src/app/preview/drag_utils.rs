@@ -52,15 +52,6 @@ pub(crate) fn find_nearest_handle(
         })
 }
 
-/// Check whether the rotation handle area (including a buffer) is near the mouse.
-pub(crate) fn is_near_rotation_handle(
-    mouse: Pos2,
-    rotation_handle_screen: Pos2,
-    hit_radius: f32,
-) -> bool {
-    mouse.distance(rotation_handle_screen) <= hit_radius * 2.0
-}
-
 /// Check whether a scene-space point lies within any hit region of the given actor.
 pub(crate) fn is_over_actor_hit_region(
     scene: kurbo::Point,

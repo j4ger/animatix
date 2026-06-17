@@ -1,6 +1,6 @@
 pub mod common;
 pub mod marquee;
-pub mod pivot;
 pub mod motion_path;
+pub mod pivot;
+pub mod rotate;
 pub mod vertex;
-// Future handler modules will be added here incrementally

@@ -21,7 +21,6 @@ pub(crate) struct GestureFrame {
 /// Shared drag-end lifecycle for all non-marquee handlers.
 /// Must be called exactly once per drag end to preserve source-flush behavior.
 pub(crate) fn finish_drag(
-    commands: &mut VecDeque<ShellAction>,
     ctx: &mut PreviewContext,
     old_drag_state: super::super::DragState,
 ) {
@@ -29,5 +28,5 @@ pub(crate) fn finish_drag(
     super::super::drag_utils::finalize_drag_keyframes(&old_drag_state, ctx);
 
     // Push DragEnded exactly once — drives source flush and interaction reset in GuiShell
-    commands.push_back(ShellAction::Drag(DragEvent::DragEnded));
+    ctx.commands.push_back(ShellAction::Drag(DragEvent::DragEnded));
 }
