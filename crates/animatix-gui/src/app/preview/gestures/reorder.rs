@@ -20,7 +20,7 @@ impl GestureHandler for ReorderGesture {
         preview_rect: egui::Rect,
     ) -> GestureResult {
         match gesture {
-            Gesture::DragStart { pos, modifiers, .. } => {
+            Gesture::DragStart { pos: _, modifiers, .. } => {
                 // Reorder only fires on the drag start of the first real movement,
                 // not on a click. We use `drag_started` which is driven by egui's
                 // drag_started() — indicating actual pixel movement.

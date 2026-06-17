@@ -8,9 +8,7 @@ use crate::app::commands::{DocumentCommand, DragEvent, PropertyEdit, PropertyVal
 use crate::app::design_tokens::spatial::preview::HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS;
 use crate::app::preview::DragState;
 use crate::app::preview::drag_utils;
-use crate::app::preview::gesture::{
-    Gesture, GestureHandler, GestureResult, PointerButton,
-};
+use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
 
 pub(crate) struct VertexGesture;
 

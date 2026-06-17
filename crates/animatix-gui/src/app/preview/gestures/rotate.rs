@@ -2,10 +2,10 @@
 //!
 //! Extracted from the legacy `drag_handler.rs` Rotate match arms.
 
-use crate::app::commands::{DocumentCommand, DragEvent, PropertyEdit, PropertyValue, ShellAction};
+use crate::app::commands::{DocumentCommand, PropertyEdit, PropertyValue};
 use crate::app::design_tokens::spatial::preview::HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS;
 use crate::app::preview::drag_utils;
-use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult, PointerButton};
+use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
 use crate::app::preview::{self, DragState, ToolMode};
 
 pub(crate) struct RotateGesture;

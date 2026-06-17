@@ -7,9 +7,7 @@
 use crate::app::commands::{Command, DocumentCommand, DragEvent, PropertyEdit, PropertyValue, ShellAction};
 use crate::app::preview::drag_utils;
 use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
-use crate::app::preview::{self, DragState, ToolMode};
-use animatix::timeline::TrackAccessor;
-
+use crate::app::preview::{DragState, ToolMode};
 pub(crate) struct MoveActorGesture;
 
 impl GestureHandler for MoveActorGesture {

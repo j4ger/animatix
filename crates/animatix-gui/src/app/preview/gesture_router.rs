@@ -27,216 +27,46 @@ impl GestureRouter {
         // Build per-frame gesture frame
         let frame = GestureFrame {
             screen_pos: ui.ctx().input(|i| i.pointer.latest_pos()),
-            scene_pos: ui.ctx().input(|i| i.pointer.latest_pos()).map(|p| {
-                let pt = ctx.preview_screen_to_scene(preview_rect, p);
-                egui::pos2(pt.x as f32, pt.y as f32)
-            }),
             modifiers: ui.ctx().input(|i| i.modifiers),
-            drag_started: is_drag_started,
             drag_stopped: response.drag_stopped(),
             any_down: ui.ctx().input(|i| i.pointer.any_down()),
             any_released: ui.ctx().input(|i| i.pointer.any_released()),
         };
 
-        // Middle mouse button: always use legacy (panning)
-        if ui.ctx().input(|i| i.pointer.middle_down()) {
-            super::drag_handler::handle_preview_drag(ctx, ui, preview_rect, response);
-            return;
-        }
-
-        // ── Active extracted drags: route to their handlers ──
-        if is_active_pivot {
-            let gesture = if frame.drag_stopped || frame.any_released || !frame.any_down {
-                Gesture::DragEnd {
-                    pos: frame.screen_pos.unwrap_or(Pos2::ZERO),
-                    button: PointerButton::Primary,
-                    modifiers: frame.modifiers,
-                }
+        // ── Active extracted drags: route to handler ──
+        let build_drag_end = || -> Gesture {
+            Gesture::DragEnd {
+                pos: frame.screen_pos.unwrap_or(Pos2::ZERO),
+                button: PointerButton::Primary,
+                modifiers: frame.modifiers,
+            }
+        };
+        let build_drag_move = |pos| -> Gesture {
+            Gesture::DragMove {
+                pos,
+                delta: egui::Vec2::ZERO,
+                button: PointerButton::Primary,
+                modifiers: frame.modifiers,
+            }
+        };
+        let mut route_active = |handler: &mut dyn GestureHandler| {
+            if frame.drag_stopped || frame.any_released || !frame.any_down {
+                handler.handle(&build_drag_end(), ctx, preview_rect);
             } else if let Some(pos) = frame.screen_pos {
-                Gesture::DragMove {
-                    pos,
-                    delta: egui::Vec2::ZERO,
-                    button: PointerButton::Primary,
-                    modifiers: frame.modifiers,
-                }
-            } else {
-                super::drag_handler::handle_preview_drag(ctx, ui, preview_rect, response);
-                return;
-            };
+                handler.handle(&build_drag_move(pos), ctx, preview_rect);
+            }
+        };
 
-            super::gestures::pivot::PivotGesture.handle(&gesture, ctx, preview_rect);
-            return;
-        }
+        if is_active_pivot { route_active(&mut super::gestures::pivot::PivotGesture); return; }
+        if is_active_rotate { route_active(&mut super::gestures::rotate::RotateGesture); return; }
+        if is_active_scale { route_active(&mut super::gestures::scale::ScaleGesture); return; }
+        if is_active_motion_path { route_active(&mut super::gestures::motion_path::MotionPathGesture); return; }
+        if is_active_marquee { route_active(&mut super::gestures::marquee::MarqueeGesture); return; }
+        if is_active_vertex { route_active(&mut super::gestures::vertex::VertexGesture); return; }
+        if is_active_reorder { route_active(&mut super::gestures::reorder::ReorderGesture); return; }
+        if is_active_move { route_active(&mut super::gestures::move_actor::MoveActorGesture); return; }
 
-        // Active rotate — routes DragMove / DragEnd to RotateGesture
-        if is_active_rotate {
-            let gesture = if frame.drag_stopped || frame.any_released || !frame.any_down {
-                Gesture::DragEnd {
-                    pos: frame.screen_pos.unwrap_or(Pos2::ZERO),
-                    button: PointerButton::Primary,
-                    modifiers: frame.modifiers,
-                }
-            } else if let Some(pos) = frame.screen_pos {
-                Gesture::DragMove {
-                    pos,
-                    delta: egui::Vec2::ZERO,
-                    button: PointerButton::Primary,
-                    modifiers: frame.modifiers,
-                }
-            } else {
-                super::drag_handler::handle_preview_drag(ctx, ui, preview_rect, response);
-                return;
-            };
-
-            super::gestures::rotate::RotateGesture.handle(&gesture, ctx, preview_rect);
-            return;
-        }
-
-        // Active scale — routes DragMove / DragEnd to ScaleGesture
-        if is_active_scale {
-            let gesture = if frame.drag_stopped || frame.any_released || !frame.any_down {
-                Gesture::DragEnd {
-                    pos: frame.screen_pos.unwrap_or(Pos2::ZERO),
-                    button: PointerButton::Primary,
-                    modifiers: frame.modifiers,
-                }
-            } else if let Some(pos) = frame.screen_pos {
-                Gesture::DragMove {
-                    pos,
-                    delta: egui::Vec2::ZERO,
-                    button: PointerButton::Primary,
-                    modifiers: frame.modifiers,
-                }
-            } else {
-                super::drag_handler::handle_preview_drag(ctx, ui, preview_rect, response);
-                return;
-            };
-
-            super::gestures::scale::ScaleGesture.handle(&gesture, ctx, preview_rect);
-            return;
-        }
-
-        // Active motion path — routes DragMove / DragEnd to MotionPathGesture
-        if is_active_motion_path {
-            let gesture = if frame.drag_stopped || frame.any_released || !frame.any_down {
-                Gesture::DragEnd {
-                    pos: frame.screen_pos.unwrap_or(Pos2::ZERO),
-                    button: PointerButton::Primary,
-                    modifiers: frame.modifiers,
-                }
-            } else if let Some(pos) = frame.screen_pos {
-                Gesture::DragMove {
-                    pos,
-                    delta: egui::Vec2::ZERO,
-                    button: PointerButton::Primary,
-                    modifiers: frame.modifiers,
-                }
-            } else {
-                super::drag_handler::handle_preview_drag(ctx, ui, preview_rect, response);
-                return;
-            };
-
-            super::gestures::motion_path::MotionPathGesture.handle(&gesture, ctx, preview_rect);
-            return;
-        }
-
-        // Active marquee — routes DragMove / DragEnd to MarqueeGesture
-        if is_active_marquee {
-            let gesture = if frame.drag_stopped || frame.any_released || !frame.any_down {
-                Gesture::DragEnd {
-                    pos: frame.screen_pos.unwrap_or(Pos2::ZERO),
-                    button: PointerButton::Primary,
-                    modifiers: frame.modifiers,
-                }
-            } else if let Some(pos) = frame.screen_pos {
-                Gesture::DragMove {
-                    pos,
-                    delta: egui::Vec2::ZERO,
-                    button: PointerButton::Primary,
-                    modifiers: frame.modifiers,
-                }
-            } else {
-                super::drag_handler::handle_preview_drag(ctx, ui, preview_rect, response);
-                return;
-            };
-
-            super::gestures::marquee::MarqueeGesture.handle(&gesture, ctx, preview_rect);
-            return;
-        }
-
-        // Active vertex — routes DragMove / DragEnd to VertexGesture
-        if is_active_vertex {
-            let gesture = if frame.drag_stopped || frame.any_released || !frame.any_down {
-                Gesture::DragEnd {
-                    pos: frame.screen_pos.unwrap_or(Pos2::ZERO),
-                    button: PointerButton::Primary,
-                    modifiers: frame.modifiers,
-                }
-            } else if let Some(pos) = frame.screen_pos {
-                Gesture::DragMove {
-                    pos,
-                    delta: egui::Vec2::ZERO,
-                    button: PointerButton::Primary,
-                    modifiers: frame.modifiers,
-                }
-            } else {
-                super::drag_handler::handle_preview_drag(ctx, ui, preview_rect, response);
-                return;
-            };
-
-            super::gestures::vertex::VertexGesture.handle(&gesture, ctx, preview_rect);
-            return;
-        }
-
-        // Active reorder — routes DragMove / DragEnd to ReorderGesture
-        if is_active_reorder {
-            let gesture = if frame.drag_stopped || frame.any_released || !frame.any_down {
-                Gesture::DragEnd {
-                    pos: frame.screen_pos.unwrap_or(Pos2::ZERO),
-                    button: PointerButton::Primary,
-                    modifiers: frame.modifiers,
-                }
-            } else if let Some(pos) = frame.screen_pos {
-                Gesture::DragMove {
-                    pos,
-                    delta: egui::Vec2::ZERO,
-                    button: PointerButton::Primary,
-                    modifiers: frame.modifiers,
-                }
-            } else {
-                super::drag_handler::handle_preview_drag(ctx, ui, preview_rect, response);
-                return;
-            };
-
-            super::gestures::reorder::ReorderGesture.handle(&gesture, ctx, preview_rect);
-            return;
-        }
-
-        // Active move — routes DragMove / DragEnd to MoveActorGesture
-        if is_active_move {
-            let gesture = if frame.drag_stopped || frame.any_released || !frame.any_down {
-                Gesture::DragEnd {
-                    pos: frame.screen_pos.unwrap_or(Pos2::ZERO),
-                    button: PointerButton::Primary,
-                    modifiers: frame.modifiers,
-                }
-            } else if let Some(pos) = frame.screen_pos {
-                Gesture::DragMove {
-                    pos,
-                    delta: egui::Vec2::ZERO,
-                    button: PointerButton::Primary,
-                    modifiers: frame.modifiers,
-                }
-            } else {
-                super::drag_handler::handle_preview_drag(ctx, ui, preview_rect, response);
-                return;
-            };
-
-            super::gestures::move_actor::MoveActorGesture.handle(&gesture, ctx, preview_rect);
-            return;
-        }
-
-        // ── Drag start: try extracted start handlers before legacy ──
+        // ── Drag start: try extracted start handlers in priority order ──
         if is_drag_started {
             if let Some(pos) = frame.screen_pos {
                 let start_gesture = Gesture::DragStart {
@@ -244,62 +74,23 @@ impl GestureRouter {
                     button: PointerButton::Primary,
                     modifiers: frame.modifiers,
                 };
-                if super::gestures::pivot::PivotGesture.handle(&start_gesture, ctx, preview_rect)
-                    == GestureResult::Claimed
-                {
-                    return;
-                }
-                if super::gestures::rotate::RotateGesture.handle(&start_gesture, ctx, preview_rect)
-                    == GestureResult::Claimed
-                {
-                    return;
-                }
-                if super::gestures::scale::ScaleGesture.handle(&start_gesture, ctx, preview_rect)
-                    == GestureResult::Claimed
-                {
-                    return;
-                }
-                if super::gestures::motion_path::MotionPathGesture.handle(
-                    &start_gesture,
-                    ctx,
-                    preview_rect,
-                ) == GestureResult::Claimed
-                {
-                    return;
-                }
-                if super::gestures::vertex::VertexGesture.handle(&start_gesture, ctx, preview_rect)
-                    == GestureResult::Claimed
-                {
-                    return;
-                }
-                if super::gestures::move_actor::MoveActorGesture.handle(
-                    &start_gesture,
-                    ctx,
-                    preview_rect,
-                ) == GestureResult::Claimed
-                {
-                    return;
-                }
-                if super::gestures::reorder::ReorderGesture.handle(
-                    &start_gesture,
-                    ctx,
-                    preview_rect,
-                ) == GestureResult::Claimed
-                {
-                    return;
-                }
-                if super::gestures::marquee::MarqueeGesture.handle(
-                    &start_gesture,
-                    ctx,
-                    preview_rect,
-                ) == GestureResult::Claimed
-                {
-                    return;
-                }
+                let mut pivot_handler = super::gestures::pivot::PivotGesture;
+                if pivot_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
+                let mut rotate_handler = super::gestures::rotate::RotateGesture;
+                if rotate_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
+                let mut scale_handler = super::gestures::scale::ScaleGesture;
+                if scale_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
+                let mut motion_handler = super::gestures::motion_path::MotionPathGesture;
+                if motion_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
+                let mut vertex_handler = super::gestures::vertex::VertexGesture;
+                if vertex_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
+                let mut move_handler = super::gestures::move_actor::MoveActorGesture;
+                if move_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
+                let mut reorder_handler = super::gestures::reorder::ReorderGesture;
+                if reorder_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
+                let mut marquee_handler = super::gestures::marquee::MarqueeGesture;
+                if marquee_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
             }
         }
-
-        // ── Legacy fallback ──
-        super::drag_handler::handle_preview_drag(ctx, ui, preview_rect, response);
     }
 }

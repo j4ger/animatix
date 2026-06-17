@@ -9,7 +9,7 @@ use crate::app::design_tokens::spatial::preview::{
     MIN_SCALE as PREVIEW_MIN_SCALE,
 };
 use crate::app::preview::drag_utils;
-use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult, PointerButton};
+use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
 use crate::app::preview::{self, DragState, ToolMode};
 use animatix::timeline::TrackAccessor;
 use egui::Pos2;

@@ -2,17 +2,13 @@
 //! Extracted helpers that multiple handlers need.
 
 use super::super::context::PreviewContext;
-use super::super::gesture::GestureResult;
 use crate::app::commands::{DragEvent, ShellAction};
-use std::collections::VecDeque;
 
 /// Per-frame snapshot of pointer state for gesture dispatch.
 #[derive(Clone, Debug)]
 pub(crate) struct GestureFrame {
-    pub scene_pos: Option<egui::Pos2>,
     pub screen_pos: Option<egui::Pos2>,
     pub modifiers: egui::Modifiers,
-    pub drag_started: bool,
     pub drag_stopped: bool,
     pub any_down: bool,
     pub any_released: bool,
