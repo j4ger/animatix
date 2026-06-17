@@ -66,65 +66,28 @@ cargo test
 
 ```
 crates/
-├── animatix/              # Core library
-│   └── src/
-│       ├── ast.rs         # AST types
-│       ├── parser.rs      # Chumsky parser
-│       ├── diagnostics.rs # Diagnostic types
-│       ├── module.rs      # Module system
-│       ├── source_index.rs# Source location mapping
-│       ├── to_source.rs   # AST re-serialization
-│       └── timeline/      # Timeline compilation, actions, morphing, plotting
-│
+├── animatix-syntax/       # Syntax layer (parser, AST, module system)
+├── animatix/              # Runtime engine (timeline, renderer, primitives)
 ├── animatix-analyzer/     # Shared language intelligence
-│   └── src/
-│       ├── lib.rs         # Analyzer struct
-│       ├── symbol_table.rs# Symbol extraction from AST
-│       ├── completer.rs   # Context-aware completions
-│       └── diagnostics.rs # Parse + semantic diagnostics
-│
-├── animatix-lsp/          # LSP server for external editors
-│   └── src/
-│       └── main.rs        # tower-lsp server
-│
-├── animatix-gui/          # Desktop GUI application
-│   └── src/
-│       ├── app.rs         # Main app shell + state model
-│       ├── document.rs    # Document session management
-│       ├── editor.rs      # Code editor with analyzer integration
-│       ├── completion_popup.rs # Completion popup widget
-│       ├── highlighting.rs# Tree-sitter highlighting + diagnostic squiggles
-│       ├── hot_reload.rs  # File watcher
-│       ├── preview_surface.rs # GPU render surface
-│       ├── source_edit_v2.rs # AST-based source editing
-│       └── app/           # Submodules
-│           ├── runtime.rs       # eframe::App impl
-│           ├── persistence.rs   # Workspace state persistence
-│           ├── file_tree.rs     # File explorer
-│           ├── transport_bar.rs # Playback controls
-│           ├── inspector.rs     # Actor property inspector
-│           ├── preview.rs       # Preview pane
-│           ├── workspace.rs     # Dock layout management
-│           ├── selection.rs     # Click-to-select
-│           └── components/      # Reusable UI components
-│               ├── context_menu.rs  # Unified right-click / floating menus
-│               └── widgets.rs       # Low-level primitives (tree rows, tabs)
-│
+├── animatix-lsp/          # LSP server (tower-lsp)
+├── animatix-gui/          # Desktop GUI (eframe/egui)
+├── animatix-macros/       # Proc macros
 └── tree-sitter-animatix/  # Tree-sitter grammar
-    ├── grammar.js
-    ├── queries/highlights.scm
-    └── src/parser.c
 ```
 
 ### Source Areas Worth Knowing
 
 - `crates/animatix/src/main.rs` — CLI entrypoint
-- `crates/animatix/src/parser.rs` — parser
-- `crates/animatix/src/ast.rs` — AST types
+- `crates/animatix-syntax/src/parser/` — Chumsky parser (split into submodules)
+- `crates/animatix-syntax/src/ast.rs` — AST types
+- `crates/animatix-syntax/src/walk.rs` — shared AST traversal primitives
 - `crates/animatix/src/timeline/` — keyframed runtime, actions, morphing, plotting
-- `crates/animatix/src/timeline/modifier_runtime/` — modifier IR and bytecode VM
-- `crates/animatix/src/renderer/` — rendering backend
-- `crates/animatix-gui/src/app.rs` — GUI shell state and event loop
+- `crates/animatix/src/renderer/` — Vello/WGPU rendering backend
+- `crates/animatix/src/primitives/` — actor primitive system
+- `crates/animatix-gui/src/app/mod.rs` — GUI shell state and event loop
+- `crates/animatix-gui/src/app/panels/` — UI panels (inspector, timeline, sidebar, preview, editor)
+- `crates/animatix-gui/src/app/commands.rs` — command system (ShellAction / Command / ViewAction)
+- `crates/animatix-gui/src/app/design_tokens.rs` — GUI design token system
 - `tree-sitter-animatix/` — editor grammar
 
 ---
@@ -251,33 +214,6 @@ To add GUI creation support for a new primitive:
 1. Ensure it implements `Primitive::default_props()` in `primitives/<name>.rs`.
 2. Add the `SourceEdit::InsertActor` handling in `source_edit.rs` if new behavior is needed.
 3. Wire the palette entry in `app/shell/toolbar.rs`.
-
----
-
-## GUI Widget Screenshot Harness
-
-Renders isolated GUI components as PNG images for visual inspection. Useful for iterating on UI layout, spacing, and alignment without launching the full application.
-
-The harness is gated behind the `dev-screenshots` Cargo feature and is **never compiled into shipped binaries**.
-
-```bash
-# List available widgets
-cargo run --bin widget-screenshot --features dev-screenshots -- --list
-
-# Render a specific widget
-cargo run --bin widget-screenshot --features dev-screenshots \
-  -- --widget property-row-float --output /tmp/out.png
-
-# Custom size (default is 480×120)
-cargo run --bin widget-screenshot --features dev-screenshots \
-  -- --widget card --width 400 --height 200 --output /tmp/card.png
-```
-
-**Available widgets:** `property-row-vec2`, `property-row-float`, `property-row-slider`, `property-row-color`, `property-row-text`, `property-group`, `card`, `field`, `section-header`, `row`, `icon-button`, `empty-state`.
-
-**Adding a new widget:** Add a demo function to `crates/animatix-gui/src/dev/screenshot_harness.rs`, register it in `WIDGET_REGISTRY`, and wire it in `render_widget()`.
-
----
 
 ---
 

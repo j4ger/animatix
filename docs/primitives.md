@@ -1,15 +1,12 @@
 # Primitives
 
-Documents current runtime support. Parser-only and planned features are noted explicitly.
-
-For colorscheme details, see [`architecture.md`](architecture.md) §Colorscheme System.
+Quick reference for all Animatix primitives. For the full language specification, see [`spec.md`](spec.md). For the complete property registry, see [`properties.md`](properties.md).
 
 ---
 
 # 1. Scene Primitives
 
 ## Text
-**Status:** Implemented in parser and runtime.
 
 **Properties:**
 - `text`: String
@@ -25,7 +22,8 @@ title: Text { text: "Hello World", font_size: 24, at: (640, 120) }
 ```
 
 ## Typst
-**Status:** Implemented in parser and runtime. Replaces the deprecated `Math` primitive.
+
+Replaces the deprecated `Math` primitive.
 
 **Properties:**
 - `content`: String — Typst markup content (accepts `text`, `math`, `code`, `latex` for backward compatibility)
@@ -39,7 +37,6 @@ eq: Typst, content: "x^2 + 3", font_size: 18, at: (640, 360)
 ```
 
 ## Code
-**Status:** Implemented in parser and runtime.
 
 Renders via the text-path pipeline (no syntax highlighting in v1).
 
@@ -57,7 +54,6 @@ snippet: Code { code: "let velocity = x + 1", font_size: 28, at: (640, 360) }
 ```
 
 ## Svg
-**Status:** Implemented in parser and runtime.
 
 **Properties:**
 - `url`: String
@@ -74,7 +70,6 @@ icon: Svg { url: "examples/vector.svg", scale: 1.5, at: (640, 600) }
 Note: Missing files or invalid SVG contents report build diagnostics. Source changes require re-declaration at a keyframe (assignment not yet supported).
 
 ## Image
-**Status:** Implemented in parser and runtime.
 
 **Properties:**
 - `url`: String
@@ -91,7 +86,6 @@ photo: Image { url: "examples/checker.png", at: (640, 360), size: (180, 180) }
 Note: Missing files report build diagnostics. Source changes are discrete (crossfade requires manual opacity layering).
 
 ## Rect
-**Status:** Implemented in parser and runtime.
 
 **Properties:**
 - `size`: Tuple `(width, height)` — general rectangle dimensions
@@ -112,7 +106,6 @@ sq: Rect, size: (120, 120), color: green, at: (400, 500)
 ```
 
 ## Ellipse
-**Status:** Implemented in parser and runtime.
 
 **Properties:**
 - `size`: Tuple `(width, height)` — bounding box dimensions, converted to `radius_x = width / 2`, `radius_y = height / 2`
@@ -141,7 +134,6 @@ dot: Ellipse, size: (6, 6), color: gold, at: (320, 240)
 ```
 
 ## Line
-**Status:** Implemented in parser and runtime.
 
 Stroke-oriented — no fill property.
 
@@ -159,7 +151,6 @@ axis: Line, from: (-120, 0), to: (120, 0), stroke: white, stroke_width: 4, at: (
 ```
 
 ## Polygon
-**Status:** Implemented in parser and runtime.
 
 **Properties:**
 - `points`: Tuple/list of point tuples — explicit vertex list
@@ -180,7 +171,6 @@ hex: Polygon, points: {(-70, 0), (-35, -60), (35, -60), (70, 0), (35, 60), (-35,
 ```
 
 ## Path
-**Status:** Implemented in parser and runtime.
 
 Uses structured commands (`move_to(...)`, `line_to(...)`, `quad_to(...)`, `curve_to(...)`, `close()`).
 
@@ -208,7 +198,6 @@ guide: Path, commands: {
 # 2. Graph Primitives
 
 ## Graph
-**Status:** Implemented in runtime.
 
 A coordinate container that maps child actor positions to math coordinates. Use when you need to plot data (curves, vectors, etc.) with automatic coordinate mapping.
 
@@ -222,7 +211,6 @@ A coordinate container that maps child actor positions to math coordinates. Use 
 - `tick_labels`: Boolean — draw numeric labels at ticks (not yet implemented)
 
 ## PlotCurve
-**Status:** Implemented in runtime.
 
 Single-stroke curve plot. The `kind` property selects the sampling strategy.
 
@@ -243,7 +231,6 @@ Single-stroke curve plot. The `kind` property selects the sampling strategy.
 - `resolution`: Number — sampling grid resolution for `"implicit"`
 
 ## VectorField
-**Status:** Implemented in runtime.
 
 Grid-sampled vector field rendered as arrows.
 
@@ -256,7 +243,6 @@ Grid-sampled vector field rendered as arrows.
 - `color` / `stroke`: Color
 
 ## Heatmap
-**Status:** Implemented in runtime.
 
 Pixel-level scalar field visualization using colored rectangles.
 
@@ -269,7 +255,6 @@ Pixel-level scalar field visualization using colored rectangles.
 - `color`: Color — used as the "hot" color (alpha varies by scalar value)
 
 ## ContourSet
-**Status:** Implemented in runtime.
 
 Multiple level-set curves for a scalar function.
 
@@ -283,7 +268,6 @@ Multiple level-set curves for a scalar function.
 - `color` / `stroke`: Color
 
 ## NumberPlane
-**Status:** Implemented in runtime.
 
 A standalone visual coordinate plane with auto-generated axes, grid lines, and tick marks. Use when you need a visual background grid/axes without hosting child plots.
 
@@ -325,7 +309,6 @@ graph: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (360, 360), at: (640, 
 ---
 
 ## BarChart
-**Status:** Implemented in runtime.
 
 A bar chart / column chart primitive for data visualization. Produces a set of
 rectangular bars whose heights represent data values, with an optional baseline
@@ -379,7 +362,6 @@ graph: Graph, x_domain: (0, 12), y_domain: (0, 1.1), size: (700, 300) {
 ---
 
 ## Equation
-**Status:** Implemented in runtime.
 
 Container primitive for typeset equations with individually highlightable fragments.
 Children are `Fragment` primitives whose content is concatenated and compiled as a
@@ -401,7 +383,6 @@ eq: Equation, font_size: 22, color: text.muted, at: (0, -230) {
 ```
 
 ## Fragment
-**Status:** Implemented in runtime.
 
 Child primitive of `Equation`. Represents a named, addressable segment of the equation.
 Does not render independently — the parent Equation handles all rendering.
@@ -434,7 +415,6 @@ Does not render independently — the parent Equation handles all rendering.
 Auto-layout-first model with declaration-time measure/place contract. Explicit `at` opts into handcrafted placement.
 
 ## Row
-**Status:** Implemented in runtime auto-layout.
 
 **Properties:**
 - `gap`: Number
@@ -442,7 +422,6 @@ Auto-layout-first model with declaration-time measure/place contract. Explicit `
 - `align`: `start | center | end`
 
 ## Col
-**Status:** Implemented in runtime auto-layout.
 
 **Properties:**
 - `gap`: Number
@@ -450,14 +429,12 @@ Auto-layout-first model with declaration-time measure/place contract. Explicit `
 - `align`: `start | center | end`
 
 ## Group
-**Status:** Implemented as grouping container.
 
 Participates in scene graph and transform inheritance. Does not run a layout algorithm.
 
 ## Grid
-**Status:** Implemented in runtime auto-layout.
 
-Structured two-dimensional layout. Phase 1 supports `cols` and `gap` with deterministic declaration-order placement.
+Structured two-dimensional layout with `cols` and `gap` for deterministic declaration-order placement.
 
 **Properties:**
 - `cols`: Number
@@ -465,7 +442,6 @@ Structured two-dimensional layout. Phase 1 supports `cols` and `gap` with determ
 - `padding`: Number
 
 ## Stack
-**Status:** Implemented in runtime auto-layout.
 
 Layered composition. Overlaps layout-managed children around a shared origin.
 
@@ -498,9 +474,6 @@ For bracket modifier details (`duration`, `delay`, `ease`, morphing strategies),
 
 ---
 
-# 5. Planned / Parser-Only
+# 5. Planned
 
 - `Image` / `Svg` source assignment (currently requires re-declaration)
-- ~~`Ellipse` rotation~~ (unified into Ellipse)
-- ~~`strategy: fade` morphing~~ (implemented)
-- High-level multi-strategy morph selection

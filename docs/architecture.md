@@ -49,7 +49,7 @@ The `Composition` type in `composition.rs` manages multiple scenes:
 - **Cycle detection**: Reports diagnostics on `play` edge cycles
 - **Routing**: `BuildTarget` enum automatically detects single vs multi-scene and dispatches
 
-See [`multi-scene-composition-design.md`](multi-scene-composition-design.md) for the full design.
+See [§15 Multi-Scene Composition](#15-multi-scene-composition) below.
 
 ---
 
@@ -681,20 +681,21 @@ Core concepts:
 
 ## 16. File Structure
 
-### Current (post-split)
-
 ```
 crates/
 ├── animatix-syntax/       # Syntax layer — parser, AST, module system
 │   └── src/
 │       ├── ast.rs         # AST types
-│       ├── parser.rs      # Chumsky parser
+│       ├── parser/        # Chumsky parser (split into submodules)
 │       ├── diagnostics.rs # Diagnostic types
 │       ├── easing.rs      # Easing function registry
 │       ├── source_index.rs# Source location mapping
 │       ├── to_source.rs   # AST re-serialization
+│       ├── formatter.rs   # Source formatting
 │       ├── transition_registry.rs
 │       ├── icon_glyphs.rs
+│       ├── typecheck.rs   # Gradual type checker
+│       ├── walk.rs        # Shared AST traversal primitives
 │       └── module/        # Module system (discovery, expand, rewrite)
 │
 ├── animatix/              # Runtime engine — timeline, renderer, primitives
@@ -710,6 +711,7 @@ crates/
 ├── animatix-analyzer/     # Shared language intelligence (depends on syntax)
 ├── animatix-lsp/          # LSP server (tower-lsp)
 ├── animatix-gui/          # Desktop GUI (eframe/egui)
+├── animatix-macros/       # Proc macros
 └── tree-sitter-animatix/  # Tree-sitter grammar
 ```
 

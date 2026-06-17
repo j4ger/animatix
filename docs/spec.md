@@ -1308,7 +1308,6 @@ animatix gif examples/19_cross_file_scenes.amx --width 640 --height 360 --fps 10
 ## 18. Multi-Scene Composition
 
 > **Status:** Parser, composition engine, CLI export, transition blending, and cross-file scene composition are shipped. GUI scene list/composition timeline work remains pending.
-> **Design doc:** [`docs/multi-scene-composition-design.md`](multi-scene-composition-design.md)
 
 ### Scene Declarations
 

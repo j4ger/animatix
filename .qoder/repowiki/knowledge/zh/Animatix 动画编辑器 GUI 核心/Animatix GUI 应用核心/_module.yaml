@@ -1,9 +1,0 @@
-schema_version: 1
-module_path: animatix_gui/app_core
-title: Animatix GUI 应用核心
-scope:
-    - crates/animatix-gui/src/app/
-source_files: []
-depends_on: []
-related_to:
-    - path: animatix_gui/gui_infra
