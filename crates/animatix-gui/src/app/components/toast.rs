@@ -1,4 +1,7 @@
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::semantic::{accent, border, status, surface, text};
+use crate::app::design_tokens::spatial::component::{TOAST_HEIGHT, TOAST_MARGIN, TOAST_SPACING, TOAST_WIDTH};
+use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, SPACE_2, SPACE_6, STROKE_WIDTH};
+use crate::app::design_tokens::typography::{FONT_SIZE_M, FONT_SIZE_S};
 use egui::{Color32, Pos2, Rect, Vec2};
 use std::time::Instant;
 
@@ -76,10 +79,10 @@ impl Toast {
 
     pub fn color(&self) -> Color32 {
         match self.level {
-            ToastLevel::Info => ACCENT_BLUE,
-            ToastLevel::Success => GREEN,
-            ToastLevel::Warning => AMBER,
-            ToastLevel::Error => RED,
+            ToastLevel::Info => accent::PRIMARY,
+            ToastLevel::Success => status::SUCCESS,
+            ToastLevel::Warning => status::WARNING,
+            ToastLevel::Error => status::ERROR,
         }
     }
 }
@@ -133,22 +136,22 @@ impl ToastQueue {
             }
 
             // Background with alpha
-            let bg = BG_SURFACE.linear_multiply(alpha);
+            let bg = surface::SURFACE.linear_multiply(alpha);
             ui.painter().rect_filled(rect, RADIUS_M as u8, bg);
             ui.painter().rect_stroke(
                 rect,
                 RADIUS_M as u8,
-                egui::Stroke::new(STROKE_WIDTH, BORDER.linear_multiply(alpha)),
+                egui::Stroke::new(STROKE_WIDTH, border::DEFAULT.linear_multiply(alpha)),
                 egui::StrokeKind::Outside,
             );
 
             // Left accent bar
-            let accent_rect = Rect::from_min_size(rect.min, Vec2::new(PAD_S, toast_h));
+            let accent_rect = Rect::from_min_size(rect.min, Vec2::new(SPACE_2, toast_h));
             let accent_color = toast.color().linear_multiply(alpha);
             ui.painter().rect_filled(accent_rect, RADIUS_S, accent_color);
 
             // Icon
-            let icon_x = rect.min.x + PAD_XXL;
+            let icon_x = rect.min.x + SPACE_6;
             let icon_color = toast.color().linear_multiply(alpha);
             ui.painter().text(
                 Pos2::new(icon_x, rect.center().y),
@@ -159,9 +162,9 @@ impl ToastQueue {
             );
 
             // Message (wrapped to toast width so it doesn't overflow)
-            let text_x = icon_x + PAD_XXL;
-            let text_color = TEXT_PRIMARY.linear_multiply(alpha);
-            let text_max_w = (toast_w - (text_x - rect.min.x) - PAD_XXL).max(40.0);
+            let text_x = icon_x + SPACE_6;
+            let text_color = text::PRIMARY.linear_multiply(alpha);
+            let text_max_w = (toast_w - (text_x - rect.min.x) - SPACE_6).max(40.0);
             let galley = ui.painter().layout(
                 toast.message.clone(),
                 egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),

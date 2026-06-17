@@ -1,290 +1,197 @@
-//! Unified design tokens for the entire Animatix GUI.
+//! Compatibility facade for the layered design token system.
 //!
-//! All UI modules import `use crate::app::design_tokens::*;`. No local palette
-//! constants allowed — all colors, spacing, radii, and font sizes come from here.
+//! # Migration state
+//! This file temporarily re-exports all legacy flat names (`BG_*`, `TEXT_*`,
+//! `PAD_*`, `FONT_SIZE_*`, etc.) from the new `design_tokens/` module tree.
+//! During Phase 1 migration, call sites switch from `glob` imports to narrow
+//! `semantic::{...}` / `spatial` / `typography` imports.
 //!
-//! Naming conventions:
-//! - Backgrounds: `BG_*` (BG_BASE, BG_SURFACE, BG_WIDGET)
-//! - Text: `TEXT_*` (TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED)
+//! Once all call sites are migrated, this file is deleted and replaced by
+//! `design_tokens/mod.rs`.
+//!
+//! # Naming conventions (legacy)
+//! - Backgrounds: `BG_*` (BG_BASE, BG_SURFACE, BG_WIDGET, BG_HOVER, BG_ACTIVE)
+//! - Text: `TEXT_*` (TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, TEXT_DISABLED)
 //! - Accent/semantic: `ACCENT_*`, `GREEN`, `RED`, `AMBER`, `PURPLE`
-//! - Spacing: `SPACE_*` (SPACE_XS, S, M, L, XL, XXL)
-//! - Font sizes: `FONT_SIZE_*` (FONT_SIZE_XS, S, M, L, XL, XXL)
+//! - Spacing: `SPACE_*` (SPACE_XS, S, M, L, XL)
+//! - Padding: `PAD_*` (PAD_XS, S, M, L, XL, XXL)
+//! - Font sizes: `FONT_SIZE_*` (FONT_SIZE_XS, S, M, L, XL)
 //! - Radii: `RADIUS_*` (RADIUS_S, M, L, XL)
 //! - Timeline: `TIMELINE_*`
 
+mod primitive;
+pub mod motion;
+pub mod semantic;
+pub mod spatial;
+pub mod typography;
+pub mod util;
 
-use egui::Color32;
+pub use util::{lerp_color, multiply_alpha};
 
-// ── Backgrounds ──
-pub const BG_BASE: Color32 = Color32::from_rgb(12, 14, 18);
-pub const BG_PANEL: Color32 = Color32::from_rgb(18, 20, 24);
-pub const BG_SURFACE: Color32 = Color32::from_rgb(24, 27, 33);
-pub const BG_WIDGET: Color32 = Color32::from_rgb(32, 36, 44);
-pub const BG_HOVER: Color32 = Color32::from_rgb(28, 31, 38);
-pub const BG_ACTIVE: Color32 = Color32::from_rgb(40, 45, 55);
+// ── Backgrounds (→ semantic::surface) ──
+pub use semantic::surface::BASE as BG_BASE;
+pub use semantic::surface::PANEL as BG_PANEL;
+pub use semantic::surface::SURFACE as BG_SURFACE;
+pub use semantic::surface::WIDGET as BG_WIDGET;
+pub use semantic::surface::HOVER as BG_HOVER;
+pub use semantic::surface::ACTIVE as BG_ACTIVE;
 
-// ── Text ──
-pub const TEXT_PRIMARY: Color32 = Color32::from_rgb(228, 232, 243);
-pub const TEXT_SECONDARY: Color32 = Color32::from_rgb(150, 158, 175);
-pub const TEXT_MUTED: Color32 = Color32::from_rgb(120, 128, 145);
-pub const TEXT_DISABLED: Color32 = Color32::from_rgb(60, 64, 72);
+// ── Text (→ semantic::text) ──
+pub use semantic::text::PRIMARY as TEXT_PRIMARY;
+pub use semantic::text::SECONDARY as TEXT_SECONDARY;
+pub use semantic::text::MUTED as TEXT_MUTED;
+pub use semantic::text::DISABLED as TEXT_DISABLED;
 
-// ── Accents ──
-pub const ACCENT_BLUE: Color32 = Color32::from_rgb(84, 110, 255);
-pub const ACCENT_CYAN: Color32 = Color32::from_rgb(137, 200, 235);
-pub const AMBER: Color32 = Color32::from_rgb(255, 196, 92);
-pub const RED: Color32 = Color32::from_rgb(255, 100, 100);
-pub const GREEN: Color32 = Color32::from_rgb(80, 200, 140);
-pub const PURPLE: Color32 = Color32::from_rgb(156, 39, 176);
+// ── Accents (→ semantic::accent / semantic::status / semantic::category) ──
+pub use semantic::accent::PRIMARY as ACCENT_BLUE;
+pub use semantic::accent::CYAN as ACCENT_CYAN;
+pub use semantic::status::WARNING as AMBER;
+pub use semantic::status::ERROR as RED;
+pub use semantic::status::SUCCESS as GREEN;
+pub use semantic::category::ACTION as PURPLE;
 
-// ── Borders ──
-pub const BORDER: Color32 = Color32::from_rgb(40, 44, 52);
-pub const BORDER_HOVER: Color32 = Color32::from_rgb(60, 66, 78);
-pub const BORDER_FOCUS: Color32 = ACCENT_BLUE;
+// ── Borders (→ semantic::border) ──
+pub use semantic::border::DEFAULT as BORDER;
+pub use semantic::border::HOVER as BORDER_HOVER;
+pub use semantic::border::FOCUS as BORDER_FOCUS;
 
-// ── Ghost / Onion Skin ──
-pub fn ghost_prev() -> Color32 { Color32::from_rgba_unmultiplied(80, 220, 120, 77) }
-pub fn ghost_next() -> Color32 { Color32::from_rgba_unmultiplied(80, 160, 255, 77) }
+// ── Diagnostic phases (→ semantic::diagnostic) ──
+pub use semantic::diagnostic::PHASE_PARSE as DIAG_PHASE_PARSE;
+pub use semantic::diagnostic::PHASE_RESOLVE as DIAG_PHASE_RESOLVE;
+pub use semantic::diagnostic::PHASE_COMPILE as DIAG_PHASE_COMPILE;
 
-// ── Grid & Guides ──
-pub fn grid_line() -> Color32 { Color32::from_rgba_unmultiplied(255, 255, 255, 12) }
-pub fn guide_line() -> Color32 { Color32::from_rgba_unmultiplied(255, 255, 255, 30) }
-pub fn hatch_line() -> Color32 { Color32::from_rgba_unmultiplied(255, 255, 255, 30) }
+// ── Status colors (→ semantic::status) ──
+pub use semantic::status::PLAYING_TEXT;
+pub use semantic::status::DIAGNOSTIC_ERROR as DIAGNOSTIC_RED;
+pub use semantic::status::DIAGNOSTIC_WARNING as DIAGNOSTIC_AMBER;
 
-// ── Smart Snap ──
-pub fn snap_guide_line() -> Color32 { Color32::from_rgba_unmultiplied(84, 191, 123, 160) }
-pub fn snap_guide_label_bg() -> Color32 { Color32::from_rgba_unmultiplied(30, 30, 35, 200) }
+// ── Curve editor (→ semantic::curve) ──
+pub use semantic::curve::GREEN as CURVE_GREEN;
+pub use semantic::curve::BLUE as CURVE_BLUE;
+pub use semantic::curve::GRAY as CURVE_GRAY;
 
-// ── Transport Bar ──
-pub fn track_block_1() -> Color32 { Color32::from_rgba_unmultiplied(92, 140, 255, 60) }
-pub fn track_block_2() -> Color32 { Color32::from_rgba_unmultiplied(145, 104, 255, 60) }
-pub fn track_block_3() -> Color32 { Color32::from_rgba_unmultiplied(84, 191, 123, 60) }
-pub fn track_block_4() -> Color32 { Color32::from_rgba_unmultiplied(245, 179, 78, 60) }
-pub fn track_block_5() -> Color32 { Color32::from_rgba_unmultiplied(233, 108, 122, 60) }
-pub fn loop_region() -> Color32 { Color32::from_rgba_unmultiplied(100, 200, 255, 40) }
-pub fn transition_stripe_1() -> Color32 { Color32::from_rgba_unmultiplied(255, 200, 100, 50) }
-pub fn transition_stripe_2() -> Color32 { Color32::from_rgba_unmultiplied(100, 200, 255, 50) }
-pub fn transition_stripe_3() -> Color32 { Color32::from_rgba_unmultiplied(255, 120, 120, 50) }
-pub fn transition_stripe_4() -> Color32 { Color32::from_rgba_unmultiplied(120, 255, 160, 50) }
-pub fn transition_stripe_5() -> Color32 { Color32::from_rgba_unmultiplied(200, 140, 255, 50) }
-pub fn transition_stripe_6() -> Color32 { Color32::from_rgba_unmultiplied(255, 180, 50, 50) }
+// ── Timeline (→ semantic::timeline) ──
+pub use semantic::timeline::KF_FLASH;
 
-// ── Diagnostic Phases ──
-pub const DIAG_PHASE_PARSE: Color32 = Color32::from_rgb(137, 180, 250);
-pub const DIAG_PHASE_RESOLVE: Color32 = Color32::from_rgb(180, 190, 254);
-pub const DIAG_PHASE_COMPILE: Color32 = Color32::from_rgb(203, 166, 126);
+// ── Editor (→ semantic::editor) ──
+pub use semantic::editor::SNIPPET_BLUE;
 
-// ── Overlay ──
-pub fn overlay_backdrop() -> Color32 { Color32::from_rgba_unmultiplied(0, 0, 0, 120) }
+// ── Alpha-tinted function wrappers (→ semantic::* functions) ──
 
-// ── Floating Card ──
-pub fn floating_card_bg() -> Color32 { Color32::from_rgba_unmultiplied(30, 30, 35, 220) }
+pub use semantic::canvas::ghost_prev;
+pub use semantic::canvas::ghost_next;
+pub use semantic::canvas::grid_line;
+pub use semantic::canvas::guide_line;
+pub use semantic::canvas::hatch_line;
+pub use semantic::canvas::snap_guide_line;
+pub use semantic::canvas::snap_guide_label_bg;
 
-// ── Alpha-tinted accents ──
-pub fn accent_faint() -> Color32 { Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 30) }
-pub fn accent_ghost() -> Color32 { Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 80) }
-pub fn accent_subtle() -> Color32 { Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 120) }
-pub fn accent_hover() -> Color32 { Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 140) }
-pub fn accent_strong() -> Color32 { Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 200) }
-pub fn accent_selection() -> Color32 { Color32::from_rgba_unmultiplied(ACCENT_BLUE.r(), ACCENT_BLUE.g(), ACCENT_BLUE.b(), 60) }
+pub use semantic::timeline::track_block_1;
+pub use semantic::timeline::track_block_2;
+pub use semantic::timeline::track_block_3;
+pub use semantic::timeline::track_block_4;
+pub use semantic::timeline::track_block_5;
+pub use semantic::timeline::loop_region;
+pub use semantic::timeline::transition_stripe_1;
+pub use semantic::timeline::transition_stripe_2;
+pub use semantic::timeline::transition_stripe_3;
+pub use semantic::timeline::transition_stripe_4;
+pub use semantic::timeline::transition_stripe_5;
+pub use semantic::timeline::transition_stripe_6;
+pub use semantic::timeline::row_alt;
 
-// ── Alpha-tinted text ──
-pub fn text_faint() -> Color32 { Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 80) }
-pub fn text_subtle() -> Color32 { Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 160) }
-pub fn text_hover() -> Color32 { Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 220) }
-pub fn text_dim() -> Color32 { Color32::from_rgba_unmultiplied(TEXT_PRIMARY.r(), TEXT_PRIMARY.g(), TEXT_PRIMARY.b(), 180) }
+pub use semantic::overlay::backdrop as overlay_backdrop;
+pub use semantic::overlay::badge_bg;
+pub use semantic::overlay::tooltip_bg;
+pub use semantic::overlay::shadow_ambient;
+pub use semantic::overlay::shadow_direct;
 
-// ── Alpha-tinted amber ──
-pub fn amber_subtle() -> Color32 { Color32::from_rgba_unmultiplied(AMBER.r(), AMBER.g(), AMBER.b(), 120) }
+pub use semantic::surface::floating_card_bg;
 
-// ── Alpha-tinted green / red ──
-pub fn green_faint() -> Color32 { Color32::from_rgba_unmultiplied(GREEN.r(), GREEN.g(), GREEN.b(), 60) }
-pub fn green_ultra_faint() -> Color32 { Color32::from_rgba_unmultiplied(GREEN.r(), GREEN.g(), GREEN.b(), 20) }
-pub fn red_faint() -> Color32 { Color32::from_rgba_unmultiplied(RED.r(), RED.g(), RED.b(), 60) }
-pub fn red_ultra_faint() -> Color32 { Color32::from_rgba_unmultiplied(RED.r(), RED.g(), RED.b(), 20) }
+pub use semantic::accent::faint as accent_faint;
+pub use semantic::accent::ghost as accent_ghost;
+pub use semantic::accent::subtle as accent_subtle;
+pub use semantic::accent::hover as accent_hover;
+pub use semantic::accent::strong as accent_strong;
+pub use semantic::accent::selection as accent_selection;
 
-// ── Status colors ──
-pub const PLAYING_TEXT: Color32 = Color32::from_rgb(216, 249, 235);
-pub const DIAGNOSTIC_RED: Color32 = Color32::from_rgb(255, 136, 136);
-pub const DIAGNOSTIC_AMBER: Color32 = Color32::from_rgb(255, 214, 102);
+pub use semantic::text::faint as text_faint;
+pub use semantic::text::subtle as text_subtle;
+pub use semantic::text::hover as text_hover;
+pub use semantic::text::dim as text_dim;
 
-// ── Badge / Tooltip backgrounds ──
-pub fn badge_bg() -> Color32 { Color32::from_rgba_unmultiplied(BG_BASE.r(), BG_BASE.g(), BG_BASE.b(), 220) }
-pub fn tooltip_bg() -> Color32 { Color32::from_rgba_unmultiplied(BG_BASE.r(), BG_BASE.g(), BG_BASE.b(), 235) }
+pub use semantic::status::warning_subtle as amber_subtle;
+pub use semantic::status::success_faint as green_faint;
+pub use semantic::status::success_ultra_faint as green_ultra_faint;
+pub use semantic::status::error_faint as red_faint;
+pub use semantic::status::error_ultra_faint as red_ultra_faint;
 
-// ── Alternating row backgrounds ──
-pub fn row_alt() -> Color32 { Color32::from_rgba_unmultiplied(255, 255, 255, 2) }
+// ── Spatial aliases (→ spatial module) ──
 
-// ── Shadows (layered: ambient + direct) ──
-// Using const fn because from_rgba_unmultiplied is not a const fn in egui 0.34
-pub fn shadow_ambient() -> Color32 {
-    Color32::from_rgba_unmultiplied(0, 0, 0, 40)
-}
-pub fn shadow_direct() -> Color32 {
-    Color32::from_rgba_unmultiplied(0, 0, 0, 60)
-}
+pub use spatial::SPACE_1 as SPACE_XS;
+pub use spatial::SPACE_2 as SPACE_S;
+pub use spatial::SPACE_3 as SPACE_M;
+pub use spatial::SPACE_4 as SPACE_L;
+pub use spatial::SPACE_5 as SPACE_XL;
 
-// ── Spacing Scale ──
-pub const SPACE_XS: f32 = 2.0;
-pub const SPACE_S: f32 = 4.0;
-pub const SPACE_M: f32 = 6.0;
-pub const SPACE_L: f32 = 8.0;
-pub const SPACE_XL: f32 = 12.0;
+pub use spatial::SPACE_1 as PAD_XS;
+pub use spatial::SPACE_2 as PAD_S;
+pub use spatial::SPACE_3 as PAD_M;
+pub use spatial::SPACE_4 as PAD_L;
+pub use spatial::SPACE_5 as PAD_XL;
+pub use spatial::SPACE_6 as PAD_XXL;
 
-// ── Row Heights ──
-pub const ROW_XS: f32 = 18.0;
-pub const ROW_S: f32 = 20.0;
-pub const ROW_M: f32 = 24.0;
-pub const ROW_L: f32 = 28.0;
+pub use spatial::{ROW_XS, ROW_S, ROW_M, ROW_L};
+pub use spatial::{STROKE_WIDTH, STROKE_WIDTH_THICK, STROKE_WIDTH_THIN};
+pub use spatial::{RADIUS_S, RADIUS_M, RADIUS_L, RADIUS_XL};
 
-// ── Stroke Widths ──
-pub const STROKE_WIDTH: f32 = 1.0;
-pub const STROKE_WIDTH_THICK: f32 = 1.5;
-pub const STROKE_WIDTH_THIN: f32 = 0.5;
+pub use spatial::preview::ROTATION_OFFSET as PREVIEW_ROTATION_OFFSET;
+pub use spatial::preview::ROTATION_RADIUS as PREVIEW_ROTATION_RADIUS;
+pub use spatial::preview::HANDLE_SIZE as PREVIEW_HANDLE_SIZE;
+pub use spatial::preview::HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS;
+pub use spatial::preview::MIN_ACTOR_SIZE as PREVIEW_MIN_ACTOR_SIZE;
+pub use spatial::preview::MIN_SCALE as PREVIEW_MIN_SCALE;
+pub use spatial::preview::MIN_ZOOM as PREVIEW_MIN_ZOOM;
+pub use spatial::preview::DASH_LEN as PREVIEW_DASH_LEN;
+pub use spatial::preview::GAP_LEN as PREVIEW_GAP_LEN;
+pub use spatial::preview::CROSS_SIZE as PREVIEW_CROSS_SIZE;
+pub use spatial::preview::VERTEX_HIT_BUFFER as PREVIEW_VERTEX_HIT_BUFFER;
+pub use spatial::preview::ROTATION_HIT_BUFFER as PREVIEW_ROTATION_HIT_BUFFER;
 
-// ── Preview Canvas ──
-/// Rotation handle distance from actor top edge (px).
-pub const PREVIEW_ROTATION_OFFSET: f32 = 20.0;
-/// Rotation handle visual radius (px).
-pub const PREVIEW_ROTATION_RADIUS: f32 = 4.0;
-/// Default scale handle size (px).
-pub const PREVIEW_HANDLE_SIZE: f32 = 6.0;
-/// Hit-test radius for scale/rotation handles (px).
-pub const PREVIEW_HANDLE_HIT_RADIUS: f32 = 10.0;
-/// Minimum allowed actor size during drag (px).
-pub const PREVIEW_MIN_ACTOR_SIZE: f32 = 10.0;
-/// Minimum allowed transform scale during drag.
-pub const PREVIEW_MIN_SCALE: f32 = 0.01;
-/// Minimum allowed zoom level.
-pub const PREVIEW_MIN_ZOOM: f32 = 0.01;
-/// Dashed line segment length for selection overlays (px).
-pub const PREVIEW_DASH_LEN: f32 = 6.0;
-/// Dashed line gap length for selection overlays (px).
-pub const PREVIEW_GAP_LEN: f32 = 4.0;
-/// Pivot crosshair arm length (px).
-pub const PREVIEW_CROSS_SIZE: f32 = 6.0;
-/// Extra hit-test buffer for polygon vertices (px).
-pub const PREVIEW_VERTEX_HIT_BUFFER: f32 = 2.0;
-/// Extra hit-test buffer for rotation handle (px).
-pub const PREVIEW_ROTATION_HIT_BUFFER: f32 = 4.0;
+pub use spatial::toolbar::HEIGHT as TOOLBAR_HEIGHT;
 
-// ── Corner Radii ──
-pub const RADIUS_S: f32 = 2.0;
-pub const RADIUS_M: f32 = 4.0;
-pub const RADIUS_L: f32 = 6.0;
-pub const RADIUS_XL: f32 = 8.0;
+pub use spatial::timeline::LABEL_COL_WIDTH as TIMELINE_LABEL_COL_WIDTH;
+pub use spatial::timeline::TRACK_ROW_HEIGHT as TIMELINE_TRACK_ROW_HEIGHT;
+pub use spatial::timeline::RULER_HEIGHT as TIMELINE_RULER_HEIGHT;
+pub use spatial::timeline::RANGE_HEIGHT as TIMELINE_RANGE_HEIGHT;
+pub use spatial::timeline::KF_HALF as TIMELINE_KF_HALF;
+pub use spatial::timeline::PLAYBACK_STRIP_HEIGHT as TIMELINE_PLAYBACK_STRIP_HEIGHT;
 
-// ── Toolbar ──
-pub const TOOLBAR_HEIGHT: f32 = 28.0;
+pub use spatial::menu::MIN_WIDTH as MENU_MIN_WIDTH;
+pub use spatial::menu::ICON_WIDTH as MENU_ICON_WIDTH;
+pub use spatial::menu::CHECK_WIDTH as MENU_CHECK_WIDTH;
+pub use spatial::menu::SHADOW_OFFSET_Y as MENU_SHADOW_OFFSET_Y;
+pub use spatial::menu::SHADOW_BLUR as MENU_SHADOW_BLUR;
 
-// ── Timeline ──
-pub const TIMELINE_LABEL_COL_WIDTH: f32 = 120.0;
-pub const TIMELINE_TRACK_ROW_HEIGHT: f32 = 24.0;
-pub const TIMELINE_RULER_HEIGHT: f32 = 22.0;
-pub const TIMELINE_RANGE_HEIGHT: f32 = 20.0;
-pub const TIMELINE_KF_HALF: f32 = 4.0;
-pub const TIMELINE_PLAYBACK_STRIP_HEIGHT: f32 = 28.0;
+pub use spatial::welcome::BTN_HEIGHT as WELCOME_BTN_HEIGHT;
+pub use spatial::welcome::TOP_OFFSET_FRAC as WELCOME_TOP_OFFSET_FRAC;
 
-// ── Context Menu ──
-pub const MENU_MIN_WIDTH: f32 = 140.0;
-pub const MENU_ICON_WIDTH: f32 = 16.0;
-pub const MENU_CHECK_WIDTH: f32 = 14.0;
-pub const MENU_SHADOW_OFFSET_Y: i8 = 4;
-pub const MENU_SHADOW_BLUR: i8 = 12;
+pub use spatial::component::{PILL_TAB_HEIGHT, PILL_TAB_GAP};
+pub use spatial::component::{TOAST_WIDTH, TOAST_HEIGHT, TOAST_SPACING, TOAST_MARGIN};
+pub use spatial::component::ICON_SLOT_WIDTH;
 
-// ── Welcome Screen ──
-pub const WELCOME_BTN_HEIGHT: f32 = 36.0;
-pub const WELCOME_TOP_OFFSET_FRAC: f32 = 0.22;
+pub use spatial::inspector::KF_COL_WIDTH as INSPECTOR_KF_COL_WIDTH;
+pub use spatial::inspector::LABEL_MIN_WIDTH as INSPECTOR_LABEL_MIN_WIDTH;
+pub use spatial::inspector::LABEL_MAX_WIDTH as INSPECTOR_LABEL_MAX_WIDTH;
+pub use spatial::inspector::COL_GAP as INSPECTOR_COL_GAP;
+pub use spatial::inspector::INPUT_WIDTH_FLOAT as INSPECTOR_INPUT_WIDTH_FLOAT;
+pub use spatial::inspector::INPUT_COL_WIDTH as INSPECTOR_INPUT_COL_WIDTH;
+pub use spatial::inspector::INPUT_WIDTH_VEC2 as INSPECTOR_INPUT_WIDTH_VEC2;
+pub use spatial::inspector::INPUT_WIDTH_SLIDER as INSPECTOR_INPUT_WIDTH_SLIDER;
+pub use spatial::inspector::INPUT_WIDTH_COLOR as INSPECTOR_INPUT_WIDTH_COLOR;
+pub use spatial::inspector::ROW_HEIGHT as INSPECTOR_ROW_HEIGHT;
+pub use spatial::inspector::KF_BTN_WIDTH as INSPECTOR_KF_BTN_WIDTH;
+pub use spatial::inspector::LABEL_WIDTH_FRAC as INSPECTOR_LABEL_WIDTH_FRAC;
 
-// ── Curve Editor ──
-pub const CURVE_GREEN: Color32 = Color32::from_rgb(100, 255, 100);
-pub const CURVE_BLUE: Color32 = Color32::from_rgb(80, 140, 255);
-pub const CURVE_GRAY: Color32 = Color32::from_rgb(200, 200, 200);
-
-// ── Timeline ──
-/// Keyframe flash highlight color
-pub const KF_FLASH: Color32 = Color32::from_rgb(255, 200, 50);
-
-// ── Insertion Palette ──
-pub const SNIPPET_BLUE: Color32 = Color32::from_rgb(108, 153, 187);
-
-// ── Common Padding / Offset ──
-pub const PAD_XS: f32 = 2.0;
-pub const PAD_S: f32 = 4.0;
-pub const PAD_M: f32 = 6.0;
-pub const PAD_L: f32 = 8.0;
-pub const PAD_XL: f32 = 12.0;
-pub const PAD_XXL: f32 = 16.0;
-
-// ── Component Dimensions ──
-/// Height of pill-style tab buttons.
-pub const PILL_TAB_HEIGHT: f32 = 26.0;
-/// Gap between pill-style tabs.
-pub const PILL_TAB_GAP: f32 = 2.0;
-/// Width of toast notifications.
-pub const TOAST_WIDTH: f32 = 280.0;
-/// Height of toast notifications.
-pub const TOAST_HEIGHT: f32 = 40.0;
-/// Spacing between stacked toasts.
-pub const TOAST_SPACING: f32 = 8.0;
-/// Margin from viewport edge to toasts.
-pub const TOAST_MARGIN: f32 = 16.0;
-/// Width of chevron/icon slots in tree rows.
-pub const ICON_SLOT_WIDTH: f32 = 14.0;
-
-// ── Typography ──
-pub const FONT_SIZE_XS: f32 = 10.0;
-pub const FONT_SIZE_S: f32 = 12.0;
-pub const FONT_SIZE_M: f32 = 13.0;
-pub const FONT_SIZE_L: f32 = 15.0;
-pub const FONT_SIZE_XL: f32 = 18.0;
-
-// ── Inspector Layout ──
-/// Width of the keyframe indicator column (px).
-pub const INSPECTOR_KF_COL_WIDTH: f32 = 18.0;
-/// Minimum width of the label column (px).
-pub const INSPECTOR_LABEL_MIN_WIDTH: f32 = 90.0;
-/// Maximum width of the label column (px).
-pub const INSPECTOR_LABEL_MAX_WIDTH: f32 = 160.0;
-/// Gap between label column and input column (px).
-pub const INSPECTOR_COL_GAP: f32 = 8.0;
-/// Standard width for a single DragValue input (px).
-pub const INSPECTOR_INPUT_WIDTH_FLOAT: f32 = 72.0;
-/// Width of the entire right-hand input column (px).
-pub const INSPECTOR_INPUT_COL_WIDTH: f32 = 120.0;
-/// Standard width for a Vec2 input pair (px).
-pub const INSPECTOR_INPUT_WIDTH_VEC2: f32 = 110.0;
-/// Standard width for a slider + value input (px).
-pub const INSPECTOR_INPUT_WIDTH_SLIDER: f32 = 110.0;
-/// Standard width for a color swatch + hex input (px).
-pub const INSPECTOR_INPUT_WIDTH_COLOR: f32 = 88.0;
-/// Row height for inspector property rows (px).
-pub const INSPECTOR_ROW_HEIGHT: f32 = ROW_M; // 24px
-/// Width of the keyframe toggle button column (px).
-pub const INSPECTOR_KF_BTN_WIDTH: f32 = 18.0;
-/// Fraction of available width for the label column.
-pub const INSPECTOR_LABEL_WIDTH_FRAC: f32 = 0.42;
-
-// ── Color utilities ──
-
-/// Linearly interpolate between two colors.
-pub fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
-    let t = t.clamp(0.0, 1.0);
-    Color32::from_rgba_premultiplied(
-        (a.r() as f32 + (b.r() as f32 - a.r() as f32) * t) as u8,
-        (a.g() as f32 + (b.g() as f32 - a.g() as f32) * t) as u8,
-        (a.b() as f32 + (b.b() as f32 - a.b() as f32) * t) as u8,
-        (a.a() as f32 + (b.a() as f32 - a.a() as f32) * t) as u8,
-    )
-}
-
-/// Multiply a color's alpha by a factor.
-pub fn multiply_alpha(c: Color32, factor: f32) -> Color32 {
-    let factor = factor.clamp(0.0, 1.0);
-    Color32::from_rgba_premultiplied(
-        (c.r() as f32 * factor) as u8,
-        (c.g() as f32 * factor) as u8,
-        (c.b() as f32 * factor) as u8,
-        (c.a() as f32 * factor) as u8,
-    )
-}
+// ── Typography aliases (→ typography module) ──
+pub use typography::{FONT_SIZE_XS, FONT_SIZE_S, FONT_SIZE_M, FONT_SIZE_L, FONT_SIZE_XL};

@@ -3,7 +3,13 @@ use egui::{Align, RichText, Stroke, Vec2};
 use crate::app::GuiShell;
 use crate::app::commands::{ActionQueue, Command, ShellAction, ViewAction};
 use crate::app::components::button;
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::semantic::surface::{BASE as BG_BASE, WIDGET as BG_WIDGET};
+use crate::app::design_tokens::semantic::text::{PRIMARY as TEXT_PRIMARY, SECONDARY as TEXT_SECONDARY, MUTED as TEXT_MUTED};
+use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
+use crate::app::design_tokens::semantic::status::{WARNING as AMBER, DIAGNOSTIC_ERROR as DIAGNOSTIC_RED};
+use crate::app::design_tokens::TOOLBAR_HEIGHT;
+use crate::app::design_tokens::spatial::{STROKE_WIDTH, SPACE_XL, SPACE_L, SPACE_S, RADIUS_M};
+use crate::app::design_tokens::typography::{FONT_SIZE_XS, FONT_SIZE_S, FONT_SIZE_M};
 
 // TOOLBAR_HEIGHT imported via design_tokens::*
 

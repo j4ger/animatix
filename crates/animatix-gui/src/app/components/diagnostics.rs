@@ -1,7 +1,9 @@
 use egui::{Color32, Rect, RichText, Sense, Stroke, Vec2};
 
 use crate::app::components::layout::card;
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::semantic::{border, diagnostic as diag, status, surface, text};
+use crate::app::design_tokens::spatial::{ROW_L, SPACE_L, SPACE_M, SPACE_S, STROKE_WIDTH};
+use crate::app::design_tokens::typography::{FONT_SIZE_M, FONT_SIZE_S, FONT_SIZE_XS};
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticPhase};
 
 /// Where to place the cursor after clicking a diagnostic.
@@ -38,7 +40,7 @@ pub fn diagnostics_list(
                 egui::Label::new(
                     RichText::new(egui_phosphor::regular::WARNING_OCTAGON)
                         .size(FONT_SIZE_S)
-                        .color(TEXT_MUTED),
+                        .color(text::MUTED),
                 )
                 .selectable(false),
             );
@@ -47,7 +49,7 @@ pub fn diagnostics_list(
                 egui::Label::new(
                     RichText::new("Diagnostics")
                         .size(FONT_SIZE_S)
-                        .color(TEXT_SECONDARY),
+                        .color(text::SECONDARY),
                 )
                 .selectable(false),
             );
@@ -57,7 +59,7 @@ pub fn diagnostics_list(
                     egui::Label::new(
                         RichText::new(format!("{} {}", egui_phosphor::regular::X, error_count))
                             .size(FONT_SIZE_XS)
-                            .color(RED),
+                            .color(status::ERROR),
                     )
                     .selectable(false),
                 );
@@ -71,7 +73,7 @@ pub fn diagnostics_list(
                             warning_count
                         ))
                         .size(FONT_SIZE_XS)
-                        .color(AMBER),
+                        .color(status::WARNING),
                     )
                     .selectable(false),
                 );
@@ -83,7 +85,7 @@ pub fn diagnostics_list(
                         egui::Button::new(
                             RichText::new(egui_phosphor::regular::X)
                                 .size(FONT_SIZE_S)
-                                .color(TEXT_MUTED),
+                                .color(text::MUTED),
                         )
                         .frame(false),
                     )
@@ -123,7 +125,7 @@ fn diagnostic_row(
     let (row_rect, response) =
         ui.allocate_exact_size(Vec2::new(available, row_h), Sense::click());
 
-    let accent_color = if diagnostic.is_error() { RED } else { AMBER };
+    let accent_color = if diagnostic.is_error() { status::ERROR } else { status::WARNING };
     let icon = if diagnostic.is_error() {
         egui_phosphor::regular::X
     } else {
@@ -131,7 +133,7 @@ fn diagnostic_row(
     };
 
     let bg = if response.hovered() {
-        BG_HOVER
+        surface::HOVER
     } else {
         Color32::TRANSPARENT
     };
@@ -166,14 +168,14 @@ fn diagnostic_row(
     let galley = ui.painter().layout(
         msg.to_string(),
         font_id.clone(),
-        TEXT_PRIMARY,
+        text::PRIMARY,
         msg_max_width,
     );
 
     ui.painter().galley(
         egui::pos2(cursor_x, baseline_y - galley.size().y / 2.0),
         galley,
-        TEXT_PRIMARY,
+        text::PRIMARY,
     );
 
     ui.painter().text(
@@ -190,7 +192,7 @@ fn diagnostic_row(
                 egui::pos2(row_rect.min.x + SPACE_M, row_rect.bottom() - 0.5),
                 egui::pos2(row_rect.max.x - SPACE_S, row_rect.bottom() - 0.5),
             ],
-            Stroke::new(STROKE_WIDTH, BORDER),
+            Stroke::new(STROKE_WIDTH, border::DEFAULT),
         );
     }
 
@@ -213,8 +215,8 @@ fn phase_label(phase: DiagnosticPhase) -> &'static str {
 
 fn phase_color(phase: DiagnosticPhase) -> Color32 {
     match phase {
-        DiagnosticPhase::Parse => DIAG_PHASE_PARSE,
-        DiagnosticPhase::Build => DIAG_PHASE_RESOLVE,
-        DiagnosticPhase::Render => DIAG_PHASE_COMPILE,
+        DiagnosticPhase::Parse => diag::PHASE_PARSE,
+        DiagnosticPhase::Build => diag::PHASE_RESOLVE,
+        DiagnosticPhase::Render => diag::PHASE_COMPILE,
     }
 }

@@ -2,7 +2,7 @@
 
 use egui::{self, Color32, FontId, FontFamily, Key, Rect, Pos2, Vec2, Stroke, CornerRadius};
 
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, ROW_M};
 use animatix_analyzer::{CompletionItem, CompletionKind};
 
 /// State for the completion popup.

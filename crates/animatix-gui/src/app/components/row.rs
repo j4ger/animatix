@@ -1,6 +1,9 @@
 use egui::{Color32, Id, Rect, Response, Sense, Vec2};
 
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::semantic::{accent, surface, text};
+use crate::app::design_tokens::spatial::{ROW_M, SPACE_L, SPACE_S};
+use crate::app::design_tokens::spatial::component::ICON_SLOT_WIDTH;
+use crate::app::design_tokens::typography::{FONT_SIZE_M, FONT_SIZE_S};
 
 /// Response from a `Row`.
 pub struct RowResponse {
@@ -96,9 +99,9 @@ impl<'a> Row<'a> {
             ui.allocate_exact_size(Vec2::new(available, self.height), self.sense);
 
         let bg = if self.is_selected {
-            BG_WIDGET
+            surface::WIDGET
         } else if row_response.hovered() {
-            BG_HOVER
+            surface::HOVER
         } else {
             Color32::TRANSPARENT
         };
@@ -108,7 +111,7 @@ impl<'a> Row<'a> {
 
         if self.is_selected {
             let accent = Rect::from_min_size(row_rect.min, Vec2::new(2.0, row_rect.height()));
-            ui.painter().rect_filled(accent, 0.0, ACCENT_BLUE);
+            ui.painter().rect_filled(accent, 0.0, accent::PRIMARY);
         }
 
         let baseline_y = row_rect.center().y;
@@ -128,9 +131,9 @@ impl<'a> Row<'a> {
                 egui_phosphor::regular::CARET_RIGHT
             };
             let color = if chevron_response.hovered() {
-                TEXT_SECONDARY
+                text::SECONDARY
             } else {
-                TEXT_MUTED
+                text::MUTED
             };
             ui.painter().text(
                 egui::pos2(chevron_rect.center().x, baseline_y),
@@ -148,7 +151,7 @@ impl<'a> Row<'a> {
                 egui::pos2(cursor_x, row_rect.min.y),
                 Vec2::new(ICON_SLOT_WIDTH, self.height),
             );
-            let default_color = if self.is_selected { TEXT_PRIMARY } else { TEXT_MUTED };
+            let default_color = if self.is_selected { text::PRIMARY } else { text::MUTED };
             ui.painter().text(
                 egui::pos2(icon_rect.center().x, baseline_y),
                 egui::Align2::CENTER_CENTER,
@@ -163,9 +166,9 @@ impl<'a> Row<'a> {
 
         let label_color = self.label_color.unwrap_or({
             if self.is_selected {
-                TEXT_PRIMARY
+                text::PRIMARY
             } else {
-                TEXT_SECONDARY
+                text::SECONDARY
             }
         });
         ui.painter().text(

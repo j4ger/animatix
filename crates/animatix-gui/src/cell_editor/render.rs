@@ -1,6 +1,8 @@
 use egui::{Color32, Frame, Margin, RichText, ScrollArea, Stroke, Vec2};
 
-use crate::app::design_tokens as dt;
+use crate::app::design_tokens::semantic::{accent, surface, text, status};
+use crate::app::design_tokens::spatial::ROW_S;
+use crate::app::design_tokens::util::lerp_color;
 use crate::cell_editor::{Cell, CellDiagnostic, CellEditorState};
 use crate::highlighting::highlight_source;
 
@@ -35,9 +37,9 @@ fn cell_analyzer_diagnostics(
 /// Choose a left-border color based on diagnostic severity for this cell.
 fn diagnostic_border_color(index: usize, state: &CellEditorState) -> Option<Color32> {
     if state.error_cells.contains(&index) {
-        Some(dt::RED)
+        Some(status::ERROR)
     } else if state.warning_cells.contains(&index) {
-        Some(dt::AMBER)
+        Some(status::WARNING)
     } else {
         None
     }
@@ -121,7 +123,7 @@ fn header_btn(
     icon: &'static str,
     tooltip: &'static str,
 ) -> bool {
-    let size = Vec2::splat(dt::ROW_S);
+    let size = Vec2::splat(ROW_S);
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
 
     let t = ui.ctx().animate_value_with_time(
@@ -135,15 +137,15 @@ fn header_btn(
     );
 
     let bg = if response.is_pointer_button_down_on() {
-        dt::BG_ACTIVE
+        surface::ACTIVE
     } else {
-        dt::lerp_color(Color32::TRANSPARENT, dt::BG_HOVER, t)
+        lerp_color(Color32::TRANSPARENT, surface::HOVER, t)
     };
 
     let icon_color = if response.is_pointer_button_down_on() {
-        dt::TEXT_PRIMARY
+        text::PRIMARY
     } else {
-        dt::lerp_color(dt::TEXT_MUTED, dt::TEXT_PRIMARY, t)
+        lerp_color(text::MUTED, text::PRIMARY, t)
     };
 
     if bg != Color32::TRANSPARENT {
@@ -200,7 +202,7 @@ fn render_code_cell(
     let expanded = cell.is_expanded(index, &state.collapsed_cells);
     let bg = if highlighted { CODE_BG_HIGHLIGHT } else { CODE_BG };
     let border_color = if state.focused_cell == Some(index) {
-        Some(dt::ACCENT_BLUE)
+        Some(accent::PRIMARY)
     } else {
         diagnostic_border_color(index, state)
     };
@@ -243,12 +245,12 @@ fn render_code_cell(
                             ui.label(
                                 RichText::new(egui_phosphor::regular::CODE)
                                     .size(12.0)
-                                    .color(dt::TEXT_MUTED),
+                                    .color(text::MUTED),
                             );
                             ui.label(
                                 RichText::new(format!("Code {index}"))
                                     .size(11.0)
-                                    .color(dt::TEXT_MUTED),
+                                    .color(text::MUTED),
                             );
 
                             // Right-aligned actions
@@ -390,7 +392,7 @@ fn render_keyframe_cell(
         KEYFRAME_BG
     };
     let border_color = if state.focused_cell == Some(index) {
-        Some(dt::ACCENT_BLUE)
+        Some(accent::PRIMARY)
     } else {
         diagnostic_border_color(index, state)
     };
@@ -441,7 +443,7 @@ fn render_keyframe_cell(
                                     ui.label(
                                         RichText::new(egui_phosphor::regular::FILM_STRIP)
                                             .size(12.0)
-                                            .color(dt::TEXT_MUTED),
+                                            .color(text::MUTED),
                                     );
 
                                     // Editable timestamp
@@ -613,7 +615,7 @@ fn render_timestamp_editor(
                 .font(egui::FontId::monospace(16.0))
                 .desired_width(100.0)
                 .frame(Frame::NONE)
-                .text_color(dt::ACCENT_BLUE),
+                .text_color(accent::PRIMARY),
         );
 
         if ts_response.changed() {
@@ -647,7 +649,7 @@ fn render_timestamp_editor(
                 RichText::new(display)
                     .monospace()
                     .size(16.0)
-                    .color(dt::ACCENT_BLUE),
+                    .color(accent::PRIMARY),
             )
             .sense(egui::Sense::click()),
         );
@@ -687,8 +689,8 @@ fn draw_wavy_underlines(
 
     for d in diags {
         let color = match d.severity {
-            animatix_syntax::diagnostics::DiagnosticSeverity::Error => dt::RED,
-            animatix_syntax::diagnostics::DiagnosticSeverity::Warning => dt::AMBER,
+            animatix_syntax::diagnostics::DiagnosticSeverity::Error => status::ERROR,
+            animatix_syntax::diagnostics::DiagnosticSeverity::Warning => status::WARNING,
         };
 
         // Y position: baseline below the diagnostic line
@@ -776,14 +778,14 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
     let bg_idle = Color32::from_rgb(32, 36, 44);
     let bg_hover = Color32::from_rgb(50, 55, 66);
     let bg = if pressed {
-        dt::AMBER
+        status::WARNING
     } else {
-        crate::app::design_tokens::lerp_color(bg_idle, bg_hover, btn_t)
+        lerp_color(bg_idle, bg_hover, btn_t)
     };
 
     // Border (subtle idle, stronger hover)
     let border = if pressed {
-        dt::AMBER
+        status::WARNING
     } else {
         let border_a = egui::lerp(40.0..=100.0, btn_t) as u8 ;
         Color32::from_rgba_premultiplied(120, 130, 150, border_a)

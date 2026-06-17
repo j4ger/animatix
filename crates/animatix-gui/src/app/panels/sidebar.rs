@@ -10,7 +10,12 @@ use egui::{RichText, Vec2};
 use crate::app::commands::{ActionQueue, Command, ShellAction};
 use crate::app::components::{button, layout, row};
 use crate::app::components::context_menu::{render_menu, MenuEntry};
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::semantic::accent::{PRIMARY as semantic_accent_primary, CYAN as semantic_accent_cyan};
+use crate::app::design_tokens::semantic::status::WARNING as semantic_status_warning;
+use crate::app::design_tokens::semantic::text::{PRIMARY as semantic_text_primary, SECONDARY as semantic_text_secondary, MUTED as semantic_text_muted, DISABLED as semantic_text_disabled};
+use crate::app::design_tokens::spatial::{SPACE_1 as spatial_space_xs, SPACE_2 as spatial_space_s, SPACE_3 as spatial_space_m, SPACE_4 as spatial_space_l, SPACE_5 as spatial_space_xl, ROW_L as spatial_row_l};
+use crate::app::design_tokens::spatial::component::ICON_SLOT_WIDTH;
+use crate::app::design_tokens::typography::{FONT_SIZE_XS, FONT_SIZE_S, FONT_SIZE_L};
 use crate::app::icons::actor_icon_str;
 use crate::app::panels::SidebarTab;
 use crate::app::{FileTreeEntry, PreviewPaneState};
@@ -105,7 +110,7 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
         let prev_tab = *ctx.sidebar_tab;
 
         render_sidebar_tab_bar(ui, &mut active_tab);
-        ui.add_space(SPACE_M);
+        ui.add_space(spatial_space_m);
 
         // Slide-in animation on tab switch
         let content_offset_id = ui.id().with("sidebar_slide");
@@ -228,7 +233,7 @@ fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::Ui) {
     let mut filter = ui.data(|d| d.get_temp::<String>(filter_id)).unwrap_or_default();
 
     ui.horizontal(|ui| {
-        ui.add_space(SPACE_S);
+        ui.add_space(spatial_space_s);
         let response = ui.add(
             egui::TextEdit::singleline(&mut filter)
                 .hint_text("Filter files…")
@@ -243,9 +248,9 @@ fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::Ui) {
             ui.data_mut(|d| d.insert_temp(filter_id, String::new()));
         }
     });
-    ui.add_space(SPACE_S);
+    ui.add_space(spatial_space_s);
 
-    ui.add_space(SPACE_S);
+    ui.add_space(spatial_space_s);
 
     let filter_lower = filter.to_lowercase();
     let has_filter = !filter_lower.is_empty();
@@ -325,7 +330,7 @@ fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::Ui) {
                 } else {
                     egui_phosphor::regular::FILE
                 };
-                let color = if is_amx { Some(ACCENT_BLUE) } else { None };
+                let color = if is_amx { Some(semantic_accent_primary) } else { None };
                 (Some(file_icon), color)
             };
 
@@ -336,7 +341,7 @@ fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::Ui) {
                 .indent(entry.depth as f32 * ICON_SLOT_WIDTH)
                 .selected(is_selected)
                 .icon(icon)
-                .label_color(label_color.unwrap_or(TEXT_SECONDARY))
+                .label_color(label_color.unwrap_or(semantic_text_secondary))
                 .has_children(has_children)
                 .expanded(is_expanded)
                 .show(ui, row_id);
@@ -444,7 +449,7 @@ fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
                 let response = row::Row::new(scene_name)
                     .selected(is_active)
                     .icon(Some(egui_phosphor::regular::FILM_STRIP))
-                    .label_color(if is_active { ACCENT_BLUE } else { TEXT_SECONDARY })
+                    .label_color(if is_active { semantic_accent_primary } else { semantic_text_secondary })
                     .sense(egui::Sense::click_and_drag())
                     .show(ui, row_id);
 
@@ -465,7 +470,7 @@ fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
                         let line_y = if p.y < center { response.row_rect.top() } else { response.row_rect.bottom() };
                         ui.painter().line_segment(
                             [egui::pos2(response.row_rect.left(), line_y), egui::pos2(response.row_rect.right(), line_y)],
-                            egui::Stroke::new(2.0, ACCENT_BLUE),
+                            egui::Stroke::new(2.0, semantic_accent_primary),
                         );
                     }
                 }
@@ -497,24 +502,24 @@ fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
                 // Sub-label: duration + transition
                 if is_active {
                     ui.horizontal(|ui| {
-                        ui.add_space(ICON_SLOT_WIDTH + SPACE_S);
+                        ui.add_space(ICON_SLOT_WIDTH + spatial_space_s);
                         ui.label(
                             RichText::new(&duration_hint)
                                 .size(FONT_SIZE_XS)
-                                .color(TEXT_MUTED),
+                                .color(semantic_text_muted),
                         );
                     });
                     if let Some(hint) = transition_hint {
                         ui.horizontal(|ui| {
-                            ui.add_space(ICON_SLOT_WIDTH + SPACE_S);
+                            ui.add_space(ICON_SLOT_WIDTH + spatial_space_s);
                             ui.label(
                                 RichText::new(hint)
                                     .size(FONT_SIZE_XS)
-                                    .color(TEXT_MUTED),
+                                    .color(semantic_text_muted),
                             );
                         });
                     }
-                    ui.add_space(SPACE_S);
+                    ui.add_space(spatial_space_s);
                 }
             }
 
@@ -549,47 +554,47 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
     if ctx.is_composition {
         if let Some(scene_name) = ctx.active_scene.as_ref() {
             ui.horizontal(|ui| {
-                ui.add_space(SPACE_L);
+                ui.add_space(spatial_space_l);
                 ui.add(
                     egui::Label::new(
                         RichText::new(format!("{} {}", egui_phosphor::regular::FILM_STRIP, scene_name))
                             .size(FONT_SIZE_S)
-                            .color(TEXT_MUTED),
+                            .color(semantic_text_muted),
                     )
                     .selectable(false),
                 );
             });
-            ui.add_space(SPACE_S);
+            ui.add_space(spatial_space_s);
         }
     }
 
     let root_nodes = timeline.root_actor_labels();
     if root_nodes.is_empty() {
         ui.vertical_centered(|ui| {
-            ui.add_space(SPACE_XL * 3.0);
+            ui.add_space(spatial_space_xl * 3.0);
             ui.add(
                 egui::Label::new(
                     RichText::new(egui_phosphor::regular::FILM_STRIP)
-                        .size(ROW_L)
-                        .color(TEXT_MUTED),
+                        .size(spatial_row_l)
+                        .color(semantic_text_muted),
                 )
                 .selectable(false),
             );
-            ui.add_space(SPACE_M);
+            ui.add_space(spatial_space_m);
             ui.add(
                 egui::Label::new(
                     RichText::new("No actors in scene")
                         .size(FONT_SIZE_L)
-                        .color(TEXT_SECONDARY),
+                        .color(semantic_text_secondary),
                 )
                 .selectable(false),
             );
-            ui.add_space(SPACE_XL);
+            ui.add_space(spatial_space_xl);
             if ui
                 .button(
                     RichText::new(format!("{} Add Actor", egui_phosphor::regular::PLUS))
                         .size(FONT_SIZE_L)
-                        .color(ACCENT_BLUE),
+                        .color(semantic_accent_primary),
                 )
                 .clicked()
             {
@@ -656,7 +661,7 @@ fn render_actor_tree(
         (
             Some(egui_phosphor::regular::GHOST),
             "anon",
-            Some(TEXT_MUTED),
+            Some(semantic_text_muted),
         )
     } else {
         let icon = Some(actor_icon_str(track.kind));
@@ -672,7 +677,7 @@ fn render_actor_tree(
     } else {
         egui_phosphor::regular::EYE_CLOSED
     };
-    let eye_color = if is_visible { TEXT_SECONDARY } else { TEXT_DISABLED };
+    let eye_color = if is_visible { semantic_text_secondary } else { semantic_text_disabled };
 
     let is_locked = track.locked;
     let lock_icon = if is_locked {
@@ -680,24 +685,24 @@ fn render_actor_tree(
     } else {
         egui_phosphor::regular::LOCK_KEY_OPEN
     };
-    let lock_color = if is_locked { AMBER } else { TEXT_DISABLED };
+    let lock_color = if is_locked { semantic_status_warning } else { semantic_text_disabled };
 
     let response = row::Row::new(display_label)
         .indent(depth as f32 * ICON_SLOT_WIDTH)
         .selected(is_selected)
         .icon(icon)
-        .label_color(label_color.unwrap_or(if is_visible { TEXT_SECONDARY } else { TEXT_DISABLED }))
+        .label_color(label_color.unwrap_or(if is_visible { semantic_text_secondary } else { semantic_text_disabled }))
         .has_children(has_children)
         .expanded(is_expanded)
         .sense(egui::Sense::click_and_drag())
         .right(|ui| {
-            ui.spacing_mut().item_spacing = Vec2::new(SPACE_XS, 0.0);
+            ui.spacing_mut().item_spacing = Vec2::new(spatial_space_xs, 0.0);
             let eye_btn = button::icon_button_colored(
                 ui,
                 eye_icon,
                 if is_visible { "Hide layer" } else { "Show layer" },
                 eye_color,
-                TEXT_PRIMARY,
+                semantic_text_primary,
             );
             if eye_btn.clicked() {
                 commands.push_back(ShellAction::Command(Command::ToggleActorVisibility(label.to_string())));
@@ -707,7 +712,7 @@ fn render_actor_tree(
                 lock_icon,
                 if is_locked { "Unlock layer" } else { "Lock layer" },
                 lock_color,
-                TEXT_PRIMARY,
+                semantic_text_primary,
             );
             if lock_btn.clicked() {
                 commands.push_back(ShellAction::Command(Command::ToggleActorLock(label.to_string())));
@@ -731,7 +736,7 @@ fn render_actor_tree(
             ui.painter().rect_stroke(
                 response.row_rect.expand(1.0),
                 2,
-                egui::Stroke::new(1.5, ACCENT_BLUE),
+                egui::Stroke::new(1.5, semantic_accent_primary),
                 egui::StrokeKind::Outside,
             );
         }
@@ -751,7 +756,7 @@ fn render_actor_tree(
                     egui::pos2(response.row_rect.right(), response.row_rect.top() + 2.0),
                 ),
                 0.0,
-                ACCENT_BLUE,
+                semantic_accent_primary,
             );
         }
     }
@@ -886,7 +891,7 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
                 let row_id = ui.id().with(name);
                 let response = row::Row::new(name)
                     .icon(Some(egui_phosphor::regular::CUBE))
-                    .label_color(TEXT_SECONDARY)
+                    .label_color(semantic_text_secondary)
                     .show(ui, row_id);
 
                 if response.response.double_clicked() {
@@ -906,12 +911,12 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
 
                 // Jump-to-definition button (top-right of component row)
                 ui.horizontal(|ui| {
-                    ui.add_space(ICON_SLOT_WIDTH + SPACE_S + 2.0);
+                    ui.add_space(ICON_SLOT_WIDTH + spatial_space_s + 2.0);
                     if ui.add(
                         egui::Button::new(
                             egui::RichText::new(egui_phosphor::regular::ARROW_SQUARE_OUT)
                                 .size(11.0)
-                                .color(TEXT_MUTED),
+                                .color(semantic_text_muted),
                         )
                         .frame(false)
                     ).on_hover_text("Jump to definition").clicked() {
@@ -950,11 +955,11 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
 
                 if !slots.is_empty() {
                     ui.horizontal(|ui| {
-                        ui.add_space(ICON_SLOT_WIDTH + SPACE_S);
+                        ui.add_space(ICON_SLOT_WIDTH + spatial_space_s);
                         ui.label(
                             egui::RichText::new(format!("@slots: {}", slots.join(", ")))
                                 .size(FONT_SIZE_XS)
-                                .color(ACCENT_CYAN),
+                                .color(semantic_accent_cyan),
                         );
                     });
                 }
@@ -962,7 +967,7 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
                 // Show params as sub-label
                 if !entry.definition.params.is_empty() {
                     ui.horizontal(|ui| {
-                        ui.add_space(ICON_SLOT_WIDTH + SPACE_S);
+                        ui.add_space(ICON_SLOT_WIDTH + spatial_space_s);
                         let params: Vec<String> = entry
                             .definition
                             .params
@@ -975,7 +980,7 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
                         ui.label(
                             egui::RichText::new(params.join(", "))
                                 .size(FONT_SIZE_XS)
-                                .color(TEXT_MUTED),
+                                .color(semantic_text_muted),
                         );
                     });
                 }
@@ -1039,7 +1044,7 @@ fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
                     let filename = std::path::Path::new(path).file_name().and_then(|n| n.to_str()).unwrap_or(path);
                     let response = row::Row::new(filename)
                         .icon(Some(egui_phosphor::regular::IMAGE))
-                        .label_color(TEXT_SECONDARY)
+                        .label_color(semantic_text_secondary)
                         .show(ui, row_id);
 
                     if response.response.double_clicked() {
@@ -1061,7 +1066,7 @@ fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
                         }));
                     }
                 }
-                ui.add_space(SPACE_M);
+                ui.add_space(spatial_space_m);
             }
 
             if !svgs.is_empty() {
@@ -1071,7 +1076,7 @@ fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
                     let filename = std::path::Path::new(path).file_name().and_then(|n| n.to_str()).unwrap_or(path);
                     let response = row::Row::new(filename)
                         .icon(Some(egui_phosphor::regular::FILE_SVG))
-                        .label_color(TEXT_SECONDARY)
+                        .label_color(semantic_text_secondary)
                         .show(ui, row_id);
 
                     if response.response.double_clicked() {

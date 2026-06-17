@@ -1,6 +1,7 @@
 //! Grid overlay rendering for the preview canvas.
 
-use crate::app::design_tokens::{grid_line, STROKE_WIDTH};
+use crate::app::design_tokens::semantic::canvas::grid_line;
+use crate::app::design_tokens::spatial::STROKE_WIDTH;
 use animatix::timeline::SceneDimensions;
 use egui::{Pos2, Stroke};
 

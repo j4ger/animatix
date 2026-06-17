@@ -3,7 +3,16 @@
 use egui::{Color32, Pos2, Rect, RichText, Stroke, Vec2};
 
 use crate::app::commands::Command;
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::semantic::surface::{BASE as BG_BASE, WIDGET as BG_WIDGET};
+use crate::app::design_tokens::semantic::text::{PRIMARY as TEXT_PRIMARY, SECONDARY as TEXT_SECONDARY, MUTED as TEXT_MUTED};
+use crate::app::design_tokens::semantic::accent::{PRIMARY as ACCENT_BLUE, CYAN as ACCENT_CYAN};
+use crate::app::design_tokens::semantic::border::{DEFAULT as BORDER, HOVER as BORDER_HOVER};
+use crate::app::design_tokens::semantic::status::{SUCCESS as GREEN, ERROR as RED, WARNING as AMBER};
+use crate::app::design_tokens::semantic::category::ACTION as PURPLE;
+use crate::app::design_tokens::semantic::editor::SNIPPET_BLUE;
+use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
+use crate::app::design_tokens::spatial::{STROKE_WIDTH, RADIUS_XL, RADIUS_M, RADIUS_S, SPACE_L, SPACE_M, SPACE_S};
+use crate::app::design_tokens::typography::{FONT_SIZE_XL, FONT_SIZE_L, FONT_SIZE_M, FONT_SIZE_S, FONT_SIZE_XS};
 use crate::app::insertion::{InsertionContext, InsertionRequest};
 use crate::app::GuiShell;
 

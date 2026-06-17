@@ -7,7 +7,11 @@ use animatix_syntax::easing::Easing;
 use egui::Vec2;
 
 use crate::app::commands::{ActionQueue, Command, ShellAction};
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::semantic::status::WARNING as semantic_status_warning;
+use crate::app::design_tokens::semantic::surface::{HOVER as semantic_surface_hover, WIDGET as semantic_surface_widget};
+use crate::app::design_tokens::semantic::text::{MUTED as semantic_text_muted, SECONDARY as semantic_text_secondary};
+use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH, SPACE_1 as spatial_space_xs, SPACE_2 as spatial_space_s, ROW_S as spatial_row_s};
+use crate::app::design_tokens::typography::{FONT_SIZE_XS, FONT_SIZE_S};
 
 // ─── Data Structures ──────────────────────────────────────────────────────
 
@@ -73,7 +77,7 @@ pub(super) fn render_dope_sheet(
             );
         }
     }
-    ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_S);
+    ui.spacing_mut().item_spacing = Vec2::new(0.0, spatial_space_s);
 }
 
 // ─── Compact Track Row ────────────────────────────────────────────────────
@@ -101,26 +105,26 @@ fn render_compact_track_row(
     actor_label: &str,
     commands: &mut ActionQueue,
 ) {
-    let row_height = ROW_S;
+    let row_height = spatial_row_s;
     let available = ui.available_width();
     let (row_rect, response) =
         ui.allocate_exact_size(Vec2::new(available, row_height), egui::Sense::hover());
 
     if response.hovered() {
-        ui.painter().rect_filled(row_rect, 0.0, BG_HOVER);
+        ui.painter().rect_filled(row_rect, 0.0, semantic_surface_hover);
     }
 
     let baseline_y = row_rect.center().y;
     let duration_s = timeline.duration_seconds().max(0.1);
 
     // Icon
-    let mut cursor_x = row_rect.min.x + SPACE_S;
+    let mut cursor_x = row_rect.min.x + spatial_space_s;
     ui.painter().text(
         egui::pos2(cursor_x + 7.0, baseline_y),
         egui::Align2::CENTER_CENTER,
         group.icon,
         egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
-        TEXT_MUTED,
+        semantic_text_muted,
     );
     cursor_x += 18.0;
 
@@ -130,36 +134,36 @@ fn render_compact_track_row(
         egui::Align2::LEFT_CENTER,
         track.name,
         egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-        TEXT_SECONDARY,
+        semantic_text_secondary,
     );
 
     // Keyframe count badge (right-aligned)
     let count = track.keyframes.len();
     let count_label = format!("{} {}", egui_phosphor::regular::DIAMOND, count);
     ui.painter().text(
-        egui::pos2(row_rect.max.x - SPACE_S, baseline_y),
+        egui::pos2(row_rect.max.x - spatial_space_s, baseline_y),
         egui::Align2::RIGHT_CENTER,
         count_label,
         egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
-        TEXT_MUTED,
+        semantic_text_muted,
     );
 
     // Mini timeline strip (subtle, behind everything)
     let strip_left = cursor_x + 70.0_f32.min(available * 0.3);
-    let strip_right = row_rect.max.x - SPACE_S - 50.0;
+    let strip_right = row_rect.max.x - spatial_space_s - 50.0;
     if strip_right > strip_left + 20.0 {
         let strip_rect = egui::Rect::from_min_max(
             egui::pos2(strip_left, row_rect.min.y + 5.0),
             egui::pos2(strip_right, row_rect.max.y - 5.0),
         );
-        ui.painter().rect_filled(strip_rect, RADIUS_S, BG_WIDGET);
+        ui.painter().rect_filled(strip_rect, RADIUS_S, semantic_surface_widget);
 
         // Keyframe dots on the strip
         for (time_ms, value, easing) in &track.keyframes {
             let fraction = ((*time_ms as f64 / 1000.0) / duration_s).clamp(0.0, 1.0);
             let x = egui::lerp(strip_rect.left()..=strip_rect.right(), fraction as f32);
             let is_current = *time_ms == current_time_ms;
-            let color = if is_current { AMBER } else { TEXT_MUTED };
+            let color = if is_current { semantic_status_warning } else { semantic_text_muted };
             let size = if is_current { 3.5 } else { 2.5 };
             let dot_pos = egui::pos2(x, strip_rect.center().y);
             let dot_rect = egui::Rect::from_center_size(dot_pos, egui::vec2(8.0, 8.0));
@@ -192,11 +196,11 @@ fn render_compact_track_row(
             // Per-dot hover tooltip with value and easing info
             dot_response.on_hover_ui(|ui| {
                 ui.label(format!("{:.2}s", *time_ms as f64 / 1000.0));
-                ui.label(egui::RichText::new(value).size(FONT_SIZE_XS).color(TEXT_SECONDARY));
+                ui.label(egui::RichText::new(value).size(FONT_SIZE_XS).color(semantic_text_secondary));
                 ui.label(
                     egui::RichText::new(format!("ease: {}", easing_display_name(*easing)))
                         .size(FONT_SIZE_XS)
-                        .color(TEXT_MUTED),
+                        .color(semantic_text_muted),
                 );
             });
         }
@@ -211,7 +215,7 @@ fn render_compact_track_row(
                     egui::pos2(playhead_x, strip_rect.top()),
                     egui::pos2(playhead_x, strip_rect.bottom()),
                 ],
-                egui::Stroke::new(STROKE_WIDTH, AMBER),
+                egui::Stroke::new(STROKE_WIDTH, semantic_status_warning),
             );
         }
 
@@ -237,13 +241,13 @@ fn render_compact_track_row(
             ui.label(
                 egui::RichText::new(format!("{} keyframes", track.keyframes.len()))
                     .size(FONT_SIZE_XS)
-                    .color(TEXT_MUTED),
+                    .color(semantic_text_muted),
             );
         });
-        ui.add_space(SPACE_XS);
+        ui.add_space(spatial_space_xs);
         for (time_ms, value, easing) in &track.keyframes {
             let is_current = *time_ms == current_time_ms;
-            let color = if is_current { AMBER } else { TEXT_SECONDARY };
+            let color = if is_current { semantic_status_warning } else { semantic_text_secondary };
             ui.horizontal(|ui| {
                 let icon = egui_phosphor::regular::DIAMOND;
                 ui.label(egui::RichText::new(icon).size(FONT_SIZE_XS).color(color));
@@ -253,11 +257,11 @@ fn render_compact_track_row(
                         .size(FONT_SIZE_XS)
                         .color(color),
                 );
-                ui.label(egui::RichText::new(value).size(FONT_SIZE_XS).color(TEXT_SECONDARY));
+                ui.label(egui::RichText::new(value).size(FONT_SIZE_XS).color(semantic_text_secondary));
                 ui.label(
                     egui::RichText::new(easing_display_name(*easing))
                         .size(FONT_SIZE_XS)
-                        .color(TEXT_MUTED),
+                        .color(semantic_text_muted),
                 );
             });
         }

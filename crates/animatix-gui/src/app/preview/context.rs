@@ -8,7 +8,13 @@ use std::collections::{HashMap, HashSet};
 use egui::{Pos2, Vec2};
 
 use crate::app::commands::{ActionQueue, Command, ShellAction, PropertyEdit, PropertyValue as GuiPropertyValue};
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
+use crate::app::design_tokens::semantic::status::{WARNING as AMBER, SUCCESS as GREEN};
+use crate::app::design_tokens::semantic::surface::SURFACE as BG_SURFACE;
+use crate::app::design_tokens::semantic::text::{MUTED as TEXT_MUTED, PRIMARY as TEXT_PRIMARY};
+use crate::app::design_tokens::spatial::{RADIUS_M, SPACE_S, STROKE_WIDTH};
+use crate::app::design_tokens::spatial::preview::{HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS, MIN_ZOOM as PREVIEW_MIN_ZOOM};
+use crate::app::design_tokens::typography::{FONT_SIZE_S, FONT_SIZE_XS};
 use crate::app::preview::{self, selection, ActorProps, DragState};
 use crate::app::preview::performance::PerformanceMetrics;
 use crate::app::{PreviewPaneState, InlineTextEditState};

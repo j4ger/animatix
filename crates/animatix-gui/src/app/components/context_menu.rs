@@ -26,7 +26,12 @@
 
 use egui::{Align2, Color32, CornerRadius, Id, Margin, Pos2, Rect, Sense, Stroke, Ui, Vec2};
 
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::semantic::{accent, border, overlay, surface, text};
+use crate::app::design_tokens::spatial::{
+    menu as menu_spatial, ROW_M, ROW_S, SPACE_L, SPACE_M, SPACE_S, STROKE_WIDTH,
+};
+use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S};
+use crate::app::design_tokens::typography::{FONT_SIZE_M, FONT_SIZE_S, FONT_SIZE_XS};
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -108,10 +113,10 @@ impl MenuLayout {
         }
         let mut text_left = SPACE_M;
         if check_col {
-            text_left += MENU_CHECK_WIDTH + MENU_ICON_GAP;
+            text_left += menu_spatial::CHECK_WIDTH + MENU_ICON_GAP;
         }
         if icon_col {
-            text_left += MENU_ICON_WIDTH + MENU_ICON_GAP;
+            text_left += menu_spatial::ICON_WIDTH + MENU_ICON_GAP;
         }
         Self {
             check_col,
@@ -128,11 +133,11 @@ impl MenuLayout {
 ///
 /// Returns the index of the clicked item, or `None` if nothing was clicked.
 pub fn render_menu(ui: &mut Ui, entries: &[MenuEntry]) -> Option<usize> {
-    ui.set_min_width(MENU_MIN_WIDTH);
+    ui.set_min_width(menu_spatial::MIN_WIDTH);
 
     let layout = MenuLayout::from_entries(entries);
     let mut clicked_index = None;
-    let mut content_width = MENU_MIN_WIDTH;
+    let mut content_width = menu_spatial::MIN_WIDTH;
 
     // First pass: measure content width
     for entry in entries {
@@ -222,15 +227,15 @@ pub fn render_floating_menu(
 
 fn menu_frame() -> egui::Frame {
     egui::Frame::new()
-        .fill(BG_SURFACE)
-        .stroke(Stroke::new(STROKE_WIDTH, BORDER))
+        .fill(surface::SURFACE)
+        .stroke(Stroke::new(STROKE_WIDTH, border::DEFAULT))
         .corner_radius(CornerRadius::same(RADIUS_M as u8))
         .inner_margin(Margin::same(SPACE_S as i8))
         .shadow(egui::Shadow {
-            offset: [0, MENU_SHADOW_OFFSET_Y],
-            blur: MENU_SHADOW_BLUR as u8,
+            offset: [0, menu_spatial::SHADOW_OFFSET_Y],
+            blur: menu_spatial::SHADOW_BLUR as u8,
             spread: 0,
-            color: shadow_direct(),
+            color: overlay::shadow_direct(),
         })
 }
 
@@ -253,9 +258,9 @@ fn render_menu_item(
     let bg = if !enabled {
         Color32::TRANSPARENT
     } else if checked {
-        ACCENT_BLUE
+        accent::PRIMARY
     } else if response.hovered() {
-        BG_HOVER
+        surface::HOVER
     } else {
         Color32::TRANSPARENT
     };
@@ -271,14 +276,14 @@ fn render_menu_item(
     if layout.check_col {
         if checked && icon.is_none() {
             ui.painter().text(
-                egui::pos2(cursor_x + MENU_CHECK_WIDTH / 2.0, baseline_y),
+                egui::pos2(cursor_x + menu_spatial::CHECK_WIDTH / 2.0, baseline_y),
                 Align2::CENTER_CENTER,
                 egui_phosphor::regular::CHECK,
                 egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-                TEXT_PRIMARY,
+                text::PRIMARY,
             );
         }
-        cursor_x += MENU_CHECK_WIDTH + MENU_ICON_GAP;
+        cursor_x += menu_spatial::CHECK_WIDTH + MENU_ICON_GAP;
     }
 
     // ── Icon column ──
@@ -286,31 +291,31 @@ fn render_menu_item(
         if let Some(icon_str) = icon {
             let icon_color = if enabled {
                 if checked || response.hovered() {
-                    TEXT_PRIMARY
+                    text::PRIMARY
                 } else {
-                    TEXT_SECONDARY
+                    text::SECONDARY
                 }
             } else {
-                TEXT_DISABLED
+                text::DISABLED
             };
             ui.painter().text(
-                egui::pos2(cursor_x + MENU_ICON_WIDTH / 2.0, baseline_y),
+                egui::pos2(cursor_x + menu_spatial::ICON_WIDTH / 2.0, baseline_y),
                 Align2::CENTER_CENTER,
                 icon_str,
                 egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
                 icon_color,
             );
         }
-        cursor_x += MENU_ICON_WIDTH + MENU_ICON_GAP;
+        cursor_x += menu_spatial::ICON_WIDTH + MENU_ICON_GAP;
     }
 
     // ── Label ──
     let label_color = if !enabled {
-        TEXT_DISABLED
+        text::DISABLED
     } else if checked || response.hovered() {
-        TEXT_PRIMARY
+        text::PRIMARY
     } else {
-        TEXT_SECONDARY
+        text::SECONDARY
     };
 
     ui.painter().text(
@@ -324,9 +329,9 @@ fn render_menu_item(
     // ── Shortcut (right-aligned) ──
     if let Some(sc) = shortcut {
         let shortcut_color = if !enabled {
-            TEXT_DISABLED
+            text::DISABLED
         } else {
-            TEXT_MUTED
+            text::MUTED
         };
         ui.painter().text(
             egui::pos2(rect.max.x - SPACE_M, baseline_y),
@@ -353,7 +358,7 @@ fn render_menu_header(ui: &mut Ui, text: &str, content_width: f32) {
         Align2::LEFT_CENTER,
         text.to_uppercase(),
         egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
-        TEXT_MUTED,
+        text::MUTED,
     );
 }
 
@@ -369,6 +374,6 @@ fn render_menu_separator(ui: &mut Ui, content_width: f32) {
             egui::pos2(rect.min.x + SPACE_M, y),
             egui::pos2(rect.max.x - SPACE_M, y),
         ],
-        Stroke::new(STROKE_WIDTH, BORDER),
+        Stroke::new(STROKE_WIDTH, border::DEFAULT),
     );
 }

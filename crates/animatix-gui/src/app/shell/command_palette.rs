@@ -2,7 +2,13 @@
 
 use crate::app::commands::{Command, ShellAction};
 use crate::app::commands::ViewAction;
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::semantic::surface::{BASE as BG_BASE, WIDGET as BG_WIDGET};
+use crate::app::design_tokens::semantic::text::{PRIMARY as TEXT_PRIMARY, MUTED as TEXT_MUTED};
+use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
+use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
+use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
+use crate::app::design_tokens::spatial::{STROKE_WIDTH, RADIUS_XL, RADIUS_M, SPACE_XL, SPACE_M, SPACE_S, ROW_M};
+use crate::app::design_tokens::typography::{FONT_SIZE_M, FONT_SIZE_S};
 use crate::app::GuiShell;
 
 struct PaletteItem {

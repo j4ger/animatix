@@ -2,7 +2,8 @@ use super::*;
 use crate::app::audio::AudioEngine;
 use crate::app::commands::{Command, ShellAction, ViewAction};
 use crate::app::persistence::{load_app_state, load_workspace_persistence, persistence_path, save_app_state, clear_app_state};
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::semantic::{accent, border, surface, text};
+use crate::app::design_tokens::spatial::{self, component::ICON_SLOT_WIDTH};
 use eframe::egui;
 
 pub fn run_gui(path: Option<PathBuf>) {
@@ -450,7 +451,7 @@ impl AnimatixApp {
 
 impl eframe::App for AnimatixApp {
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        let [r, g, b, a] = BG_BASE.to_normalized_gamma_f32();
+        let [r, g, b, a] = surface::BASE.to_normalized_gamma_f32();
         [r, g, b, a]
     }
 
@@ -534,56 +535,54 @@ fn live_preview_status(preview: &PreviewPaneState, active_scene: Option<&str>) -
 }
 
 fn install_theme(ctx: &egui::Context) {
-    const WIDGET_HOVER: Color32 = BG_HOVER;
-
     let mut style = (*ctx.global_style()).clone();
 
     // Tighter spacing
-    style.spacing.item_spacing = Vec2::new(PAD_S, PAD_S);
-    style.spacing.button_padding = Vec2::new(PAD_L, PAD_S);
-    style.spacing.window_margin = egui::Margin::same(PAD_L as i8);
+    style.spacing.item_spacing = Vec2::new(spatial::SPACE_2, spatial::SPACE_2);
+    style.spacing.button_padding = Vec2::new(spatial::SPACE_4, spatial::SPACE_2);
+    style.spacing.window_margin = egui::Margin::same(spatial::SPACE_4 as i8);
     style.spacing.indent = ICON_SLOT_WIDTH;
 
     // Background hierarchy (darkest to lightest)
-    style.visuals.panel_fill = BG_PANEL;
-    style.visuals.window_fill = BG_PANEL;
-    style.visuals.extreme_bg_color = BG_BASE;
-    style.visuals.faint_bg_color = BG_SURFACE;
+    style.visuals.panel_fill = surface::PANEL;
+    style.visuals.window_fill = surface::PANEL;
+    style.visuals.extreme_bg_color = surface::BASE;
+    style.visuals.faint_bg_color = surface::SURFACE;
 
     // Widget states
-    style.visuals.widgets.noninteractive.bg_fill = BG_SURFACE;
-    style.visuals.widgets.noninteractive.weak_bg_fill = BG_SURFACE;
-    style.visuals.widgets.noninteractive.bg_stroke = Stroke::new(STROKE_WIDTH, BORDER);
-    style.visuals.widgets.noninteractive.fg_stroke = Stroke::new(STROKE_WIDTH, TEXT_SECONDARY);
-    style.visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(4);
+    style.visuals.widgets.noninteractive.bg_fill = surface::SURFACE;
+    style.visuals.widgets.noninteractive.weak_bg_fill = surface::SURFACE;
+    style.visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(spatial::STROKE_WIDTH, border::DEFAULT);
+    style.visuals.widgets.noninteractive.fg_stroke = egui::Stroke::new(spatial::STROKE_WIDTH, text::SECONDARY);
+    style.visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(spatial::RADIUS_M as u8);
 
-    style.visuals.widgets.inactive.bg_fill = BG_WIDGET;
-    style.visuals.widgets.inactive.weak_bg_fill = BG_WIDGET;
-    style.visuals.widgets.inactive.bg_stroke = Stroke::new(STROKE_WIDTH, BORDER);
-    style.visuals.widgets.inactive.fg_stroke = Stroke::new(STROKE_WIDTH, TEXT_PRIMARY);
-    style.visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(4);
+    style.visuals.widgets.inactive.bg_fill = surface::WIDGET;
+    style.visuals.widgets.inactive.weak_bg_fill = surface::WIDGET;
+    style.visuals.widgets.inactive.bg_stroke = egui::Stroke::new(spatial::STROKE_WIDTH, border::DEFAULT);
+    style.visuals.widgets.inactive.fg_stroke = egui::Stroke::new(spatial::STROKE_WIDTH, text::PRIMARY);
+    style.visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(spatial::RADIUS_M as u8);
 
-    style.visuals.widgets.hovered.bg_fill = WIDGET_HOVER;
-    style.visuals.widgets.hovered.weak_bg_fill = WIDGET_HOVER;
-    style.visuals.widgets.hovered.bg_stroke = Stroke::new(STROKE_WIDTH, ACCENT_BLUE);
-    style.visuals.widgets.hovered.fg_stroke = Stroke::new(STROKE_WIDTH, TEXT_PRIMARY);
-    style.visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(4);
+    style.visuals.widgets.hovered.bg_fill = surface::HOVER;
+    style.visuals.widgets.hovered.weak_bg_fill = surface::HOVER;
+    style.visuals.widgets.hovered.bg_stroke = egui::Stroke::new(spatial::STROKE_WIDTH, accent::PRIMARY);
+    style.visuals.widgets.hovered.fg_stroke = egui::Stroke::new(spatial::STROKE_WIDTH, text::PRIMARY);
+    style.visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(spatial::RADIUS_M as u8);
 
-    style.visuals.widgets.active.bg_fill = BG_ACTIVE;
-    style.visuals.widgets.active.weak_bg_fill = BG_ACTIVE;
-    style.visuals.widgets.active.bg_stroke = Stroke::new(STROKE_WIDTH, ACCENT_BLUE);
-    style.visuals.widgets.active.fg_stroke = Stroke::new(STROKE_WIDTH, TEXT_PRIMARY);
-    style.visuals.widgets.active.corner_radius = egui::CornerRadius::same(4);
+    style.visuals.widgets.active.bg_fill = surface::ACTIVE;
+    style.visuals.widgets.active.weak_bg_fill = surface::ACTIVE;
+    style.visuals.widgets.active.bg_stroke = egui::Stroke::new(spatial::STROKE_WIDTH, accent::PRIMARY);
+    style.visuals.widgets.active.fg_stroke = egui::Stroke::new(spatial::STROKE_WIDTH, text::PRIMARY);
+    style.visuals.widgets.active.corner_radius = egui::CornerRadius::same(spatial::RADIUS_M as u8);
 
     // Selection
-    style.visuals.selection.bg_fill = accent_selection();
-    style.visuals.selection.stroke = Stroke::new(STROKE_WIDTH, ACCENT_BLUE);
+    style.visuals.selection.bg_fill = accent::selection();
+    style.visuals.selection.stroke = egui::Stroke::new(spatial::STROKE_WIDTH, accent::PRIMARY);
 
     // Text colors
-    style.visuals.override_text_color = Some(TEXT_PRIMARY);
+    style.visuals.override_text_color = Some(text::PRIMARY);
 
     // Strikethrough / separator
-    style.visuals.widgets.noninteractive.bg_stroke = Stroke::new(STROKE_WIDTH, BG_WIDGET);
+    style.visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(spatial::STROKE_WIDTH, surface::WIDGET);
 
     // Disable selectable labels globally (we handle selection manually)
     style.interaction.selectable_labels = false;

@@ -3,7 +3,7 @@ use super::{
         diagnostics_summary_color, fit_preview, has_source_load_failure, preview,
         primary_diagnostic_phase,
     };
-    use crate::app::design_tokens::DIAGNOSTIC_RED;
+    use crate::app::design_tokens::semantic::status::DIAGNOSTIC_ERROR;
     use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
     use animatix::timeline::SceneDimensions;
     use egui::Vec2;
@@ -97,7 +97,7 @@ use super::{
 
         assert_eq!(
             diagnostics_summary_color(&diagnostics),
-            DIAGNOSTIC_RED
+            DIAGNOSTIC_ERROR
         );
     }
 

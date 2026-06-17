@@ -1,6 +1,8 @@
 use egui::{Color32, Response, Sense, Vec2};
 
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::semantic::{accent, border, surface, text};
+use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, ROW_L, ROW_M, SPACE_M, STROKE_WIDTH};
+use crate::app::design_tokens::typography::{FONT_SIZE_M, FONT_SIZE_S};
 
 /// A small square icon button with hover highlight.
 pub fn icon_button(
@@ -12,13 +14,13 @@ pub fn icon_button(
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
 
     if response.hovered() || response.is_pointer_button_down_on() {
-        ui.painter().rect_filled(rect, RADIUS_M, BG_HOVER);
+        ui.painter().rect_filled(rect, RADIUS_M, surface::HOVER);
     }
 
     let icon_color = if response.hovered() {
-        TEXT_PRIMARY
+        text::PRIMARY
     } else {
-        TEXT_SECONDARY
+        text::SECONDARY
     };
 
     ui.painter().text(
@@ -47,7 +49,7 @@ pub fn icon_button_colored(
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
 
     if response.hovered() || response.is_pointer_button_down_on() {
-        ui.painter().rect_filled(rect, RADIUS_M, BG_HOVER);
+        ui.painter().rect_filled(rect, RADIUS_M, surface::HOVER);
     }
 
     let icon_color = if response.hovered() { hover_color } else { color };
@@ -94,11 +96,11 @@ pub fn toolbar_toggle_button(
     let font_id = egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional);
     let icon_font = egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional);
 
-    let icon_galley = ui.painter().layout_no_wrap(icon.to_string(), icon_font.clone(), TEXT_PRIMARY);
+    let icon_galley = ui.painter().layout_no_wrap(icon.to_string(), icon_font.clone(), text::PRIMARY);
     let mut width = icon_galley.size().x + SPACE_M * 2.0;
     let mut label_galley = None;
     if let Some(l) = label.filter(|_| has_label) {
-        let galley = ui.painter().layout_no_wrap(format!("  {}", l), font_id.clone(), TEXT_PRIMARY);
+        let galley = ui.painter().layout_no_wrap(format!("  {}", l), font_id.clone(), text::PRIMARY);
         width += galley.size().x;
         label_galley = Some(galley);
     }
@@ -108,9 +110,9 @@ pub fn toolbar_toggle_button(
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
 
     let bg = if is_active {
-        BG_ACTIVE
+        surface::ACTIVE
     } else if response.hovered() || response.is_pointer_button_down_on() {
-        BG_HOVER
+        surface::HOVER
     } else {
         Color32::TRANSPARENT
     };
@@ -123,15 +125,15 @@ pub fn toolbar_toggle_button(
             egui::pos2(rect.min.x + 4.0, rect.max.y - 2.0),
             Vec2::new(rect.width() - 8.0, 2.0),
         );
-        ui.painter().rect_filled(accent_rect, RADIUS_S, ACCENT_BLUE);
+        ui.painter().rect_filled(accent_rect, RADIUS_S, accent::PRIMARY);
     }
 
     let icon_color = if is_active {
-        ACCENT_BLUE
+        accent::PRIMARY
     } else if response.hovered() {
-        TEXT_PRIMARY
+        text::PRIMARY
     } else {
-        TEXT_SECONDARY
+        text::SECONDARY
     };
 
     let mut cursor_x = rect.min.x + SPACE_M;
@@ -147,7 +149,7 @@ pub fn toolbar_toggle_button(
     cursor_x += icon_galley.size().x;
 
     if let Some(galley) = label_galley {
-        let label_color = if is_active { ACCENT_BLUE } else if response.hovered() { TEXT_PRIMARY } else { TEXT_SECONDARY };
+        let label_color = if is_active { accent::PRIMARY } else if response.hovered() { text::PRIMARY } else { text::SECONDARY };
         ui.painter().galley(
             egui::pos2(cursor_x, baseline_y - galley.size().y / 2.0),
             galley,
@@ -159,7 +161,7 @@ pub fn toolbar_toggle_button(
         ui.painter().rect_stroke(
             rect.shrink(1.0),
             RADIUS_M,
-            egui::Stroke::new(STROKE_WIDTH, ACCENT_BLUE),
+            egui::Stroke::new(STROKE_WIDTH, accent::PRIMARY),
             egui::StrokeKind::Inside,
         );
     }
@@ -179,11 +181,11 @@ pub fn toolbar_action_button(
     let font_id = egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional);
     let icon_font = egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional);
 
-    let icon_galley = ui.painter().layout_no_wrap(icon.to_string(), icon_font.clone(), TEXT_PRIMARY);
+    let icon_galley = ui.painter().layout_no_wrap(icon.to_string(), icon_font.clone(), text::PRIMARY);
     let mut width = icon_galley.size().x + SPACE_M * 2.0;
     let mut label_galley = None;
     if let Some(l) = label.filter(|_| has_label) {
-        let galley = ui.painter().layout_no_wrap(format!("  {}", l), font_id.clone(), TEXT_PRIMARY);
+        let galley = ui.painter().layout_no_wrap(format!("  {}", l), font_id.clone(), text::PRIMARY);
         width += galley.size().x;
         label_galley = Some(galley);
     }
@@ -193,9 +195,9 @@ pub fn toolbar_action_button(
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
 
     let bg = if response.is_pointer_button_down_on() {
-        BG_ACTIVE
+        surface::ACTIVE
     } else if response.hovered() {
-        BG_HOVER
+        surface::HOVER
     } else {
         Color32::TRANSPARENT
     };
@@ -204,9 +206,9 @@ pub fn toolbar_action_button(
     }
 
     let icon_color = if response.hovered() || response.is_pointer_button_down_on() {
-        TEXT_PRIMARY
+        text::PRIMARY
     } else {
-        TEXT_SECONDARY
+        text::SECONDARY
     };
 
     let mut cursor_x = rect.min.x + SPACE_M;
@@ -223,9 +225,9 @@ pub fn toolbar_action_button(
 
     if let Some(galley) = label_galley {
         let label_color = if response.hovered() || response.is_pointer_button_down_on() {
-            TEXT_PRIMARY
+            text::PRIMARY
         } else {
-            TEXT_SECONDARY
+            text::SECONDARY
         };
         ui.painter().galley(
             egui::pos2(cursor_x, baseline_y - galley.size().y / 2.0),
@@ -238,7 +240,7 @@ pub fn toolbar_action_button(
         ui.painter().rect_stroke(
             rect.shrink(1.0),
             RADIUS_M,
-            egui::Stroke::new(STROKE_WIDTH, ACCENT_BLUE),
+            egui::Stroke::new(STROKE_WIDTH, accent::PRIMARY),
             egui::StrokeKind::Inside,
         );
     }
@@ -252,6 +254,6 @@ pub fn toolbar_separator(ui: &mut egui::Ui) {
     let (rect, _) = ui.allocate_exact_size(Vec2::new(1.0, height), Sense::hover());
     ui.painter().line_segment(
         [egui::pos2(rect.center().x, rect.min.y), egui::pos2(rect.center().x, rect.max.y)],
-        egui::Stroke::new(STROKE_WIDTH, BORDER),
+        egui::Stroke::new(STROKE_WIDTH, border::DEFAULT),
     );
 }

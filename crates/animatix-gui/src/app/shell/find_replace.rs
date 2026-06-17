@@ -1,7 +1,13 @@
 //! Find / Replace dialog for the source editor.
 
 use crate::app::commands::Command;
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::semantic::surface::{BASE as BG_BASE, WIDGET as BG_WIDGET};
+use crate::app::design_tokens::semantic::text::{PRIMARY as TEXT_PRIMARY, SECONDARY as TEXT_SECONDARY};
+use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
+use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
+use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
+use crate::app::design_tokens::spatial::{STROKE_WIDTH, RADIUS_XL, SPACE_XL, SPACE_M, SPACE_S, ROW_M};
+use crate::app::design_tokens::typography::{FONT_SIZE_XL, FONT_SIZE_S};
 use crate::app::GuiShell;
 
 impl GuiShell {

@@ -1,19 +1,22 @@
 use egui::{CornerRadius, Margin, Rect, Response, Stroke, Vec2};
 
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::semantic::{accent, border, overlay, surface, text};
+use crate::app::design_tokens::spatial::component::{PILL_TAB_GAP, PILL_TAB_HEIGHT};
+use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, ROW_S, SPACE_M, SPACE_S, SPACE_XL, STROKE_WIDTH};
+use crate::app::design_tokens::typography::{FONT_SIZE_L, FONT_SIZE_M, FONT_SIZE_S, FONT_SIZE_XS};
 
 /// A styled container with our surface background, rounded corners,
 /// and layered shadow for depth.
 pub fn card(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::new()
-        .fill(BG_SURFACE)
+        .fill(surface::SURFACE)
         .corner_radius(CornerRadius::same(RADIUS_M as u8))
         .inner_margin(Margin::same(SPACE_M as i8))
         .shadow(egui::Shadow {
             offset: [0, 2],
             blur: 6,
             spread: 0,
-            color: shadow_ambient(),
+            color: overlay::shadow_ambient(),
         })
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
@@ -48,13 +51,13 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
             egui::pos2(paint_x, paint_y),
             Vec2::new(available, header_height),
         );
-        ui.painter().rect_filled(bg_rect, RADIUS_M, BG_SURFACE);
+        ui.painter().rect_filled(bg_rect, RADIUS_M, surface::SURFACE);
         ui.painter().line_segment(
             [
                 egui::pos2(paint_x, paint_y + header_height),
                 egui::pos2(paint_x + available, paint_y + header_height),
             ],
-            egui::Stroke::new(STROKE_WIDTH, BORDER),
+            egui::Stroke::new(STROKE_WIDTH, border::DEFAULT),
         );
     }
 
@@ -62,7 +65,7 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
         egui::pos2(paint_x, paint_y + SPACE_S),
         Vec2::new(24.0, line_h),
     );
-    ui.painter().rect_filled(line_rect, RADIUS_S, ACCENT_BLUE);
+    ui.painter().rect_filled(line_rect, RADIUS_S, accent::PRIMARY);
 
     let row_rect = Rect::from_min_size(
         egui::pos2(paint_x, paint_y + SPACE_S + line_h + SPACE_S),
@@ -76,7 +79,7 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
         egui::Align2::CENTER_CENTER,
         icon,
         egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-        TEXT_MUTED,
+        text::MUTED,
     );
     cursor_x += 18.0;
 
@@ -85,7 +88,7 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
         egui::Align2::LEFT_CENTER,
         title.to_uppercase(),
         egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
-        TEXT_MUTED,
+        text::MUTED,
     );
 
     if let Some(n) = count {
@@ -94,7 +97,7 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
             egui::Align2::RIGHT_CENTER,
             n.to_string(),
             egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
-            TEXT_MUTED,
+            text::MUTED,
         );
     }
 }
@@ -107,20 +110,20 @@ pub fn empty_state(ui: &mut egui::Ui, icon: &str, title: &str, subtitle: &str) {
     ui.vertical_centered(|ui| {
         ui.add_space(SPACE_XL * 3.0);
         ui.add(
-            egui::Label::new(egui::RichText::new(icon).size(EMPTY_STATE_ICON_SIZE).color(TEXT_MUTED))
+            egui::Label::new(egui::RichText::new(icon).size(EMPTY_STATE_ICON_SIZE).color(text::MUTED))
                 .selectable(false),
         );
         ui.add_space(SPACE_M);
         ui.add(
             egui::Label::new(
-                egui::RichText::new(title).size(FONT_SIZE_L).color(TEXT_SECONDARY),
+                egui::RichText::new(title).size(FONT_SIZE_L).color(text::SECONDARY),
             )
             .selectable(false),
         );
         ui.add_space(SPACE_S);
         ui.add(
             egui::Label::new(
-                egui::RichText::new(subtitle).size(FONT_SIZE_M).color(TEXT_MUTED),
+                egui::RichText::new(subtitle).size(FONT_SIZE_M).color(text::MUTED),
             )
             .selectable(false),
         );
@@ -140,7 +143,7 @@ pub fn field_sized(
     add_contents: impl FnOnce(&mut egui::Ui),
 ) -> Response {
     let frame = egui::Frame::new()
-        .fill(BG_WIDGET)
+        .fill(surface::WIDGET)
         .corner_radius(CornerRadius::same(RADIUS_M as u8))
         .inner_margin(Margin::symmetric(SPACE_S as i8, SPACE_S as i8));
 
@@ -165,9 +168,9 @@ pub fn field_sized(
 
     let is_hovered = ui.rect_contains_pointer(response.response.rect);
     let stroke = if is_hovered {
-        egui::Stroke::new(STROKE_WIDTH, BORDER_HOVER)
+        egui::Stroke::new(STROKE_WIDTH, border::HOVER)
     } else {
-        egui::Stroke::new(STROKE_WIDTH, BORDER)
+        egui::Stroke::new(STROKE_WIDTH, border::DEFAULT)
     };
     ui.painter().rect_stroke(
         response.response.rect,
@@ -211,7 +214,7 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
     let bar_rect = ui
         .allocate_exact_size(Vec2::new(available, tab_h), egui::Sense::hover())
         .0;
-    ui.painter().rect_filled(bar_rect, RADIUS_M, BG_WIDGET);
+    ui.painter().rect_filled(bar_rect, RADIUS_M, surface::WIDGET);
 
     let mut clicked_tab = None;
 
@@ -226,13 +229,13 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
         // Draw pill background
         let pill = tab_rect.shrink2(Vec2::new(2.0, 2.0));
         if is_active {
-            ui.painter().rect_filled(pill, RADIUS_M, BG_SURFACE);
-            ui.painter().rect_stroke(pill, RADIUS_M, Stroke::new(STROKE_WIDTH, BORDER_HOVER), egui::StrokeKind::Inside);
+            ui.painter().rect_filled(pill, RADIUS_M, surface::SURFACE);
+            ui.painter().rect_stroke(pill, RADIUS_M, Stroke::new(STROKE_WIDTH, border::HOVER), egui::StrokeKind::Inside);
         } else if response.hovered() {
-            ui.painter().rect_filled(pill, RADIUS_M, BG_HOVER);
+            ui.painter().rect_filled(pill, RADIUS_M, surface::HOVER);
         }
 
-        let text_color = if is_active { TEXT_PRIMARY } else if response.hovered() { TEXT_SECONDARY } else { TEXT_MUTED };
+        let text_color = if is_active { text::PRIMARY } else if response.hovered() { text::SECONDARY } else { text::MUTED };
         let font_id = egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional);
         let full_text = format!("{}  {}", icon, label);
         let galley = ui.painter().layout_no_wrap(full_text.clone(), font_id.clone(), text_color);

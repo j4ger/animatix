@@ -3,7 +3,9 @@
 use egui::Pos2;
 
 use crate::app::commands::{Command, DragEvent, ShellAction, PropertyEdit, PropertyValue};
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::semantic::accent::{CYAN as ACCENT_CYAN, PRIMARY as ACCENT_BLUE};
+use crate::app::design_tokens::semantic::status::{WARNING as AMBER, SUCCESS as GREEN};
+use crate::app::design_tokens::spatial::preview::{HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS, MIN_ACTOR_SIZE as PREVIEW_MIN_ACTOR_SIZE, MIN_SCALE as PREVIEW_MIN_SCALE, ROTATION_OFFSET as PREVIEW_ROTATION_OFFSET};
 use crate::app::preview::{self, DragState};
 use crate::app::preview::context::PreviewContext;
 use animatix::timeline::{PositionBinding, TrackAccessor};

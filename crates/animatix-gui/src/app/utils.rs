@@ -4,7 +4,10 @@ pub mod text;
 
 use egui::{Color32, Vec2};
 
-use crate::app::design_tokens::*;
+#[cfg(test)]
+use crate::app::design_tokens::semantic::status::{DIAGNOSTIC_ERROR, DIAGNOSTIC_WARNING};
+use crate::app::design_tokens::spatial::{SPACE_2 as PAD_S, SPACE_4 as PAD_L, RADIUS_S};
+use crate::app::design_tokens::typography::FONT_SIZE_S;
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 #[cfg(test)]
 use animatix_syntax::diagnostics::diagnostics_summary_by_phase;
@@ -40,9 +43,9 @@ pub(super) fn diagnostics_summary_color(diagnostics: &[Diagnostic]) -> Color32 {
         .iter()
         .any(|diagnostic| diagnostic.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error)
     {
-        DIAGNOSTIC_RED
+        DIAGNOSTIC_ERROR
     } else {
-        DIAGNOSTIC_AMBER
+        DIAGNOSTIC_WARNING
     }
 }
 

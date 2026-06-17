@@ -1,7 +1,12 @@
 use egui::{RichText, Stroke};
 
 use crate::app::components::layout;
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
+use crate::app::design_tokens::semantic::text::{PRIMARY as TEXT_PRIMARY, SECONDARY as TEXT_SECONDARY};
+use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
+use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
+use crate::app::design_tokens::spatial::{STROKE_WIDTH, RADIUS_XL, SPACE_XL, SPACE_M, SPACE_S};
+use crate::app::design_tokens::typography::{FONT_SIZE_XL, FONT_SIZE_S};
 
 use crate::app::GuiShell;
 

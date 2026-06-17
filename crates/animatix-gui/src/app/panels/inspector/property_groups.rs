@@ -8,7 +8,12 @@ use crate::app::commands::{
     ActionQueue, Command, DragEvent, PropertyEdit, PropertyValue as GuiPropertyValue, ShellAction,
 };
 use crate::app::components::row;
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::semantic::status::WARNING as semantic_status_warning;
+use crate::app::design_tokens::semantic::surface::{HOVER as semantic_surface_hover, WIDGET as semantic_surface_widget};
+use crate::app::design_tokens::semantic::text::{PRIMARY as semantic_text_primary, SECONDARY as semantic_text_secondary, MUTED as semantic_text_muted, DISABLED as semantic_text_disabled};
+use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH, SPACE_1 as spatial_space_xs, SPACE_2 as spatial_space_s, SPACE_4 as spatial_space_l, ROW_M as spatial_row_m};
+use crate::app::design_tokens::spatial::inspector::{ROW_HEIGHT as INSPECTOR_ROW_HEIGHT, KF_COL_WIDTH as INSPECTOR_KF_COL_WIDTH, LABEL_WIDTH_FRAC as INSPECTOR_LABEL_WIDTH_FRAC, LABEL_MIN_WIDTH as INSPECTOR_LABEL_MIN_WIDTH, LABEL_MAX_WIDTH as INSPECTOR_LABEL_MAX_WIDTH, COL_GAP as INSPECTOR_COL_GAP, KF_BTN_WIDTH as INSPECTOR_KF_BTN_WIDTH};
+use crate::app::design_tokens::typography::{FONT_SIZE_XS, FONT_SIZE_S, FONT_SIZE_M};
 
 // ─── Data Structures ──────────────────────────────────────────────────────
 
@@ -267,7 +272,7 @@ pub(crate) fn render_property_group(
     let mut expanded = ui.data(|d| d.get_temp::<bool>(group_id)).unwrap_or(true);
 
     let header = row::Row::new(group.name)
-        .height(ROW_M)
+        .height(spatial_row_m)
         .icon(Some(group.icon))
         .has_children(true)
         .expanded(expanded)
@@ -276,7 +281,7 @@ pub(crate) fn render_property_group(
                 egui::Label::new(
                     egui::RichText::new(group.properties.len().to_string())
                         .size(FONT_SIZE_XS)
-                        .color(TEXT_MUTED),
+                        .color(semantic_text_muted),
                 )
                 .selectable(false),
             );
@@ -293,7 +298,7 @@ pub(crate) fn render_property_group(
         let flat_style = {
             let mut s = (**ui.style()).clone();
             s.visuals.extreme_bg_color = Color32::TRANSPARENT;
-            s.visuals.widgets.inactive.bg_fill = BG_WIDGET;
+            s.visuals.widgets.inactive.bg_fill = semantic_surface_widget;
             s.visuals.widgets.inactive.bg_stroke = Stroke::NONE;
             s.visuals.widgets.hovered.bg_fill = Color32::TRANSPARENT;
             s.visuals.widgets.hovered.bg_stroke = Stroke::NONE;
@@ -303,7 +308,7 @@ pub(crate) fn render_property_group(
             s.visuals.widgets.open.bg_stroke = Stroke::NONE;
             s
         };
-        ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_XS);
+        ui.spacing_mut().item_spacing = Vec2::new(0.0, spatial_space_xs);
         for entry in &group.properties {
             render_property_row(
                 ui,
@@ -315,9 +320,9 @@ pub(crate) fn render_property_group(
                 &flat_style,
             );
         }
-        ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_S);
+        ui.spacing_mut().item_spacing = Vec2::new(0.0, spatial_space_s);
     }
-    ui.add_space(SPACE_L);
+    ui.add_space(spatial_space_l);
 }
 
 pub(crate) fn render_property_row(
@@ -335,7 +340,7 @@ pub(crate) fn render_property_row(
         ui.allocate_exact_size(Vec2::new(available, row_height), egui::Sense::hover());
 
     if row_response.hovered() {
-        ui.painter().rect_filled(row_rect, 0.0, BG_HOVER);
+        ui.painter().rect_filled(row_rect, 0.0, semantic_surface_hover);
     }
 
     let baseline_y = row_rect.center().y;
@@ -347,23 +352,23 @@ pub(crate) fn render_property_row(
         .clamp(INSPECTOR_LABEL_MIN_WIDTH, INSPECTOR_LABEL_MAX_WIDTH);
     let label_col_right = kf_col_right + label_width;
     let input_col_left = label_col_right + INSPECTOR_COL_GAP;
-    let kf_btn_right = row_rect.max.x - SPACE_S;
+    let kf_btn_right = row_rect.max.x - spatial_space_s;
     let kf_btn_left = kf_btn_right - INSPECTOR_KF_BTN_WIDTH;
-    let input_col_right = kf_btn_left - SPACE_S;
+    let input_col_right = kf_btn_left - spatial_space_s;
 
     // ── Keyframe dot (centered in KF column) ──
     let dot_center = egui::pos2(row_rect.min.x + INSPECTOR_KF_COL_WIDTH / 2.0, baseline_y);
     if entry.has_keyframe_at_current_time {
         let dot = egui::Rect::from_center_size(dot_center, Vec2::new(6.0, 6.0));
-        ui.painter().rect_filled(dot, 2.0, AMBER);
+        ui.painter().rect_filled(dot, 2.0, semantic_status_warning);
     } else if entry.has_keyframes {
         let dot = egui::Rect::from_center_size(dot_center, Vec2::new(5.0, 5.0));
-        ui.painter().rect_filled(dot, 2.5, TEXT_MUTED);
+        ui.painter().rect_filled(dot, 2.5, semantic_text_muted);
     }
 
     // ── Property label (truncated, vertically centered) ──
     let label_rect = egui::Rect::from_min_max(
-        egui::pos2(kf_col_right + SPACE_S, row_rect.min.y),
+        egui::pos2(kf_col_right + spatial_space_s, row_rect.min.y),
         egui::pos2(label_col_right, row_rect.max.y),
     );
     ui.scope_builder(egui::UiBuilder::new().max_rect(label_rect), |ui| {
@@ -372,7 +377,7 @@ pub(crate) fn render_property_row(
             |ui| {
                 ui.add(
                     egui::Label::new(
-                        egui::RichText::new(entry.name).size(FONT_SIZE_S).color(TEXT_SECONDARY),
+                        egui::RichText::new(entry.name).size(FONT_SIZE_S).color(semantic_text_secondary),
                     )
                     .truncate()
                     .selectable(false),
@@ -390,7 +395,7 @@ pub(crate) fn render_property_row(
     // Subtle background on hover for the input area
     let input_hover = ui.rect_contains_pointer(input_rect);
     if input_hover {
-        ui.painter().rect_filled(input_rect, RADIUS_S, BG_WIDGET);
+        ui.painter().rect_filled(input_rect, RADIUS_S, semantic_surface_widget);
     }
 
     // Flat widget styling passed from the group renderer (cached once per group).
@@ -405,22 +410,22 @@ pub(crate) fn render_property_row(
 
     // Draw diamond icon — dimmed when keyframe_mode is off and no keyframe exists
     let kf_color = if entry.has_keyframe_at_current_time {
-        AMBER
+        semantic_status_warning
     } else if entry.has_keyframes {
         if kf_btn_resp.hovered() {
-            AMBER
+            semantic_status_warning
         } else {
-            TEXT_MUTED
+            semantic_text_muted
         }
     } else if !keyframe_mode {
         // Show faint outline when keyframe mode is off
         if kf_btn_resp.hovered() {
-            TEXT_DISABLED
+            semantic_text_disabled
         } else {
             Color32::TRANSPARENT
         }
     } else if kf_btn_resp.hovered() {
-        TEXT_SECONDARY
+        semantic_text_secondary
     } else {
         Color32::TRANSPARENT
     };
@@ -500,23 +505,23 @@ pub(crate) fn render_property_row(
             let mut ny = *y;
             let (a_label, b_label) = vec2_labels(entry.name);
             ui.scope_builder(
-                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(SPACE_S, 0.0))),
+                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(spatial_space_s, 0.0))),
                 |ui| {
                     *ui.style_mut() = flat_style.clone();
                     ui.with_layout(
                         egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                         |ui| {
-                            ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
+                            ui.spacing_mut().item_spacing = Vec2::new(spatial_space_s, 0.0);
                             let half_w = ui.available_width() / 2.0 - 2.0;
                             let rx = ui.add_sized(
-                                Vec2::new(half_w.max(30.0), row_height - SPACE_S),
+                                Vec2::new(half_w.max(30.0), row_height - spatial_space_s),
                                 egui::DragValue::new(&mut nx)
                                     .speed(0.5)
                                     .max_decimals(1)
                                     .prefix(a_label),
                             );
                             let ry = ui.add_sized(
-                                Vec2::new(half_w.max(30.0), row_height - SPACE_S),
+                                Vec2::new(half_w.max(30.0), row_height - spatial_space_s),
                                 egui::DragValue::new(&mut ny)
                                     .speed(0.5)
                                     .max_decimals(1)
@@ -558,16 +563,16 @@ pub(crate) fn render_property_row(
             let unit = unit_suffix(entry.name);
             if is_01 {
                 ui.scope_builder(
-                    egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(SPACE_S, 0.0))),
+                    egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(spatial_space_s, 0.0))),
                     |ui| {
                         *ui.style_mut() = flat_style.clone();
                         ui.with_layout(
                             egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                             |ui| {
-                                ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
+                                ui.spacing_mut().item_spacing = Vec2::new(spatial_space_s, 0.0);
                                 let slider_w = ui.available_width() * 0.55;
                                 let slider = ui.add_sized(
-                                    Vec2::new(slider_w.max(40.0), row_height - SPACE_S),
+                                    Vec2::new(slider_w.max(40.0), row_height - spatial_space_s),
                                     egui::Slider::new(&mut nv, 0.0..=1.0)
                                         .show_value(false)
                                         .trailing_fill(true),
@@ -577,7 +582,7 @@ pub(crate) fn render_property_row(
                                         egui::RichText::new(format!("{:.2}", nv))
                                             .monospace()
                                             .size(FONT_SIZE_XS)
-                                            .color(TEXT_PRIMARY),
+                                            .color(semantic_text_primary),
                                     )
                                     .selectable(false),
                                 );
@@ -608,14 +613,14 @@ pub(crate) fn render_property_row(
                 );
             } else {
                 ui.scope_builder(
-                    egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(SPACE_S, 0.0))),
+                    egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(spatial_space_s, 0.0))),
                     |ui| {
                         *ui.style_mut() = flat_style.clone();
                         ui.with_layout(
                             egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                             |ui| {
                                 let response = ui.add_sized(
-                                    Vec2::new(ui.available_width(), row_height - SPACE_S),
+                                    Vec2::new(ui.available_width(), row_height - spatial_space_s),
                                     egui::DragValue::new(&mut nv)
                                         .speed(if is_angle { 0.5 } else { 0.1 })
                                         .suffix(if is_angle { "°" } else { unit })
@@ -652,14 +657,14 @@ pub(crate) fn render_property_row(
         PropertyKind::U32(v) => {
             let mut nv = *v as i64;
             ui.scope_builder(
-                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(SPACE_S, 0.0))),
+                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(spatial_space_s, 0.0))),
                 |ui| {
                     *ui.style_mut() = flat_style.clone();
                     ui.with_layout(
                         egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                         |ui| {
                             let response = ui.add_sized(
-                                Vec2::new(ui.available_width(), row_height - SPACE_S),
+                                Vec2::new(ui.available_width(), row_height - spatial_space_s),
                                 egui::DragValue::new(&mut nv).speed(0.1).max_decimals(0),
                             );
                             if response.drag_started() {
@@ -697,20 +702,20 @@ pub(crate) fn render_property_row(
             );
             let hex = format!("#{:02x}{:02x}{:02x}", color.r(), color.g(), color.b());
             ui.scope_builder(
-                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(SPACE_S, 0.0))),
+                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(spatial_space_s, 0.0))),
                 |ui| {
                     *ui.style_mut() = flat_style.clone();
                     ui.with_layout(
                         egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                         |ui| {
-                            ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
+                            ui.spacing_mut().item_spacing = Vec2::new(spatial_space_s, 0.0);
                             let btn = ui.color_edit_button_srgba(&mut color);
                             ui.add(
                                 egui::Label::new(
                                     egui::RichText::new(&hex)
                                         .monospace()
                                         .size(FONT_SIZE_XS)
-                                        .color(TEXT_MUTED),
+                                        .color(semantic_text_muted),
                                 )
                                 .selectable(false),
                             );
@@ -739,7 +744,7 @@ pub(crate) fn render_property_row(
         PropertyKind::Text(text) => {
             let mut buf = text.clone();
             ui.scope_builder(
-                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(SPACE_S, 0.0))),
+                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(spatial_space_s, 0.0))),
                 |ui| {
                     *ui.style_mut() = flat_style.clone();
                     ui.with_layout(
@@ -832,7 +837,7 @@ pub(crate) fn render_property_row(
                                     egui::Label::new(
                                         egui::RichText::new(text.as_str())
                                             .size(FONT_SIZE_M)
-                                            .color(TEXT_MUTED),
+                                            .color(semantic_text_muted),
                                     )
                                     .selectable(false),
                                 );

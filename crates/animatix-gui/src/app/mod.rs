@@ -31,7 +31,10 @@ use directories::ProjectDirs;
 use egui::{Color32, Stroke, Vec2};
 use file_tree::{build_file_tree, workspace_root_for};
 use persistence::{default_tree, load_workspace_persistence, persistence_path, SettingsPersistence, WorkspacePersistence};
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::{WELCOME_BTN_HEIGHT, WELCOME_TOP_OFFSET_FRAC, overlay_backdrop};
+use crate::app::design_tokens::semantic::{accent, border, surface, text, status};
+use crate::app::design_tokens::spatial::{RADIUS_S, RADIUS_L, RADIUS_M, RADIUS_XL, SPACE_S, SPACE_M, SPACE_L, SPACE_XL, STROKE_WIDTH, ROW_L};
+use crate::app::design_tokens::typography::{FONT_SIZE_S, FONT_SIZE_XS, FONT_SIZE_M, FONT_SIZE_XL};
 #[cfg(test)]
 use preview::fit_preview;
 
@@ -600,7 +603,7 @@ impl GuiShell {
                             ui.add_space(SPACE_L);
                             ui.label(egui::RichText::new("No diagnostics — all clear ✓")
                                 .size(FONT_SIZE_S)
-                                .color(TEXT_MUTED));
+                                .color(text::MUTED));
                         });
                     } else if let Some(target) =
                         components::diagnostics::diagnostics_list(
@@ -619,7 +622,7 @@ impl GuiShell {
         // Status bar — thin bar at the bottom showing preview status and scene dimensions
         egui::Panel::bottom("status_bar")
             .frame(egui::Frame::new()
-                .fill(BG_PANEL)
+                .fill(surface::PANEL)
                 .inner_margin(egui::Margin::symmetric(8, 2)))
             .resizable(false)
             .min_size(20.0)
@@ -631,17 +634,17 @@ impl GuiShell {
                         if is_error {
                             // Red accent pill + warning icon for errors
                             let bg_rect = egui::Rect::from_min_size(ui.cursor().min, egui::vec2(14.0, 14.0));
-                            ui.painter().rect_filled(bg_rect, RADIUS_S, DIAGNOSTIC_RED.linear_multiply(0.3));
+                            ui.painter().rect_filled(bg_rect, RADIUS_S, status::DIAGNOSTIC_ERROR.linear_multiply(0.3));
                             ui.painter().text(
                                 egui::pos2(bg_rect.center().x, bg_rect.center().y),
                                 egui::Align2::CENTER_CENTER,
                                 egui_phosphor::regular::WARNING,
                                 egui::FontId::new(10.0, egui::FontFamily::Proportional),
-                                DIAGNOSTIC_RED,
+                                status::DIAGNOSTIC_ERROR,
                             );
                             ui.add_space(SPACE_S);
                         }
-                        let color = if is_error { DIAGNOSTIC_RED } else { TEXT_MUTED };
+                        let color = if is_error { status::DIAGNOSTIC_ERROR } else { text::MUTED };
                         let label = ui.label(egui::RichText::new(status.as_str()).size(FONT_SIZE_XS).color(color));
                         if is_error && self.preview_store.preview.error.is_some() {
                             label.on_hover_text(self.preview_store.preview.error.as_deref().unwrap_or(""));
@@ -651,7 +654,7 @@ impl GuiShell {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let dims = &self.document_store.source.document.scene_dimensions;
                         ui.label(egui::RichText::new(format!("{}×{}", dims.width, dims.height))
-                            .size(FONT_SIZE_XS).color(TEXT_MUTED));
+                            .size(FONT_SIZE_XS).color(text::MUTED));
                     });
                 });
             });
@@ -729,15 +732,15 @@ impl GuiShell {
     /// Welcome / onboarding screen shown when no document is loaded.
     fn welcome_screen_ui(&mut self, ui: &mut egui::Ui, commands: &mut ActionQueue) {
         let avail = ui.available_rect_before_wrap();
-        ui.painter().rect_filled(avail, 0.0, BG_BASE);
+        ui.painter().rect_filled(avail, 0.0, surface::BASE);
 
         ui.vertical_centered(|ui| {
             ui.add_space(avail.height() * WELCOME_TOP_OFFSET_FRAC);
 
             // ── Centered card ──
             egui::Frame::new()
-                .fill(BG_SURFACE)
-                .stroke(Stroke::new(STROKE_WIDTH, BORDER))
+                .fill(surface::SURFACE)
+                .stroke(Stroke::new(STROKE_WIDTH, border::DEFAULT))
                 .corner_radius(RADIUS_L)
                 .inner_margin(egui::Margin::symmetric(40, 36))
                 .show(ui, |ui| {
@@ -753,14 +756,14 @@ impl GuiShell {
                         ui.painter().circle_filled(
                             icon_rect.center(),
                             icon_size * 0.5,
-                            BG_WIDGET,
+                            surface::WIDGET,
                         );
                         ui.painter().text(
                             icon_rect.center(),
                             egui::Align2::CENTER_CENTER,
                             egui_phosphor::regular::FILM_STRIP,
                             egui::FontId::proportional(28.0),
-                            ACCENT_BLUE,
+                            accent::PRIMARY,
                         );
                         ui.add_space(SPACE_XL * 1.5);
 
@@ -768,7 +771,7 @@ impl GuiShell {
                         ui.label(
                             egui::RichText::new("Welcome to Animatix")
                                 .size(FONT_SIZE_XL * 1.5)
-                                .color(TEXT_PRIMARY)
+                                .color(text::PRIMARY)
                                 .strong(),
                         );
                         ui.add_space(SPACE_S);
@@ -777,7 +780,7 @@ impl GuiShell {
                         ui.label(
                             egui::RichText::new("Layout-first animation for creative coders")
                                 .size(FONT_SIZE_M)
-                                .color(TEXT_SECONDARY),
+                                .color(text::SECONDARY),
                         );
                         ui.add_space(SPACE_XL * 2.5);
 
@@ -792,9 +795,9 @@ impl GuiShell {
                                     egui_phosphor::regular::PLUS
                                 ))
                                 .size(FONT_SIZE_M)
-                                .color(TEXT_PRIMARY),
+                                .color(text::PRIMARY),
                             )
-                            .fill(ACCENT_BLUE)
+                            .fill(accent::PRIMARY)
                             .corner_radius(RADIUS_M),
                         );
                         if new_resp.clicked() {
@@ -820,10 +823,10 @@ impl GuiShell {
                                     egui_phosphor::regular::FOLDER_OPEN
                                 ))
                                 .size(FONT_SIZE_M)
-                                .color(TEXT_PRIMARY),
+                                .color(text::PRIMARY),
                             )
-                            .fill(BG_WIDGET)
-                            .stroke(Stroke::new(STROKE_WIDTH, BORDER_HOVER))
+                            .fill(surface::WIDGET)
+                            .stroke(Stroke::new(STROKE_WIDTH, border::HOVER))
                             .corner_radius(RADIUS_M),
                         );
                         if open_resp.clicked() {
@@ -846,10 +849,10 @@ impl GuiShell {
                                     egui_phosphor::regular::FOLDER_NOTCH
                                 ))
                                 .size(FONT_SIZE_M)
-                                .color(TEXT_PRIMARY),
+                                .color(text::PRIMARY),
                             )
-                            .fill(BG_WIDGET)
-                            .stroke(Stroke::new(STROKE_WIDTH, BORDER_HOVER))
+                            .fill(surface::WIDGET)
+                            .stroke(Stroke::new(STROKE_WIDTH, border::HOVER))
                             .corner_radius(RADIUS_M),
                         );
                         if ws_resp.clicked() {
@@ -1064,8 +1067,8 @@ impl GuiShell {
             .title_bar(false)
             .frame(
                 egui::Frame::new()
-                    .fill(BG_BASE)
-                    .stroke(Stroke::new(STROKE_WIDTH, BORDER))
+                    .fill(surface::BASE)
+                    .stroke(Stroke::new(STROKE_WIDTH, border::DEFAULT))
                     .corner_radius(RADIUS_XL)
                     .inner_margin(egui::Margin::same(SPACE_XL as i8)),
             )
@@ -1076,7 +1079,7 @@ impl GuiShell {
                     ui.label(
                         egui::RichText::new("Switch Workspace")
                             .size(FONT_SIZE_XL)
-                            .color(TEXT_PRIMARY),
+                            .color(text::PRIMARY),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.button(egui_phosphor::regular::X).clicked() {
@@ -1091,7 +1094,7 @@ impl GuiShell {
                 ui.label(
                     egui::RichText::new("Directory path")
                         .size(FONT_SIZE_S)
-                        .color(TEXT_SECONDARY),
+                        .color(text::SECONDARY),
                 );
                 ui.add_space(SPACE_S);
                 ui.add(
@@ -1109,9 +1112,9 @@ impl GuiShell {
                                 egui::Button::new(
                                     egui::RichText::new("Switch")
                                         .size(FONT_SIZE_S)
-                                        .color(TEXT_PRIMARY),
+                                        .color(text::PRIMARY),
                                 )
-                                .fill(ACCENT_BLUE),
+                                .fill(accent::PRIMARY),
                             );
                         if confirm.clicked() {
                             // P0.3: warn if there are unsaved changes before switching workspace
@@ -1136,9 +1139,9 @@ impl GuiShell {
                                 egui::Button::new(
                                     egui::RichText::new("Cancel")
                                         .size(FONT_SIZE_S)
-                                        .color(TEXT_SECONDARY),
+                                        .color(text::SECONDARY),
                                 )
-                                .fill(BG_WIDGET),
+                                .fill(surface::WIDGET),
                             );
                         if cancel.clicked() {
                             self.ui_store.view.workspace_switcher_open = false;
@@ -1175,8 +1178,8 @@ impl GuiShell {
             .title_bar(false)
             .frame(
                 egui::Frame::new()
-                    .fill(BG_BASE)
-                    .stroke(egui::Stroke::new(STROKE_WIDTH, BORDER))
+                    .fill(surface::BASE)
+                    .stroke(egui::Stroke::new(STROKE_WIDTH, border::DEFAULT))
                     .corner_radius(RADIUS_XL)
                     .inner_margin(egui::Margin::same(SPACE_XL as i8)),
             )
@@ -1187,7 +1190,7 @@ impl GuiShell {
                     ui.label(
                         egui::RichText::new(format!("{}  Unsaved changes", egui_phosphor::regular::FLOPPY_DISK))
                             .size(FONT_SIZE_XL)
-                            .color(TEXT_PRIMARY),
+                            .color(text::PRIMARY),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.button(egui_phosphor::regular::X).clicked() {
@@ -1203,7 +1206,7 @@ impl GuiShell {
                     egui::Label::new(
                         egui::RichText::new(&self.ui_store.unsaved_changes.message)
                             .size(FONT_SIZE_M)
-                            .color(TEXT_SECONDARY),
+                            .color(text::SECONDARY),
                     )
                     .selectable(false),
                 );
@@ -1217,9 +1220,9 @@ impl GuiShell {
                             egui::Button::new(
                                 egui::RichText::new(format!("{}  Save", egui_phosphor::regular::FLOPPY_DISK))
                                     .size(FONT_SIZE_S)
-                                    .color(TEXT_PRIMARY),
+                                    .color(text::PRIMARY),
                             )
-                            .fill(ACCENT_BLUE),
+                            .fill(accent::PRIMARY),
                         );
                         if save.clicked() {
                             // Save first, then execute pending action
@@ -1239,9 +1242,9 @@ impl GuiShell {
                             egui::Button::new(
                                 egui::RichText::new(format!("{}  Discard", egui_phosphor::regular::TRASH))
                                     .size(FONT_SIZE_S)
-                                    .color(TEXT_SECONDARY),
+                                    .color(text::SECONDARY),
                             )
-                            .fill(BG_WIDGET),
+                            .fill(surface::WIDGET),
                         );
                         if discard.clicked() {
                             // Mark document as no longer dirty, then execute pending
@@ -1260,9 +1263,9 @@ impl GuiShell {
                             egui::Button::new(
                                 egui::RichText::new("Cancel")
                                     .size(FONT_SIZE_S)
-                                    .color(TEXT_SECONDARY),
+                                    .color(text::SECONDARY),
                             )
-                            .fill(BG_WIDGET),
+                            .fill(surface::WIDGET),
                         );
                         if cancel.clicked() {
                             self.ui_store.unsaved_changes.close();

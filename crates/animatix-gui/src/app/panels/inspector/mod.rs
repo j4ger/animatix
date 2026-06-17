@@ -8,7 +8,14 @@ use crate::app::commands::{
 };
 use crate::app::components::easing_curve_editor::EasingCurveState;
 use crate::app::components::{easing_curve_editor, layout, timeline};
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::semantic::accent::{PRIMARY as semantic_accent_primary, selection as semantic_accent_selection};
+use crate::app::design_tokens::semantic::border::DEFAULT as semantic_border_default;
+use crate::app::design_tokens::semantic::status::WARNING as semantic_status_warning;
+use crate::app::design_tokens::semantic::surface::{HOVER as semantic_surface_hover, WIDGET as BG_WIDGET};
+use crate::app::design_tokens::semantic::text::{PRIMARY as semantic_text_primary, SECONDARY as semantic_text_secondary, MUTED as semantic_text_muted, DISABLED as TEXT_DISABLED};
+use crate::app::design_tokens::spatial::{RADIUS_S, RADIUS_M, STROKE_WIDTH, SPACE_1 as spatial_space_xs, SPACE_2 as spatial_space_s, SPACE_3 as spatial_space_m, SPACE_4 as spatial_space_l, SPACE_5 as spatial_space_xl, ROW_S as spatial_row_s, ROW_M as spatial_row_m, ROW_L as spatial_row_l, ROW_XS as spatial_row_xs};
+use crate::app::design_tokens::spatial::inspector::{INPUT_WIDTH_FLOAT as INSPECTOR_INPUT_WIDTH_FLOAT, ROW_HEIGHT as INSPECTOR_ROW_HEIGHT};
+use crate::app::design_tokens::typography::{FONT_SIZE_XS, FONT_SIZE_S, FONT_SIZE_M, FONT_SIZE_L, FONT_SIZE_XL};
 use crate::app::icons::actor_icon_str;
 use crate::app::panels::panel_frame;
 use crate::app::utils::text::truncate_chars;
@@ -101,17 +108,17 @@ fn render_scene_inspector(
     ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
         // ── Scene Header ──
         let available = ui.available_width();
-        let row_h = ROW_L;
+        let row_h = spatial_row_l;
         let (row_rect, _) =
             ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
         ui.painter().text(
-            Pos2::new(row_rect.min.x + SPACE_S, row_rect.center().y),
+            Pos2::new(row_rect.min.x + spatial_space_s, row_rect.center().y),
             egui::Align2::LEFT_CENTER,
             format!("{} {}", egui_phosphor::regular::FILM_STRIP, active_scene),
             egui::FontId::new(FONT_SIZE_XL, egui::FontFamily::Proportional),
-            ACCENT_BLUE,
+            semantic_accent_primary,
         );
-        ui.add_space(SPACE_M);
+        ui.add_space(spatial_space_m);
 
         // ── Scene Properties ──
         layout::card(ui, |ui| {
@@ -165,7 +172,7 @@ fn render_scene_inspector(
                         RichText::new(format!("{:.2} s", start_s))
                             .monospace()
                             .size(FONT_SIZE_S)
-                            .color(TEXT_SECONDARY),
+                            .color(semantic_text_secondary),
                     )
                     .selectable(false),
                 );
@@ -194,14 +201,14 @@ fn render_scene_inspector(
                         ))
                         .monospace()
                         .size(FONT_SIZE_S)
-                        .color(TEXT_MUTED),
+                        .color(semantic_text_muted),
                     )
                     .selectable(false),
                 );
             });
         });
 
-        ui.add_space(SPACE_M);
+        ui.add_space(spatial_space_m);
 
         // ── Play Edge ──
         if let Some(edge) = composition.edges.get(active_scene) {
@@ -355,7 +362,7 @@ fn render_scene_inspector(
                             edge.to_scene
                         ))
                         .size(FONT_SIZE_S)
-                        .color(ACCENT_BLUE),
+                        .color(semantic_accent_primary),
                     )
                     .clicked()
                 {
@@ -366,7 +373,7 @@ fn render_scene_inspector(
             });
         }
 
-        ui.add_space(SPACE_M);
+        ui.add_space(spatial_space_m);
 
         // ── Scene List ──
         layout::card(ui, |ui| {
@@ -381,15 +388,15 @@ fn render_scene_inspector(
                 let response = ui.interact(
                     egui::Rect::from_min_size(
                         ui.cursor().min,
-                        Vec2::new(ui.available_width(), ROW_M),
+                        Vec2::new(ui.available_width(), spatial_row_m),
                     ),
                     ui.id().with(format!("scene_list_{}", scene_name)),
                     egui::Sense::click(),
                 );
                 let bg = if is_active {
-                    accent_selection()
+                    semantic_accent_selection()
                 } else if response.hovered() {
-                    BG_HOVER
+                    semantic_surface_hover
                 } else {
                     Color32::TRANSPARENT
                 };
@@ -397,14 +404,14 @@ fn render_scene_inspector(
                     ui.painter().rect_filled(response.rect, RADIUS_S, bg);
                 }
                 ui.painter().text(
-                    Pos2::new(response.rect.min.x + SPACE_S, response.rect.center().y),
+                    Pos2::new(response.rect.min.x + spatial_space_s, response.rect.center().y),
                     egui::Align2::LEFT_CENTER,
                     scene_name,
                     egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
                     if is_active {
-                        ACCENT_BLUE
+                        semantic_accent_primary
                     } else {
-                        TEXT_SECONDARY
+                        semantic_text_secondary
                     },
                 );
                 if response.clicked() && !is_active {
@@ -459,28 +466,28 @@ pub(super) fn inspector_ui(
     let root_nodes = timeline.root_actor_labels();
     if root_nodes.is_empty() {
         ui.vertical_centered(|ui| {
-            ui.add_space(SPACE_XL * 3.0);
+            ui.add_space(spatial_space_xl * 3.0);
             ui.add(
                 egui::Label::new(
                     RichText::new(egui_phosphor::regular::FILM_STRIP)
                         .size(layout::EMPTY_STATE_ICON_SIZE)
-                        .color(TEXT_MUTED),
+                        .color(semantic_text_muted),
                 )
                 .selectable(false),
             );
-            ui.add_space(SPACE_M);
+            ui.add_space(spatial_space_m);
             ui.add(
                 egui::Label::new(
-                    RichText::new("No actors in scene").size(FONT_SIZE_L).color(TEXT_SECONDARY),
+                    RichText::new("No actors in scene").size(FONT_SIZE_L).color(semantic_text_secondary),
                 )
                 .selectable(false),
             );
-            ui.add_space(SPACE_L);
+            ui.add_space(spatial_space_l);
             if ui
                 .button(
                     RichText::new(format!("{} Add Actor", egui_phosphor::regular::PLUS))
                         .size(FONT_SIZE_L)
-                        .color(ACCENT_BLUE),
+                        .color(semantic_accent_primary),
                 )
                 .on_hover_text("Add a new actor to the scene")
                 .clicked()
@@ -538,18 +545,18 @@ pub(super) fn inspector_ui(
                         &format!("{} actors selected", multi_count),
                         None,
                     );
-                    ui.add_space(SPACE_S);
+                    ui.add_space(spatial_space_s);
                     ui.label(
                         RichText::new("Multi-selected — drag/nudge in preview applies to all. Select a single actor to edit properties.")
                             .size(FONT_SIZE_XS)
-                            .color(TEXT_MUTED),
+                            .color(semantic_text_muted),
                     );
-                    ui.add_space(SPACE_XS);
+                    ui.add_space(spatial_space_xs);
                     let names: Vec<&str> = selected_actors.iter().map(String::as_str).collect();
                     ui.label(
                         RichText::new(names.join(", "))
                             .size(FONT_SIZE_XS)
-                            .color(TEXT_MUTED),
+                            .color(semantic_text_muted),
                     );
                 });
             });
@@ -559,11 +566,11 @@ pub(super) fn inspector_ui(
         // Single-actor selection
         ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
             render_actor_header(ui, track, current_time_s, commands);
-            ui.add_space(SPACE_M);
+            ui.add_space(spatial_space_m);
 
             // ── Parent ──
             render_parent_card(ui, timeline, sel, commands);
-            ui.add_space(SPACE_M);
+            ui.add_space(spatial_space_m);
 
             // ── Active Properties ──
             layout::card(ui, |ui| {
@@ -575,13 +582,13 @@ pub(super) fn inspector_ui(
                 // View-mode segmented control
                 {
                     let right = ui.clip_rect().max.x;
-                    let row_top = header_top + SPACE_S + 2.0 + SPACE_S;
+                    let row_top = header_top + spatial_space_s + 2.0 + spatial_space_s;
                     let seg_count = 3;
                     let seg_width = 80.0;
                     let total_w = seg_count as f32 * seg_width;
                     let seg_rect = egui::Rect::from_min_size(
-                        egui::pos2(right - SPACE_S - total_w, row_top),
-                        egui::Vec2::new(total_w, ROW_S),
+                        egui::pos2(right - spatial_space_s - total_w, row_top),
+                        egui::Vec2::new(total_w, spatial_row_s),
                     );
                     let mut seg_ui = ui.new_child(
                         egui::UiBuilder::new()
@@ -608,12 +615,12 @@ pub(super) fn inspector_ui(
                 let groups = build_property_groups(track, current_time_ms);
                 if groups.is_empty() {
                     ui.vertical_centered(|ui| {
-                        ui.add_space(SPACE_M);
+                        ui.add_space(spatial_space_m);
                         ui.add(
                             egui::Label::new(
                                 RichText::new("No editable properties")
                                     .size(FONT_SIZE_M)
-                                    .color(TEXT_MUTED),
+                                    .color(semantic_text_muted),
                             )
                             .selectable(false),
                         );
@@ -653,7 +660,7 @@ pub(super) fn inspector_ui(
                 }
             });
 
-            ui.add_space(SPACE_M);
+            ui.add_space(spatial_space_m);
 
             // ── Pivot ──
             if multi_count == 1 {
@@ -667,14 +674,14 @@ pub(super) fn inspector_ui(
                         ui.add(egui::DragValue::new(&mut pivot[1]).speed(1.0).suffix(" px"));
                     });
                     if ui
-                        .button(RichText::new("Reset").size(FONT_SIZE_S).color(TEXT_MUTED))
+                        .button(RichText::new("Reset").size(FONT_SIZE_S).color(semantic_text_muted))
                         .on_hover_text("Reset pivot to center")
                         .clicked()
                     {
                         *pivot = [0.0, 0.0];
                     }
                 });
-                ui.add_space(SPACE_M);
+                ui.add_space(spatial_space_m);
             }
 
             // ── Container Children ──
@@ -690,7 +697,7 @@ pub(super) fn inspector_ui(
                     let order = timeline.get_child_order(sel, time_ms);
                     render_container_children(ui, sel, &order, commands, keyframe_mode);
                 });
-                ui.add_space(SPACE_M);
+                ui.add_space(spatial_space_m);
             }
 
             // ── Mini Timeline ──
@@ -702,14 +709,14 @@ pub(super) fn inspector_ui(
                     duration_s,
                     current_time_s,
                     keyframes: &all_kf,
-                    height: ROW_XS,
+                    height: spatial_row_xs,
                 };
                 if let Some(scrub_t) = strip.show(ui) {
                     commands.push_back(ShellAction::Command(Command::ScrubTo(scrub_t)));
                 }
             });
 
-            ui.add_space(SPACE_M);
+            ui.add_space(spatial_space_m);
 
             // ── Keyframes ──
             let kf_count = count_keyframes(track);
@@ -727,13 +734,13 @@ pub(super) fn inspector_ui(
                 // View-mode segmented control
                 {
                     let right = ui.clip_rect().max.x;
-                    let row_top = header_top + SPACE_S + 2.0 + SPACE_S;
+                    let row_top = header_top + spatial_space_s + 2.0 + spatial_space_s;
                     let seg_count = 2;
                     let seg_width = 80.0;
                     let total_w = seg_count as f32 * seg_width;
                     let seg_rect = egui::Rect::from_min_size(
-                        egui::pos2(right - SPACE_S - total_w, row_top),
-                        egui::Vec2::new(total_w, ROW_S),
+                        egui::pos2(right - spatial_space_s - total_w, row_top),
+                        egui::Vec2::new(total_w, spatial_row_s),
                     );
                     let mut seg_ui = ui.new_child(
                         egui::UiBuilder::new()
@@ -811,7 +818,7 @@ fn render_property_stream(
     // Find max keyframe count for bar scaling
     let max_kf = all_entries.iter().map(|(_, e)| e.keyframe_count).max().unwrap_or(1).max(1);
 
-    ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_XS);
+    ui.spacing_mut().item_spacing = Vec2::new(0.0, spatial_space_xs);
     for (group, entry) in &all_entries {
         let row_height = INSPECTOR_ROW_HEIGHT;
         let available = ui.available_width();
@@ -819,7 +826,7 @@ fn render_property_stream(
             ui.allocate_exact_size(Vec2::new(available, row_height), egui::Sense::hover());
 
         if row_response.hovered() {
-            ui.painter().rect_filled(row_rect, 0.0, BG_HOVER);
+            ui.painter().rect_filled(row_rect, 0.0, semantic_surface_hover);
         }
 
         let baseline_y = row_rect.center().y;
@@ -833,25 +840,25 @@ fn render_property_stream(
         };
         if bar_w > 0.0 {
             let bar_rect = egui::Rect::from_min_max(
-                egui::pos2(row_rect.min.x + SPACE_S, baseline_y - 3.0),
-                egui::pos2(row_rect.min.x + SPACE_S + bar_w, baseline_y + 3.0),
+                egui::pos2(row_rect.min.x + spatial_space_s, baseline_y - 3.0),
+                egui::pos2(row_rect.min.x + spatial_space_s + bar_w, baseline_y + 3.0),
             );
             let bar_color = if entry.keyframe_count >= max_kf / 2 {
-                AMBER
+                semantic_status_warning
             } else {
-                TEXT_MUTED
+                semantic_text_muted
             };
             ui.painter().rect_filled(bar_rect, RADIUS_S, bar_color);
         }
 
         // Icon + property name
-        let name_x = row_rect.min.x + SPACE_S + bar_max_w + SPACE_S;
+        let name_x = row_rect.min.x + spatial_space_s + bar_max_w + spatial_space_s;
         ui.painter().text(
             egui::pos2(name_x, baseline_y),
             egui::Align2::LEFT_CENTER,
             format!("{} {}", group.icon, entry.name),
             egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-            TEXT_SECONDARY,
+            semantic_text_secondary,
         );
 
         // Current value (middle area)
@@ -863,7 +870,7 @@ fn render_property_stream(
                 egui::Align2::LEFT_CENTER,
                 &value_text,
                 egui::FontId::monospace(FONT_SIZE_XS),
-                TEXT_MUTED,
+                semantic_text_muted,
             );
         }
 
@@ -872,11 +879,11 @@ fn render_property_stream(
             let count_text =
                 format!("{} {}", egui_phosphor::regular::DIAMOND, entry.keyframe_count);
             ui.painter().text(
-                egui::pos2(row_rect.max.x - SPACE_S, baseline_y),
+                egui::pos2(row_rect.max.x - spatial_space_s, baseline_y),
                 egui::Align2::RIGHT_CENTER,
                 count_text,
                 egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
-                TEXT_MUTED,
+                semantic_text_muted,
             );
         }
 
@@ -885,23 +892,23 @@ fn render_property_stream(
             *property_view_mode = PropertyViewMode::Semantic;
         }
     }
-    ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_S);
+    ui.spacing_mut().item_spacing = Vec2::new(0.0, spatial_space_s);
 
     // Divider between animated and non-animated
     let animated_count = all_entries.iter().filter(|(_, e)| e.keyframe_count > 0).count();
     if animated_count > 0 && animated_count < all_entries.len() {
-        ui.add_space(SPACE_S);
+        ui.add_space(spatial_space_s);
         let divider_rect = ui.available_rect_before_wrap();
         if divider_rect.width() > 0.0 {
             ui.painter().line_segment(
                 [
-                    egui::pos2(divider_rect.min.x + SPACE_S, divider_rect.min.y + 4.0),
-                    egui::pos2(divider_rect.max.x - SPACE_S, divider_rect.min.y + 4.0),
+                    egui::pos2(divider_rect.min.x + spatial_space_s, divider_rect.min.y + 4.0),
+                    egui::pos2(divider_rect.max.x - spatial_space_s, divider_rect.min.y + 4.0),
                 ],
-                egui::Stroke::new(STROKE_WIDTH, BORDER),
+                egui::Stroke::new(STROKE_WIDTH, semantic_border_default),
             );
         }
-        ui.add_space(SPACE_S);
+        ui.add_space(spatial_space_s);
     }
 }
 
@@ -915,7 +922,7 @@ fn render_actor_header(
 ) {
     let current_time_ms = (current_time_s * 1000.0) as u64;
     let available = ui.available_width();
-    let row_h = ROW_L;
+    let row_h = spatial_row_l;
     let (row_rect, _) = ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
 
     // ── Left side: icon + name ──
@@ -927,11 +934,11 @@ fn render_actor_header(
             |ui| {
                 ui.add(
                     egui::Label::new(
-                        RichText::new(actor_icon_str(track.kind)).size(FONT_SIZE_XL).color(AMBER),
+                        RichText::new(actor_icon_str(track.kind)).size(FONT_SIZE_XL).color(semantic_status_warning),
                     )
                     .selectable(false),
                 );
-                ui.add_space(SPACE_S);
+                ui.add_space(spatial_space_s);
 
                 // Actor label (click to rename)
                 let edit_id = ui.id().with("actor_name_edit");
@@ -944,7 +951,7 @@ fn render_actor_header(
                     let response = ui.add(
                         egui::TextEdit::singleline(&mut edit_buffer)
                             .font(egui::FontId::new(FONT_SIZE_XL, egui::FontFamily::Proportional))
-                            .text_color(TEXT_PRIMARY)
+                            .text_color(semantic_text_primary)
                             .desired_width(120.0),
                     );
                     response.request_focus();
@@ -965,7 +972,7 @@ fn render_actor_header(
                 } else {
                     let label_response = ui.add(
                         egui::Label::new(
-                            RichText::new(&track.label).size(FONT_SIZE_XL).color(TEXT_PRIMARY),
+                            RichText::new(&track.label).size(FONT_SIZE_XL).color(semantic_text_primary),
                         )
                         .selectable(false)
                         .sense(egui::Sense::click()),
@@ -996,18 +1003,18 @@ fn render_actor_header(
                                 track.first_seen_ms as f64 / 1000.0
                             ))
                             .size(FONT_SIZE_XS)
-                            .color(TEXT_MUTED),
+                            .color(semantic_text_muted),
                         )
                         .selectable(false),
                     );
-                    ui.add_space(SPACE_M);
+                    ui.add_space(spatial_space_m);
                 }
 
                 if let Some(shape_pt) = &track.shape_type {
                     let shape = shape_pt.evaluate(current_time_ms);
                     ui.add(
                         egui::Label::new(
-                            RichText::new(shape.to_string()).size(FONT_SIZE_S).color(TEXT_MUTED),
+                            RichText::new(shape.to_string()).size(FONT_SIZE_S).color(semantic_text_muted),
                         )
                         .selectable(false),
                     );
@@ -1077,16 +1084,16 @@ fn render_container_children(
     commands: &mut ActionQueue,
     keyframe_mode: bool,
 ) {
-    ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, SPACE_S);
+    ui.spacing_mut().item_spacing = Vec2::new(spatial_space_s, spatial_space_s);
     for (i, label) in order.iter().enumerate() {
         let row_id = ui.id().with(format!("child_{}", i));
         let available = ui.available_width();
         let (row_rect, _) =
-            ui.allocate_exact_size(Vec2::new(available, ROW_M), egui::Sense::hover());
+            ui.allocate_exact_size(Vec2::new(available, spatial_row_m), egui::Sense::hover());
 
         // Background
         let bg = if ui.rect_contains_pointer(row_rect) {
-            BG_HOVER
+            semantic_surface_hover
         } else {
             Color32::TRANSPARENT
         };
@@ -1095,7 +1102,7 @@ fn render_container_children(
         }
 
         let baseline_y = row_rect.center().y;
-        let mut cursor_x = row_rect.min.x + SPACE_M;
+        let mut cursor_x = row_rect.min.x + spatial_space_m;
 
         // Index badge
         let badge_text = format!("{}", i + 1);
@@ -1104,10 +1111,10 @@ fn render_container_children(
             egui::pos2(cursor_x, baseline_y - 9.0),
             &badge_text,
             BG_WIDGET,
-            TEXT_MUTED,
+            semantic_text_muted,
             None,
         );
-        cursor_x += ROW_S + SPACE_S;
+        cursor_x += spatial_row_s + spatial_space_s;
 
         // Label
         ui.painter().text(
@@ -1115,13 +1122,13 @@ fn render_container_children(
             egui::Align2::LEFT_CENTER,
             label,
             egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-            TEXT_SECONDARY,
+            semantic_text_secondary,
         );
 
         // Up / Down buttons (right-aligned)
-        let btn_size = Vec2::new(ROW_S, ROW_S);
+        let btn_size = Vec2::new(spatial_row_s, spatial_row_s);
         let btn_y = row_rect.min.y + (row_rect.height() - btn_size.y) * 0.5;
-        let mut btn_x = row_rect.max.x - SPACE_S - btn_size.x;
+        let mut btn_x = row_rect.max.x - spatial_space_s - btn_size.x;
 
         // Down button
         let down_rect = egui::Rect::from_min_size(egui::pos2(btn_x, btn_y), btn_size);
@@ -1131,9 +1138,9 @@ fn render_container_children(
         let down_color = if i + 1 >= order.len() {
             TEXT_DISABLED
         } else if down_resp.hovered() {
-            TEXT_PRIMARY
+            semantic_text_primary
         } else {
-            TEXT_SECONDARY
+            semantic_text_secondary
         };
         ui.painter().text(
             down_rect.center(),
@@ -1142,7 +1149,7 @@ fn render_container_children(
             egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
             down_color,
         );
-        btn_x -= btn_size.x + SPACE_XS;
+        btn_x -= btn_size.x + spatial_space_xs;
 
         // Up button
         let up_rect = egui::Rect::from_min_size(egui::pos2(btn_x, btn_y), btn_size);
@@ -1152,9 +1159,9 @@ fn render_container_children(
         let up_color = if i == 0 {
             TEXT_DISABLED
         } else if up_resp.hovered() {
-            TEXT_PRIMARY
+            semantic_text_primary
         } else {
-            TEXT_SECONDARY
+            semantic_text_secondary
         };
         ui.painter().text(
             up_rect.center(),

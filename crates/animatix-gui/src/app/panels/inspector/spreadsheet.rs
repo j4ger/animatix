@@ -19,7 +19,12 @@ use crate::app::commands::{
     ActionQueue, Command, PropertyEdit, PropertyValue as GuiPropertyValue, ShellAction,
 };
 use crate::app::components::layout;
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::semantic::accent::{PRIMARY as semantic_accent_primary, selection as semantic_accent_selection};
+use crate::app::design_tokens::semantic::status::WARNING as semantic_status_warning;
+use crate::app::design_tokens::semantic::surface::{HOVER as semantic_surface_hover, SURFACE as semantic_surface_surface};
+use crate::app::design_tokens::semantic::text::{PRIMARY as semantic_text_primary, SECONDARY as semantic_text_secondary, MUTED as semantic_text_muted};
+use crate::app::design_tokens::spatial::{SPACE_2 as spatial_space_s, SPACE_3 as spatial_space_m, SPACE_5 as spatial_space_xl, ROW_S as spatial_row_s, ROW_M as spatial_row_m};
+use crate::app::design_tokens::typography::{FONT_SIZE_XS, FONT_SIZE_S, FONT_SIZE_L};
 
 /// The list of spreadsheet columns (property names).
 ///
@@ -55,31 +60,31 @@ pub(crate) fn render_property_spreadsheet(
 ) {
     // ── View-mode toggle bar ──
     ui.horizontal(|ui| {
-        ui.add_space(SPACE_S);
+        ui.add_space(spatial_space_s);
         let btn = egui::Button::new(
             RichText::new(format!("{} Semantic", egui_phosphor::regular::ROWS))
                 .size(FONT_SIZE_XS)
-                .color(TEXT_SECONDARY),
+                .color(semantic_text_secondary),
         )
-        .min_size(Vec2::new(0.0, ROW_S));
+        .min_size(Vec2::new(0.0, spatial_row_s));
         if ui.add(btn).on_hover_text("Switch to semantic property view").clicked() {
             *property_view_mode = PropertyViewMode::Semantic;
             return;
         }
-        ui.add_space(SPACE_M);
+        ui.add_space(spatial_space_m);
         ui.add(
             egui::Label::new(
-                RichText::new(egui_phosphor::regular::TABLE).size(FONT_SIZE_S).color(AMBER),
+                RichText::new(egui_phosphor::regular::TABLE).size(FONT_SIZE_S).color(semantic_status_warning),
             )
             .selectable(false),
         );
         ui.add(
-            egui::Label::new(RichText::new("Spreadsheet").size(FONT_SIZE_S).color(AMBER))
+            egui::Label::new(RichText::new("Spreadsheet").size(FONT_SIZE_S).color(semantic_status_warning))
                 .selectable(false),
         );
-        ui.add_space(SPACE_S);
+        ui.add_space(spatial_space_s);
     });
-    ui.add_space(SPACE_M);
+    ui.add_space(spatial_space_m);
 
     let Some(timeline) = timeline else {
         layout::empty_state(
@@ -96,7 +101,7 @@ pub(crate) fn render_property_spreadsheet(
         .button(
             RichText::new(format!("{} Add", egui_phosphor::regular::PLUS))
                 .size(FONT_SIZE_XS)
-                .color(ACCENT_BLUE),
+                .color(semantic_accent_primary),
         )
         .on_hover_text("Add a new actor")
         .clicked()
@@ -117,19 +122,19 @@ pub(crate) fn render_property_spreadsheet(
 
     if actors.is_empty() {
         ui.vertical_centered(|ui| {
-            ui.add_space(SPACE_XL * 3.0);
+            ui.add_space(spatial_space_xl * 3.0);
             ui.add(
                 egui::Label::new(
                     RichText::new(egui_phosphor::regular::FILM_STRIP)
                         .size(layout::EMPTY_STATE_ICON_SIZE)
-                        .color(TEXT_MUTED),
+                        .color(semantic_text_muted),
                 )
                 .selectable(false),
             );
-            ui.add_space(SPACE_M);
+            ui.add_space(spatial_space_m);
             ui.add(
                 egui::Label::new(
-                    RichText::new("No actors in scene").size(FONT_SIZE_L).color(TEXT_SECONDARY),
+                    RichText::new("No actors in scene").size(FONT_SIZE_L).color(semantic_text_secondary),
                 )
                 .selectable(false),
             );
@@ -140,7 +145,7 @@ pub(crate) fn render_property_spreadsheet(
     let time_ms = (current_time_s * 1000.0) as u64;
 
     // ── Determine row height and column widths ──
-    let row_height = ROW_M; // 24px — matches INSPECTOR_ROW_HEIGHT
+    let row_height = spatial_row_m; // 24px — matches INSPECTOR_ROW_HEIGHT
     let label_col_width = 140.0;
     let value_col_width = 90.0;
 
@@ -149,7 +154,7 @@ pub(crate) fn render_property_spreadsheet(
         egui::Grid::new(ui.id().with("spreadsheet_grid"))
             .striped(true)
             .min_col_width(label_col_width)
-            .spacing(Vec2::new(SPACE_S, 0.0))
+            .spacing(Vec2::new(spatial_space_s, 0.0))
             .show(ui, |ui| {
                 // ── Column headers (top-left corner + property names) ──
                 // Top-left corner header
@@ -159,13 +164,13 @@ pub(crate) fn render_property_spreadsheet(
                         egui::Sense::hover(),
                     )
                     .0;
-                ui.painter().rect_filled(corner_rect, 0.0, BG_SURFACE);
+                ui.painter().rect_filled(corner_rect, 0.0, semantic_surface_surface);
                 ui.painter().text(
                     corner_rect.center(),
                     egui::Align2::CENTER_CENTER,
                     egui_phosphor::regular::TABLE,
                     egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
-                    TEXT_MUTED,
+                    semantic_text_muted,
                 );
 
                 // Property name headers
@@ -176,13 +181,13 @@ pub(crate) fn render_property_spreadsheet(
                             egui::Sense::hover(),
                         )
                         .0;
-                    ui.painter().rect_filled(header_rect, 0.0, BG_SURFACE);
+                    ui.painter().rect_filled(header_rect, 0.0, semantic_surface_surface);
                     ui.painter().text(
                         header_rect.center(),
                         egui::Align2::CENTER_CENTER,
                         prop_name,
                         egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
-                        TEXT_SECONDARY,
+                        semantic_text_secondary,
                     );
                 }
                 ui.end_row();
@@ -203,9 +208,9 @@ pub(crate) fn render_property_spreadsheet(
 
                     // Background for selected or hovered row
                     let label_bg = if is_selected {
-                        accent_selection()
+                        semantic_accent_selection()
                     } else if label_response.hovered() {
-                        BG_HOVER
+                        semantic_surface_hover
                     } else {
                         Color32::TRANSPARENT
                     };
@@ -216,12 +221,12 @@ pub(crate) fn render_property_spreadsheet(
                     // Actor icon + label text
                     let icon = crate::app::icons::actor_icon_str(track.kind);
                     let label_color = if is_selected {
-                        ACCENT_BLUE
+                        semantic_accent_primary
                     } else {
-                        TEXT_PRIMARY
+                        semantic_text_primary
                     };
                     ui.painter().text(
-                        Pos2::new(label_rect.min.x + SPACE_S, label_rect.center().y),
+                        Pos2::new(label_rect.min.x + spatial_space_s, label_rect.center().y),
                         egui::Align2::LEFT_CENTER,
                         format!("{} {}", icon, actor_label),
                         egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
@@ -253,7 +258,7 @@ pub(crate) fn render_property_spreadsheet(
 
                         // Subtle hover
                         if cell_response.hovered() {
-                            ui.painter().rect_filled(cell_rect, 0.0, BG_HOVER);
+                            ui.painter().rect_filled(cell_rect, 0.0, semantic_surface_hover);
                         }
 
                         // Get the value at current time
@@ -264,11 +269,11 @@ pub(crate) fn render_property_spreadsheet(
                             && animatix::timeline::property_has_keyframes(track, field.unwrap());
 
                         let value_color = if has_keyframes {
-                            AMBER
+                            semantic_status_warning
                         } else if !has_animated_track || value_text == "—" {
-                            TEXT_MUTED
+                            semantic_text_muted
                         } else {
-                            TEXT_SECONDARY
+                            semantic_text_secondary
                         };
 
                         ui.painter().text(

@@ -1,7 +1,7 @@
 use egui::{Sense, Vec2};
 
-
-use crate::app::design_tokens::*;
+use crate::app::design_tokens::semantic::{border, canvas, status, surface, text};
+use crate::app::design_tokens::spatial::{RADIUS_M, SPACE_S, STROKE_WIDTH};
 
 /// Draws a diamond-shaped keyframe marker.
 pub fn keyframe_dot(
@@ -10,7 +10,7 @@ pub fn keyframe_dot(
     size: f32,
     is_active: bool,
 ) {
-    let color = if is_active { TEXT_PRIMARY } else { AMBER };
+    let color = if is_active { text::PRIMARY } else { status::WARNING };
     let half = size * 0.5;
     let points = vec![
         center + Vec2::new(0.0, -half),
@@ -25,7 +25,7 @@ pub fn keyframe_dot(
 pub fn playhead(painter: &egui::Painter, x: f32, y_range: std::ops::Range<f32>) {
     painter.line_segment(
         [egui::pos2(x, y_range.start), egui::pos2(x, y_range.end)],
-        egui::Stroke::new(1.5, AMBER),
+        egui::Stroke::new(1.5, status::WARNING),
     );
 }
 
@@ -44,8 +44,8 @@ impl<'a> TimelineStrip<'a> {
         let painter = ui.painter_at(rect);
 
         let track = rect.shrink2(Vec2::new(SPACE_S, 3.0));
-        painter.rect_filled(track, RADIUS_M, BG_WIDGET);
-        painter.rect_stroke(track, RADIUS_M, egui::Stroke::new(STROKE_WIDTH, BORDER), egui::StrokeKind::Outside);
+        painter.rect_filled(track, RADIUS_M, surface::WIDGET);
+        painter.rect_stroke(track, RADIUS_M, egui::Stroke::new(STROKE_WIDTH, border::DEFAULT), egui::StrokeKind::Outside);
 
         let sec_step = if self.duration_s > 20.0 { 5.0 } else { 1.0 };
         let mut sec = sec_step;
@@ -57,7 +57,7 @@ impl<'a> TimelineStrip<'a> {
                     egui::pos2(x, track.top() + 2.0),
                     egui::pos2(x, track.bottom() - 2.0),
                 ],
-                egui::Stroke::new(STROKE_WIDTH, grid_line()),
+                egui::Stroke::new(STROKE_WIDTH, canvas::grid_line()),
             );
             sec += sec_step;
         }
