@@ -1,24 +1,81 @@
+use super::DragState;
 use super::context::PreviewContext;
-use egui::{Rect, Response, Ui};
+use super::gesture::{Gesture, GestureHandler, GestureResult, PointerButton};
+use super::gestures::common::GestureFrame;
+use egui::{Pos2, Rect, Response, Ui};
 
-/// Routes raw egui pointer events into typed Gestures and dispatches them to handlers.
 pub struct GestureRouter;
 
 impl GestureRouter {
-    /// Process pointer events from the preview canvas and dispatch to the current gesture handlers.
-    /// Currently delegates all input to the legacy `drag_handler::handle_preview_drag`.
-    ///
-    /// In later phases (Steps 3-7), this method will accept an explicit commands queue so that
-    /// extracted gesture handlers can emit commands directly. For now, the legacy drag handler
-    /// accesses commands through `ctx.commands`.
     pub fn handle_preview_gestures(
         ctx: &mut PreviewContext<'_>,
         ui: &mut Ui,
         preview_rect: Rect,
         response: &Response,
     ) {
-        // Phase 1: Delegate entirely to the legacy drag handler.
-        // Gesture handlers will be extracted incrementally in Steps 3-7.
+        // Capture drag_state before any mutable borrows
+        let is_active_pivot = matches!(ctx.drag_state, DragState::MovePivot { .. });
+        let is_drag_started = response.drag_started();
+
+        // Build per-frame gesture frame
+        let frame = GestureFrame {
+            screen_pos: ui.ctx().input(|i| i.pointer.latest_pos()),
+            scene_pos: ui.ctx().input(|i| i.pointer.latest_pos()).map(|p| {
+                let pt = ctx.preview_screen_to_scene(preview_rect, p);
+                egui::pos2(pt.x as f32, pt.y as f32)
+            }),
+            modifiers: ui.ctx().input(|i| i.modifiers),
+            drag_started: is_drag_started,
+            drag_stopped: response.drag_stopped(),
+            any_down: ui.ctx().input(|i| i.pointer.any_down()),
+            any_released: ui.ctx().input(|i| i.pointer.any_released()),
+        };
+
+        // Middle mouse button: always use legacy (panning)
+        if ui.ctx().input(|i| i.pointer.middle_down()) {
+            super::drag_handler::handle_preview_drag(ctx, ui, preview_rect, response);
+            return;
+        }
+
+        // ── Active extracted drag: route to its handler ──
+        if is_active_pivot {
+            let gesture = if frame.drag_stopped || frame.any_released || !frame.any_down {
+                Gesture::DragEnd {
+                    pos: frame.screen_pos.unwrap_or(Pos2::ZERO),
+                    button: PointerButton::Primary,
+                    modifiers: frame.modifiers,
+                }
+            } else if let Some(pos) = frame.screen_pos {
+                Gesture::DragMove {
+                    pos,
+                    delta: egui::Vec2::ZERO,
+                    button: PointerButton::Primary,
+                    modifiers: frame.modifiers,
+                }
+            } else {
+                super::drag_handler::handle_preview_drag(ctx, ui, preview_rect, response);
+                return;
+            };
+
+            super::gestures::pivot::PivotGesture.handle(&gesture, ctx, preview_rect);
+            return;
+        }
+
+        // ── Drag start: try extracted start handlers before legacy ──
+        if is_drag_started {
+            if let Some(pos) = frame.screen_pos {
+                let start_gesture = Gesture::DragStart {
+                    pos,
+                    button: PointerButton::Primary,
+                    modifiers: frame.modifiers,
+                };
+                if super::gestures::pivot::PivotGesture.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed {
+                    return;
+                }
+            }
+        }
+
+        // ── Legacy fallback ──
         super::drag_handler::handle_preview_drag(ctx, ui, preview_rect, response);
     }
 }

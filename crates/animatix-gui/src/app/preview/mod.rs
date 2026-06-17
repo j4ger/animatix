@@ -3,6 +3,7 @@ pub mod drag_handler;
 pub mod drag_utils;
 pub mod gesture;
 pub mod gesture_router;
+pub mod gestures;
 pub mod grid;
 pub mod overlay;
 pub mod performance;

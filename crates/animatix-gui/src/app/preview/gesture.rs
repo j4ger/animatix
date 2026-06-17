@@ -1,4 +1,3 @@
-use crate::app::commands::ActionQueue;
 use egui::{Pos2, Vec2};
 
 /// Mouse button for pointer events.
@@ -68,12 +67,5 @@ pub enum GestureResult {
 pub trait GestureHandler {
     /// Handle a gesture event. Return Claimed if the gesture was handled and should not be
     /// passed to lower-priority handlers.
-    fn handle(&mut self, gesture: &Gesture, ctx: &mut GestureContext) -> GestureResult;
-}
-
-/// Context passed to gesture handlers, providing access to preview state and command emission.
-#[allow(dead_code)] // Reserved for incremental gesture handler extraction (Phase 4, Steps 3-8)
-pub struct GestureContext<'a> {
-    pub commands: &'a mut ActionQueue,
-    pub preview_ctx: &'a mut crate::app::preview::context::PreviewContext<'a>,
-}
+    fn handle(&mut self, gesture: &Gesture, ctx: &mut crate::app::preview::context::PreviewContext, preview_rect: egui::Rect) -> GestureResult;
+} 
