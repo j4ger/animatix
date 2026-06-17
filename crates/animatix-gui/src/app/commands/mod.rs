@@ -22,6 +22,75 @@ pub use playback::PlaybackCommand;
 pub use scene::SceneCommand;
 pub use view::ViewCommand;
 
+/// Label for undo/redo stack entries. A subset of `Command` variants that
+/// actually mutate the document and get stored in undo history.
+/// The `label` is diagnostic only — undo/redo restores source text directly.
+#[derive(Debug, Clone)]
+pub enum UndoLabel {
+    // Document
+    FindReplaceAll,
+    InsertionFromPalette,
+    PropertyEdit(PropertyEdit),
+
+    // Actor
+    CreateActor { ty: String, label: String, position: [f32; 2], props: Vec<animatix_syntax::ast::Property> },
+    RenameActor { old_label: String, new_label: String },
+    DuplicateActor(String),
+    DeleteSelectedActors,
+    PasteActors,
+    ReparentActor { actor: String, new_parent: Option<String> },
+    ExtractScene { actor_labels: Vec<String>, new_scene_name: String },
+    MoveToScene { actor_labels: Vec<String>, target_scene: String },
+    AlignActors(Align),
+    DistributeActors(Axis),
+    GroupSelectedActors,
+    UngroupSelectedActors,
+
+    // Keyframe
+    SetKeyframeEasing { actor: String, property: String, time_s: f64, easing: animatix_syntax::easing::Easing },
+    DeleteKeyframe { actor: String, property: String, time_s: f64 },
+    MoveKeyframe { actor: String, property: String, old_time_s: f64, new_time_s: f64 },
+    ResizeAction { verb: String, targets: Vec<String>, old_start_s: f64, new_start_s: f64, new_duration_s: f64 },
+
+    // Scene
+    DuplicateScene(String),
+    DeleteScene(String),
+    SetTransition { from_scene: String, transition: animatix_syntax::ast::Transition },
+    SetPlayTarget { from_scene: String, target: Option<String> },
+    SetSceneDuration { scene: String, duration_s: Option<f64> },
+}
+
+impl From<UndoLabel> for Command {
+    fn from(l: UndoLabel) -> Self {
+        match l {
+            UndoLabel::FindReplaceAll => Command::FindReplaceAll,
+            UndoLabel::InsertionFromPalette => Command::InsertionFromPalette,
+            UndoLabel::PropertyEdit(e) => Command::PropertyEdit(e),
+            UndoLabel::CreateActor { ty, label, position, props } => Command::CreateActor { ty, label, position, props },
+            UndoLabel::RenameActor { old_label, new_label } => Command::RenameActor { old_label, new_label },
+            UndoLabel::DuplicateActor(s) => Command::DuplicateActor(s),
+            UndoLabel::DeleteSelectedActors => Command::DeleteSelectedActors,
+            UndoLabel::PasteActors => Command::PasteActors,
+            UndoLabel::ReparentActor { actor, new_parent } => Command::ReparentActor { actor, new_parent },
+            UndoLabel::ExtractScene { actor_labels, new_scene_name } => Command::ExtractScene { actor_labels, new_scene_name },
+            UndoLabel::MoveToScene { actor_labels, target_scene } => Command::MoveToScene { actor_labels, target_scene },
+            UndoLabel::AlignActors(a) => Command::AlignActors(a),
+            UndoLabel::DistributeActors(a) => Command::DistributeActors(a),
+            UndoLabel::GroupSelectedActors => Command::GroupSelectedActors,
+            UndoLabel::UngroupSelectedActors => Command::UngroupSelectedActors,
+            UndoLabel::SetKeyframeEasing { actor, property, time_s, easing } => Command::SetKeyframeEasing { actor, property, time_s, easing },
+            UndoLabel::DeleteKeyframe { actor, property, time_s } => Command::DeleteKeyframe { actor, property, time_s },
+            UndoLabel::MoveKeyframe { actor, property, old_time_s, new_time_s } => Command::MoveKeyframe { actor, property, old_time_s, new_time_s },
+            UndoLabel::ResizeAction { verb, targets, old_start_s, new_start_s, new_duration_s } => Command::ResizeAction { verb, targets, old_start_s, new_start_s, new_duration_s },
+            UndoLabel::DuplicateScene(s) => Command::DuplicateScene(s),
+            UndoLabel::DeleteScene(s) => Command::DeleteScene(s),
+            UndoLabel::SetTransition { from_scene, transition } => Command::SetTransition { from_scene, transition },
+            UndoLabel::SetPlayTarget { from_scene, target } => Command::SetPlayTarget { from_scene, target },
+            UndoLabel::SetSceneDuration { scene, duration_s } => Command::SetSceneDuration { scene, duration_s },
+        }
+    }
+}
+
 /// Effect enum reserved for future side-effect dispatch.
 #[derive(Debug, Clone)]
 pub enum Effect {
@@ -396,7 +465,7 @@ use crate::app::document::history::UiSnapshot;
 /// before/after the command was applied, and UI state snapshots.
 #[derive(Debug, Clone)]
 pub struct UndoEntry {
-    pub command: Command,
+    pub command: UndoLabel,
     pub source_before: String,
     pub source_after: String,
     pub ui_before: UiSnapshot,

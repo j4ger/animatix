@@ -44,7 +44,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-use crate::app::commands::{ActionQueue, Command, Effect, ShellAction};
+use crate::app::commands::{ActionQueue, Command, Effect, ShellAction, UndoLabel};
 use crate::app::components::toast::Toast;
 use crate::app::handlers::file;
 use crate::app::shell::insertion_palette::{InsertionPalette, PaletteMode};
@@ -988,8 +988,8 @@ impl GuiShell {
 
     /// Take a snapshot of the current source text for undo/redo.
     /// Call this BEFORE making a change to the source.
-    fn snapshot(&mut self, command: Command) {
-        self.document_store.snapshot(command);
+    fn snapshot(&mut self, label: UndoLabel) {
+        self.document_store.snapshot(label);
     }
 
     fn sync_active_scene_from_time(&mut self) {

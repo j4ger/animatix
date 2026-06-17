@@ -1,4 +1,4 @@
-use crate::app::commands::{Command, Effect};
+use crate::app::commands::{Effect, UndoLabel};
 use crate::app::document_controller::DocumentController;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore};
 
@@ -11,7 +11,7 @@ pub fn handle_set_keyframe_easing(
     time_s: f64,
     easing: animatix_syntax::easing::Easing,
 ) -> Vec<Effect> {
-    document_store.snapshot(Command::SetKeyframeEasing {
+    document_store.snapshot(UndoLabel::SetKeyframeEasing {
         actor: actor.clone(),
         property: property.clone(),
         time_s,
@@ -34,7 +34,7 @@ pub fn handle_delete_keyframe(
     property: String,
     time_s: f64,
 ) -> Vec<Effect> {
-    document_store.snapshot(Command::DeleteKeyframe {
+    document_store.snapshot(UndoLabel::DeleteKeyframe {
         actor: actor.clone(),
         property: property.clone(),
         time_s,
@@ -57,7 +57,7 @@ pub fn handle_move_keyframe(
     old_time_s: f64,
     new_time_s: f64,
 ) -> Vec<Effect> {
-    document_store.snapshot(Command::MoveKeyframe {
+    document_store.snapshot(UndoLabel::MoveKeyframe {
         actor: actor.clone(),
         property: property.clone(),
         old_time_s,
@@ -82,7 +82,7 @@ pub fn handle_resize_action(
     new_start_s: f64,
     new_duration_s: f64,
 ) -> Vec<Effect> {
-    document_store.snapshot(Command::ResizeAction {
+    document_store.snapshot(UndoLabel::ResizeAction {
         verb: verb.clone(),
         targets: targets.clone(),
         old_start_s,

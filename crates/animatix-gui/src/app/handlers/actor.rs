@@ -1,4 +1,4 @@
-use crate::app::commands::{Command, Effect};
+use crate::app::commands::{Effect, UndoLabel};
 use crate::app::document_controller::DocumentController;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore};
 
@@ -11,7 +11,7 @@ pub fn handle_create_actor(
     position: [f32; 2],
     props: Vec<animatix_syntax::ast::Property>,
 ) -> Vec<Effect> {
-    document_store.snapshot(Command::CreateActor {
+    document_store.snapshot(UndoLabel::CreateActor {
         ty: ty.clone(),
         label: label.clone(),
         position,
@@ -48,7 +48,7 @@ pub fn handle_rename_actor(
         }
     }
 
-    document_store.snapshot(Command::RenameActor {
+    document_store.snapshot(UndoLabel::RenameActor {
         old_label: old_label.clone(),
         new_label: new_label.clone(),
     });
@@ -90,7 +90,7 @@ pub fn handle_duplicate_actor(
     ui_store: &mut UiStore,
     original_label: String,
 ) -> Vec<Effect> {
-    document_store.snapshot(Command::DuplicateActor(original_label.clone()));
+    document_store.snapshot(UndoLabel::DuplicateActor(original_label.clone()));
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
@@ -105,7 +105,7 @@ pub fn handle_delete_selected_actors(
     preview_store: &mut PreviewStore,
     ui_store: &mut UiStore,
 ) -> Vec<Effect> {
-    document_store.snapshot(Command::DeleteSelectedActors);
+    document_store.snapshot(UndoLabel::DeleteSelectedActors);
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
@@ -120,7 +120,7 @@ pub fn handle_paste_actors(
     preview_store: &mut PreviewStore,
     ui_store: &mut UiStore,
 ) -> Vec<Effect> {
-    document_store.snapshot(Command::PasteActors);
+    document_store.snapshot(UndoLabel::PasteActors);
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
@@ -137,7 +137,7 @@ pub fn handle_reparent_actor(
     actor: String,
     new_parent: Option<String>,
 ) -> Vec<Effect> {
-    document_store.snapshot(Command::ReparentActor {
+    document_store.snapshot(UndoLabel::ReparentActor {
         actor: actor.clone(),
         new_parent: new_parent.clone(),
     });
@@ -157,7 +157,7 @@ pub fn handle_extract_scene(
     actor_labels: Vec<String>,
     new_scene_name: String,
 ) -> Vec<Effect> {
-    document_store.snapshot(Command::ExtractScene {
+    document_store.snapshot(UndoLabel::ExtractScene {
         actor_labels: actor_labels.clone(),
         new_scene_name: new_scene_name.clone(),
     });
@@ -177,7 +177,7 @@ pub fn handle_move_to_scene(
     actor_labels: Vec<String>,
     target_scene: String,
 ) -> Vec<Effect> {
-    document_store.snapshot(Command::MoveToScene {
+    document_store.snapshot(UndoLabel::MoveToScene {
         actor_labels: actor_labels.clone(),
         target_scene: target_scene.clone(),
     });
@@ -313,7 +313,7 @@ pub fn handle_align_actors(
         return vec![];
     }
 
-    document_store.snapshot(Command::AlignActors(alignment));
+    document_store.snapshot(UndoLabel::AlignActors(alignment));
     if let Some(ref mut stmts) = document_store.source.document.raw_statements {
         let snapshot = stmts.clone();
         for edit in &edits {
@@ -411,7 +411,7 @@ pub fn handle_distribute_actors(
         return vec![];
     }
 
-    document_store.snapshot(Command::DistributeActors(axis));
+    document_store.snapshot(UndoLabel::DistributeActors(axis));
     if let Some(ref mut stmts) = document_store.source.document.raw_statements {
         let snapshot = stmts.clone();
         for edit in &edits {
@@ -482,7 +482,7 @@ pub fn handle_group_selected_actors(
         [0.0, 0.0]
     };
 
-    document_store.snapshot(Command::GroupSelectedActors);
+    document_store.snapshot(UndoLabel::GroupSelectedActors);
 
     // Insert Group actor
     if let Some(ref mut stmts) = document_store.source.document.raw_statements {
@@ -555,7 +555,7 @@ pub fn handle_ungroup_selected_actors(
         return vec![];
     }
 
-    document_store.snapshot(Command::UngroupSelectedActors);
+    document_store.snapshot(UndoLabel::UngroupSelectedActors);
 
     // Collect children from timeline outside the mutable borrow on raw_statements.
     let mut group_children: Vec<(String, Vec<String>)> = Vec::new();

@@ -1,4 +1,4 @@
-use crate::app::commands::{Command, Effect};
+use crate::app::commands::{Effect, UndoLabel};
 use crate::app::document_controller::DocumentController;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore};
 
@@ -9,7 +9,7 @@ pub fn handle_set_transition(
     from_scene: String,
     transition: animatix_syntax::ast::Transition,
 ) -> Vec<Effect> {
-    document_store.snapshot(Command::SetTransition {
+    document_store.snapshot(UndoLabel::SetTransition {
         from_scene: from_scene.clone(),
         transition: transition.clone(),
     });
@@ -29,7 +29,7 @@ pub fn handle_set_play_target(
     from_scene: String,
     target: Option<String>,
 ) -> Vec<Effect> {
-    document_store.snapshot(Command::SetPlayTarget {
+    document_store.snapshot(UndoLabel::SetPlayTarget {
         from_scene: from_scene.clone(),
         target: target.clone(),
     });
@@ -49,7 +49,7 @@ pub fn handle_set_scene_duration(
     scene: String,
     duration_s: Option<f64>,
 ) -> Vec<Effect> {
-    document_store.snapshot(Command::SetSceneDuration {
+    document_store.snapshot(UndoLabel::SetSceneDuration {
         scene: scene.clone(),
         duration_s,
     });

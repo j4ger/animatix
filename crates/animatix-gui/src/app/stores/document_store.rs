@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::app::commands::Command;
+use crate::app::commands::UndoLabel;
 use crate::app::document::history::UiSnapshot;
 use crate::app::document::snapshot::{DocumentSnapshot, SnapshotStatus};
 use crate::app::document::version::DocumentGeneration;
@@ -12,7 +12,7 @@ use animatix_syntax::diagnostics::diagnostics_phase_summary;
 
 /// Pending undo snapshot state, captured before a mutation.
 struct PendingSnapshot {
-    command: Command,
+    command: UndoLabel,
     source_before: String,
     default_ui: UiSnapshot,
 }
@@ -77,9 +77,9 @@ impl DocumentStore {
 
     /// Begin an undo snapshot — captures source text before mutation.
     /// The snapshot is finalized when `commit_source()` or `replace_text()` is called.
-    pub fn snapshot(&mut self, command: Command) {
+    pub fn snapshot(&mut self, label: UndoLabel) {
         self.pending_snapshot = Some(PendingSnapshot {
-            command,
+            command: label,
             source_before: self.source.text().to_string(),
             default_ui: UiSnapshot::default_with_tool(crate::app::preview::ToolMode::Move),
         });
@@ -103,13 +103,13 @@ impl DocumentStore {
     #[allow(dead_code)]
     pub fn snapshot_with_ui(
         &mut self,
-        command: Command,
+        label: UndoLabel,
         ui_before: crate::app::document::history::UiSnapshot,
         ui_after: crate::app::document::history::UiSnapshot,
     ) {
         let source_before = self.source.document.source_text.clone();
         let source_after = self.source.document.source_text.clone();
-        self.history.snapshot(command, &source_before, &source_after, ui_before, ui_after);
+        self.history.snapshot(label, &source_before, &source_after, ui_before, ui_after);
     }
 
     // ── Snapshot API ──

@@ -1,4 +1,4 @@
-use crate::app::commands::{Command, Effect};
+use crate::app::commands::{Effect, UndoLabel};
 use crate::app::stores::{DocumentStore, PreviewStore};
 
 pub fn handle_reorder_scenes(
@@ -65,7 +65,7 @@ pub fn handle_duplicate_scene(
     preview_store: &mut PreviewStore,
     scene: String,
 ) -> Vec<Effect> {
-    document_store.snapshot(Command::DuplicateScene(scene.clone()));
+    document_store.snapshot(UndoLabel::DuplicateScene(scene.clone()));
     let Some(ref mut stmts) = document_store.source.document.raw_statements else {
         return vec![];
     };
@@ -91,7 +91,7 @@ pub fn handle_delete_scene(
     ui_store: &mut crate::app::stores::UiStore,
     scene: String,
 ) -> Vec<Effect> {
-    document_store.snapshot(Command::DeleteScene(scene.clone()));
+    document_store.snapshot(UndoLabel::DeleteScene(scene.clone()));
     let Some(ref mut stmts) = document_store.source.document.raw_statements else {
         return vec![];
     };

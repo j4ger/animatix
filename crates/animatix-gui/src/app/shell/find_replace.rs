@@ -1,6 +1,6 @@
 //! Find / Replace dialog for the source editor.
 
-use crate::app::commands::Command;
+use crate::app::commands::UndoLabel;
 use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
 use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
 use crate::app::design_tokens::semantic::surface::WIDGET as BG_WIDGET;
@@ -127,7 +127,7 @@ impl GuiShell {
         }
 
         let new_text = text.replace(find, replace);
-        self.document_store.snapshot(Command::FindReplaceAll);
+        self.document_store.snapshot(UndoLabel::FindReplaceAll);
         self.document_store.replace_text(new_text);
         self.document_store.source.document.raw_statements = None;
         self.document_store.source.document.expanded_statements = None;

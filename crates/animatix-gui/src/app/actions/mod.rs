@@ -154,7 +154,7 @@ impl GuiShell {
 
     fn maybe_snapshot(&mut self, edit: &panels::PropertyEdit, is_drag: bool) {
         if !is_drag || !self.ui_store.interaction.drag_snapshot_taken {
-            self.snapshot(Command::PropertyEdit(edit.clone()));
+            self.snapshot(crate::app::commands::UndoLabel::PropertyEdit(edit.clone()));
             if is_drag {
                 self.ui_store.interaction.drag_snapshot_taken = true;
             }
