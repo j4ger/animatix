@@ -26,7 +26,7 @@ pub const BG_ACTIVE: Color32 = Color32::from_rgb(40, 45, 55);
 // ── Text ──
 pub const TEXT_PRIMARY: Color32 = Color32::from_rgb(228, 232, 243);
 pub const TEXT_SECONDARY: Color32 = Color32::from_rgb(150, 158, 175);
-pub const TEXT_MUTED: Color32 = Color32::from_rgb(90, 96, 110);
+pub const TEXT_MUTED: Color32 = Color32::from_rgb(120, 128, 145);
 pub const TEXT_DISABLED: Color32 = Color32::from_rgb(60, 64, 72);
 
 // ── Accents ──

@@ -7,8 +7,6 @@ default-run = "animatix-gui"
 
 [features]
 default = []
-# Enables development screenshot tooling. Never enable in shipped binaries.
-dev-screenshots = []
 
 [dependencies]
 animatix = { path = "../animatix" }
@@ -16,7 +14,6 @@ animatix-analyzer = { path = "../animatix-analyzer" }
 animatix-syntax = { path = "../animatix-syntax" }
 crossbeam-channel = "0.5"
 directories = "6.0.0"
-image = { version = "0.25", default-features = false, features = ["png"] }
 eframe = { version = "0.34", default-features = false, features = ["default_fonts", "wgpu", "x11", "wayland"] }
 egui = { version = "0.34", features = ["serde"] }
 egui_code_editor = { version = "0.2", features = ["editor", "egui"] }
@@ -38,11 +35,6 @@ tree-sitter = "0.26"
 tree-sitter-animatix = { path = "../tree-sitter-animatix" }
 tree-sitter-highlight = "0.26"
 wgpu = "29.0.0"
-
-[[bin]]
-name = "widget-screenshot"
-path = "src/bin/widget-screenshot.rs"
-required-features = ["dev-screenshots"]
 
 [dev-dependencies]
 chumsky = "0.12"

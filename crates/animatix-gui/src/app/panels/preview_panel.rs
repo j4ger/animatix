@@ -411,6 +411,13 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                     if let Some(path) = file.path {
                         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
                         let path_str = path.to_string_lossy().to_string();
+
+                        // .amx files: open directly instead of creating an actor
+                        if ext == "amx" {
+                            ctx.commands.push_back(ShellAction::Command(Command::OpenFile(path)));
+                            continue;
+                        }
+
                         let drop_pos = if let Some(mouse) = ui.ctx().input(|i| i.pointer.latest_pos()) {
                             let scene = preview_screen_to_scene(ctx.scene_dimensions, preview_rect, mouse, ctx.preview.viewport.preview_zoom, ctx.preview.viewport.preview_pan);
                             [scene.x as f32, scene.y as f32]

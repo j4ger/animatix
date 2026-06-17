@@ -42,6 +42,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use crate::app::commands::{ActionQueue, Command, Effect, ShellAction};
 use crate::app::components::toast::Toast;
+use crate::app::handlers::file;
 use crate::app::shell::insertion_palette::{InsertionPalette, PaletteMode};
 use crate::app::utils::*;
 use crate::app::stores::*;
@@ -554,7 +555,7 @@ impl GuiShell {
                 commands.push_back(ShellAction::Command(Command::ToggleEditorSync));
             }
             if !wants_keyboard && !i.modifiers.command {
-                if i.key_pressed(egui::Key::A) && !self.ui_store.selection.selected_actors.is_empty() {
+                if i.key_pressed(egui::Key::A) && i.modifiers.shift && !self.ui_store.selection.selected_actors.is_empty() {
                     self.insertion_palette.open(PaletteMode::Actions);
                 }
                 if i.key_pressed(egui::Key::Slash) {
@@ -627,8 +628,24 @@ impl GuiShell {
                     let status = &self.preview_store.preview.status;
                     if !status.is_empty() {
                         let is_error = self.preview_store.preview.status_severity == StatusSeverity::Error;
-                        let color = if is_error { RED } else { TEXT_MUTED };
-                        ui.label(egui::RichText::new(status.as_str()).size(FONT_SIZE_XS).color(color));
+                        if is_error {
+                            // Red accent pill + warning icon for errors
+                            let bg_rect = egui::Rect::from_min_size(ui.cursor().min, egui::vec2(14.0, 14.0));
+                            ui.painter().rect_filled(bg_rect, RADIUS_S, DIAGNOSTIC_RED.linear_multiply(0.3));
+                            ui.painter().text(
+                                egui::pos2(bg_rect.center().x, bg_rect.center().y),
+                                egui::Align2::CENTER_CENTER,
+                                egui_phosphor::regular::WARNING,
+                                egui::FontId::new(10.0, egui::FontFamily::Proportional),
+                                DIAGNOSTIC_RED,
+                            );
+                            ui.add_space(SPACE_S);
+                        }
+                        let color = if is_error { DIAGNOSTIC_RED } else { TEXT_MUTED };
+                        let label = ui.label(egui::RichText::new(status.as_str()).size(FONT_SIZE_XS).color(color));
+                        if is_error && self.preview_store.preview.error.is_some() {
+                            label.on_hover_text(self.preview_store.preview.error.as_deref().unwrap_or(""));
+                        }
                     }
                     // Right side: scene dimensions
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -697,6 +714,11 @@ impl GuiShell {
         // Find / Replace overlay
         if self.ui_store.view.find_replace_open {
             self.find_replace_ui(ui);
+        }
+
+        // Unsaved changes dialog
+        if self.ui_store.unsaved_changes.is_open {
+            self.unsaved_changes_dialog_ui(ui);
         }
 
         // Toast notifications
@@ -1127,6 +1149,133 @@ impl GuiShell {
 
         for cmd in commands {
             let effects = self.handle_action(cmd);
+            self.apply_effects(effects);
+        }
+    }
+
+    /// Confirmation dialog for unsaved changes (Save / Discard / Cancel).
+    fn unsaved_changes_dialog_ui(&mut self, ui: &mut egui::Ui) {
+        let screen_rect = ui.ctx().viewport_rect();
+        ui.painter().rect_filled(screen_rect, 0.0, overlay_backdrop());
+
+        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.ui_store.unsaved_changes.close();
+        }
+        let backdrop = ui.interact(screen_rect, ui.id().with("unsaved_backdrop"), egui::Sense::click());
+        if backdrop.clicked() {
+            self.ui_store.unsaved_changes.close();
+        }
+
+        egui::Window::new("")
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .default_size([400.0, 200.0])
+            .min_size([360.0, 180.0])
+            .resizable(false)
+            .collapsible(false)
+            .title_bar(false)
+            .frame(
+                egui::Frame::new()
+                    .fill(BG_BASE)
+                    .stroke(egui::Stroke::new(STROKE_WIDTH, BORDER))
+                    .corner_radius(RADIUS_XL)
+                    .inner_margin(egui::Margin::same(SPACE_XL as i8)),
+            )
+            .show(ui.ctx(), |ui| {
+                ui.set_min_width(320.0);
+
+                ui.horizontal(|ui| {
+                    ui.label(
+                        egui::RichText::new(format!("{}  Unsaved changes", egui_phosphor::regular::FLOPPY_DISK))
+                            .size(FONT_SIZE_XL)
+                            .color(TEXT_PRIMARY),
+                    );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button(egui_phosphor::regular::X).clicked() {
+                            self.ui_store.unsaved_changes.close();
+                        }
+                    });
+                });
+                ui.add_space(SPACE_M);
+                ui.separator();
+                ui.add_space(SPACE_M);
+
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(&self.ui_store.unsaved_changes.message)
+                            .size(FONT_SIZE_M)
+                            .color(TEXT_SECONDARY),
+                    )
+                    .selectable(false),
+                );
+                ui.add_space(SPACE_XL);
+
+                ui.horizontal(|ui| {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        // Save button
+                        let save = ui.add_sized(
+                            [90.0, ROW_L],
+                            egui::Button::new(
+                                egui::RichText::new(format!("{}  Save", egui_phosphor::regular::FLOPPY_DISK))
+                                    .size(FONT_SIZE_S)
+                                    .color(TEXT_PRIMARY),
+                            )
+                            .fill(ACCENT_BLUE),
+                        );
+                        if save.clicked() {
+                            // Save first, then execute pending action
+                            let effects = file::handle_save(&mut self.document_store, &mut self.preview_store);
+                            self.apply_effects(effects);
+                            let was_close = self.ui_store.unsaved_changes.pending_close;
+                            self.execute_unsaved_pending_action();
+                            self.ui_store.unsaved_changes.close();
+                            if was_close {
+                                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                            }
+                        }
+
+                        // Discard button
+                        let discard = ui.add_sized(
+                            [90.0, ROW_L],
+                            egui::Button::new(
+                                egui::RichText::new(format!("{}  Discard", egui_phosphor::regular::TRASH))
+                                    .size(FONT_SIZE_S)
+                                    .color(TEXT_SECONDARY),
+                            )
+                            .fill(BG_WIDGET),
+                        );
+                        if discard.clicked() {
+                            // Mark document as no longer dirty, then execute pending
+                            self.document_store.source.document.is_dirty = false;
+                            let was_close = self.ui_store.unsaved_changes.pending_close;
+                            self.execute_unsaved_pending_action();
+                            self.ui_store.unsaved_changes.close();
+                            if was_close {
+                                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                            }
+                        }
+
+                        // Cancel button
+                        let cancel = ui.add_sized(
+                            [90.0, ROW_L],
+                            egui::Button::new(
+                                egui::RichText::new("Cancel")
+                                    .size(FONT_SIZE_S)
+                                    .color(TEXT_SECONDARY),
+                            )
+                            .fill(BG_WIDGET),
+                        );
+                        if cancel.clicked() {
+                            self.ui_store.unsaved_changes.close();
+                        }
+                    });
+                });
+            });
+    }
+
+    /// Execute the pending action stored in the unsaved changes dialog.
+    fn execute_unsaved_pending_action(&mut self) {
+        if let Some(action) = self.ui_store.unsaved_changes.pending_action.take() {
+            let effects = self.handle_action(action);
             self.apply_effects(effects);
         }
     }

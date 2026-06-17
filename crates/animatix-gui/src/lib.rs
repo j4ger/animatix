@@ -11,7 +11,4 @@ pub mod source_edit;
 pub mod validation;
 pub mod text_diff;
 
-#[cfg(feature = "dev-screenshots")]
-pub mod dev;
-
 pub use app::run_gui;

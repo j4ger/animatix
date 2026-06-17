@@ -589,9 +589,9 @@ pub(super) fn inspector_ui(
                             .layout(egui::Layout::left_to_right(egui::Align::Center)),
                     );
                     let modes = [
-                        (PropertyViewMode::Semantic, egui_phosphor::regular::ROWS, "Semantic"),
-                        (PropertyViewMode::Spreadsheet, egui_phosphor::regular::TABLE, "Sheet"),
-                        (PropertyViewMode::Intensity, egui_phosphor::regular::FIRE, "Stream"),
+                        (PropertyViewMode::Semantic, egui_phosphor::regular::ROWS, "Grouped"),
+                        (PropertyViewMode::Spreadsheet, egui_phosphor::regular::TABLE, "Table"),
+                        (PropertyViewMode::Intensity, egui_phosphor::regular::FIRE, "Intensity"),
                     ];
                     for (mode, icon, label) in modes.iter() {
                         let is_active = *mode == view_mode;

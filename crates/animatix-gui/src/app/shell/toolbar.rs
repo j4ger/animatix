@@ -93,6 +93,28 @@ impl GuiShell {
                         response.response.on_hover_text("Source edited — rebuild pending");
                     }
 
+                    // Building indicator (pulsing)
+                    if self.preview_store.rebuild_in_progress {
+                        ui.add_space(SPACE_S);
+                        let t = ui.ctx().animate_value_with_time(ui.id().with("build_spinner"), 0.0, 0.8);
+                        let pulse = ((t as f64 * std::f64::consts::TAU).sin() * 0.3 + 0.7) as f32;
+                        let response = egui::Frame::new()
+                            .fill(ACCENT_BLUE.linear_multiply(pulse))
+                            .corner_radius(RADIUS_M)
+                            .inner_margin(egui::Margin::symmetric(4, 1))
+                            .show(ui, |ui| {
+                                ui.add(
+                                    egui::Label::new(
+                                        RichText::new(egui_phosphor::regular::ARROW_CLOCKWISE)
+                                            .size(FONT_SIZE_XS)
+                                            .color(BG_BASE),
+                                    )
+                                    .selectable(false),
+                                );
+                            });
+                        response.response.on_hover_text("Building timeline…");
+                    }
+
                     // Filename dropdown
                     ui.menu_button(egui_phosphor::regular::CARET_DOWN, |ui| {
                         if ui
@@ -228,76 +250,71 @@ impl GuiShell {
                             self.preview_store.preview.overlay.show_actor_labels = !labels;
                         }
 
-                        // Bounds toggle (helps analyze container placement)
-                        let bounds = self.ui_store.view.debug_bounds;
-                        if ui
-                            .selectable_label(bounds, "Bounds")
-                            .on_hover_text("Toggle debug bounding boxes")
-                            .clicked()
-                        {
-                            self.ui_store.view.debug_bounds = !bounds;
-                        }
-
-                        // Layout debug toggle
-                        let layout_debug = self.ui_store.view.debug_layout;
-                        if ui
-                            .selectable_label(layout_debug, "Layout")
-                            .on_hover_text("Toggle layout debug overlay (container labels, slot outlines, sizes)")
-                            .clicked()
-                        {
-                            self.ui_store.view.debug_layout = !layout_debug;
-                        }
-
-                        // Spacing overlay toggle
-                        let spacing = self.ui_store.view.debug_spacing;
-                        if ui
-                            .selectable_label(spacing, "Spacing")
-                            .on_hover_text("Toggle padding/gap visualization")
-                            .clicked()
-                        {
-                            self.ui_store.view.debug_spacing = !spacing;
-                        }
-
-                        // Performance HUD toggle
-                        let perf = self.preview_store.preview.overlay.show_performance_hud;
-                        if ui
-                            .selectable_label(perf, "Performance")
-                            .on_hover_text("Toggle performance HUD overlay")
-                            .clicked()
-                        {
-                            self.preview_store.preview.overlay.show_performance_hud = !perf;
-                        }
+                        // Debug dropdown (grouped debug toggles)
+                        ui.menu_button(RichText::new("Debug").size(FONT_SIZE_S).color(TEXT_SECONDARY), |ui| {
+                            let mut bounds = self.ui_store.view.debug_bounds;
+                            if ui.checkbox(&mut bounds, "Bounds").clicked() {
+                                self.ui_store.view.debug_bounds = bounds;
+                            }
+                            let mut layout_debug = self.ui_store.view.debug_layout;
+                            if ui.checkbox(&mut layout_debug, "Layout").clicked() {
+                                self.ui_store.view.debug_layout = layout_debug;
+                            }
+                            let mut spacing = self.ui_store.view.debug_spacing;
+                            if ui.checkbox(&mut spacing, "Spacing").clicked() {
+                                self.ui_store.view.debug_spacing = spacing;
+                            }
+                            ui.separator();
+                            let mut perf = self.preview_store.preview.overlay.show_performance_hud;
+                            if ui.checkbox(&mut perf, "Performance HUD").clicked() {
+                                self.preview_store.preview.overlay.show_performance_hud = perf;
+                            }
+                        });
 
                         ui.separator();
 
-                        // Zoom cycle button: Fit → 100% → 150% → 200% → Fit
+                        // Zoom dropdown
                         let zoom = self.preview_store.preview.viewport.preview_zoom;
-                        let (zoom_label, next_zoom) = if (zoom - 1.0).abs() < 0.05 {
-                            ("100%", 1.5f32)
+                        let zoom_label = if (zoom - 1.0).abs() < 0.05 {
+                            "100%"
                         } else if (zoom - 1.5).abs() < 0.05 {
-                            ("150%", 2.0f32)
+                            "150%"
                         } else if (zoom - 2.0).abs() < 0.05 {
-                            ("200%", 0.0f32) // 0.0 signals Fit
+                            "200%"
                         } else {
-                            ("Fit", 1.0f32)
+                            "Fit"
                         };
-                        if ui
-                            .button(
-                                RichText::new(zoom_label).size(FONT_SIZE_S).color(TEXT_SECONDARY),
-                            )
-                            .on_hover_text("Cycle zoom")
-                            .clicked()
-                        {
-                            if next_zoom == 0.0 {
+                        ui.menu_button(RichText::new(zoom_label).size(FONT_SIZE_S).color(TEXT_SECONDARY), |ui| {
+                            ui.set_min_width(80.0);
+                            if ui.selectable_label(false, "Fit").clicked() {
                                 self.preview_store.preview.fit_zoom_requested = true;
-                            } else {
-                                self.preview_store.preview.viewport.preview_zoom = next_zoom;
+                                ui.close();
+                            }
+                            if ui.selectable_label((zoom - 1.0).abs() < 0.05, "100%").clicked() {
+                                self.preview_store.preview.viewport.preview_zoom = 1.0;
                                 self.preview_store.preview.viewport.preview_pan = Vec2::new(
                                     self.preview_store.preview.dimensions.width as f32 / 2.0,
                                     self.preview_store.preview.dimensions.height as f32 / 2.0,
                                 );
+                                ui.close();
                             }
-                        }
+                            if ui.selectable_label((zoom - 1.5).abs() < 0.05, "150%").clicked() {
+                                self.preview_store.preview.viewport.preview_zoom = 1.5;
+                                self.preview_store.preview.viewport.preview_pan = Vec2::new(
+                                    self.preview_store.preview.dimensions.width as f32 / 2.0,
+                                    self.preview_store.preview.dimensions.height as f32 / 2.0,
+                                );
+                                ui.close();
+                            }
+                            if ui.selectable_label((zoom - 2.0).abs() < 0.05, "200%").clicked() {
+                                self.preview_store.preview.viewport.preview_zoom = 2.0;
+                                self.preview_store.preview.viewport.preview_pan = Vec2::new(
+                                    self.preview_store.preview.dimensions.width as f32 / 2.0,
+                                    self.preview_store.preview.dimensions.height as f32 / 2.0,
+                                );
+                                ui.close();
+                            }
+                        });
                     });
 
                     // Right-aligned: inspector + settings + command palette

@@ -22,11 +22,12 @@ use std::time::Duration;
 
 use crate::app::commands::{ActionQueue, Command, ShellAction};
 use crate::app::components::button::{play_pause_button, toolbar_action_button, toolbar_separator, toolbar_toggle_button};
+use crate::app::components::layout;
 use crate::app::design_tokens::*;
 use crate::app::PreviewPaneState;
 use animatix::composition::Composition;
 use animatix::timeline::Timeline;
-use egui::{Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, Vec2};
+use egui::{Align2, Color32, FontId, Pos2, Rect, RichText, Sense, Stroke, Vec2};
 
 /// Property groups for per-property lanes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -342,11 +343,17 @@ fn render_transport_strip(
             toolbar_separator(ui);
 
             // Speed dropdown
-            const SPEEDS: [(f32, &str); 4] = [(0.5, "½×"), (1.0, "1×"), (2.0, "2×"), (4.0, "4×")];
+            const SPEEDS: [(f32, &str); 4] = [(0.5, "\u{BD}\u{D7}"), (1.0, "1\u{D7}"), (2.0, "2\u{D7}"), (4.0, "4\u{D7}")];
             let si = SPEEDS.iter().position(|(v, _)| (*v - preview.playback.playback_speed).abs() < f32::EPSILON).unwrap_or(1);
-            if toolbar_action_button(ui, SPEEDS[si].1, None, "Playback speed", false).clicked() {
-                preview.playback.playback_speed = SPEEDS[(si + 1) % SPEEDS.len()].0;
-            }
+            ui.menu_button(RichText::new(SPEEDS[si].1).monospace().size(FONT_SIZE_S).color(TEXT_SECONDARY), |ui| {
+                for (speed, label) in &SPEEDS {
+                    let is_active = (*speed - preview.playback.playback_speed).abs() < f32::EPSILON;
+                    if ui.selectable_label(is_active, *label).clicked() {
+                        preview.playback.playback_speed = *speed;
+                        ui.close();
+                    }
+                }
+            });
 
             // Loop toggle
             let loop_active = preview.playback.loop_start_s.is_some() && preview.playback.loop_end_s.is_some();
@@ -436,6 +443,18 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         scene_keyframe_times,
         ..
     } = ctx;
+
+    // Empty state when no timeline is loaded
+    if timeline.is_none() && composition.is_none() {
+        layout::empty_state(
+            ui,
+            egui_phosphor::regular::FILM_STRIP,
+            "No timeline loaded",
+            "Open or create a scene to begin",
+        );
+        return;
+    }
+
     // Prune expired keyframe flashes (300 ms lifetime)
     let now = std::time::Instant::now();
     preview.flashed_keyframe_times.retain(|(_, instant)| now.duration_since(*instant) < Duration::from_millis(300));

@@ -1,4 +1,5 @@
 use crate::app::commands::ActionQueue;
+use crate::app::commands::ShellAction;
 use crate::app::components::toast::ToastQueue;
 use crate::app::panels::SidebarTab;
 use crate::app::panels::inspector::{KeyframeViewMode, PropertyViewMode};
@@ -156,6 +157,8 @@ pub struct UiStore {
     pub replace_query: String,
     /// Byte offset of the last Find Next match, for cursor-relative search.
     pub find_last_match: Option<usize>,
+    /// Unsaved changes confirmation dialog state.
+    pub unsaved_changes: UnsavedChangesDialog,
 }
 
 impl UiStore {
@@ -187,6 +190,7 @@ impl UiStore {
             find_query: String::new(),
             replace_query: String::new(),
             find_last_match: None,
+            unsaved_changes: UnsavedChangesDialog::default(),
         }
     }
 
@@ -215,6 +219,38 @@ impl UiStore {
         self.view.tool_mode = snapshot.tool_mode;
         // Clear drag state on restore
         self.interaction.drag_state = crate::app::preview::DragState::None;
+    }
+}
+
+/// Confirmation dialog for unsaved changes.
+#[derive(Debug, Clone, Default)]
+pub struct UnsavedChangesDialog {
+    pub is_open: bool,
+    pub message: String,
+    pub pending_close: bool,
+    pub pending_action: Option<ShellAction>,
+}
+
+impl UnsavedChangesDialog {
+    pub fn open(&mut self, message: impl Into<String>, action: ShellAction) {
+        self.is_open = true;
+        self.message = message.into();
+        self.pending_action = Some(action);
+        self.pending_close = false;
+    }
+
+    pub fn open_for_close(&mut self) {
+        self.is_open = true;
+        self.message = "Save changes before closing?".into();
+        self.pending_action = None;
+        self.pending_close = true;
+    }
+
+    pub fn close(&mut self) {
+        self.is_open = false;
+        self.message.clear();
+        self.pending_action = None;
+        self.pending_close = false;
     }
 }
 

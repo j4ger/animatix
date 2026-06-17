@@ -57,8 +57,6 @@ struct AnimatixApp {
     shell: GuiShell,
     preview_surface: PreviewSurface,
     preview_texture_id: Option<egui::TextureId>,
-    /// Set to true when a screenshot is requested; cleared after saving.
-    screenshot_pending: bool,
     /// Audio playback engine for preview audio synced with the timeline.
     audio_engine: Option<AudioEngine>,
 }
@@ -97,7 +95,6 @@ impl AnimatixApp {
             shell,
             preview_surface,
             preview_texture_id: None,
-            screenshot_pending: false,
             audio_engine,
         })
     }
@@ -135,16 +132,6 @@ impl AnimatixApp {
         // Rebuild (Ctrl+Shift+R)
         if ctx.input(|i| i.key_pressed(egui::Key::R) && i.modifiers.ctrl && i.modifiers.shift) {
             self.shell.ui_store.pending_actions.push_back(ShellAction::Command(Command::Rebuild));
-        }
-
-        // Screenshot (Ctrl+Shift+S or F12)
-        if ctx.input(|i| {
-            (i.key_pressed(egui::Key::S) && i.modifiers.ctrl && i.modifiers.shift)
-                || i.key_pressed(egui::Key::F12)
-        }) {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
-            self.screenshot_pending = true;
-            self.shell.preview_store.preview.status = "Screenshot requested…".to_string();
         }
 
         // Skip remaining shortcuts when a text input is focused
@@ -468,13 +455,6 @@ impl eframe::App for AnimatixApp {
     }
 
     fn on_exit(&mut self) {
-        // Warn if there are unsaved changes (we can't show a modal at this point)
-        if self.shell.document_store.source.is_dirty() {
-            tracing::warn!(
-                "Exiting with unsaved changes in {}",
-                self.shell.document_store.source.file_path().display()
-            );
-        }
         self.shell.save_persistence();
         if self.shell.ui_store.view.welcome_open {
             clear_app_state();
@@ -484,6 +464,15 @@ impl eframe::App for AnimatixApp {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        // Intercept close when document has unsaved changes
+        if self.shell.document_store.source.is_dirty() && !self.shell.ui_store.unsaved_changes.is_open {
+            let close_requested = ui.input(|i| i.viewport().close_requested());
+            if close_requested {
+                ui.ctx().send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                self.shell.ui_store.unsaved_changes.open_for_close();
+            }
+        }
+
         // Record frame tick for performance HUD
         self.shell.preview_store.performance_metrics.record_tick();
 
@@ -514,24 +503,6 @@ impl eframe::App for AnimatixApp {
         // Render the UI
         self.shell.ui(ui, self.preview_texture_id);
 
-        // Handle screenshot events
-        if self.screenshot_pending {
-            ui.input(|i| {
-                for event in &i.raw.events {
-                    if let egui::Event::Screenshot { image, .. } = event {
-                        if let Err(e) = save_screenshot(image, i.pixels_per_point) {
-                            tracing::warn!("Failed to save screenshot: {}", e);
-                            self.shell.preview_store.preview.status =
-                                format!("Screenshot failed: {}", e);
-                        } else {
-                            self.shell.preview_store.preview.status = "Screenshot saved".to_string();
-                        }
-                        self.screenshot_pending = false;
-                    }
-                }
-            });
-        }
-
         // Capture window geometry for persistence
         let (size, maximized) = ui.ctx().input(|i| {
             let rect = i.viewport_rect();
@@ -546,42 +517,6 @@ impl eframe::App for AnimatixApp {
             ui.ctx().request_repaint();
         }
     }
-}
-
-/// Save a full-viewport screenshot to disk.
-/// Files are written to `/tmp/animatix_screenshots/` with a timestamp.
-fn save_screenshot(image: &egui::ColorImage, pixels_per_point: f32) -> Result<(), String> {
-    let dir = std::path::PathBuf::from("/tmp/animatix_screenshots");
-    std::fs::create_dir_all(&dir).map_err(|e| format!("create dir: {e}"))?;
-
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    let path = dir.join(format!("animatix_{timestamp}.png"));
-
-    // The screenshot image may be at native resolution (retina / HiDPI).
-    // Scale it down to logical pixels so the saved PNG matches what the user sees.
-    let [img_w, img_h] = image.size;
-    let logical_w = (img_w as f32 / pixels_per_point).round() as u32;
-    let logical_h = (img_h as f32 / pixels_per_point).round() as u32;
-
-    let raw: Vec<u8> = image.pixels.iter().flat_map(|c| c.to_array()).collect();
-    let src = image::RgbaImage::from_raw(img_w as u32, img_h as u32, raw)
-        .ok_or("invalid screenshot buffer")?;
-    let resized = image::imageops::resize(
-        &src,
-        logical_w.max(1),
-        logical_h.max(1),
-        image::imageops::FilterType::Lanczos3,
-    );
-
-    resized
-        .save(&path)
-        .map_err(|e| format!("save png: {e}"))?;
-
-    tracing::info!("Screenshot saved to {}", path.display());
-    Ok(())
 }
 
 fn live_preview_status(preview: &PreviewPaneState, active_scene: Option<&str>) -> String {

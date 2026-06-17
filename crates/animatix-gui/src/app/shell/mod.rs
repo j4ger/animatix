@@ -22,27 +22,54 @@ impl GuiShell {
 
     fn handle_command(&mut self, command: Command) -> Vec<Effect> {
         match command {
-            Command::OpenFile(path) => file::handle_open_file(
-                &mut self.document_store,
-                &mut self.workspace_store,
-                &mut self.preview_store,
-                &mut self.ui_store,
-                path,
-            ),
+            Command::OpenFile(path) => {
+                if self.document_store.source.is_dirty() {
+                    self.ui_store.unsaved_changes.open(
+                        format!("Save changes before opening \"{}\"?", path.display()),
+                        ShellAction::Command(Command::OpenFile(path)),
+                    );
+                    return vec![];
+                }
+                file::handle_open_file(
+                    &mut self.document_store,
+                    &mut self.workspace_store,
+                    &mut self.preview_store,
+                    &mut self.ui_store,
+                    path,
+                )
+            },
             Command::ToggleExpandDir(path) => {
                 file::handle_toggle_expand_dir(&mut self.workspace_store, &self.document_store, path)
             }
-            Command::SwitchWorkspace(path) => file::handle_switch_workspace(
-                &mut self.workspace_store,
-                &self.document_store,
-                path,
-            ),
+            Command::SwitchWorkspace(path) => {
+                if self.document_store.source.is_dirty() {
+                    self.ui_store.unsaved_changes.open(
+                        format!("Save changes before switching workspace to \"{}\"?", path.display()),
+                        ShellAction::Command(Command::SwitchWorkspace(path)),
+                    );
+                    return vec![];
+                }
+                file::handle_switch_workspace(
+                    &mut self.workspace_store,
+                    &self.document_store,
+                    path,
+                )
+            },
             Command::Save => file::handle_save(&mut self.document_store, &mut self.preview_store),
-            Command::Reload => file::handle_reload(
-                &mut self.document_store,
-                &mut self.preview_store,
-                &mut self.workspace_store,
-            ),
+            Command::Reload => {
+                if self.document_store.source.is_dirty() {
+                    self.ui_store.unsaved_changes.open(
+                        "Save changes before reloading?".to_string(),
+                        ShellAction::Command(Command::Reload),
+                    );
+                    return vec![];
+                }
+                file::handle_reload(
+                    &mut self.document_store,
+                    &mut self.preview_store,
+                    &mut self.workspace_store,
+                )
+            },
             Command::Rebuild => {
                 file::handle_rebuild(&mut self.document_store, &mut self.preview_store, &mut self.ui_store)
             }

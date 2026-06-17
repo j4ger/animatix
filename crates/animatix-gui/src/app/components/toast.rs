@@ -113,14 +113,24 @@ impl ToastQueue {
         let start_x = viewport.max.x - margin - toast_w;
         let start_y = viewport.max.y - margin;
 
-        for (i, toast) in self.toasts.iter().enumerate() {
+        let mut i = 0;
+        while i < self.toasts.len() {
+            let toast = &self.toasts[i];
             let alpha = toast.alpha(now);
             if alpha <= 0.01 {
+                i += 1;
                 continue;
             }
 
             let y = start_y - (i as f32 + 1.0) * (toast_h + spacing);
             let rect = Rect::from_min_size(Pos2::new(start_x, y), Vec2::new(toast_w, toast_h));
+
+            // Make the toast clickable to dismiss
+            let response = ui.interact(rect, ui.id().with("toast").with(i), egui::Sense::click());
+            if response.clicked() {
+                self.toasts.remove(i);
+                continue;
+            }
 
             // Background with alpha
             let bg = BG_SURFACE.linear_multiply(alpha);
@@ -163,6 +173,7 @@ impl ToastQueue {
                 rect.center().y - galley.size().y / 2.0,
             );
             ui.painter().galley(text_pos, galley, text_color);
+            i += 1;
         }
 
         // Request repaint while toasts are visible for fade animation
