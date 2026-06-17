@@ -2,12 +2,12 @@
 //!
 //! Constructed by the shell before each frame, consumed by the panel.
 
-use std::collections::HashMap;
 use kurbo::Rect;
+use std::collections::HashMap;
 
+use crate::app::PreviewPaneState;
 use crate::app::document::active_timeline::ActiveTimelineRef;
 use crate::app::preview::ToolMode;
-use crate::app::PreviewPaneState;
 use animatix::timeline::SceneDimensions;
 
 /// Immutable view model for the preview panel.

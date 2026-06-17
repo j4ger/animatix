@@ -1,17 +1,21 @@
 //! Command palette: Cmd+Shift+P searchable list of all commands.
 
-use crate::app::commands::{ActorCommand, Command, DocumentCommand, PlaybackCommand, ShellAction, ViewCommand};
+use crate::app::GuiShell;
 use crate::app::commands::ViewAction;
+use crate::app::commands::{
+    ActorCommand, Command, DocumentCommand, PlaybackCommand, ShellAction, ViewCommand,
+};
 use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
+use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
+use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
 use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
 use crate::app::design_tokens::semantic::surface::WIDGET as BG_WIDGET;
-use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
 use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
 use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
-use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
-use crate::app::design_tokens::spatial::{STROKE_WIDTH, RADIUS_XL, RADIUS_M, SPACE_XL, SPACE_M, SPACE_S, ROW_M};
-use crate::app::design_tokens::typography::{TextRole};
-use crate::app::GuiShell;
+use crate::app::design_tokens::spatial::{
+    RADIUS_M, RADIUS_XL, ROW_M, SPACE_M, SPACE_S, SPACE_XL, STROKE_WIDTH,
+};
+use crate::app::design_tokens::typography::TextRole;
 
 struct PaletteItem {
     label: String,
@@ -21,9 +25,7 @@ struct PaletteItem {
 }
 
 impl GuiShell {
-    pub(crate) fn command_palette_ui(&mut self,
-        ui: &mut egui::Ui,
-    ) {
+    pub(crate) fn command_palette_ui(&mut self, ui: &mut egui::Ui) {
         let screen_rect = ui.ctx().viewport_rect();
         ui.painter().rect_filled(screen_rect, 0.0, overlay_backdrop());
 
@@ -31,7 +33,8 @@ impl GuiShell {
         if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.ui_store.view.command_palette_open = false;
         }
-        let backdrop = ui.interact(screen_rect, ui.id().with("cmd_palette_backdrop"), egui::Sense::click());
+        let backdrop =
+            ui.interact(screen_rect, ui.id().with("cmd_palette_backdrop"), egui::Sense::click());
         if backdrop.clicked() {
             self.ui_store.view.command_palette_open = false;
         }
@@ -119,30 +122,32 @@ impl GuiShell {
                             .color(TEXT_MUTED),
                     );
                 } else {
-                    egui::ScrollArea::vertical()
-                        .max_height(320.0)
-                        .show(ui, |ui| {
-                            for (idx, item) in filtered.iter().enumerate() {
-                                let is_selected = idx == self.ui_store.command_palette_selected;
+                    egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
+                        for (idx, item) in filtered.iter().enumerate() {
+                            let is_selected = idx == self.ui_store.command_palette_selected;
 
-                                let resp = ui.add(
-                                    egui::Button::new(
-                                        egui::RichText::new(format!("{}  {}", item.icon, item.label))
-                                            .size(TextRole::Body.size())
-                                            .color(TEXT_PRIMARY),
-                                    )
-                                    .fill(if is_selected { ACCENT_BLUE.linear_multiply(0.15) } else { BG_WIDGET })
-                                    .stroke(egui::Stroke::new(STROKE_WIDTH, BORDER))
-                                    .corner_radius(RADIUS_M)
-                                    .min_size(egui::vec2(ui.available_width(), ROW_M)),
-                                );
-                                if resp.clicked() {
-                                    commands.push(item.action.clone());
-                                    self.ui_store.view.command_palette_open = false;
-                                    self.ui_store.command_palette_query.clear();
-                                }
+                            let resp = ui.add(
+                                egui::Button::new(
+                                    egui::RichText::new(format!("{}  {}", item.icon, item.label))
+                                        .size(TextRole::Body.size())
+                                        .color(TEXT_PRIMARY),
+                                )
+                                .fill(if is_selected {
+                                    ACCENT_BLUE.linear_multiply(0.15)
+                                } else {
+                                    BG_WIDGET
+                                })
+                                .stroke(egui::Stroke::new(STROKE_WIDTH, BORDER))
+                                .corner_radius(RADIUS_M)
+                                .min_size(egui::vec2(ui.available_width(), ROW_M)),
+                            );
+                            if resp.clicked() {
+                                commands.push(item.action.clone());
+                                self.ui_store.view.command_palette_open = false;
+                                self.ui_store.command_palette_query.clear();
                             }
-                        });
+                        }
+                    });
                 }
             });
 
@@ -152,8 +157,7 @@ impl GuiShell {
         }
     }
 
-    fn build_palette_items(&self,
-    ) -> Vec<PaletteItem> {
+    fn build_palette_items(&self) -> Vec<PaletteItem> {
         let mut items = Vec::new();
         let has_selection = !self.ui_store.selection.selected_actors.is_empty();
 
@@ -268,7 +272,8 @@ impl GuiShell {
             items.push(PaletteItem {
                 label: "Distribute Horizontally".into(),
                 icon: egui_phosphor::regular::ARROWS_OUT_LINE_HORIZONTAL,
-                action: ActorCommand::DistributeActors(crate::app::commands::Axis::Horizontal).into(),
+                action: ActorCommand::DistributeActors(crate::app::commands::Axis::Horizontal)
+                    .into(),
                 keywords: "distribute horizontal evenly space actors",
             });
             items.push(PaletteItem {

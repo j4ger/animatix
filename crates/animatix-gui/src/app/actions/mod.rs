@@ -1,5 +1,5 @@
-use super::*;
 use super::panels;
+use super::*;
 use animatix::timeline::TrackAccessor;
 
 impl GuiShell {
@@ -76,7 +76,9 @@ impl GuiShell {
         // Non-drag: validate source first, then apply atomically.
         if let Err(err) = self.apply_property_source_edit(&edit) {
             tracing::error!("source edit failed for {}.{}: {}", edit.actor, edit.property, err);
-            self.preview_store.preview.set_status_error(format!("⚠ Edited {}.{} — {}", edit.actor, edit.property, err));
+            self.preview_store
+                .preview
+                .set_status_error(format!("⚠ Edited {}.{} — {}", edit.actor, edit.property, err));
         } else {
             self.preview_store.preview.status =
                 format!("Edited {}.{} — source updated", edit.actor, edit.property);
@@ -104,7 +106,9 @@ impl GuiShell {
         }
 
         if let Err(err) = self.apply_child_order_source_edit(&edit) {
-            self.preview_store.preview.set_status_error(format!("⚠ Edited {}.child_order — {}", edit.actor, err));
+            self.preview_store
+                .preview
+                .set_status_error(format!("⚠ Edited {}.child_order — {}", edit.actor, err));
         } else {
             self.preview_store.preview.status =
                 format!("Edited {}.child_order — source updated", edit.actor);
@@ -114,12 +118,8 @@ impl GuiShell {
 
     /// Flush all pending drag edits to source.
     pub(crate) fn flush_pending_drag_edits(&mut self) {
-        let pending: Vec<panels::PropertyEdit> = self
-            .ui_store
-            .interaction
-            .pending_drag_source_edits
-            .drain(..)
-            .collect();
+        let pending: Vec<panels::PropertyEdit> =
+            self.ui_store.interaction.pending_drag_source_edits.drain(..).collect();
         if pending.is_empty() {
             return;
         }
@@ -162,32 +162,31 @@ impl GuiShell {
     }
 
     fn defer_drag_edit(&mut self, edit: panels::PropertyEdit) {
-        self.ui_store
-            .interaction
-            .pending_drag_source_edits
-            .push(edit);
+        self.ui_store.interaction.pending_drag_source_edits.push(edit);
     }
 
     fn apply_timeline_edit(&mut self, edit: &panels::PropertyEdit) {
         if let Some(at) = self.document_store.source.document.active_timeline_mut() {
             let timeline = &mut *at.timeline;
             if let Some(track) = timeline.tracks_mut().get_mut(&edit.actor) {
-                let time_ms = (edit.time_s.unwrap_or(self.preview_store.preview.playback.current_time_s()) * 1000.0) as u64;
+                let time_ms =
+                    (edit.time_s.unwrap_or(self.preview_store.preview.playback.current_time_s())
+                        * 1000.0) as u64;
                 apply_property_edit_to_track(track, &edit.property, &edit.value, time_ms);
             }
             timeline.invalidate_frame_cache();
         }
     }
 
-    fn apply_keyframe_source_edit(&mut self, edit: &panels::PropertyEdit) -> Result<(), crate::source_edit::SourceEditError> {
+    fn apply_keyframe_source_edit(
+        &mut self,
+        edit: &panels::PropertyEdit,
+    ) -> Result<(), crate::source_edit::SourceEditError> {
         let expr = animatix_syntax::ast::Expr::try_from(edit.value.clone())
             .map_err(crate::source_edit::SourceEditError::Generic)?;
-        let edit_time_s = edit.time_s.unwrap_or(self.preview_store.preview.playback.current_time_s());
-        let prev_time_s = self
-            .document_store
-            .source
-            .document
-            .prev_keyframe_time(edit_time_s);
+        let edit_time_s =
+            edit.time_s.unwrap_or(self.preview_store.preview.playback.current_time_s());
+        let prev_time_s = self.document_store.source.document.prev_keyframe_time(edit_time_s);
         let delta_s = edit_time_s - prev_time_s;
 
         let (new_source, source_index, flashes) =
@@ -212,7 +211,9 @@ impl GuiShell {
                     crate::source_edit::apply_edit(trial, source_edit)
                 })?
             } else {
-                return Err(crate::source_edit::SourceEditError::Generic("No AST available".to_string()));
+                return Err(crate::source_edit::SourceEditError::Generic(
+                    "No AST available".to_string(),
+                ));
             };
 
         self.apply_timeline_edit(edit);
@@ -220,7 +221,10 @@ impl GuiShell {
         Ok(())
     }
 
-    fn apply_property_source_edit(&mut self, edit: &panels::PropertyEdit) -> Result<(), crate::source_edit::SourceEditError> {
+    fn apply_property_source_edit(
+        &mut self,
+        edit: &panels::PropertyEdit,
+    ) -> Result<(), crate::source_edit::SourceEditError> {
         let expr = animatix_syntax::ast::Expr::try_from(edit.value.clone())
             .map_err(crate::source_edit::SourceEditError::Generic)?;
 
@@ -246,7 +250,9 @@ impl GuiShell {
                     }
                 })?
             } else {
-                return Err(crate::source_edit::SourceEditError::Generic("No AST available".to_string()));
+                return Err(crate::source_edit::SourceEditError::Generic(
+                    "No AST available".to_string(),
+                ));
             };
 
         self.apply_timeline_edit(edit);
@@ -271,10 +277,14 @@ impl GuiShell {
                         crate::source_edit::apply_edit(trial, edit_op)
                     })?
                 } else {
-                    return Err(crate::source_edit::SourceEditError::Generic("Invalid value type for child_order".to_string()));
+                    return Err(crate::source_edit::SourceEditError::Generic(
+                        "Invalid value type for child_order".to_string(),
+                    ));
                 }
             } else {
-                return Err(crate::source_edit::SourceEditError::Generic("No AST available".to_string()));
+                return Err(crate::source_edit::SourceEditError::Generic(
+                    "No AST available".to_string(),
+                ));
             };
 
         if let Some(at) = self.document_store.source.document.active_timeline_mut() {
@@ -304,9 +314,8 @@ impl GuiShell {
         for time in flashes {
             self.preview_store.preview.flashed_keyframe_times.push((time, Instant::now()));
         }
-        self.preview_store.pending_rebuild_at = Some(
-            Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms),
-        );
+        self.preview_store.pending_rebuild_at =
+            Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
     }
 }
 
@@ -327,9 +336,14 @@ impl GuiShell {
 fn try_apply_source_edit<F>(
     stmts: &mut Vec<animatix_syntax::ast::Stmt>,
     apply_fn: F,
-) -> Result<(String, animatix_syntax::source_index::SourceIndex, Vec<f64>), crate::source_edit::SourceEditError>
+) -> Result<
+    (String, animatix_syntax::source_index::SourceIndex, Vec<f64>),
+    crate::source_edit::SourceEditError,
+>
 where
-    F: FnOnce(&mut Vec<animatix_syntax::ast::Stmt>) -> Result<(), crate::source_edit::SourceEditError>,
+    F: FnOnce(
+        &mut Vec<animatix_syntax::ast::Stmt>,
+    ) -> Result<(), crate::source_edit::SourceEditError>,
 {
     crate::source_edit::clear_adjust_flash_queue();
     let mut trial = stmts.clone();
@@ -359,9 +373,9 @@ fn apply_property_edit_to_track(
     value: &panels::PropertyValue,
     time_ms: u64,
 ) {
+    use crate::app::panels::PropertyValue as PV;
     use animatix::timeline::PropertyTrack;
     use animatix::timeline::TrackFieldMut;
-    use crate::app::panels::PropertyValue as PV;
 
     let linear = animatix_syntax::easing::Easing::Linear;
 
@@ -375,23 +389,22 @@ fn apply_property_edit_to_track(
                 pt.add_keyframe(time_ms, half, linear);
             }
             return;
-        }
+        },
         "offset" => {
             if let PV::Vec2(v) = value {
                 if let Some(ref mut pb_track) = track.position_binding {
                     let current = pb_track.evaluate(time_ms);
-                    if let animatix::timeline::PositionBinding::SceneAnchor { anchor, .. } = current {
-                        let new_binding = animatix::timeline::PositionBinding::SceneAnchor {
-                            anchor,
-                            offset: *v,
-                        };
+                    if let animatix::timeline::PositionBinding::SceneAnchor { anchor, .. } = current
+                    {
+                        let new_binding =
+                            animatix::timeline::PositionBinding::SceneAnchor { anchor, offset: *v };
                         pb_track.default_value = new_binding;
                         pb_track.add_keyframe(time_ms, new_binding, linear);
                     }
                 }
             }
             return;
-        }
+        },
         "at" => {
             if let PV::Vec2(v) = value {
                 let binding = track.position_binding.as_ref().map(|pb| pb.evaluate(time_ms));
@@ -406,16 +419,16 @@ fn apply_property_edit_to_track(
                             pb_track.default_value = new_binding;
                             pb_track.add_keyframe(time_ms, new_binding, linear);
                         }
-                    }
+                    },
                     _ => {
                         let pt = track.position.get_or_insert_with(|| PropertyTrack::new(*v));
                         pt.default_value = *v;
                         pt.add_keyframe(time_ms, *v, linear);
-                    }
+                    },
                 }
             }
             return;
-        }
+        },
         "radius" => {
             if let PV::Float(v) = value {
                 let size = [*v, *v];
@@ -424,7 +437,7 @@ fn apply_property_edit_to_track(
                 pt.add_keyframe(time_ms, size, linear);
             }
             return;
-        }
+        },
         "radius_x" => {
             if let PV::Float(v) = value {
                 let current = track.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
@@ -434,7 +447,7 @@ fn apply_property_edit_to_track(
                 pt.add_keyframe(time_ms, size, linear);
             }
             return;
-        }
+        },
         "radius_y" => {
             if let PV::Float(v) = value {
                 let current = track.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
@@ -444,7 +457,7 @@ fn apply_property_edit_to_track(
                 pt.add_keyframe(time_ms, size, linear);
             }
             return;
-        }
+        },
         "start_angle" => {
             if let PV::Float(v) = value {
                 let current = track.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
@@ -454,7 +467,7 @@ fn apply_property_edit_to_track(
                 pt.add_keyframe(time_ms, angles, linear);
             }
             return;
-        }
+        },
         "sweep_angle" => {
             if let PV::Float(v) = value {
                 let current = track.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
@@ -464,7 +477,7 @@ fn apply_property_edit_to_track(
                 pt.add_keyframe(time_ms, angles, linear);
             }
             return;
-        }
+        },
         "tip_length" => {
             if let PV::Float(v) = value {
                 let current = track.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
@@ -474,7 +487,7 @@ fn apply_property_edit_to_track(
                 pt.add_keyframe(time_ms, size, linear);
             }
             return;
-        }
+        },
         "tip_width" => {
             if let PV::Float(v) = value {
                 let current = track.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
@@ -484,8 +497,8 @@ fn apply_property_edit_to_track(
                 pt.add_keyframe(time_ms, size, linear);
             }
             return;
-        }
-        _ => {}
+        },
+        _ => {},
     }
 
     // ── Registry-driven dispatch for standard properties ──
@@ -496,34 +509,34 @@ fn apply_property_edit_to_track(
                     let pt = f.get_or_insert_with(|| PropertyTrack::new(*v));
                     pt.default_value = *v;
                     pt.add_keyframe(time_ms, *v, linear);
-                }
+                },
                 (TrackFieldMut::F32(f), PV::Float(v)) => {
                     let pt = f.get_or_insert_with(|| PropertyTrack::new(*v));
                     pt.default_value = *v;
                     pt.add_keyframe(time_ms, *v, linear);
-                }
+                },
                 (TrackFieldMut::Vec4(f), PV::Color(v)) => {
                     let pt = f.get_or_insert_with(|| PropertyTrack::new(*v));
                     pt.default_value = *v;
                     pt.add_keyframe(time_ms, *v, linear);
-                }
+                },
                 (TrackFieldMut::String(f), PV::Text(v)) => {
                     let pt = f.get_or_insert_with(|| PropertyTrack::new(v.clone()));
                     pt.default_value = v.clone();
                     pt.add_keyframe(time_ms, v.clone(), linear);
-                }
+                },
                 (TrackFieldMut::PointList(f), PV::PointList(v)) => {
                     let pt = f.get_or_insert_with(|| PropertyTrack::new(v.clone()));
                     pt.default_value = v.clone();
                     pt.add_keyframe(time_ms, v.clone(), linear);
-                }
+                },
                 (TrackFieldMut::ShapeType(f), PV::Text(v)) => {
                     if let Ok(shape) = v.parse::<animatix::timeline::ShapeType>() {
                         let pt = f.get_or_insert_with(|| PropertyTrack::new(shape));
                         pt.default_value = shape;
                         pt.add_keyframe(time_ms, shape, linear);
                     }
-                }
+                },
                 (TrackFieldMut::PlacementMode(f), PV::Text(v)) => {
                     let mode = match v.as_str() {
                         "manual" => Some(animatix::timeline::PlacementMode::Manual),
@@ -535,8 +548,8 @@ fn apply_property_edit_to_track(
                         pt.default_value = mode;
                         pt.add_keyframe(time_ms, mode, linear);
                     }
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
     }

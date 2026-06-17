@@ -29,7 +29,10 @@ pub fn draw_grid(
         let screen_pt = tx.scene_to_screen(kurbo::Point::new(x as f64, 0.0));
         if screen_pt.x >= preview_rect.min.x && screen_pt.x <= preview_rect.max.x {
             painter.line_segment(
-                [Pos2::new(screen_pt.x, preview_rect.min.y), Pos2::new(screen_pt.x, preview_rect.max.y)],
+                [
+                    Pos2::new(screen_pt.x, preview_rect.min.y),
+                    Pos2::new(screen_pt.x, preview_rect.max.y),
+                ],
                 Stroke::new(STROKE_WIDTH, grid_color),
             );
         }
@@ -40,7 +43,10 @@ pub fn draw_grid(
         let screen_pt = tx.scene_to_screen(kurbo::Point::new(0.0, y as f64));
         if screen_pt.y >= preview_rect.min.y && screen_pt.y <= preview_rect.max.y {
             painter.line_segment(
-                [Pos2::new(preview_rect.min.x, screen_pt.y), Pos2::new(preview_rect.max.x, screen_pt.y)],
+                [
+                    Pos2::new(preview_rect.min.x, screen_pt.y),
+                    Pos2::new(preview_rect.max.x, screen_pt.y),
+                ],
                 Stroke::new(STROKE_WIDTH, grid_color),
             );
         }

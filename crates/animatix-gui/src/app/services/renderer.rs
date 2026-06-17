@@ -3,8 +3,8 @@
 //! Implemented by `PreviewSurface` (Vello/WGPU) for the eframe runtime.
 //! Mock implementations enable testing without GPU hardware.
 
-use animatix::timeline::SceneDimensions;
 use crate::app::document::snapshot::DocumentSnapshot;
+use animatix::timeline::SceneDimensions;
 
 /// A render request for the preview surface.
 #[allow(dead_code)]

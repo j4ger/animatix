@@ -29,6 +29,9 @@ pub enum KeyboardAction {
     Reload,
     Rebuild,
 
+    // Scene switching
+    SelectScene(u8),
+
     // Playback
     TogglePlayback,
     PrevKeyframe,
@@ -53,6 +56,22 @@ pub enum KeyboardAction {
     SetMoveTool,
     SetScaleTool,
     SetRotateTool,
+    SetVertexTool,
+    SetPivotTool,
+
+    // Nudge (arrow keys with context-dependent step size)
+    NudgeSelected { dx: f32, dy: f32 },
+
+    // Editor / insertion palette
+    EditSync,
+    OpenInsertionPalette,
+
+    // Clipboard
+    CopySelection,
+    PasteClipboard,
+
+    // Misc
+    Escape,
 }
 
 /// Focus context that gates shortcut availability.
@@ -180,23 +199,6 @@ impl ShortcutRegistry {
                 action: KeyboardAction::NextKeyframe,
             },
         );
-        self.register(
-            KeyboardShortcut::new(Modifiers::NONE, Key::ArrowLeft),
-            Shortcut {
-                name: "Frame Step Back",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::FrameStepBackward,
-            },
-        );
-        self.register(
-            KeyboardShortcut::new(Modifiers::NONE, Key::ArrowRight),
-            Shortcut {
-                name: "Frame Step Forward",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::FrameStepForward,
-            },
-        );
-
         // Selection editing (Canvas)
         self.register(
             KeyboardShortcut::new(Modifiers::COMMAND, Key::D),
@@ -280,6 +282,164 @@ impl ShortcutRegistry {
                 name: "Rotate Tool",
                 scope: ShortcutScope::Canvas,
                 action: KeyboardAction::SetRotateTool,
+            },
+        );
+
+        // Scene switching (Canvas)
+        self.register(
+            KeyboardShortcut::new(Modifiers::NONE, Key::Num1),
+            Shortcut {
+                name: "Scene 1",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::SelectScene(0),
+            },
+        );
+        self.register(
+            KeyboardShortcut::new(Modifiers::NONE, Key::Num2),
+            Shortcut {
+                name: "Scene 2",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::SelectScene(1),
+            },
+        );
+        self.register(
+            KeyboardShortcut::new(Modifiers::NONE, Key::Num3),
+            Shortcut {
+                name: "Scene 3",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::SelectScene(2),
+            },
+        );
+
+        // Clipboard (Canvas)
+        self.register(
+            KeyboardShortcut::new(Modifiers::COMMAND, Key::C),
+            Shortcut {
+                name: "Copy",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::CopySelection,
+            },
+        );
+        self.register(
+            KeyboardShortcut::new(Modifiers::COMMAND, Key::V),
+            Shortcut {
+                name: "Paste",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::PasteClipboard,
+            },
+        );
+
+        // Editor sync (Canvas)
+        self.register(
+            KeyboardShortcut::new(Modifiers::NONE, Key::Y),
+            Shortcut {
+                name: "Editor Sync",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::EditSync,
+            },
+        );
+
+        // Insertion palette (Canvas)
+        self.register(
+            KeyboardShortcut::new(Modifiers::SHIFT, Key::A),
+            Shortcut {
+                name: "Insertion Palette (Actions)",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::OpenInsertionPalette,
+            },
+        );
+        self.register(
+            KeyboardShortcut::new(Modifiers::NONE, Key::Slash),
+            Shortcut {
+                name: "Insertion Palette (Universal)",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::OpenInsertionPalette,
+            },
+        );
+
+        // Escape (Canvas)
+        self.register(
+            KeyboardShortcut::new(Modifiers::NONE, Key::Escape),
+            Shortcut {
+                name: "Escape",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::Escape,
+            },
+        );
+
+        // Nudge arrow keys (Canvas)
+        self.register(
+            KeyboardShortcut::new(Modifiers::NONE, Key::ArrowLeft),
+            Shortcut {
+                name: "Nudge Left",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::NudgeSelected { dx: -1.0, dy: 0.0 },
+            },
+        );
+        self.register(
+            KeyboardShortcut::new(Modifiers::NONE, Key::ArrowRight),
+            Shortcut {
+                name: "Nudge Right",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::NudgeSelected { dx: 1.0, dy: 0.0 },
+            },
+        );
+        self.register(
+            KeyboardShortcut::new(Modifiers::NONE, Key::ArrowUp),
+            Shortcut {
+                name: "Nudge Up",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::NudgeSelected { dx: 0.0, dy: -1.0 },
+            },
+        );
+        self.register(
+            KeyboardShortcut::new(Modifiers::NONE, Key::ArrowDown),
+            Shortcut {
+                name: "Nudge Down",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::NudgeSelected { dx: 0.0, dy: 1.0 },
+            },
+        );
+
+        // Tool switching (Canvas)
+        self.register(
+            KeyboardShortcut::new(Modifiers::NONE, Key::M),
+            Shortcut {
+                name: "Move Tool",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::SetMoveTool,
+            },
+        );
+        self.register(
+            KeyboardShortcut::new(Modifiers::SHIFT, Key::S),
+            Shortcut {
+                name: "Scale Tool",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::SetScaleTool,
+            },
+        );
+        self.register(
+            KeyboardShortcut::new(Modifiers::NONE, Key::R),
+            Shortcut {
+                name: "Rotate Tool",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::SetRotateTool,
+            },
+        );
+        self.register(
+            KeyboardShortcut::new(Modifiers::NONE, Key::V),
+            Shortcut {
+                name: "Vertex Tool",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::SetVertexTool,
+            },
+        );
+        self.register(
+            KeyboardShortcut::new(Modifiers::NONE, Key::P),
+            Shortcut {
+                name: "Pivot Tool",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::SetPivotTool,
             },
         );
 

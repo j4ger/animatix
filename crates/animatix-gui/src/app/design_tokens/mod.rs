@@ -23,8 +23,8 @@
 //! use crate::app::design_tokens::typography::TextRole;
 //! ```
 
-mod primitive;
 pub mod motion;
+mod primitive;
 pub mod semantic;
 pub mod spatial;
 pub mod typography;

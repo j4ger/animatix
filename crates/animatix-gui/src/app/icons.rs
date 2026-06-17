@@ -29,9 +29,11 @@ mod tests {
     fn all_actor_kinds_have_icons() {
         for meta in actor_kind_registry().iter() {
             assert_ne!(
-                meta.icon_id, egui_phosphor::regular::QUESTION,
+                meta.icon_id,
+                egui_phosphor::regular::QUESTION,
                 "ActorKind {:?} has unmapped icon_id: {:?}",
-                meta.kind, meta.icon_id
+                meta.kind,
+                meta.icon_id
             );
         }
     }

@@ -1,4 +1,3 @@
-
 pub mod labels;
 pub mod text;
 
@@ -8,9 +7,9 @@ use egui::{Color32, Vec2};
 use crate::app::design_tokens::semantic::status::{DIAGNOSTIC_ERROR, DIAGNOSTIC_WARNING};
 use crate::app::design_tokens::spatial::{RADIUS_S, SPACE_2, SPACE_4};
 use crate::app::design_tokens::typography::TextRole;
-use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 #[cfg(test)]
 use animatix_syntax::diagnostics::diagnostics_summary_by_phase;
+use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 
 /// Draw a badge with background and optional stroke at a specific position.
 /// Returns the rectangle occupied by the badge.
@@ -22,11 +21,7 @@ pub(super) fn draw_badge(
     text_color: Color32,
     stroke: Option<egui::Stroke>,
 ) -> egui::Rect {
-    let galley = painter.layout_no_wrap(
-        text.to_string(),
-        TextRole::BodyS.font_id(),
-        text_color,
-    );
+    let galley = painter.layout_no_wrap(text.to_string(), TextRole::BodyS.font_id(), text_color);
     let size = galley.size() + Vec2::new(SPACE_4 * 2.0, SPACE_2 * 2.0);
     let rect = egui::Rect::from_min_size(pos, size);
     painter.rect_filled(rect, RADIUS_S, bg);
@@ -39,10 +34,9 @@ pub(super) fn draw_badge(
 
 #[cfg(test)]
 pub(super) fn diagnostics_summary_color(diagnostics: &[Diagnostic]) -> Color32 {
-    if diagnostics
-        .iter()
-        .any(|diagnostic| diagnostic.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error)
-    {
+    if diagnostics.iter().any(|diagnostic| {
+        diagnostic.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error
+    }) {
         DIAGNOSTIC_ERROR
     } else {
         DIAGNOSTIC_WARNING
@@ -98,5 +92,3 @@ pub(super) fn diagnostics_banner_message(diagnostics: &[Diagnostic]) -> Option<S
 
     None
 }
-
-

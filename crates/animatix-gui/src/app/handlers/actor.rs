@@ -66,7 +66,10 @@ pub fn handle_rename_actor(
                 format!("Rename failed — could not rename '{}' to '{}'", old_label, new_label);
             return vec![];
         }
-        let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+        let (new_source, source_index) = (
+            animatix_syntax::to_source::stmts_to_source(stmts),
+            animatix_syntax::source_index::SourceIndex::build(stmts),
+        );
         document_store.commit_source(new_source, source_index);
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
@@ -288,14 +291,21 @@ pub fn handle_align_actors(
     if let Some(timeline) = document_store.source.document.active_timeline() {
         for (actor, rect) in &rects[1..] {
             if let Some(track) = timeline.get_track(actor) {
-                let pos = track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+                let pos =
+                    track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
                 let new_pos = match alignment {
                     Align::Left => [ref_value as f32 + (pos[0] - rect.x0 as f32), pos[1]],
-                    Align::Center => [ref_value as f32 + (pos[0] - ((rect.x0 + rect.x1) / 2.0) as f32), pos[1]],
+                    Align::Center => [
+                        ref_value as f32 + (pos[0] - ((rect.x0 + rect.x1) / 2.0) as f32),
+                        pos[1],
+                    ],
                     Align::Right => [ref_value as f32 + (pos[0] - rect.x1 as f32), pos[1]],
                     Align::Top => [pos[0], ref_value as f32 + (pos[1] - rect.y0 as f32)],
                     Align::Bottom => [pos[0], ref_value as f32 + (pos[1] - rect.y1 as f32)],
-                    Align::Middle => [pos[0], ref_value as f32 + (pos[1] - ((rect.y0 + rect.y1) / 2.0) as f32)],
+                    Align::Middle => [
+                        pos[0],
+                        ref_value as f32 + (pos[1] - ((rect.y0 + rect.y1) / 2.0) as f32),
+                    ],
                 };
                 edits.push(crate::app::commands::PropertyEdit {
                     actor: actor.clone(),
@@ -321,9 +331,10 @@ pub fn handle_align_actors(
                 Ok(e) => e,
                 Err(e) => {
                     *stmts = snapshot;
-                    preview_store.preview.status = format!("Alignment failed: expression error for '{}': {}", edit.actor, e);
+                    preview_store.preview.status =
+                        format!("Alignment failed: expression error for '{}': {}", edit.actor, e);
                     return vec![];
-                }
+                },
             };
             let source_edit = crate::source_edit::SourceEdit::SetProperty {
                 actor: edit.actor.clone(),
@@ -336,7 +347,10 @@ pub fn handle_align_actors(
                 return vec![];
             }
         }
-        let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+        let (new_source, source_index) = (
+            animatix_syntax::to_source::stmts_to_source(stmts),
+            animatix_syntax::source_index::SourceIndex::build(stmts),
+        );
         document_store.commit_source(new_source, source_index);
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
@@ -357,7 +371,9 @@ pub fn handle_distribute_actors(
     }
 
     let bounds = &document_store.source.cached_actor_bounds;
-    let mut rects: Vec<(String, kurbo::Rect)> = ui_store.selection.selected_actors
+    let mut rects: Vec<(String, kurbo::Rect)> = ui_store
+        .selection
+        .selected_actors
         .iter()
         .filter_map(|a| bounds.get(a).map(|r| (a.clone(), *r)))
         .collect();
@@ -389,7 +405,8 @@ pub fn handle_distribute_actors(
     if let Some(timeline) = document_store.source.document.active_timeline() {
         for (i, (actor, rect)) in rects.iter().enumerate() {
             if let Some(track) = timeline.get_track(actor) {
-                let pos = track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+                let pos =
+                    track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
                 let target = start + step * i as f64;
                 let new_pos = match axis {
                     Axis::Horizontal => [target as f32 + (pos[0] - rect.x0 as f32), pos[1]],
@@ -419,9 +436,12 @@ pub fn handle_distribute_actors(
                 Ok(e) => e,
                 Err(e) => {
                     *stmts = snapshot;
-                    preview_store.preview.status = format!("Distribution failed: expression error for '{}': {}", edit.actor, e);
+                    preview_store.preview.status = format!(
+                        "Distribution failed: expression error for '{}': {}",
+                        edit.actor, e
+                    );
                     return vec![];
-                }
+                },
             };
             let source_edit = crate::source_edit::SourceEdit::SetProperty {
                 actor: edit.actor.clone(),
@@ -434,7 +454,10 @@ pub fn handle_distribute_actors(
                 return vec![];
             }
         }
-        let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+        let (new_source, source_index) = (
+            animatix_syntax::to_source::stmts_to_source(stmts),
+            animatix_syntax::source_index::SourceIndex::build(stmts),
+        );
         document_store.commit_source(new_source, source_index);
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
@@ -477,7 +500,10 @@ pub fn handle_group_selected_actors(
     }
 
     let center = if has_any {
-        [((min_x + max_x) / 2.0) as f32, ((min_y + max_y) / 2.0) as f32]
+        [
+            ((min_x + max_x) / 2.0) as f32,
+            ((min_y + max_y) / 2.0) as f32,
+        ]
     } else {
         [0.0, 0.0]
     };
@@ -486,17 +512,15 @@ pub fn handle_group_selected_actors(
 
     // Insert Group actor
     if let Some(ref mut stmts) = document_store.source.document.raw_statements {
-        let group_props = vec![
-            animatix_syntax::ast::Property {
-                name: "at".into(),
-                value: animatix_syntax::ast::Expr::Tuple(vec![
-                    animatix_syntax::ast::Expr::Num(center[0] as f64),
-                    animatix_syntax::ast::Expr::Num(center[1] as f64),
-                ]),
-                value_span: None,
-                trailing_comment: None,
-            },
-        ];
+        let group_props = vec![animatix_syntax::ast::Property {
+            name: "at".into(),
+            value: animatix_syntax::ast::Expr::Tuple(vec![
+                animatix_syntax::ast::Expr::Num(center[0] as f64),
+                animatix_syntax::ast::Expr::Num(center[1] as f64),
+            ]),
+            value_span: None,
+            trailing_comment: None,
+        }];
         let edit = crate::source_edit::SourceEdit::InsertActor {
             ty: "Group".into(),
             label: group_label.clone(),
@@ -519,17 +543,22 @@ pub fn handle_group_selected_actors(
             };
             if let Err(e) = crate::source_edit::apply_edit(stmts, reparent) {
                 *stmts = snapshot;
-                preview_store.preview.status = format!("Group failed while reparenting '{}': {}", actor, e);
+                preview_store.preview.status =
+                    format!("Group failed while reparenting '{}': {}", actor, e);
                 return vec![];
             }
         }
-        let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+        let (new_source, source_index) = (
+            animatix_syntax::to_source::stmts_to_source(stmts),
+            animatix_syntax::source_index::SourceIndex::build(stmts),
+        );
         document_store.commit_source(new_source, source_index);
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
         ui_store.selection.selected_actors.clear();
         ui_store.selection.selected_actors.insert(group_label.clone());
-        preview_store.preview.status = format!("Grouped {} actors into {}", labels.len(), group_label);
+        preview_store.preview.status =
+            format!("Grouped {} actors into {}", labels.len(), group_label);
     }
     vec![]
 }
@@ -539,10 +568,15 @@ pub fn handle_ungroup_selected_actors(
     preview_store: &mut PreviewStore,
     ui_store: &mut UiStore,
 ) -> Vec<Effect> {
-    let groups: Vec<String> = ui_store.selection.selected_actors
+    let groups: Vec<String> = ui_store
+        .selection
+        .selected_actors
         .iter()
         .filter(|a| {
-            document_store.source.document.active_timeline()
+            document_store
+                .source
+                .document
+                .active_timeline()
                 .and_then(|tl| tl.get_track(a))
                 .map(|t| t.kind == animatix::timeline::ActorKindId::Group)
                 .unwrap_or(false)
@@ -561,10 +595,8 @@ pub fn handle_ungroup_selected_actors(
     let mut group_children: Vec<(String, Vec<String>)> = Vec::new();
     if let Some(timeline) = document_store.source.document.active_timeline() {
         for group in &groups {
-            let children: Vec<String> = timeline
-                .get_track(group)
-                .map(|t| t.children.clone())
-                .unwrap_or_default();
+            let children: Vec<String> =
+                timeline.get_track(group).map(|t| t.children.clone()).unwrap_or_default();
             group_children.push((group.clone(), children));
         }
     }
@@ -573,7 +605,6 @@ pub fn handle_ungroup_selected_actors(
         let snapshot = stmts.clone();
         let mut ungrouped = 0;
         for (group, children) in &group_children {
-
             for child in children {
                 let reparent = crate::source_edit::SourceEdit::Reparent {
                     actor: child.clone(),
@@ -588,7 +619,9 @@ pub fn handle_ungroup_selected_actors(
             }
 
             // Remove the group actor
-            let delete = crate::source_edit::SourceEdit::DeleteActor { label: group.clone() };
+            let delete = crate::source_edit::SourceEdit::DeleteActor {
+                label: group.clone(),
+            };
             if let Err(e) = crate::source_edit::apply_edit(stmts, delete) {
                 *stmts = snapshot;
                 preview_store.preview.status = format!("Ungroup failed: {}", e);
@@ -596,7 +629,10 @@ pub fn handle_ungroup_selected_actors(
             }
         }
 
-        let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+        let (new_source, source_index) = (
+            animatix_syntax::to_source::stmts_to_source(stmts),
+            animatix_syntax::source_index::SourceIndex::build(stmts),
+        );
         document_store.commit_source(new_source, source_index);
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));

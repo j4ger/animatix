@@ -7,23 +7,34 @@ use std::path::{Path, PathBuf};
 
 use egui::{RichText, Vec2};
 
-use crate::app::commands::{ActionQueue, ActorCommand, Command, PlaybackCommand, SceneCommand, ShellAction};
-use crate::app::components::{layout, row};
+use crate::app::commands::{
+    ActionQueue, ActorCommand, Command, PlaybackCommand, SceneCommand, ShellAction,
+};
 use crate::app::components::button::Button;
-use crate::app::components::context_menu::{render_menu, MenuEntry};
-use crate::app::design_tokens::semantic::accent::{PRIMARY as semantic_accent_primary, CYAN as semantic_accent_cyan};
+use crate::app::components::context_menu::{MenuEntry, render_menu};
+use crate::app::components::{anim, layout, row};
+use crate::app::design_tokens::motion;
+use crate::app::design_tokens::semantic::accent::{
+    CYAN as semantic_accent_cyan, PRIMARY as semantic_accent_primary,
+};
 use crate::app::design_tokens::semantic::status::WARNING as semantic_status_warning;
-use crate::app::design_tokens::semantic::text::{PRIMARY as semantic_text_primary, SECONDARY as semantic_text_secondary, MUTED as semantic_text_muted, DISABLED as semantic_text_disabled};
-use crate::app::design_tokens::spatial::{SPACE_1 as spatial_space_xs, SPACE_2 as spatial_space_s, SPACE_3 as spatial_space_m, SPACE_4 as spatial_space_l, SPACE_5 as spatial_space_xl, ROW_L as spatial_row_l};
+use crate::app::design_tokens::semantic::text::{
+    DISABLED as semantic_text_disabled, MUTED as semantic_text_muted,
+    PRIMARY as semantic_text_primary, SECONDARY as semantic_text_secondary,
+};
 use crate::app::design_tokens::spatial::component::ICON_SLOT_WIDTH;
-use crate::app::design_tokens::typography::{TextRole};
+use crate::app::design_tokens::spatial::{
+    ROW_L as spatial_row_l, SPACE_1 as spatial_space_xs, SPACE_2 as spatial_space_s,
+    SPACE_3 as spatial_space_m, SPACE_4 as spatial_space_l, SPACE_5 as spatial_space_xl,
+};
+use crate::app::design_tokens::typography::TextRole;
 use crate::app::icons::actor_icon_str;
 use crate::app::panels::SidebarTab;
 use crate::app::{FileTreeEntry, PreviewPaneState};
 use crate::editor::EditorBuffer;
+use animatix::timeline::{SceneDimensions, Timeline};
 use animatix_syntax::diagnostics::Diagnostic;
 use animatix_syntax::to_source::ToSource;
-use animatix::timeline::{Timeline, SceneDimensions};
 
 /// Id used to persist the explorer filter string in egui's data store.
 const EXPLORER_FILTER_ID: &str = "explorer_filter";
@@ -122,7 +133,7 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                 ui.data_mut(|d| d.remove::<String>(egui::Id::new(EXPLORER_FILTER_ID)));
             }
         }
-        let offset = ui.ctx().animate_value_with_time(content_offset_id, 0.0, 0.12);
+        let offset = anim::animate_toward(ui.ctx(), content_offset_id, 0.0, motion::PANEL);
         if offset > 0.01 {
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(16));
         }
@@ -141,7 +152,7 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                             commands: ctx.commands,
                         };
                         explorer_content_ui(&mut ectx, ui);
-                    }
+                    },
                     SidebarTab::Layers => {
                         let mut lctx = LayersContext {
                             timeline: ctx.timeline,
@@ -154,7 +165,7 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                             is_composition: ctx.is_composition,
                         };
                         layers_content_ui(&mut lctx, ui);
-                    }
+                    },
                     SidebarTab::Scenes => {
                         let mut sctx = ScenesContext {
                             composition: ctx.composition,
@@ -162,7 +173,7 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                             commands: ctx.commands,
                         };
                         scenes_content_ui(&mut sctx, ui);
-                    }
+                    },
                     SidebarTab::Editor => {
                         let mut ectx = EditorContext {
                             editor: ctx.editor,
@@ -172,7 +183,7 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                             is_playing: ctx.is_playing,
                         };
                         editor_content_ui(&mut ectx, ui);
-                    }
+                    },
                     SidebarTab::Components => {
                         let mut cctx = ComponentsContext {
                             components: ctx.components,
@@ -182,7 +193,7 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                             sidebar_tab: ctx.sidebar_tab,
                         };
                         components_content_ui(&mut cctx, ui);
-                    }
+                    },
                     SidebarTab::Assets => {
                         let mut actx = AssetsContext {
                             asset_cache: ctx.asset_cache,
@@ -190,7 +201,7 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                             scene_dimensions: ctx.scene_dimensions,
                         };
                         assets_content_ui(&mut actx, ui);
-                    }
+                    },
                 }
             },
         );
@@ -331,7 +342,11 @@ fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::Ui) {
                 } else {
                     egui_phosphor::regular::FILE
                 };
-                let color = if is_amx { Some(semantic_accent_primary) } else { None };
+                let color = if is_amx {
+                    Some(semantic_accent_primary)
+                } else {
+                    None
+                };
                 (Some(file_icon), color)
             };
 
@@ -367,16 +382,20 @@ fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::Ui) {
                 };
                 if render_menu(ui, &entries).is_some() {
                     if is_dir {
-                        ctx.commands.push_back(ShellAction::Command(Command::ToggleExpandDir(path.clone())));
+                        ctx.commands.push_back(ShellAction::Command(Command::ToggleExpandDir(
+                            path.clone(),
+                        )));
                     } else {
-                        ctx.commands.push_back(ShellAction::Command(Command::OpenFile(path.clone())));
+                        ctx.commands
+                            .push_back(ShellAction::Command(Command::OpenFile(path.clone())));
                     }
                     ui.close();
                 }
             });
 
             if response.chevron_clicked {
-                ctx.commands.push_back(ShellAction::Command(Command::ToggleExpandDir(path.clone())));
+                ctx.commands
+                    .push_back(ShellAction::Command(Command::ToggleExpandDir(path.clone())));
             }
             if response.row_clicked {
                 if is_dir {
@@ -415,134 +434,157 @@ fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
     let drag_data_id = drag_id.with("data");
     let drop_index_id = drag_id.with("drop_idx");
 
-    egui::ScrollArea::vertical()
-        .auto_shrink([false; 2])
-        .show(ui, |ui| {
-            for (idx, scene_name) in scene_names.iter().enumerate() {
-                let is_active = ctx.active_scene == Some(scene_name.as_str());
-                let row_id = ui.id().with(scene_name);
+    egui::ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
+        for (idx, scene_name) in scene_names.iter().enumerate() {
+            let is_active = ctx.active_scene == Some(scene_name.as_str());
+            let row_id = ui.id().with(scene_name);
 
-                // Duration hint
-                let duration_hint = composition
-                    .scene_start_times
-                    .get(scene_name)
-                    .map(|start| {
-                        let end = composition
-                            .scene_start_times
-                            .iter()
-                            .filter(|(k, _)| *k != scene_name)
-                            .map(|(_, v)| *v)
-                            .filter(|v| *v > *start)
-                            .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-                            .unwrap_or(composition.global_duration_s);
-                        format!("{:.1}s – {:.1}s", start, end)
-                    })
-                    .unwrap_or_else(|| "–".to_string());
+            // Duration hint
+            let duration_hint = composition
+                .scene_start_times
+                .get(scene_name)
+                .map(|start| {
+                    let end = composition
+                        .scene_start_times
+                        .iter()
+                        .filter(|(k, _)| *k != scene_name)
+                        .map(|(_, v)| *v)
+                        .filter(|v| *v > *start)
+                        .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                        .unwrap_or(composition.global_duration_s);
+                    format!("{:.1}s – {:.1}s", start, end)
+                })
+                .unwrap_or_else(|| "–".to_string());
 
-                // Transition hint (outgoing edge)
-                let transition_hint = composition
-                    .edges
-                    .get(scene_name)
-                    .map(|edge| {
-                        format!("{} {} ({:.0}ms)", egui_phosphor::regular::ARROW_RIGHT, edge.to_scene, edge.transition.duration_ms)
-                    });
+            // Transition hint (outgoing edge)
+            let transition_hint = composition.edges.get(scene_name).map(|edge| {
+                format!(
+                    "{} {} ({:.0}ms)",
+                    egui_phosphor::regular::ARROW_RIGHT,
+                    edge.to_scene,
+                    edge.transition.duration_ms
+                )
+            });
 
-                let response = row::Row::new(scene_name)
-                    .selected(is_active)
-                    .icon(Some(egui_phosphor::regular::FILM_STRIP))
-                    .label_color(if is_active { semantic_accent_primary } else { semantic_text_secondary })
-                    .sense(egui::Sense::click_and_drag())
-                    .show(ui, row_id);
+            let response = row::Row::new(scene_name)
+                .selected(is_active)
+                .icon(Some(egui_phosphor::regular::FILM_STRIP))
+                .label_color(if is_active {
+                    semantic_accent_primary
+                } else {
+                    semantic_text_secondary
+                })
+                .sense(egui::Sense::click_and_drag())
+                .show(ui, row_id);
 
-                // Drag start
-                if response.drag_started {
-                    ui.data_mut(|d| d.insert_temp(drag_data_id, (idx, scene_name.clone())));
+            // Drag start
+            if response.drag_started {
+                ui.data_mut(|d| d.insert_temp(drag_data_id, (idx, scene_name.clone())));
+            }
+
+            // Drop target detection
+            let is_dragging = ui.data(|d| d.get_temp::<(usize, String)>(drag_data_id)).is_some();
+            if is_dragging && response.hovered {
+                let pointer = ui.ctx().input(|i| i.pointer.latest_pos());
+                if let Some(p) = pointer {
+                    let center = response.row_rect.center().y;
+                    let new_idx = if p.y < center { idx } else { idx + 1 };
+                    ui.data_mut(|d| d.insert_temp(drop_index_id, new_idx));
+                    // Draw drop indicator line
+                    let line_y = if p.y < center {
+                        response.row_rect.top()
+                    } else {
+                        response.row_rect.bottom()
+                    };
+                    ui.painter().line_segment(
+                        [
+                            egui::pos2(response.row_rect.left(), line_y),
+                            egui::pos2(response.row_rect.right(), line_y),
+                        ],
+                        egui::Stroke::new(2.0, semantic_accent_primary),
+                    );
                 }
+            }
 
-                // Drop target detection
-                let is_dragging = ui.data(|d| d.get_temp::<(usize, String)>(drag_data_id)).is_some();
-                if is_dragging && response.hovered {
-                    let pointer = ui.ctx().input(|i| i.pointer.latest_pos());
-                    if let Some(p) = pointer {
-                        let center = response.row_rect.center().y;
-                        let new_idx = if p.y < center { idx } else { idx + 1 };
-                        ui.data_mut(|d| d.insert_temp(drop_index_id, new_idx));
-                        // Draw drop indicator line
-                        let line_y = if p.y < center { response.row_rect.top() } else { response.row_rect.bottom() };
-                        ui.painter().line_segment(
-                            [egui::pos2(response.row_rect.left(), line_y), egui::pos2(response.row_rect.right(), line_y)],
-                            egui::Stroke::new(2.0, semantic_accent_primary),
-                        );
+            // Click to activate scene
+            if response.row_clicked {
+                ctx.commands.push_back(SceneCommand::SelectScene(scene_name.clone()).into());
+            }
+
+            // Context menu
+            response.response.context_menu(|ui| {
+                let entries = vec![
+                    MenuEntry::item_with_icon(egui_phosphor::regular::CHECK, "Set as active"),
+                    MenuEntry::separator(),
+                    MenuEntry::item_with_icon(egui_phosphor::regular::COPY, "Duplicate scene"),
+                    MenuEntry::item_with_icon(egui_phosphor::regular::TRASH, "Delete scene"),
+                ];
+                if let Some(menu_idx) = render_menu(ui, &entries) {
+                    match menu_idx {
+                        0 => ctx
+                            .commands
+                            .push_back(SceneCommand::SelectScene(scene_name.clone()).into()),
+                        2 => ctx
+                            .commands
+                            .push_back(SceneCommand::DuplicateScene(scene_name.clone()).into()),
+                        3 => ctx
+                            .commands
+                            .push_back(SceneCommand::DeleteScene(scene_name.clone()).into()),
+                        _ => {},
                     }
+                    ui.close();
                 }
+            });
 
-                // Click to activate scene
-                if response.row_clicked {
-                    ctx.commands.push_back(SceneCommand::SelectScene(scene_name.clone()).into());
-                }
-
-                // Context menu
-                response.response.context_menu(|ui| {
-                    let entries = vec![
-                        MenuEntry::item_with_icon(egui_phosphor::regular::CHECK, "Set as active"),
-                        MenuEntry::separator(),
-                        MenuEntry::item_with_icon(egui_phosphor::regular::COPY, "Duplicate scene"),
-                        MenuEntry::item_with_icon(egui_phosphor::regular::TRASH, "Delete scene"),
-                    ];
-                    if let Some(menu_idx) = render_menu(ui, &entries) {
-                        match menu_idx {
-                            0 => ctx.commands.push_back(SceneCommand::SelectScene(scene_name.clone()).into()),
-                            2 => ctx.commands.push_back(SceneCommand::DuplicateScene(scene_name.clone()).into()),
-                            3 => ctx.commands.push_back(SceneCommand::DeleteScene(scene_name.clone()).into()),
-                            _ => {}
-                        }
-                        ui.close();
-                    }
+            // Sub-label: duration + transition
+            if is_active {
+                ui.horizontal(|ui| {
+                    ui.add_space(ICON_SLOT_WIDTH + spatial_space_s);
+                    ui.label(
+                        RichText::new(&duration_hint)
+                            .size(TextRole::Micro.size())
+                            .color(semantic_text_muted),
+                    );
                 });
-
-                // Sub-label: duration + transition
-                if is_active {
+                if let Some(hint) = transition_hint {
                     ui.horizontal(|ui| {
                         ui.add_space(ICON_SLOT_WIDTH + spatial_space_s);
                         ui.label(
-                            RichText::new(&duration_hint)
+                            RichText::new(hint)
                                 .size(TextRole::Micro.size())
                                 .color(semantic_text_muted),
                         );
                     });
-                    if let Some(hint) = transition_hint {
-                        ui.horizontal(|ui| {
-                            ui.add_space(ICON_SLOT_WIDTH + spatial_space_s);
-                            ui.label(
-                                RichText::new(hint)
-                                    .size(TextRole::Micro.size())
-                                    .color(semantic_text_muted),
-                            );
-                        });
-                    }
-                    ui.add_space(spatial_space_s);
                 }
+                ui.add_space(spatial_space_s);
             }
+        }
 
-            // Handle drop (outside the loop so is_dragging is in scope)
-            let drag_active = ui.data(|d| d.get_temp::<(usize, String)>(drag_data_id)).is_some();
-            if drag_active && ui.input(|i| i.pointer.any_released()) {
-                if let Some((from_idx, _dragged_name)) = ui.data(|d| d.get_temp::<(usize, String)>(drag_data_id)) {
-                    let to_idx = ui.data(|d| d.get_temp::<usize>(drop_index_id)).unwrap_or(from_idx);
-                    if from_idx != to_idx && to_idx <= scene_names.len() {
-                        let mut new_order = scene_names.clone();
-                        let removed = new_order.remove(from_idx);
-                        let insert_at = if to_idx > from_idx { to_idx - 1 } else { to_idx };
-                        new_order.insert(insert_at.min(new_order.len()), removed);
-                        ctx.commands.push_back(SceneCommand::ReorderScenes(new_order).into());
-                    }
-                    ui.data_mut(|d| {
-                        d.remove::<(usize, String)>(drag_data_id);
-                        d.remove::<usize>(drop_index_id);
-                    });
+        // Handle drop (outside the loop so is_dragging is in scope)
+        let drag_active = ui.data(|d| d.get_temp::<(usize, String)>(drag_data_id)).is_some();
+        if drag_active && ui.input(|i| i.pointer.any_released()) {
+            if let Some((from_idx, _dragged_name)) =
+                ui.data(|d| d.get_temp::<(usize, String)>(drag_data_id))
+            {
+                let to_idx = ui.data(|d| d.get_temp::<usize>(drop_index_id)).unwrap_or(from_idx);
+                if from_idx != to_idx && to_idx <= scene_names.len() {
+                    let mut new_order = scene_names.clone();
+                    let removed = new_order.remove(from_idx);
+                    let insert_at = if to_idx > from_idx {
+                        to_idx - 1
+                    } else {
+                        to_idx
+                    };
+                    new_order.insert(insert_at.min(new_order.len()), removed);
+                    ctx.commands.push_back(SceneCommand::ReorderScenes(new_order).into());
                 }
+                ui.data_mut(|d| {
+                    d.remove::<(usize, String)>(drag_data_id);
+                    d.remove::<usize>(drop_index_id);
+                });
             }
-        });
+        }
+    });
 }
 
 fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
@@ -558,9 +600,13 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
                 ui.add_space(spatial_space_l);
                 ui.add(
                     egui::Label::new(
-                        RichText::new(format!("{} {}", egui_phosphor::regular::FILM_STRIP, scene_name))
-                            .size(TextRole::BodyS.size())
-                            .color(semantic_text_muted),
+                        RichText::new(format!(
+                            "{} {}",
+                            egui_phosphor::regular::FILM_STRIP,
+                            scene_name
+                        ))
+                        .size(TextRole::BodyS.size())
+                        .color(semantic_text_muted),
                     )
                     .selectable(false),
                 );
@@ -604,34 +650,35 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
                     ctx.scene_dimensions.width as f32 / 2.0,
                     ctx.scene_dimensions.height as f32 / 2.0,
                 ];
-                ctx.commands.push_back(ActorCommand::CreateActor {
-                    ty: super::default_actor_type().into(),
-                    label,
-                    position: pos,
-                    props: vec![],
-                }.into());
+                ctx.commands.push_back(
+                    ActorCommand::CreateActor {
+                        ty: super::default_actor_type().into(),
+                        label,
+                        position: pos,
+                        props: vec![],
+                    }
+                    .into(),
+                );
             }
         });
         return;
     }
 
     let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
-    egui::ScrollArea::vertical()
-        .auto_shrink([false; 2])
-        .show(ui, |ui| {
-            for root_label in root_nodes {
-                render_actor_tree(
-                    ui,
-                    timeline,
-                    root_label,
-                    ctx.selected_actors,
-                    ctx.collapsed_actors,
-                    ctx.commands,
-                    time_ms,
-                    0,
-                );
-            }
-        });
+    egui::ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
+        for root_label in root_nodes {
+            render_actor_tree(
+                ui,
+                timeline,
+                root_label,
+                ctx.selected_actors,
+                ctx.collapsed_actors,
+                ctx.commands,
+                time_ms,
+                0,
+            );
+        }
+    });
 }
 
 // ─── Layer Tree ─────────────────────────────────────────────────────────────
@@ -646,8 +693,6 @@ fn render_actor_tree(
     _time_ms: u64,
     depth: usize,
 ) {
-    
-
     let Some(track) = timeline.get_track(label) else {
         return;
     };
@@ -659,11 +704,7 @@ fn render_actor_tree(
     let is_visible = track.visible;
 
     let (icon, display_label, label_color) = if is_anonymous {
-        (
-            Some(egui_phosphor::regular::GHOST),
-            "anon",
-            Some(semantic_text_muted),
-        )
+        (Some(egui_phosphor::regular::GHOST), "anon", Some(semantic_text_muted))
     } else {
         let icon = Some(actor_icon_str(track.kind));
         (icon, label, None)
@@ -678,7 +719,11 @@ fn render_actor_tree(
     } else {
         egui_phosphor::regular::EYE_CLOSED
     };
-    let eye_color = if is_visible { semantic_text_secondary } else { semantic_text_disabled };
+    let eye_color = if is_visible {
+        semantic_text_secondary
+    } else {
+        semantic_text_disabled
+    };
 
     let is_locked = track.locked;
     let lock_icon = if is_locked {
@@ -686,23 +731,49 @@ fn render_actor_tree(
     } else {
         egui_phosphor::regular::LOCK_KEY_OPEN
     };
-    let lock_color = if is_locked { semantic_status_warning } else { semantic_text_disabled };
+    let lock_color = if is_locked {
+        semantic_status_warning
+    } else {
+        semantic_text_disabled
+    };
 
     let response = row::Row::new(display_label)
         .indent(depth as f32 * ICON_SLOT_WIDTH)
         .selected(is_selected)
         .icon(icon)
-        .label_color(label_color.unwrap_or(if is_visible { semantic_text_secondary } else { semantic_text_disabled }))
+        .label_color(label_color.unwrap_or(if is_visible {
+            semantic_text_secondary
+        } else {
+            semantic_text_disabled
+        }))
         .has_children(has_children)
         .expanded(is_expanded)
         .sense(egui::Sense::click_and_drag())
         .right(|ui| {
             ui.spacing_mut().item_spacing = Vec2::new(spatial_space_xs, 0.0);
-            let eye_btn = ui.add(Button::icon(eye_icon).with_tooltip(if is_visible { "Hide layer" } else { "Show layer" }).icon_color(eye_color).hover_icon_color(semantic_text_primary));
+            let eye_btn = ui.add(
+                Button::icon(eye_icon)
+                    .with_tooltip(if is_visible {
+                        "Hide layer"
+                    } else {
+                        "Show layer"
+                    })
+                    .icon_color(eye_color)
+                    .hover_icon_color(semantic_text_primary),
+            );
             if eye_btn.clicked() {
                 commands.push_back(ActorCommand::ToggleActorVisibility(label.to_string()).into());
             }
-            let lock_btn = ui.add(Button::icon(lock_icon).with_tooltip(if is_locked { "Unlock layer" } else { "Lock layer" }).icon_color(lock_color).hover_icon_color(semantic_text_primary));
+            let lock_btn = ui.add(
+                Button::icon(lock_icon)
+                    .with_tooltip(if is_locked {
+                        "Unlock layer"
+                    } else {
+                        "Lock layer"
+                    })
+                    .icon_color(lock_color)
+                    .hover_icon_color(semantic_text_primary),
+            );
             if lock_btn.clicked() {
                 commands.push_back(ActorCommand::ToggleActorLock(label.to_string()).into());
             }
@@ -756,13 +827,18 @@ fn render_actor_tree(
             let pointer_pos = ui.input(|i| i.pointer.latest_pos());
             let over_this_row = pointer_pos.is_some_and(|p| response.row_rect.contains(p));
             if over_this_row && is_drop_target {
-                commands.push_back(ShellAction::Command(Command::ReparentActor { actor: dragged.clone(), new_parent: Some(label.to_string()) }));
+                commands.push_back(ShellAction::Command(Command::ReparentActor {
+                    actor: dragged.clone(),
+                    new_parent: Some(label.to_string()),
+                }));
             } else if !over_this_row && depth == 0 {
-                let over_any_root = pointer_pos.is_some_and(|p| {
-                    response.row_rect.expand(8.0).contains(p)
-                });
+                let over_any_root =
+                    pointer_pos.is_some_and(|p| response.row_rect.expand(8.0).contains(p));
                 if over_any_root {
-                    commands.push_back(ShellAction::Command(Command::ReparentActor { actor: dragged.clone(), new_parent: None }));
+                    commands.push_back(ShellAction::Command(Command::ReparentActor {
+                        actor: dragged.clone(),
+                        new_parent: None,
+                    }));
                 }
             }
         }
@@ -777,41 +853,78 @@ fn render_actor_tree(
         // Index layout (separators are NOT clickable):
         //   has_multi=false: 0=Duplicate, 2=Delete
         //   has_multi=true:  0=Duplicate, 2-7=Align, 9-10=Distribute, 12=Delete
-        let mut entries = vec![
-            MenuEntry::item_with_icon(egui_phosphor::regular::COPY, "Duplicate"),
-        ];
+        let mut entries = vec![MenuEntry::item_with_icon(
+            egui_phosphor::regular::COPY,
+            "Duplicate",
+        )];
         if has_multi {
             entries.push(MenuEntry::separator());
-            entries.push(MenuEntry::item_with_icon(egui_phosphor::regular::ALIGN_LEFT, "Align Left"));
-            entries.push(MenuEntry::item_with_icon(egui_phosphor::regular::ALIGN_CENTER_HORIZONTAL_SIMPLE, "Align Center"));
-            entries.push(MenuEntry::item_with_icon(egui_phosphor::regular::ALIGN_RIGHT, "Align Right"));
+            entries
+                .push(MenuEntry::item_with_icon(egui_phosphor::regular::ALIGN_LEFT, "Align Left"));
+            entries.push(MenuEntry::item_with_icon(
+                egui_phosphor::regular::ALIGN_CENTER_HORIZONTAL_SIMPLE,
+                "Align Center",
+            ));
+            entries.push(MenuEntry::item_with_icon(
+                egui_phosphor::regular::ALIGN_RIGHT,
+                "Align Right",
+            ));
             entries.push(MenuEntry::item_with_icon(egui_phosphor::regular::ALIGN_TOP, "Align Top"));
-            entries.push(MenuEntry::item_with_icon(egui_phosphor::regular::ALIGN_CENTER_VERTICAL_SIMPLE, "Align Middle"));
-            entries.push(MenuEntry::item_with_icon(egui_phosphor::regular::ALIGN_BOTTOM, "Align Bottom"));
+            entries.push(MenuEntry::item_with_icon(
+                egui_phosphor::regular::ALIGN_CENTER_VERTICAL_SIMPLE,
+                "Align Middle",
+            ));
+            entries.push(MenuEntry::item_with_icon(
+                egui_phosphor::regular::ALIGN_BOTTOM,
+                "Align Bottom",
+            ));
             entries.push(MenuEntry::separator());
-            entries.push(MenuEntry::item_with_icon(egui_phosphor::regular::ARROWS_OUT_LINE_HORIZONTAL, "Distribute Horizontally"));
-            entries.push(MenuEntry::item_with_icon(egui_phosphor::regular::ARROWS_OUT_LINE_VERTICAL, "Distribute Vertically"));
+            entries.push(MenuEntry::item_with_icon(
+                egui_phosphor::regular::ARROWS_OUT_LINE_HORIZONTAL,
+                "Distribute Horizontally",
+            ));
+            entries.push(MenuEntry::item_with_icon(
+                egui_phosphor::regular::ARROWS_OUT_LINE_VERTICAL,
+                "Distribute Vertically",
+            ));
         }
         entries.push(MenuEntry::separator());
         entries.push(MenuEntry::item_with_icon(egui_phosphor::regular::TRASH, "Delete"));
 
         if let Some(idx) = render_menu(ui, &entries) {
             match idx {
-                0 => commands.push_back(ShellAction::Command(Command::DuplicateActor(label.to_string()))),
-                2 if has_multi => commands.push_back(ShellAction::Command(Command::AlignActors(crate::app::commands::Align::Left))),
-                3 if has_multi => commands.push_back(ShellAction::Command(Command::AlignActors(crate::app::commands::Align::Center))),
-                4 if has_multi => commands.push_back(ShellAction::Command(Command::AlignActors(crate::app::commands::Align::Right))),
-                5 if has_multi => commands.push_back(ShellAction::Command(Command::AlignActors(crate::app::commands::Align::Top))),
-                6 if has_multi => commands.push_back(ShellAction::Command(Command::AlignActors(crate::app::commands::Align::Middle))),
-                7 if has_multi => commands.push_back(ShellAction::Command(Command::AlignActors(crate::app::commands::Align::Bottom))),
-                9 if has_multi => commands.push_back(ShellAction::Command(Command::DistributeActors(crate::app::commands::Axis::Horizontal))),
-                10 if has_multi => commands.push_back(ShellAction::Command(Command::DistributeActors(crate::app::commands::Axis::Vertical))),
+                0 => commands
+                    .push_back(ShellAction::Command(Command::DuplicateActor(label.to_string()))),
+                2 if has_multi => commands.push_back(ShellAction::Command(Command::AlignActors(
+                    crate::app::commands::Align::Left,
+                ))),
+                3 if has_multi => commands.push_back(ShellAction::Command(Command::AlignActors(
+                    crate::app::commands::Align::Center,
+                ))),
+                4 if has_multi => commands.push_back(ShellAction::Command(Command::AlignActors(
+                    crate::app::commands::Align::Right,
+                ))),
+                5 if has_multi => commands.push_back(ShellAction::Command(Command::AlignActors(
+                    crate::app::commands::Align::Top,
+                ))),
+                6 if has_multi => commands.push_back(ShellAction::Command(Command::AlignActors(
+                    crate::app::commands::Align::Middle,
+                ))),
+                7 if has_multi => commands.push_back(ShellAction::Command(Command::AlignActors(
+                    crate::app::commands::Align::Bottom,
+                ))),
+                9 if has_multi => commands.push_back(ShellAction::Command(
+                    Command::DistributeActors(crate::app::commands::Axis::Horizontal),
+                )),
+                10 if has_multi => commands.push_back(ShellAction::Command(
+                    Command::DistributeActors(crate::app::commands::Axis::Vertical),
+                )),
                 _ => {
                     // Delete is always the last item
                     selected_actors.clear();
                     selected_actors.insert(label.to_string());
                     commands.push_back(ActorCommand::DeleteSelectedActors.into());
-                }
+                },
             }
             ui.close();
         }
@@ -870,131 +983,151 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
         return;
     }
 
-    egui::ScrollArea::vertical()
-        .auto_shrink([false; 2])
-        .show(ui, |ui| {
-            let mut names: Vec<&String> = ctx.components.keys().collect();
-            names.sort();
-            for name in names {
-                let entry = &ctx.components[name];
-                let row_id = ui.id().with(name);
-                let response = row::Row::new(name)
-                    .icon(Some(egui_phosphor::regular::CUBE))
-                    .label_color(semantic_text_secondary)
-                    .show(ui, row_id);
+    egui::ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
+        let mut names: Vec<&String> = ctx.components.keys().collect();
+        names.sort();
+        for name in names {
+            let entry = &ctx.components[name];
+            let row_id = ui.id().with(name);
+            let response = row::Row::new(name)
+                .icon(Some(egui_phosphor::regular::CUBE))
+                .label_color(semantic_text_secondary)
+                .show(ui, row_id);
 
-                if response.response.double_clicked() {
-                    // Instantiate component with default props
-                    let label = crate::app::utils::labels::unique_label(None, name);
-                    let pos = [
-                        ctx.scene_dimensions.width as f32 / 2.0,
-                        ctx.scene_dimensions.height as f32 / 2.0,
-                    ];
-                    ctx.commands.push_back(ActorCommand::CreateActor {
+            if response.response.double_clicked() {
+                // Instantiate component with default props
+                let label = crate::app::utils::labels::unique_label(None, name);
+                let pos = [
+                    ctx.scene_dimensions.width as f32 / 2.0,
+                    ctx.scene_dimensions.height as f32 / 2.0,
+                ];
+                ctx.commands.push_back(
+                    ActorCommand::CreateActor {
                         ty: (*name).clone(),
                         label,
                         position: pos,
                         props: vec![],
-                    }.into());
-                }
+                    }
+                    .into(),
+                );
+            }
 
-                // Jump-to-definition button (top-right of component row)
-                ui.horizontal(|ui| {
-                    ui.add_space(ICON_SLOT_WIDTH + spatial_space_s + 2.0);
-                    if ui.add(
+            // Jump-to-definition button (top-right of component row)
+            ui.horizontal(|ui| {
+                ui.add_space(ICON_SLOT_WIDTH + spatial_space_s + 2.0);
+                if ui
+                    .add(
                         egui::Button::new(
                             egui::RichText::new(egui_phosphor::regular::ARROW_SQUARE_OUT)
                                 .size(11.0)
                                 .color(semantic_text_muted),
                         )
-                        .frame(false)
-                    ).on_hover_text("Jump to definition").clicked() {
-                        // Search for the component definition line in source text
-                        let patterns = [
-                            format!("pub component {}", name),
-                            format!("component {}", name),
-                        ];
-                        let found_line = ctx.source_text.lines()
-                            .position(|line| patterns.iter().any(|p| line.trim().starts_with(p)));
-                        if let Some(line) = found_line {
-                            ctx.commands.push_back(ShellAction::Command(
-                                Command::ScrollToLine(line, 0)
-                            ));
-                            *ctx.sidebar_tab = SidebarTab::Editor;
-                        }
+                        .frame(false),
+                    )
+                    .on_hover_text("Jump to definition")
+                    .clicked()
+                {
+                    // Search for the component definition line in source text
+                    let patterns = [
+                        format!("pub component {}", name),
+                        format!("component {}", name),
+                    ];
+                    let found_line = ctx
+                        .source_text
+                        .lines()
+                        .position(|line| patterns.iter().any(|p| line.trim().starts_with(p)));
+                    if let Some(line) = found_line {
+                        ctx.commands
+                            .push_back(ShellAction::Command(Command::ScrollToLine(line, 0)));
+                        *ctx.sidebar_tab = SidebarTab::Editor;
                     }
-                });
+                }
+            });
 
-                // Slots display
-                let slots: Vec<String> = entry.definition.body.iter()
-                    .filter_map(|stmt| {
-                        if let animatix_syntax::ast::Stmt::ActorDecl { label, children, .. } = stmt {
-                            if children.iter().any(|item| {
-                                matches!(item, animatix_syntax::ast::InlineItem::SlotMarker)
-                            }) {
-                                Some(label.clone())
-                            } else {
-                                None
-                            }
+            // Slots display
+            let slots: Vec<String> = entry
+                .definition
+                .body
+                .iter()
+                .filter_map(|stmt| {
+                    if let animatix_syntax::ast::Stmt::ActorDecl {
+                        label, children, ..
+                    } = stmt
+                    {
+                        if children.iter().any(|item| {
+                            matches!(item, animatix_syntax::ast::InlineItem::SlotMarker)
+                        }) {
+                            Some(label.clone())
                         } else {
                             None
                         }
-                    })
-                    .collect();
+                    } else {
+                        None
+                    }
+                })
+                .collect();
 
-                if !slots.is_empty() {
-                    ui.horizontal(|ui| {
-                        ui.add_space(ICON_SLOT_WIDTH + spatial_space_s);
-                        ui.label(
-                            egui::RichText::new(format!("@slots: {}", slots.join(", ")))
-                                .size(TextRole::Micro.size())
-                                .color(semantic_accent_cyan),
-                        );
-                    });
-                }
+            if !slots.is_empty() {
+                ui.horizontal(|ui| {
+                    ui.add_space(ICON_SLOT_WIDTH + spatial_space_s);
+                    ui.label(
+                        egui::RichText::new(format!("@slots: {}", slots.join(", ")))
+                            .size(TextRole::Micro.size())
+                            .color(semantic_accent_cyan),
+                    );
+                });
+            }
 
-                // Show params as sub-label
-                if !entry.definition.params.is_empty() {
-                    ui.horizontal(|ui| {
-                        ui.add_space(ICON_SLOT_WIDTH + spatial_space_s);
-                        let params: Vec<String> = entry
-                            .definition
-                            .params
-                            .iter()
-                            .map(|p| {
-                                let default = p.default.as_ref().map(|v| format!(" = {}", v.to_source())).unwrap_or_default();
-                                format!("{}{}", p.name, default)
-                            })
-                            .collect();
-                        ui.label(
-                            egui::RichText::new(params.join(", "))
-                                .size(TextRole::Micro.size())
-                                .color(semantic_text_muted),
-                        );
-                    });
-                }
+            // Show params as sub-label
+            if !entry.definition.params.is_empty() {
+                ui.horizontal(|ui| {
+                    ui.add_space(ICON_SLOT_WIDTH + spatial_space_s);
+                    let params: Vec<String> = entry
+                        .definition
+                        .params
+                        .iter()
+                        .map(|p| {
+                            let default = p
+                                .default
+                                .as_ref()
+                                .map(|v| format!(" = {}", v.to_source()))
+                                .unwrap_or_default();
+                            format!("{}{}", p.name, default)
+                        })
+                        .collect();
+                    ui.label(
+                        egui::RichText::new(params.join(", "))
+                            .size(TextRole::Micro.size())
+                            .color(semantic_text_muted),
+                    );
+                });
+            }
 
-                response.response.context_menu(|ui| {
-                    let entries = vec![
-                        MenuEntry::item_with_icon(egui_phosphor::regular::PLUS, "Instantiate"),
+            response.response.context_menu(|ui| {
+                let entries = vec![MenuEntry::item_with_icon(
+                    egui_phosphor::regular::PLUS,
+                    "Instantiate",
+                )];
+                if render_menu(ui, &entries).is_some() {
+                    let label = crate::app::utils::labels::unique_label(None, name);
+                    let pos = [
+                        ctx.scene_dimensions.width as f32 / 2.0,
+                        ctx.scene_dimensions.height as f32 / 2.0,
                     ];
-                    if render_menu(ui, &entries).is_some() {
-                        let label = crate::app::utils::labels::unique_label(None, name);
-                        let pos = [
-                            ctx.scene_dimensions.width as f32 / 2.0,
-                            ctx.scene_dimensions.height as f32 / 2.0,
-                        ];
-                        ctx.commands.push_back(ActorCommand::CreateActor {
+                    ctx.commands.push_back(
+                        ActorCommand::CreateActor {
                             ty: (*name).clone(),
                             label,
                             position: pos,
                             props: vec![],
-                        }.into());
-                        ui.close();
-                    }
-                });
-            }
-        });
+                        }
+                        .into(),
+                    );
+                    ui.close();
+                }
+            });
+        }
+    });
 }
 
 // ─── Assets Tab ───────────────────────────────────────────────────────────
@@ -1010,8 +1143,10 @@ fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
         return;
     };
 
-    let images: Vec<(String, &animatix::timeline::image::SceneImage)> = cache.images().map(|(k, v)| (k.clone(), v)).collect();
-    let svgs: Vec<(String, &Vec<animatix::timeline::vello_path::VelloPath>)> = cache.svg_paths().map(|(k, v)| (k.clone(), v)).collect();
+    let images: Vec<(String, &animatix::timeline::image::SceneImage)> =
+        cache.images().map(|(k, v)| (k.clone(), v)).collect();
+    let svgs: Vec<(String, &Vec<animatix::timeline::vello_path::VelloPath>)> =
+        cache.svg_paths().map(|(k, v)| (k.clone(), v)).collect();
 
     if images.is_empty() && svgs.is_empty() {
         layout::empty_state(
@@ -1023,26 +1158,26 @@ fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
         return;
     }
 
-    egui::ScrollArea::vertical()
-        .auto_shrink([false; 2])
-        .show(ui, |ui| {
-            if !images.is_empty() {
-                layout::section_header(ui, egui_phosphor::regular::IMAGE, "Images", Some(images.len()));
-                for (path, _img) in &images {
-                    let row_id = ui.id().with(path);
-                    let filename = std::path::Path::new(path).file_name().and_then(|n| n.to_str()).unwrap_or(path);
-                    let response = row::Row::new(filename)
-                        .icon(Some(egui_phosphor::regular::IMAGE))
-                        .label_color(semantic_text_secondary)
-                        .show(ui, row_id);
+    egui::ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
+        if !images.is_empty() {
+            layout::section_header(ui, egui_phosphor::regular::IMAGE, "Images", Some(images.len()));
+            for (path, _img) in &images {
+                let row_id = ui.id().with(path);
+                let filename =
+                    std::path::Path::new(path).file_name().and_then(|n| n.to_str()).unwrap_or(path);
+                let response = row::Row::new(filename)
+                    .icon(Some(egui_phosphor::regular::IMAGE))
+                    .label_color(semantic_text_secondary)
+                    .show(ui, row_id);
 
-                    if response.response.double_clicked() {
-                        let label = crate::app::utils::labels::unique_label(None, "image");
-                        let pos = [
-                            ctx.scene_dimensions.width as f32 / 2.0,
-                            ctx.scene_dimensions.height as f32 / 2.0,
-                        ];
-                        ctx.commands.push_back(ActorCommand::CreateActor {
+                if response.response.double_clicked() {
+                    let label = crate::app::utils::labels::unique_label(None, "image");
+                    let pos = [
+                        ctx.scene_dimensions.width as f32 / 2.0,
+                        ctx.scene_dimensions.height as f32 / 2.0,
+                    ];
+                    ctx.commands.push_back(
+                        ActorCommand::CreateActor {
                             ty: "Image".into(),
                             label,
                             position: pos,
@@ -1052,29 +1187,33 @@ fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
                                 value_span: None,
                                 trailing_comment: None,
                             }],
-                        }.into());
-                    }
+                        }
+                        .into(),
+                    );
                 }
-                ui.add_space(spatial_space_m);
             }
+            ui.add_space(spatial_space_m);
+        }
 
-            if !svgs.is_empty() {
-                layout::section_header(ui, egui_phosphor::regular::FILE_SVG, "SVGs", Some(svgs.len()));
-                for (path, _svg) in &svgs {
-                    let row_id = ui.id().with(path);
-                    let filename = std::path::Path::new(path).file_name().and_then(|n| n.to_str()).unwrap_or(path);
-                    let response = row::Row::new(filename)
-                        .icon(Some(egui_phosphor::regular::FILE_SVG))
-                        .label_color(semantic_text_secondary)
-                        .show(ui, row_id);
+        if !svgs.is_empty() {
+            layout::section_header(ui, egui_phosphor::regular::FILE_SVG, "SVGs", Some(svgs.len()));
+            for (path, _svg) in &svgs {
+                let row_id = ui.id().with(path);
+                let filename =
+                    std::path::Path::new(path).file_name().and_then(|n| n.to_str()).unwrap_or(path);
+                let response = row::Row::new(filename)
+                    .icon(Some(egui_phosphor::regular::FILE_SVG))
+                    .label_color(semantic_text_secondary)
+                    .show(ui, row_id);
 
-                    if response.response.double_clicked() {
-                        let label = crate::app::utils::labels::unique_label(None, "svg");
-                        let pos = [
-                            ctx.scene_dimensions.width as f32 / 2.0,
-                            ctx.scene_dimensions.height as f32 / 2.0,
-                        ];
-                        ctx.commands.push_back(ActorCommand::CreateActor {
+                if response.response.double_clicked() {
+                    let label = crate::app::utils::labels::unique_label(None, "svg");
+                    let pos = [
+                        ctx.scene_dimensions.width as f32 / 2.0,
+                        ctx.scene_dimensions.height as f32 / 2.0,
+                    ];
+                    ctx.commands.push_back(
+                        ActorCommand::CreateActor {
                             ty: "Svg".into(),
                             label,
                             position: pos,
@@ -1084,9 +1223,11 @@ fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
                                 value_span: None,
                                 trailing_comment: None,
                             }],
-                        }.into());
-                    }
+                        }
+                        .into(),
+                    );
                 }
             }
-        });
+        }
+    });
 }

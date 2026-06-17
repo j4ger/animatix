@@ -3,19 +3,17 @@
 //! The `GuiShell::handle_command` dispatcher lives in `shell/mod.rs`.
 //! All handler logic has been extracted into the `handlers/` sub-modules.
 
-
-
 // =========================================================================
 // ── Tests ─────────────────────────────────────────────────────────────
 // =========================================================================
 
 #[cfg(test)]
 mod tests {
+    use crate::app::PreviewPaneState;
     use crate::app::commands::Effect;
     use crate::app::handlers::*;
     use crate::app::persistence::default_tree;
     use crate::app::preview::DragState;
-    use crate::app::PreviewPaneState;
     use crate::document::DocumentSession;
     use crate::editor::EditorBuffer;
     use animatix::timeline::SceneDimensions;
@@ -26,8 +24,7 @@ mod tests {
     // ── Test helpers (no filesystem needed) ────────────────────────────
 
     fn make_document_store() -> crate::app::stores::DocumentStore {
-        let document =
-            DocumentSession::from_error(std::path::PathBuf::from("test.amx"));
+        let document = DocumentSession::from_error(std::path::PathBuf::from("test.amx"));
         let editor =
             EditorBuffer::new(&std::path::PathBuf::from("test.amx"), document.source_text.clone());
         crate::app::stores::DocumentStore::new(document, editor)
@@ -60,10 +57,7 @@ mod tests {
         let mut preview_store = make_preview_store(5.0);
         let effects = playback::handle_toggle_playback(&mut preview_store);
         assert_eq!(effects.len(), 1, "expected exactly 1 effect");
-        assert!(
-            matches!(&effects[0], Effect::Repaint),
-            "expected Repaint effect"
-        );
+        assert!(matches!(&effects[0], Effect::Repaint), "expected Repaint effect");
     }
 
     #[test]
@@ -79,8 +73,7 @@ mod tests {
     #[test]
     fn toggle_playback_resets_time_when_at_end() {
         let mut preview_store = make_preview_store(5.0);
-        preview_store.preview.playback.current_time_s =
-            preview_store.preview.playback.duration_s;
+        preview_store.preview.playback.current_time_s = preview_store.preview.playback.duration_s;
         playback::handle_toggle_playback(&mut preview_store);
         assert_eq!(preview_store.preview.playback.current_time_s, 0.0);
         assert!(preview_store.preview.playback.is_playing);
@@ -97,7 +90,8 @@ mod tests {
         let clamped = target.max(0.0).min(preview_store.preview.playback.duration_s.max(0.1));
         preview_store.preview.playback.is_playing = true;
 
-        let _effects = playback::handle_scrub_to(&mut document_store, &mut preview_store, &ui_store, target);
+        let _effects =
+            playback::handle_scrub_to(&mut document_store, &mut preview_store, &ui_store, target);
 
         assert_eq!(preview_store.preview.playback.current_time_s, clamped);
         assert!(!preview_store.preview.playback.is_playing);
@@ -173,10 +167,7 @@ mod tests {
         let effects = ui::handle_drag_ended(&mut ui_store);
 
         assert!(
-            matches!(
-                ui_store.interaction.drag_state,
-                DragState::None
-            ),
+            matches!(ui_store.interaction.drag_state, DragState::None),
             "expected DragState::None after DragEnded"
         );
         assert!(!ui_store.interaction.drag_snapshot_taken);
@@ -317,7 +308,9 @@ circle: Ellipse, at: (200, 200), radius: 50, color: red
             .as_ref()
             .expect("raw_statements should exist");
         assert!(
-            stmts.iter().any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "new_box")),
+            stmts
+                .iter()
+                .any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "new_box")),
             "expected 'new_box' in raw_statements"
         );
 
@@ -370,7 +363,9 @@ circle: Ellipse, at: (200, 200), radius: 50, color: red
             .as_ref()
             .expect("raw_statements should exist");
         assert!(
-            !stmts.iter().any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "box")),
+            !stmts
+                .iter()
+                .any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "box")),
             "old label 'box' should be removed"
         );
         assert!(
@@ -416,8 +411,7 @@ circle: Ellipse, at: (200, 200), radius: 50, color: red
 
         // Source should be unchanged
         assert_eq!(
-            document_store.source.document.source_text,
-            source_before,
+            document_store.source.document.source_text, source_before,
             "source should not change for no-op rename"
         );
     }
@@ -447,8 +441,7 @@ circle: Ellipse, at: (200, 200), radius: 50, color: red
 
         // Source should be unchanged
         assert_eq!(
-            document_store.source.document.source_text,
-            source_before,
+            document_store.source.document.source_text, source_before,
             "source should not change on failure"
         );
     }
@@ -478,8 +471,7 @@ circle: Ellipse, at: (200, 200), radius: 50, color: red
 
         // Source should be unchanged
         assert_eq!(
-            document_store.source.document.source_text,
-            source_before,
+            document_store.source.document.source_text, source_before,
             "source should not change on failure"
         );
     }
@@ -508,7 +500,9 @@ circle: Ellipse, at: (200, 200), radius: 50, color: red
             .as_ref()
             .expect("raw_statements should exist");
         assert!(
-            !stmts.iter().any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "box")),
+            !stmts
+                .iter()
+                .any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "box")),
             "'box' should be removed from raw_statements"
         );
 
@@ -553,8 +547,7 @@ circle: Ellipse, at: (200, 200), radius: 50, color: red
 
         // Source should be unchanged since nothing was selected
         assert_eq!(
-            document_store.source.document.source_text,
-            source_before,
+            document_store.source.document.source_text, source_before,
             "source should not change with empty selection"
         );
     }
@@ -582,7 +575,9 @@ circle: Ellipse, at: (200, 200), radius: 50, color: red
             .as_ref()
             .expect("raw_statements should exist");
         assert!(
-            !stmts.iter().any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "box")),
+            !stmts
+                .iter()
+                .any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "box")),
             "'box' should be removed"
         );
         assert!(
@@ -666,8 +661,11 @@ circle: Ellipse, at: (200, 200), radius: 50, color: red
             .duration_since(UNIX_EPOCH)
             .expect("system time should be after unix epoch")
             .as_nanos();
-        let dir = std::env::temp_dir()
-            .join(format!("animatix_test_open_{}_{}", std::process::id(), unique));
+        let dir = std::env::temp_dir().join(format!(
+            "animatix_test_open_{}_{}",
+            std::process::id(),
+            unique
+        ));
         std::fs::create_dir_all(&dir).expect("create temp test dir");
         let path = dir.join("open_test.amx");
         std::fs::write(&path, TEST_SOURCE).expect("write test source");
@@ -732,11 +730,8 @@ graph: Rect, size: (400, 400)
             "default active scene should be Intro"
         );
 
-        let effects = scene::handle_select_scene(
-            &mut document_store,
-            &mut preview_store,
-            "Diagram".into(),
-        );
+        let effects =
+            scene::handle_select_scene(&mut document_store, &mut preview_store, "Diagram".into());
 
         // Active scene should switch
         assert_eq!(
@@ -792,11 +787,8 @@ graph: Rect, size: (400, 400)
             "TEST_SOURCE should not be a composition"
         );
 
-        let effects = scene::handle_select_scene(
-            &mut document_store,
-            &mut preview_store,
-            "Intro".into(),
-        );
+        let effects =
+            scene::handle_select_scene(&mut document_store, &mut preview_store, "Intro".into());
 
         // Should return empty effects
         assert!(effects.is_empty(), "expected no effects without composition");

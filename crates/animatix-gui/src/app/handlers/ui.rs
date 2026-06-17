@@ -60,8 +60,10 @@ pub fn handle_undo(
         document_store.replace_text(entry.source_before.clone());
         // Restore UI state from the recorded before-snapshot.
         ui_store.restore_snapshot(entry.ui_before);
-        preview_store.pending_rebuild_at =
-            Some(std::time::Instant::now() + std::time::Duration::from_millis(ui_store.rebuild_debounce_ms));
+        preview_store.pending_rebuild_at = Some(
+            std::time::Instant::now()
+                + std::time::Duration::from_millis(ui_store.rebuild_debounce_ms),
+        );
         preview_store.preview.status = "Undo".to_string();
         ui_store.toasts.push(Toast::info("Undo"));
     }
@@ -90,8 +92,10 @@ pub fn handle_redo(
         document_store.replace_text(entry.source_after.clone());
         // Restore UI state from the recorded after-snapshot.
         ui_store.restore_snapshot(entry.ui_after);
-        preview_store.pending_rebuild_at =
-            Some(std::time::Instant::now() + std::time::Duration::from_millis(ui_store.rebuild_debounce_ms));
+        preview_store.pending_rebuild_at = Some(
+            std::time::Instant::now()
+                + std::time::Duration::from_millis(ui_store.rebuild_debounce_ms),
+        );
         preview_store.preview.status = "Redo".to_string();
         ui_store.toasts.push(Toast::info("Redo"));
     }
@@ -171,10 +175,7 @@ pub fn handle_zoom_to_all(
     vec![Effect::Repaint]
 }
 
-fn suggest_export_filename(
-    export_store: &ExportStore,
-    document_store: &DocumentStore,
-) -> PathBuf {
+fn suggest_export_filename(export_store: &ExportStore, document_store: &DocumentStore) -> PathBuf {
     let ext = match export_store.export_state.format {
         crate::app::shell::export_dialog::ExportFormat::Image => "png",
         crate::app::shell::export_dialog::ExportFormat::Video => "mp4",

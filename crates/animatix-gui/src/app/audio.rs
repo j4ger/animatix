@@ -48,8 +48,8 @@ struct ActiveSegment {
 impl AudioEngine {
     /// Create a new audio engine, opening the default audio output device.
     pub fn new() -> Result<Self, String> {
-        let (_stream, stream_handle) = OutputStream::try_default()
-            .map_err(|e| format!("Failed to open audio output: {e}"))?;
+        let (_stream, stream_handle) =
+            OutputStream::try_default().map_err(|e| format!("Failed to open audio output: {e}"))?;
         Ok(Self {
             _stream,
             stream_handle,
@@ -72,7 +72,8 @@ impl AudioEngine {
 
         let sample_rate = decoder.sample_rate();
         let channels = decoder.channels();
-        let total_duration = decoder.total_duration()
+        let total_duration = decoder
+            .total_duration()
             .map(|d: std::time::Duration| d.as_secs_f64())
             .unwrap_or(0.0);
 
@@ -83,12 +84,15 @@ impl AudioEngine {
             0.0
         };
 
-        self.cache.insert(path.to_string(), DecodedAudio {
-            samples,
-            sample_rate,
-            channels,
-            duration_s: total_duration.max(duration_s),
-        });
+        self.cache.insert(
+            path.to_string(),
+            DecodedAudio {
+                samples,
+                sample_rate,
+                channels,
+                duration_s: total_duration.max(duration_s),
+            },
+        );
         Ok(())
     }
 
@@ -158,8 +162,15 @@ impl AudioEngine {
 
     /// Try to start a segment at the given timeline time.
     /// Returns Ok if the segment started, Err if it couldn't.
-    fn try_start_segment(&mut self, seg: &AudioSegment, index: usize, time_s: f64) -> Result<(), String> {
-        let audio = self.cache.get(&seg.source)
+    fn try_start_segment(
+        &mut self,
+        seg: &AudioSegment,
+        index: usize,
+        time_s: f64,
+    ) -> Result<(), String> {
+        let audio = self
+            .cache
+            .get(&seg.source)
             .ok_or_else(|| format!("Audio '{}' not loaded", seg.source))?;
 
         // Compute the segment's end time

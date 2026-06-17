@@ -8,9 +8,8 @@ use std::collections::HashSet;
 /// candidate of the form `{lowercase_type}{n}` (e.g. `rect1`, `text2`).
 pub fn unique_label(timeline: Option<&animatix::timeline::Timeline>, ty: &str) -> String {
     let base = ty.to_lowercase();
-    let existing: HashSet<String> = timeline
-        .map(|t| t.tracks().keys().cloned().collect())
-        .unwrap_or_default();
+    let existing: HashSet<String> =
+        timeline.map(|t| t.tracks().keys().cloned().collect()).unwrap_or_default();
     for i in 1.. {
         let candidate = format!("{}{}", base, i);
         if !existing.contains(&candidate) {
@@ -28,7 +27,9 @@ mod tests {
     #[test]
     fn unique_label_finds_first_available() {
         let mut timeline = Timeline::new();
-        timeline.tracks_mut().insert("rect1".into(), AnimationTrack::new("rect1".into()));
+        timeline
+            .tracks_mut()
+            .insert("rect1".into(), AnimationTrack::new("rect1".into()));
 
         assert_eq!(unique_label(Some(&timeline), "Rect"), "rect2");
     }
@@ -42,8 +43,12 @@ mod tests {
     #[test]
     fn unique_label_skips_occupied() {
         let mut timeline = Timeline::new();
-        timeline.tracks_mut().insert("rect1".into(), AnimationTrack::new("rect1".into()));
-        timeline.tracks_mut().insert("rect2".into(), AnimationTrack::new("rect2".into()));
+        timeline
+            .tracks_mut()
+            .insert("rect1".into(), AnimationTrack::new("rect1".into()));
+        timeline
+            .tracks_mut()
+            .insert("rect2".into(), AnimationTrack::new("rect2".into()));
 
         assert_eq!(unique_label(Some(&timeline), "Rect"), "rect3");
     }

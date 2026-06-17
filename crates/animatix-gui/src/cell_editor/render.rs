@@ -1,6 +1,8 @@
 use egui::{Color32, Frame, Margin, RichText, ScrollArea, Stroke, Vec2};
 
+use crate::app::components::anim;
 use crate::app::design_tokens::semantic::{accent, surface, text, status};
+use crate::app::design_tokens::motion;
 use crate::app::design_tokens::spatial::ROW_S;
 use crate::app::design_tokens::util::lerp_color;
 use crate::cell_editor::{Cell, CellDiagnostic, CellEditorState};
@@ -126,14 +128,15 @@ fn header_btn(
     let size = Vec2::splat(ROW_S);
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
 
-    let t = ui.ctx().animate_value_with_time(
+    let t = anim::animate_toward(
+        ui.ctx(),
         response.id,
         if response.hovered() || response.is_pointer_button_down_on() {
             1.0
         } else {
             0.0
         },
-        0.08,
+        motion::HOVER,
     );
 
     let bg = if response.is_pointer_button_down_on() {
@@ -739,10 +742,11 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
     let right = rect.right() - 48.0;
 
     // Smooth hover transition for the divider line
-    let t = ui.ctx().animate_value_with_time(
+    let t = anim::animate_toward(
+        ui.ctx(),
         ui.id().with(("divider_line", after_index)),
         if response.hovered() { 1.0 } else { 0.0 },
-        0.12,
+        motion::HOVER,
     );
 
     // ── Divider line (always visible, brightens on hover) ──
@@ -763,14 +767,15 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
 
     // Animate the button independently so it has smooth transitions even though
     // it's always on screen.
-    let btn_t = ui.ctx().animate_value_with_time(
+    let btn_t = anim::animate_toward(
+        ui.ctx(),
         ui.id().with(("divider_btn", after_index)),
         if response.hovered() || response.is_pointer_button_down_on() {
             1.0
         } else {
             0.0
         },
-        0.10,
+        motion::HOVER,
     );
     let pressed = response.is_pointer_button_down_on();
 

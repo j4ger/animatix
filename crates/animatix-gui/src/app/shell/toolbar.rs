@@ -1,19 +1,21 @@
 use egui::{Align, RichText, Stroke, Vec2};
 
 use crate::app::GuiShell;
-use crate::app::commands::{ActionQueue, Command, DocumentCommand, SceneCommand, ShellAction, ViewAction};
+use crate::app::commands::{
+    ActionQueue, Command, DocumentCommand, SceneCommand, ShellAction, ViewAction,
+};
 use crate::app::components::button::Button;
 use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
+use crate::app::design_tokens::semantic::status::DIAGNOSTIC_ERROR as DIAGNOSTIC_RED;
 use crate::app::design_tokens::semantic::status::WARNING as AMBER;
 use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
 use crate::app::design_tokens::semantic::surface::WIDGET as BG_WIDGET;
-use crate::app::design_tokens::semantic::status::DIAGNOSTIC_ERROR as DIAGNOSTIC_RED;
 use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
 use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
 use crate::app::design_tokens::spatial::toolbar::HEIGHT as TOOLBAR_HEIGHT;
-use crate::app::design_tokens::spatial::{STROKE_WIDTH, SPACE_XL, SPACE_L, SPACE_S, RADIUS_M};
-use crate::app::design_tokens::typography::{TextRole};
+use crate::app::design_tokens::spatial::{RADIUS_M, SPACE_L, SPACE_S, SPACE_XL, STROKE_WIDTH};
+use crate::app::design_tokens::typography::TextRole;
 
 // TOOLBAR_HEIGHT imported via design_tokens::*
 
@@ -61,7 +63,9 @@ impl GuiShell {
 
                     ui.add(
                         egui::Label::new(
-                            RichText::new(filename_text).size(TextRole::Body.size()).color(filename_color),
+                            RichText::new(filename_text)
+                                .size(TextRole::Body.size())
+                                .color(filename_color),
                         )
                         .selectable(false),
                     );
@@ -95,7 +99,9 @@ impl GuiShell {
                             .show(ui, |ui| {
                                 ui.add(
                                     egui::Label::new(
-                                        RichText::new("stale").size(TextRole::Micro.size()).color(BG_BASE),
+                                        RichText::new("stale")
+                                            .size(TextRole::Micro.size())
+                                            .color(BG_BASE),
                                     )
                                     .selectable(false),
                                 );
@@ -106,7 +112,11 @@ impl GuiShell {
                     // Building indicator (pulsing)
                     if self.preview_store.rebuild_in_progress {
                         ui.add_space(SPACE_S);
-                        let t = ui.ctx().animate_value_with_time(ui.id().with("build_spinner"), 0.0, 0.8);
+                        let t = ui.ctx().animate_value_with_time(
+                            ui.id().with("build_spinner"),
+                            0.0,
+                            0.8,
+                        );
                         let pulse = ((t as f64 * std::f64::consts::TAU).sin() * 0.3 + 0.7) as f32;
                         let response = egui::Frame::new()
                             .fill(ACCENT_BLUE.linear_multiply(pulse))
@@ -214,7 +224,9 @@ impl GuiShell {
                                         .on_hover_text(format!("Switch to scene '{}'", name))
                                         .clicked()
                                     {
-                                        commands.push_back(SceneCommand::SelectScene(name.clone()).into());
+                                        commands.push_back(
+                                            SceneCommand::SelectScene(name.clone()).into(),
+                                        );
                                     }
                                 }
                             });
@@ -228,10 +240,7 @@ impl GuiShell {
 
                         // Grid toggle
                         let grid = self.preview_store.preview.overlay.show_grid;
-                        if ui
-                            .selectable_label(grid, "Grid")
-                            .on_hover_text("Toggle grid")
-                            .clicked()
+                        if ui.selectable_label(grid, "Grid").on_hover_text("Toggle grid").clicked()
                         {
                             self.preview_store.preview.overlay.show_grid = !grid;
                         }
@@ -257,25 +266,31 @@ impl GuiShell {
                         }
 
                         // Debug dropdown (grouped debug toggles)
-                        ui.menu_button(RichText::new("Debug").size(TextRole::BodyS.size()).color(TEXT_SECONDARY), |ui| {
-                            let mut bounds = self.ui_store.view.debug_bounds;
-                            if ui.checkbox(&mut bounds, "Bounds").clicked() {
-                                self.ui_store.view.debug_bounds = bounds;
-                            }
-                            let mut layout_debug = self.ui_store.view.debug_layout;
-                            if ui.checkbox(&mut layout_debug, "Layout").clicked() {
-                                self.ui_store.view.debug_layout = layout_debug;
-                            }
-                            let mut spacing = self.ui_store.view.debug_spacing;
-                            if ui.checkbox(&mut spacing, "Spacing").clicked() {
-                                self.ui_store.view.debug_spacing = spacing;
-                            }
-                            ui.separator();
-                            let mut perf = self.preview_store.preview.overlay.show_performance_hud;
-                            if ui.checkbox(&mut perf, "Performance HUD").clicked() {
-                                self.preview_store.preview.overlay.show_performance_hud = perf;
-                            }
-                        });
+                        ui.menu_button(
+                            RichText::new("Debug")
+                                .size(TextRole::BodyS.size())
+                                .color(TEXT_SECONDARY),
+                            |ui| {
+                                let mut bounds = self.ui_store.view.debug_bounds;
+                                if ui.checkbox(&mut bounds, "Bounds").clicked() {
+                                    self.ui_store.view.debug_bounds = bounds;
+                                }
+                                let mut layout_debug = self.ui_store.view.debug_layout;
+                                if ui.checkbox(&mut layout_debug, "Layout").clicked() {
+                                    self.ui_store.view.debug_layout = layout_debug;
+                                }
+                                let mut spacing = self.ui_store.view.debug_spacing;
+                                if ui.checkbox(&mut spacing, "Spacing").clicked() {
+                                    self.ui_store.view.debug_spacing = spacing;
+                                }
+                                ui.separator();
+                                let mut perf =
+                                    self.preview_store.preview.overlay.show_performance_hud;
+                                if ui.checkbox(&mut perf, "Performance HUD").clicked() {
+                                    self.preview_store.preview.overlay.show_performance_hud = perf;
+                                }
+                            },
+                        );
 
                         ui.separator();
 
@@ -290,37 +305,45 @@ impl GuiShell {
                         } else {
                             "Fit"
                         };
-                        ui.menu_button(RichText::new(zoom_label).size(TextRole::BodyS.size()).color(TEXT_SECONDARY), |ui| {
-                            ui.set_min_width(80.0);
-                            if ui.selectable_label(false, "Fit").clicked() {
-                                self.preview_store.preview.fit_zoom_requested = true;
-                                ui.close();
-                            }
-                            if ui.selectable_label((zoom - 1.0).abs() < 0.05, "100%").clicked() {
-                                self.preview_store.preview.viewport.preview_zoom = 1.0;
-                                self.preview_store.preview.viewport.preview_pan = Vec2::new(
-                                    self.preview_store.preview.dimensions.width as f32 / 2.0,
-                                    self.preview_store.preview.dimensions.height as f32 / 2.0,
-                                );
-                                ui.close();
-                            }
-                            if ui.selectable_label((zoom - 1.5).abs() < 0.05, "150%").clicked() {
-                                self.preview_store.preview.viewport.preview_zoom = 1.5;
-                                self.preview_store.preview.viewport.preview_pan = Vec2::new(
-                                    self.preview_store.preview.dimensions.width as f32 / 2.0,
-                                    self.preview_store.preview.dimensions.height as f32 / 2.0,
-                                );
-                                ui.close();
-                            }
-                            if ui.selectable_label((zoom - 2.0).abs() < 0.05, "200%").clicked() {
-                                self.preview_store.preview.viewport.preview_zoom = 2.0;
-                                self.preview_store.preview.viewport.preview_pan = Vec2::new(
-                                    self.preview_store.preview.dimensions.width as f32 / 2.0,
-                                    self.preview_store.preview.dimensions.height as f32 / 2.0,
-                                );
-                                ui.close();
-                            }
-                        });
+                        ui.menu_button(
+                            RichText::new(zoom_label)
+                                .size(TextRole::BodyS.size())
+                                .color(TEXT_SECONDARY),
+                            |ui| {
+                                ui.set_min_width(80.0);
+                                if ui.selectable_label(false, "Fit").clicked() {
+                                    self.preview_store.preview.fit_zoom_requested = true;
+                                    ui.close();
+                                }
+                                if ui.selectable_label((zoom - 1.0).abs() < 0.05, "100%").clicked()
+                                {
+                                    self.preview_store.preview.viewport.preview_zoom = 1.0;
+                                    self.preview_store.preview.viewport.preview_pan = Vec2::new(
+                                        self.preview_store.preview.dimensions.width as f32 / 2.0,
+                                        self.preview_store.preview.dimensions.height as f32 / 2.0,
+                                    );
+                                    ui.close();
+                                }
+                                if ui.selectable_label((zoom - 1.5).abs() < 0.05, "150%").clicked()
+                                {
+                                    self.preview_store.preview.viewport.preview_zoom = 1.5;
+                                    self.preview_store.preview.viewport.preview_pan = Vec2::new(
+                                        self.preview_store.preview.dimensions.width as f32 / 2.0,
+                                        self.preview_store.preview.dimensions.height as f32 / 2.0,
+                                    );
+                                    ui.close();
+                                }
+                                if ui.selectable_label((zoom - 2.0).abs() < 0.05, "200%").clicked()
+                                {
+                                    self.preview_store.preview.viewport.preview_zoom = 2.0;
+                                    self.preview_store.preview.viewport.preview_pan = Vec2::new(
+                                        self.preview_store.preview.dimensions.width as f32 / 2.0,
+                                        self.preview_store.preview.dimensions.height as f32 / 2.0,
+                                    );
+                                    ui.close();
+                                }
+                            },
+                        );
                     });
 
                     // Right-aligned: inspector + settings + command palette
@@ -328,13 +351,20 @@ impl GuiShell {
                         ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
 
                         // Command palette / shortcut reference button
-                        if ui.add(Button::icon(egui_phosphor::regular::COMMAND).with_tooltip("Keyboard shortcuts"))
-                        .clicked()
+                        if ui
+                            .add(
+                                Button::icon(egui_phosphor::regular::COMMAND)
+                                    .with_tooltip("Keyboard shortcuts"),
+                            )
+                            .clicked()
                         {
                             self.ui_store.view.shortcuts_open = true;
                         }
 
-                        if ui.add(Button::icon(egui_phosphor::regular::GEAR).with_tooltip("Settings"))
+                        if ui
+                            .add(
+                                Button::icon(egui_phosphor::regular::GEAR).with_tooltip("Settings"),
+                            )
                             .clicked()
                         {
                             self.ui_store.view.settings_open = true;
@@ -342,16 +372,28 @@ impl GuiShell {
 
                         // Diagnostics toggle
                         let diag_active = self.ui_store.view.diagnostics_panel_visible;
-                        if ui.add(Button::ghost("").with_icon(egui_phosphor::regular::WARNING_OCTAGON).with_tooltip("Toggle diagnostics panel").active(diag_active))
-                        .clicked()
+                        if ui
+                            .add(
+                                Button::ghost("")
+                                    .with_icon(egui_phosphor::regular::WARNING_OCTAGON)
+                                    .with_tooltip("Toggle diagnostics panel")
+                                    .active(diag_active),
+                            )
+                            .clicked()
                         {
                             self.ui_store.view.diagnostics_panel_visible = !diag_active;
                         }
 
                         // Inspector toggle
                         let inspector_active = self.ui_store.view.inspector_visible;
-                        if ui.add(Button::ghost("").with_icon(egui_phosphor::regular::SLIDERS).with_tooltip("Toggle Inspector").active(inspector_active))
-                        .clicked()
+                        if ui
+                            .add(
+                                Button::ghost("")
+                                    .with_icon(egui_phosphor::regular::SLIDERS)
+                                    .with_tooltip("Toggle Inspector")
+                                    .active(inspector_active),
+                            )
+                            .clicked()
                         {
                             commands.push_back(ShellAction::View(ViewAction::ShowInspector));
                         }

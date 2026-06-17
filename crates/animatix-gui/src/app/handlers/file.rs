@@ -2,11 +2,11 @@ use std::path::PathBuf;
 
 use crate::app::commands::Effect;
 use crate::app::components::toast::Toast;
+use crate::app::document::rebuild::{RebuildResponse, RebuildToken, RebuildWorker};
 use crate::app::document::version::SourceEpoch;
 use crate::app::file_tree::build_file_tree;
 use crate::app::persistence::save_app_state;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore, WorkspaceStore};
-use crate::app::document::rebuild::{RebuildToken, RebuildWorker, RebuildResponse};
 use crate::app::utils::has_source_load_failure;
 use crate::document::DocumentSession;
 use animatix_syntax::diagnostics::diagnostics_phase_summary;
@@ -48,18 +48,16 @@ pub fn handle_open_file(
 ) -> Vec<Effect> {
     // P0.3: Refuse to open if there are unsaved changes.
     if document_store.source.is_dirty() {
-        preview_store.preview.status =
-            "Save changes before opening another file".to_string();
+        preview_store.preview.status = "Save changes before opening another file".to_string();
         return vec![Effect::Toast(Toast::warning(
-            "Save changes before opening another file"
+            "Save changes before opening another file",
         ))];
     }
     match DocumentSession::load(path.clone()) {
         Ok(document) => {
             // Only recompute workspace root if the file is outside the current workspace
             if !path.starts_with(&workspace_store.workspace_root) {
-                let new_workspace_root =
-                    crate::app::file_tree::workspace_root_for(&path);
+                let new_workspace_root = crate::app::file_tree::workspace_root_for(&path);
                 if new_workspace_root != workspace_store.workspace_root {
                     workspace_store.workspace_root = new_workspace_root;
                     workspace_store.expanded_dirs =
@@ -74,13 +72,10 @@ pub fn handle_open_file(
             document_store.source.source_epoch = SourceEpoch::initial();
             document_store.source.document = document;
             document_store.source.invalidate_cache();
-            document_store
-                .source
-                .editor
-                .set_document(
-                    &document_store.source.document.file_path,
-                    document_store.source.document.source_text.clone(),
-                );
+            document_store.source.editor.set_document(
+                &document_store.source.document.file_path,
+                document_store.source.document.source_text.clone(),
+            );
             document_store.history.undo_stack.clear();
             document_store.history.redo_stack.clear();
             ui_store.interaction.reset_drag_state();
@@ -93,7 +88,9 @@ pub fn handle_open_file(
             }
             // Publish initial snapshot (load already ran rebuild)
             document_store.clear_snapshots();
-            document_store.publish_rebuild_result(document_store.source.document.last_rebuild_error.is_none());
+            document_store.publish_rebuild_result(
+                document_store.source.document.last_rebuild_error.is_none(),
+            );
             let status = if has_source_load_failure(&document_store.source.document.diagnostics) {
                 format!(
                     "Opened {} • parse/load error • {}",
@@ -109,18 +106,18 @@ pub fn handle_open_file(
             let error = document_store.source.document.last_rebuild_error.clone();
             sync_preview_from_document(document_store, preview_store, status, true, true);
             preview_store.preview.error = error;
-            ui_store
-                .toasts
-                .push(Toast::info(format!("Opened {}", path.display())));
+            ui_store.toasts.push(Toast::info(format!("Opened {}", path.display())));
             ui_store.view.welcome_open = false;
             save_app_state(&path);
             vec![]
-        }
+        },
         Err(error) => {
             preview_store.preview.error = Some(error.to_string());
-            preview_store.preview.set_status_error(format!("Open failed • {}", path.display()));
+            preview_store
+                .preview
+                .set_status_error(format!("Open failed • {}", path.display()));
             vec![]
-        }
+        },
     }
 }
 
@@ -131,7 +128,7 @@ pub fn handle_switch_workspace(
 ) -> Vec<Effect> {
     if document_store.source.is_dirty() {
         return vec![Effect::Toast(Toast::warning(
-            "Save changes before switching workspace"
+            "Save changes before switching workspace",
         ))];
     }
     if path.exists() && path.is_dir() {
@@ -142,7 +139,10 @@ pub fn handle_switch_workspace(
             &document_store.source.document.file_path,
             &workspace_store.expanded_dirs,
         );
-        vec![Effect::Status(format!("Switched workspace to {}", path.display()))]
+        vec![Effect::Status(format!(
+            "Switched workspace to {}",
+            path.display()
+        ))]
     } else {
         vec![Effect::Toast(Toast::error(format!(
             "Not a valid directory: {}",
@@ -182,11 +182,11 @@ pub fn handle_save(
                 Effect::Status(format!("Saved {}", path.display())),
                 Effect::Toast(Toast::success(format!("Saved {}", path.display()))),
             ]
-        }
+        },
         Err(err) => {
             tracing::warn!("Save failed: {}", err);
             vec![Effect::Toast(Toast::error(format!("Save failed: {}", err)))]
-        }
+        },
     }
 }
 
@@ -197,10 +197,9 @@ pub fn handle_reload(
 ) -> Vec<Effect> {
     // P0.3: Refuse to reload if there are unsaved changes.
     if document_store.source.is_dirty() {
-        preview_store.preview.status =
-            "Save changes before reloading".to_string();
+        preview_store.preview.status = "Save changes before reloading".to_string();
         return vec![Effect::Toast(Toast::warning(
-            "Save changes before reloading"
+            "Save changes before reloading",
         ))];
     }
     let path = document_store.source.file_path().to_path_buf();
@@ -211,7 +210,9 @@ pub fn handle_reload(
             if let Err(e) = document_store.source.document.rebuild() {
                 tracing::warn!("Document reload rebuild failed: {}", e);
             }
-            document_store.publish_rebuild_result(document_store.source.document.last_rebuild_error.is_none());
+            document_store.publish_rebuild_result(
+                document_store.source.document.last_rebuild_error.is_none(),
+            );
             let status = if has_source_load_failure(&document_store.source.document.diagnostics) {
                 format!(
                     "Reloaded {} • parse/load error • {}",
@@ -233,11 +234,11 @@ pub fn handle_reload(
                 &workspace_store.expanded_dirs,
             );
             vec![]
-        }
+        },
         Err(e) => {
             tracing::warn!("Reload failed: {}", e);
             vec![Effect::Toast(Toast::error(format!("Reload failed: {}", e)))]
-        }
+        },
     }
 }
 
@@ -321,11 +322,11 @@ pub fn handle_rebuild(
         Ok(()) => {
             preview_store.rebuild_in_progress = false;
             rebuild_succeeded(document_store, preview_store, ui_store)
-        }
+        },
         Err(error) => {
             preview_store.rebuild_in_progress = false;
             rebuild_failed(document_store, preview_store, ui_store, &error.to_string())
-        }
+        },
     }
 }
 
@@ -359,13 +360,16 @@ pub fn handle_rebuild_response(
     match response.result {
         Ok(output) => {
             document_store.source.invalidate_cache();
-            document_store.source.document.apply_rebuild_output(output, response.source_hash.0);
+            document_store
+                .source
+                .document
+                .apply_rebuild_output(output, response.source_hash.0);
             rebuild_succeeded(document_store, preview_store, ui_store)
-        }
+        },
         Err(failure) => {
             document_store.source.invalidate_cache();
             document_store.source.document.apply_rebuild_failure(&failure);
             rebuild_failed(document_store, preview_store, ui_store, &failure.error)
-        }
+        },
     }
 }

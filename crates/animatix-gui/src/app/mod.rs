@@ -1,57 +1,68 @@
-
 mod actions;
+pub(crate) mod audio;
+pub(crate) mod command_bus;
 pub(crate) mod command_handlers;
 pub(crate) mod commands;
-pub(crate) mod handlers;
 pub(crate) mod components;
+pub mod design_tokens;
+pub(crate) mod document;
 mod document_controller;
 mod file_tree;
+pub(crate) mod handlers;
 pub(crate) mod icons;
+pub(crate) mod insertion;
+pub(crate) mod interaction;
 pub(crate) mod panels;
 mod persistence;
 pub(crate) mod preview;
 mod runtime;
+pub(crate) mod services;
 pub(crate) mod shell;
 pub(crate) mod stores;
-pub mod design_tokens;
 mod utils;
-pub(crate) mod insertion;
-pub(crate) mod document;
-pub(crate) mod audio;
-pub(crate) mod command_bus;
-pub(crate) mod services;
-pub(crate) mod interaction;
 
+use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
+use crate::app::design_tokens::semantic::{accent, border, status, surface, text};
+use crate::app::design_tokens::spatial::welcome::{
+    BTN_HEIGHT as WELCOME_BTN_HEIGHT, TOP_OFFSET_FRAC as WELCOME_TOP_OFFSET_FRAC,
+};
+use crate::app::design_tokens::spatial::{
+    RADIUS_L, RADIUS_M, RADIUS_S, RADIUS_XL, ROW_L, SPACE_L, SPACE_M, SPACE_S, SPACE_XL,
+    STROKE_WIDTH,
+};
+use crate::app::design_tokens::typography::TextRole;
 use crate::document::{DocumentSession, default_file_path};
-use crate::hot_reload::{HotReloader, ReloadStatus};
 use crate::editor::EditorBuffer;
+use crate::hot_reload::{HotReloader, ReloadStatus};
 use crate::preview_surface::PreviewSurface;
-use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_phase_summary};
 use animatix::timeline::SceneDimensions;
+use animatix_syntax::diagnostics::{
+    Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_phase_summary,
+};
 use directories::ProjectDirs;
 use egui::{Color32, Stroke, Vec2};
 use file_tree::{build_file_tree, workspace_root_for};
-use persistence::{default_tree, load_workspace_persistence, persistence_path, SettingsPersistence, WorkspacePersistence};
-use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
-use crate::app::design_tokens::spatial::welcome::{BTN_HEIGHT as WELCOME_BTN_HEIGHT, TOP_OFFSET_FRAC as WELCOME_TOP_OFFSET_FRAC};
-use crate::app::design_tokens::semantic::{accent, border, surface, text, status};
-use crate::app::design_tokens::spatial::{RADIUS_S, RADIUS_L, RADIUS_M, RADIUS_XL, SPACE_S, SPACE_M, SPACE_L, SPACE_XL, STROKE_WIDTH, ROW_L};
-use crate::app::design_tokens::typography::{TextRole};
+use persistence::{
+    SettingsPersistence, WorkspacePersistence, default_tree, load_workspace_persistence,
+    persistence_path,
+};
 #[cfg(test)]
 use preview::fit_preview;
 
+use crate::app::commands::{
+    ActionQueue, Command, DocumentCommand, Effect, ShellAction, UndoLabel, ViewCommand,
+};
+use crate::app::components::toast::Toast;
+use crate::app::document::rebuild::RebuildWorker;
+use crate::app::handlers::file;
+use crate::app::shell::insertion_palette::InsertionPalette;
+use crate::app::stores::*;
+use crate::app::utils::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-use crate::app::commands::{ActionQueue, ActorCommand, Command, DocumentCommand, Effect, PlaybackCommand, ShellAction, UndoLabel, ViewCommand};
-use crate::app::components::toast::Toast;
-use crate::app::handlers::file;
-use crate::app::shell::insertion_palette::{InsertionPalette, PaletteMode};
-use crate::app::utils::*;
-use crate::app::stores::*;
-use crate::app::document::rebuild::RebuildWorker;
 
 const INITIAL_WINDOW_SIZE: (f64, f64) = (1440.0, 960.0);
 const DEFAULT_PREVIEW_SIZE: SceneDimensions = SceneDimensions {
@@ -60,7 +71,6 @@ const DEFAULT_PREVIEW_SIZE: SceneDimensions = SceneDimensions {
 };
 const MAX_TREE_DEPTH: usize = 4;
 const MAX_TREE_ENTRIES: usize = 200;
-
 
 pub use runtime::run_gui;
 
@@ -72,8 +82,6 @@ pub enum WorkspaceTab {
     Inspector,
     Timeline,
 }
-
-
 
 #[derive(Debug, Clone)]
 pub(crate) struct FileTreeEntry {
@@ -179,7 +187,8 @@ impl PlaybackController {
             return;
         }
 
-        self.current_time_s += delta.as_secs_f64() * self.playback_speed as f64 * self.ping_pong_direction as f64;
+        self.current_time_s +=
+            delta.as_secs_f64() * self.playback_speed as f64 * self.ping_pong_direction as f64;
 
         // Loop region: if A and B are set, handle boundaries.
         if let (Some(start), Some(end)) = (self.loop_start_s, self.loop_end_s) {
@@ -292,7 +301,6 @@ pub(crate) struct PreviewPaneState {
     pub inline_edit: Option<InlineTextEditState>,
 }
 
-
 impl PreviewPaneState {
     fn new(duration_s: f64, dimensions: SceneDimensions) -> Self {
         Self {
@@ -309,7 +317,10 @@ impl PreviewPaneState {
             },
             viewport: ViewportState {
                 preview_zoom: 1.0,
-                preview_pan: Vec2::new(dimensions.width as f32 / 2.0, dimensions.height as f32 / 2.0),
+                preview_pan: Vec2::new(
+                    dimensions.width as f32 / 2.0,
+                    dimensions.height as f32 / 2.0,
+                ),
             },
             guides: GuideState {
                 horizontal_guides: vec![],
@@ -368,7 +379,9 @@ impl GuiShell {
                     // LiveDocument: editor is the source of truth. If the editor
                     // has unsaved changes, do NOT silently overwrite them.
                     if self.document_store.source.document.is_dirty {
-                        self.preview_store.preview.set_status_error("External file changed • reload blocked (unsaved edits)");
+                        self.preview_store.preview.set_status_error(
+                            "External file changed • reload blocked (unsaved edits)",
+                        );
                         return;
                     }
                     if let Err(err) = self.document_store.source.document.reload_from_disk() {
@@ -376,17 +389,19 @@ impl GuiShell {
                         self.preview_store.preview.set_status_error("Hot reload failed");
                     } else {
                         self.document_store.source.invalidate_cache();
-                        self.document_store.source.editor
-                            .set_document(&self.document_store.source.document.file_path, self.document_store.source.document.source_text.clone());
+                        self.document_store.source.editor.set_document(
+                            &self.document_store.source.document.file_path,
+                            self.document_store.source.document.source_text.clone(),
+                        );
                         self.workspace_store.last_reload_time = Some(app_time);
                         self.preview_store.preview.status = "File reloaded".to_string();
                         self.preview_store.preview.error = None;
                         self.document_store.publish_rebuild_result(
-                            self.document_store.source.document.last_rebuild_error.is_none()
+                            self.document_store.source.document.last_rebuild_error.is_none(),
                         );
                     }
-                }
-                ReloadStatus::NoChange => {}
+                },
+                ReloadStatus::NoChange => {},
             }
         }
     }
@@ -401,12 +416,12 @@ impl GuiShell {
                 Ok(document) => {
                     let error = document.last_rebuild_error.clone();
                     (document, None, error, false)
-                }
+                },
                 Err(error) => {
                     // Persisted file missing/deleted — fall back to welcome
                     let doc = DocumentSession::from_error(initial_path.clone());
                     (doc, None, Some(error.to_string()), true)
-                }
+                },
             }
         };
 
@@ -416,12 +431,10 @@ impl GuiShell {
         let persistence_path = persistence_path();
         let persistence = load_workspace_persistence(&persistence_path);
         let tree = persistence.as_ref().map(|p| p.tree.clone()).unwrap_or_else(default_tree);
-        let window_size = persistence.as_ref()
-            .and_then(|p| p.window_size)
-            .unwrap_or([1440.0, 960.0]);
-        let window_maximized = persistence.as_ref()
-            .and_then(|p| p.window_maximized)
-            .unwrap_or(false);
+        let window_size =
+            persistence.as_ref().and_then(|p| p.window_size).unwrap_or([1440.0, 960.0]);
+        let window_maximized =
+            persistence.as_ref().and_then(|p| p.window_maximized).unwrap_or(false);
         let hot_reloader = HotReloader::new(&document.file_path).ok();
         let duration_s = document.duration_s.max(0.1);
         let mut preview = PreviewPaneState::new(duration_s, document.scene_dimensions);
@@ -473,7 +486,8 @@ impl GuiShell {
         };
         if !is_welcome {
             shell.document_store.publish_rebuild_result(
-                error.is_none() && !has_source_load_failure(&shell.document_store.source.document.diagnostics)
+                error.is_none()
+                    && !has_source_load_failure(&shell.document_store.source.document.diagnostics),
             );
         }
         shell
@@ -503,7 +517,12 @@ impl GuiShell {
             self.preview_store.preview_dirty = true;
 
             if self.ui_store.editor_sync_enabled {
-                if let Some(line) = self.document_store.source.document.find_keyframe_line_at(self.preview_store.preview.playback.current_time_s()) {
+                if let Some(line) = self
+                    .document_store
+                    .source
+                    .document
+                    .find_keyframe_line_at(self.preview_store.preview.playback.current_time_s())
+                {
                     if self.document_store.source.editor.highlighted_line != Some(line) {
                         self.document_store.source.editor.scroll_to_line(line);
                         self.document_store.source.editor.set_highlighted_line(Some(line));
@@ -530,9 +549,7 @@ impl GuiShell {
         // Poll for completed rebuild responses
         for response in self.rebuild_worker.poll() {
             // Only accept the highest-token response (newest)
-            if self.preview_store.in_flight_rebuild
-                .is_none_or(|token| response.token == token)
-            {
+            if self.preview_store.in_flight_rebuild.is_none_or(|token| response.token == token) {
                 let elapsed_ms = response.elapsed_ms as f64;
                 let effects = crate::app::handlers::file::handle_rebuild_response(
                     &mut self.document_store,
@@ -551,35 +568,9 @@ impl GuiShell {
         let mut commands: ActionQueue = ActionQueue::default();
         commands.append(&mut self.ui_store.pending_actions);
 
-        // Global keyboard shortcuts (non-tool-mode shortcuts only;
-        // tool mode switching is handled in runtime.rs with proper
-        // wants_keyboard checks to avoid conflicts with text input).
-        let wants_keyboard = ui.ctx().egui_wants_keyboard_input();
-        ui.input(|i| {
-            if !wants_keyboard && i.key_pressed(egui::Key::Y) && !i.modifiers.command {
-                commands.push_back(PlaybackCommand::ToggleEditorSync.into());
-            }
-            if !wants_keyboard && !i.modifiers.command {
-                if i.key_pressed(egui::Key::A) && i.modifiers.shift && !self.ui_store.selection.selected_actors.is_empty() {
-                    self.insertion_palette.open(PaletteMode::Actions);
-                }
-                if i.key_pressed(egui::Key::Slash) {
-                    self.insertion_palette.open(PaletteMode::Universal);
-                }
-            }
-            // Copy selected actors (Ctrl+C)
-            if i.modifiers.command && i.key_pressed(egui::Key::C)
-                && !wants_keyboard
-                && !self.ui_store.selection.selected_actors.is_empty() {
-                    self.copy_selected_actors();
-                }
-            // Paste actors (Ctrl+V)
-            if i.modifiers.command && i.key_pressed(egui::Key::V)
-                && !wants_keyboard
-                && !self.ui_store.clipboard.clipboard_actors.is_empty() {
-                    commands.push_back(ActorCommand::PasteActors.into());
-                }
-        });
+        // Global keyboard shortcuts are now handled via ShortcutRegistry
+        // in runtime.rs::handle_keyboard_shortcuts. Only shell-local
+        // modal Escapes remain inline below.
 
         // Compact toolbar — hidden during onboarding so no grid/zoom controls clutter
         // the welcome screen.
@@ -603,19 +594,19 @@ impl GuiShell {
                     if diagnostics.is_empty() {
                         ui.vertical_centered(|ui| {
                             ui.add_space(SPACE_L);
-                            ui.label(egui::RichText::new("No diagnostics — all clear ✓")
-                                .size(TextRole::BodyS.size())
-                                .color(text::MUTED));
+                            ui.label(
+                                egui::RichText::new("No diagnostics — all clear ✓")
+                                    .size(TextRole::BodyS.size())
+                                    .color(text::MUTED),
+                            );
                         });
-                    } else if let Some(target) =
-                        components::diagnostics::diagnostics_list(
-                            ui,
-                            &diagnostics,
-                            &mut self.ui_store.view.diagnostics_panel_visible,
-                        )
-                    {
+                    } else if let Some(target) = components::diagnostics::diagnostics_list(
+                        ui,
+                        &diagnostics,
+                        &mut self.ui_store.view.diagnostics_panel_visible,
+                    ) {
                         self.ui_store.pending_actions.push_back(
-                            ViewCommand::ScrollToLine(target.line, target.column).into()
+                            ViewCommand::ScrollToLine(target.line, target.column).into(),
                         );
                     }
                 });
@@ -623,20 +614,28 @@ impl GuiShell {
 
         // Status bar — thin bar at the bottom showing preview status and scene dimensions
         egui::Panel::bottom("status_bar")
-            .frame(egui::Frame::new()
-                .fill(surface::PANEL)
-                .inner_margin(egui::Margin::symmetric(8, 2)))
+            .frame(
+                egui::Frame::new()
+                    .fill(surface::PANEL)
+                    .inner_margin(egui::Margin::symmetric(8, 2)),
+            )
             .resizable(false)
             .min_size(20.0)
             .show_inside(ui, |ui| {
                 ui.horizontal(|ui| {
                     let status = &self.preview_store.preview.status;
                     if !status.is_empty() {
-                        let is_error = self.preview_store.preview.status_severity == StatusSeverity::Error;
+                        let is_error =
+                            self.preview_store.preview.status_severity == StatusSeverity::Error;
                         if is_error {
                             // Red accent pill + warning icon for errors
-                            let bg_rect = egui::Rect::from_min_size(ui.cursor().min, egui::vec2(14.0, 14.0));
-                            ui.painter().rect_filled(bg_rect, RADIUS_S, status::DIAGNOSTIC_ERROR.linear_multiply(0.3));
+                            let bg_rect =
+                                egui::Rect::from_min_size(ui.cursor().min, egui::vec2(14.0, 14.0));
+                            ui.painter().rect_filled(
+                                bg_rect,
+                                RADIUS_S,
+                                status::DIAGNOSTIC_ERROR.linear_multiply(0.3),
+                            );
                             ui.painter().text(
                                 egui::pos2(bg_rect.center().x, bg_rect.center().y),
                                 egui::Align2::CENTER_CENTER,
@@ -646,17 +645,30 @@ impl GuiShell {
                             );
                             ui.add_space(SPACE_S);
                         }
-                        let color = if is_error { status::DIAGNOSTIC_ERROR } else { text::MUTED };
-                        let label = ui.label(egui::RichText::new(status.as_str()).size(TextRole::Micro.size()).color(color));
+                        let color = if is_error {
+                            status::DIAGNOSTIC_ERROR
+                        } else {
+                            text::MUTED
+                        };
+                        let label = ui.label(
+                            egui::RichText::new(status.as_str())
+                                .size(TextRole::Micro.size())
+                                .color(color),
+                        );
                         if is_error && self.preview_store.preview.error.is_some() {
-                            label.on_hover_text(self.preview_store.preview.error.as_deref().unwrap_or(""));
+                            label.on_hover_text(
+                                self.preview_store.preview.error.as_deref().unwrap_or(""),
+                            );
                         }
                     }
                     // Right side: scene dimensions
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let dims = &self.document_store.source.document.scene_dimensions;
-                        ui.label(egui::RichText::new(format!("{}×{}", dims.width, dims.height))
-                            .size(TextRole::Micro.size()).color(text::MUTED));
+                        ui.label(
+                            egui::RichText::new(format!("{}×{}", dims.width, dims.height))
+                                .size(TextRole::Micro.size())
+                                .color(text::MUTED),
+                        );
                     });
                 });
             });
@@ -679,12 +691,10 @@ impl GuiShell {
             });
 
         // Update cursor time from editor position (bi-directional sync)
-        self.ui_store.cursor_time_s = self
-            .document_store
-            .source
-            .editor
-            .cursor_line
-            .and_then(|line| self.document_store.source.document.timeline_index.time_s_for_line(line));
+        self.ui_store.cursor_time_s =
+            self.document_store.source.editor.cursor_line.and_then(|line| {
+                self.document_store.source.document.timeline_index.time_s_for_line(line)
+            });
 
         self.handle_actions(commands);
 
@@ -805,11 +815,13 @@ impl GuiShell {
                         if new_resp.clicked() {
                             let path = default_file_path();
                             match std::fs::write(&path, "#0s\n") {
-                                Ok(_) => {}
+                                Ok(_) => {},
                                 Err(e) => {
-                                    self.ui_store.toasts.push(Toast::error(format!("Failed to create scene: {e}")));
+                                    self.ui_store
+                                        .toasts
+                                        .push(Toast::error(format!("Failed to create scene: {e}")));
                                     return; // don't proceed to open
-                                }
+                                },
                             }
                             commands.push_back(DocumentCommand::OpenFile(path).into());
                         }
@@ -832,9 +844,8 @@ impl GuiShell {
                             .corner_radius(RADIUS_M),
                         );
                         if open_resp.clicked() {
-                            if let Some(path) = rfd::FileDialog::new()
-                                .add_filter("Animatix", &["amx"])
-                                .pick_file()
+                            if let Some(path) =
+                                rfd::FileDialog::new().add_filter("Animatix", &["amx"]).pick_file()
                             {
                                 commands.push_back(DocumentCommand::OpenFile(path).into());
                             }
@@ -927,23 +938,23 @@ impl GuiShell {
             match effect {
                 Effect::Toast(toast) => {
                     self.ui_store.toasts.push(toast);
-                }
+                },
                 Effect::Status(status) => {
                     self.preview_store.preview.set_status_info(status);
-                }
+                },
                 Effect::Repaint => {
                     self.preview_store.preview_dirty = true;
-                }
+                },
                 Effect::EditorScroll(line) => {
                     self.document_store.source.editor.scroll_to_line(line);
-                }
+                },
                 Effect::EditorHighlight(line) => {
                     self.document_store.source.editor.set_highlighted_line(Some(line));
-                }
+                },
                 Effect::RebuildScheduled => {
                     // The status has already been set; the pending rebuild
                     // timer is set directly in the command handler.
-                }
+                },
             }
         }
     }
@@ -995,7 +1006,8 @@ impl GuiShell {
 
     fn sync_active_scene_from_time(&mut self) {
         if let Some(composition) = self.document_store.source.document.composition.as_ref() {
-            let (scene, _, _) = composition.evaluate(self.preview_store.preview.playback.current_time_s());
+            let (scene, _, _) =
+                composition.evaluate(self.preview_store.preview.playback.current_time_s());
             self.document_store.source.document.active_scene = (!scene.is_empty()).then_some(scene);
         }
     }
@@ -1041,7 +1053,8 @@ impl GuiShell {
     /// Copy currently selected actor labels into the clipboard buffer.
     fn copy_selected_actors(&mut self) {
         let count = self.ui_store.selection.selected_actors.len();
-        self.ui_store.clipboard.clipboard_actors = self.ui_store.selection.selected_actors.iter().cloned().collect();
+        self.ui_store.clipboard.clipboard_actors =
+            self.ui_store.selection.selected_actors.iter().cloned().collect();
         self.preview_store.preview.status = format!("Copied {} actor(s)", count);
     }
 
@@ -1108,16 +1121,15 @@ impl GuiShell {
 
                 ui.horizontal(|ui| {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let confirm = ui
-                            .add_sized(
-                                [80.0, 28.0],
-                                egui::Button::new(
-                                    egui::RichText::new("Switch")
-                                        .size(TextRole::BodyS.size())
-                                        .color(text::PRIMARY),
-                                )
-                                .fill(accent::PRIMARY),
-                            );
+                        let confirm = ui.add_sized(
+                            [80.0, 28.0],
+                            egui::Button::new(
+                                egui::RichText::new("Switch")
+                                    .size(TextRole::BodyS.size())
+                                    .color(text::PRIMARY),
+                            )
+                            .fill(accent::PRIMARY),
+                        );
                         if confirm.clicked() {
                             // P0.3: warn if there are unsaved changes before switching workspace
                             if self.document_store.source.is_dirty() {
@@ -1125,8 +1137,8 @@ impl GuiShell {
                                     "Save changes before switching workspace".to_string();
                                 self.ui_store.toasts.push(
                                     crate::app::components::toast::Toast::warning(
-                                        "Save changes before switching workspace"
-                                    )
+                                        "Save changes before switching workspace",
+                                    ),
                                 );
                             } else {
                                 let path = PathBuf::from(&self.ui_store.workspace_switcher_path);
@@ -1135,16 +1147,15 @@ impl GuiShell {
                             }
                         }
 
-                        let cancel = ui
-                            .add_sized(
-                                [80.0, 28.0],
-                                egui::Button::new(
-                                    egui::RichText::new("Cancel")
-                                        .size(TextRole::BodyS.size())
-                                        .color(text::SECONDARY),
-                                )
-                                .fill(surface::WIDGET),
-                            );
+                        let cancel = ui.add_sized(
+                            [80.0, 28.0],
+                            egui::Button::new(
+                                egui::RichText::new("Cancel")
+                                    .size(TextRole::BodyS.size())
+                                    .color(text::SECONDARY),
+                            )
+                            .fill(surface::WIDGET),
+                        );
                         if cancel.clicked() {
                             self.ui_store.view.workspace_switcher_open = false;
                         }
@@ -1166,7 +1177,8 @@ impl GuiShell {
         if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.ui_store.unsaved_changes.close();
         }
-        let backdrop = ui.interact(screen_rect, ui.id().with("unsaved_backdrop"), egui::Sense::click());
+        let backdrop =
+            ui.interact(screen_rect, ui.id().with("unsaved_backdrop"), egui::Sense::click());
         if backdrop.clicked() {
             self.ui_store.unsaved_changes.close();
         }
@@ -1190,9 +1202,12 @@ impl GuiShell {
 
                 ui.horizontal(|ui| {
                     ui.label(
-                        egui::RichText::new(format!("{}  Unsaved changes", egui_phosphor::regular::FLOPPY_DISK))
-                            .size(TextRole::Heading.size())
-                            .color(text::PRIMARY),
+                        egui::RichText::new(format!(
+                            "{}  Unsaved changes",
+                            egui_phosphor::regular::FLOPPY_DISK
+                        ))
+                        .size(TextRole::Heading.size())
+                        .color(text::PRIMARY),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.button(egui_phosphor::regular::X).clicked() {
@@ -1220,15 +1235,21 @@ impl GuiShell {
                         let save = ui.add_sized(
                             [90.0, ROW_L],
                             egui::Button::new(
-                                egui::RichText::new(format!("{}  Save", egui_phosphor::regular::FLOPPY_DISK))
-                                    .size(TextRole::BodyS.size())
-                                    .color(text::PRIMARY),
+                                egui::RichText::new(format!(
+                                    "{}  Save",
+                                    egui_phosphor::regular::FLOPPY_DISK
+                                ))
+                                .size(TextRole::BodyS.size())
+                                .color(text::PRIMARY),
                             )
                             .fill(accent::PRIMARY),
                         );
                         if save.clicked() {
                             // Save first, then execute pending action
-                            let effects = file::handle_save(&mut self.document_store, &mut self.preview_store);
+                            let effects = file::handle_save(
+                                &mut self.document_store,
+                                &mut self.preview_store,
+                            );
                             self.apply_effects(effects);
                             let was_close = self.ui_store.unsaved_changes.pending_close;
                             self.execute_unsaved_pending_action();
@@ -1242,9 +1263,12 @@ impl GuiShell {
                         let discard = ui.add_sized(
                             [90.0, ROW_L],
                             egui::Button::new(
-                                egui::RichText::new(format!("{}  Discard", egui_phosphor::regular::TRASH))
-                                    .size(TextRole::BodyS.size())
-                                    .color(text::SECONDARY),
+                                egui::RichText::new(format!(
+                                    "{}  Discard",
+                                    egui_phosphor::regular::TRASH
+                                ))
+                                .size(TextRole::BodyS.size())
+                                .color(text::SECONDARY),
                             )
                             .fill(surface::WIDGET),
                         );

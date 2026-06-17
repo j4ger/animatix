@@ -10,10 +10,7 @@ pub(super) fn workspace_root_for(file_path: &Path) -> PathBuf {
             return ancestor.to_path_buf();
         }
     }
-    file_path
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .to_path_buf()
+    file_path.parent().unwrap_or_else(|| Path::new(".")).to_path_buf()
 }
 
 pub(super) fn build_file_tree(

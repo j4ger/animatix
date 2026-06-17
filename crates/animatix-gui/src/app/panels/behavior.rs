@@ -3,14 +3,14 @@ use egui_tiles::{Behavior, SimplificationOptions, TileId, UiResponse};
 
 use crate::app::WorkspaceTab;
 use crate::app::design_tokens::semantic::accent::{PRIMARY as acc_primary, faint as acc_faint};
-use crate::app::design_tokens::spatial::{STROKE_WIDTH, RADIUS_M};
 use crate::app::design_tokens::spatial::timeline::RULER_HEIGHT as TIMELINE_RULER_HEIGHT;
+use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 
-use crate::app::panels::{sidebar, editor, inspector, timeline_panel, preview_panel};
-use crate::app::stores::{DocumentStore, WorkspaceStore, PreviewStore};
 use crate::app::commands::ActionQueue;
+use crate::app::panels::{editor, inspector, preview_panel, sidebar, timeline_panel};
 use crate::app::preview;
 use crate::app::preview::selection;
+use crate::app::stores::{DocumentStore, PreviewStore, WorkspaceStore};
 use std::collections::{HashMap, HashSet};
 
 pub(crate) struct WorkspaceBehavior<'a> {
@@ -72,7 +72,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     asset_cache,
                 };
                 sidebar::sidebar_ui(&mut ctx, ui);
-            }
+            },
             WorkspaceTab::Editor => {
                 // Editor is now rendered inside the Sidebar pane via the
                 // Editor tab. This branch remains for backward compatibility
@@ -86,7 +86,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     is_playing: self.preview_store.preview.playback.is_playing,
                 };
                 editor::editor_ui(&mut ctx, ui);
-            }
+            },
             WorkspaceTab::Preview => {
                 let active_tl = self.document_store.source.document.active_timeline();
                 let mut ctx = preview_panel::PreviewContext {
@@ -110,7 +110,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     debug_spacing: self.debug_spacing,
                 };
                 preview_panel::preview_panel_ui(&mut ctx, ui);
-            }
+            },
             WorkspaceTab::Inspector => {
                 let active_tl = self.document_store.source.document.active_timeline();
                 let mut ctx = inspector::InspectorContext {
@@ -127,7 +127,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     keyframe_view_mode: self.keyframe_view_mode,
                 };
                 inspector::inspector_panel_ui(&mut ctx, ui);
-            }
+            },
             WorkspaceTab::Timeline => {
                 // Resolve the active timeline using the centralized API.
                 let resolved_timeline = self.document_store.source.document.active_timeline();
@@ -199,7 +199,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     snap_fps: self.snap_fps,
                 };
                 timeline_panel::timeline_panel_ui(&mut ctx, ui);
-            }
+            },
         }
         UiResponse::None
     }
@@ -281,21 +281,13 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
         }
     }
 
-    fn resize_stroke(
-        &self,
-        style: &egui::Style,
-        resize_state: egui_tiles::ResizeState,
-    ) -> Stroke {
+    fn resize_stroke(&self, style: &egui::Style, resize_state: egui_tiles::ResizeState) -> Stroke {
         match resize_state {
             egui_tiles::ResizeState::Idle => {
                 Stroke::new(STROKE_WIDTH, style.visuals.widgets.noninteractive.bg_stroke.color)
-            }
-            egui_tiles::ResizeState::Hovering => {
-                Stroke::new(STROKE_WIDTH, acc_primary)
-            }
-            egui_tiles::ResizeState::Dragging => {
-                Stroke::new(STROKE_WIDTH, acc_primary)
-            }
+            },
+            egui_tiles::ResizeState::Hovering => Stroke::new(STROKE_WIDTH, acc_primary),
+            egui_tiles::ResizeState::Dragging => Stroke::new(STROKE_WIDTH, acc_primary),
         }
     }
 

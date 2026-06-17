@@ -212,11 +212,9 @@ mod tests {
     fn test_submit_returns_token() {
         let mut worker = RebuildWorker::start();
 
-        let doc = DocumentSession::from_source(
-            std::path::PathBuf::from("test.amx"),
-            "#0s\n".to_string(),
-        )
-        .expect("create session");
+        let doc =
+            DocumentSession::from_source(std::path::PathBuf::from("test.amx"), "#0s\n".to_string())
+                .expect("create session");
         let editor = EditorBuffer::new(&doc.file_path, doc.source_text.clone());
         let source = SourceStore::new(doc, editor);
 
@@ -228,11 +226,9 @@ mod tests {
     fn test_worker_drop_does_not_hang() {
         let mut worker = RebuildWorker::start();
 
-        let doc = DocumentSession::from_source(
-            std::path::PathBuf::from("test.amx"),
-            "#0s\n".to_string(),
-        )
-        .expect("create session");
+        let doc =
+            DocumentSession::from_source(std::path::PathBuf::from("test.amx"), "#0s\n".to_string())
+                .expect("create session");
         let editor = EditorBuffer::new(&doc.file_path, doc.source_text.clone());
         let source = SourceStore::new(doc, editor);
 

@@ -30,9 +30,7 @@ pub enum InsertionRequest {
     },
     /// Insert a raw code snippet.
     #[allow(dead_code)]
-    Snippet {
-        text: String,
-    },
+    Snippet { text: String },
 }
 
 /// Where the insertion lands.
@@ -86,7 +84,10 @@ impl InsertionContext {
 
 impl InsertionRequest {
     /// Convert to a `SourceEdit` given current document context.
-    pub fn into_source_edit(self, ctx: &InsertionContext) -> Option<crate::source_edit::SourceEdit> {
+    pub fn into_source_edit(
+        self,
+        ctx: &InsertionContext,
+    ) -> Option<crate::source_edit::SourceEdit> {
         use crate::source_edit::SourceEdit;
 
         match self {
@@ -95,9 +96,8 @@ impl InsertionRequest {
                 suggested_label,
                 props,
             } => {
-                let label = suggested_label.unwrap_or_else(|| {
-                    crate::app::utils::labels::unique_label(None, &type_name)
-                });
+                let label = suggested_label
+                    .unwrap_or_else(|| crate::app::utils::labels::unique_label(None, &type_name));
 
                 match ctx.primitive_target() {
                     InsertionTarget::TopLevel => Some(SourceEdit::InsertActor {
@@ -122,7 +122,7 @@ impl InsertionRequest {
                         time_s,
                     }),
                 }
-            }
+            },
             InsertionRequest::Action { verb, targets } => {
                 let targets = if targets.is_empty() {
                     ctx.selected_actors.iter().cloned().collect()
@@ -144,7 +144,7 @@ impl InsertionRequest {
                     }],
                     time_s,
                 })
-            }
+            },
             InsertionRequest::Snippet { text } => {
                 // Parse snippet into AST fragment and insert via SourceEdit.
                 animatix_syntax::parser::parse_snippet(&text).map(|stmts| {
@@ -156,7 +156,7 @@ impl InsertionRequest {
                         container,
                     }
                 })
-            }
+            },
         }
     }
 }

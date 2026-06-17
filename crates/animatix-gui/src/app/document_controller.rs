@@ -38,17 +38,22 @@ impl DocumentController<'_> {
         self.document_store.source.editor.replace_text(new_source);
         self.document_store.source.document.is_dirty = true;
         self.document_store.source.document.source_index = Some(source_index);
-        self.preview_store.pending_rebuild_at =
-            Some(std::time::Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
+        self.preview_store.pending_rebuild_at = Some(
+            std::time::Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms),
+        );
     }
-
-
 
     // ── Actor management ────────────────────────────────────────────────
 
     /// Create a new actor from a type/label/position.
     /// NOTE: The caller should have called `snapshot()` before this.
-    pub(crate) fn handle_create_actor(&mut self, ty: &str, label: &str, position: [f32; 2], extra_props: Vec<animatix_syntax::ast::Property>) {
+    pub(crate) fn handle_create_actor(
+        &mut self,
+        ty: &str,
+        label: &str,
+        position: [f32; 2],
+        extra_props: Vec<animatix_syntax::ast::Property>,
+    ) {
         let mut props = crate::app::actions::default_props_for_actor(
             ty,
             position,
@@ -58,31 +63,20 @@ impl DocumentController<'_> {
 
         // If a container is selected, offer to insert inside it
         let container =
-            self.ui_store
-                .selection
-                .selected_actors
-                .iter()
-                .next()
-                .cloned()
-                .filter(|sel| {
-                    self.document_store
-                        .source
-                        .document
-                        .timeline
-                        .as_ref()
-                        .is_some_and(|t| {
-                            t.get_track(sel).is_some_and(|tr| {
-                                matches!(
-                                    tr.kind,
-                                    animatix::timeline::ActorKindId::Row
-                                        | animatix::timeline::ActorKindId::Col
-                                        | animatix::timeline::ActorKindId::Grid
-                                        | animatix::timeline::ActorKindId::Stack
-                                        | animatix::timeline::ActorKindId::Group
-                                )
-                            })
-                        })
-                });
+            self.ui_store.selection.selected_actors.iter().next().cloned().filter(|sel| {
+                self.document_store.source.document.timeline.as_ref().is_some_and(|t| {
+                    t.get_track(sel).is_some_and(|tr| {
+                        matches!(
+                            tr.kind,
+                            animatix::timeline::ActorKindId::Row
+                                | animatix::timeline::ActorKindId::Col
+                                | animatix::timeline::ActorKindId::Grid
+                                | animatix::timeline::ActorKindId::Stack
+                                | animatix::timeline::ActorKindId::Group
+                        )
+                    })
+                })
+            });
 
         if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
             let edit = crate::source_edit::SourceEdit::InsertActor {
@@ -126,7 +120,8 @@ impl DocumentController<'_> {
         let new_label = self.unique_label(original_label);
 
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
-            self.preview_store.preview.status = "Failed to duplicate — no AST available".to_string();
+            self.preview_store.preview.status =
+                "Failed to duplicate — no AST available".to_string();
             return;
         };
 
@@ -146,7 +141,7 @@ impl DocumentController<'_> {
                 self.preview_store.preview.status =
                     "Failed to duplicate — unsupported actor type".to_string();
                 return;
-            }
+            },
         }
 
         // Find position to insert (after the original actor)
@@ -178,11 +173,8 @@ impl DocumentController<'_> {
         let time_ms = (self.preview_store.preview.playback.current_time_s() * 1000.0) as u64;
         if let Some(timeline) = self.document_store.source.document.active_timeline() {
             if let Some(track) = timeline.get_track(original_label) {
-                let position = track
-                    .position
-                    .as_ref()
-                    .map(|p| p.evaluate(time_ms))
-                    .unwrap_or([0.0, 0.0]);
+                let position =
+                    track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
                 self.ui_store.interaction.drag_state = DragState::Move {
                     primary: new_label.clone(),
                     actors: vec![(new_label, position)],
@@ -208,7 +200,9 @@ impl DocumentController<'_> {
 
         let mut deleted = 0;
         for label in &to_delete {
-            let edit = crate::source_edit::SourceEdit::DeleteActor { label: label.clone() };
+            let edit = crate::source_edit::SourceEdit::DeleteActor {
+                label: label.clone(),
+            };
             if crate::source_edit::apply_edit(stmts, edit).is_ok() {
                 deleted += 1;
             }
@@ -219,10 +213,15 @@ impl DocumentController<'_> {
             return;
         }
 
-        let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+        let (new_source, source_index) = (
+            animatix_syntax::to_source::stmts_to_source(stmts),
+            animatix_syntax::source_index::SourceIndex::build(stmts),
+        );
         self.document_store.commit_source(new_source, source_index);
-        self.preview_store.pending_rebuild_at =
-            Some(std::time::Instant::now() + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms));
+        self.preview_store.pending_rebuild_at = Some(
+            std::time::Instant::now()
+                + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),
+        );
 
         // Clear selection
         self.ui_store.selection.selected_actors.clear();
@@ -258,10 +257,8 @@ impl DocumentController<'_> {
                 )
             };
             self.apply_source(new_source, source_index);
-            self.preview_store.preview.status = format!(
-                "Set transition on '{}' → {}ms",
-                from_scene, transition.duration_ms
-            );
+            self.preview_store.preview.status =
+                format!("Set transition on '{}' → {}ms", from_scene, transition.duration_ms);
         } else {
             self.preview_store.preview.status =
                 format!("Failed to set transition on '{}'", from_scene);
@@ -329,11 +326,11 @@ impl DocumentController<'_> {
                 Some(d) => {
                     self.preview_store.preview.status =
                         format!("Set scene '{}' duration to {:.2}s", scene, d);
-                }
+                },
                 None => {
                     self.preview_store.preview.status =
                         format!("Removed explicit duration from scene '{}'", scene);
-                }
+                },
             }
         } else {
             self.preview_store.preview.status =
@@ -387,7 +384,9 @@ impl DocumentController<'_> {
     /// NOTE: The caller should have called `snapshot()` before this.
     pub(crate) fn handle_delete_keyframe(&mut self, actor: &str, property: &str, time_s: f64) {
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
-            self.preview_store.preview.set_status_error("Failed to delete keyframe — no AST available");
+            self.preview_store
+                .preview
+                .set_status_error("Failed to delete keyframe — no AST available");
             return;
         };
 
@@ -441,8 +440,10 @@ impl DocumentController<'_> {
             let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
             let source_index = animatix_syntax::source_index::SourceIndex::build(stmts);
             self.apply_source(new_source, source_index);
-            self.preview_store.preview.status =
-                format!("Moved keyframe '{}.{}' from {:.2}s to {:.2}s", actor, property, old_time_s, new_time_s);
+            self.preview_store.preview.status = format!(
+                "Moved keyframe '{}.{}' from {:.2}s to {:.2}s",
+                actor, property, old_time_s, new_time_s
+            );
         } else {
             self.preview_store.preview.status = format!(
                 "Failed to move keyframe '{}.{}' from {:.2}s — not found",
@@ -486,10 +487,8 @@ impl DocumentController<'_> {
             self.preview_store.preview.status =
                 format!("Resized action '{verb}' to {:.2}s", new_duration_s);
         } else {
-            self.preview_store.preview.status = format!(
-                "Failed to resize action '{verb}' at {:.2}s",
-                old_start_s
-            );
+            self.preview_store.preview.status =
+                format!("Failed to resize action '{verb}' at {:.2}s", old_start_s);
         }
     }
 
@@ -499,8 +498,7 @@ impl DocumentController<'_> {
     /// NOTE: The caller should have called `snapshot()` before this.
     pub(crate) fn handle_reparent_actor(&mut self, actor: &str, new_parent: Option<String>) {
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
-            self.preview_store.preview.status =
-                "Failed to reparent — no AST available".to_string();
+            self.preview_store.preview.status = "Failed to reparent — no AST available".to_string();
             return;
         };
 
@@ -521,8 +519,7 @@ impl DocumentController<'_> {
                 self.preview_store.preview.status =
                     format!("Reparented '{}' under '{}'", actor, parent);
             } else {
-                self.preview_store.preview.status =
-                    format!("Reparented '{}' to top level", actor);
+                self.preview_store.preview.status = format!("Reparented '{}' to top level", actor);
             }
         } else {
             self.preview_store.preview.status = format!("Failed to reparent '{}'", actor);
@@ -567,11 +564,7 @@ impl DocumentController<'_> {
 
     /// Move selected actors to an existing scene.
     /// NOTE: The caller should have called `snapshot()` before this.
-    pub(crate) fn handle_move_to_scene(
-        &mut self,
-        actor_labels: Vec<String>,
-        target_scene: String,
-    ) {
+    pub(crate) fn handle_move_to_scene(&mut self, actor_labels: Vec<String>, target_scene: String) {
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
             self.preview_store.preview.status =
                 "Failed to move actors — no AST available".to_string();
@@ -591,11 +584,8 @@ impl DocumentController<'_> {
                 )
             };
             self.apply_source(new_source, source_index);
-            self.preview_store.preview.status = format!(
-                "Moved {} actor(s) to scene '{}'",
-                actor_labels.len(),
-                target_scene
-            );
+            self.preview_store.preview.status =
+                format!("Moved {} actor(s) to scene '{}'", actor_labels.len(), target_scene);
         } else {
             self.preview_store.preview.status =
                 format!("Failed to move actors to scene '{}'", target_scene);
@@ -625,8 +615,7 @@ impl DocumentController<'_> {
             .collect();
 
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
-            self.preview_store.preview.status =
-                "Failed to paste — no AST available".to_string();
+            self.preview_store.preview.status = "Failed to paste — no AST available".to_string();
             return;
         };
 
@@ -634,8 +623,7 @@ impl DocumentController<'_> {
 
         for (original_label, new_label) in &label_map {
             // Find the original actor declaration
-            let original_stmt =
-                source_edit::find_actor_decl(stmts, original_label).cloned();
+            let original_stmt = source_edit::find_actor_decl(stmts, original_label).cloned();
             let Some(mut new_stmt) = original_stmt else {
                 continue;
             };
@@ -656,8 +644,7 @@ impl DocumentController<'_> {
             }
 
             // Find and clone all keyframe assignments referencing the original actor
-            let keyframe_stmts =
-                source_edit::find_keyframes_for_actor(stmts, original_label);
+            let keyframe_stmts = source_edit::find_keyframes_for_actor(stmts, original_label);
             for mut kf in keyframe_stmts {
                 // Rename references within the keyframe
                 source_edit::rename_all_references(
@@ -666,10 +653,7 @@ impl DocumentController<'_> {
                     new_label,
                 );
                 // Shift absolute keyframe times by current_time_s
-                source_edit::shift_keyframe_times(
-                    std::slice::from_mut(&mut kf),
-                    current_time_s,
-                );
+                source_edit::shift_keyframe_times(std::slice::from_mut(&mut kf), current_time_s);
                 stmts.push(kf);
             }
 
@@ -715,10 +699,15 @@ impl DocumentController<'_> {
             }
         }
         // Fallback: append timestamp to guarantee uniqueness
-        format!("{}_{}", base, std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() % 100_000)
+        format!(
+            "{}_{}",
+            base,
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis()
+                % 100_000
+        )
     }
 
     /// Check if an actor label already exists in the timeline (or in clipboard).
@@ -733,12 +722,7 @@ impl DocumentController<'_> {
         {
             return true;
         }
-        if self
-            .ui_store
-            .clipboard
-            .clipboard_actors
-            .contains(&label.to_string())
-        {
+        if self.ui_store.clipboard.clipboard_actors.contains(&label.to_string()) {
             return true;
         }
         if let Some(ref stmts) = self.document_store.source.document.raw_statements {
@@ -757,4 +741,3 @@ impl DocumentController<'_> {
         )
     }
 }
-

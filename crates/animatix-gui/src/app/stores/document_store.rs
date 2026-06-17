@@ -157,12 +157,15 @@ impl DocumentStore {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         self.source.text().hash(&mut hasher);
         let hash = hasher.finish();
-        
+
         if success {
             // Skip re-publishing if current is already Clean with the same hash
             if let Some(ref current) = self.current {
-                if current.source_hash == crate::app::document::version::SourceHash(hash) 
-                    && matches!(current.status, crate::app::document::snapshot::SnapshotStatus::Clean) 
+                if current.source_hash == crate::app::document::version::SourceHash(hash)
+                    && matches!(
+                        current.status,
+                        crate::app::document::snapshot::SnapshotStatus::Clean
+                    )
                 {
                     return;
                 }
@@ -211,7 +214,7 @@ impl DocumentStore {
             c.source_epoch != self.source.epoch()
         })
     }
-    
+
     /// Returns true if the current build failed and we're falling back to last_good.
     pub fn showing_last_good(&self) -> bool {
         let current_failed = self.current.as_ref().is_some_and(|c| {
@@ -222,14 +225,21 @@ impl DocumentStore {
     }
 
     /// Commit source text through DocumentStore, marking the current snapshot as stale.
-    pub fn commit_source(&mut self, new_source: String, source_index: animatix_syntax::source_index::SourceIndex) {
+    pub fn commit_source(
+        &mut self,
+        new_source: String,
+        source_index: animatix_syntax::source_index::SourceIndex,
+    ) {
         self.source.commit_source(new_source, source_index);
         self.mark_source_stale(self.source.epoch());
         self.finalize_snapshot();
     }
-    
+
     /// Replace text through DocumentStore, marking the current snapshot as stale.
-    pub fn replace_text(&mut self, text: String) -> crate::app::document::source_change::SourceChange {
+    pub fn replace_text(
+        &mut self,
+        text: String,
+    ) -> crate::app::document::source_change::SourceChange {
         let change = self.source.replace_text(text);
         self.mark_source_stale(change.after_epoch);
         self.finalize_snapshot();
@@ -311,16 +321,18 @@ mod tests {
     /// publish_rebuild_result) so that last_good is populated even when the
     /// session rebuild produces BuildTargetSnapshot::Empty.
     fn make_store() -> DocumentStore {
-        let doc = DocumentSession::from_source(
-            std::path::PathBuf::from("test.amx"),
-            "#0s\n".to_string(),
-        )
-        .expect("create session");
+        let doc =
+            DocumentSession::from_source(std::path::PathBuf::from("test.amx"), "#0s\n".to_string())
+                .expect("create session");
         let editor = EditorBuffer::new(&doc.file_path, doc.source_text.clone());
         DocumentStore::new(doc, editor)
     }
 
-    fn snapshot_with_timeline(g: DocumentGeneration, epoch: SourceEpoch, hash: u64) -> DocumentSnapshot {
+    fn snapshot_with_timeline(
+        g: DocumentGeneration,
+        epoch: SourceEpoch,
+        hash: u64,
+    ) -> DocumentSnapshot {
         DocumentSnapshot {
             generation: g,
             source_epoch: epoch,
@@ -337,7 +349,10 @@ mod tests {
             keyframe_lines: Vec::new(),
             diagnostics: Arc::new(Vec::new()),
             duration_s: 10.0,
-            scene_dimensions: animatix::timeline::SceneDimensions { width: 1920, height: 1080 },
+            scene_dimensions: animatix::timeline::SceneDimensions {
+                width: 1920,
+                height: 1080,
+            },
         }
     }
 
@@ -346,7 +361,9 @@ mod tests {
             generation: g,
             source_epoch: epoch,
             source_hash: SourceHash(hash),
-            status: SnapshotStatus::Failed { error: "test failure" },
+            status: SnapshotStatus::Failed {
+                error: "test failure",
+            },
             raw_statements: None,
             expanded_statements: None,
             namespaces: Default::default(),
@@ -358,7 +375,10 @@ mod tests {
             keyframe_lines: Vec::new(),
             diagnostics: Arc::new(Vec::new()),
             duration_s: 0.1,
-            scene_dimensions: animatix::timeline::SceneDimensions { width: 1920, height: 1080 },
+            scene_dimensions: animatix::timeline::SceneDimensions {
+                width: 1920,
+                height: 1080,
+            },
         }
     }
 
@@ -421,24 +441,15 @@ mod tests {
         // Publish Clean
         let good = snapshot_with_timeline(DocumentGeneration::initial(), e0, 1234);
         store.publish_snapshot(good);
-        assert!(matches!(
-            store.current.as_ref().unwrap().status,
-            SnapshotStatus::Clean
-        ));
+        assert!(matches!(store.current.as_ref().unwrap().status, SnapshotStatus::Clean));
 
         // Replace text -> Stale
         store.replace_text("rect(100, 100) at 0,0\n".to_string());
-        assert!(matches!(
-            store.current.as_ref().unwrap().status,
-            SnapshotStatus::Stale { .. }
-        ));
+        assert!(matches!(store.current.as_ref().unwrap().status, SnapshotStatus::Stale { .. }));
 
         // Publish successful again -> restores Clean
         store.publish_rebuild_result(true);
-        assert!(matches!(
-            store.current.as_ref().unwrap().status,
-            SnapshotStatus::Clean
-        ));
+        assert!(matches!(store.current.as_ref().unwrap().status, SnapshotStatus::Clean));
     }
 
     #[test]
@@ -485,10 +496,7 @@ mod tests {
         // Publish a good snapshot
         let good = snapshot_with_timeline(DocumentGeneration::initial(), e0, 1234);
         store.publish_snapshot(good);
-        assert!(
-            !store.showing_last_good(),
-            "should not show last good when current is clean"
-        );
+        assert!(!store.showing_last_good(), "should not show last good when current is clean");
 
         // Publish failed snapshot -> current is Failed, last_good still exists
         let failed = snapshot_failed(store.generation.next(), e0, 5678);
@@ -499,4 +507,3 @@ mod tests {
         );
     }
 }
-

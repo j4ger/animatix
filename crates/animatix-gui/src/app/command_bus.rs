@@ -17,7 +17,9 @@ pub struct CommandBus {
 #[allow(dead_code)] // CommandBus will replace ActionQueue once panels migrate to view models (R7).
 impl CommandBus {
     pub fn new() -> Self {
-        Self { queue: VecDeque::new() }
+        Self {
+            queue: VecDeque::new(),
+        }
     }
 
     /// Emit an action to be processed by the shell.

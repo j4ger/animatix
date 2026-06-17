@@ -2,26 +2,28 @@
 
 use egui::{Color32, Pos2, Rect, RichText, Stroke, Vec2};
 
+use crate::app::GuiShell;
 use crate::app::commands::UndoLabel;
-use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
 use crate::app::design_tokens::semantic::accent::CYAN as ACCENT_CYAN;
+use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
+use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
+use crate::app::design_tokens::semantic::border::HOVER as BORDER_HOVER;
+use crate::app::design_tokens::semantic::category::ACTION as PURPLE;
+use crate::app::design_tokens::semantic::editor::SNIPPET_BLUE;
+use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
+use crate::app::design_tokens::semantic::status::ERROR as RED;
+use crate::app::design_tokens::semantic::status::SUCCESS as GREEN;
 use crate::app::design_tokens::semantic::status::WARNING as AMBER;
 use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
 use crate::app::design_tokens::semantic::surface::WIDGET as BG_WIDGET;
-use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
-use crate::app::design_tokens::semantic::border::HOVER as BORDER_HOVER;
-use crate::app::design_tokens::semantic::status::SUCCESS as GREEN;
-use crate::app::design_tokens::semantic::category::ACTION as PURPLE;
-use crate::app::design_tokens::semantic::status::ERROR as RED;
 use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
 use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
-use crate::app::design_tokens::semantic::editor::SNIPPET_BLUE;
-use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
-use crate::app::design_tokens::spatial::{STROKE_WIDTH, RADIUS_XL, RADIUS_M, RADIUS_S, SPACE_L, SPACE_M, SPACE_S};
-use crate::app::design_tokens::typography::{TextRole};
+use crate::app::design_tokens::spatial::{
+    RADIUS_M, RADIUS_S, RADIUS_XL, SPACE_L, SPACE_M, SPACE_S, STROKE_WIDTH,
+};
+use crate::app::design_tokens::typography::TextRole;
 use crate::app::insertion::{InsertionContext, InsertionRequest};
-use crate::app::GuiShell;
 
 /// Mode filter for the palette.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,11 +47,20 @@ pub struct PaletteItem {
 
 #[derive(Debug, Clone)]
 pub enum ItemKind {
-    Primitive { type_name: String },
-    Action { verb: String },
+    Primitive {
+        type_name: String,
+    },
+    Action {
+        verb: String,
+    },
     #[allow(dead_code)]
-    Snippet { text: String },
-    Component { type_name: String, params: Vec<ParamInfo> },
+    Snippet {
+        text: String,
+    },
+    Component {
+        type_name: String,
+        params: Vec<ParamInfo>,
+    },
 }
 
 /// Parameter info with type annotation and default value.
@@ -94,7 +105,8 @@ impl Default for InsertionPalette {
 
 impl InsertionPalette {
     /// Populate items from the core registries.
-    pub fn populate(&mut self,
+    pub fn populate(
+        &mut self,
         _timeline: Option<&animatix::timeline::Timeline>,
         components: &std::collections::HashMap<String, animatix_syntax::module::ComponentEntry>,
     ) {
@@ -142,21 +154,39 @@ impl InsertionPalette {
 
         // Components
         for (name, entry) in components {
-            let params_info: Vec<ParamInfo> = entry.definition.params.iter().map(|p| {
-                let default_str = p.default.as_ref().map(animatix_syntax::to_source::expr_to_source);
-                let type_name = p.param_type.as_ref().map(|t| format!("{:?}", t));
-                ParamInfo {
-                    name: p.name.clone(),
-                    param_type: type_name,
-                    default_str,
-                }
-            }).collect();
-            let params_display: Vec<String> = entry.definition.params.iter().map(|p| {
-                p.default.as_ref().map(|_| p.name.clone()).unwrap_or_else(|| format!("{}?", p.name))
-            }).collect();
+            let params_info: Vec<ParamInfo> = entry
+                .definition
+                .params
+                .iter()
+                .map(|p| {
+                    let default_str =
+                        p.default.as_ref().map(animatix_syntax::to_source::expr_to_source);
+                    let type_name = p.param_type.as_ref().map(|t| format!("{:?}", t));
+                    ParamInfo {
+                        name: p.name.clone(),
+                        param_type: type_name,
+                        default_str,
+                    }
+                })
+                .collect();
+            let params_display: Vec<String> = entry
+                .definition
+                .params
+                .iter()
+                .map(|p| {
+                    p.default
+                        .as_ref()
+                        .map(|_| p.name.clone())
+                        .unwrap_or_else(|| format!("{}?", p.name))
+                })
+                .collect();
             self.items.push(PaletteItem {
                 label: name.clone(),
-                detail: if params_display.is_empty() { "Component".into() } else { format!("Component — {}", params_display.join(", ")) },
+                detail: if params_display.is_empty() {
+                    "Component".into()
+                } else {
+                    format!("Component — {}", params_display.join(", "))
+                },
                 icon: egui_phosphor::regular::CUBE.to_string(),
                 color: ACCENT_CYAN,
                 kind: ItemKind::Component {
@@ -236,9 +266,7 @@ fn action_category_color(category: &str) -> Color32 {
 }
 
 impl GuiShell {
-    pub(crate) fn insertion_palette_ui(&mut self,
-        ui: &mut egui::Ui,
-    ) {
+    pub(crate) fn insertion_palette_ui(&mut self, ui: &mut egui::Ui) {
         if !self.insertion_palette.open {
             return;
         }
@@ -301,10 +329,7 @@ impl GuiShell {
                     .strong(),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(egui_phosphor::regular::X)
-                    .on_hover_text("Close (Esc)")
-                    .clicked()
-                {
+                if ui.button(egui_phosphor::regular::X).on_hover_text("Close (Esc)").clicked() {
                     self.insertion_palette.close();
                 }
             });
@@ -330,9 +355,7 @@ impl GuiShell {
                         format!("{}:", param_name)
                     };
                     ui.label(
-                        RichText::new(label)
-                            .size(TextRole::BodyS.size())
-                            .color(TEXT_SECONDARY),
+                        RichText::new(label).size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
                     );
 
                     // Type-specific widget
@@ -347,13 +370,17 @@ impl GuiShell {
                             if resp.changed() || resp.lost_focus() {
                                 *param_value = format_num(val);
                             }
-                        }
+                        },
                         Some("Bool") => {
                             let mut bool_val = param_value == "true" || param_value == "1";
                             if ui.checkbox(&mut bool_val, "").changed() {
-                                *param_value = if bool_val { "true".to_string() } else { "false".to_string() };
+                                *param_value = if bool_val {
+                                    "true".to_string()
+                                } else {
+                                    "false".to_string()
+                                };
                             }
-                        }
+                        },
                         Some("Vec2") => {
                             // Parse existing value or show field pair
                             let (mut x, mut y) = parse_vec2_value(param_value);
@@ -365,14 +392,14 @@ impl GuiShell {
                             if rx.changed() || rx.lost_focus() || ry.changed() || ry.lost_focus() {
                                 *param_value = format!("({}, {})", format_num(x), format_num(y));
                             }
-                        }
+                        },
                         _ => {
                             // Default: text field
                             ui.add(
                                 egui::TextEdit::singleline(param_value)
                                     .desired_width(f32::INFINITY),
                             );
-                        }
+                        },
                     }
                 });
                 content.add_space(SPACE_S);
@@ -402,10 +429,14 @@ impl GuiShell {
                             stmts
                                 .and_then(|v| v.into_iter().next())
                                 .and_then(|stmt| match stmt {
-                                    animatix_syntax::ast::Stmt::LetDecl { value, .. } => Some(value),
+                                    animatix_syntax::ast::Stmt::LetDecl { value, .. } => {
+                                        Some(value)
+                                    },
                                     _ => None,
                                 })
-                                .unwrap_or_else(|| animatix_syntax::ast::Expr::Str(value.trim().to_string()))
+                                .unwrap_or_else(|| {
+                                    animatix_syntax::ast::Expr::Str(value.trim().to_string())
+                                })
                         } else {
                             animatix_syntax::ast::Expr::Str(value.trim().to_string())
                         };
@@ -422,20 +453,27 @@ impl GuiShell {
                     current_time_s: self.preview_store.preview.playback.current_time_s(),
                     selected_actors: self.ui_store.selection.selected_actors.clone(),
                     cursor_cell_time_s: self.ui_store.cursor_time_s,
-                    selected_container: self.ui_store.selection.selected_actors.iter().next().cloned().filter(|sel| {
-                        self.document_store.source.document.active_timeline().is_some_and(|t| {
-                            t.get_track(sel).is_some_and(|tr| {
-                                matches!(
-                                    tr.kind,
-                                    animatix::timeline::ActorKindId::Row
-                                        | animatix::timeline::ActorKindId::Col
-                                        | animatix::timeline::ActorKindId::Grid
-                                        | animatix::timeline::ActorKindId::Stack
-                                        | animatix::timeline::ActorKindId::Group
-                                )
+                    selected_container: self
+                        .ui_store
+                        .selection
+                        .selected_actors
+                        .iter()
+                        .next()
+                        .cloned()
+                        .filter(|sel| {
+                            self.document_store.source.document.active_timeline().is_some_and(|t| {
+                                t.get_track(sel).is_some_and(|tr| {
+                                    matches!(
+                                        tr.kind,
+                                        animatix::timeline::ActorKindId::Row
+                                            | animatix::timeline::ActorKindId::Col
+                                            | animatix::timeline::ActorKindId::Grid
+                                            | animatix::timeline::ActorKindId::Stack
+                                            | animatix::timeline::ActorKindId::Group
+                                    )
+                                })
                             })
-                        })
-                    }),
+                        }),
                 };
                 let request = InsertionRequest::Primitive {
                     type_name: type_name.clone(),
@@ -445,17 +483,24 @@ impl GuiShell {
                 if let Some(edit) = request.into_source_edit(&ctx) {
                     // Snapshot for undo before palette mutation
                     self.document_store.snapshot(UndoLabel::InsertionFromPalette);
-                    if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
+                    if let Some(ref mut stmts) = self.document_store.source.document.raw_statements
+                    {
                         if crate::source_edit::apply_edit(stmts, edit).is_ok() {
-                            let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+                            let (new_source, source_index) = (
+                                animatix_syntax::to_source::stmts_to_source(stmts),
+                                animatix_syntax::source_index::SourceIndex::build(stmts),
+                            );
                             self.document_store.commit_source(new_source, source_index);
                             self.preview_store.pending_rebuild_at = Some(
                                 std::time::Instant::now()
-                                    + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),
+                                    + std::time::Duration::from_millis(
+                                        self.ui_store.rebuild_debounce_ms,
+                                    ),
                             );
                             self.preview_store.preview.status = format!("Inserted {}", type_name);
                         } else {
-                            self.preview_store.preview.status = format!("Failed to insert {}", type_name);
+                            self.preview_store.preview.status =
+                                format!("Failed to insert {}", type_name);
                         }
                     }
                 }
@@ -494,14 +539,19 @@ impl GuiShell {
             for (mode, label) in modes {
                 let selected = self.insertion_palette.mode == mode;
                 let btn = ui.add(
-                    egui::Button::new(
-                        RichText::new(label)
-                            .size(TextRole::BodyS.size())
-                            .color(if selected { TEXT_PRIMARY } else { TEXT_SECONDARY }),
-                    )
+                    egui::Button::new(RichText::new(label).size(TextRole::BodyS.size()).color(
+                        if selected {
+                            TEXT_PRIMARY
+                        } else {
+                            TEXT_SECONDARY
+                        },
+                    ))
                     .fill(if selected { BG_WIDGET } else { BG_BASE })
                     .corner_radius(RADIUS_M)
-                    .stroke(Stroke::new(STROKE_WIDTH, if selected { BORDER_HOVER } else { BORDER })),
+                    .stroke(Stroke::new(
+                        STROKE_WIDTH,
+                        if selected { BORDER_HOVER } else { BORDER },
+                    )),
                 );
                 if btn.clicked() {
                     self.insertion_palette.mode = mode;
@@ -536,7 +586,8 @@ impl GuiShell {
                     PaletteMode::Snippets,
                     PaletteMode::Components,
                 ];
-                let current = modes.iter().position(|&m| m == self.insertion_palette.mode).unwrap_or(0);
+                let current =
+                    modes.iter().position(|&m| m == self.insertion_palette.mode).unwrap_or(0);
                 self.insertion_palette.mode = modes[(current + 1) % modes.len()];
                 self.insertion_palette.rebuild_filter();
             }
@@ -557,100 +608,98 @@ impl GuiShell {
 
         let mut clicked_item: Option<PaletteItem> = None;
 
-        egui::ScrollArea::vertical()
-            .max_height(available_h)
-            .show(&mut content, |ui| {
-                for (vis_idx, &item_idx) in self.insertion_palette.filtered.iter().enumerate() {
-                    let item = &self.insertion_palette.items[item_idx];
-                    let is_selected = vis_idx == self.insertion_palette.selected_index;
+        egui::ScrollArea::vertical().max_height(available_h).show(&mut content, |ui| {
+            for (vis_idx, &item_idx) in self.insertion_palette.filtered.iter().enumerate() {
+                let item = &self.insertion_palette.items[item_idx];
+                let is_selected = vis_idx == self.insertion_palette.selected_index;
 
-                    let row_rect = ui.available_rect_before_wrap();
-                    let row_rect = Rect::from_min_size(
-                        row_rect.min,
-                        Vec2::new(row_rect.width(), item_h),
+                let row_rect = ui.available_rect_before_wrap();
+                let row_rect =
+                    Rect::from_min_size(row_rect.min, Vec2::new(row_rect.width(), item_h));
+
+                let row_id = ui.id().with(format!("pal_item_{}", vis_idx));
+                let row_resp = ui.interact(row_rect, row_id, egui::Sense::click());
+
+                if row_resp.hovered() || is_selected {
+                    ui.painter().rect_filled(
+                        row_rect,
+                        RADIUS_S as u8,
+                        if is_selected {
+                            ACCENT_BLUE.linear_multiply(0.2)
+                        } else {
+                            BG_WIDGET
+                        },
                     );
+                }
 
-                    let row_id = ui.id().with(format!("pal_item_{}", vis_idx));
-                    let row_resp = ui.interact(row_rect, row_id, egui::Sense::click());
+                if row_resp.clicked() {
+                    clicked_item = Some(item.clone());
+                }
 
-                    if row_resp.hovered() || is_selected {
-                        ui.painter().rect_filled(
-                            row_rect,
-                            RADIUS_S as u8,
-                            if is_selected {
-                                ACCENT_BLUE.linear_multiply(0.2)
-                            } else {
-                                BG_WIDGET
-                            },
+                #[allow(deprecated)]
+                ui.allocate_ui_at_rect(row_rect.shrink(4.0), |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(&item.icon).size(TextRole::Body.size()).color(item.color),
                         );
-                    }
-
-                    if row_resp.clicked() {
-                        clicked_item = Some(item.clone());
-                    }
-
-                    #[allow(deprecated)]
-                    ui.allocate_ui_at_rect(row_rect.shrink(4.0), |ui| {
-                        ui.horizontal(|ui| {
+                        ui.add_space(SPACE_S);
+                        ui.vertical(|ui| {
                             ui.label(
-                                RichText::new(&item.icon)
-                                    .size(TextRole::Body.size())
-                                    .color(item.color),
+                                RichText::new(&item.label)
+                                    .size(TextRole::BodyS.size())
+                                    .color(if is_selected {
+                                        TEXT_PRIMARY
+                                    } else {
+                                        TEXT_SECONDARY
+                                    })
+                                    .strong(),
                             );
-                            ui.add_space(SPACE_S);
-                            ui.vertical(|ui| {
+                            if !item.detail.is_empty() {
                                 ui.label(
-                                    RichText::new(&item.label)
-                                        .size(TextRole::BodyS.size())
-                                        .color(if is_selected {
-                                            TEXT_PRIMARY
-                                        } else {
-                                            TEXT_SECONDARY
-                                        })
-                                        .strong(),
+                                    RichText::new(&item.detail)
+                                        .size(TextRole::Micro.size())
+                                        .color(TEXT_MUTED),
                                 );
-                                if !item.detail.is_empty() {
-                                    ui.label(
-                                        RichText::new(&item.detail)
-                                            .size(TextRole::Micro.size())
-                                            .color(TEXT_MUTED),
-                                    );
-                                }
-                            });
+                            }
                         });
                     });
+                });
 
-                    ui.allocate_rect(row_rect, egui::Sense::hover());
-                }
-            });
+                ui.allocate_rect(row_rect, egui::Sense::hover());
+            }
+        });
 
         if let Some(item) = clicked_item {
             self.execute_palette_item(item);
         }
     }
 
-    fn execute_palette_item(
-        &mut self,
-        item: PaletteItem,
-    ) {
+    fn execute_palette_item(&mut self, item: PaletteItem) {
         let ctx = InsertionContext {
             current_time_s: self.preview_store.preview.playback.current_time_s(),
             selected_actors: self.ui_store.selection.selected_actors.clone(),
             cursor_cell_time_s: self.ui_store.cursor_time_s,
-            selected_container: self.ui_store.selection.selected_actors.iter().next().cloned().filter(|sel| {
-                self.document_store.source.document.active_timeline().is_some_and(|t| {
-                    t.get_track(sel).is_some_and(|tr| {
-                        matches!(
-                            tr.kind,
-                            animatix::timeline::ActorKindId::Row
-                                | animatix::timeline::ActorKindId::Col
-                                | animatix::timeline::ActorKindId::Grid
-                                | animatix::timeline::ActorKindId::Stack
-                                | animatix::timeline::ActorKindId::Group
-                        )
+            selected_container: self
+                .ui_store
+                .selection
+                .selected_actors
+                .iter()
+                .next()
+                .cloned()
+                .filter(|sel| {
+                    self.document_store.source.document.active_timeline().is_some_and(|t| {
+                        t.get_track(sel).is_some_and(|tr| {
+                            matches!(
+                                tr.kind,
+                                animatix::timeline::ActorKindId::Row
+                                    | animatix::timeline::ActorKindId::Col
+                                    | animatix::timeline::ActorKindId::Grid
+                                    | animatix::timeline::ActorKindId::Stack
+                                    | animatix::timeline::ActorKindId::Group
+                            )
+                        })
                     })
-                })
-            }),
+                }),
         };
 
         let request = match item.kind {
@@ -667,7 +716,10 @@ impl GuiShell {
                 if !params.is_empty() {
                     self.insertion_palette.param_form = Some(ParamFormState {
                         type_name,
-                        params: params.into_iter().map(|p| (p.name, p.param_type, p.default_str.unwrap_or_default())).collect(),
+                        params: params
+                            .into_iter()
+                            .map(|p| (p.name, p.param_type, p.default_str.unwrap_or_default()))
+                            .collect(),
                     });
                     return;
                 }
@@ -676,7 +728,7 @@ impl GuiShell {
                     suggested_label: None,
                     props: vec![],
                 }
-            }
+            },
             ItemKind::Snippet { text } => {
                 // Parse snippet into AST fragment and insert via SourceEdit.
                 self.insertion_palette.close();
@@ -690,17 +742,25 @@ impl GuiShell {
                         time_s,
                         container,
                     };
-                    if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
+                    if let Some(ref mut stmts) = self.document_store.source.document.raw_statements
+                    {
                         if crate::source_edit::apply_edit(stmts, edit).is_ok() {
-                            let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+                            let (new_source, source_index) = (
+                                animatix_syntax::to_source::stmts_to_source(stmts),
+                                animatix_syntax::source_index::SourceIndex::build(stmts),
+                            );
                             self.document_store.commit_source(new_source, source_index);
                             self.preview_store.pending_rebuild_at = Some(
                                 std::time::Instant::now()
-                                    + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),
+                                    + std::time::Duration::from_millis(
+                                        self.ui_store.rebuild_debounce_ms,
+                                    ),
                             );
-                            self.preview_store.preview.status = format!("Inserted snippet: {}", item.label);
+                            self.preview_store.preview.status =
+                                format!("Inserted snippet: {}", item.label);
                         } else {
-                            self.preview_store.preview.status = format!("Failed to insert snippet: {}", item.label);
+                            self.preview_store.preview.status =
+                                format!("Failed to insert snippet: {}", item.label);
                         }
                     }
                 } else {
@@ -718,10 +778,11 @@ impl GuiShell {
                         std::time::Instant::now()
                             + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),
                     );
-                    self.preview_store.preview.status = format!("Inserted snippet (raw): {}", item.label);
+                    self.preview_store.preview.status =
+                        format!("Inserted snippet (raw): {}", item.label);
                 }
                 return;
-            }
+            },
         };
 
         if let Some(edit) = request.into_source_edit(&ctx) {
@@ -729,23 +790,23 @@ impl GuiShell {
             self.document_store.snapshot(UndoLabel::InsertionFromPalette);
             if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
                 if crate::source_edit::apply_edit(stmts, edit).is_ok() {
-                    let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+                    let (new_source, source_index) = (
+                        animatix_syntax::to_source::stmts_to_source(stmts),
+                        animatix_syntax::source_index::SourceIndex::build(stmts),
+                    );
                     self.document_store.commit_source(new_source, source_index);
                     self.preview_store.pending_rebuild_at = Some(
                         std::time::Instant::now()
                             + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),
                     );
-                    self.preview_store.preview.status =
-                        format!("Inserted {}", item.label);
+                    self.preview_store.preview.status = format!("Inserted {}", item.label);
                 } else {
                     tracing::warn!("apply_edit failed for insertion: {}", item.label);
-                    self.preview_store.preview.status =
-                        format!("Failed to insert {}", item.label);
+                    self.preview_store.preview.status = format!("Failed to insert {}", item.label);
                 }
             }
         } else {
-            self.preview_store.preview.status =
-                "No target selected for action".to_string();
+            self.preview_store.preview.status = "No target selected for action".to_string();
         }
 
         self.insertion_palette.close();

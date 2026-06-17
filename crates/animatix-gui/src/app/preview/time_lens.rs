@@ -5,15 +5,15 @@
 //! Scroll wheel zooms time range. Release `T` → lens vanishes.
 
 use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
-use crate::app::design_tokens::semantic::status::WARNING as AMBER;
-use crate::app::design_tokens::semantic::surface::PANEL as BG_PANEL;
 use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
-use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
-use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::semantic::canvas::grid_line;
 use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
+use crate::app::design_tokens::semantic::status::WARNING as AMBER;
+use crate::app::design_tokens::semantic::surface::PANEL as BG_PANEL;
+use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
+use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::spatial::STROKE_WIDTH;
-use crate::app::design_tokens::typography::{TextRole};
+use crate::app::design_tokens::typography::TextRole;
 use egui::{Pos2, Stroke};
 
 /// Radius of the time lens ring.
@@ -83,7 +83,8 @@ impl TimeLens {
         let scroll = ui.input(|i| i.smooth_scroll_delta);
         if scroll.y != 0.0 {
             let factor = 1.0 + scroll.y * 0.001;
-            self.visible_range_s = (self.visible_range_s * factor as f64).clamp(0.5, duration_s.max(1.0));
+            self.visible_range_s =
+                (self.visible_range_s * factor as f64).clamp(0.5, duration_s.max(1.0));
         }
 
         // Drag to scrub
@@ -91,12 +92,12 @@ impl TimeLens {
         if pointer_down {
             let delta = ui.input(|i| i.pointer.delta());
             // Horizontal drag scrubs time: 1px ≈ visible_range / (2 * radius * π)
-            let px_to_time = self.visible_range_s / (LENS_RADIUS as f64 * 2.0 * std::f64::consts::PI);
+            let px_to_time =
+                self.visible_range_s / (LENS_RADIUS as f64 * 2.0 * std::f64::consts::PI);
             self.drag_offset_s += delta.x as f64 * px_to_time;
         }
 
-        let center_time = (current_time_s + self.drag_offset_s)
-            .clamp(0.0, duration_s.max(0.0));
+        let center_time = (current_time_s + self.drag_offset_s).clamp(0.0, duration_s.max(0.0));
 
         self.render(ui, center_time, duration_s, keyframe_times);
 
@@ -108,13 +109,7 @@ impl TimeLens {
         }
     }
 
-    fn render(
-        &self,
-        ui: &mut egui::Ui,
-        center_time: f64,
-        duration_s: f64,
-        keyframe_times: &[f64],
-    ) {
+    fn render(&self, ui: &mut egui::Ui, center_time: f64, duration_s: f64, keyframe_times: &[f64]) {
         let center = self.origin;
         let painter = ui.painter();
 
@@ -132,7 +127,11 @@ impl TimeLens {
         let range_end = (center_time + self.visible_range_s / 2.0).min(duration_s.max(0.1));
 
         // Draw tick marks on ring
-        let tick_step = if self.visible_range_s > 20.0 { 5.0 } else { 1.0 };
+        let tick_step = if self.visible_range_s > 20.0 {
+            5.0
+        } else {
+            1.0
+        };
         let mut tick_time = (range_start / tick_step).ceil() * tick_step;
         while tick_time <= range_end {
             let frac = (tick_time - range_start) / (range_end - range_start);

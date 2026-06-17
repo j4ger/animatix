@@ -33,31 +33,77 @@ pub enum UndoLabel {
     PropertyEdit(PropertyEdit),
 
     // Actor
-    CreateActor { ty: String, label: String, position: [f32; 2], props: Vec<animatix_syntax::ast::Property> },
-    RenameActor { old_label: String, new_label: String },
+    CreateActor {
+        ty: String,
+        label: String,
+        position: [f32; 2],
+        props: Vec<animatix_syntax::ast::Property>,
+    },
+    RenameActor {
+        old_label: String,
+        new_label: String,
+    },
     DuplicateActor(String),
     DeleteSelectedActors,
     PasteActors,
-    ReparentActor { actor: String, new_parent: Option<String> },
-    ExtractScene { actor_labels: Vec<String>, new_scene_name: String },
-    MoveToScene { actor_labels: Vec<String>, target_scene: String },
+    ReparentActor {
+        actor: String,
+        new_parent: Option<String>,
+    },
+    ExtractScene {
+        actor_labels: Vec<String>,
+        new_scene_name: String,
+    },
+    MoveToScene {
+        actor_labels: Vec<String>,
+        target_scene: String,
+    },
     AlignActors(Align),
     DistributeActors(Axis),
     GroupSelectedActors,
     UngroupSelectedActors,
 
     // Keyframe
-    SetKeyframeEasing { actor: String, property: String, time_s: f64, easing: animatix_syntax::easing::Easing },
-    DeleteKeyframe { actor: String, property: String, time_s: f64 },
-    MoveKeyframe { actor: String, property: String, old_time_s: f64, new_time_s: f64 },
-    ResizeAction { verb: String, targets: Vec<String>, old_start_s: f64, new_start_s: f64, new_duration_s: f64 },
+    SetKeyframeEasing {
+        actor: String,
+        property: String,
+        time_s: f64,
+        easing: animatix_syntax::easing::Easing,
+    },
+    DeleteKeyframe {
+        actor: String,
+        property: String,
+        time_s: f64,
+    },
+    MoveKeyframe {
+        actor: String,
+        property: String,
+        old_time_s: f64,
+        new_time_s: f64,
+    },
+    ResizeAction {
+        verb: String,
+        targets: Vec<String>,
+        old_start_s: f64,
+        new_start_s: f64,
+        new_duration_s: f64,
+    },
 
     // Scene
     DuplicateScene(String),
     DeleteScene(String),
-    SetTransition { from_scene: String, transition: animatix_syntax::ast::Transition },
-    SetPlayTarget { from_scene: String, target: Option<String> },
-    SetSceneDuration { scene: String, duration_s: Option<f64> },
+    SetTransition {
+        from_scene: String,
+        transition: animatix_syntax::ast::Transition,
+    },
+    SetPlayTarget {
+        from_scene: String,
+        target: Option<String>,
+    },
+    SetSceneDuration {
+        scene: String,
+        duration_s: Option<f64>,
+    },
 }
 
 impl From<UndoLabel> for Command {
@@ -66,27 +112,107 @@ impl From<UndoLabel> for Command {
             UndoLabel::FindReplaceAll => Command::FindReplaceAll,
             UndoLabel::InsertionFromPalette => Command::InsertionFromPalette,
             UndoLabel::PropertyEdit(e) => Command::PropertyEdit(e),
-            UndoLabel::CreateActor { ty, label, position, props } => Command::CreateActor { ty, label, position, props },
-            UndoLabel::RenameActor { old_label, new_label } => Command::RenameActor { old_label, new_label },
+            UndoLabel::CreateActor {
+                ty,
+                label,
+                position,
+                props,
+            } => Command::CreateActor {
+                ty,
+                label,
+                position,
+                props,
+            },
+            UndoLabel::RenameActor {
+                old_label,
+                new_label,
+            } => Command::RenameActor {
+                old_label,
+                new_label,
+            },
             UndoLabel::DuplicateActor(s) => Command::DuplicateActor(s),
             UndoLabel::DeleteSelectedActors => Command::DeleteSelectedActors,
             UndoLabel::PasteActors => Command::PasteActors,
-            UndoLabel::ReparentActor { actor, new_parent } => Command::ReparentActor { actor, new_parent },
-            UndoLabel::ExtractScene { actor_labels, new_scene_name } => Command::ExtractScene { actor_labels, new_scene_name },
-            UndoLabel::MoveToScene { actor_labels, target_scene } => Command::MoveToScene { actor_labels, target_scene },
+            UndoLabel::ReparentActor { actor, new_parent } => {
+                Command::ReparentActor { actor, new_parent }
+            },
+            UndoLabel::ExtractScene {
+                actor_labels,
+                new_scene_name,
+            } => Command::ExtractScene {
+                actor_labels,
+                new_scene_name,
+            },
+            UndoLabel::MoveToScene {
+                actor_labels,
+                target_scene,
+            } => Command::MoveToScene {
+                actor_labels,
+                target_scene,
+            },
             UndoLabel::AlignActors(a) => Command::AlignActors(a),
             UndoLabel::DistributeActors(a) => Command::DistributeActors(a),
             UndoLabel::GroupSelectedActors => Command::GroupSelectedActors,
             UndoLabel::UngroupSelectedActors => Command::UngroupSelectedActors,
-            UndoLabel::SetKeyframeEasing { actor, property, time_s, easing } => Command::SetKeyframeEasing { actor, property, time_s, easing },
-            UndoLabel::DeleteKeyframe { actor, property, time_s } => Command::DeleteKeyframe { actor, property, time_s },
-            UndoLabel::MoveKeyframe { actor, property, old_time_s, new_time_s } => Command::MoveKeyframe { actor, property, old_time_s, new_time_s },
-            UndoLabel::ResizeAction { verb, targets, old_start_s, new_start_s, new_duration_s } => Command::ResizeAction { verb, targets, old_start_s, new_start_s, new_duration_s },
+            UndoLabel::SetKeyframeEasing {
+                actor,
+                property,
+                time_s,
+                easing,
+            } => Command::SetKeyframeEasing {
+                actor,
+                property,
+                time_s,
+                easing,
+            },
+            UndoLabel::DeleteKeyframe {
+                actor,
+                property,
+                time_s,
+            } => Command::DeleteKeyframe {
+                actor,
+                property,
+                time_s,
+            },
+            UndoLabel::MoveKeyframe {
+                actor,
+                property,
+                old_time_s,
+                new_time_s,
+            } => Command::MoveKeyframe {
+                actor,
+                property,
+                old_time_s,
+                new_time_s,
+            },
+            UndoLabel::ResizeAction {
+                verb,
+                targets,
+                old_start_s,
+                new_start_s,
+                new_duration_s,
+            } => Command::ResizeAction {
+                verb,
+                targets,
+                old_start_s,
+                new_start_s,
+                new_duration_s,
+            },
             UndoLabel::DuplicateScene(s) => Command::DuplicateScene(s),
             UndoLabel::DeleteScene(s) => Command::DeleteScene(s),
-            UndoLabel::SetTransition { from_scene, transition } => Command::SetTransition { from_scene, transition },
-            UndoLabel::SetPlayTarget { from_scene, target } => Command::SetPlayTarget { from_scene, target },
-            UndoLabel::SetSceneDuration { scene, duration_s } => Command::SetSceneDuration { scene, duration_s },
+            UndoLabel::SetTransition {
+                from_scene,
+                transition,
+            } => Command::SetTransition {
+                from_scene,
+                transition,
+            },
+            UndoLabel::SetPlayTarget { from_scene, target } => {
+                Command::SetPlayTarget { from_scene, target }
+            },
+            UndoLabel::SetSceneDuration { scene, duration_s } => {
+                Command::SetSceneDuration { scene, duration_s }
+            },
         }
     }
 }
@@ -254,7 +380,10 @@ pub enum Command {
     #[allow(dead_code)]
     SetTimelineScroll(f32),
     #[allow(dead_code)]
-    SetLoopRegion { start: Option<f64>, end: Option<f64> },
+    SetLoopRegion {
+        start: Option<f64>,
+        end: Option<f64>,
+    },
     #[allow(dead_code)]
     ToggleCollapseActor(String),
     #[allow(dead_code)]
@@ -262,7 +391,11 @@ pub enum Command {
     #[allow(dead_code)]
     SetPreviewZoom(f32),
     #[allow(dead_code)]
-    SetPreviewZoomCentered { zoom: f32, center_x: f32, center_y: f32 },
+    SetPreviewZoomCentered {
+        zoom: f32,
+        center_x: f32,
+        center_y: f32,
+    },
     #[allow(dead_code)]
     SetPreviewPan(egui::Vec2),
     #[allow(dead_code)]
@@ -274,7 +407,10 @@ pub enum Command {
     #[allow(dead_code)]
     SetKeyframeViewMode(crate::app::panels::inspector::KeyframeViewMode),
     #[allow(dead_code)]
-    SetPivotOffset { actor: String, offset: [f32; 2] },
+    SetPivotOffset {
+        actor: String,
+        offset: [f32; 2],
+    },
 }
 
 /// Horizontal or vertical axis for distribute.

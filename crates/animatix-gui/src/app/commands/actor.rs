@@ -39,24 +39,44 @@ pub enum ActorCommand {
 impl From<ActorCommand> for super::Command {
     fn from(c: ActorCommand) -> Self {
         match c {
-            ActorCommand::CreateActor { ty, label, position, props } => {
-                super::Command::CreateActor { ty, label, position, props }
-            }
-            ActorCommand::RenameActor { old_label, new_label } => {
-                super::Command::RenameActor { old_label, new_label }
-            }
+            ActorCommand::CreateActor {
+                ty,
+                label,
+                position,
+                props,
+            } => super::Command::CreateActor {
+                ty,
+                label,
+                position,
+                props,
+            },
+            ActorCommand::RenameActor {
+                old_label,
+                new_label,
+            } => super::Command::RenameActor {
+                old_label,
+                new_label,
+            },
             ActorCommand::DuplicateActor(v) => super::Command::DuplicateActor(v),
             ActorCommand::DuplicateSelectedActors => super::Command::DuplicateSelectedActors,
             ActorCommand::DeleteSelectedActors => super::Command::DeleteSelectedActors,
             ActorCommand::ReparentActor { actor, new_parent } => {
                 super::Command::ReparentActor { actor, new_parent }
-            }
-            ActorCommand::ExtractScene { actor_labels, new_scene_name } => {
-                super::Command::ExtractScene { actor_labels, new_scene_name }
-            }
-            ActorCommand::MoveToScene { actor_labels, target_scene } => {
-                super::Command::MoveToScene { actor_labels, target_scene }
-            }
+            },
+            ActorCommand::ExtractScene {
+                actor_labels,
+                new_scene_name,
+            } => super::Command::ExtractScene {
+                actor_labels,
+                new_scene_name,
+            },
+            ActorCommand::MoveToScene {
+                actor_labels,
+                target_scene,
+            } => super::Command::MoveToScene {
+                actor_labels,
+                target_scene,
+            },
             ActorCommand::ToggleActorVisibility(v) => super::Command::ToggleActorVisibility(v),
             ActorCommand::ToggleActorLock(v) => super::Command::ToggleActorLock(v),
             ActorCommand::PasteActors => super::Command::PasteActors,

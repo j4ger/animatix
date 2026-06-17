@@ -3,15 +3,15 @@
 //! All preview overlays (grid, guides, labels, etc.) are controlled through
 //! [`PreviewOverlay`] which lives in [`PreviewPaneState`](crate::app::PreviewPaneState).
 
-use animatix::timeline::SceneDimensions;
 use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
-use crate::app::design_tokens::semantic::status::WARNING as AMBER;
-use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
 use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
 use crate::app::design_tokens::semantic::status::SUCCESS as GREEN;
+use crate::app::design_tokens::semantic::status::WARNING as AMBER;
+use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
 use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
 use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::preview::performance::PerformanceMetrics;
+use animatix::timeline::SceneDimensions;
 use egui::Color32;
 
 /// Toggle-able overlays for the preview canvas.
@@ -75,22 +75,23 @@ pub fn render_performance_hud(
     let line_h = 16.0;
 
     // Helper to draw a metric row
-    let draw_row = |painter: &egui::Painter, y: f32, label: &str, value: &str, color: egui::Color32| {
-        painter.text(
-            egui::Pos2::new(x, y),
-            egui::Align2::LEFT_TOP,
-            label,
-            font.clone(),
-            TEXT_MUTED,
-        );
-        painter.text(
-            egui::Pos2::new(x + label_w, y),
-            egui::Align2::LEFT_TOP,
-            value,
-            font.clone(),
-            color,
-        );
-    };
+    let draw_row =
+        |painter: &egui::Painter, y: f32, label: &str, value: &str, color: egui::Color32| {
+            painter.text(
+                egui::Pos2::new(x, y),
+                egui::Align2::LEFT_TOP,
+                label,
+                font.clone(),
+                TEXT_MUTED,
+            );
+            painter.text(
+                egui::Pos2::new(x + label_w, y),
+                egui::Align2::LEFT_TOP,
+                value,
+                font.clone(),
+                color,
+            );
+        };
 
     let mut y = hud_rect.top() + 8.0;
     draw_row(painter, y, "FPS", &format!("{:.0}", metrics.fps), text_color);
@@ -101,19 +102,21 @@ pub fn render_performance_hud(
     y += line_h;
     draw_row(painter, y, "GPU Mem", &format!("{:.0} MB", metrics.gpu_memory_mb), text_color);
     y += line_h;
-    draw_row(painter, y, "Preview", 
+    draw_row(
+        painter,
+        y,
+        "Preview",
         if metrics.is_stale { "STALE" } else { "FRESH" },
-        if metrics.is_stale { AMBER } else { GREEN });
+        if metrics.is_stale { AMBER } else { GREEN },
+    );
     y += line_h;
 
     // Draw a mini FPS sparkline (last 30 frames)
     if metrics.fps_history.len() >= 2 {
         let spark_y = y + 4.0;
         let spark_h = 24.0;
-        let spark_rect = egui::Rect::from_min_size(
-            egui::Pos2::new(x, spark_y),
-            egui::Vec2::new(200.0, spark_h),
-        );
+        let spark_rect =
+            egui::Rect::from_min_size(egui::Pos2::new(x, spark_y), egui::Vec2::new(200.0, spark_h));
 
         // Background
         painter.rect_filled(spark_rect, 2.0, egui::Color32::from_black_alpha(100));
@@ -122,11 +125,16 @@ pub fn render_performance_hud(
         let max_fps = metrics.fps_history.iter().cloned().fold(0.0, f64::max).max(1.0) as f32;
         let step_x = spark_rect.width() / (metrics.fps_history.len() - 1) as f32;
 
-        let points: Vec<egui::Pos2> = metrics.fps_history.iter().enumerate().map(|(i, &f)| {
-            let px = spark_rect.left() + i as f32 * step_x;
-            let py = spark_rect.bottom() - (f as f32 / max_fps) * spark_h;
-            egui::Pos2::new(px, py)
-        }).collect();
+        let points: Vec<egui::Pos2> = metrics
+            .fps_history
+            .iter()
+            .enumerate()
+            .map(|(i, &f)| {
+                let px = spark_rect.left() + i as f32 * step_x;
+                let py = spark_rect.bottom() - (f as f32 / max_fps) * spark_h;
+                egui::Pos2::new(px, py)
+            })
+            .collect();
 
         if points.len() >= 2 {
             painter.add(egui::Shape::line(points, egui::Stroke::new(1.5, GREEN)));
@@ -149,12 +157,7 @@ pub fn render_layout_debug(
     draw_spacing: bool,
 ) {
     // Build a preview transform for coordinate conversion
-    let tx = crate::app::preview::PreviewTransform::new(
-        scene_dimensions,
-        preview_rect,
-        zoom,
-        pan,
-    );
+    let tx = crate::app::preview::PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan);
 
     // Container color (blue-ish)
     let container_color = ACCENT_BLUE;
@@ -167,7 +170,9 @@ pub fn render_layout_debug(
 
     // Iterate over all container metadata entries
     for (container_label, metadata) in timeline.container_metadata() {
-        let Some(track) = timeline.get_track(container_label) else { continue; };
+        let Some(track) = timeline.get_track(container_label) else {
+            continue;
+        };
 
         // Get container position (center) and size (full width/height)
         let pos = track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
@@ -176,14 +181,10 @@ pub fn render_layout_debug(
         let half_h = size[1] / 2.0;
 
         // Container bounds: from center to top-left/bottom-right corners
-        let container_tl = tx.scene_to_screen(kurbo::Point::new(
-            (pos[0] - half_w) as f64,
-            (pos[1] - half_h) as f64,
-        ));
-        let container_br = tx.scene_to_screen(kurbo::Point::new(
-            (pos[0] + half_w) as f64,
-            (pos[1] + half_h) as f64,
-        ));
+        let container_tl = tx
+            .scene_to_screen(kurbo::Point::new((pos[0] - half_w) as f64, (pos[1] - half_h) as f64));
+        let container_br = tx
+            .scene_to_screen(kurbo::Point::new((pos[0] + half_w) as f64, (pos[1] + half_h) as f64));
         let container_rect = egui::Rect::from_min_max(container_tl, container_br);
 
         // Skip if the container is off-screen
@@ -212,9 +213,13 @@ pub fn render_layout_debug(
         // Draw children layout slots
         let layout_children = timeline.layout_children_for(container_label);
         for child in &layout_children {
-            let Some(child_track) = timeline.get_track(&child.label) else { continue; };
-            let child_pos = child_track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
-            let child_size = child_track.size.as_ref().map(|s| s.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+            let Some(child_track) = timeline.get_track(&child.label) else {
+                continue;
+            };
+            let child_pos =
+                child_track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+            let child_size =
+                child_track.size.as_ref().map(|s| s.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
 
             let child_tl = tx.scene_to_screen(kurbo::Point::new(
                 (child_pos[0] - child_size[0] / 2.0) as f64,
@@ -252,11 +257,14 @@ pub fn render_layout_debug(
             let gap = metadata.gap;
 
             // Collect ordered children with their positions and sizes
-            let children_ordered: Vec<([f32; 2], [f32; 2])> = layout_children.iter()
+            let children_ordered: Vec<([f32; 2], [f32; 2])> = layout_children
+                .iter()
                 .filter_map(|child| {
                     let track = timeline.get_track(&child.label)?;
-                    let child_pos = track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
-                    let child_size = track.size.as_ref().map(|s| s.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+                    let child_pos =
+                        track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+                    let child_size =
+                        track.size.as_ref().map(|s| s.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
                     Some((child_pos, child_size))
                 })
                 .collect();
@@ -273,14 +281,14 @@ pub fn render_layout_debug(
                         // Right edge of child a = center.x + width/2
                         // Left  edge of child b = center.x - width/2
                         let right_a = pos_a[0] + size_a[0] / 2.0;
-                        let left_b  = pos_b[0] - size_b[0] / 2.0;
+                        let left_b = pos_b[0] - size_b[0] / 2.0;
                         gap_center = (right_a + left_b) / 2.0;
                         gap_size = (left_b - right_a).abs().max(1.0);
                     } else {
                         // Bottom edge of child a = center.y + height/2
                         // Top    edge of child b = center.y - height/2
                         let bottom_a = pos_a[1] + size_a[1] / 2.0;
-                        let top_b    = pos_b[1] - size_b[1] / 2.0;
+                        let top_b = pos_b[1] - size_b[1] / 2.0;
                         gap_center = (bottom_a + top_b) / 2.0;
                         gap_size = (top_b - bottom_a).abs().max(1.0);
                     }

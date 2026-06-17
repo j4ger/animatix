@@ -8,10 +8,17 @@ use egui::Vec2;
 
 use crate::app::commands::{ActionQueue, Command, KeyframeCommand, PlaybackCommand, ShellAction};
 use crate::app::design_tokens::semantic::status::WARNING as semantic_status_warning;
-use crate::app::design_tokens::semantic::surface::{HOVER as semantic_surface_hover, WIDGET as semantic_surface_widget};
-use crate::app::design_tokens::semantic::text::{MUTED as semantic_text_muted, SECONDARY as semantic_text_secondary};
-use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH, SPACE_1 as spatial_space_xs, SPACE_2 as spatial_space_s, ROW_S as spatial_row_s};
-use crate::app::design_tokens::typography::{TextRole};
+use crate::app::design_tokens::semantic::surface::{
+    HOVER as semantic_surface_hover, WIDGET as semantic_surface_widget,
+};
+use crate::app::design_tokens::semantic::text::{
+    MUTED as semantic_text_muted, SECONDARY as semantic_text_secondary,
+};
+use crate::app::design_tokens::spatial::{
+    RADIUS_S, ROW_S as spatial_row_s, SPACE_1 as spatial_space_xs, SPACE_2 as spatial_space_s,
+    STROKE_WIDTH,
+};
+use crate::app::design_tokens::typography::TextRole;
 
 // ─── Data Structures ──────────────────────────────────────────────────────
 
@@ -163,7 +170,11 @@ fn render_compact_track_row(
             let fraction = ((*time_ms as f64 / 1000.0) / duration_s).clamp(0.0, 1.0);
             let x = egui::lerp(strip_rect.left()..=strip_rect.right(), fraction as f32);
             let is_current = *time_ms == current_time_ms;
-            let color = if is_current { semantic_status_warning } else { semantic_text_muted };
+            let color = if is_current {
+                semantic_status_warning
+            } else {
+                semantic_text_muted
+            };
             let size = if is_current { 3.5 } else { 2.5 };
             let dot_pos = egui::pos2(x, strip_rect.center().y);
             let dot_rect = egui::Rect::from_center_size(dot_pos, egui::vec2(8.0, 8.0));
@@ -182,12 +193,15 @@ fn render_compact_track_row(
                         .unwrap_or(Easing::Linear);
                     let is_selected = variant == current_easing;
                     if ui.selectable_label(is_selected, display_name).clicked() {
-                        commands.push_back(KeyframeCommand::SetKeyframeEasing {
-                            actor: actor_label.to_string(),
-                            property: track.name.to_string(),
-                            time_s: *time_ms as f64 / 1000.0,
-                            easing: variant,
-                        }.into());
+                        commands.push_back(
+                            KeyframeCommand::SetKeyframeEasing {
+                                actor: actor_label.to_string(),
+                                property: track.name.to_string(),
+                                time_s: *time_ms as f64 / 1000.0,
+                                easing: variant,
+                            }
+                            .into(),
+                        );
                         ui.close();
                     }
                 }
@@ -196,7 +210,11 @@ fn render_compact_track_row(
             // Per-dot hover tooltip with value and easing info
             dot_response.on_hover_ui(|ui| {
                 ui.label(format!("{:.2}s", *time_ms as f64 / 1000.0));
-                ui.label(egui::RichText::new(value).size(TextRole::Micro.size()).color(semantic_text_secondary));
+                ui.label(
+                    egui::RichText::new(value)
+                        .size(TextRole::Micro.size())
+                        .color(semantic_text_secondary),
+                );
                 ui.label(
                     egui::RichText::new(format!("ease: {}", easing_display_name(*easing)))
                         .size(TextRole::Micro.size())
@@ -247,7 +265,11 @@ fn render_compact_track_row(
         ui.add_space(spatial_space_xs);
         for (time_ms, value, easing) in &track.keyframes {
             let is_current = *time_ms == current_time_ms;
-            let color = if is_current { semantic_status_warning } else { semantic_text_secondary };
+            let color = if is_current {
+                semantic_status_warning
+            } else {
+                semantic_text_secondary
+            };
             ui.horizontal(|ui| {
                 let icon = egui_phosphor::regular::DIAMOND;
                 ui.label(egui::RichText::new(icon).size(TextRole::Micro.size()).color(color));
@@ -257,7 +279,11 @@ fn render_compact_track_row(
                         .size(TextRole::Micro.size())
                         .color(color),
                 );
-                ui.label(egui::RichText::new(value).size(TextRole::Micro.size()).color(semantic_text_secondary));
+                ui.label(
+                    egui::RichText::new(value)
+                        .size(TextRole::Micro.size())
+                        .color(semantic_text_secondary),
+                );
                 ui.label(
                     egui::RichText::new(easing_display_name(*easing))
                         .size(TextRole::Micro.size())

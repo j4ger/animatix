@@ -1,18 +1,25 @@
-use crate::app::commands::{ActionQueue, Command, DocumentCommand, KeyframeCommand, ShellAction, ViewAction, PropertyEdit, PropertyValue};
+use crate::app::commands::{
+    ActionQueue, Command, DocumentCommand, KeyframeCommand, PropertyEdit, PropertyValue,
+    ShellAction, ViewAction,
+};
 use crate::app::components::button::Button;
-use crate::app::preview::{ActorProps, PreviewTransform};
+use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
 use crate::app::design_tokens::semantic::status::WARNING as AMBER;
 use crate::app::design_tokens::semantic::surface::HOVER as BG_HOVER;
 use crate::app::design_tokens::semantic::surface::SURFACE as BG_SURFACE;
 use crate::app::design_tokens::semantic::surface::WIDGET as BG_WIDGET;
-use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
 use crate::app::design_tokens::semantic::text::DISABLED as TEXT_DISABLED;
 use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
 use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
-use crate::app::design_tokens::spatial::{RADIUS_L, RADIUS_S, ROW_L, SPACE_M, SPACE_S, STROKE_WIDTH};
-use crate::app::design_tokens::typography::{TextRole};
-use animatix::timeline::{Timeline, SceneDimensions, read_property_value_or_default, PropertyValue as TlPropertyValue};
+use crate::app::design_tokens::spatial::{
+    RADIUS_L, RADIUS_S, ROW_L, SPACE_M, SPACE_S, STROKE_WIDTH,
+};
+use crate::app::design_tokens::typography::TextRole;
+use crate::app::preview::{ActorProps, PreviewTransform};
+use animatix::timeline::{
+    PropertyValue as TlPropertyValue, SceneDimensions, Timeline, read_property_value_or_default,
+};
 use egui::{Color32, Pos2, Rect, RichText, Sense, Stroke, Vec2};
 
 /// Show the property popup attached to a selected actor.
@@ -73,11 +80,10 @@ pub fn show_property_popup(
 
     // ── Header: actor name + close (draggable) ──
     let header_h = ROW_L; // 28px - comfortable height for header
-    let header_rect = Rect::from_min_size(
-        content.cursor().min,
-        Vec2::new(content.available_width(), header_h),
-    );
-    let header_resp = ui.interact(header_rect, ui.id().with("popup_header"), Sense::click_and_drag());
+    let header_rect =
+        Rect::from_min_size(content.cursor().min, Vec2::new(content.available_width(), header_h));
+    let header_resp =
+        ui.interact(header_rect, ui.id().with("popup_header"), Sense::click_and_drag());
     if header_resp.dragged() {
         let new_offset = drag_offset + header_resp.drag_delta();
         ui.data_mut(|d| d.insert_temp(drag_offset_id, new_offset));
@@ -86,15 +92,19 @@ pub fn show_property_popup(
     if header_resp.double_clicked() {
         ui.data_mut(|d| d.remove::<Vec2>(drag_offset_id));
     }
-    
+
     // Draw header background on hover (drag affordance)
     if header_resp.hovered() {
         ui.painter().rect_filled(header_rect, RADIUS_S as u8, BG_HOVER);
     }
-    
+
     // Subtle drag handle indicator (6 dots) on the left side of header
     let handle_center = Pos2::new(header_rect.min.x + SPACE_S + 4.0, header_rect.center().y);
-    let dot_color = if header_resp.hovered() { TEXT_MUTED } else { TEXT_DISABLED };
+    let dot_color = if header_resp.hovered() {
+        TEXT_MUTED
+    } else {
+        TEXT_DISABLED
+    };
     for row in 0..3 {
         for col in 0..2 {
             let dot_pos = Pos2::new(
@@ -104,7 +114,7 @@ pub fn show_property_popup(
             ui.painter().circle_filled(dot_pos, 1.0, dot_color);
         }
     }
-    
+
     // Header content with proper padding
     let header_content_rect = header_rect.shrink2(Vec2::new(SPACE_S, 0.0));
     let mut header_ui = ui.new_child(egui::UiBuilder::new().max_rect(header_content_rect));
@@ -127,7 +137,12 @@ pub fn show_property_popup(
     let opacity = timeline
         .and_then(|tl| {
             tl.get_track(actor).map(|track| {
-                let val = read_property_value_or_default(track, animatix::timeline::ActorField::Opacity, time_ms, track.kind);
+                let val = read_property_value_or_default(
+                    track,
+                    animatix::timeline::ActorField::Opacity,
+                    time_ms,
+                    track.kind,
+                );
                 match val {
                     TlPropertyValue::F32(v) => v,
                     _ => 1.0,
@@ -150,35 +165,70 @@ pub fn show_property_popup(
     let scale_y = scale.1 as f32;
 
     // Position row
-    let has_kf_pos = timeline.map(|tl| tl.has_keyframe_at(actor, "position", time_ms)).unwrap_or(false);
+    let has_kf_pos = timeline
+        .map(|tl| tl.has_keyframe_at(actor, "position", time_ms))
+        .unwrap_or(false);
     popup_property_row(
-        &mut rows_ui, actor, "position", "Position",
+        &mut rows_ui,
+        actor,
+        "position",
+        "Position",
         [props.position[0], props.position[1]],
-        commands, has_kf_pos, current_time_s, scale_x, scale_y,
+        commands,
+        has_kf_pos,
+        current_time_s,
+        scale_x,
+        scale_y,
     );
 
     // Size row
-    let has_kf_size = timeline.map(|tl| tl.has_keyframe_at(actor, "size", time_ms)).unwrap_or(false);
+    let has_kf_size =
+        timeline.map(|tl| tl.has_keyframe_at(actor, "size", time_ms)).unwrap_or(false);
     popup_property_row(
-        &mut rows_ui, actor, "size", "Size",
+        &mut rows_ui,
+        actor,
+        "size",
+        "Size",
         [props.size[0], props.size[1]],
-        commands, has_kf_size, current_time_s, scale_x, scale_y,
+        commands,
+        has_kf_size,
+        current_time_s,
+        scale_x,
+        scale_y,
     );
 
     // Rotation row
-    let has_kf_rot = timeline.map(|tl| tl.has_keyframe_at(actor, "rotation", time_ms)).unwrap_or(false);
+    let has_kf_rot = timeline
+        .map(|tl| tl.has_keyframe_at(actor, "rotation", time_ms))
+        .unwrap_or(false);
     popup_property_row(
-        &mut rows_ui, actor, "rotation", "Rotation",
+        &mut rows_ui,
+        actor,
+        "rotation",
+        "Rotation",
         [props.rotation.to_degrees(), 0.0],
-        commands, has_kf_rot, current_time_s, scale_x, scale_y,
+        commands,
+        has_kf_rot,
+        current_time_s,
+        scale_x,
+        scale_y,
     );
 
     // Opacity row
-    let has_kf_opac = timeline.map(|tl| tl.has_keyframe_at(actor, "opacity", time_ms)).unwrap_or(false);
+    let has_kf_opac = timeline
+        .map(|tl| tl.has_keyframe_at(actor, "opacity", time_ms))
+        .unwrap_or(false);
     popup_property_row(
-        &mut rows_ui, actor, "opacity", "Opacity",
+        &mut rows_ui,
+        actor,
+        "opacity",
+        "Opacity",
         [opacity * 100.0, 0.0],
-        commands, has_kf_opac, current_time_s, scale_x, scale_y,
+        commands,
+        has_kf_opac,
+        current_time_s,
+        scale_x,
+        scale_y,
     );
 }
 
@@ -210,11 +260,20 @@ fn popup_property_row(
         Pos2::new(row_rect.min.x + 10.0, row_rect.center().y),
         Vec2::new(diamond_size + 6.0, diamond_size + 6.0), // Larger hit area
     );
-    let diamond_resp = ui.interact(diamond_rect, ui.id().with((actor, property, "diamond")), Sense::click());
+    let diamond_resp =
+        ui.interact(diamond_rect, ui.id().with((actor, property, "diamond")), Sense::click());
 
-    let diamond_color = if has_keyframe || diamond_resp.hovered() { AMBER } else { TEXT_MUTED };
+    let diamond_color = if has_keyframe || diamond_resp.hovered() {
+        AMBER
+    } else {
+        TEXT_MUTED
+    };
     let center = diamond_rect.center();
-    let fill_color = if has_keyframe { diamond_color } else { Color32::TRANSPARENT };
+    let fill_color = if has_keyframe {
+        diamond_color
+    } else {
+        Color32::TRANSPARENT
+    };
     ui.painter().add(egui::Shape::convex_polygon(
         vec![
             Pos2::new(center.x, center.y - diamond_size / 2.0),
@@ -230,11 +289,14 @@ fn popup_property_row(
     if diamond_resp.clicked() {
         if has_keyframe {
             // Delete keyframe
-            commands.push_back(KeyframeCommand::DeleteKeyframe {
-                actor: actor.to_string(),
-                property: property.to_string(),
-                time_s: current_time_s,
-            }.into());
+            commands.push_back(
+                KeyframeCommand::DeleteKeyframe {
+                    actor: actor.to_string(),
+                    property: property.to_string(),
+                    time_s: current_time_s,
+                }
+                .into(),
+            );
         } else {
             // Create keyframe with current value
             let value = match property {
@@ -244,13 +306,16 @@ fn popup_property_row(
                 "opacity" => PropertyValue::Float(values[0] / 100.0),
                 _ => PropertyValue::Float(values[0]),
             };
-            commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit {
-                time_s: None,
-                actor: actor.to_string(),
-                property: property.to_string(),
-                value,
-                create_keyframe: true,
-            }).into());
+            commands.push_back(
+                DocumentCommand::PropertyEdit(PropertyEdit {
+                    time_s: None,
+                    actor: actor.to_string(),
+                    property: property.to_string(),
+                    value,
+                    create_keyframe: true,
+                })
+                .into(),
+            );
         }
     }
 
@@ -291,7 +356,8 @@ fn popup_property_row(
     };
 
     // Interactive value: drag to change
-    let value_resp = ui.interact(value_rect, ui.id().with((actor, property, "value")), Sense::click_and_drag());
+    let value_resp =
+        ui.interact(value_rect, ui.id().with((actor, property, "value")), Sense::click_and_drag());
 
     // Highlight on hover
     if value_resp.hovered() {
@@ -303,7 +369,11 @@ fn popup_property_row(
         egui::Align2::CENTER_CENTER,
         &value_str,
         TextRole::Mono.font_id(),
-        if value_resp.hovered() { TEXT_PRIMARY } else { TEXT_MUTED },
+        if value_resp.hovered() {
+            TEXT_PRIMARY
+        } else {
+            TEXT_MUTED
+        },
     );
 
     // Drag on value to change
@@ -314,46 +384,58 @@ fn popup_property_row(
         let scene_dy = delta.y * scale_y;
         match property {
             "position" => {
-                commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit {
-                    time_s: None,
-                    actor: actor.to_string(),
-                    property: "position".into(),
-                    value: PropertyValue::Vec2([values[0] + scene_dx, values[1] + scene_dy]),
-                    create_keyframe: false,
-                }).into());
-            }
+                commands.push_back(
+                    DocumentCommand::PropertyEdit(PropertyEdit {
+                        time_s: None,
+                        actor: actor.to_string(),
+                        property: "position".into(),
+                        value: PropertyValue::Vec2([values[0] + scene_dx, values[1] + scene_dy]),
+                        create_keyframe: false,
+                    })
+                    .into(),
+                );
+            },
             "size" => {
                 let new_w = (values[0] + scene_dx).max(1.0);
                 let new_h = (values[1] + scene_dy).max(1.0);
-                commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit {
-                    time_s: None,
-                    actor: actor.to_string(),
-                    property: "size".into(),
-                    value: PropertyValue::Vec2([new_w, new_h]),
-                    create_keyframe: false,
-                }).into());
-            }
+                commands.push_back(
+                    DocumentCommand::PropertyEdit(PropertyEdit {
+                        time_s: None,
+                        actor: actor.to_string(),
+                        property: "size".into(),
+                        value: PropertyValue::Vec2([new_w, new_h]),
+                        create_keyframe: false,
+                    })
+                    .into(),
+                );
+            },
             "rotation" => {
                 let new_deg = (values[0] + delta.x * 0.5).rem_euclid(360.0);
-                commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit {
-                    time_s: None,
-                    actor: actor.to_string(),
-                    property: "rotation".into(),
-                    value: PropertyValue::Float(new_deg.to_radians()),
-                    create_keyframe: false,
-                }).into());
-            }
+                commands.push_back(
+                    DocumentCommand::PropertyEdit(PropertyEdit {
+                        time_s: None,
+                        actor: actor.to_string(),
+                        property: "rotation".into(),
+                        value: PropertyValue::Float(new_deg.to_radians()),
+                        create_keyframe: false,
+                    })
+                    .into(),
+                );
+            },
             "opacity" => {
                 let new_opac = (values[0] + delta.x * 0.5).clamp(0.0, 100.0);
-                commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit {
-                    time_s: None,
-                    actor: actor.to_string(),
-                    property: "opacity".into(),
-                    value: PropertyValue::Float(new_opac / 100.0),
-                    create_keyframe: false,
-                }).into());
-            }
-            _ => {}
+                commands.push_back(
+                    DocumentCommand::PropertyEdit(PropertyEdit {
+                        time_s: None,
+                        actor: actor.to_string(),
+                        property: "opacity".into(),
+                        value: PropertyValue::Float(new_opac / 100.0),
+                        create_keyframe: false,
+                    })
+                    .into(),
+                );
+            },
+            _ => {},
         }
     }
 

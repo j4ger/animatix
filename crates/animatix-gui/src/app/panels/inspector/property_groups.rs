@@ -5,15 +5,29 @@ use animatix::timeline::{
 use egui::{Color32, Stroke, Vec2};
 
 use crate::app::commands::{
-    ActionQueue, Command, DocumentCommand, DragEvent, KeyframeCommand, PropertyEdit, PropertyValue as GuiPropertyValue, ShellAction,
+    ActionQueue, Command, DocumentCommand, DragEvent, KeyframeCommand, PropertyEdit,
+    PropertyValue as GuiPropertyValue, ShellAction,
 };
 use crate::app::components::row;
 use crate::app::design_tokens::semantic::status::WARNING as semantic_status_warning;
-use crate::app::design_tokens::semantic::surface::{HOVER as semantic_surface_hover, WIDGET as semantic_surface_widget};
-use crate::app::design_tokens::semantic::text::{PRIMARY as semantic_text_primary, SECONDARY as semantic_text_secondary, MUTED as semantic_text_muted, DISABLED as semantic_text_disabled};
-use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH, SPACE_1 as spatial_space_xs, SPACE_2 as spatial_space_s, SPACE_4 as spatial_space_l, ROW_M as spatial_row_m};
-use crate::app::design_tokens::spatial::inspector::{ROW_HEIGHT as INSPECTOR_ROW_HEIGHT, KF_COL_WIDTH as INSPECTOR_KF_COL_WIDTH, LABEL_WIDTH_FRAC as INSPECTOR_LABEL_WIDTH_FRAC, LABEL_MIN_WIDTH as INSPECTOR_LABEL_MIN_WIDTH, LABEL_MAX_WIDTH as INSPECTOR_LABEL_MAX_WIDTH, COL_GAP as INSPECTOR_COL_GAP, KF_BTN_WIDTH as INSPECTOR_KF_BTN_WIDTH};
-use crate::app::design_tokens::typography::{TextRole};
+use crate::app::design_tokens::semantic::surface::{
+    HOVER as semantic_surface_hover, WIDGET as semantic_surface_widget,
+};
+use crate::app::design_tokens::semantic::text::{
+    DISABLED as semantic_text_disabled, MUTED as semantic_text_muted,
+    PRIMARY as semantic_text_primary, SECONDARY as semantic_text_secondary,
+};
+use crate::app::design_tokens::spatial::inspector::{
+    COL_GAP as INSPECTOR_COL_GAP, KF_BTN_WIDTH as INSPECTOR_KF_BTN_WIDTH,
+    KF_COL_WIDTH as INSPECTOR_KF_COL_WIDTH, LABEL_MAX_WIDTH as INSPECTOR_LABEL_MAX_WIDTH,
+    LABEL_MIN_WIDTH as INSPECTOR_LABEL_MIN_WIDTH, LABEL_WIDTH_FRAC as INSPECTOR_LABEL_WIDTH_FRAC,
+    ROW_HEIGHT as INSPECTOR_ROW_HEIGHT,
+};
+use crate::app::design_tokens::spatial::{
+    RADIUS_S, ROW_M as spatial_row_m, SPACE_1 as spatial_space_xs, SPACE_2 as spatial_space_s,
+    SPACE_4 as spatial_space_l, STROKE_WIDTH,
+};
+use crate::app::design_tokens::typography::TextRole;
 
 // ─── Data Structures ──────────────────────────────────────────────────────
 
@@ -377,7 +391,9 @@ pub(crate) fn render_property_row(
             |ui| {
                 ui.add(
                     egui::Label::new(
-                        egui::RichText::new(entry.name).size(TextRole::BodyS.size()).color(semantic_text_secondary),
+                        egui::RichText::new(entry.name)
+                            .size(TextRole::BodyS.size())
+                            .color(semantic_text_secondary),
                     )
                     .truncate()
                     .selectable(false),
@@ -456,13 +472,16 @@ pub(crate) fn render_property_row(
     // Click keyframe button to create a keyframe (when not already present)
     if kf_btn_resp.clicked() && keyframe_mode && !entry.has_keyframe_at_current_time {
         if let Some(value) = entry_to_gui_value(entry) {
-            commands.push_back(DocumentCommand::PropertyEdit(PropertyEdit {
-                time_s: None,
-                actor: actor_label.to_string(),
-                property: entry.name.to_string(),
-                value,
-                create_keyframe: true,
-            }).into());
+            commands.push_back(
+                DocumentCommand::PropertyEdit(PropertyEdit {
+                    time_s: None,
+                    actor: actor_label.to_string(),
+                    property: entry.name.to_string(),
+                    value,
+                    create_keyframe: true,
+                })
+                .into(),
+            );
         }
     }
 
@@ -473,11 +492,14 @@ pub(crate) fn render_property_row(
             ui.strong(format!("Keyframe @ {:.2}s", current_time_s));
             ui.separator();
             if ui.button(format!("{} Delete", egui_phosphor::regular::TRASH)).clicked() {
-                commands.push_back(KeyframeCommand::DeleteKeyframe {
-                    actor: actor_label.to_string(),
-                    property: entry.name.to_string(),
-                    time_s: current_time_s,
-                }.into());
+                commands.push_back(
+                    KeyframeCommand::DeleteKeyframe {
+                        actor: actor_label.to_string(),
+                        property: entry.name.to_string(),
+                        time_s: current_time_s,
+                    }
+                    .into(),
+                );
                 ui.close();
             }
             ui.menu_button(format!("{} Easing", egui_phosphor::regular::WAVEFORM), |ui| {
@@ -485,12 +507,15 @@ pub(crate) fn render_property_row(
                     let variant = animatix_syntax::easing::parse_easing_name(id_str)
                         .unwrap_or(animatix_syntax::easing::Easing::Linear);
                     if ui.selectable_label(false, display_name).clicked() {
-                        commands.push_back(KeyframeCommand::SetKeyframeEasing {
-                            actor: actor_label.to_string(),
-                            property: entry.name.to_string(),
-                            time_s: current_time_s,
-                            easing: variant,
-                        }.into());
+                        commands.push_back(
+                            KeyframeCommand::SetKeyframeEasing {
+                                actor: actor_label.to_string(),
+                                property: entry.name.to_string(),
+                                time_s: current_time_s,
+                                easing: variant,
+                            }
+                            .into(),
+                        );
                         ui.close();
                     }
                 }
@@ -505,7 +530,8 @@ pub(crate) fn render_property_row(
             let mut ny = *y;
             let (a_label, b_label) = vec2_labels(entry.name);
             ui.scope_builder(
-                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(spatial_space_s, 0.0))),
+                egui::UiBuilder::new()
+                    .max_rect(input_rect.shrink2(Vec2::new(spatial_space_s, 0.0))),
                 |ui| {
                     *ui.style_mut() = flat_style.clone();
                     ui.with_layout(
@@ -538,14 +564,16 @@ pub(crate) fn render_property_row(
                                 ));
                             }
                             if rx.changed() || ry.changed() {
-                                commands.push_back(DocumentCommand::PropertyEdit(
-                                    PropertyEdit {
+                                commands.push_back(
+                                    DocumentCommand::PropertyEdit(PropertyEdit {
                                         time_s: None,
                                         actor: actor_label.to_string(),
                                         property: entry.name.to_string(),
                                         value: GuiPropertyValue::Vec2([nx, ny]),
                                         create_keyframe: keyframe_mode,
-                                    }).into());
+                                    })
+                                    .into(),
+                                );
                             }
                         },
                     );
@@ -562,7 +590,8 @@ pub(crate) fn render_property_row(
             let unit = unit_suffix(entry.name);
             if is_01 {
                 ui.scope_builder(
-                    egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(spatial_space_s, 0.0))),
+                    egui::UiBuilder::new()
+                        .max_rect(input_rect.shrink2(Vec2::new(spatial_space_s, 0.0))),
                     |ui| {
                         *ui.style_mut() = flat_style.clone();
                         ui.with_layout(
@@ -596,15 +625,16 @@ pub(crate) fn render_property_row(
                                     ));
                                 }
                                 if slider.changed() {
-                                    commands.push_back(DocumentCommand::PropertyEdit(
-                                        PropertyEdit {
+                                    commands.push_back(
+                                        DocumentCommand::PropertyEdit(PropertyEdit {
                                             time_s: None,
                                             actor: actor_label.to_string(),
                                             property: entry.name.to_string(),
                                             value: GuiPropertyValue::Float(nv),
                                             create_keyframe: keyframe_mode,
-                                        },
-                                    ).into());
+                                        })
+                                        .into(),
+                                    );
                                 }
                             },
                         );
@@ -612,7 +642,8 @@ pub(crate) fn render_property_row(
                 );
             } else {
                 ui.scope_builder(
-                    egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(spatial_space_s, 0.0))),
+                    egui::UiBuilder::new()
+                        .max_rect(input_rect.shrink2(Vec2::new(spatial_space_s, 0.0))),
                     |ui| {
                         *ui.style_mut() = flat_style.clone();
                         ui.with_layout(
@@ -637,15 +668,16 @@ pub(crate) fn render_property_row(
                                 }
                                 if response.changed() {
                                     let out_val = if is_angle { nv.to_radians() } else { nv };
-                                    commands.push_back(DocumentCommand::PropertyEdit(
-                                        PropertyEdit {
+                                    commands.push_back(
+                                        DocumentCommand::PropertyEdit(PropertyEdit {
                                             time_s: None,
                                             actor: actor_label.to_string(),
                                             property: entry.name.to_string(),
                                             value: GuiPropertyValue::Float(out_val),
                                             create_keyframe: keyframe_mode,
-                                        },
-                                    ).into());
+                                        })
+                                        .into(),
+                                    );
                                 }
                             },
                         );
@@ -656,7 +688,8 @@ pub(crate) fn render_property_row(
         PropertyKind::U32(v) => {
             let mut nv = *v as i64;
             ui.scope_builder(
-                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(spatial_space_s, 0.0))),
+                egui::UiBuilder::new()
+                    .max_rect(input_rect.shrink2(Vec2::new(spatial_space_s, 0.0))),
                 |ui| {
                     *ui.style_mut() = flat_style.clone();
                     ui.with_layout(
@@ -677,14 +710,16 @@ pub(crate) fn render_property_row(
                                 ));
                             }
                             if response.changed() {
-                                commands.push_back(DocumentCommand::PropertyEdit(
-                                    PropertyEdit {
+                                commands.push_back(
+                                    DocumentCommand::PropertyEdit(PropertyEdit {
                                         time_s: None,
                                         actor: actor_label.to_string(),
                                         property: entry.name.to_string(),
                                         value: GuiPropertyValue::Float(nv as f32),
                                         create_keyframe: keyframe_mode,
-                                    }).into());
+                                    })
+                                    .into(),
+                                );
                             }
                         },
                     );
@@ -700,7 +735,8 @@ pub(crate) fn render_property_row(
             );
             let hex = format!("#{:02x}{:02x}{:02x}", color.r(), color.g(), color.b());
             ui.scope_builder(
-                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(spatial_space_s, 0.0))),
+                egui::UiBuilder::new()
+                    .max_rect(input_rect.shrink2(Vec2::new(spatial_space_s, 0.0))),
                 |ui| {
                     *ui.style_mut() = flat_style.clone();
                     ui.with_layout(
@@ -719,8 +755,8 @@ pub(crate) fn render_property_row(
                             );
                             if btn.changed() {
                                 let [r, g, b, a] = color.to_array();
-                                commands.push_back(DocumentCommand::PropertyEdit(
-                                    PropertyEdit {
+                                commands.push_back(
+                                    DocumentCommand::PropertyEdit(PropertyEdit {
                                         time_s: None,
                                         actor: actor_label.to_string(),
                                         property: entry.name.to_string(),
@@ -731,7 +767,9 @@ pub(crate) fn render_property_row(
                                             a as f32 / 255.0,
                                         ]),
                                         create_keyframe: keyframe_mode,
-                                    }).into());
+                                    })
+                                    .into(),
+                                );
                             }
                         },
                     );
@@ -741,7 +779,8 @@ pub(crate) fn render_property_row(
         PropertyKind::Text(text) => {
             let mut buf = text.clone();
             ui.scope_builder(
-                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(spatial_space_s, 0.0))),
+                egui::UiBuilder::new()
+                    .max_rect(input_rect.shrink2(Vec2::new(spatial_space_s, 0.0))),
                 |ui| {
                     *ui.style_mut() = flat_style.clone();
                     ui.with_layout(
@@ -764,8 +803,8 @@ pub(crate) fn render_property_row(
                                     .show_ui(ui, |ui| {
                                         for v in variants {
                                             if ui.selectable_label(v == text, v).clicked() {
-                                                commands.push_back(DocumentCommand::PropertyEdit(
-                                                    PropertyEdit {
+                                                commands.push_back(
+                                                    DocumentCommand::PropertyEdit(PropertyEdit {
                                                         time_s: None,
                                                         actor: actor_label.to_string(),
                                                         property: entry.name.to_string(),
@@ -773,7 +812,9 @@ pub(crate) fn render_property_row(
                                                             v.to_string(),
                                                         ),
                                                         create_keyframe: keyframe_mode,
-                                                    }).into());
+                                                    })
+                                                    .into(),
+                                                );
                                             }
                                         }
                                     });
@@ -794,14 +835,16 @@ pub(crate) fn render_property_row(
                                             let label = format!("Aa   {}", family);
                                             if ui.selectable_label(family == *text, label).clicked()
                                             {
-                                                commands.push_back(DocumentCommand::PropertyEdit(
-                                                    PropertyEdit {
+                                                commands.push_back(
+                                                    DocumentCommand::PropertyEdit(PropertyEdit {
                                                         time_s: None,
                                                         actor: actor_label.to_string(),
                                                         property: entry.name.to_string(),
                                                         value: GuiPropertyValue::Text(family),
                                                         create_keyframe: keyframe_mode,
-                                                    }).into());
+                                                    })
+                                                    .into(),
+                                                );
                                             }
                                         }
                                     });
@@ -814,15 +857,16 @@ pub(crate) fn render_property_row(
                                     .desired_width(ui.available_width());
                                 let response = ui.add(edit);
                                 if response.changed() {
-                                    commands.push_back(DocumentCommand::PropertyEdit(
-                                        PropertyEdit {
+                                    commands.push_back(
+                                        DocumentCommand::PropertyEdit(PropertyEdit {
                                             time_s: None,
                                             actor: actor_label.to_string(),
                                             property: entry.name.to_string(),
                                             value: GuiPropertyValue::Text(buf),
                                             create_keyframe: keyframe_mode,
-                                        },
-                                    ).into());
+                                        })
+                                        .into(),
+                                    );
                                 }
                             } else {
                                 ui.add(

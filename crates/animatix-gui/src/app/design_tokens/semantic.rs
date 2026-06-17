@@ -51,36 +51,16 @@ pub mod text {
     pub const ON_ACCENT: Color32 = surface::BASE;
 
     pub fn faint() -> Color32 {
-        Color32::from_rgba_unmultiplied(
-            p::GRAY_100.r(),
-            p::GRAY_100.g(),
-            p::GRAY_100.b(),
-            80,
-        )
+        Color32::from_rgba_unmultiplied(p::GRAY_100.r(), p::GRAY_100.g(), p::GRAY_100.b(), 80)
     }
     pub fn subtle() -> Color32 {
-        Color32::from_rgba_unmultiplied(
-            p::GRAY_100.r(),
-            p::GRAY_100.g(),
-            p::GRAY_100.b(),
-            160,
-        )
+        Color32::from_rgba_unmultiplied(p::GRAY_100.r(), p::GRAY_100.g(), p::GRAY_100.b(), 160)
     }
     pub fn hover() -> Color32 {
-        Color32::from_rgba_unmultiplied(
-            p::GRAY_100.r(),
-            p::GRAY_100.g(),
-            p::GRAY_100.b(),
-            220,
-        )
+        Color32::from_rgba_unmultiplied(p::GRAY_100.r(), p::GRAY_100.g(), p::GRAY_100.b(), 220)
     }
     pub fn dim() -> Color32 {
-        Color32::from_rgba_unmultiplied(
-            p::GRAY_100.r(),
-            p::GRAY_100.g(),
-            p::GRAY_100.b(),
-            180,
-        )
+        Color32::from_rgba_unmultiplied(p::GRAY_100.r(), p::GRAY_100.g(), p::GRAY_100.b(), 180)
     }
 }
 
@@ -130,44 +110,19 @@ pub mod status {
     pub const DIAGNOSTIC_WARNING: Color32 = p::DIAGNOSTIC_AMBER_RAW;
 
     pub fn success_faint() -> Color32 {
-        Color32::from_rgba_unmultiplied(
-            p::GREEN_500.r(),
-            p::GREEN_500.g(),
-            p::GREEN_500.b(),
-            60,
-        )
+        Color32::from_rgba_unmultiplied(p::GREEN_500.r(), p::GREEN_500.g(), p::GREEN_500.b(), 60)
     }
     pub fn success_ultra_faint() -> Color32 {
-        Color32::from_rgba_unmultiplied(
-            p::GREEN_500.r(),
-            p::GREEN_500.g(),
-            p::GREEN_500.b(),
-            20,
-        )
+        Color32::from_rgba_unmultiplied(p::GREEN_500.r(), p::GREEN_500.g(), p::GREEN_500.b(), 20)
     }
     pub fn warning_subtle() -> Color32 {
-        Color32::from_rgba_unmultiplied(
-            p::AMBER_500.r(),
-            p::AMBER_500.g(),
-            p::AMBER_500.b(),
-            120,
-        )
+        Color32::from_rgba_unmultiplied(p::AMBER_500.r(), p::AMBER_500.g(), p::AMBER_500.b(), 120)
     }
     pub fn error_faint() -> Color32 {
-        Color32::from_rgba_unmultiplied(
-            p::RED_500.r(),
-            p::RED_500.g(),
-            p::RED_500.b(),
-            60,
-        )
+        Color32::from_rgba_unmultiplied(p::RED_500.r(), p::RED_500.g(), p::RED_500.b(), 60)
     }
     pub fn error_ultra_faint() -> Color32 {
-        Color32::from_rgba_unmultiplied(
-            p::RED_500.r(),
-            p::RED_500.g(),
-            p::RED_500.b(),
-            20,
-        )
+        Color32::from_rgba_unmultiplied(p::RED_500.r(), p::RED_500.g(), p::RED_500.b(), 20)
     }
 }
 
@@ -293,20 +248,10 @@ pub mod overlay {
         Color32::from_rgba_unmultiplied(0, 0, 0, 120)
     }
     pub fn badge_bg() -> Color32 {
-        Color32::from_rgba_unmultiplied(
-            p::GRAY_950.r(),
-            p::GRAY_950.g(),
-            p::GRAY_950.b(),
-            220,
-        )
+        Color32::from_rgba_unmultiplied(p::GRAY_950.r(), p::GRAY_950.g(), p::GRAY_950.b(), 220)
     }
     pub fn tooltip_bg() -> Color32 {
-        Color32::from_rgba_unmultiplied(
-            p::GRAY_950.r(),
-            p::GRAY_950.g(),
-            p::GRAY_950.b(),
-            235,
-        )
+        Color32::from_rgba_unmultiplied(p::GRAY_950.r(), p::GRAY_950.g(), p::GRAY_950.b(), 235)
     }
     pub fn shadow_ambient() -> Color32 {
         Color32::from_rgba_unmultiplied(0, 0, 0, 40)

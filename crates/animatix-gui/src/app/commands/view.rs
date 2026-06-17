@@ -36,13 +36,21 @@ impl From<ViewCommand> for super::Command {
             ViewCommand::ZoomToAll => super::Command::ZoomToAll,
             ViewCommand::SetTimelineZoom(v) => super::Command::SetTimelineZoom(v),
             ViewCommand::SetTimelineScroll(v) => super::Command::SetTimelineScroll(v),
-            ViewCommand::SetLoopRegion { start, end } => super::Command::SetLoopRegion { start, end },
+            ViewCommand::SetLoopRegion { start, end } => {
+                super::Command::SetLoopRegion { start, end }
+            },
             ViewCommand::ToggleCollapseActor(v) => super::Command::ToggleCollapseActor(v),
             ViewCommand::TogglePropertyLane(v) => super::Command::TogglePropertyLane(v),
             ViewCommand::SetPreviewZoom(v) => super::Command::SetPreviewZoom(v),
-            ViewCommand::SetPreviewZoomCentered { zoom, center_x, center_y } => {
-                super::Command::SetPreviewZoomCentered { zoom, center_x, center_y }
-            }
+            ViewCommand::SetPreviewZoomCentered {
+                zoom,
+                center_x,
+                center_y,
+            } => super::Command::SetPreviewZoomCentered {
+                zoom,
+                center_x,
+                center_y,
+            },
             ViewCommand::SetPreviewPan(v) => super::Command::SetPreviewPan(v),
             ViewCommand::SetToolMode(v) => super::Command::SetToolMode(v),
             ViewCommand::SetSidebarTab(v) => super::Command::SetSidebarTab(v),
@@ -50,7 +58,7 @@ impl From<ViewCommand> for super::Command {
             ViewCommand::SetKeyframeViewMode(v) => super::Command::SetKeyframeViewMode(v),
             ViewCommand::SetPivotOffset { actor, offset } => {
                 super::Command::SetPivotOffset { actor, offset }
-            }
+            },
         }
     }
 }

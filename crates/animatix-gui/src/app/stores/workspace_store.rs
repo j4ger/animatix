@@ -1,5 +1,5 @@
-use crate::hot_reload::HotReloader;
 use crate::app::FileTreeEntry;
+use crate::hot_reload::HotReloader;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::Instant;

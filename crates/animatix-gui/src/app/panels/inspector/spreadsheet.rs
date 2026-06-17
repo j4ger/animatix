@@ -16,15 +16,26 @@ use animatix::timeline::{AnimationTrack, SceneDimensions, Timeline, lookup_prope
 
 use super::PropertyViewMode;
 use crate::app::commands::{
-    ActionQueue, ActorCommand, Command, DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue, ShellAction,
+    ActionQueue, ActorCommand, Command, DocumentCommand, PropertyEdit,
+    PropertyValue as GuiPropertyValue, ShellAction,
 };
 use crate::app::components::layout;
-use crate::app::design_tokens::semantic::accent::{PRIMARY as semantic_accent_primary, selection as semantic_accent_selection};
+use crate::app::design_tokens::semantic::accent::{
+    PRIMARY as semantic_accent_primary, selection as semantic_accent_selection,
+};
 use crate::app::design_tokens::semantic::status::WARNING as semantic_status_warning;
-use crate::app::design_tokens::semantic::surface::{HOVER as semantic_surface_hover, SURFACE as semantic_surface_surface};
-use crate::app::design_tokens::semantic::text::{PRIMARY as semantic_text_primary, SECONDARY as semantic_text_secondary, MUTED as semantic_text_muted};
-use crate::app::design_tokens::spatial::{SPACE_2 as spatial_space_s, SPACE_3 as spatial_space_m, SPACE_5 as spatial_space_xl, ROW_S as spatial_row_s, ROW_M as spatial_row_m};
-use crate::app::design_tokens::typography::{TextRole};
+use crate::app::design_tokens::semantic::surface::{
+    HOVER as semantic_surface_hover, SURFACE as semantic_surface_surface,
+};
+use crate::app::design_tokens::semantic::text::{
+    MUTED as semantic_text_muted, PRIMARY as semantic_text_primary,
+    SECONDARY as semantic_text_secondary,
+};
+use crate::app::design_tokens::spatial::{
+    ROW_M as spatial_row_m, ROW_S as spatial_row_s, SPACE_2 as spatial_space_s,
+    SPACE_3 as spatial_space_m, SPACE_5 as spatial_space_xl,
+};
+use crate::app::design_tokens::typography::TextRole;
 
 /// The list of spreadsheet columns (property names).
 ///
@@ -74,13 +85,19 @@ pub(crate) fn render_property_spreadsheet(
         ui.add_space(spatial_space_m);
         ui.add(
             egui::Label::new(
-                RichText::new(egui_phosphor::regular::TABLE).size(TextRole::BodyS.size()).color(semantic_status_warning),
+                RichText::new(egui_phosphor::regular::TABLE)
+                    .size(TextRole::BodyS.size())
+                    .color(semantic_status_warning),
             )
             .selectable(false),
         );
         ui.add(
-            egui::Label::new(RichText::new("Spreadsheet").size(TextRole::BodyS.size()).color(semantic_status_warning))
-                .selectable(false),
+            egui::Label::new(
+                RichText::new("Spreadsheet")
+                    .size(TextRole::BodyS.size())
+                    .color(semantic_status_warning),
+            )
+            .selectable(false),
         );
         ui.add_space(spatial_space_s);
     });
@@ -106,12 +123,18 @@ pub(crate) fn render_property_spreadsheet(
         .on_hover_text("Add a new actor")
         .clicked()
     {
-        commands.push_back(ActorCommand::CreateActor {
-            ty: crate::app::panels::default_actor_type().into(),
-            label: crate::app::utils::labels::unique_label(None, "actor"),
-            position: [scene_dimensions.width as f32 / 2.0, scene_dimensions.height as f32 / 2.0],
-            props: vec![],
-        }.into());
+        commands.push_back(
+            ActorCommand::CreateActor {
+                ty: crate::app::panels::default_actor_type().into(),
+                label: crate::app::utils::labels::unique_label(None, "actor"),
+                position: [
+                    scene_dimensions.width as f32 / 2.0,
+                    scene_dimensions.height as f32 / 2.0,
+                ],
+                props: vec![],
+            }
+            .into(),
+        );
     }
 
     let actors: Vec<&String> = {
@@ -134,7 +157,9 @@ pub(crate) fn render_property_spreadsheet(
             ui.add_space(spatial_space_m);
             ui.add(
                 egui::Label::new(
-                    RichText::new("No actors in scene").size(TextRole::Title.size()).color(semantic_text_secondary),
+                    RichText::new("No actors in scene")
+                        .size(TextRole::Title.size())
+                        .color(semantic_text_secondary),
                 )
                 .selectable(false),
             );
@@ -304,7 +329,9 @@ pub(crate) fn render_property_spreadsheet(
                                             property: prop_name.to_string(),
                                             value: gui_val,
                                             create_keyframe: true,
-                                        }).into());
+                                        })
+                                        .into(),
+                                    );
                                 }
                                 ui.close();
                             }

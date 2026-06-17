@@ -20,11 +20,11 @@ pub fn handle_reorder_scenes(
             document_store.commit_source(new_source, source_index);
             preview_store.preview_dirty = true;
             vec![Effect::Status("Scenes reordered".to_string())]
-        }
+        },
         Err(e) => {
             tracing::warn!("ReorderScenes failed: {e}");
             vec![]
-        }
+        },
     }
 }
 
@@ -72,9 +72,16 @@ pub fn handle_duplicate_scene(
 
     if crate::source_edit::apply_edit(
         stmts,
-        crate::source_edit::SourceEdit::DuplicateScene { name: scene.clone() },
-    ).is_ok() {
-        let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+        crate::source_edit::SourceEdit::DuplicateScene {
+            name: scene.clone(),
+        },
+    )
+    .is_ok()
+    {
+        let (new_source, source_index) = (
+            animatix_syntax::to_source::stmts_to_source(stmts),
+            animatix_syntax::source_index::SourceIndex::build(stmts),
+        );
         document_store.commit_source(new_source, source_index);
         preview_store.preview_dirty = true;
         preview_store.preview.status = format!("Duplicated scene '{}'", scene);
@@ -98,9 +105,16 @@ pub fn handle_delete_scene(
 
     if crate::source_edit::apply_edit(
         stmts,
-        crate::source_edit::SourceEdit::DeleteScene { name: scene.clone() },
-    ).is_ok() {
-        let (new_source, source_index) = (animatix_syntax::to_source::stmts_to_source(stmts), animatix_syntax::source_index::SourceIndex::build(stmts));
+        crate::source_edit::SourceEdit::DeleteScene {
+            name: scene.clone(),
+        },
+    )
+    .is_ok()
+    {
+        let (new_source, source_index) = (
+            animatix_syntax::to_source::stmts_to_source(stmts),
+            animatix_syntax::source_index::SourceIndex::build(stmts),
+        );
         document_store.commit_source(new_source, source_index);
         preview_store.preview_dirty = true;
         ui_store.selection.selected_actors.clear();

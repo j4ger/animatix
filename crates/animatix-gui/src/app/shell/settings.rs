@@ -1,13 +1,13 @@
 use egui::{RichText, Stroke};
 
 use crate::app::components::layout;
-use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
 use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
+use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
+use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
 use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
-use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
-use crate::app::design_tokens::spatial::{STROKE_WIDTH, RADIUS_XL, SPACE_XL, SPACE_M, SPACE_S};
-use crate::app::design_tokens::typography::{TextRole};
+use crate::app::design_tokens::spatial::{RADIUS_XL, SPACE_M, SPACE_S, SPACE_XL, STROKE_WIDTH};
+use crate::app::design_tokens::typography::TextRole;
 
 use crate::app::GuiShell;
 
@@ -18,18 +18,11 @@ impl GuiShell {
         let screen_rect = ui.ctx().viewport_rect();
 
         // Dark semi-transparent backdrop
-        ui.painter().rect_filled(
-            screen_rect,
-            0.0,
-            overlay_backdrop(),
-        );
+        ui.painter().rect_filled(screen_rect, 0.0, overlay_backdrop());
 
         // Capture clicks on backdrop to close
-        let backdrop_response = ui.interact(
-            screen_rect,
-            ui.id().with("settings_backdrop"),
-            egui::Sense::click(),
-        );
+        let backdrop_response =
+            ui.interact(screen_rect, ui.id().with("settings_backdrop"), egui::Sense::click());
         if backdrop_response.clicked() {
             self.ui_store.view.settings_open = false;
         }

@@ -2,25 +2,27 @@ use egui::{Color32, RichText, Stroke, Vec2};
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::app::GuiShell;
+use crate::app::components::layout;
 use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
+use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
+use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
+use crate::app::design_tokens::semantic::status::ERROR as RED;
+use crate::app::design_tokens::semantic::status::SUCCESS as GREEN;
 use crate::app::design_tokens::semantic::status::WARNING as AMBER;
 use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
 use crate::app::design_tokens::semantic::surface::HOVER as BG_HOVER;
 use crate::app::design_tokens::semantic::surface::WIDGET as BG_WIDGET;
-use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
-use crate::app::design_tokens::semantic::status::SUCCESS as GREEN;
-use crate::app::design_tokens::semantic::status::ERROR as RED;
 use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
 use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
-use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
-use crate::app::design_tokens::spatial::{STROKE_WIDTH, RADIUS_XL, RADIUS_M, RADIUS_S, SPACE_XL, SPACE_XS, SPACE_M, SPACE_S, SPACE_L, ROW_L, ROW_M};
-use crate::app::design_tokens::typography::{TextRole};
+use crate::app::design_tokens::spatial::{
+    RADIUS_M, RADIUS_S, RADIUS_XL, ROW_L, ROW_M, SPACE_L, SPACE_M, SPACE_S, SPACE_XL, SPACE_XS,
+    STROKE_WIDTH,
+};
+use crate::app::design_tokens::typography::TextRole;
 use crate::app::document::export_target::ExportScope;
-use crate::app::components::layout;
 use crate::app::utils::text::{truncate_chars, truncate_middle};
-use crate::app::GuiShell;
-
 
 // ─── Export Configuration ───────────────────────────────────────────────────
 
@@ -89,11 +91,7 @@ impl GuiShell {
         let screen_rect = ui.ctx().viewport_rect();
 
         // Dark semi-transparent backdrop
-        ui.painter().rect_filled(
-            screen_rect,
-            0.0,
-            overlay_backdrop(),
-        );
+        ui.painter().rect_filled(screen_rect, 0.0, overlay_backdrop());
 
         let is_running = matches!(self.export_store.export_status, ExportStatus::Running);
 
@@ -120,10 +118,8 @@ impl GuiShell {
         } else {
             (screen_rect.height() * 0.55).clamp(min_h, max_h)
         };
-        let dialog_rect = egui::Rect::from_center_size(
-            screen_rect.center(),
-            Vec2::new(dialog_w, dialog_h),
-        );
+        let dialog_rect =
+            egui::Rect::from_center_size(screen_rect.center(), Vec2::new(dialog_w, dialog_h));
 
         // Dialog background
         ui.painter().rect_filled(dialog_rect, RADIUS_XL, BG_BASE);
@@ -135,11 +131,8 @@ impl GuiShell {
         );
 
         // Lock cursor inside dialog — prevents underlying widgets from changing it
-        let dialog_block = ui.interact(
-            dialog_rect,
-            ui.id().with("export_dialog_block"),
-            egui::Sense::hover(),
-        );
+        let dialog_block =
+            ui.interact(dialog_rect, ui.id().with("export_dialog_block"), egui::Sense::hover());
         if dialog_block.hovered() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::Default);
         }
@@ -165,8 +158,13 @@ impl GuiShell {
                 egui::pos2(content_rect.right() - close_size.x, cursor_y),
                 close_size,
             );
-            let close_resp = ui.interact(close_rect, ui.id().with("export_close"), egui::Sense::click());
-            let close_color = if close_resp.hovered() { TEXT_PRIMARY } else { TEXT_MUTED };
+            let close_resp =
+                ui.interact(close_rect, ui.id().with("export_close"), egui::Sense::click());
+            let close_color = if close_resp.hovered() {
+                TEXT_PRIMARY
+            } else {
+                TEXT_MUTED
+            };
             ui.painter().text(
                 close_rect.center(),
                 egui::Align2::CENTER_CENTER,
@@ -204,7 +202,9 @@ impl GuiShell {
                 Vec2::new(content_rect.width(), ROW_M),
             );
             ui.scope_builder(egui::UiBuilder::new().max_rect(tab_rect), |ui| {
-                if let Some(new_fmt) = layout::pill_tab_bar(ui, self.export_store.export_state.format, &tabs) {
+                if let Some(new_fmt) =
+                    layout::pill_tab_bar(ui, self.export_store.export_state.format, &tabs)
+                {
                     self.export_store.export_state.format = new_fmt;
                     if self.export_store.export_state.output_path.is_empty() {
                         self.update_default_export_filename();
@@ -237,11 +237,7 @@ impl GuiShell {
 
     // ─── Progress Overlay ─────────────────────────────────────────────────────
 
-    fn render_export_progress_overlay(
-        &mut self,
-        ui: &mut egui::Ui,
-        dialog_rect: egui::Rect,
-    ) {
+    fn render_export_progress_overlay(&mut self, ui: &mut egui::Ui, dialog_rect: egui::Rect) {
         // Keep spinner animating
         ui.ctx().request_repaint();
 
@@ -256,8 +252,7 @@ impl GuiShell {
         let base_alpha = AMBER.a();
         for i in 0..n_dots {
             let angle = (i as f32 / n_dots as f32) * std::f32::consts::TAU - (time * 3.0) as f32;
-            let pos = spinner_center
-                + Vec2::new(angle.cos() * radius, angle.sin() * radius);
+            let pos = spinner_center + Vec2::new(angle.cos() * radius, angle.sin() * radius);
             let fade = ((i as f32) / (n_dots as f32 - 1.0)).clamp(0.0, 1.0);
             let alpha = (fade * base_alpha as f32) as u8;
             ui.painter().circle_filled(
@@ -309,15 +304,15 @@ impl GuiShell {
         ui.painter().rect_filled(bar_rect, bar_h * 0.5, BG_WIDGET);
         // Fill
         if pct > 0.0 {
-            let fill_rect = egui::Rect::from_min_size(
-                bar_rect.min,
-                Vec2::new(bar_w * pct, bar_h),
-            );
+            let fill_rect = egui::Rect::from_min_size(bar_rect.min, Vec2::new(bar_w * pct, bar_h));
             ui.painter().rect_filled(fill_rect, bar_h * 0.5, AMBER);
         }
 
         // Frame count / percentage text
-        let progress_text = if matches!(self.export_store.export_state.format, ExportFormat::Image | ExportFormat::WebP) {
+        let progress_text = if matches!(
+            self.export_store.export_state.format,
+            ExportFormat::Image | ExportFormat::WebP
+        ) {
             "Frame 1/1".to_string()
         } else {
             format!("Frame {}/{}  ({:.0}%)", progress.min(total), total, pct * 100.0)
@@ -352,18 +347,33 @@ impl GuiShell {
             btn_size,
         );
         let btn_resp = ui.interact(btn_rect, ui.id().with("export_cancel"), egui::Sense::click());
-        let btn_bg = if btn_resp.hovered() { BG_HOVER } else { BG_WIDGET };
+        let btn_bg = if btn_resp.hovered() {
+            BG_HOVER
+        } else {
+            BG_WIDGET
+        };
         ui.painter().rect_filled(btn_rect, RADIUS_M, btn_bg);
-        ui.painter().rect_stroke(btn_rect, RADIUS_M, Stroke::new(STROKE_WIDTH, BORDER), egui::StrokeKind::Inside);
+        ui.painter().rect_stroke(
+            btn_rect,
+            RADIUS_M,
+            Stroke::new(STROKE_WIDTH, BORDER),
+            egui::StrokeKind::Inside,
+        );
         ui.painter().text(
             btn_rect.center(),
             egui::Align2::CENTER_CENTER,
             "Cancel",
             TextRole::Body.font_id(),
-            if btn_resp.hovered() { TEXT_PRIMARY } else { TEXT_SECONDARY },
+            if btn_resp.hovered() {
+                TEXT_PRIMARY
+            } else {
+                TEXT_SECONDARY
+            },
         );
         if btn_resp.clicked() {
-            self.export_store.export_cancelled.store(true, std::sync::atomic::Ordering::Relaxed);
+            self.export_store
+                .export_cancelled
+                .store(true, std::sync::atomic::Ordering::Relaxed);
             self.export_store.export_status = ExportStatus::Idle;
             self.export_store.export_dialog_open = false;
         }
@@ -379,7 +389,8 @@ impl GuiShell {
         } else {
             ExportScope::ActiveScene
         };
-        let timeline_duration = self.document_store
+        let timeline_duration = self
+            .document_store
             .source
             .document
             .export_target(scope)
@@ -501,8 +512,11 @@ impl GuiShell {
                             *time_s = current_time;
                         }
                     });
-                }
-                ExportFormat::Video | ExportFormat::Gif | ExportFormat::WebM | ExportFormat::Mov => {
+                },
+                ExportFormat::Video
+                | ExportFormat::Gif
+                | ExportFormat::WebM
+                | ExportFormat::Mov => {
                     // FPS
                     Self::settings_row(ui, "FPS", |ui| {
                         let mut fps_f32 = *fps as f32;
@@ -520,11 +534,18 @@ impl GuiShell {
                     // Duration mode
                     let auto_prev = *auto_duration;
                     Self::settings_row(ui, "Duration", |ui| {
-                        ui.checkbox(auto_duration, RichText::new("Auto").size(TextRole::BodyS.size()));
+                        ui.checkbox(
+                            auto_duration,
+                            RichText::new("Auto").size(TextRole::BodyS.size()),
+                        );
 
                         if *auto_duration {
                             ui.add_space(SPACE_S);
-                            ui.label(RichText::new("Hold:").size(TextRole::BodyS.size()).color(TEXT_SECONDARY));
+                            ui.label(
+                                RichText::new("Hold:")
+                                    .size(TextRole::BodyS.size())
+                                    .color(TEXT_SECONDARY),
+                            );
 
                             let mut hold = *hold_s;
                             layout::field_sized(ui, Some(80.0), |ui| {
@@ -575,7 +596,7 @@ impl GuiShell {
                                 .color(TEXT_MUTED),
                         );
                     }
-                }
+                },
             }
 
             ui.add_space(SPACE_S);
@@ -584,10 +605,7 @@ impl GuiShell {
             Self::settings_row(ui, "Output", |ui| {
                 let path_width = ui.available_width();
                 layout::field_sized(ui, Some(path_width), |ui| {
-                    ui.add(
-                        egui::TextEdit::singleline(output_path)
-                            .hint_text("output filename…"),
-                    );
+                    ui.add(egui::TextEdit::singleline(output_path).hint_text("output filename…"));
                 });
             });
         }
@@ -598,8 +616,16 @@ impl GuiShell {
                 ui.label("Export:");
                 let mut scope = self.export_store.export_state.export_scope.clone();
                 let mut changed = false;
-                changed |= ui.selectable_value(&mut scope, ExportScope::ActiveScene, "Active Scene").clicked();
-                changed |= ui.selectable_value(&mut scope, ExportScope::WholeComposition, "Whole Composition").clicked();
+                changed |= ui
+                    .selectable_value(&mut scope, ExportScope::ActiveScene, "Active Scene")
+                    .clicked();
+                changed |= ui
+                    .selectable_value(
+                        &mut scope,
+                        ExportScope::WholeComposition,
+                        "Whole Composition",
+                    )
+                    .clicked();
                 if changed {
                     self.export_store.export_state.export_scope = scope;
                     self.update_default_export_filename();
@@ -620,14 +646,11 @@ impl GuiShell {
     }
 
     /// Render a settings row with a left-aligned label and right-aligned content.
-    fn settings_row(
-        ui: &mut egui::Ui,
-        label: &str,
-        add_content: impl FnOnce(&mut egui::Ui),
-    ) {
+    fn settings_row(ui: &mut egui::Ui, label: &str, add_content: impl FnOnce(&mut egui::Ui)) {
         let available = ui.available_width();
         let row_h = ROW_M;
-        let (row_rect, _) = ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
+        let (row_rect, _) =
+            ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
 
         let label_width = (available * 0.32).clamp(70.0, 110.0);
         let content_left = row_rect.min.x + label_width + SPACE_L;
@@ -670,7 +693,7 @@ impl GuiShell {
         ui.horizontal(|ui| {
             // Status message (left side)
             match &self.export_store.export_status {
-                ExportStatus::Idle => {}
+                ExportStatus::Idle => {},
                 ExportStatus::Complete { path } => {
                     let path_str = path.display().to_string();
                     let label = truncate_middle(&path_str, 15, 15);
@@ -685,22 +708,26 @@ impl GuiShell {
                     if resp.interact(egui::Sense::click()).clicked() {
                         self.export_store.export_status = ExportStatus::Idle;
                     }
-                }
+                },
                 ExportStatus::Failed(err) => {
                     let truncated = truncate_chars(err, 37);
                     let resp = ui.add(
                         egui::Label::new(
-                            RichText::new(format!("{} {}", egui_phosphor::regular::WARNING, truncated))
-                                .size(TextRole::BodyS.size())
-                                .color(RED),
+                            RichText::new(format!(
+                                "{} {}",
+                                egui_phosphor::regular::WARNING,
+                                truncated
+                            ))
+                            .size(TextRole::BodyS.size())
+                            .color(RED),
                         )
                         .selectable(false),
                     );
                     if resp.interact(egui::Sense::click()).clicked() {
                         self.export_store.export_status = ExportStatus::Idle;
                     }
-                }
-                ExportStatus::Running => {}
+                },
+                ExportStatus::Running => {},
             }
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -772,18 +799,22 @@ impl GuiShell {
         let target = match self.document_store.source.document.export_target(scope) {
             Some(t) => t,
             None => {
-                self.export_store.export_status = ExportStatus::Failed("No timeline or composition to export".into());
+                self.export_store.export_status =
+                    ExportStatus::Failed("No timeline or composition to export".into());
                 return;
-            }
+            },
         };
 
         let cloned_target = match target {
             crate::app::document::export_target::ExportTargetRef::Timeline { timeline, .. } => {
                 crate::app::document::export_target::ExportTargetOwned::Timeline(timeline.clone())
-            }
-            crate::app::document::export_target::ExportTargetRef::Composition { composition, .. } => {
-                crate::app::document::export_target::ExportTargetOwned::Composition(composition.clone())
-            }
+            },
+            crate::app::document::export_target::ExportTargetRef::Composition {
+                composition,
+                ..
+            } => crate::app::document::export_target::ExportTargetOwned::Composition(
+                composition.clone(),
+            ),
         };
 
         let effective_duration_s = target.duration_s();
@@ -791,7 +822,10 @@ impl GuiShell {
         // Keep the full export target for dispatch below.
         // Timeline targets go to render_*_timeline_with_progress,
         // Composition targets go to render_*_composition_with_progress.
-        let has_composition = matches!(cloned_target, crate::app::document::export_target::ExportTargetOwned::Composition(_));
+        let has_composition = matches!(
+            cloned_target,
+            crate::app::document::export_target::ExportTargetOwned::Composition(_)
+        );
 
         let state = self.export_store.export_state.clone();
         let output_path = if state.output_path.is_empty() {
@@ -806,13 +840,15 @@ impl GuiShell {
             return;
         }
         if state.width > 8192 || state.height > 8192 {
-            self.export_store.export_status = ExportStatus::Failed("Resolution exceeds 8192px limit".into());
+            self.export_store.export_status =
+                ExportStatus::Failed("Resolution exceeds 8192px limit".into());
             return;
         }
         match state.format {
             ExportFormat::Video | ExportFormat::Gif | ExportFormat::WebM | ExportFormat::Mov => {
                 if state.fps == 0 {
-                    self.export_store.export_status = ExportStatus::Failed("FPS must be > 0".into());
+                    self.export_store.export_status =
+                        ExportStatus::Failed("FPS must be > 0".into());
                     return;
                 }
                 let duration = if state.auto_duration {
@@ -822,11 +858,12 @@ impl GuiShell {
                     state.duration_s
                 };
                 if duration <= 0.0 {
-                    self.export_store.export_status = ExportStatus::Failed("Duration must be > 0".into());
+                    self.export_store.export_status =
+                        ExportStatus::Failed("Duration must be > 0".into());
                     return;
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
         if output_path.as_os_str().is_empty() {
             self.export_store.export_status = ExportStatus::Failed("Output path is empty".into());
@@ -834,9 +871,8 @@ impl GuiShell {
         }
         if let Some(parent) = output_path.parent() {
             if !parent.exists() {
-                self.export_store.export_status = ExportStatus::Failed(
-                    format!("Directory does not exist: {}", parent.display()),
-                );
+                self.export_store.export_status =
+                    ExportStatus::Failed(format!("Directory does not exist: {}", parent.display()));
                 return;
             }
         }
@@ -850,7 +886,9 @@ impl GuiShell {
 
         // Reset progress / cancel state
         self.export_store.export_progress.store(0, std::sync::atomic::Ordering::Relaxed);
-        self.export_store.export_cancelled.store(false, std::sync::atomic::Ordering::Relaxed);
+        self.export_store
+            .export_cancelled
+            .store(false, std::sync::atomic::Ordering::Relaxed);
         self.export_store.export_start_time = Some(std::time::Instant::now());
         self.export_store.export_status = ExportStatus::Running;
 
@@ -865,7 +903,7 @@ impl GuiShell {
                     state.duration_s
                 };
                 (duration * state.fps as f32).ceil() as u32
-            }
+            },
         };
 
         let result_path = output_path.clone();
@@ -878,24 +916,36 @@ impl GuiShell {
                 ExportFormat::Image | ExportFormat::WebP => {
                     if has_composition {
                         match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Composition(comp) => {
-                                animatix::renderer::render_image_composition(
-                                    comp, state.width, state.height, state.time_s, &output_path,
-                                )
-                            }
+                            crate::app::document::export_target::ExportTargetOwned::Composition(
+                                comp,
+                            ) => animatix::renderer::render_image_composition(
+                                comp,
+                                state.width,
+                                state.height,
+                                state.time_s,
+                                &output_path,
+                            ),
                             _ => unreachable!(),
                         }
                     } else {
                         let timeline = match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => t.clone(),
+                            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => {
+                                t.clone()
+                            },
                             _ => unreachable!(),
                         };
                         animatix::renderer::render_image_timeline_with_progress(
-                            timeline, state.width, state.height, state.time_s, &output_path,
-                            debug, progress_ref, cancel_ref,
+                            timeline,
+                            state.width,
+                            state.height,
+                            state.time_s,
+                            &output_path,
+                            debug,
+                            progress_ref,
+                            cancel_ref,
                         )
                     }
-                }
+                },
                 ExportFormat::Video => {
                     let duration = if state.auto_duration {
                         let d = effective_duration_s as f32 + state.hold_s.max(0.0);
@@ -905,30 +955,43 @@ impl GuiShell {
                     };
                     if has_composition {
                         match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Composition(comp) => {
-                                animatix::renderer::render_video_composition_with_progress(
-                                    comp, state.width, state.height, state.fps, duration,
-                                    &output_path, debug,
-                                    animatix::renderer::ExportSettings::default(),
-                                    progress_ref, cancel_ref,
-                                )
-                            }
+                            crate::app::document::export_target::ExportTargetOwned::Composition(
+                                comp,
+                            ) => animatix::renderer::render_video_composition_with_progress(
+                                comp,
+                                state.width,
+                                state.height,
+                                state.fps,
+                                duration,
+                                &output_path,
+                                debug,
+                                animatix::renderer::ExportSettings::default(),
+                                progress_ref,
+                                cancel_ref,
+                            ),
                             _ => unreachable!(),
                         }
                     } else {
                         let timeline = match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => t.clone(),
+                            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => {
+                                t.clone()
+                            },
                             _ => unreachable!(),
                         };
                         animatix::renderer::render_video_timeline_with_progress(
-                            timeline, state.width, state.height, state.fps, duration,
-                            &output_path, debug,
+                            timeline,
+                            state.width,
+                            state.height,
+                            state.fps,
+                            duration,
+                            &output_path,
+                            debug,
                             animatix::renderer::ExportSettings::default(),
                             progress_ref,
                             cancel_ref,
                         )
                     }
-                }
+                },
                 ExportFormat::WebM => {
                     let duration = if state.auto_duration {
                         let d = effective_duration_s as f32 + state.hold_s.max(0.0);
@@ -938,27 +1001,40 @@ impl GuiShell {
                     };
                     if has_composition {
                         match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Composition(comp) => {
-                                animatix::renderer::render_video_composition_with_progress(
-                                    comp, state.width, state.height, state.fps, duration,
-                                    &output_path, debug,
-                                    animatix::renderer::ExportSettings {
-                                        video_codec: animatix::renderer::VideoCodec::Vp9,
-                                        ..Default::default()
-                                    },
-                                    progress_ref, cancel_ref,
-                                )
-                            }
+                            crate::app::document::export_target::ExportTargetOwned::Composition(
+                                comp,
+                            ) => animatix::renderer::render_video_composition_with_progress(
+                                comp,
+                                state.width,
+                                state.height,
+                                state.fps,
+                                duration,
+                                &output_path,
+                                debug,
+                                animatix::renderer::ExportSettings {
+                                    video_codec: animatix::renderer::VideoCodec::Vp9,
+                                    ..Default::default()
+                                },
+                                progress_ref,
+                                cancel_ref,
+                            ),
                             _ => unreachable!(),
                         }
                     } else {
                         let timeline = match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => t.clone(),
+                            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => {
+                                t.clone()
+                            },
                             _ => unreachable!(),
                         };
                         animatix::renderer::render_video_timeline_with_progress(
-                            timeline, state.width, state.height, state.fps, duration,
-                            &output_path, debug,
+                            timeline,
+                            state.width,
+                            state.height,
+                            state.fps,
+                            duration,
+                            &output_path,
+                            debug,
                             animatix::renderer::ExportSettings {
                                 video_codec: animatix::renderer::VideoCodec::Vp9,
                                 ..Default::default()
@@ -967,7 +1043,7 @@ impl GuiShell {
                             cancel_ref,
                         )
                     }
-                }
+                },
                 ExportFormat::Mov => {
                     let duration = if state.auto_duration {
                         let d = effective_duration_s as f32 + state.hold_s.max(0.0);
@@ -977,30 +1053,43 @@ impl GuiShell {
                     };
                     if has_composition {
                         match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Composition(comp) => {
-                                animatix::renderer::render_video_composition_with_progress(
-                                    comp, state.width, state.height, state.fps, duration,
-                                    &output_path, debug,
-                                    animatix::renderer::ExportSettings::default(),
-                                    progress_ref, cancel_ref,
-                                )
-                            }
+                            crate::app::document::export_target::ExportTargetOwned::Composition(
+                                comp,
+                            ) => animatix::renderer::render_video_composition_with_progress(
+                                comp,
+                                state.width,
+                                state.height,
+                                state.fps,
+                                duration,
+                                &output_path,
+                                debug,
+                                animatix::renderer::ExportSettings::default(),
+                                progress_ref,
+                                cancel_ref,
+                            ),
                             _ => unreachable!(),
                         }
                     } else {
                         let timeline = match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => t.clone(),
+                            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => {
+                                t.clone()
+                            },
                             _ => unreachable!(),
                         };
                         animatix::renderer::render_video_timeline_with_progress(
-                            timeline, state.width, state.height, state.fps, duration,
-                            &output_path, debug,
+                            timeline,
+                            state.width,
+                            state.height,
+                            state.fps,
+                            duration,
+                            &output_path,
+                            debug,
                             animatix::renderer::ExportSettings::default(),
                             progress_ref,
                             cancel_ref,
                         )
                     }
-                }
+                },
                 ExportFormat::Gif => {
                     let duration = if state.auto_duration {
                         let d = effective_duration_s as f32 + state.hold_s.max(0.0);
@@ -1010,30 +1099,43 @@ impl GuiShell {
                     };
                     if has_composition {
                         match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Composition(comp) => {
-                                animatix::renderer::render_gif_composition_with_progress(
-                                    comp, state.width, state.height, state.fps, duration,
-                                    &output_path, debug,
-                                    animatix::renderer::ExportSettings::default(),
-                                    progress_ref, cancel_ref,
-                                )
-                            }
+                            crate::app::document::export_target::ExportTargetOwned::Composition(
+                                comp,
+                            ) => animatix::renderer::render_gif_composition_with_progress(
+                                comp,
+                                state.width,
+                                state.height,
+                                state.fps,
+                                duration,
+                                &output_path,
+                                debug,
+                                animatix::renderer::ExportSettings::default(),
+                                progress_ref,
+                                cancel_ref,
+                            ),
                             _ => unreachable!(),
                         }
                     } else {
                         let timeline = match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => t.clone(),
+                            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => {
+                                t.clone()
+                            },
                             _ => unreachable!(),
                         };
                         animatix::renderer::render_gif_timeline_with_progress(
-                            timeline, state.width, state.height, state.fps, duration,
-                            &output_path, debug,
+                            timeline,
+                            state.width,
+                            state.height,
+                            state.fps,
+                            duration,
+                            &output_path,
+                            debug,
                             animatix::renderer::ExportSettings::default(),
                             progress_ref,
                             cancel_ref,
                         )
                     }
-                }
+                },
             };
             (result, result_path)
         });

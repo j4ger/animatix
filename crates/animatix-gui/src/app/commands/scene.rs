@@ -25,15 +25,19 @@ impl From<SceneCommand> for super::Command {
         match c {
             SceneCommand::SelectScene(v) => super::Command::SelectScene(v),
             SceneCommand::ReorderScenes(v) => super::Command::ReorderScenes(v),
-            SceneCommand::SetTransition { from_scene, transition } => {
-                super::Command::SetTransition { from_scene, transition }
-            }
+            SceneCommand::SetTransition {
+                from_scene,
+                transition,
+            } => super::Command::SetTransition {
+                from_scene,
+                transition,
+            },
             SceneCommand::SetPlayTarget { from_scene, target } => {
                 super::Command::SetPlayTarget { from_scene, target }
-            }
+            },
             SceneCommand::SetSceneDuration { scene, duration_s } => {
                 super::Command::SetSceneDuration { scene, duration_s }
-            }
+            },
             SceneCommand::DuplicateScene(v) => super::Command::DuplicateScene(v),
             SceneCommand::DeleteScene(v) => super::Command::DeleteScene(v),
         }

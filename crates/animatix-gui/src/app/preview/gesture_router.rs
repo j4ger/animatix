@@ -1,5 +1,5 @@
-use egui::{Rect, Response, Ui};
 use super::context::PreviewContext;
+use egui::{Rect, Response, Ui};
 
 /// Routes raw egui pointer events into typed Gestures and dispatches them to handlers.
 pub struct GestureRouter;
@@ -19,11 +19,6 @@ impl GestureRouter {
     ) {
         // Phase 1: Delegate entirely to the legacy drag handler.
         // Gesture handlers will be extracted incrementally in Steps 3-7.
-        super::drag_handler::handle_preview_drag(
-            ctx,
-            ui,
-            preview_rect,
-            response,
-        );
+        super::drag_handler::handle_preview_drag(ctx, ui, preview_rect, response);
     }
 }

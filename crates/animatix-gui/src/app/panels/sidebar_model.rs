@@ -6,10 +6,10 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use crate::app::FileTreeEntry;
-use crate::app::panels::SidebarTab;
 use crate::app::PreviewPaneState;
+use crate::app::panels::SidebarTab;
+use animatix::timeline::{SceneDimensions, Timeline};
 use animatix_syntax::diagnostics::Diagnostic;
-use animatix::timeline::{Timeline, SceneDimensions};
 
 /// Immutable view model for the sidebar panel.
 #[allow(dead_code)]

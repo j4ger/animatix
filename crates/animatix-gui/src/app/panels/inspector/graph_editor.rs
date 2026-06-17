@@ -7,12 +7,23 @@ use crate::app::commands::ActionQueue;
 use crate::app::design_tokens::semantic::accent::PRIMARY as semantic_accent_primary;
 use crate::app::design_tokens::semantic::border::DEFAULT as semantic_border_default;
 use crate::app::design_tokens::semantic::canvas::grid_line as semantic_canvas_grid_line;
-use crate::app::design_tokens::semantic::curve::{GREEN as semantic_curve_green, BLUE as semantic_curve_blue, GRAY as semantic_curve_gray};
-use crate::app::design_tokens::semantic::status::{ERROR as semantic_status_error, WARNING as semantic_status_warning};
-use crate::app::design_tokens::semantic::surface::{BASE as semantic_surface_base, HOVER as semantic_surface_hover};
-use crate::app::design_tokens::semantic::text::{MUTED as semantic_text_muted, SECONDARY as semantic_text_secondary, DISABLED as semantic_text_disabled};
-use crate::app::design_tokens::spatial::{RADIUS_S, RADIUS_M, STROKE_WIDTH, SPACE_2 as spatial_space_s, SPACE_3 as spatial_space_m};
-use crate::app::design_tokens::typography::{TextRole};
+use crate::app::design_tokens::semantic::curve::{
+    BLUE as semantic_curve_blue, GRAY as semantic_curve_gray, GREEN as semantic_curve_green,
+};
+use crate::app::design_tokens::semantic::status::{
+    ERROR as semantic_status_error, WARNING as semantic_status_warning,
+};
+use crate::app::design_tokens::semantic::surface::{
+    BASE as semantic_surface_base, HOVER as semantic_surface_hover,
+};
+use crate::app::design_tokens::semantic::text::{
+    DISABLED as semantic_text_disabled, MUTED as semantic_text_muted,
+    SECONDARY as semantic_text_secondary,
+};
+use crate::app::design_tokens::spatial::{
+    RADIUS_M, RADIUS_S, SPACE_2 as spatial_space_s, SPACE_3 as spatial_space_m, STROKE_WIDTH,
+};
+use crate::app::design_tokens::typography::TextRole;
 use animatix::timeline::{
     AnimationTrack, ValueType, property_keyframe_easing, property_keyframe_times,
     read_property_value,
@@ -316,7 +327,11 @@ pub fn render_multi_fcurve(
             let size = if is_current { 4.0 } else { 2.5 };
             painter.circle_filled(p, size, curve.color);
             if is_current {
-                painter.circle_stroke(p, size + 2.0, Stroke::new(STROKE_WIDTH, semantic_status_warning));
+                painter.circle_stroke(
+                    p,
+                    size + 2.0,
+                    Stroke::new(STROKE_WIDTH, semantic_status_warning),
+                );
             }
         }
     }

@@ -3,16 +3,16 @@
 //! Handles hover preview, click cycling through overlapping actors,
 //! and right-click context menu for explicit selection.
 
-use std::collections::HashSet;
 use super::*;
-use crate::app::components::context_menu::{render_floating_menu, MenuEntry};
+use crate::app::components::context_menu::{MenuEntry, render_floating_menu};
 use crate::app::design_tokens::semantic::accent::{ghost as accent_ghost, strong as accent_strong};
 use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
-use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::semantic::overlay::badge_bg;
+use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use egui::{Pos2, Vec2};
+use std::collections::HashSet;
 
 // ─── Selection State ────────────────────────────────────────────────────────
 
@@ -191,12 +191,8 @@ pub(crate) fn draw_context_menu(
         }))
         .collect();
 
-    let (clicked_idx, menu_rect) = render_floating_menu(
-        ui.ctx(),
-        egui::Id::new("selection_context_menu"),
-        menu_pos,
-        &entries,
-    );
+    let (clicked_idx, menu_rect) =
+        render_floating_menu(ui.ctx(), egui::Id::new("selection_context_menu"), menu_pos, &entries);
 
     let selected = clicked_idx.and_then(|idx| {
         // Subtract 2 for header + separator
@@ -234,14 +230,8 @@ pub(crate) fn draw_hover_highlight(
         while pos < total {
             let t0 = pos / total;
             let t1 = ((pos + dash_len).min(total)) / total;
-            let p0 = Pos2::new(
-                start.x + (end.x - start.x) * t0,
-                start.y + (end.y - start.y) * t0,
-            );
-            let p1 = Pos2::new(
-                start.x + (end.x - start.x) * t1,
-                start.y + (end.y - start.y) * t1,
-            );
+            let p0 = Pos2::new(start.x + (end.x - start.x) * t0, start.y + (end.y - start.y) * t0);
+            let p1 = Pos2::new(start.x + (end.x - start.x) * t1, start.y + (end.y - start.y) * t1);
             painter.line_segment([p0, p1], Stroke::new(STROKE_WIDTH, hover_color));
             pos += dash_len + gap_len;
         }
@@ -249,20 +239,13 @@ pub(crate) fn draw_hover_highlight(
 
     // Tooltip with actor name
     let tooltip_pos = egui::pos2(hover_rect.center().x, hover_rect.top() - 20.0);
-    let galley = painter.layout_no_wrap(
-        hovered_actor.to_string(),
-        TextRole::BodyS.font_id(),
-        TEXT_PRIMARY,
-    );
+    let galley =
+        painter.layout_no_wrap(hovered_actor.to_string(), TextRole::BodyS.font_id(), TEXT_PRIMARY);
     let tooltip_size = galley.size();
     let tooltip_rect =
         egui::Rect::from_center_size(tooltip_pos, tooltip_size + Vec2::new(8.0, 4.0));
 
-    painter.rect_filled(
-        tooltip_rect,
-        RADIUS_M,
-        badge_bg(),
-    );
+    painter.rect_filled(tooltip_rect, RADIUS_M, badge_bg());
     painter.rect_stroke(
         tooltip_rect,
         RADIUS_M,
@@ -292,24 +275,12 @@ pub(crate) fn draw_cycle_indicator(
     let indicator_text = format!("{}/{}", cycle_index + 1, total_candidates);
     let indicator_pos = egui::pos2(mouse_pos.x + 16.0, mouse_pos.y - 8.0);
 
-    let galley = painter.layout_no_wrap(
-        indicator_text,
-        TextRole::BodyS.font_id(),
-        TEXT_PRIMARY,
-    );
+    let galley = painter.layout_no_wrap(indicator_text, TextRole::BodyS.font_id(), TEXT_PRIMARY);
     let size = galley.size();
     let rect = egui::Rect::from_center_size(indicator_pos, size + Vec2::new(6.0, 3.0));
 
-    painter.rect_filled(
-        rect,
-        RADIUS_M,
-        accent_strong(),
-    );
-    painter.galley(
-        rect.left_center() + Vec2::new(3.0, -size.y / 2.0),
-        galley,
-        TEXT_PRIMARY,
-    );
+    painter.rect_filled(rect, RADIUS_M, accent_strong());
+    painter.galley(rect.left_center() + Vec2::new(3.0, -size.y / 2.0), galley, TEXT_PRIMARY);
 }
 
 #[cfg(test)]

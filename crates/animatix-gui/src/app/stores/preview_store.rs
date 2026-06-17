@@ -1,6 +1,6 @@
+use crate::app::PreviewPaneState;
 use crate::app::document::rebuild::RebuildToken;
 use crate::app::preview::performance::PerformanceMetrics;
-use crate::app::PreviewPaneState;
 use std::time::Instant;
 
 /// Owns the preview pane state, playback timing, and pending rebuild scheduling.
@@ -46,7 +46,13 @@ mod tests {
 
     #[test]
     fn preview_store_new_creates_valid_store() {
-        let preview = PreviewPaneState::new(5.0, SceneDimensions { width: 1920, height: 1080 });
+        let preview = PreviewPaneState::new(
+            5.0,
+            SceneDimensions {
+                width: 1920,
+                height: 1080,
+            },
+        );
         let store = PreviewStore::new(preview);
 
         assert!(store.preview_dirty);
@@ -55,29 +61,59 @@ mod tests {
 
     #[test]
     fn preview_pane_state_defaults_current_time_s() {
-        let preview = PreviewPaneState::new(5.0, SceneDimensions { width: 1920, height: 1080 });
+        let preview = PreviewPaneState::new(
+            5.0,
+            SceneDimensions {
+                width: 1920,
+                height: 1080,
+            },
+        );
         assert_eq!(preview.playback.current_time_s(), 0.0);
     }
 
     #[test]
     fn preview_pane_state_defaults_is_playing_false() {
-        let preview = PreviewPaneState::new(5.0, SceneDimensions { width: 1920, height: 1080 });
+        let preview = PreviewPaneState::new(
+            5.0,
+            SceneDimensions {
+                width: 1920,
+                height: 1080,
+            },
+        );
         assert!(!preview.playback.is_playing);
     }
 
     #[test]
     fn preview_pane_state_defaults_playback_speed() {
-        let preview = PreviewPaneState::new(5.0, SceneDimensions { width: 1920, height: 1080 });
+        let preview = PreviewPaneState::new(
+            5.0,
+            SceneDimensions {
+                width: 1920,
+                height: 1080,
+            },
+        );
         assert_eq!(preview.playback.playback_speed, 1.0);
     }
 
     #[test]
     fn preview_store_is_playing_delegates_to_preview() {
-        let preview = PreviewPaneState::new(5.0, SceneDimensions { width: 1920, height: 1080 });
+        let preview = PreviewPaneState::new(
+            5.0,
+            SceneDimensions {
+                width: 1920,
+                height: 1080,
+            },
+        );
         let store = PreviewStore::new(preview);
         assert!(!store.is_playing());
 
-        let mut playing_preview = PreviewPaneState::new(5.0, SceneDimensions { width: 1920, height: 1080 });
+        let mut playing_preview = PreviewPaneState::new(
+            5.0,
+            SceneDimensions {
+                width: 1920,
+                height: 1080,
+            },
+        );
         playing_preview.playback.is_playing = true;
         let store = PreviewStore::new(playing_preview);
         assert!(store.is_playing());

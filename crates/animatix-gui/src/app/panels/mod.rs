@@ -5,16 +5,16 @@
 //! canvas interaction. `shell/` owns modal dialogs and floating overlays.
 
 pub mod behavior;
-pub mod inspector;
-pub mod timeline_panel;
-pub(crate) mod preview_model;
-pub(crate) mod timeline_model;
-pub(crate) mod sidebar_model;
 pub(crate) mod editor_model;
+pub mod inspector;
+pub(crate) mod preview_model;
+pub(crate) mod sidebar_model;
+pub(crate) mod timeline_model;
+pub mod timeline_panel;
 
-pub mod sidebar;
 pub mod editor;
 pub mod preview_panel;
+pub mod sidebar;
 
 pub use crate::app::commands::{PropertyEdit, PropertyValue};
 use animatix::primitives;
@@ -33,9 +33,7 @@ pub(crate) enum SidebarTab {
 pub(crate) fn default_actor_type() -> &'static str {
     primitives::actor_kind_registry()
         .iter()
-        .find(|meta| {
-            meta.category == animatix::timeline::ActorCategory::Shape && !meta.advanced
-        })
+        .find(|meta| meta.category == animatix::timeline::ActorCategory::Shape && !meta.advanced)
         .map(|meta| meta.type_name)
         .unwrap_or("Rect")
 }

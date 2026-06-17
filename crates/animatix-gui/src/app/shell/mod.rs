@@ -2,13 +2,13 @@ pub mod command_palette;
 pub mod export_dialog;
 pub mod find_replace;
 pub mod insertion_palette;
+pub mod settings;
 pub mod shortcut_cheat_sheet;
 pub mod toolbar;
-pub mod settings;
 
+use crate::app::GuiShell;
 use crate::app::commands::{Command, DocumentCommand, DragEvent, Effect, ShellAction, ViewAction};
 use crate::app::handlers::*;
-use crate::app::GuiShell;
 
 impl GuiShell {
     /// Handle a single action, returning any collected side effects.
@@ -38,22 +38,23 @@ impl GuiShell {
                     path,
                 )
             },
-            Command::ToggleExpandDir(path) => {
-                file::handle_toggle_expand_dir(&mut self.workspace_store, &self.document_store, path)
-            }
+            Command::ToggleExpandDir(path) => file::handle_toggle_expand_dir(
+                &mut self.workspace_store,
+                &self.document_store,
+                path,
+            ),
             Command::SwitchWorkspace(path) => {
                 if self.document_store.source.is_dirty() {
                     self.ui_store.unsaved_changes.open(
-                        format!("Save changes before switching workspace to \"{}\"?", path.display()),
+                        format!(
+                            "Save changes before switching workspace to \"{}\"?",
+                            path.display()
+                        ),
                         DocumentCommand::SwitchWorkspace(path).into(),
                     );
                     return vec![];
                 }
-                file::handle_switch_workspace(
-                    &mut self.workspace_store,
-                    &self.document_store,
-                    path,
-                )
+                file::handle_switch_workspace(&mut self.workspace_store, &self.document_store, path)
             },
             Command::Save => file::handle_save(&mut self.document_store, &mut self.preview_store),
             Command::Reload => {
@@ -70,9 +71,11 @@ impl GuiShell {
                     &mut self.workspace_store,
                 )
             },
-            Command::Rebuild => {
-                file::handle_rebuild(&mut self.document_store, &mut self.preview_store, &mut self.ui_store)
-            }
+            Command::Rebuild => file::handle_rebuild(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+            ),
             Command::ScrubTo(next_time) => playback::handle_scrub_to(
                 &mut self.document_store,
                 &mut self.preview_store,
@@ -108,17 +111,29 @@ impl GuiShell {
             ),
             Command::SelectScene(scene) => {
                 scene::handle_select_scene(&mut self.document_store, &mut self.preview_store, scene)
-            }
-            Command::ReorderScenes(new_order) => {
-                scene::handle_reorder_scenes(&mut self.document_store, &mut self.preview_store, new_order)
-            }
-            Command::DuplicateScene(scene) => {
-                scene::handle_duplicate_scene(&mut self.document_store, &mut self.preview_store, scene)
-            }
-            Command::DeleteScene(scene) => {
-                scene::handle_delete_scene(&mut self.document_store, &mut self.preview_store, &mut self.ui_store, scene)
-            }
-            Command::CreateActor { ty, label, position, props } => actor::handle_create_actor(
+            },
+            Command::ReorderScenes(new_order) => scene::handle_reorder_scenes(
+                &mut self.document_store,
+                &mut self.preview_store,
+                new_order,
+            ),
+            Command::DuplicateScene(scene) => scene::handle_duplicate_scene(
+                &mut self.document_store,
+                &mut self.preview_store,
+                scene,
+            ),
+            Command::DeleteScene(scene) => scene::handle_delete_scene(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+                scene,
+            ),
+            Command::CreateActor {
+                ty,
+                label,
+                position,
+                props,
+            } => actor::handle_create_actor(
                 &mut self.document_store,
                 &mut self.preview_store,
                 &mut self.ui_store,
@@ -134,7 +149,8 @@ impl GuiShell {
                 original_label,
             ),
             Command::DuplicateSelectedActors => {
-                let labels: Vec<String> = self.ui_store.selection.selected_actors.iter().cloned().collect();
+                let labels: Vec<String> =
+                    self.ui_store.selection.selected_actors.iter().cloned().collect();
                 let mut effects = Vec::new();
                 for label in labels {
                     effects.extend(actor::handle_duplicate_actor(
@@ -145,7 +161,7 @@ impl GuiShell {
                     ));
                 }
                 effects
-            }
+            },
             Command::DeleteSelectedActors => actor::handle_delete_selected_actors(
                 &mut self.document_store,
                 &mut self.preview_store,
@@ -166,27 +182,24 @@ impl GuiShell {
                 from_scene,
                 transition,
             ),
-            Command::SetPlayTarget {
-                from_scene,
-                target,
-            } => property::handle_set_play_target(
+            Command::SetPlayTarget { from_scene, target } => property::handle_set_play_target(
                 &mut self.document_store,
                 &mut self.preview_store,
                 &mut self.ui_store,
                 from_scene,
                 target,
             ),
-            Command::SetSceneDuration {
-                scene,
-                duration_s,
-            } => property::handle_set_scene_duration(
+            Command::SetSceneDuration { scene, duration_s } => property::handle_set_scene_duration(
                 &mut self.document_store,
                 &mut self.preview_store,
                 &mut self.ui_store,
                 scene,
                 duration_s,
             ),
-            Command::RenameActor { old_label, new_label } => actor::handle_rename_actor(
+            Command::RenameActor {
+                old_label,
+                new_label,
+            } => actor::handle_rename_actor(
                 &mut self.document_store,
                 &mut self.preview_store,
                 &mut self.ui_store,
@@ -291,23 +304,28 @@ impl GuiShell {
             Command::PropertyEdit(edit) => {
                 self.handle_property_edit(edit);
                 vec![]
-            }
-            Command::Undo => {
-                ui::handle_undo(&mut self.document_store, &mut self.preview_store, &mut self.ui_store)
-            }
-            Command::Redo => {
-                ui::handle_redo(&mut self.document_store, &mut self.preview_store, &mut self.ui_store)
-            }
-            Command::ScrollToLine(line, column) => ui::handle_scroll_to_line(&mut self.document_store, line, column),
+            },
+            Command::Undo => ui::handle_undo(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+            ),
+            Command::Redo => ui::handle_redo(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+            ),
+            Command::ScrollToLine(line, column) => {
+                ui::handle_scroll_to_line(&mut self.document_store, line, column)
+            },
             Command::ZoomToSelection => ui::handle_zoom_to_selection(
                 &mut self.preview_store,
                 &self.ui_store,
                 &self.document_store,
             ),
-            Command::ZoomToAll => ui::handle_zoom_to_all(
-                &mut self.preview_store,
-                &self.document_store,
-            ),
+            Command::ZoomToAll => {
+                ui::handle_zoom_to_all(&mut self.preview_store, &self.document_store)
+            },
             Command::AlignActors(alignment) => actor::handle_align_actors(
                 &mut self.document_store,
                 &mut self.preview_store,
@@ -337,62 +355,46 @@ impl GuiShell {
             Command::FindReplaceAll => vec![],
 
             // ── View / Panel State ───────────────────────────────────
-            Command::SetTimelineZoom(zoom) => ui::handle_set_timeline_zoom(
-                &mut self.preview_store,
+            Command::SetTimelineZoom(zoom) => {
+                ui::handle_set_timeline_zoom(&mut self.preview_store, zoom)
+            },
+            Command::SetTimelineScroll(scroll) => {
+                ui::handle_set_timeline_scroll(&mut self.preview_store, scroll)
+            },
+            Command::SetLoopRegion { start, end } => {
+                ui::handle_set_loop_region(&mut self.preview_store, start, end)
+            },
+            Command::ToggleCollapseActor(actor) => {
+                ui::handle_toggle_collapse_actor(&mut self.ui_store, actor)
+            },
+            Command::TogglePropertyLane(actor) => {
+                ui::handle_toggle_property_lane(&mut self.ui_store, actor)
+            },
+            Command::SetPreviewZoom(zoom) => {
+                ui::handle_set_preview_zoom(&mut self.preview_store, zoom)
+            },
+            Command::SetPreviewZoomCentered {
                 zoom,
-            ),
-            Command::SetTimelineScroll(scroll) => ui::handle_set_timeline_scroll(
-                &mut self.preview_store,
-                scroll,
-            ),
-            Command::SetLoopRegion { start, end } => ui::handle_set_loop_region(
-                &mut self.preview_store,
-                start,
-                end,
-            ),
-            Command::ToggleCollapseActor(actor) => ui::handle_toggle_collapse_actor(
-                &mut self.ui_store,
-                actor,
-            ),
-            Command::TogglePropertyLane(actor) => ui::handle_toggle_property_lane(
-                &mut self.ui_store,
-                actor,
-            ),
-            Command::SetPreviewZoom(zoom) => ui::handle_set_preview_zoom(
-                &mut self.preview_store,
-                zoom,
-            ),
-            Command::SetPreviewZoomCentered { zoom, center_x, center_y } => ui::handle_set_preview_zoom_centered(
+                center_x,
+                center_y,
+            } => ui::handle_set_preview_zoom_centered(
                 &mut self.preview_store,
                 zoom,
                 center_x,
                 center_y,
             ),
-            Command::SetPreviewPan(pan) => ui::handle_set_preview_pan(
-                &mut self.preview_store,
-                pan,
-            ),
-            Command::SetToolMode(mode) => ui::handle_set_tool_mode(
-                &mut self.ui_store,
-                mode,
-            ),
-            Command::SetSidebarTab(tab) => ui::handle_set_sidebar_tab(
-                &mut self.ui_store,
-                tab,
-            ),
-            Command::SetPropertyViewMode(mode) => ui::handle_set_property_view_mode(
-                &mut self.ui_store,
-                mode,
-            ),
-            Command::SetKeyframeViewMode(mode) => ui::handle_set_keyframe_view_mode(
-                &mut self.ui_store,
-                mode,
-            ),
-            Command::SetPivotOffset { actor, offset } => ui::handle_set_pivot_offset(
-                &mut self.ui_store,
-                actor,
-                offset,
-            ),
+            Command::SetPreviewPan(pan) => ui::handle_set_preview_pan(&mut self.preview_store, pan),
+            Command::SetToolMode(mode) => ui::handle_set_tool_mode(&mut self.ui_store, mode),
+            Command::SetSidebarTab(tab) => ui::handle_set_sidebar_tab(&mut self.ui_store, tab),
+            Command::SetPropertyViewMode(mode) => {
+                ui::handle_set_property_view_mode(&mut self.ui_store, mode)
+            },
+            Command::SetKeyframeViewMode(mode) => {
+                ui::handle_set_keyframe_view_mode(&mut self.ui_store, mode)
+            },
+            Command::SetPivotOffset { actor, offset } => {
+                ui::handle_set_pivot_offset(&mut self.ui_store, actor, offset)
+            },
         }
     }
 
@@ -401,21 +403,21 @@ impl GuiShell {
             ViewAction::ShowInspector => ui::handle_show_inspector(&mut self.ui_store),
             ViewAction::OpenExportDialog => {
                 ui::handle_open_export_dialog(&mut self.export_store, &self.document_store)
-            }
+            },
             ViewAction::OpenCommandPalette => {
                 self.ui_store.view.command_palette_open = true;
                 self.ui_store.command_palette_selected = 0;
                 vec![]
-            }
+            },
             ViewAction::OpenFindReplace => {
                 self.ui_store.view.find_replace_open = true;
                 self.ui_store.find_last_match = None;
                 vec![]
-            }
+            },
             ViewAction::DeselectActors => {
                 self.ui_store.selection.selected_actors.clear();
                 vec![]
-            }
+            },
         }
     }
 
@@ -424,10 +426,10 @@ impl GuiShell {
             DragEvent::DragEnded => ui::handle_drag_ended(&mut self.ui_store),
             DragEvent::InspectorInputDragStarted => {
                 ui::handle_inspector_input_drag_started(&mut self.ui_store)
-            }
+            },
             DragEvent::InspectorInputDragEnded => {
                 ui::handle_inspector_input_drag_ended(&mut self.ui_store)
-            }
+            },
         };
 
         // Flush any deferred source edits once the drag interaction ends.

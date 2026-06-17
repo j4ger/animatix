@@ -1,21 +1,21 @@
 //! Find / Replace dialog for the source editor.
 
+use crate::app::GuiShell;
 use crate::app::commands::UndoLabel;
 use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
+use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
+use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
 use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
 use crate::app::design_tokens::semantic::surface::WIDGET as BG_WIDGET;
-use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
 use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
-use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
-use crate::app::design_tokens::spatial::{STROKE_WIDTH, RADIUS_XL, SPACE_XL, SPACE_M, SPACE_S, ROW_M};
-use crate::app::design_tokens::typography::{TextRole};
-use crate::app::GuiShell;
+use crate::app::design_tokens::spatial::{
+    RADIUS_XL, ROW_M, SPACE_M, SPACE_S, SPACE_XL, STROKE_WIDTH,
+};
+use crate::app::design_tokens::typography::TextRole;
 
 impl GuiShell {
-    pub(crate) fn find_replace_ui(&mut self,
-        ui: &mut egui::Ui,
-    ) {
+    pub(crate) fn find_replace_ui(&mut self, ui: &mut egui::Ui) {
         let screen_rect = ui.ctx().viewport_rect();
         ui.painter().rect_filled(screen_rect, 0.0, overlay_backdrop());
 
@@ -23,7 +23,8 @@ impl GuiShell {
         if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.ui_store.view.find_replace_open = false;
         }
-        let backdrop = ui.interact(screen_rect, ui.id().with("find_replace_backdrop"), egui::Sense::click());
+        let backdrop =
+            ui.interact(screen_rect, ui.id().with("find_replace_backdrop"), egui::Sense::click());
         if backdrop.clicked() {
             self.ui_store.view.find_replace_open = false;
         }
@@ -61,7 +62,9 @@ impl GuiShell {
                 ui.separator();
                 ui.add_space(SPACE_M);
 
-                ui.label(egui::RichText::new("Find").size(TextRole::BodyS.size()).color(TEXT_SECONDARY));
+                ui.label(
+                    egui::RichText::new("Find").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
+                );
                 ui.add(
                     egui::TextEdit::singleline(&mut self.ui_store.find_query)
                         .desired_width(f32::INFINITY)
@@ -69,7 +72,11 @@ impl GuiShell {
                 );
                 ui.add_space(SPACE_S);
 
-                ui.label(egui::RichText::new("Replace with").size(TextRole::BodyS.size()).color(TEXT_SECONDARY));
+                ui.label(
+                    egui::RichText::new("Replace with")
+                        .size(TextRole::BodyS.size())
+                        .color(TEXT_SECONDARY),
+                );
                 ui.add(
                     egui::TextEdit::singleline(&mut self.ui_store.replace_query)
                         .desired_width(f32::INFINITY)
@@ -79,30 +86,28 @@ impl GuiShell {
 
                 ui.horizontal(|ui| {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let replace_all = ui
-                            .add_sized(
-                                [100.0, ROW_M],
-                                egui::Button::new(
-                                    egui::RichText::new("Replace All")
-                                        .size(TextRole::BodyS.size())
-                                        .color(TEXT_PRIMARY),
-                                )
-                                .fill(ACCENT_BLUE),
-                            );
+                        let replace_all = ui.add_sized(
+                            [100.0, ROW_M],
+                            egui::Button::new(
+                                egui::RichText::new("Replace All")
+                                    .size(TextRole::BodyS.size())
+                                    .color(TEXT_PRIMARY),
+                            )
+                            .fill(ACCENT_BLUE),
+                        );
                         if replace_all.clicked() {
                             self.perform_find_replace_all();
                         }
 
-                        let find_next = ui
-                            .add_sized(
-                                [90.0, ROW_M],
-                                egui::Button::new(
-                                    egui::RichText::new("Find Next")
-                                        .size(TextRole::BodyS.size())
-                                        .color(TEXT_SECONDARY),
-                                )
-                                .fill(BG_WIDGET),
-                            );
+                        let find_next = ui.add_sized(
+                            [90.0, ROW_M],
+                            egui::Button::new(
+                                egui::RichText::new("Find Next")
+                                    .size(TextRole::BodyS.size())
+                                    .color(TEXT_SECONDARY),
+                            )
+                            .fill(BG_WIDGET),
+                        );
                         if find_next.clicked() {
                             self.find_next_in_editor();
                         }
@@ -131,8 +136,10 @@ impl GuiShell {
         self.document_store.replace_text(new_text);
         self.document_store.source.document.raw_statements = None;
         self.document_store.source.document.expanded_statements = None;
-        self.preview_store.pending_rebuild_at =
-            Some(std::time::Instant::now() + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms));
+        self.preview_store.pending_rebuild_at = Some(
+            std::time::Instant::now()
+                + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),
+        );
         self.ui_store.find_last_match = None;
         self.preview_store.preview.status = format!("Replaced {} occurrence(s)", count);
     }
@@ -148,9 +155,7 @@ impl GuiShell {
         let text_len = text.len();
 
         // Start searching from after the last match, or from the beginning
-        let start = self.ui_store.find_last_match
-            .map(|p| (p + 1).min(text_len))
-            .unwrap_or(0);
+        let start = self.ui_store.find_last_match.map(|p| (p + 1).min(text_len)).unwrap_or(0);
 
         // Search forward from cursor position
         if start < text_len {
@@ -169,7 +174,8 @@ impl GuiShell {
             self.ui_store.find_last_match = Some(pos);
             let (line, _col) = self.document_store.source.editor.byte_to_line_col(pos);
             self.document_store.source.editor.scroll_to_line(line);
-            self.preview_store.preview.status = format!("Wrapped to top — found at line {}", line + 1);
+            self.preview_store.preview.status =
+                format!("Wrapped to top — found at line {}", line + 1);
             return;
         }
 

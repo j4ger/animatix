@@ -1,5 +1,5 @@
-use egui::{Pos2, Vec2};
 use crate::app::commands::ActionQueue;
+use egui::{Pos2, Vec2};
 
 /// Mouse button for pointer events.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -12,14 +12,45 @@ pub enum PointerButton {
 /// High-level gesture events produced by the gesture router.
 #[derive(Debug, Clone)]
 pub enum Gesture {
-    Tap { pos: Pos2, button: PointerButton, modifiers: egui::Modifiers },
-    DoubleTap { pos: Pos2, button: PointerButton, modifiers: egui::Modifiers },
-    SecondaryTap { pos: Pos2, modifiers: egui::Modifiers },
-    DragStart { pos: Pos2, button: PointerButton, modifiers: egui::Modifiers },
-    DragMove { pos: Pos2, delta: Vec2, button: PointerButton, modifiers: egui::Modifiers },
-    DragEnd { pos: Pos2, button: PointerButton, modifiers: egui::Modifiers },
-    Hover { pos: Pos2, modifiers: egui::Modifiers },
-    ScrollZoom { delta: f32, pos: Pos2, modifiers: egui::Modifiers },
+    Tap {
+        pos: Pos2,
+        button: PointerButton,
+        modifiers: egui::Modifiers,
+    },
+    DoubleTap {
+        pos: Pos2,
+        button: PointerButton,
+        modifiers: egui::Modifiers,
+    },
+    SecondaryTap {
+        pos: Pos2,
+        modifiers: egui::Modifiers,
+    },
+    DragStart {
+        pos: Pos2,
+        button: PointerButton,
+        modifiers: egui::Modifiers,
+    },
+    DragMove {
+        pos: Pos2,
+        delta: Vec2,
+        button: PointerButton,
+        modifiers: egui::Modifiers,
+    },
+    DragEnd {
+        pos: Pos2,
+        button: PointerButton,
+        modifiers: egui::Modifiers,
+    },
+    Hover {
+        pos: Pos2,
+        modifiers: egui::Modifiers,
+    },
+    ScrollZoom {
+        delta: f32,
+        pos: Pos2,
+        modifiers: egui::Modifiers,
+    },
 }
 
 /// Result from a gesture handler indicating whether it claimed the gesture.

@@ -80,8 +80,7 @@ fn keyframe_effects(
 ) -> Vec<Effect> {
     let status = format!(
         "{label} keyframe • t = {:.2}s / {:.2}s",
-        preview_store.preview.playback.current_time_s,
-        preview_store.preview.playback.duration_s
+        preview_store.preview.playback.current_time_s, preview_store.preview.playback.duration_s
     );
     let mut effects = vec![Effect::Status(status)];
     effects.extend(editor_sync_effects(
@@ -156,13 +155,9 @@ pub fn handle_frame_step_backward(
     effects
 }
 
-fn sync_active_scene_from_time(
-    document_store: &mut DocumentStore,
-    preview_store: &PreviewStore,
-) {
+fn sync_active_scene_from_time(document_store: &mut DocumentStore, preview_store: &PreviewStore) {
     if let Some(composition) = document_store.source.document.composition.as_ref() {
-        let (scene, _, _) =
-            composition.evaluate(preview_store.preview.playback.current_time_s);
+        let (scene, _, _) = composition.evaluate(preview_store.preview.playback.current_time_s);
         document_store.source.document.active_scene = (!scene.is_empty()).then_some(scene);
     }
 }

@@ -1,15 +1,15 @@
 pub mod context;
 pub mod drag_handler;
+pub mod drag_utils;
 pub mod gesture;
 pub mod gesture_router;
 pub mod grid;
-pub mod property_popup;
 pub mod overlay;
 pub mod performance;
+pub mod property_popup;
 pub mod selection;
 pub mod time_lens;
 
-use std::collections::HashSet;
 use super::DEFAULT_PREVIEW_SIZE;
 use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
 use crate::app::design_tokens::semantic::accent::hover as accent_hover;
@@ -22,6 +22,7 @@ use crate::app::design_tokens::spatial::STROKE_WIDTH;
 use crate::app::design_tokens::typography::TextRole;
 use animatix::timeline::{PlacementMode, SceneDimensions, Timeline, TrackAccessor};
 use egui::{Color32, Pos2, Stroke, Vec2};
+use std::collections::HashSet;
 
 // ─── Preview Transform ──────────────────────────────────────────────────────
 
@@ -256,25 +257,31 @@ pub struct ActorProps {
 /// Compute the pivot point in world space.
 pub(super) fn pivot_world(props: &ActorProps) -> [f32; 2] {
     let rotated = rotate_vec(props.pivot_offset, props.rotation);
-    [props.position[0] + rotated[0], props.position[1] + rotated[1]]
+    [
+        props.position[0] + rotated[0],
+        props.position[1] + rotated[1],
+    ]
 }
 
-use crate::app::design_tokens::spatial::preview::HANDLE_SIZE as PREVIEW_HANDLE_SIZE;
-use crate::app::design_tokens::spatial::preview::ROTATION_OFFSET as PREVIEW_ROTATION_OFFSET;
-use crate::app::design_tokens::spatial::preview::ROTATION_RADIUS as PREVIEW_ROTATION_RADIUS;
+use crate::app::design_tokens::spatial::preview::CROSS_SIZE as PREVIEW_CROSS_SIZE;
 use crate::app::design_tokens::spatial::preview::DASH_LEN as PREVIEW_DASH_LEN;
 use crate::app::design_tokens::spatial::preview::GAP_LEN as PREVIEW_GAP_LEN;
-use crate::app::design_tokens::spatial::preview::CROSS_SIZE as PREVIEW_CROSS_SIZE;
-use crate::app::design_tokens::spatial::preview::VERTEX_HIT_BUFFER as PREVIEW_VERTEX_HIT_BUFFER;
-use crate::app::design_tokens::spatial::preview::ROTATION_HIT_BUFFER as PREVIEW_ROTATION_HIT_BUFFER;
+use crate::app::design_tokens::spatial::preview::HANDLE_SIZE as PREVIEW_HANDLE_SIZE;
 use crate::app::design_tokens::spatial::preview::MIN_ZOOM as PREVIEW_MIN_ZOOM;
+use crate::app::design_tokens::spatial::preview::ROTATION_HIT_BUFFER as PREVIEW_ROTATION_HIT_BUFFER;
+use crate::app::design_tokens::spatial::preview::ROTATION_OFFSET as PREVIEW_ROTATION_OFFSET;
+use crate::app::design_tokens::spatial::preview::ROTATION_RADIUS as PREVIEW_ROTATION_RADIUS;
+use crate::app::design_tokens::spatial::preview::VERTEX_HIT_BUFFER as PREVIEW_VERTEX_HIT_BUFFER;
 
 const SELECTION_COLOR: Color32 = ACCENT_BLUE;
 
 pub(super) fn is_layout_managed(actor: &str, timeline: &Timeline, time_ms: u64) -> bool {
     timeline
         .get_track(actor)
-        .map(|t| t.placement_mode.get(time_ms, PlacementMode::LayoutManaged) == PlacementMode::LayoutManaged)
+        .map(|t| {
+            t.placement_mode.get(time_ms, PlacementMode::LayoutManaged)
+                == PlacementMode::LayoutManaged
+        })
         .unwrap_or(false)
 }
 
@@ -329,25 +336,21 @@ pub(super) fn handle_constrains_axis(handle: usize) -> bool {
 fn rotate_vec(v: [f32; 2], angle: f32) -> [f32; 2] {
     let cos = angle.cos();
     let sin = angle.sin();
-    [
-        v[0] * cos - v[1] * sin,
-        v[0] * sin + v[1] * cos,
-    ]
+    [v[0] * cos - v[1] * sin, v[0] * sin + v[1] * cos]
 }
 
 /// Transform a local‑space point to world space.
 pub(super) fn local_to_world(local: [f32; 2], position: [f32; 2], rotation: f32) -> kurbo::Point {
     let rotated = rotate_vec(local, rotation);
-    kurbo::Point::new(
-        (position[0] + rotated[0]) as f64,
-        (position[1] + rotated[1]) as f64,
-    )
+    kurbo::Point::new((position[0] + rotated[0]) as f64, (position[1] + rotated[1]) as f64)
 }
 
 /// Compute the 8 handle centre positions in **world (scene) space**.
 pub(super) fn world_handle_positions(props: &ActorProps) -> [kurbo::Point; 8] {
     let local = local_handle_positions(props.size);
-    std::array::from_fn(|i| local_to_world([local[i].0, local[i].1], props.position, props.rotation))
+    std::array::from_fn(|i| {
+        local_to_world([local[i].0, local[i].1], props.position, props.rotation)
+    })
 }
 
 /// Compute the rotation handle centre in world space.
@@ -457,15 +460,9 @@ pub(super) fn draw_selection_overlay(
         let hh = p.size[1] / 2.0;
 
         // Compute the four corners of the rotated rect in world space
-        let local_corners: [[f32; 2]; 4] = [
-            [-hw, -hh],
-            [hw, -hh],
-            [hw, hh],
-            [-hw, hh],
-        ];
-        let world_corners: [kurbo::Point; 4] = std::array::from_fn(|i| {
-            local_to_world(local_corners[i], p.position, p.rotation)
-        });
+        let local_corners: [[f32; 2]; 4] = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
+        let world_corners: [kurbo::Point; 4] =
+            std::array::from_fn(|i| local_to_world(local_corners[i], p.position, p.rotation));
 
         // Convert to screen space
         let screen_corners: [Pos2; 4] = std::array::from_fn(|i| {
@@ -522,7 +519,12 @@ pub(super) fn draw_selection_overlay(
             let handle_rect =
                 egui::Rect::from_center_size(pos, Vec2::new(edge_handle_px, edge_handle_px));
             painter.rect_filled(handle_rect, 1.0, TEXT_PRIMARY);
-            painter.rect_stroke(handle_rect, 1.0, Stroke::new(STROKE_WIDTH, SELECTION_COLOR), egui::StrokeKind::Outside);
+            painter.rect_stroke(
+                handle_rect,
+                1.0,
+                Stroke::new(STROKE_WIDTH, SELECTION_COLOR),
+                egui::StrokeKind::Outside,
+            );
         }
 
         // Rotation ring arcs at corners (only when not dragging)
@@ -542,13 +544,21 @@ pub(super) fn draw_selection_overlay(
             ];
             for i in 0..4 {
                 let (start_angle, end_angle) = arc_angles[i];
-                draw_corner_arc(painter, handle_screen[i], arc_radius, start_angle, end_angle, arc_stroke);
+                draw_corner_arc(
+                    painter,
+                    handle_screen[i],
+                    arc_radius,
+                    start_angle,
+                    end_angle,
+                    arc_stroke,
+                );
             }
         }
 
         // Rotation handle: on the line from centre to above top-edge, offset by PREVIEW_ROTATION_OFFSET
         let rot_world = rotation_handle_world(p);
-        let rot_screen = scene_to_screen(rot_world, preview_rect, scene_dimensions, desired, zoom, pan);
+        let rot_screen =
+            scene_to_screen(rot_world, preview_rect, scene_dimensions, desired, zoom, pan);
 
         // Line from top-centre to rotation handle
         let top_center_local = [0.0_f32, -hh];
@@ -561,11 +571,7 @@ pub(super) fn draw_selection_overlay(
         );
         let rot_radius = PREVIEW_ROTATION_RADIUS * pixels_per_point;
         painter.circle_filled(rot_screen, rot_radius, TEXT_PRIMARY);
-        painter.circle_stroke(
-            rot_screen,
-            rot_radius,
-            Stroke::new(STROKE_WIDTH, SELECTION_COLOR),
-        );
+        painter.circle_stroke(rot_screen, rot_radius, Stroke::new(STROKE_WIDTH, SELECTION_COLOR));
 
         // Pivot marker (crosshair) — always drawn so it can be dragged
         {
@@ -581,14 +587,24 @@ pub(super) fn draw_selection_overlay(
             let cross_size = PREVIEW_CROSS_SIZE * pixels_per_point;
             let cross_color = AMBER;
             painter.line_segment(
-                [Pos2::new(pivot_screen.x - cross_size, pivot_screen.y), Pos2::new(pivot_screen.x + cross_size, pivot_screen.y)],
+                [
+                    Pos2::new(pivot_screen.x - cross_size, pivot_screen.y),
+                    Pos2::new(pivot_screen.x + cross_size, pivot_screen.y),
+                ],
                 Stroke::new(1.5, cross_color),
             );
             painter.line_segment(
-                [Pos2::new(pivot_screen.x, pivot_screen.y - cross_size), Pos2::new(pivot_screen.x, pivot_screen.y + cross_size)],
+                [
+                    Pos2::new(pivot_screen.x, pivot_screen.y - cross_size),
+                    Pos2::new(pivot_screen.x, pivot_screen.y + cross_size),
+                ],
                 Stroke::new(1.5, cross_color),
             );
-            painter.circle_stroke(pivot_screen, cross_size + 2.0 * pixels_per_point, Stroke::new(STROKE_WIDTH, cross_color));
+            painter.circle_stroke(
+                pivot_screen,
+                cross_size + 2.0 * pixels_per_point,
+                Stroke::new(STROKE_WIDTH, cross_color),
+            );
         }
     } else if let Some(fallback) = fallback_rect {
         // ── Axis‑aligned fallback ────────────────────────────────────────
@@ -629,8 +645,10 @@ pub(super) fn draw_selection_overlay(
         // Axis-aligned handle positions (old-style)
         let handle_positions = scale_handle_positions(sel_rect);
         for pos in &handle_positions {
-            let handle_rect =
-                egui::Rect::from_center_size(*pos, Vec2::new(PREVIEW_HANDLE_SIZE, PREVIEW_HANDLE_SIZE));
+            let handle_rect = egui::Rect::from_center_size(
+                *pos,
+                Vec2::new(PREVIEW_HANDLE_SIZE, PREVIEW_HANDLE_SIZE),
+            );
             painter.rect_filled(handle_rect, 1.0, TEXT_PRIMARY);
             painter.rect_stroke(
                 handle_rect,
@@ -700,14 +718,10 @@ pub(super) fn draw_multi_selection_overlay(
             while pos < total {
                 let t0 = pos / total;
                 let t1 = ((pos + PREVIEW_DASH_LEN).min(total)) / total;
-                let p0 = Pos2::new(
-                    start.x + (end.x - start.x) * t0,
-                    start.y + (end.y - start.y) * t0,
-                );
-                let p1 = Pos2::new(
-                    start.x + (end.x - start.x) * t1,
-                    start.y + (end.y - start.y) * t1,
-                );
+                let p0 =
+                    Pos2::new(start.x + (end.x - start.x) * t0, start.y + (end.y - start.y) * t0);
+                let p1 =
+                    Pos2::new(start.x + (end.x - start.x) * t1, start.y + (end.y - start.y) * t1);
                 painter.line_segment([p0, p1], dash_stroke);
                 pos += PREVIEW_DASH_LEN + PREVIEW_GAP_LEN;
             }
@@ -744,15 +758,9 @@ pub(super) fn draw_ghost_overlay(
     let hw = props.size[0] / 2.0;
     let hh = props.size[1] / 2.0;
 
-    let local_corners: [[f32; 2]; 4] = [
-        [-hw, -hh],
-        [hw, -hh],
-        [hw, hh],
-        [-hw, hh],
-    ];
-    let world_corners: [kurbo::Point; 4] = std::array::from_fn(|i| {
-        local_to_world(local_corners[i], props.position, props.rotation)
-    });
+    let local_corners: [[f32; 2]; 4] = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
+    let world_corners: [kurbo::Point; 4] =
+        std::array::from_fn(|i| local_to_world(local_corners[i], props.position, props.rotation));
 
     let screen_corners: [Pos2; 4] = std::array::from_fn(|i| {
         scene_to_screen(world_corners[i], preview_rect, scene_dimensions, desired, zoom, pan)
@@ -768,14 +776,8 @@ pub(super) fn draw_ghost_overlay(
         while pos < total {
             let t0 = pos / total;
             let t1 = ((pos + PREVIEW_DASH_LEN).min(total)) / total;
-            let p0 = Pos2::new(
-                start.x + (end.x - start.x) * t0,
-                start.y + (end.y - start.y) * t0,
-            );
-            let p1 = Pos2::new(
-                start.x + (end.x - start.x) * t1,
-                start.y + (end.y - start.y) * t1,
-            );
+            let p0 = Pos2::new(start.x + (end.x - start.x) * t0, start.y + (end.y - start.y) * t0);
+            let p1 = Pos2::new(start.x + (end.x - start.x) * t1, start.y + (end.y - start.y) * t1);
             painter.line_segment([p0, p1], dash_stroke);
             pos += PREVIEW_DASH_LEN + PREVIEW_GAP_LEN;
         }
@@ -798,15 +800,15 @@ pub(super) fn draw_reorder_overlay(
     let hw = props.size[0] / 2.0;
     let hh = props.size[1] / 2.0;
     let local_corners: [[f32; 2]; 4] = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
-    let world_corners: [kurbo::Point; 4] = std::array::from_fn(|i| {
-        local_to_world(local_corners[i], props.position, props.rotation)
-    });
+    let world_corners: [kurbo::Point; 4] =
+        std::array::from_fn(|i| local_to_world(local_corners[i], props.position, props.rotation));
     let screen_corners: [Pos2; 4] = std::array::from_fn(|i| {
         scene_to_screen(world_corners[i], preview_rect, scene_dimensions, desired, zoom, pan)
     });
     for i in 0..4 {
         let next = (i + 1) % 4;
-        painter.line_segment([screen_corners[i], screen_corners[next]], Stroke::new(1.5, ghost_color));
+        painter
+            .line_segment([screen_corners[i], screen_corners[next]], Stroke::new(1.5, ghost_color));
     }
 
     let coords: Vec<f32> = sibling_positions
@@ -814,7 +816,11 @@ pub(super) fn draw_reorder_overlay(
         .map(|(_, pos)| if is_row { pos[0] } else { pos[1] })
         .collect();
     let insertion_coord = if coords.is_empty() {
-        if is_row { props.position[0] } else { props.position[1] }
+        if is_row {
+            props.position[0]
+        } else {
+            props.position[1]
+        }
     } else if target_index == 0 {
         if coords.len() == 1 {
             coords[0]
@@ -844,7 +850,10 @@ pub(super) fn draw_reorder_overlay(
             pan,
         );
         painter.line_segment(
-            [Pos2::new(insertion_pt.x, preview_rect.top()), Pos2::new(insertion_pt.x, preview_rect.bottom())],
+            [
+                Pos2::new(insertion_pt.x, preview_rect.top()),
+                Pos2::new(insertion_pt.x, preview_rect.bottom()),
+            ],
             Stroke::new(2.5, accent),
         );
         Pos2::new(insertion_pt.x, preview_rect.top() + 16.0)
@@ -858,7 +867,10 @@ pub(super) fn draw_reorder_overlay(
             pan,
         );
         painter.line_segment(
-            [Pos2::new(preview_rect.left(), insertion_pt.y), Pos2::new(preview_rect.right(), insertion_pt.y)],
+            [
+                Pos2::new(preview_rect.left(), insertion_pt.y),
+                Pos2::new(preview_rect.right(), insertion_pt.y),
+            ],
             Stroke::new(2.5, accent),
         );
         Pos2::new(preview_rect.left() + 16.0, insertion_pt.y)
@@ -889,20 +901,20 @@ pub(super) fn draw_reorder_overlay(
         let arrow_size = 8.0;
         if i == target_index {
             // Sibling at target index will shift right/down
-            let (dx, dy) = if is_row { (arrow_size, 0.0) } else { (0.0, arrow_size) };
-            painter.arrow(
-                screen_pos,
-                Vec2::new(dx, dy),
-                Stroke::new(1.5, shift_color),
-            );
+            let (dx, dy) = if is_row {
+                (arrow_size, 0.0)
+            } else {
+                (0.0, arrow_size)
+            };
+            painter.arrow(screen_pos, Vec2::new(dx, dy), Stroke::new(1.5, shift_color));
         } else if target_index > 0 && i == target_index - 1 {
             // Sibling before target will shift left/up
-            let (dx, dy) = if is_row { (-arrow_size, 0.0) } else { (0.0, -arrow_size) };
-            painter.arrow(
-                screen_pos,
-                Vec2::new(dx, dy),
-                Stroke::new(1.5, shift_color),
-            );
+            let (dx, dy) = if is_row {
+                (-arrow_size, 0.0)
+            } else {
+                (0.0, -arrow_size)
+            };
+            painter.arrow(screen_pos, Vec2::new(dx, dy), Stroke::new(1.5, shift_color));
         }
     }
 
@@ -961,11 +973,7 @@ pub(super) fn hit_test_rotation_handle(
 }
 
 /// Check if the screen point is near the pivot crosshair.
-pub(super) fn hit_test_pivot(
-    screen_point: Pos2,
-    pivot_screen: Pos2,
-    hit_radius: f32,
-) -> bool {
+pub(super) fn hit_test_pivot(screen_point: Pos2, pivot_screen: Pos2, hit_radius: f32) -> bool {
     screen_point.distance(pivot_screen) <= hit_radius
 }
 
@@ -1255,15 +1263,19 @@ mod tests {
     #[test]
     fn test_timeline_tick_times_ends_with_duration() {
         let ticks = timeline_tick_times(3.7);
-        assert!((ticks.last().unwrap() - 3.7).abs() < 1e-9,
-            "last tick must equal duration_s");
+        assert!((ticks.last().unwrap() - 3.7).abs() < 1e-9, "last tick must equal duration_s");
     }
 
     #[test]
     fn test_timeline_tick_times_strictly_increasing() {
         let ticks = timeline_tick_times(42.0);
         for pair in ticks.windows(2) {
-            assert!(pair[0] < pair[1], "ticks must be strictly increasing: {} >= {}", pair[0], pair[1]);
+            assert!(
+                pair[0] < pair[1],
+                "ticks must be strictly increasing: {} >= {}",
+                pair[0],
+                pair[1]
+            );
         }
     }
 }
