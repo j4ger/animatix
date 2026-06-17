@@ -7,6 +7,7 @@ use egui::{Pos2, Rect, Response, Ui};
 pub struct GestureRouter;
 
 impl GestureRouter {
+    #[allow(clippy::needless_return)]
     pub fn handle_preview_gestures(
         ctx: &mut PreviewContext<'_>,
         ui: &mut Ui,
@@ -88,8 +89,7 @@ impl GestureRouter {
                 if move_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
                 let mut reorder_handler = super::gestures::reorder::ReorderGesture;
                 if reorder_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
-                let mut marquee_handler = super::gestures::marquee::MarqueeGesture;
-                if marquee_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
+                if super::gestures::marquee::MarqueeGesture.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
             }
         }
     }

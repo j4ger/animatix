@@ -167,7 +167,7 @@ pub(crate) fn timeline_panel_ui(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui
     render_timeline_content(ctx, ui);
 }
 
-/// Width of the track label column on the left.
+// Width of the track label column on the left.
 // (Imported via spatial::timeline at the top of the file)
 
 fn action_category_color(cat: animatix::timeline::ActionCategory) -> Color32 {

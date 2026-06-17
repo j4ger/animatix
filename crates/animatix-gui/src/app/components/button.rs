@@ -191,15 +191,13 @@ impl egui::Widget for Button {
 
         let show_label = self.label.is_some() && self.show_label;
 
-        let response = match self.variant {
+        match self.variant {
             ButtonVariant::Icon => {
                 let size = Vec2::new(row_height, row_height);
                 let (rect, response) = ui.allocate_exact_size(size, Sense::click());
 
-                if !self.disabled {
-                    if response.hovered() || response.is_pointer_button_down_on() {
+                if !self.disabled && (response.hovered() || response.is_pointer_button_down_on()) {
                         ui.painter().rect_filled(rect, RADIUS_M, surface::HOVER);
-                    }
                 }
 
                 let icon_color = if self.disabled {
@@ -412,10 +410,8 @@ impl egui::Widget for Button {
                     response
                 }
             },
-        };
-
-        response
-    }
+        }
+}
 }
 
 /// Returns the play/pause icon character based on playback state.
