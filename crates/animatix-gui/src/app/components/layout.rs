@@ -3,7 +3,7 @@ use egui::{CornerRadius, Margin, Rect, Response, Stroke, Vec2};
 use crate::app::design_tokens::semantic::{accent, border, overlay, surface, text};
 use crate::app::design_tokens::spatial::component::{PILL_TAB_GAP, PILL_TAB_HEIGHT};
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, ROW_S, SPACE_M, SPACE_S, SPACE_XL, STROKE_WIDTH};
-use crate::app::design_tokens::typography::{FONT_SIZE_L, FONT_SIZE_M, FONT_SIZE_S, FONT_SIZE_XS};
+use crate::app::design_tokens::typography::{TextRole};
 
 /// A styled container with our surface background, rounded corners,
 /// and layered shadow for depth.
@@ -78,7 +78,7 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
         egui::pos2(cursor_x + 7.0, baseline_y),
         egui::Align2::CENTER_CENTER,
         icon,
-        egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+        TextRole::BodyS.font_id(),
         text::MUTED,
     );
     cursor_x += 18.0;
@@ -86,8 +86,8 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
     ui.painter().text(
         egui::pos2(cursor_x, baseline_y),
         egui::Align2::LEFT_CENTER,
-        title.to_uppercase(),
-        egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+        title,
+        TextRole::Micro.font_id(),
         text::MUTED,
     );
 
@@ -96,7 +96,7 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
             egui::pos2(row_rect.max.x - SPACE_S, baseline_y),
             egui::Align2::RIGHT_CENTER,
             n.to_string(),
-            egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+            TextRole::Micro.font_id(),
             text::MUTED,
         );
     }
@@ -116,14 +116,14 @@ pub fn empty_state(ui: &mut egui::Ui, icon: &str, title: &str, subtitle: &str) {
         ui.add_space(SPACE_M);
         ui.add(
             egui::Label::new(
-                egui::RichText::new(title).size(FONT_SIZE_L).color(text::SECONDARY),
+                egui::RichText::new(title).size(TextRole::Title.size()).color(text::SECONDARY),
             )
             .selectable(false),
         );
         ui.add_space(SPACE_S);
         ui.add(
             egui::Label::new(
-                egui::RichText::new(subtitle).size(FONT_SIZE_M).color(text::MUTED),
+                egui::RichText::new(subtitle).size(TextRole::Body.size()).color(text::MUTED),
             )
             .selectable(false),
         );
@@ -236,7 +236,7 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
         }
 
         let text_color = if is_active { text::PRIMARY } else if response.hovered() { text::SECONDARY } else { text::MUTED };
-        let font_id = egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional);
+        let font_id = TextRole::BodyS.font_id();
         let full_text = format!("{}  {}", icon, label);
         let galley = ui.painter().layout_no_wrap(full_text.clone(), font_id.clone(), text_color);
         let show_label = galley.size().x + SPACE_XL <= tab_w;

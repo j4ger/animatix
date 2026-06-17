@@ -13,8 +13,8 @@ use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::semantic::canvas::grid_line;
 use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
 use crate::app::design_tokens::spatial::STROKE_WIDTH;
-use crate::app::design_tokens::typography::{FONT_SIZE_L, FONT_SIZE_XS};
-use egui::{FontId, Pos2, Stroke};
+use crate::app::design_tokens::typography::{TextRole};
+use egui::{Pos2, Stroke};
 
 /// Radius of the time lens ring.
 const LENS_RADIUS: f32 = 60.0;
@@ -172,7 +172,7 @@ impl TimeLens {
             center,
             egui::Align2::CENTER_CENTER,
             &time_text,
-            FontId::new(FONT_SIZE_L, egui::FontFamily::Proportional),
+            TextRole::Title.font_id(),
             TEXT_PRIMARY,
         );
 
@@ -182,7 +182,7 @@ impl TimeLens {
             Pos2::new(center.x, center.y + 16.0),
             egui::Align2::CENTER_CENTER,
             &range_text,
-            FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+            TextRole::Micro.font_id(),
             TEXT_MUTED,
         );
 

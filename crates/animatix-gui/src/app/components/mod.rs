@@ -3,6 +3,7 @@ pub mod context_menu;
 pub mod diagnostics;
 pub mod easing_curve_editor;
 pub mod layout;
+pub mod text;
 pub mod row;
 pub mod timeline;
 pub mod toast;

@@ -35,7 +35,7 @@ use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
 use crate::app::design_tokens::spatial::welcome::{BTN_HEIGHT as WELCOME_BTN_HEIGHT, TOP_OFFSET_FRAC as WELCOME_TOP_OFFSET_FRAC};
 use crate::app::design_tokens::semantic::{accent, border, surface, text, status};
 use crate::app::design_tokens::spatial::{RADIUS_S, RADIUS_L, RADIUS_M, RADIUS_XL, SPACE_S, SPACE_M, SPACE_L, SPACE_XL, STROKE_WIDTH, ROW_L};
-use crate::app::design_tokens::typography::{FONT_SIZE_S, FONT_SIZE_XS, FONT_SIZE_M, FONT_SIZE_XL};
+use crate::app::design_tokens::typography::{TextRole};
 #[cfg(test)]
 use preview::fit_preview;
 
@@ -603,7 +603,7 @@ impl GuiShell {
                         ui.vertical_centered(|ui| {
                             ui.add_space(SPACE_L);
                             ui.label(egui::RichText::new("No diagnostics — all clear ✓")
-                                .size(FONT_SIZE_S)
+                                .size(TextRole::BodyS.size())
                                 .color(text::MUTED));
                         });
                     } else if let Some(target) =
@@ -646,7 +646,7 @@ impl GuiShell {
                             ui.add_space(SPACE_S);
                         }
                         let color = if is_error { status::DIAGNOSTIC_ERROR } else { text::MUTED };
-                        let label = ui.label(egui::RichText::new(status.as_str()).size(FONT_SIZE_XS).color(color));
+                        let label = ui.label(egui::RichText::new(status.as_str()).size(TextRole::Micro.size()).color(color));
                         if is_error && self.preview_store.preview.error.is_some() {
                             label.on_hover_text(self.preview_store.preview.error.as_deref().unwrap_or(""));
                         }
@@ -655,7 +655,7 @@ impl GuiShell {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let dims = &self.document_store.source.document.scene_dimensions;
                         ui.label(egui::RichText::new(format!("{}×{}", dims.width, dims.height))
-                            .size(FONT_SIZE_XS).color(text::MUTED));
+                            .size(TextRole::Micro.size()).color(text::MUTED));
                     });
                 });
             });
@@ -763,7 +763,7 @@ impl GuiShell {
                             icon_rect.center(),
                             egui::Align2::CENTER_CENTER,
                             egui_phosphor::regular::FILM_STRIP,
-                            egui::FontId::proportional(28.0),
+                            egui::FontId::proportional(28.0), // 28px welcome icon: no TextRole
                             accent::PRIMARY,
                         );
                         ui.add_space(SPACE_XL * 1.5);
@@ -771,7 +771,7 @@ impl GuiShell {
                         // Title
                         ui.label(
                             egui::RichText::new("Welcome to Animatix")
-                                .size(FONT_SIZE_XL * 1.5)
+                                .size(27.0) // 27px welcome title: no TextRole
                                 .color(text::PRIMARY)
                                 .strong(),
                         );
@@ -780,7 +780,7 @@ impl GuiShell {
                         // Subtitle
                         ui.label(
                             egui::RichText::new("Layout-first animation for creative coders")
-                                .size(FONT_SIZE_M)
+                                .size(TextRole::Body.size())
                                 .color(text::SECONDARY),
                         );
                         ui.add_space(SPACE_XL * 2.5);
@@ -795,7 +795,7 @@ impl GuiShell {
                                     "{}  Create new scene",
                                     egui_phosphor::regular::PLUS
                                 ))
-                                .size(FONT_SIZE_M)
+                                .size(TextRole::Body.size())
                                 .color(text::PRIMARY),
                             )
                             .fill(accent::PRIMARY)
@@ -823,7 +823,7 @@ impl GuiShell {
                                     "{}  Open existing file",
                                     egui_phosphor::regular::FOLDER_OPEN
                                 ))
-                                .size(FONT_SIZE_M)
+                                .size(TextRole::Body.size())
                                 .color(text::PRIMARY),
                             )
                             .fill(surface::WIDGET)
@@ -849,7 +849,7 @@ impl GuiShell {
                                     "{}  Open workspace",
                                     egui_phosphor::regular::FOLDER_NOTCH
                                 ))
-                                .size(FONT_SIZE_M)
+                                .size(TextRole::Body.size())
                                 .color(text::PRIMARY),
                             )
                             .fill(surface::WIDGET)
@@ -1079,7 +1079,7 @@ impl GuiShell {
                 ui.horizontal(|ui| {
                     ui.label(
                         egui::RichText::new("Switch Workspace")
-                            .size(FONT_SIZE_XL)
+                            .size(TextRole::Heading.size())
                             .color(text::PRIMARY),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -1094,7 +1094,7 @@ impl GuiShell {
 
                 ui.label(
                     egui::RichText::new("Directory path")
-                        .size(FONT_SIZE_S)
+                        .size(TextRole::BodyS.size())
                         .color(text::SECONDARY),
                 );
                 ui.add_space(SPACE_S);
@@ -1112,7 +1112,7 @@ impl GuiShell {
                                 [80.0, 28.0],
                                 egui::Button::new(
                                     egui::RichText::new("Switch")
-                                        .size(FONT_SIZE_S)
+                                        .size(TextRole::BodyS.size())
                                         .color(text::PRIMARY),
                                 )
                                 .fill(accent::PRIMARY),
@@ -1139,7 +1139,7 @@ impl GuiShell {
                                 [80.0, 28.0],
                                 egui::Button::new(
                                     egui::RichText::new("Cancel")
-                                        .size(FONT_SIZE_S)
+                                        .size(TextRole::BodyS.size())
                                         .color(text::SECONDARY),
                                 )
                                 .fill(surface::WIDGET),
@@ -1190,7 +1190,7 @@ impl GuiShell {
                 ui.horizontal(|ui| {
                     ui.label(
                         egui::RichText::new(format!("{}  Unsaved changes", egui_phosphor::regular::FLOPPY_DISK))
-                            .size(FONT_SIZE_XL)
+                            .size(TextRole::Heading.size())
                             .color(text::PRIMARY),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -1206,7 +1206,7 @@ impl GuiShell {
                 ui.add(
                     egui::Label::new(
                         egui::RichText::new(&self.ui_store.unsaved_changes.message)
-                            .size(FONT_SIZE_M)
+                            .size(TextRole::Body.size())
                             .color(text::SECONDARY),
                     )
                     .selectable(false),
@@ -1220,7 +1220,7 @@ impl GuiShell {
                             [90.0, ROW_L],
                             egui::Button::new(
                                 egui::RichText::new(format!("{}  Save", egui_phosphor::regular::FLOPPY_DISK))
-                                    .size(FONT_SIZE_S)
+                                    .size(TextRole::BodyS.size())
                                     .color(text::PRIMARY),
                             )
                             .fill(accent::PRIMARY),
@@ -1242,7 +1242,7 @@ impl GuiShell {
                             [90.0, ROW_L],
                             egui::Button::new(
                                 egui::RichText::new(format!("{}  Discard", egui_phosphor::regular::TRASH))
-                                    .size(FONT_SIZE_S)
+                                    .size(TextRole::BodyS.size())
                                     .color(text::SECONDARY),
                             )
                             .fill(surface::WIDGET),
@@ -1263,7 +1263,7 @@ impl GuiShell {
                             [90.0, ROW_L],
                             egui::Button::new(
                                 egui::RichText::new("Cancel")
-                                    .size(FONT_SIZE_S)
+                                    .size(TextRole::BodyS.size())
                                     .color(text::SECONDARY),
                             )
                             .fill(surface::WIDGET),

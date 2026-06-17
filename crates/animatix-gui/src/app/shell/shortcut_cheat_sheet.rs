@@ -7,7 +7,7 @@ use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
 use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
 use crate::app::design_tokens::spatial::{STROKE_WIDTH, RADIUS_XL, SPACE_L, SPACE_M, SPACE_XS};
-use crate::app::design_tokens::typography::{FONT_SIZE_S, FONT_SIZE_XL};
+use crate::app::design_tokens::typography::{TextRole};
 use crate::app::GuiShell;
 
 /// Keyboard shortcut groups.
@@ -119,7 +119,7 @@ impl GuiShell {
         content.horizontal(|ui| {
             ui.label(
                 RichText::new("Keyboard Shortcuts")
-                    .size(FONT_SIZE_XL)
+                    .size(TextRole::Heading.size())
                     .color(TEXT_PRIMARY)
                     .strong(),
             );
@@ -154,7 +154,7 @@ fn shortcut_column(ui: &mut egui::Ui, groups: &[(&str, &[(&str, &str)])], width:
         for (title, shortcuts) in groups {
             ui.label(
                 RichText::new(*title)
-                    .size(FONT_SIZE_S)
+                    .size(TextRole::BodyS.size())
                     .color(ACCENT_BLUE)
                     .strong(),
             );
@@ -166,13 +166,13 @@ fn shortcut_column(ui: &mut egui::Ui, groups: &[(&str, &[(&str, &str)])], width:
                     ui.label(
                         RichText::new(*key)
                             .monospace()
-                            .size(FONT_SIZE_S)
+                            .size(TextRole::BodyS.size())
                             .color(TEXT_SECONDARY),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(
                             RichText::new(*desc)
-                                .size(FONT_SIZE_S)
+                                .size(TextRole::BodyS.size())
                                 .color(TEXT_PRIMARY),
                         );
                     });

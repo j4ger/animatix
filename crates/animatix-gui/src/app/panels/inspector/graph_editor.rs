@@ -12,13 +12,13 @@ use crate::app::design_tokens::semantic::status::{ERROR as semantic_status_error
 use crate::app::design_tokens::semantic::surface::{BASE as semantic_surface_base, HOVER as semantic_surface_hover};
 use crate::app::design_tokens::semantic::text::{MUTED as semantic_text_muted, SECONDARY as semantic_text_secondary, DISABLED as semantic_text_disabled};
 use crate::app::design_tokens::spatial::{RADIUS_S, RADIUS_M, STROKE_WIDTH, SPACE_2 as spatial_space_s, SPACE_3 as spatial_space_m};
-use crate::app::design_tokens::typography::{FONT_SIZE_XS, FONT_SIZE_S};
+use crate::app::design_tokens::typography::{TextRole};
 use animatix::timeline::{
     AnimationTrack, ValueType, property_keyframe_easing, property_keyframe_times,
     read_property_value,
 };
 use animatix_syntax::easing::Easing;
-use egui::{Color32, FontId, Pos2, Sense, Stroke, Vec2};
+use egui::{Color32, Pos2, Sense, Stroke, Vec2};
 
 /// Information about a single curve to render.
 #[derive(Debug, Clone)]
@@ -165,7 +165,7 @@ pub fn render_multi_fcurve(
             rect.center(),
             egui::Align2::CENTER_CENTER,
             "No keyframes to graph",
-            FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+            TextRole::BodyS.font_id(),
             semantic_text_muted,
         );
         return;
@@ -210,7 +210,7 @@ pub fn render_multi_fcurve(
             egui::pos2(item_rect.min.x + 14.0, item_rect.center().y),
             egui::Align2::LEFT_CENTER,
             &curve.label,
-            FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+            TextRole::Micro.font_id(),
             if is_visible {
                 semantic_text_secondary
             } else {
@@ -244,7 +244,7 @@ pub fn render_multi_fcurve(
             plot_rect.center(),
             egui::Align2::CENTER_CENTER,
             "All curves hidden",
-            FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+            TextRole::BodyS.font_id(),
             semantic_text_muted,
         );
         return;
@@ -282,7 +282,7 @@ pub fn render_multi_fcurve(
             Pos2::new(plot_rect.left() + 2.0, y),
             egui::Align2::LEFT_CENTER,
             val_label,
-            FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+            TextRole::Micro.font_id(),
             semantic_text_muted,
         );
     }

@@ -11,7 +11,7 @@ use crate::app::design_tokens::semantic::border::DEFAULT as BORDER;
 use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::semantic::overlay::badge_bg;
 use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
-use crate::app::design_tokens::typography::FONT_SIZE_S;
+use crate::app::design_tokens::typography::TextRole;
 use egui::{Pos2, Vec2};
 
 // ─── Selection State ────────────────────────────────────────────────────────
@@ -251,7 +251,7 @@ pub(crate) fn draw_hover_highlight(
     let tooltip_pos = egui::pos2(hover_rect.center().x, hover_rect.top() - 20.0);
     let galley = painter.layout_no_wrap(
         hovered_actor.to_string(),
-        egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+        TextRole::BodyS.font_id(),
         TEXT_PRIMARY,
     );
     let tooltip_size = galley.size();
@@ -294,7 +294,7 @@ pub(crate) fn draw_cycle_indicator(
 
     let galley = painter.layout_no_wrap(
         indicator_text,
-        egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+        TextRole::BodyS.font_id(),
         TEXT_PRIMARY,
     );
     let size = galley.size();

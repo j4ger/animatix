@@ -3,7 +3,7 @@ use egui::{Color32, Rect, RichText, Sense, Stroke, Vec2};
 use crate::app::components::layout::card;
 use crate::app::design_tokens::semantic::{border, diagnostic as diag, status, surface, text};
 use crate::app::design_tokens::spatial::{ROW_L, SPACE_L, SPACE_M, SPACE_S, STROKE_WIDTH};
-use crate::app::design_tokens::typography::{FONT_SIZE_M, FONT_SIZE_S, FONT_SIZE_XS};
+use crate::app::design_tokens::typography::{TextRole};
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticPhase};
 
 /// Where to place the cursor after clicking a diagnostic.
@@ -39,7 +39,7 @@ pub fn diagnostics_list(
             ui.add(
                 egui::Label::new(
                     RichText::new(egui_phosphor::regular::WARNING_OCTAGON)
-                        .size(FONT_SIZE_S)
+                        .size(TextRole::BodyS.size())
                         .color(text::MUTED),
                 )
                 .selectable(false),
@@ -48,7 +48,7 @@ pub fn diagnostics_list(
             ui.add(
                 egui::Label::new(
                     RichText::new("Diagnostics")
-                        .size(FONT_SIZE_S)
+                        .size(TextRole::BodyS.size())
                         .color(text::SECONDARY),
                 )
                 .selectable(false),
@@ -58,7 +58,7 @@ pub fn diagnostics_list(
                 ui.add(
                     egui::Label::new(
                         RichText::new(format!("{} {}", egui_phosphor::regular::X, error_count))
-                            .size(FONT_SIZE_XS)
+                            .size(TextRole::Micro.size())
                             .color(status::ERROR),
                     )
                     .selectable(false),
@@ -72,7 +72,7 @@ pub fn diagnostics_list(
                             egui_phosphor::regular::WARNING,
                             warning_count
                         ))
-                        .size(FONT_SIZE_XS)
+                        .size(TextRole::Micro.size())
                         .color(status::WARNING),
                     )
                     .selectable(false),
@@ -84,7 +84,7 @@ pub fn diagnostics_list(
                     .add(
                         egui::Button::new(
                             RichText::new(egui_phosphor::regular::X)
-                                .size(FONT_SIZE_S)
+                                .size(TextRole::BodyS.size())
                                 .color(text::MUTED),
                         )
                         .frame(false),
@@ -154,7 +154,7 @@ fn diagnostic_row(
         egui::pos2(cursor_x + 7.0, baseline_y),
         egui::Align2::CENTER_CENTER,
         icon,
-        egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+        TextRole::BodyS.font_id(),
         accent_color,
     );
     cursor_x += 18.0;
@@ -164,7 +164,7 @@ fn diagnostic_row(
     let msg_max_width = (row_rect.max.x - cursor_x - SPACE_L - phase_badge_w).max(20.0);
 
     let msg = diagnostic.message.lines().next().unwrap_or(&diagnostic.message);
-    let font_id = egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional);
+    let font_id = TextRole::Body.font_id();
     let galley = ui.painter().layout(
         msg.to_string(),
         font_id.clone(),
@@ -182,7 +182,7 @@ fn diagnostic_row(
         egui::pos2(row_rect.max.x - SPACE_S, baseline_y),
         egui::Align2::RIGHT_CENTER,
         phase_str,
-        egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+        TextRole::Micro.font_id(),
         phase_color(diagnostic.phase),
     );
 

@@ -3,7 +3,7 @@ use egui::{Color32, Id, Rect, Response, Sense, Vec2};
 use crate::app::design_tokens::semantic::{accent, surface, text};
 use crate::app::design_tokens::spatial::{ROW_M, SPACE_L, SPACE_S};
 use crate::app::design_tokens::spatial::component::ICON_SLOT_WIDTH;
-use crate::app::design_tokens::typography::{FONT_SIZE_M, FONT_SIZE_S};
+use crate::app::design_tokens::typography::{TextRole};
 
 /// Response from a `Row`.
 pub struct RowResponse {
@@ -139,7 +139,7 @@ impl<'a> Row<'a> {
                 egui::pos2(chevron_rect.center().x, baseline_y),
                 egui::Align2::CENTER_CENTER,
                 icon,
-                egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
+                TextRole::Body.font_id(),
                 color,
             );
         }
@@ -156,7 +156,7 @@ impl<'a> Row<'a> {
                 egui::pos2(icon_rect.center().x, baseline_y),
                 egui::Align2::CENTER_CENTER,
                 icon_str,
-                egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
+                TextRole::Body.font_id(),
                 self.label_color.unwrap_or(default_color),
             );
             cursor_x += ICON_SLOT_WIDTH + SPACE_S;
@@ -175,7 +175,7 @@ impl<'a> Row<'a> {
             egui::pos2(cursor_x, baseline_y),
             egui::Align2::LEFT_CENTER,
             self.label,
-            egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+            TextRole::BodyS.font_id(),
             label_color,
         );
 

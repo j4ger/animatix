@@ -8,14 +8,15 @@ use std::path::{Path, PathBuf};
 use egui::{RichText, Vec2};
 
 use crate::app::commands::{ActionQueue, Command, ShellAction};
-use crate::app::components::{button, layout, row};
+use crate::app::components::{layout, row};
+use crate::app::components::button::Button;
 use crate::app::components::context_menu::{render_menu, MenuEntry};
 use crate::app::design_tokens::semantic::accent::{PRIMARY as semantic_accent_primary, CYAN as semantic_accent_cyan};
 use crate::app::design_tokens::semantic::status::WARNING as semantic_status_warning;
 use crate::app::design_tokens::semantic::text::{PRIMARY as semantic_text_primary, SECONDARY as semantic_text_secondary, MUTED as semantic_text_muted, DISABLED as semantic_text_disabled};
 use crate::app::design_tokens::spatial::{SPACE_1 as spatial_space_xs, SPACE_2 as spatial_space_s, SPACE_3 as spatial_space_m, SPACE_4 as spatial_space_l, SPACE_5 as spatial_space_xl, ROW_L as spatial_row_l};
 use crate::app::design_tokens::spatial::component::ICON_SLOT_WIDTH;
-use crate::app::design_tokens::typography::{FONT_SIZE_XS, FONT_SIZE_S, FONT_SIZE_L};
+use crate::app::design_tokens::typography::{TextRole};
 use crate::app::icons::actor_icon_str;
 use crate::app::panels::SidebarTab;
 use crate::app::{FileTreeEntry, PreviewPaneState};
@@ -505,7 +506,7 @@ fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
                         ui.add_space(ICON_SLOT_WIDTH + spatial_space_s);
                         ui.label(
                             RichText::new(&duration_hint)
-                                .size(FONT_SIZE_XS)
+                                .size(TextRole::Micro.size())
                                 .color(semantic_text_muted),
                         );
                     });
@@ -514,7 +515,7 @@ fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
                             ui.add_space(ICON_SLOT_WIDTH + spatial_space_s);
                             ui.label(
                                 RichText::new(hint)
-                                    .size(FONT_SIZE_XS)
+                                    .size(TextRole::Micro.size())
                                     .color(semantic_text_muted),
                             );
                         });
@@ -558,7 +559,7 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
                 ui.add(
                     egui::Label::new(
                         RichText::new(format!("{} {}", egui_phosphor::regular::FILM_STRIP, scene_name))
-                            .size(FONT_SIZE_S)
+                            .size(TextRole::BodyS.size())
                             .color(semantic_text_muted),
                     )
                     .selectable(false),
@@ -584,7 +585,7 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
             ui.add(
                 egui::Label::new(
                     RichText::new("No actors in scene")
-                        .size(FONT_SIZE_L)
+                        .size(TextRole::Title.size())
                         .color(semantic_text_secondary),
                 )
                 .selectable(false),
@@ -593,7 +594,7 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
             if ui
                 .button(
                     RichText::new(format!("{} Add Actor", egui_phosphor::regular::PLUS))
-                        .size(FONT_SIZE_L)
+                        .size(TextRole::Title.size())
                         .color(semantic_accent_primary),
                 )
                 .clicked()
@@ -697,23 +698,11 @@ fn render_actor_tree(
         .sense(egui::Sense::click_and_drag())
         .right(|ui| {
             ui.spacing_mut().item_spacing = Vec2::new(spatial_space_xs, 0.0);
-            let eye_btn = button::icon_button_colored(
-                ui,
-                eye_icon,
-                if is_visible { "Hide layer" } else { "Show layer" },
-                eye_color,
-                semantic_text_primary,
-            );
+            let eye_btn = ui.add(Button::icon(eye_icon).with_tooltip(if is_visible { "Hide layer" } else { "Show layer" }).icon_color(eye_color).hover_icon_color(semantic_text_primary));
             if eye_btn.clicked() {
                 commands.push_back(ShellAction::Command(Command::ToggleActorVisibility(label.to_string())));
             }
-            let lock_btn = button::icon_button_colored(
-                ui,
-                lock_icon,
-                if is_locked { "Unlock layer" } else { "Lock layer" },
-                lock_color,
-                semantic_text_primary,
-            );
+            let lock_btn = ui.add(Button::icon(lock_icon).with_tooltip(if is_locked { "Unlock layer" } else { "Lock layer" }).icon_color(lock_color).hover_icon_color(semantic_text_primary));
             if lock_btn.clicked() {
                 commands.push_back(ShellAction::Command(Command::ToggleActorLock(label.to_string())));
             }
@@ -958,7 +947,7 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
                         ui.add_space(ICON_SLOT_WIDTH + spatial_space_s);
                         ui.label(
                             egui::RichText::new(format!("@slots: {}", slots.join(", ")))
-                                .size(FONT_SIZE_XS)
+                                .size(TextRole::Micro.size())
                                 .color(semantic_accent_cyan),
                         );
                     });
@@ -979,7 +968,7 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
                             .collect();
                         ui.label(
                             egui::RichText::new(params.join(", "))
-                                .size(FONT_SIZE_XS)
+                                .size(TextRole::Micro.size())
                                 .color(semantic_text_muted),
                         );
                     });

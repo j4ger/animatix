@@ -24,7 +24,7 @@ use crate::app::design_tokens::semantic::status::WARNING as semantic_status_warn
 use crate::app::design_tokens::semantic::surface::{HOVER as semantic_surface_hover, SURFACE as semantic_surface_surface};
 use crate::app::design_tokens::semantic::text::{PRIMARY as semantic_text_primary, SECONDARY as semantic_text_secondary, MUTED as semantic_text_muted};
 use crate::app::design_tokens::spatial::{SPACE_2 as spatial_space_s, SPACE_3 as spatial_space_m, SPACE_5 as spatial_space_xl, ROW_S as spatial_row_s, ROW_M as spatial_row_m};
-use crate::app::design_tokens::typography::{FONT_SIZE_XS, FONT_SIZE_S, FONT_SIZE_L};
+use crate::app::design_tokens::typography::{TextRole};
 
 /// The list of spreadsheet columns (property names).
 ///
@@ -63,7 +63,7 @@ pub(crate) fn render_property_spreadsheet(
         ui.add_space(spatial_space_s);
         let btn = egui::Button::new(
             RichText::new(format!("{} Semantic", egui_phosphor::regular::ROWS))
-                .size(FONT_SIZE_XS)
+                .size(TextRole::Micro.size())
                 .color(semantic_text_secondary),
         )
         .min_size(Vec2::new(0.0, spatial_row_s));
@@ -74,12 +74,12 @@ pub(crate) fn render_property_spreadsheet(
         ui.add_space(spatial_space_m);
         ui.add(
             egui::Label::new(
-                RichText::new(egui_phosphor::regular::TABLE).size(FONT_SIZE_S).color(semantic_status_warning),
+                RichText::new(egui_phosphor::regular::TABLE).size(TextRole::BodyS.size()).color(semantic_status_warning),
             )
             .selectable(false),
         );
         ui.add(
-            egui::Label::new(RichText::new("Spreadsheet").size(FONT_SIZE_S).color(semantic_status_warning))
+            egui::Label::new(RichText::new("Spreadsheet").size(TextRole::BodyS.size()).color(semantic_status_warning))
                 .selectable(false),
         );
         ui.add_space(spatial_space_s);
@@ -100,7 +100,7 @@ pub(crate) fn render_property_spreadsheet(
     if ui
         .button(
             RichText::new(format!("{} Add", egui_phosphor::regular::PLUS))
-                .size(FONT_SIZE_XS)
+                .size(TextRole::Micro.size())
                 .color(semantic_accent_primary),
         )
         .on_hover_text("Add a new actor")
@@ -134,7 +134,7 @@ pub(crate) fn render_property_spreadsheet(
             ui.add_space(spatial_space_m);
             ui.add(
                 egui::Label::new(
-                    RichText::new("No actors in scene").size(FONT_SIZE_L).color(semantic_text_secondary),
+                    RichText::new("No actors in scene").size(TextRole::Title.size()).color(semantic_text_secondary),
                 )
                 .selectable(false),
             );
@@ -169,7 +169,7 @@ pub(crate) fn render_property_spreadsheet(
                     corner_rect.center(),
                     egui::Align2::CENTER_CENTER,
                     egui_phosphor::regular::TABLE,
-                    egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                    TextRole::BodyS.font_id(),
                     semantic_text_muted,
                 );
 
@@ -186,7 +186,7 @@ pub(crate) fn render_property_spreadsheet(
                         header_rect.center(),
                         egui::Align2::CENTER_CENTER,
                         prop_name,
-                        egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+                        TextRole::Micro.font_id(),
                         semantic_text_secondary,
                     );
                 }
@@ -229,7 +229,7 @@ pub(crate) fn render_property_spreadsheet(
                         Pos2::new(label_rect.min.x + spatial_space_s, label_rect.center().y),
                         egui::Align2::LEFT_CENTER,
                         format!("{} {}", icon, actor_label),
-                        egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                        TextRole::BodyS.font_id(),
                         label_color,
                     );
 
@@ -280,7 +280,7 @@ pub(crate) fn render_property_spreadsheet(
                             cell_rect.center(),
                             egui::Align2::CENTER_CENTER,
                             &value_text,
-                            egui::FontId::monospace(FONT_SIZE_XS),
+                            egui::FontId::monospace(TextRole::Micro.size()),
                             value_color,
                         );
 

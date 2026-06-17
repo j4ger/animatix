@@ -21,7 +21,7 @@ use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use crate::app::commands::{ActionQueue, Command, ShellAction};
-use crate::app::components::button::{play_pause_button, toolbar_action_button, toolbar_separator, toolbar_toggle_button};
+use crate::app::components::button::{self, Button, toolbar_separator};
 use crate::app::components::layout;
 use crate::app::design_tokens::semantic::accent::{PRIMARY as semantic_accent_primary, CYAN as semantic_accent_cyan, selection as semantic_accent_selection};
 use crate::app::design_tokens::semantic::border::DEFAULT as semantic_border_default;
@@ -32,7 +32,7 @@ use crate::app::design_tokens::semantic::text::{PRIMARY as semantic_text_primary
 use crate::app::design_tokens::semantic::timeline::{KF_FLASH as semantic_timeline_kf_flash, loop_region as semantic_timeline_loop_region, track_block_1 as semantic_timeline_track_block_1, track_block_2 as semantic_timeline_track_block_2, track_block_3 as semantic_timeline_track_block_3, track_block_4 as semantic_timeline_track_block_4, track_block_5 as semantic_timeline_track_block_5, row_alt as semantic_timeline_row_alt};
 use crate::app::design_tokens::spatial::{SPACE_2 as spatial_space_s, STROKE_WIDTH, RADIUS_S};
 use crate::app::design_tokens::spatial::timeline::{LABEL_COL_WIDTH, TRACK_ROW_HEIGHT, RULER_HEIGHT, RANGE_HEIGHT, KF_HALF as KF_DIAMOND_HALF, PLAYBACK_STRIP_HEIGHT};
-use crate::app::design_tokens::typography::{FONT_SIZE_XS, FONT_SIZE_S};
+use crate::app::design_tokens::typography::{TextRole};
 use crate::app::PreviewPaneState;
 use animatix::composition::Composition;
 use animatix::timeline::Timeline;
@@ -308,37 +308,37 @@ fn render_transport_strip(
             ui.add_space(spatial_space_s);
 
             // Go to start
-            if toolbar_action_button(ui, egui_phosphor::regular::SKIP_BACK, None, "Go to start", false).clicked() {
+            if ui.add(Button::ghost("").with_icon(egui_phosphor::regular::SKIP_BACK).with_tooltip("Go to start")).clicked() {
                 commands.push_back(ShellAction::Command(Command::ScrubTo(0.0)));
             }
 
             // Previous keyframe
-            if toolbar_action_button(ui, egui_phosphor::regular::CARET_LEFT, None, "Previous keyframe", false).clicked() {
+            if ui.add(Button::ghost("").with_icon(egui_phosphor::regular::CARET_LEFT).with_tooltip("Previous keyframe")).clicked() {
                 commands.push_back(ShellAction::Command(Command::PrevKeyframe));
             }
 
             // Play / Pause
-            if play_pause_button(ui, preview.playback.is_playing).clicked() {
+            if ui.add(Button::icon(button::play_pause_icon(preview.playback.is_playing)).with_tooltip("Play/Pause (Space)")).clicked() {
                 commands.push_back(ShellAction::Command(Command::TogglePlayback));
             }
 
             // Next keyframe
-            if toolbar_action_button(ui, egui_phosphor::regular::CARET_RIGHT, None, "Next keyframe", false).clicked() {
+            if ui.add(Button::ghost("").with_icon(egui_phosphor::regular::CARET_RIGHT).with_tooltip("Next keyframe")).clicked() {
                 commands.push_back(ShellAction::Command(Command::NextKeyframe));
             }
 
             // Frame-step back
-            if toolbar_action_button(ui, "⏪", None, "Step back one frame", false).clicked() {
+            if ui.add(Button::ghost("").with_icon("⏪").with_tooltip("Step back one frame")).clicked() {
                 commands.push_back(ShellAction::Command(Command::FrameStepBackward));
             }
 
             // Frame-step forward
-            if toolbar_action_button(ui, "⏩", None, "Step forward one frame", false).clicked() {
+            if ui.add(Button::ghost("").with_icon("⏩").with_tooltip("Step forward one frame")).clicked() {
                 commands.push_back(ShellAction::Command(Command::FrameStepForward));
             }
 
             // Go to end
-            if toolbar_action_button(ui, egui_phosphor::regular::SKIP_FORWARD, None, "Go to end", false).clicked() {
+            if ui.add(Button::ghost("").with_icon(egui_phosphor::regular::SKIP_FORWARD).with_tooltip("Go to end")).clicked() {
                 commands.push_back(ShellAction::Command(Command::ScrubTo(preview.playback.duration_s)));
             }
 
@@ -347,7 +347,7 @@ fn render_transport_strip(
             // Speed dropdown
             const SPEEDS: [(f32, &str); 4] = [(0.5, "\u{BD}\u{D7}"), (1.0, "1\u{D7}"), (2.0, "2\u{D7}"), (4.0, "4\u{D7}")];
             let si = SPEEDS.iter().position(|(v, _)| (*v - preview.playback.playback_speed).abs() < f32::EPSILON).unwrap_or(1);
-            ui.menu_button(RichText::new(SPEEDS[si].1).monospace().size(FONT_SIZE_S).color(semantic_text_secondary), |ui| {
+            ui.menu_button(RichText::new(SPEEDS[si].1).monospace().size(TextRole::BodyS.size()).color(semantic_text_secondary), |ui| {
                 for (speed, label) in &SPEEDS {
                     let is_active = (*speed - preview.playback.playback_speed).abs() < f32::EPSILON;
                     if ui.selectable_label(is_active, *label).clicked() {
@@ -359,7 +359,7 @@ fn render_transport_strip(
 
             // Loop toggle
             let loop_active = preview.playback.loop_start_s.is_some() && preview.playback.loop_end_s.is_some();
-            if toolbar_toggle_button(ui, egui_phosphor::regular::ARROW_COUNTER_CLOCKWISE, None, "Toggle loop playback", loop_active, false).clicked() {
+            if ui.add(Button::ghost("").with_icon(egui_phosphor::regular::ARROW_COUNTER_CLOCKWISE).with_tooltip("Toggle loop playback").active(loop_active)).clicked() {
                 if loop_active {
                     preview.playback.loop_start_s = None;
                     preview.playback.loop_end_s = None;
@@ -371,7 +371,7 @@ fn render_transport_strip(
 
             // Ping-pong toggle
             let ping_pong_active = preview.playback.ping_pong;
-            if toolbar_toggle_button(ui, egui_phosphor::regular::ARROWS_CLOCKWISE, None, "Toggle ping-pong playback (bounce at boundaries)", ping_pong_active, false).clicked() {
+            if ui.add(Button::ghost("").with_icon(egui_phosphor::regular::ARROWS_CLOCKWISE).with_tooltip("Toggle ping-pong playback (bounce at boundaries)").active(ping_pong_active)).clicked() {
                 preview.playback.ping_pong = !preview.playback.ping_pong;
                 if !preview.playback.ping_pong {
                     preview.playback.ping_pong_direction = 1;
@@ -382,21 +382,21 @@ fn render_transport_strip(
 
             // Zoom controls
             let zoom_text = format!("{:.0}%", preview.timeline_zoom * 100.0);
-            if ui.button(egui::RichText::new(zoom_text).monospace().size(FONT_SIZE_S).color(semantic_text_secondary))
+            if ui.button(egui::RichText::new(zoom_text).monospace().size(TextRole::BodyS.size()).color(semantic_text_secondary))
                 .on_hover_text("Reset zoom")
                 .clicked()
             {
                 preview.timeline_zoom = 1.0;
                 preview.timeline_scroll_offset = 0.0;
             }
-            if toolbar_action_button(ui, egui_phosphor::regular::MINUS, None, "Zoom out", false).clicked() {
+            if ui.add(Button::ghost("").with_icon(egui_phosphor::regular::MINUS).with_tooltip("Zoom out")).clicked() {
                 let new_zoom = (preview.timeline_zoom * 0.8).max(0.25);
                 if new_zoom <= 1.0 {
                     preview.timeline_scroll_offset = 0.0;
                 }
                 preview.timeline_zoom = new_zoom;
             }
-            if toolbar_action_button(ui, egui_phosphor::regular::PLUS, None, "Zoom in", false).clicked() {
+            if ui.add(Button::ghost("").with_icon(egui_phosphor::regular::PLUS).with_tooltip("Zoom in")).clicked() {
                 let new_zoom = (preview.timeline_zoom * 1.25).min(8.0);
                 if new_zoom <= 1.0 {
                     preview.timeline_scroll_offset = 0.0;
@@ -416,7 +416,7 @@ fn render_transport_strip(
                 let fps_val = preview.playback.fps;
                 ui.add(egui::Label::new(
                     egui::RichText::new(format!("{} / {}  {:.0}fps", current_tc, duration_tc, fps_val))
-                        .font(FontId::monospace(FONT_SIZE_S))
+                        .font(TextRole::Mono.font_id())
                         .color(semantic_text_primary),
                 ).selectable(false));
             });
@@ -565,7 +565,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     Pos2::new(sr.center().x, sr.center().y - 2.0),
                     Align2::CENTER_CENTER,
                     sn.as_str(),
-                    FontId::monospace(FONT_SIZE_XS),
+                    FontId::monospace(10.0), // 10px mono: no TextRole
                     label_color,
                 );
             }
@@ -582,7 +582,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     Pos2::new(sr.left() + 4.0, sr.bottom() - 2.0),
                     Align2::LEFT_BOTTOM,
                     dur_text,
-                    FontId::monospace(FONT_SIZE_XS),
+                    FontId::monospace(10.0), // 10px mono: no TextRole
                     label_color.linear_multiply(0.6),
                 );
             }
@@ -758,7 +758,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                         painter.line_segment([Pos2::new(x, ruler_bot - 6.0), Pos2::new(x, ruler_bot)], Stroke::new(STROKE_WIDTH, semantic_border_default));
                         painter.text(Pos2::new(x, ruler_top + RULER_HEIGHT * 0.35), Align2::CENTER_CENTER,
                             if tick_step >= 1.0 { format!("{:.0}s", t) } else { format!("{:.1}s", t) },
-                            FontId::monospace(FONT_SIZE_XS), semantic_text_muted);
+                            FontId::monospace(10.0), // 10px mono: no TextRole
+                            semantic_text_muted);
                     }
                     t += tick_step;
                 }
@@ -780,7 +781,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 painter.rect_filled(label_rect, 0.0, semantic_surface_base);
                 painter.text(Pos2::new(scroll_rect.left() + spatial_space_s, (st_top + st_bot) / 2.0), Align2::LEFT_CENTER,
                     format!("{} Scenes", egui_phosphor::regular::FILM_STRIP),
-                    FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional), semantic_text_muted);
+                    TextRole::BodyS.font_id(), semantic_text_muted);
 
                 let bar_area = Rect::from_min_max(Pos2::new(bar_origin_x, st_top), Pos2::new(scroll_rect.right(), st_bot));
 
@@ -809,7 +810,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                     ghost_rect.center(),
                                     Align2::CENTER_CENTER,
                                     drag_name.as_str(),
-                                    FontId::monospace(FONT_SIZE_XS),
+                                    FontId::monospace(10.0), // 10px mono: no TextRole
                                     semantic_accent_primary,
                                 );
                             }
@@ -852,7 +853,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                         badge_rect.center(),
                         Align2::CENTER_CENTER,
                         icon,
-                        FontId::monospace(FONT_SIZE_XS),
+                        FontId::monospace(10.0), // 10px mono: no TextRole
                         semantic_text_primary,
                     );
 
@@ -1000,7 +1001,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                         chevron_rect.center(),
                         Align2::CENTER_CENTER,
                         chevron_icon,
-                        FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                        TextRole::BodyS.font_id(),
                         if chevron_resp.hovered() { semantic_text_primary } else { semantic_text_muted },
                     );
                     if chevron_resp.clicked() {
@@ -1028,7 +1029,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     prop_toggle_rect.center(),
                     Align2::CENTER_CENTER,
                     egui_phosphor::regular::LIST,
-                    FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+                    TextRole::Micro.font_id(),
                     if prop_expanded { semantic_accent_primary } else { semantic_text_muted },
                 );
                 if prop_toggle_resp.clicked() {
@@ -1050,7 +1051,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     Pos2::new(label_x, track_rect.center().y),
                     Align2::LEFT_CENTER,
                     &label_text,
-                    FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                    TextRole::BodyS.font_id(),
                     if is_selected { semantic_text_primary } else { semantic_text_secondary },
                 );
 
@@ -1120,7 +1121,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             painter.rect_filled(br, RADIUS_S, color.linear_multiply(0.5));
                             painter.rect_stroke(br, RADIUS_S, Stroke::new(if is_action_drag { 2.0 } else { STROKE_WIDTH }, if is_action_drag { semantic_accent_primary } else { color }), egui::StrokeKind::Outside);
                             if br.width() > 40.0 {
-                                painter.text(br.center(), Align2::CENTER_CENTER, &event.verb, FontId::monospace(FONT_SIZE_XS), semantic_text_primary);
+                                painter.text(br.center(), Align2::CENTER_CENTER, &event.verb, FontId::monospace(10.0), // 10px mono: no TextRole
+                                semantic_text_primary);
                             }
 
                             // Interaction: click_and_drag for resize
@@ -1149,7 +1151,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                                 painter.line_segment([Pos2::new(new_end_x, br.top()), Pos2::new(new_end_x, br.bottom())], Stroke::new(2.0, semantic_accent_primary));
                                                 let new_dur = (orig_dur + dt).max(0.1);
                                                 let dur_text = if new_dur < 1.0 { format!("{}ms", (new_dur * 1000.0).round()) } else { format!("{:.2}s", new_dur) };
-                                                painter.text(Pos2::new(new_end_x, br.top() - 4.0), Align2::CENTER_BOTTOM, dur_text, FontId::monospace(FONT_SIZE_XS), semantic_accent_primary);
+                                                painter.text(Pos2::new(new_end_x, br.top() - 4.0), Align2::CENTER_BOTTOM, dur_text, FontId::monospace(10.0), // 10px mono: no TextRole
+                                                semantic_accent_primary);
                                             }
                                             Edge::Left => {
                                                 let new_start_x = time_to_x(orig_start + dt);
@@ -1281,7 +1284,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                     new_kf_drag = Some((actor_label.clone(), prop, kf_ms, snapped));
                                     let gx = time_to_x(snapped);
                                     painter.line_segment([Pos2::new(gx, bar_area.top()), Pos2::new(gx, bar_area.bottom())], Stroke::new(STROKE_WIDTH, semantic_status_warning.linear_multiply(0.5)));
-                                    let g = painter.layout_no_wrap(format!("{:.2}s → {:.2}s", kf_s, snapped), FontId::monospace(FONT_SIZE_XS), semantic_text_primary);
+                                    let g = painter.layout_no_wrap(format!("{:.2}s → {:.2}s", kf_s, snapped), FontId::monospace(10.0), // 10px mono: no TextRole
+                                    semantic_text_primary);
                                     let tr = Rect::from_min_size(Pos2::new(gx - g.size().x / 2.0, bar_area.top() - 16.0), g.size() + Vec2::new(8.0, 4.0));
                                     painter.rect_filled(tr, RADIUS_S, semantic_surface_surface);
                                     painter.galley(tr.min + Vec2::new(4.0, 2.0), g, semantic_text_primary);
@@ -1386,7 +1390,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                     Pos2::new(prop_label_x, prop_rect.center().y),
                                     Align2::LEFT_CENTER,
                                     *prop_name,
-                                    FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+                                    TextRole::Micro.font_id(),
                                     semantic_text_muted,
                                 );
 
@@ -1466,7 +1470,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
             {
                 painter.rect_filled(Rect::from_min_max(Pos2::new(scroll_rect.left(), rs_top), Pos2::new(bar_origin_x, rs_bot)), 0.0, semantic_surface_base);
                 painter.text(Pos2::new(scroll_rect.left() + spatial_space_s, (rs_top + rs_bot) / 2.0), Align2::LEFT_CENTER, "Region",
-                    FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional), semantic_text_muted);
+                    TextRole::Micro.font_id(), semantic_text_muted);
 
                 let range_bar = Rect::from_min_max(Pos2::new(bar_origin_x, rs_top), Pos2::new(scroll_rect.right(), rs_bot));
                 let loop_active = preview.playback.loop_start_s.is_some() && preview.playback.loop_end_s.is_some();
@@ -1517,7 +1521,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     // Loop is off — show full-duration static indicator
                     painter.rect_filled(range_bar.shrink2(Vec2::new(0.0, 2.0)), RADIUS_S, semantic_surface_widget);
                     let mid = range_bar.center();
-                    painter.text(mid, Align2::CENTER_CENTER, "Enable loop to set region", FontId::monospace(FONT_SIZE_XS), semantic_text_muted);
+                    painter.text(mid, Align2::CENTER_CENTER, "Enable loop to set region", FontId::monospace(10.0), // 10px mono: no TextRole
+                            semantic_text_muted);
                 }
             }
 

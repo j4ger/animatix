@@ -17,9 +17,9 @@ use crate::app::design_tokens::semantic::status::warning_subtle as amber_subtle;
 use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::semantic::text::faint as text_faint;
 use crate::app::design_tokens::spatial::STROKE_WIDTH;
-use crate::app::design_tokens::typography::FONT_SIZE_S;
+use crate::app::design_tokens::typography::TextRole;
 use animatix::timeline::{PlacementMode, SceneDimensions, Timeline, TrackAccessor};
-use egui::{Color32, FontId, Pos2, Stroke, Vec2};
+use egui::{Color32, Pos2, Stroke, Vec2};
 
 // ─── Preview Transform ──────────────────────────────────────────────────────
 
@@ -906,7 +906,7 @@ pub(super) fn draw_reorder_overlay(
 
     let tooltip_pos = preview_rect.left_top() + Vec2::new(10.0, 10.0);
     let tooltip_text = format!("Reorder: move to position {}", target_index + 1);
-    let galley = painter.layout_no_wrap(tooltip_text, FontId::proportional(FONT_SIZE_S), TEXT_PRIMARY);
+    let galley = painter.layout_no_wrap(tooltip_text, TextRole::BodyS.font_id(), TEXT_PRIMARY);
     let tooltip_rect = egui::Rect::from_min_size(tooltip_pos, galley.size() + Vec2::new(12.0, 8.0));
     painter.rect_filled(tooltip_rect, 4.0, tooltip_bg());
     painter.rect_stroke(

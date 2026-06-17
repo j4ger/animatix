@@ -19,7 +19,7 @@ use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
 use crate::app::design_tokens::semantic::editor::SNIPPET_BLUE;
 use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
 use crate::app::design_tokens::spatial::{STROKE_WIDTH, RADIUS_XL, RADIUS_M, RADIUS_S, SPACE_L, SPACE_M, SPACE_S};
-use crate::app::design_tokens::typography::{FONT_SIZE_XL, FONT_SIZE_L, FONT_SIZE_M, FONT_SIZE_S, FONT_SIZE_XS};
+use crate::app::design_tokens::typography::{TextRole};
 use crate::app::insertion::{InsertionContext, InsertionRequest};
 use crate::app::GuiShell;
 
@@ -296,7 +296,7 @@ impl GuiShell {
         content.horizontal(|ui| {
             ui.label(
                 RichText::new("Insert")
-                    .size(FONT_SIZE_XL)
+                    .size(TextRole::Heading.size())
                     .color(TEXT_PRIMARY)
                     .strong(),
             );
@@ -316,7 +316,7 @@ impl GuiShell {
             let type_name = form.type_name.clone();
             content.label(
                 RichText::new(format!("Configure {}", type_name))
-                    .size(FONT_SIZE_L)
+                    .size(TextRole::Title.size())
                     .color(TEXT_PRIMARY)
                     .strong(),
             );
@@ -331,7 +331,7 @@ impl GuiShell {
                     };
                     ui.label(
                         RichText::new(label)
-                            .size(FONT_SIZE_S)
+                            .size(TextRole::BodyS.size())
                             .color(TEXT_SECONDARY),
                     );
 
@@ -496,7 +496,7 @@ impl GuiShell {
                 let btn = ui.add(
                     egui::Button::new(
                         RichText::new(label)
-                            .size(FONT_SIZE_S)
+                            .size(TextRole::BodyS.size())
                             .color(if selected { TEXT_PRIMARY } else { TEXT_SECONDARY }),
                     )
                     .fill(if selected { BG_WIDGET } else { BG_BASE })
@@ -594,14 +594,14 @@ impl GuiShell {
                         ui.horizontal(|ui| {
                             ui.label(
                                 RichText::new(&item.icon)
-                                    .size(FONT_SIZE_M)
+                                    .size(TextRole::Body.size())
                                     .color(item.color),
                             );
                             ui.add_space(SPACE_S);
                             ui.vertical(|ui| {
                                 ui.label(
                                     RichText::new(&item.label)
-                                        .size(FONT_SIZE_S)
+                                        .size(TextRole::BodyS.size())
                                         .color(if is_selected {
                                             TEXT_PRIMARY
                                         } else {
@@ -612,7 +612,7 @@ impl GuiShell {
                                 if !item.detail.is_empty() {
                                     ui.label(
                                         RichText::new(&item.detail)
-                                            .size(FONT_SIZE_XS)
+                                            .size(TextRole::Micro.size())
                                             .color(TEXT_MUTED),
                                     );
                                 }

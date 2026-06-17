@@ -9,7 +9,7 @@ use crate::app::design_tokens::semantic::text::{MUTED as text_muted, SECONDARY a
 use crate::app::design_tokens::semantic::status::WARNING as status_warning;
 use crate::app::design_tokens::spatial::{RADIUS_L, STROKE_WIDTH};
 use crate::app::design_tokens::spatial::preview::MIN_ZOOM as preview_min_zoom;
-use crate::app::design_tokens::typography::FONT_SIZE_XS;
+use crate::app::design_tokens::typography::TextRole;
 use crate::app::panels::{nice_tick_interval, RULER_SIZE};
 pub(crate) use crate::app::preview::context::PreviewContext;
 use crate::app::preview::{self, drag_handler::handle_preview_drag, selection, DragState, fit_preview};
@@ -140,7 +140,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                         ui.painter().text(
                             egui::pos2(h_ruler_rect.min.x + rel_x, h_ruler_rect.min.y + RULER_SIZE * 0.3),
                             egui::Align2::CENTER_CENTER, format!("{}", tick_x as i32),
-                            egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional), ruler_text_color,
+                            TextRole::Micro.font_id(), ruler_text_color,
                         );
                     }
                 }
@@ -173,7 +173,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                         ui.painter().text(
                             egui::pos2(v_ruler_rect.min.x + RULER_SIZE * 0.3, v_ruler_rect.min.y + rel_y),
                             egui::Align2::CENTER_CENTER, format!("{}", tick_y as i32),
-                            egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional), ruler_text_color,
+                            TextRole::Micro.font_id(), ruler_text_color,
                         );
                     }
                 }
@@ -374,7 +374,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                         ctx.preview.viewport.preview_zoom, ctx.preview.viewport.preview_pan,
                     );
                     ui.painter().text(center, egui::Align2::CENTER_BOTTOM, label,
-                        egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional), text_muted);
+                        TextRole::Micro.font_id(), text_muted);
                 }
             }
 

@@ -31,7 +31,7 @@ use crate::app::design_tokens::spatial::{
     menu as menu_spatial, ROW_M, ROW_S, SPACE_L, SPACE_M, SPACE_S, STROKE_WIDTH,
 };
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S};
-use crate::app::design_tokens::typography::{FONT_SIZE_M, FONT_SIZE_S, FONT_SIZE_XS};
+use crate::app::design_tokens::typography::{TextRole};
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -54,7 +54,7 @@ pub enum MenuEntry {
         /// When false, the item is grayed out and non-interactive.
         enabled: bool,
     },
-    /// A non-interactive section header (muted, uppercase, small).
+    /// A non-interactive section header (muted, small).
     Header(String),
     /// A horizontal separator line.
     Separator,
@@ -146,7 +146,7 @@ pub fn render_menu(ui: &mut Ui, entries: &[MenuEntry]) -> Option<usize> {
             // Label
             let label_galley = ui.painter().layout(
                 label.to_string(),
-                egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
+                TextRole::Body.font_id(),
                 Color32::PLACEHOLDER,
                 f32::INFINITY,
             );
@@ -155,7 +155,7 @@ pub fn render_menu(ui: &mut Ui, entries: &[MenuEntry]) -> Option<usize> {
             if let Some(sc) = shortcut {
                 let sc_galley = ui.painter().layout(
                     sc.to_string(),
-                    egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                    TextRole::BodyS.font_id(),
                     Color32::PLACEHOLDER,
                     f32::INFINITY,
                 );
@@ -279,7 +279,7 @@ fn render_menu_item(
                 egui::pos2(cursor_x + menu_spatial::CHECK_WIDTH / 2.0, baseline_y),
                 Align2::CENTER_CENTER,
                 egui_phosphor::regular::CHECK,
-                egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                TextRole::BodyS.font_id(),
                 text::PRIMARY,
             );
         }
@@ -302,7 +302,7 @@ fn render_menu_item(
                 egui::pos2(cursor_x + menu_spatial::ICON_WIDTH / 2.0, baseline_y),
                 Align2::CENTER_CENTER,
                 icon_str,
-                egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                TextRole::BodyS.font_id(),
                 icon_color,
             );
         }
@@ -322,7 +322,7 @@ fn render_menu_item(
         egui::pos2(cursor_x, baseline_y),
         Align2::LEFT_CENTER,
         label,
-        egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
+        TextRole::Body.font_id(),
         label_color,
     );
 
@@ -337,7 +337,7 @@ fn render_menu_item(
             egui::pos2(rect.max.x - SPACE_M, baseline_y),
             Align2::RIGHT_CENTER,
             sc,
-            egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+            TextRole::BodyS.font_id(),
             shortcut_color,
         );
     }
@@ -356,8 +356,8 @@ fn render_menu_header(ui: &mut Ui, text: &str, content_width: f32) {
     ui.painter().text(
         egui::pos2(rect.min.x + SPACE_M, rect.center().y),
         Align2::LEFT_CENTER,
-        text.to_uppercase(),
-        egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+        text,
+        TextRole::Micro.font_id(),
         text::MUTED,
     );
 }

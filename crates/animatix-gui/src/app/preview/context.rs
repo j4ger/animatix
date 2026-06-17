@@ -16,7 +16,7 @@ use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
 use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::spatial::{RADIUS_M, SPACE_S, STROKE_WIDTH};
 use crate::app::design_tokens::spatial::preview::{HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS, MIN_ZOOM as PREVIEW_MIN_ZOOM};
-use crate::app::design_tokens::typography::{FONT_SIZE_S, FONT_SIZE_XS};
+use crate::app::design_tokens::typography::{TextRole};
 use crate::app::preview::{self, selection, ActorProps, DragState};
 use crate::app::preview::performance::PerformanceMetrics;
 use crate::app::{PreviewPaneState, InlineTextEditState};
@@ -156,9 +156,9 @@ impl PreviewContext<'_> {
         child.set_clip_rect(editor_rect);
 
         let font = match edit.property.as_str() {
-            "code" => egui::FontId::monospace(FONT_SIZE_S),
-            "math" => egui::FontId::monospace(FONT_SIZE_S),
-            _ => egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+            "code" => TextRole::Mono.font_id(),
+            "math" => TextRole::Mono.font_id(),
+            _ => TextRole::BodyS.font_id(),
         };
 
         let response = child.add(
@@ -425,7 +425,7 @@ impl PreviewContext<'_> {
                     };
                     ui.ctx().set_cursor_icon(icon);
                     egui::Tooltip::always_open(ui.ctx().clone(), ui.layer_id(), egui::Id::new("handle_tooltip"), egui::PopupAnchor::Pointer)
-                        .show(|ui| { ui.label(egui::RichText::new(tooltip).size(crate::app::design_tokens::typography::FONT_SIZE_S)); });
+                        .show(|ui| { ui.label(egui::RichText::new(tooltip).size(crate::app::design_tokens::typography::TextRole::BodyS.size())); });
                 } else {
                     let is_over_selected = self.selected_actors.iter().next()
                         .and_then(|a| self.hit_regions.iter().find(|(l, _)| l == a).map(|(_, b)| b.contains(scene)))
@@ -519,7 +519,7 @@ impl PreviewContext<'_> {
             if let Some(ref label) = self.preview.snap.snap_hud_label {
                 if let Some(mouse) = ui.ctx().input(|i| i.pointer.latest_pos()) {
                     let hud_pos = mouse + Vec2::new(12.0, -24.0);
-                    let galley = ui.painter().layout_no_wrap(label.clone(), egui::FontId::proportional(FONT_SIZE_S), GREEN);
+                    let galley = ui.painter().layout_no_wrap(label.clone(), TextRole::BodyS.font_id(), GREEN);
                     let padding = Vec2::new(8.0, 4.0);
                     let bg_rect = egui::Rect::from_min_size(hud_pos, galley.size() + padding * 2.0);
                     ui.painter().rect_filled(bg_rect, 3.0, crate::app::design_tokens::semantic::canvas::snap_guide_label_bg());
@@ -643,7 +643,7 @@ impl PreviewContext<'_> {
                     egui::pos2(screen.x, screen.y - dot_radius - 4.0),
                     egui::Align2::CENTER_BOTTOM,
                     time_label,
-                    egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+                    TextRole::Micro.font_id(),
                     TEXT_MUTED,
                 );
             }
@@ -697,7 +697,7 @@ impl PreviewContext<'_> {
 
             if is_dragging {
                 let measurement_color = ACCENT_BLUE; let text_color = TEXT_PRIMARY;
-                let font = egui::FontId::monospace(FONT_SIZE_XS);
+                let font = egui::FontId::monospace(TextRole::Micro.size());
                 match &self.drag_state {
                     DragState::Move { primary, actors: _, start_scene } => {
                         if let Some(props) = self.get_actor_props(primary) {

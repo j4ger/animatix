@@ -17,7 +17,7 @@ use crate::app::design_tokens::semantic::text::DISABLED;
 use crate::app::design_tokens::semantic::text::{PRIMARY as semantic_text_primary, SECONDARY as semantic_text_secondary, MUTED as semantic_text_muted};
 use crate::app::design_tokens::spatial::{RADIUS_S, RADIUS_M, STROKE_WIDTH, SPACE_1 as spatial_space_xs, SPACE_2 as spatial_space_s, SPACE_3 as spatial_space_m, SPACE_4 as spatial_space_l, SPACE_5 as spatial_space_xl, ROW_S as spatial_row_s, ROW_M as spatial_row_m, ROW_L as spatial_row_l, ROW_XS as spatial_row_xs};
 use crate::app::design_tokens::spatial::inspector::{INPUT_WIDTH_FLOAT as INSPECTOR_INPUT_WIDTH_FLOAT, ROW_HEIGHT as INSPECTOR_ROW_HEIGHT};
-use crate::app::design_tokens::typography::{FONT_SIZE_XS, FONT_SIZE_S, FONT_SIZE_M, FONT_SIZE_L, FONT_SIZE_XL};
+use crate::app::design_tokens::typography::{TextRole};
 use crate::app::icons::actor_icon_str;
 use crate::app::panels::panel_frame;
 use crate::app::utils::text::truncate_chars;
@@ -117,7 +117,7 @@ fn render_scene_inspector(
             Pos2::new(row_rect.min.x + spatial_space_s, row_rect.center().y),
             egui::Align2::LEFT_CENTER,
             format!("{} {}", egui_phosphor::regular::FILM_STRIP, active_scene),
-            egui::FontId::new(FONT_SIZE_XL, egui::FontFamily::Proportional),
+            TextRole::Heading.font_id(),
             semantic_accent_primary,
         );
         ui.add_space(spatial_space_m);
@@ -173,7 +173,7 @@ fn render_scene_inspector(
                     egui::Label::new(
                         RichText::new(format!("{:.2} s", start_s))
                             .monospace()
-                            .size(FONT_SIZE_S)
+                            .size(TextRole::BodyS.size())
                             .color(semantic_text_secondary),
                     )
                     .selectable(false),
@@ -202,7 +202,7 @@ fn render_scene_inspector(
                             bg_color[0], bg_color[1], bg_color[2], bg_color[3]
                         ))
                         .monospace()
-                        .size(FONT_SIZE_S)
+                        .size(TextRole::BodyS.size())
                         .color(semantic_text_muted),
                     )
                     .selectable(false),
@@ -363,7 +363,7 @@ fn render_scene_inspector(
                             egui_phosphor::regular::ARROW_RIGHT,
                             edge.to_scene
                         ))
-                        .size(FONT_SIZE_S)
+                        .size(TextRole::BodyS.size())
                         .color(semantic_accent_primary),
                     )
                     .clicked()
@@ -409,7 +409,7 @@ fn render_scene_inspector(
                     Pos2::new(response.rect.min.x + spatial_space_s, response.rect.center().y),
                     egui::Align2::LEFT_CENTER,
                     scene_name,
-                    egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                    TextRole::BodyS.font_id(),
                     if is_active {
                         semantic_accent_primary
                     } else {
@@ -480,7 +480,7 @@ pub(super) fn inspector_ui(
             ui.add_space(spatial_space_m);
             ui.add(
                 egui::Label::new(
-                    RichText::new("No actors in scene").size(FONT_SIZE_L).color(semantic_text_secondary),
+                    RichText::new("No actors in scene").size(TextRole::Title.size()).color(semantic_text_secondary),
                 )
                 .selectable(false),
             );
@@ -488,7 +488,7 @@ pub(super) fn inspector_ui(
             if ui
                 .button(
                     RichText::new(format!("{} Add Actor", egui_phosphor::regular::PLUS))
-                        .size(FONT_SIZE_L)
+                        .size(TextRole::Title.size())
                         .color(semantic_accent_primary),
                 )
                 .on_hover_text("Add a new actor to the scene")
@@ -550,14 +550,14 @@ pub(super) fn inspector_ui(
                     ui.add_space(spatial_space_s);
                     ui.label(
                         RichText::new("Multi-selected — drag/nudge in preview applies to all. Select a single actor to edit properties.")
-                            .size(FONT_SIZE_XS)
+                            .size(TextRole::Micro.size())
                             .color(semantic_text_muted),
                     );
                     ui.add_space(spatial_space_xs);
                     let names: Vec<&str> = selected_actors.iter().map(String::as_str).collect();
                     ui.label(
                         RichText::new(names.join(", "))
-                            .size(FONT_SIZE_XS)
+                            .size(TextRole::Micro.size())
                             .color(semantic_text_muted),
                     );
                 });
@@ -621,7 +621,7 @@ pub(super) fn inspector_ui(
                         ui.add(
                             egui::Label::new(
                                 RichText::new("No editable properties")
-                                    .size(FONT_SIZE_M)
+                                    .size(TextRole::Body.size())
                                     .color(semantic_text_muted),
                             )
                             .selectable(false),
@@ -676,7 +676,7 @@ pub(super) fn inspector_ui(
                         ui.add(egui::DragValue::new(&mut pivot[1]).speed(1.0).suffix(" px"));
                     });
                     if ui
-                        .button(RichText::new("Reset").size(FONT_SIZE_S).color(semantic_text_muted))
+                        .button(RichText::new("Reset").size(TextRole::BodyS.size()).color(semantic_text_muted))
                         .on_hover_text("Reset pivot to center")
                         .clicked()
                     {
@@ -859,7 +859,7 @@ fn render_property_stream(
             egui::pos2(name_x, baseline_y),
             egui::Align2::LEFT_CENTER,
             format!("{} {}", group.icon, entry.name),
-            egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+            TextRole::BodyS.font_id(),
             semantic_text_secondary,
         );
 
@@ -871,7 +871,7 @@ fn render_property_stream(
                 egui::pos2(value_x, baseline_y),
                 egui::Align2::LEFT_CENTER,
                 &value_text,
-                egui::FontId::monospace(FONT_SIZE_XS),
+                egui::FontId::monospace(TextRole::Micro.size()),
                 semantic_text_muted,
             );
         }
@@ -884,7 +884,7 @@ fn render_property_stream(
                 egui::pos2(row_rect.max.x - spatial_space_s, baseline_y),
                 egui::Align2::RIGHT_CENTER,
                 count_text,
-                egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+                TextRole::Micro.font_id(),
                 semantic_text_muted,
             );
         }
@@ -936,7 +936,7 @@ fn render_actor_header(
             |ui| {
                 ui.add(
                     egui::Label::new(
-                        RichText::new(actor_icon_str(track.kind)).size(FONT_SIZE_XL).color(semantic_status_warning),
+                        RichText::new(actor_icon_str(track.kind)).size(TextRole::Heading.size()).color(semantic_status_warning),
                     )
                     .selectable(false),
                 );
@@ -952,7 +952,7 @@ fn render_actor_header(
                 if is_editing {
                     let response = ui.add(
                         egui::TextEdit::singleline(&mut edit_buffer)
-                            .font(egui::FontId::new(FONT_SIZE_XL, egui::FontFamily::Proportional))
+                            .font(TextRole::Heading.font_id())
                             .text_color(semantic_text_primary)
                             .desired_width(120.0),
                     );
@@ -974,7 +974,7 @@ fn render_actor_header(
                 } else {
                     let label_response = ui.add(
                         egui::Label::new(
-                            RichText::new(&track.label).size(FONT_SIZE_XL).color(semantic_text_primary),
+                            RichText::new(&track.label).size(TextRole::Heading.size()).color(semantic_text_primary),
                         )
                         .selectable(false)
                         .sense(egui::Sense::click()),
@@ -1004,7 +1004,7 @@ fn render_actor_header(
                                 "t = {:.2}s",
                                 track.first_seen_ms as f64 / 1000.0
                             ))
-                            .size(FONT_SIZE_XS)
+                            .size(TextRole::Micro.size())
                             .color(semantic_text_muted),
                         )
                         .selectable(false),
@@ -1016,7 +1016,7 @@ fn render_actor_header(
                     let shape = shape_pt.evaluate(current_time_ms);
                     ui.add(
                         egui::Label::new(
-                            RichText::new(shape.to_string()).size(FONT_SIZE_S).color(semantic_text_muted),
+                            RichText::new(shape.to_string()).size(TextRole::BodyS.size()).color(semantic_text_muted),
                         )
                         .selectable(false),
                     );
@@ -1123,7 +1123,7 @@ fn render_container_children(
             egui::pos2(cursor_x, baseline_y),
             egui::Align2::LEFT_CENTER,
             label,
-            egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+            TextRole::BodyS.font_id(),
             semantic_text_secondary,
         );
 
@@ -1148,7 +1148,7 @@ fn render_container_children(
             down_rect.center(),
             egui::Align2::CENTER_CENTER,
             egui_phosphor::regular::CARET_DOWN,
-            egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+            TextRole::BodyS.font_id(),
             down_color,
         );
         btn_x -= btn_size.x + spatial_space_xs;
@@ -1169,7 +1169,7 @@ fn render_container_children(
             up_rect.center(),
             egui::Align2::CENTER_CENTER,
             egui_phosphor::regular::CARET_UP,
-            egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+            TextRole::BodyS.font_id(),
             up_color,
         );
 

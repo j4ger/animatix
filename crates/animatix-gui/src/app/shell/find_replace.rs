@@ -9,7 +9,7 @@ use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
 use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
 use crate::app::design_tokens::spatial::{STROKE_WIDTH, RADIUS_XL, SPACE_XL, SPACE_M, SPACE_S, ROW_M};
-use crate::app::design_tokens::typography::{FONT_SIZE_XL, FONT_SIZE_S};
+use crate::app::design_tokens::typography::{TextRole};
 use crate::app::GuiShell;
 
 impl GuiShell {
@@ -48,7 +48,7 @@ impl GuiShell {
                 ui.horizontal(|ui| {
                     ui.label(
                         egui::RichText::new("Find & Replace")
-                            .size(FONT_SIZE_XL)
+                            .size(TextRole::Heading.size())
                             .color(TEXT_PRIMARY),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -61,7 +61,7 @@ impl GuiShell {
                 ui.separator();
                 ui.add_space(SPACE_M);
 
-                ui.label(egui::RichText::new("Find").size(FONT_SIZE_S).color(TEXT_SECONDARY));
+                ui.label(egui::RichText::new("Find").size(TextRole::BodyS.size()).color(TEXT_SECONDARY));
                 ui.add(
                     egui::TextEdit::singleline(&mut self.ui_store.find_query)
                         .desired_width(f32::INFINITY)
@@ -69,7 +69,7 @@ impl GuiShell {
                 );
                 ui.add_space(SPACE_S);
 
-                ui.label(egui::RichText::new("Replace with").size(FONT_SIZE_S).color(TEXT_SECONDARY));
+                ui.label(egui::RichText::new("Replace with").size(TextRole::BodyS.size()).color(TEXT_SECONDARY));
                 ui.add(
                     egui::TextEdit::singleline(&mut self.ui_store.replace_query)
                         .desired_width(f32::INFINITY)
@@ -84,7 +84,7 @@ impl GuiShell {
                                 [100.0, ROW_M],
                                 egui::Button::new(
                                     egui::RichText::new("Replace All")
-                                        .size(FONT_SIZE_S)
+                                        .size(TextRole::BodyS.size())
                                         .color(TEXT_PRIMARY),
                                 )
                                 .fill(ACCENT_BLUE),
@@ -98,7 +98,7 @@ impl GuiShell {
                                 [90.0, ROW_M],
                                 egui::Button::new(
                                     egui::RichText::new("Find Next")
-                                        .size(FONT_SIZE_S)
+                                        .size(TextRole::BodyS.size())
                                         .color(TEXT_SECONDARY),
                                 )
                                 .fill(BG_WIDGET),

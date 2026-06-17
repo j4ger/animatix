@@ -15,7 +15,7 @@ use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
 use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
 use crate::app::design_tokens::spatial::{STROKE_WIDTH, RADIUS_XL, RADIUS_M, RADIUS_S, SPACE_XL, SPACE_XS, SPACE_M, SPACE_S, SPACE_L, ROW_L, ROW_M};
-use crate::app::design_tokens::typography::{FONT_SIZE_XL, FONT_SIZE_L, FONT_SIZE_M, FONT_SIZE_S, FONT_SIZE_XS};
+use crate::app::design_tokens::typography::{TextRole};
 use crate::app::document::export_target::ExportScope;
 use crate::app::components::layout;
 use crate::app::utils::text::{truncate_chars, truncate_middle};
@@ -155,7 +155,7 @@ impl GuiShell {
                 egui::pos2(content_rect.left(), cursor_y + 14.0),
                 egui::Align2::LEFT_CENTER,
                 "Export",
-                egui::FontId::new(FONT_SIZE_XL, egui::FontFamily::Proportional),
+                TextRole::Heading.font_id(),
                 TEXT_PRIMARY,
             );
 
@@ -171,7 +171,7 @@ impl GuiShell {
                 close_rect.center(),
                 egui::Align2::CENTER_CENTER,
                 egui_phosphor::regular::X,
-                egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
+                TextRole::Body.font_id(),
                 close_color,
             );
             if close_resp.clicked() {
@@ -272,7 +272,7 @@ impl GuiShell {
             egui::pos2(content_rect.center().x, center_y + 4.0),
             egui::Align2::CENTER_CENTER,
             "Exporting…",
-            egui::FontId::new(FONT_SIZE_L, egui::FontFamily::Proportional),
+            TextRole::Title.font_id(),
             TEXT_PRIMARY,
         );
 
@@ -289,7 +289,7 @@ impl GuiShell {
             egui::pos2(content_rect.center().x, center_y + 26.0),
             egui::Align2::CENTER_CENTER,
             format_label,
-            egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+            TextRole::BodyS.font_id(),
             TEXT_MUTED,
         );
 
@@ -326,7 +326,7 @@ impl GuiShell {
             egui::pos2(content_rect.center().x, bar_y + 14.0),
             egui::Align2::CENTER_TOP,
             progress_text,
-            egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+            TextRole::Micro.font_id(),
             TEXT_MUTED,
         );
 
@@ -340,7 +340,7 @@ impl GuiShell {
                 egui::pos2(content_rect.center().x, bar_y + 28.0),
                 egui::Align2::CENTER_TOP,
                 time_str,
-                egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+                TextRole::Micro.font_id(),
                 TEXT_MUTED,
             );
         }
@@ -359,7 +359,7 @@ impl GuiShell {
             btn_rect.center(),
             egui::Align2::CENTER_CENTER,
             "Cancel",
-            egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
+            TextRole::Body.font_id(),
             if btn_resp.hovered() { TEXT_PRIMARY } else { TEXT_SECONDARY },
         );
         if btn_resp.clicked() {
@@ -430,7 +430,7 @@ impl GuiShell {
                     let resp = ui.add(
                         egui::Label::new(
                             RichText::new(format!("{} Scene", egui_phosphor::regular::ARROWS_IN))
-                                .size(FONT_SIZE_S)
+                                .size(TextRole::BodyS.size())
                                 .color(ACCENT_BLUE),
                         )
                         .selectable(false),
@@ -455,7 +455,7 @@ impl GuiShell {
                 for (label, w, h, f) in presets {
                     let resp = ui.add(
                         egui::Button::new(
-                            RichText::new(label).size(FONT_SIZE_XS).color(TEXT_SECONDARY),
+                            RichText::new(label).size(TextRole::Micro.size()).color(TEXT_SECONDARY),
                         )
                         .fill(BG_WIDGET)
                         .stroke(Stroke::new(STROKE_WIDTH, BORDER))
@@ -492,7 +492,7 @@ impl GuiShell {
                         let resp = ui.add(
                             egui::Label::new(
                                 RichText::new(format!("{} Current", egui_phosphor::regular::CLOCK))
-                                    .size(FONT_SIZE_S)
+                                    .size(TextRole::BodyS.size())
                                     .color(ACCENT_BLUE),
                             )
                             .selectable(false),
@@ -520,11 +520,11 @@ impl GuiShell {
                     // Duration mode
                     let auto_prev = *auto_duration;
                     Self::settings_row(ui, "Duration", |ui| {
-                        ui.checkbox(auto_duration, RichText::new("Auto").size(FONT_SIZE_S));
+                        ui.checkbox(auto_duration, RichText::new("Auto").size(TextRole::BodyS.size()));
 
                         if *auto_duration {
                             ui.add_space(SPACE_S);
-                            ui.label(RichText::new("Hold:").size(FONT_SIZE_S).color(TEXT_SECONDARY));
+                            ui.label(RichText::new("Hold:").size(TextRole::BodyS.size()).color(TEXT_SECONDARY));
 
                             let mut hold = *hold_s;
                             layout::field_sized(ui, Some(80.0), |ui| {
@@ -571,7 +571,7 @@ impl GuiShell {
                         };
                         ui.label(
                             RichText::new(format!("Effective duration: {:.2}s", auto_dur))
-                                .size(FONT_SIZE_XS)
+                                .size(TextRole::Micro.size())
                                 .color(TEXT_MUTED),
                         );
                     }
@@ -613,7 +613,7 @@ impl GuiShell {
             let default = self.suggest_export_filename();
             ui.label(
                 RichText::new(format!("Default: {}", default.display()))
-                    .size(FONT_SIZE_XS)
+                    .size(TextRole::Micro.size())
                     .color(TEXT_MUTED),
             );
         }
@@ -643,7 +643,7 @@ impl GuiShell {
                 |ui| {
                     ui.add(
                         egui::Label::new(
-                            RichText::new(label).size(FONT_SIZE_S).color(TEXT_SECONDARY),
+                            RichText::new(label).size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
                         )
                         .selectable(false),
                     );
@@ -677,7 +677,7 @@ impl GuiShell {
                     let resp = ui.add(
                         egui::Label::new(
                             RichText::new(format!("{} {}", egui_phosphor::regular::CHECK, label))
-                                .size(FONT_SIZE_S)
+                                .size(TextRole::BodyS.size())
                                 .color(GREEN),
                         )
                         .selectable(false),
@@ -691,7 +691,7 @@ impl GuiShell {
                     let resp = ui.add(
                         egui::Label::new(
                             RichText::new(format!("{} {}", egui_phosphor::regular::WARNING, truncated))
-                                .size(FONT_SIZE_S)
+                                .size(TextRole::BodyS.size())
                                 .color(RED),
                         )
                         .selectable(false),
@@ -723,7 +723,7 @@ impl GuiShell {
                     btn_rect.center(),
                     egui::Align2::CENTER_CENTER,
                     btn_text,
-                    egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
+                    TextRole::Body.font_id(),
                     BG_BASE,
                 );
 

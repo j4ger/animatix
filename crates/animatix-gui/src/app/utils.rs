@@ -7,7 +7,7 @@ use egui::{Color32, Vec2};
 #[cfg(test)]
 use crate::app::design_tokens::semantic::status::{DIAGNOSTIC_ERROR, DIAGNOSTIC_WARNING};
 use crate::app::design_tokens::spatial::{RADIUS_S, SPACE_2, SPACE_4};
-use crate::app::design_tokens::typography::FONT_SIZE_S;
+use crate::app::design_tokens::typography::TextRole;
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 #[cfg(test)]
 use animatix_syntax::diagnostics::diagnostics_summary_by_phase;
@@ -24,7 +24,7 @@ pub(super) fn draw_badge(
 ) -> egui::Rect {
     let galley = painter.layout_no_wrap(
         text.to_string(),
-        egui::FontId::proportional(FONT_SIZE_S),
+        TextRole::BodyS.font_id(),
         text_color,
     );
     let size = galley.size() + Vec2::new(SPACE_4 * 2.0, SPACE_2 * 2.0);

@@ -1,5 +1,5 @@
 use crate::app::commands::{ActionQueue, Command, ShellAction, ViewAction, PropertyEdit, PropertyValue};
-use crate::app::components::button;
+use crate::app::components::button::Button;
 use crate::app::preview::{ActorProps, PreviewTransform};
 use crate::app::design_tokens::semantic::status::WARNING as AMBER;
 use crate::app::design_tokens::semantic::surface::HOVER as BG_HOVER;
@@ -11,7 +11,7 @@ use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
 use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
 use crate::app::design_tokens::spatial::{RADIUS_L, RADIUS_S, ROW_L, SPACE_M, SPACE_S, STROKE_WIDTH};
-use crate::app::design_tokens::typography::{FONT_SIZE_M, FONT_SIZE_S};
+use crate::app::design_tokens::typography::{TextRole};
 use animatix::timeline::{Timeline, SceneDimensions, read_property_value_or_default, PropertyValue as TlPropertyValue};
 use egui::{Color32, Pos2, Rect, RichText, Sense, Stroke, Vec2};
 
@@ -111,9 +111,9 @@ pub fn show_property_popup(
     header_ui.set_clip_rect(header_content_rect);
     header_ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
-        ui.label(RichText::new(actor).size(FONT_SIZE_M).color(TEXT_PRIMARY).strong());
+        ui.label(RichText::new(actor).size(TextRole::Body.size()).color(TEXT_PRIMARY).strong());
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if button::icon_button(ui, egui_phosphor::regular::X, "Close").clicked() {
+            if ui.add(Button::icon(egui_phosphor::regular::X).with_tooltip("Close")).clicked() {
                 commands.push_back(ShellAction::View(ViewAction::DeselectActors));
             }
         });
@@ -270,7 +270,7 @@ fn popup_property_row(
         Pos2::new(label_x, row_rect.center().y),
         egui::Align2::LEFT_CENTER,
         label,
-        egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+        TextRole::BodyS.font_id(),
         TEXT_SECONDARY,
     );
 
@@ -302,7 +302,7 @@ fn popup_property_row(
         value_rect.center(),
         egui::Align2::CENTER_CENTER,
         &value_str,
-        egui::FontId::monospace(FONT_SIZE_S),
+        TextRole::Mono.font_id(),
         if value_resp.hovered() { TEXT_PRIMARY } else { TEXT_MUTED },
     );
 

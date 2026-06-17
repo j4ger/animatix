@@ -13,7 +13,7 @@ use crate::app::design_tokens::semantic::surface::{HOVER as semantic_surface_hov
 use crate::app::design_tokens::semantic::text::{PRIMARY as semantic_text_primary, SECONDARY as semantic_text_secondary, MUTED as semantic_text_muted, DISABLED as semantic_text_disabled};
 use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH, SPACE_1 as spatial_space_xs, SPACE_2 as spatial_space_s, SPACE_4 as spatial_space_l, ROW_M as spatial_row_m};
 use crate::app::design_tokens::spatial::inspector::{ROW_HEIGHT as INSPECTOR_ROW_HEIGHT, KF_COL_WIDTH as INSPECTOR_KF_COL_WIDTH, LABEL_WIDTH_FRAC as INSPECTOR_LABEL_WIDTH_FRAC, LABEL_MIN_WIDTH as INSPECTOR_LABEL_MIN_WIDTH, LABEL_MAX_WIDTH as INSPECTOR_LABEL_MAX_WIDTH, COL_GAP as INSPECTOR_COL_GAP, KF_BTN_WIDTH as INSPECTOR_KF_BTN_WIDTH};
-use crate::app::design_tokens::typography::{FONT_SIZE_XS, FONT_SIZE_S, FONT_SIZE_M};
+use crate::app::design_tokens::typography::{TextRole};
 
 // ─── Data Structures ──────────────────────────────────────────────────────
 
@@ -280,7 +280,7 @@ pub(crate) fn render_property_group(
             ui.add(
                 egui::Label::new(
                     egui::RichText::new(group.properties.len().to_string())
-                        .size(FONT_SIZE_XS)
+                        .size(TextRole::Micro.size())
                         .color(semantic_text_muted),
                 )
                 .selectable(false),
@@ -377,7 +377,7 @@ pub(crate) fn render_property_row(
             |ui| {
                 ui.add(
                     egui::Label::new(
-                        egui::RichText::new(entry.name).size(FONT_SIZE_S).color(semantic_text_secondary),
+                        egui::RichText::new(entry.name).size(TextRole::BodyS.size()).color(semantic_text_secondary),
                     )
                     .truncate()
                     .selectable(false),
@@ -581,7 +581,7 @@ pub(crate) fn render_property_row(
                                     egui::Label::new(
                                         egui::RichText::new(format!("{:.2}", nv))
                                             .monospace()
-                                            .size(FONT_SIZE_XS)
+                                            .size(TextRole::Micro.size())
                                             .color(semantic_text_primary),
                                     )
                                     .selectable(false),
@@ -714,7 +714,7 @@ pub(crate) fn render_property_row(
                                 egui::Label::new(
                                     egui::RichText::new(&hex)
                                         .monospace()
-                                        .size(FONT_SIZE_XS)
+                                        .size(TextRole::Micro.size())
                                         .color(semantic_text_muted),
                                 )
                                 .selectable(false),
@@ -815,10 +815,7 @@ pub(crate) fn render_property_row(
                                 || entry.name == "source"
                             {
                                 let edit = egui::TextEdit::singleline(&mut buf)
-                                    .font(egui::FontId::new(
-                                        FONT_SIZE_S,
-                                        egui::FontFamily::Proportional,
-                                    ))
+                                    .font(TextRole::BodyS.font_id())
                                     .desired_width(ui.available_width());
                                 let response = ui.add(edit);
                                 if response.changed() {
@@ -836,7 +833,7 @@ pub(crate) fn render_property_row(
                                 ui.add(
                                     egui::Label::new(
                                         egui::RichText::new(text.as_str())
-                                            .size(FONT_SIZE_M)
+                                            .size(TextRole::Body.size())
                                             .color(semantic_text_muted),
                                     )
                                     .selectable(false),

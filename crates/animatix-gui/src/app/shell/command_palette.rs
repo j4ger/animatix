@@ -10,7 +10,7 @@ use crate::app::design_tokens::semantic::text::MUTED as TEXT_MUTED;
 use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
 use crate::app::design_tokens::spatial::{STROKE_WIDTH, RADIUS_XL, RADIUS_M, SPACE_XL, SPACE_M, SPACE_S, ROW_M};
-use crate::app::design_tokens::typography::{FONT_SIZE_M, FONT_SIZE_S};
+use crate::app::design_tokens::typography::{TextRole};
 use crate::app::GuiShell;
 
 struct PaletteItem {
@@ -60,7 +60,7 @@ impl GuiShell {
                 let search_resp = ui.add(
                     egui::TextEdit::singleline(&mut self.ui_store.command_palette_query)
                         .hint_text("Type a command…")
-                        .font(egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional))
+                        .font(TextRole::Body.font_id())
                         .desired_width(f32::INFINITY)
                         .id_source("cmd_palette_search"),
                 );
@@ -115,7 +115,7 @@ impl GuiShell {
                 if filtered.is_empty() {
                     ui.label(
                         egui::RichText::new("No commands match your search")
-                            .size(FONT_SIZE_S)
+                            .size(TextRole::BodyS.size())
                             .color(TEXT_MUTED),
                     );
                 } else {
@@ -128,7 +128,7 @@ impl GuiShell {
                                 let resp = ui.add(
                                     egui::Button::new(
                                         egui::RichText::new(format!("{}  {}", item.icon, item.label))
-                                            .size(FONT_SIZE_M)
+                                            .size(TextRole::Body.size())
                                             .color(TEXT_PRIMARY),
                                     )
                                     .fill(if is_selected { ACCENT_BLUE.linear_multiply(0.15) } else { BG_WIDGET })

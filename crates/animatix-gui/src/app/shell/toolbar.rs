@@ -2,7 +2,7 @@ use egui::{Align, RichText, Stroke, Vec2};
 
 use crate::app::GuiShell;
 use crate::app::commands::{ActionQueue, Command, ShellAction, ViewAction};
-use crate::app::components::button;
+use crate::app::components::button::Button;
 use crate::app::design_tokens::semantic::accent::PRIMARY as ACCENT_BLUE;
 use crate::app::design_tokens::semantic::status::WARNING as AMBER;
 use crate::app::design_tokens::semantic::surface::BASE as BG_BASE;
@@ -13,7 +13,7 @@ use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
 use crate::app::design_tokens::spatial::toolbar::HEIGHT as TOOLBAR_HEIGHT;
 use crate::app::design_tokens::spatial::{STROKE_WIDTH, SPACE_XL, SPACE_L, SPACE_S, RADIUS_M};
-use crate::app::design_tokens::typography::{FONT_SIZE_XS, FONT_SIZE_S, FONT_SIZE_M};
+use crate::app::design_tokens::typography::{TextRole};
 
 // TOOLBAR_HEIGHT imported via design_tokens::*
 
@@ -61,7 +61,7 @@ impl GuiShell {
 
                     ui.add(
                         egui::Label::new(
-                            RichText::new(filename_text).size(FONT_SIZE_M).color(filename_color),
+                            RichText::new(filename_text).size(TextRole::Body.size()).color(filename_color),
                         )
                         .selectable(false),
                     );
@@ -77,7 +77,7 @@ impl GuiShell {
                                 ui.add(
                                     egui::Label::new(
                                         RichText::new("last good")
-                                            .size(FONT_SIZE_XS)
+                                            .size(TextRole::Micro.size())
                                             .color(BG_BASE),
                                     )
                                     .selectable(false),
@@ -95,7 +95,7 @@ impl GuiShell {
                             .show(ui, |ui| {
                                 ui.add(
                                     egui::Label::new(
-                                        RichText::new("stale").size(FONT_SIZE_XS).color(BG_BASE),
+                                        RichText::new("stale").size(TextRole::Micro.size()).color(BG_BASE),
                                     )
                                     .selectable(false),
                                 );
@@ -116,7 +116,7 @@ impl GuiShell {
                                 ui.add(
                                     egui::Label::new(
                                         RichText::new(egui_phosphor::regular::ARROW_CLOCKWISE)
-                                            .size(FONT_SIZE_XS)
+                                            .size(TextRole::Micro.size())
                                             .color(BG_BASE),
                                     )
                                     .selectable(false),
@@ -198,14 +198,14 @@ impl GuiShell {
                                     if i > 0 {
                                         ui.label(
                                             RichText::new(egui_phosphor::regular::ARROW_RIGHT)
-                                                .size(FONT_SIZE_S)
+                                                .size(TextRole::BodyS.size())
                                                 .color(TEXT_MUTED),
                                         );
                                     }
                                     let is_active = active_scene == Some(name.as_str());
                                     let color = if is_active { TEXT_PRIMARY } else { TEXT_MUTED };
                                     let label = RichText::new(name.as_str())
-                                        .size(FONT_SIZE_S)
+                                        .size(TextRole::BodyS.size())
                                         .color(color)
                                         .strong();
                                     let btn = egui::Button::new(label)
@@ -261,7 +261,7 @@ impl GuiShell {
                         }
 
                         // Debug dropdown (grouped debug toggles)
-                        ui.menu_button(RichText::new("Debug").size(FONT_SIZE_S).color(TEXT_SECONDARY), |ui| {
+                        ui.menu_button(RichText::new("Debug").size(TextRole::BodyS.size()).color(TEXT_SECONDARY), |ui| {
                             let mut bounds = self.ui_store.view.debug_bounds;
                             if ui.checkbox(&mut bounds, "Bounds").clicked() {
                                 self.ui_store.view.debug_bounds = bounds;
@@ -294,7 +294,7 @@ impl GuiShell {
                         } else {
                             "Fit"
                         };
-                        ui.menu_button(RichText::new(zoom_label).size(FONT_SIZE_S).color(TEXT_SECONDARY), |ui| {
+                        ui.menu_button(RichText::new(zoom_label).size(TextRole::BodyS.size()).color(TEXT_SECONDARY), |ui| {
                             ui.set_min_width(80.0);
                             if ui.selectable_label(false, "Fit").clicked() {
                                 self.preview_store.preview.fit_zoom_requested = true;
@@ -332,34 +332,21 @@ impl GuiShell {
                         ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
 
                         // Command palette / shortcut reference button
-                        if button::icon_button(
-                            ui,
-                            egui_phosphor::regular::COMMAND,
-                            "Keyboard shortcuts",
-                        )
+                        if ui.add(Button::icon(egui_phosphor::regular::COMMAND).with_tooltip("Keyboard shortcuts"))
                         .clicked()
                         {
                             self.ui_store.view.shortcuts_open = true;
                         }
 
-                        if button::icon_button(ui, egui_phosphor::regular::GEAR, "Settings")
+                        if ui.add(Button::icon(egui_phosphor::regular::GEAR).with_tooltip("Settings"))
                             .clicked()
                         {
                             self.ui_store.view.settings_open = true;
                         }
 
                         // Diagnostics toggle
-                        let has_diagnostics =
-                            !self.document_store.combined_diagnostics().is_empty();
                         let diag_active = self.ui_store.view.diagnostics_panel_visible;
-                        if button::toolbar_toggle_button(
-                            ui,
-                            egui_phosphor::regular::WARNING_OCTAGON,
-                            None,
-                            "Toggle diagnostics panel",
-                            diag_active,
-                            has_diagnostics,
-                        )
+                        if ui.add(Button::ghost("").with_icon(egui_phosphor::regular::WARNING_OCTAGON).with_tooltip("Toggle diagnostics panel").active(diag_active))
                         .clicked()
                         {
                             self.ui_store.view.diagnostics_panel_visible = !diag_active;
@@ -367,14 +354,7 @@ impl GuiShell {
 
                         // Inspector toggle
                         let inspector_active = self.ui_store.view.inspector_visible;
-                        if button::toolbar_toggle_button(
-                            ui,
-                            egui_phosphor::regular::SLIDERS,
-                            None,
-                            "Toggle Inspector",
-                            inspector_active,
-                            false,
-                        )
+                        if ui.add(Button::ghost("").with_icon(egui_phosphor::regular::SLIDERS).with_tooltip("Toggle Inspector").active(inspector_active))
                         .clicked()
                         {
                             commands.push_back(ShellAction::View(ViewAction::ShowInspector));

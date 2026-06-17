@@ -7,7 +7,7 @@ use crate::app::design_tokens::semantic::text::PRIMARY as TEXT_PRIMARY;
 use crate::app::design_tokens::semantic::text::SECONDARY as TEXT_SECONDARY;
 use crate::app::design_tokens::semantic::overlay::backdrop as overlay_backdrop;
 use crate::app::design_tokens::spatial::{STROKE_WIDTH, RADIUS_XL, SPACE_XL, SPACE_M, SPACE_S};
-use crate::app::design_tokens::typography::{FONT_SIZE_XL, FONT_SIZE_S};
+use crate::app::design_tokens::typography::{TextRole};
 
 use crate::app::GuiShell;
 
@@ -62,7 +62,7 @@ impl GuiShell {
                 ui.horizontal(|ui| {
                     ui.label(
                         RichText::new("Settings")
-                            .size(FONT_SIZE_XL)
+                            .size(TextRole::Heading.size())
                             .color(TEXT_PRIMARY),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -83,7 +83,7 @@ impl GuiShell {
 
                 layout::labeled_row(
                     ui,
-                    RichText::new("Grid size").size(FONT_SIZE_S).color(TEXT_SECONDARY),
+                    RichText::new("Grid size").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
@@ -116,7 +116,7 @@ impl GuiShell {
                 ];
                 layout::labeled_row(
                     ui,
-                    RichText::new("Theme").size(FONT_SIZE_S).color(TEXT_SECONDARY),
+                    RichText::new("Theme").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         egui::ComboBox::from_id_salt(ui.id().with("colorscheme"))
@@ -170,7 +170,7 @@ impl GuiShell {
 
                 layout::labeled_row(
                     ui,
-                    RichText::new("Nudge step").size(FONT_SIZE_S).color(TEXT_SECONDARY),
+                    RichText::new("Nudge step").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
@@ -185,7 +185,7 @@ impl GuiShell {
 
                 layout::labeled_row(
                     ui,
-                    RichText::new("Nudge step (Shift)").size(FONT_SIZE_S).color(TEXT_SECONDARY),
+                    RichText::new("Nudge step (Shift)").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
@@ -200,7 +200,7 @@ impl GuiShell {
 
                 layout::labeled_row(
                     ui,
-                    RichText::new("Rotation snap").size(FONT_SIZE_S).color(TEXT_SECONDARY),
+                    RichText::new("Rotation snap").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
@@ -219,7 +219,7 @@ impl GuiShell {
 
                 layout::labeled_row(
                     ui,
-                    RichText::new("Scrub step").size(FONT_SIZE_S).color(TEXT_SECONDARY),
+                    RichText::new("Scrub step").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
@@ -238,7 +238,7 @@ impl GuiShell {
 
                 layout::labeled_row(
                     ui,
-                    RichText::new("Rebuild debounce").size(FONT_SIZE_S).color(TEXT_SECONDARY),
+                    RichText::new("Rebuild debounce").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
@@ -253,7 +253,7 @@ impl GuiShell {
 
                 layout::labeled_row(
                     ui,
-                    RichText::new("Undo limit").size(FONT_SIZE_S).color(TEXT_SECONDARY),
+                    RichText::new("Undo limit").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
@@ -268,7 +268,7 @@ impl GuiShell {
 
                 layout::labeled_row(
                     ui,
-                    RichText::new("Snap FPS").size(FONT_SIZE_S).color(TEXT_SECONDARY),
+                    RichText::new("Snap FPS").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         ui.add(
@@ -283,7 +283,7 @@ impl GuiShell {
 
                 layout::labeled_row(
                     ui,
-                    RichText::new("Keyframe merge window").size(FONT_SIZE_S).color(TEXT_SECONDARY),
+                    RichText::new("Keyframe merge window").size(TextRole::BodyS.size()).color(TEXT_SECONDARY),
                     SETTINGS_INPUT_WIDTH,
                     |ui| {
                         let mut value_ms = (self.ui_store.keyframe_merge_window_s * 1000.0) as f32;

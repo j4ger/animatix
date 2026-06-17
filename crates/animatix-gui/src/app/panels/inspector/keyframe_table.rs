@@ -11,7 +11,7 @@ use crate::app::design_tokens::semantic::status::WARNING as semantic_status_warn
 use crate::app::design_tokens::semantic::surface::{HOVER as semantic_surface_hover, WIDGET as semantic_surface_widget};
 use crate::app::design_tokens::semantic::text::{MUTED as semantic_text_muted, SECONDARY as semantic_text_secondary};
 use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH, SPACE_1 as spatial_space_xs, SPACE_2 as spatial_space_s, ROW_S as spatial_row_s};
-use crate::app::design_tokens::typography::{FONT_SIZE_XS, FONT_SIZE_S};
+use crate::app::design_tokens::typography::{TextRole};
 
 // ─── Data Structures ──────────────────────────────────────────────────────
 
@@ -123,7 +123,7 @@ fn render_compact_track_row(
         egui::pos2(cursor_x + 7.0, baseline_y),
         egui::Align2::CENTER_CENTER,
         group.icon,
-        egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+        TextRole::Micro.font_id(),
         semantic_text_muted,
     );
     cursor_x += 18.0;
@@ -133,7 +133,7 @@ fn render_compact_track_row(
         egui::pos2(cursor_x, baseline_y),
         egui::Align2::LEFT_CENTER,
         track.name,
-        egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+        TextRole::BodyS.font_id(),
         semantic_text_secondary,
     );
 
@@ -144,7 +144,7 @@ fn render_compact_track_row(
         egui::pos2(row_rect.max.x - spatial_space_s, baseline_y),
         egui::Align2::RIGHT_CENTER,
         count_label,
-        egui::FontId::new(FONT_SIZE_XS, egui::FontFamily::Proportional),
+        TextRole::Micro.font_id(),
         semantic_text_muted,
     );
 
@@ -196,10 +196,10 @@ fn render_compact_track_row(
             // Per-dot hover tooltip with value and easing info
             dot_response.on_hover_ui(|ui| {
                 ui.label(format!("{:.2}s", *time_ms as f64 / 1000.0));
-                ui.label(egui::RichText::new(value).size(FONT_SIZE_XS).color(semantic_text_secondary));
+                ui.label(egui::RichText::new(value).size(TextRole::Micro.size()).color(semantic_text_secondary));
                 ui.label(
                     egui::RichText::new(format!("ease: {}", easing_display_name(*easing)))
-                        .size(FONT_SIZE_XS)
+                        .size(TextRole::Micro.size())
                         .color(semantic_text_muted),
                 );
             });
@@ -240,7 +240,7 @@ fn render_compact_track_row(
             ui.strong(track.name);
             ui.label(
                 egui::RichText::new(format!("{} keyframes", track.keyframes.len()))
-                    .size(FONT_SIZE_XS)
+                    .size(TextRole::Micro.size())
                     .color(semantic_text_muted),
             );
         });
@@ -250,17 +250,17 @@ fn render_compact_track_row(
             let color = if is_current { semantic_status_warning } else { semantic_text_secondary };
             ui.horizontal(|ui| {
                 let icon = egui_phosphor::regular::DIAMOND;
-                ui.label(egui::RichText::new(icon).size(FONT_SIZE_XS).color(color));
+                ui.label(egui::RichText::new(icon).size(TextRole::Micro.size()).color(color));
                 ui.label(
                     egui::RichText::new(format!("{:.2}s", *time_ms as f64 / 1000.0))
                         .monospace()
-                        .size(FONT_SIZE_XS)
+                        .size(TextRole::Micro.size())
                         .color(color),
                 );
-                ui.label(egui::RichText::new(value).size(FONT_SIZE_XS).color(semantic_text_secondary));
+                ui.label(egui::RichText::new(value).size(TextRole::Micro.size()).color(semantic_text_secondary));
                 ui.label(
                     egui::RichText::new(easing_display_name(*easing))
-                        .size(FONT_SIZE_XS)
+                        .size(TextRole::Micro.size())
                         .color(semantic_text_muted),
                 );
             });

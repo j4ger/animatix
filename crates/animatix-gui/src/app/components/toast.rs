@@ -1,7 +1,7 @@
 use crate::app::design_tokens::semantic::{accent, border, status, surface, text};
 use crate::app::design_tokens::spatial::component::{TOAST_HEIGHT, TOAST_MARGIN, TOAST_SPACING, TOAST_WIDTH};
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, SPACE_2, SPACE_6, STROKE_WIDTH};
-use crate::app::design_tokens::typography::{FONT_SIZE_M, FONT_SIZE_S};
+use crate::app::design_tokens::typography::{TextRole};
 use egui::{Color32, Pos2, Rect, Vec2};
 use std::time::Instant;
 
@@ -157,7 +157,7 @@ impl ToastQueue {
                 Pos2::new(icon_x, rect.center().y),
                 egui::Align2::CENTER_CENTER,
                 toast.icon(),
-                egui::FontId::new(FONT_SIZE_M, egui::FontFamily::Proportional),
+                TextRole::Body.font_id(),
                 icon_color,
             );
 
@@ -167,7 +167,7 @@ impl ToastQueue {
             let text_max_w = (toast_w - (text_x - rect.min.x) - SPACE_6).max(40.0);
             let galley = ui.painter().layout(
                 toast.message.clone(),
-                egui::FontId::new(FONT_SIZE_S, egui::FontFamily::Proportional),
+                TextRole::BodyS.font_id(),
                 text_color,
                 text_max_w,
             );
