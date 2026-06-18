@@ -152,15 +152,15 @@ pub enum ReadSource {
 impl ReadSource {
     /// Read the current frame-time value from the track. Returns `None` for
     /// `None_` (not readable) or when the track field has no value.
-    pub fn read(&self, track: &crate::timeline::AnimationTrack, time_ms: u64) -> Option<crate::timeline::property_engine::PropertyValue> {
+    pub fn read(&self, track: &crate::timeline::AnimationTrack, time_ms: u64) -> Option<crate::timeline::PropertyValue> {
         match self {
             ReadSource::Field(f) | ReadSource::Alias(f) => {
-                crate::timeline::property_engine::read_property_value(track, *f, time_ms)
+                crate::timeline::dispatch::read_property_value(track, *f, time_ms)
             }
             ReadSource::Component { field, index, scale } => {
-                crate::timeline::property_engine::read_property_value(track, *field, time_ms).map(|pv| {
-                    if let crate::timeline::property_engine::PropertyValue::Vec2(v) = pv {
-                        crate::timeline::property_engine::PropertyValue::F32(v[*index] * *scale as f32)
+                crate::timeline::dispatch::read_property_value(track, *field, time_ms).map(|pv| {
+                    if let crate::timeline::PropertyValue::Vec2(v) = pv {
+                        crate::timeline::PropertyValue::F32(v[*index] * *scale as f32)
                     } else {
                         pv
                     }

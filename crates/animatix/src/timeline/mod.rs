@@ -69,12 +69,13 @@ pub mod property_registry;
 pub(crate) mod value_parser;
 
 // Re-export the generic property read API
-pub use property_engine::{
-    PropertyValue, read_property_value, read_property_value_or_default,
+pub use dispatch::{
+    read_property_value, read_property_value_or_default,
     property_has_keyframes, property_has_keyframe_at,
     property_keyframe_count, property_keyframe_times,
     property_keyframe_easing,
 };
+pub use property_engine::PropertyValue;
 
 // Re-export property registry types for the GUI
 pub use property_registry::{
@@ -102,7 +103,9 @@ pub mod svg;
 pub mod svg_import;
 mod timing;
 pub use timing::parse_easing_name;
-/// Keyframed property tracks and interpolation.
+/// Field dispatch and track access for property animation.
+pub mod dispatch;
+/// Keyframed property tracks, tier sub-structs, and helpers.
 pub mod track;
 pub mod utils;
 /// Vello path wrapper with fill/stroke.
@@ -205,10 +208,10 @@ use timing::{
     push_unsupported_stagger_statement_diagnostic, sequence_stmt_kind,
 };
 pub use property_track::{Interpolate, PropertyTrack, TrackAccessor, Easing};
+pub use dispatch::{AnimationTrack, TrackFieldRef, TrackFieldMut};
 pub use track::{
     ActionCategory, ActionEvent, ActorCategory, ActorKindId, ActorKindMeta, ShapeKind, ResizeMode,
-    AnimationTrack, PlacementMode, PositionBinding, SceneAnchor,
-    TrackFieldMut, TrackFieldRef, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
+    PlacementMode, PositionBinding, SceneAnchor, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
     actor_kind_registry, actor_kind_meta, actor_kind_meta_by_name,
 };
 /// Collect all keyframe times (in seconds) across all property tracks of an

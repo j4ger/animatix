@@ -37,10 +37,11 @@ use crate::ast::Expr;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
 use crate::timeline::env::{Environment, Value};
-use crate::timeline::property_registry::{ActorField, PropertySchema, ValueType};
+use crate::timeline::property_registry::{ActorField, ValueType};
 use crate::timeline::{
     AnimationTrack, PropertyTrack, ShapeType, TrackAccessor,
 };
+use crate::timeline::dispatch::read_property_value;
 
 // Sibling module imports (accessible via super:: because we're a child of timeline)
 use super::{
@@ -173,7 +174,7 @@ pub(crate) fn write_property_field(
     }
 
     // ── Tier 2: Uniform dispatch via TrackFieldMut ──
-    use crate::timeline::track::TrackFieldMut;
+    use crate::timeline::dispatch::TrackFieldMut;
     let pv_default = ActorField::default_value(field);
     if let Some(tf) = track.field_mut(field) {
         match tf {
@@ -437,51 +438,7 @@ pub(crate) fn write_string(
 // Read: ActorField + time_ms → PropertyValue
 // ─────────────────────────────────────────────────────────────
 
-/// Read the current value of a property from a track at the given time.
-/// Returns `None` if the property has no track (not set on this actor).
-pub fn read_property_value(track: &AnimationTrack, field: ActorField, time_ms: u64) -> Option<PropertyValue> {
-    track.field_ref(field).and_then(|f| f.evaluate_value(time_ms))
-}
 
-/// Read a property value, falling back to the schema default if the track
-/// has no value for this property.
-pub fn read_property_value_or_default(
-    track: &AnimationTrack,
-    schema: &PropertySchema,
-    time_ms: u64,
-) -> PropertyValue {
-    read_property_value(track, schema.field, time_ms)
-        .unwrap_or_else(|| (schema.default_value)(track.kind))
-}
-
-// ─────────────────────────────────────────────────────────────
-// Keyframe introspection
-// ─────────────────────────────────────────────────────────────
-
-/// Returns whether a property has any keyframes on the given track.
-pub fn property_has_keyframes(track: &AnimationTrack, field: ActorField) -> bool {
-    property_keyframe_count(track, field) > 0
-}
-
-/// Returns whether a property has a keyframe at exactly the given time.
-pub fn property_has_keyframe_at(track: &AnimationTrack, field: ActorField, time_ms: u64) -> bool {
-    track.field_ref(field).is_some_and(|f| f.has_keyframe_at(time_ms))
-}
-
-/// Returns the number of keyframes for a property on the given track.
-pub fn property_keyframe_count(track: &AnimationTrack, field: ActorField) -> usize {
-    track.field_ref(field).map_or(0, |f| f.keyframe_count())
-}
-
-/// Returns all keyframe times (in ms) for a property, sorted.
-pub fn property_keyframe_times(track: &AnimationTrack, field: ActorField) -> Vec<u64> {
-    track.field_ref(field).map_or(Vec::new(), |f| f.keyframe_times())
-}
-
-/// Returns the easing at a specific keyframe time for a property.
-pub fn property_keyframe_easing(track: &AnimationTrack, field: ActorField, time_ms: u64) -> Option<Easing> {
-    track.field_ref(field).and_then(|f| f.keyframe_easing(time_ms))
-}
 
 // ─────────────────────────────────────────────────────────────
 // Environment injection
@@ -688,6 +645,12 @@ pub(crate) fn effective_transform(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::timeline::dispatch::{
+        property_has_keyframe_at, property_has_keyframes,
+        property_keyframe_count, property_keyframe_easing,
+        property_keyframe_times, read_property_value,
+        read_property_value_or_default,
+    };
     use crate::easing::Easing;
 
     // Helper: write a keyframe and read it back

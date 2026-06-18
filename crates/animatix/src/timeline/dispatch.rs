@@ -1,0 +1,814 @@
+//! # Field Dispatch Module
+//!
+//! Central dispatch for reading/writing property tracks on [`AnimationTrack`].
+//!
+//! ## Key types
+//!
+//! - [`AnimationTrack`] — per-actor keyframed property container.
+//! - [`TrackFieldRef`] / [`TrackFieldMut`] — type-erased references to property
+//!   tracks, enabling generic dispatch over the property registry.
+//!
+//! ## Free functions
+//!
+//! - [`read_property_value`] — read a property value at a given time.
+//! - [`read_property_value_or_default`] — read a property, falling back to the
+//!   schema default.
+//! - [`property_has_keyframes`] / [`property_has_keyframe_at`] — keyframe
+//!   existence checks.
+//! - [`property_keyframe_count`] / [`property_keyframe_times`] — keyframe
+//!   metadata.
+//! - [`property_keyframe_easing`] — easing at a specific keyframe.
+
+use crate::easing::Easing;
+use super::property_track::{PropertyTrack, TrackAccessor};
+use crate::renderer::types::{TextPath, VelloPath};
+use crate::timeline::morph::MorphOptions;
+use crate::timeline::plot::ProceduralPlot;
+use crate::timeline::shapes::ShapeType;
+use crate::timeline::property_registry::{ActorField, PropertySchema};
+pub use crate::timeline::property_engine::PropertyValue;
+use super::track::{
+    self, GeometryTracks, StyleTracks, FilterTracks, ShapeTracks, TextTracks, HighlightTracks,
+    ActorKindId, ShapeKind, PlacementMode, PositionBinding,
+};
+use std::collections::HashMap;
+
+// ─────────────────────────────────────────────────────────────
+// AnimationTrack
+// ─────────────────────────────────────────────────────────────
+
+/// Per-actor container for all keyframed property tracks.
+///
+/// Every actor in the scene graph has exactly one `AnimationTrack`.  The track
+/// stores typed optional property tracks (geometry, style, filter, shape, text,
+/// highlight tiers), along with metadata such as `kind` (`ActorKindId`),
+/// `children` (scene-graph hierarchy), and `visible`.
+#[derive(Clone, Debug)]
+pub struct AnimationTrack {
+    // ── Identity / metadata ──
+    /// Human-readable identifier for the actor.
+    pub label: String,
+    /// Compile-time kind of this actor.
+    pub kind: ActorKindId,
+    /// First frame (ms) this actor appears.
+    pub first_seen_ms: u64,
+    /// Labels of child actors in the scene hierarchy.
+    pub children: Vec<String>,
+    /// Whether the actor is visible in the preview and export.
+    pub visible: bool,
+    /// Whether the actor is locked (preventing selection and drag in the GUI).
+    pub locked: bool,
+
+    // ── Geometry tier (sub-struct) ──
+    /// Geometry property tracks (position, size, rotation, scale, etc.).
+    pub geometry: GeometryTracks,
+
+    // ── Style tier (sub-struct) ──
+    /// Style property tracks (color, opacity, stroke, line_cap, line_join, morph_options).
+    pub style: StyleTracks,
+
+    // ── Filter tier (sub-struct) ──
+    /// Filter property tracks (blur, brightness, contrast, etc.).
+    pub filter: FilterTracks,
+
+    // ── Shape tier (sub-struct) ──
+    /// Shape property tracks (shape_type, line_from, line_to, etc.).
+    pub shape: ShapeTracks,
+
+    // ── Text tier (sub-struct) ──
+    /// Text property tracks (text_content, font_family, font_size, etc.).
+    pub text: TextTracks,
+    /// Static SVG paths.
+    pub svg_paths: Vec<crate::timeline::VelloPath>,
+    /// Raster image data.
+    #[cfg(feature = "render")]
+    pub image: Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>,
+
+
+
+    // ── Procedural plot (re-sampled at frame time) ──
+    /// Procedural plot generator, re-sampled each frame.
+    pub procedural_plot: Option<ProceduralPlot>,
+
+    // ── Plot parameter keyframe tracks ──
+    /// Per-parameter keyframe tracks for procedural plot actors.
+    /// Maps parameter name (e.g. "freq") to an f64 property track.
+    pub plot_param_tracks: HashMap<String, PropertyTrack<f64>>,
+
+    // ── Highlight tier (sub-struct) ──
+    /// Highlight property tracks (color, opacity, padding, radius, blend).
+    pub highlight: HighlightTracks,
+}
+
+impl AnimationTrack {
+    /// Create a new empty animation track with the given label.
+    pub fn new(label: String) -> Self {
+        Self {
+            // Identity
+            label: label.clone(),
+            kind: ActorKindId::Shape(ShapeKind::Rect),
+            first_seen_ms: u64::MAX,
+            children: Vec::new(),
+            visible: true,
+            locked: false,
+
+            // Geometry tier (sub-struct)
+            geometry: GeometryTracks::default(),
+
+            // Style tier (sub-struct)
+            style: StyleTracks::default(),
+
+            // Filter tier (sub-struct)
+            filter: FilterTracks::default(),
+
+            // Shape tier (sub-struct)
+            shape: ShapeTracks::default(),
+
+            // Text tier (sub-struct)
+            text: TextTracks::default(),
+            svg_paths: Vec::new(),
+            #[cfg(feature = "render")]
+            image: None,
+
+
+
+            // Procedural plot
+            procedural_plot: None,
+
+            // Plot parameter tracks
+            plot_param_tracks: HashMap::new(),
+
+            // Highlight tier (sub-struct)
+            highlight: HighlightTracks::default(),
+        }
+    }
+
+    // ── layout_size convenience methods (replacing old LayoutSizeState) ──
+    /// Evaluate `layout_size` at `time_ms`.
+    pub fn layout_size_get(&self, time_ms: u64) -> Option<[f32; 2]> {
+        self.geometry.layout_size.as_ref().map(|t| t.evaluate(time_ms))
+    }
+    /// Return the last value of `layout_size`.
+    pub fn layout_size_last(&self) -> Option<[f32; 2]> {
+        self.geometry.layout_size.as_ref().map(|t| t.last_value())
+    }
+    /// Ensure `layout_size` exists, creating it with `default` if absent.
+    pub fn ensure_layout_size(&mut self, default: [f32; 2]) -> &mut PropertyTrack<[f32; 2]> {
+        self.geometry.layout_size.get_or_insert_with(|| PropertyTrack::new(default))
+    }
+    /// Return `true` if `layout_size` has been set.
+    pub fn has_layout_size(&self) -> bool {
+        self.geometry.layout_size.is_some()
+    }
+
+    // ── Font metrics accessors (Phase 6) ──
+    /// Evaluate `ascent` at `time_ms`.
+    pub fn ascent_get(&self, time_ms: u64) -> f32 {
+        self.text.ascent.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
+    }
+    /// Evaluate `descent` at `time_ms`.
+    pub fn descent_get(&self, time_ms: u64) -> f32 {
+        self.text.descent.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
+    }
+    /// Evaluate `baseline` at `time_ms`.
+    /// This is the offset of the baseline from the text center (0,0) after centering paths.
+    pub fn baseline_get(&self, time_ms: u64) -> f32 {
+        self.text.baseline.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
+    }
+    /// Set all three font metrics on the track at the given time.
+    pub fn set_metrics(&mut self, time_ms: u64, ascent: f32, descent: f32, baseline: f32) {
+        use crate::easing::Easing;
+        self.text.ascent.ensure(0.0).add_keyframe(time_ms, ascent, Easing::Linear);
+        self.text.descent.ensure(0.0).add_keyframe(time_ms, descent, Easing::Linear);
+        self.text.baseline.ensure(0.0).add_keyframe(time_ms, baseline, Easing::Linear);
+    }
+
+    // ── Path evaluation ──
+    /// Evaluate text paths at `time_ms`, applying morphing if configured.
+    pub fn evaluate_text_paths(&self, time_ms: u64) -> Vec<TextPath> {
+        if let Some(content_track) = &self.text.text_content {
+            if !content_track.keyframes.is_empty() {
+                let current_text = content_track.evaluate(time_ms);
+                if current_text.is_empty() { return Vec::new(); }
+            }
+        }
+        let default_paths = PropertyTrack::new(Vec::new());
+        let paths_track = self.text.text_paths.as_ref().unwrap_or(&default_paths);
+        let default_morph = PropertyTrack::new(MorphOptions::default());
+        let morph_track = self.style.morph_options.as_ref().unwrap_or(&default_morph);
+        track::evaluate_paths_with_options(paths_track, morph_track, time_ms, track::interpolate_text_paths)
+    }
+
+    /// Evaluate vector paths at `time_ms`, applying morphing if configured.
+    pub fn evaluate_vector_paths(&self, time_ms: u64) -> Vec<VelloPath> {
+        let default_paths = PropertyTrack::new(Vec::new());
+        let paths_track = self.shape.vector_paths.as_ref().unwrap_or(&default_paths);
+        let default_morph = PropertyTrack::new(MorphOptions::default());
+        let morph_track = self.style.morph_options.as_ref().unwrap_or(&default_morph);
+        track::evaluate_paths_with_options(paths_track, morph_track, time_ms, track::interpolate_vello_paths)
+    }
+
+    /// Return the maximum keyframe time across all property tracks.
+    pub fn max_keyframe_time(&self) -> Option<u64> {
+        use crate::timeline::property_registry::PROPERTY_REGISTRY;
+        let mut max: Option<u64> = None;
+        for schema in PROPERTY_REGISTRY {
+            if let Some(t) = property_keyframe_times(self, schema.field).into_iter().max() {
+                max = Some(max.map_or(t, |m| m.max(t)));
+            }
+        }
+        // Dynamic plot parameter tracks (not registry-representable)
+        for pt in self.plot_param_tracks.values() {
+            if let Some(t) = pt.last_keyframe_time() {
+                max = Some(max.map_or(t, |m| m.max(t)));
+            }
+        }
+        max
+    }
+
+    /// Returns true if any property track has animated keyframes.
+    /// A track is "animated" if it has 2+ keyframes or 1 keyframe at time > 0.
+    pub fn has_any_keyframes(&self) -> bool {
+        use crate::timeline::property_registry::PROPERTY_REGISTRY;
+        for schema in PROPERTY_REGISTRY {
+            let times = property_keyframe_times(self, schema.field);
+            if times.len() > 1 || (times.len() == 1 && times[0] > 0) {
+                return true;
+            }
+        }
+        self.plot_param_tracks.values().any(|t| !t.is_effectively_static())
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Field dispatch enums (centralise the ActorField → track field mapping)
+// ─────────────────────────────────────────────────────────────
+
+/// Immutable reference to a track field, abstracting over the value type.
+///
+/// This enum lets generic code access `PropertyTrack<T>` fields without
+/// knowing `T` at compile time.  It eliminates the N×M match-block explosion
+/// in `property_engine.rs`.
+pub enum TrackFieldRef<'a> {
+    /// `f32` property track.
+    F32(&'a Option<PropertyTrack<f32>>),
+    /// `[f32; 2]` (2D vector) property track.
+    Vec2(&'a Option<PropertyTrack<[f32; 2]>>),
+    /// `[f32; 4]` (RGBA color) property track.
+    Vec4(&'a Option<PropertyTrack<[f32; 4]>>),
+    /// `[f32; 6]` (2×3 transform) property track.
+    Transform(&'a Option<PropertyTrack<[f32; 6]>>),
+    /// `String` property track.
+    String(&'a Option<PropertyTrack<String>>),
+    /// `u32` property track.
+    U32(&'a Option<PropertyTrack<u32>>),
+    /// List of 2D points property track.
+    PointList(&'a Option<PropertyTrack<Vec<[f32; 2]>>>),
+    /// Command string property track.
+    CommandList(&'a Option<PropertyTrack<String>>),
+    /// Shape type property track.
+    ShapeType(&'a Option<PropertyTrack<super::shapes::ShapeType>>),
+    /// Placement mode property track.
+    PlacementMode(&'a Option<PropertyTrack<PlacementMode>>),
+    /// Morph options property track.
+    MorphOptions(&'a Option<PropertyTrack<MorphOptions>>),
+    /// Vector paths property track.
+    VectorPaths(&'a Option<PropertyTrack<Vec<VelloPath>>>),
+    /// Text paths property track.
+    TextPaths(&'a Option<PropertyTrack<Vec<TextPath>>>),
+    /// Raster image data track (cfg-gated on "render").
+    #[cfg(feature = "render")]
+    Image(&'a Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>),
+    /// Position binding property track.
+    PositionBinding(&'a Option<PropertyTrack<PositionBinding>>),
+}
+
+/// Mutable reference to a track field, abstracting over the value type.
+pub enum TrackFieldMut<'a> {
+    /// `f32` property track.
+    F32(&'a mut Option<PropertyTrack<f32>>),
+    /// `[f32; 2]` (2D vector) property track.
+    Vec2(&'a mut Option<PropertyTrack<[f32; 2]>>),
+    /// `[f32; 4]` (RGBA color) property track.
+    Vec4(&'a mut Option<PropertyTrack<[f32; 4]>>),
+    /// `[f32; 6]` (2×3 transform) property track.
+    Transform(&'a mut Option<PropertyTrack<[f32; 6]>>),
+    /// `String` property track.
+    String(&'a mut Option<PropertyTrack<String>>),
+    /// `u32` property track.
+    U32(&'a mut Option<PropertyTrack<u32>>),
+    /// List of 2D points property track.
+    PointList(&'a mut Option<PropertyTrack<Vec<[f32; 2]>>>),
+    /// Command string property track.
+    CommandList(&'a mut Option<PropertyTrack<String>>),
+    /// Shape type property track.
+    ShapeType(&'a mut Option<PropertyTrack<super::shapes::ShapeType>>),
+    /// Placement mode property track.
+    PlacementMode(&'a mut Option<PropertyTrack<PlacementMode>>),
+    /// Morph options property track.
+    MorphOptions(&'a mut Option<PropertyTrack<MorphOptions>>),
+    /// Vector paths property track.
+    VectorPaths(&'a mut Option<PropertyTrack<Vec<VelloPath>>>),
+    /// Text paths property track.
+    TextPaths(&'a mut Option<PropertyTrack<Vec<TextPath>>>),
+    /// Raster image data track (cfg-gated on "render").
+    #[cfg(feature = "render")]
+    Image(&'a mut Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>),
+    /// Position binding property track.
+    PositionBinding(&'a mut Option<PropertyTrack<PositionBinding>>),
+}
+
+// ─────────────────────────────────────────────────────────────
+// TrackFieldRef convenience methods
+// ─────────────────────────────────────────────────────────────
+
+impl<'a> TrackFieldRef<'a> {
+    /// Evaluate the track value at `time_ms`, returning the result as a `PropertyValue`.
+    /// Returns `None` for types that cannot be represented as `PropertyValue`.
+    pub fn evaluate_value(&self, time_ms: u64) -> Option<PropertyValue> {
+        match self {
+            Self::F32(opt) => opt.as_ref().map(|pt| PropertyValue::F32(pt.evaluate_copy(time_ms))),
+            Self::Vec2(opt) => opt.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate_copy(time_ms))),
+            Self::Vec4(opt) => opt.as_ref().map(|pt| PropertyValue::Color(pt.evaluate_copy(time_ms))),
+            Self::Transform(opt) => opt.as_ref().map(|pt| PropertyValue::Transform(pt.evaluate_copy(time_ms))),
+            Self::U32(opt) => opt.as_ref().map(|pt| PropertyValue::U32(pt.evaluate_copy(time_ms))),
+            Self::ShapeType(opt) => opt.as_ref().map(|pt| PropertyValue::U32(shape_type_to_u32(pt.evaluate_copy(time_ms)))),
+            Self::PlacementMode(opt) => opt.as_ref().map(|pt| PropertyValue::PlacementMode(pt.evaluate_copy(time_ms))),
+            Self::MorphOptions(opt) => opt.as_ref().map(|pt| PropertyValue::MorphOptions(pt.evaluate_copy(time_ms))),
+            Self::String(opt) => opt.as_ref().map(|pt| PropertyValue::String(pt.evaluate(time_ms))),
+            Self::PointList(opt) => opt.as_ref().map(|pt| PropertyValue::PointList(pt.evaluate(time_ms))),
+            Self::CommandList(opt) => opt.as_ref().map(|pt| PropertyValue::CommandList(pt.evaluate(time_ms))),
+            Self::VectorPaths(_) | Self::TextPaths(_)
+            | Self::PositionBinding(_) => None,
+            #[cfg(feature = "render")]
+            Self::Image(_) => None,
+        }
+    }
+
+    /// Returns `true` if this track has a keyframe at exactly `time_ms`.
+    pub fn has_keyframe_at(&self, time_ms: u64) -> bool {
+        match self {
+            Self::F32(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::Vec2(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::Vec4(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::Transform(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::String(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::U32(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::PointList(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::CommandList(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::ShapeType(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::PlacementMode(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::MorphOptions(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::VectorPaths(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::TextPaths(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            #[cfg(feature = "render")]
+            Self::Image(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::PositionBinding(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+        }
+    }
+
+    /// Returns the number of keyframes in this track.
+    pub fn keyframe_count(&self) -> usize {
+        match self {
+            Self::F32(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::Vec2(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::Vec4(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::Transform(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::String(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::U32(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::PointList(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::CommandList(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::ShapeType(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::PlacementMode(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::MorphOptions(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::VectorPaths(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::TextPaths(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            #[cfg(feature = "render")]
+            Self::Image(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::PositionBinding(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        }
+    }
+
+    /// Returns all keyframe timestamps (ms), sorted.
+    pub fn keyframe_times(&self) -> Vec<u64> {
+        match self {
+            Self::F32(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::Vec2(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::Vec4(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::Transform(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::String(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::U32(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::PointList(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::CommandList(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::ShapeType(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::PlacementMode(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::MorphOptions(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::VectorPaths(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::TextPaths(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            #[cfg(feature = "render")]
+            Self::Image(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::PositionBinding(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        }
+    }
+
+    /// Returns the easing at a specific keyframe time, if one exists.
+    pub fn keyframe_easing(&self, time_ms: u64) -> Option<Easing> {
+        match self {
+            Self::F32(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::Vec2(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::Vec4(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::Transform(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::String(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::U32(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::PointList(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::CommandList(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::ShapeType(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::PlacementMode(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::MorphOptions(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::VectorPaths(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::TextPaths(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            #[cfg(feature = "render")]
+            Self::Image(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::PositionBinding(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        }
+    }
+}
+
+/// Helper: convert a `ShapeType` to its `u32` representation.
+fn shape_type_to_u32(st: ShapeType) -> u32 {
+    match st {
+        ShapeType::Rect => 0,
+        ShapeType::Ellipse => 1,
+        ShapeType::Line => 2,
+        ShapeType::Polygon => 3,
+        ShapeType::Path => 4,
+        ShapeType::Graph => 5,
+        ShapeType::Plot => 6,
+        ShapeType::Arrow => 7,
+    }
+}
+
+impl AnimationTrack {
+    /// Get an immutable reference to the track field identified by `field`.
+    pub fn field_ref(&self, field: ActorField) -> Option<TrackFieldRef<'_>> {
+        use ActorField::*;
+        Some(match field {
+            Position => TrackFieldRef::Vec2(&self.geometry.position),
+            MotionOffset => TrackFieldRef::Vec2(&self.geometry.motion_offset),
+            Size => TrackFieldRef::Vec2(&self.geometry.size),
+            LayoutSize => TrackFieldRef::Vec2(&self.geometry.layout_size),
+            Rotation => TrackFieldRef::F32(&self.geometry.rotation),
+            Scale => TrackFieldRef::F32(&self.geometry.scale),
+            Transform => TrackFieldRef::Transform(&self.geometry.transform),
+            Color => TrackFieldRef::Vec4(&self.style.color),
+            Opacity => TrackFieldRef::F32(&self.style.opacity),
+            StrokeWidth => TrackFieldRef::F32(&self.style.stroke_width),
+            StrokeColor => TrackFieldRef::Vec4(&self.style.stroke_color),
+            StrokeProgress => TrackFieldRef::F32(&self.style.stroke_progress),
+            FillOpacity => TrackFieldRef::F32(&self.style.fill_opacity),
+            FilterBlur => TrackFieldRef::F32(&self.filter.filter_blur),
+            FilterBrightness => TrackFieldRef::F32(&self.filter.filter_brightness),
+            FilterContrast => TrackFieldRef::F32(&self.filter.filter_contrast),
+            FilterSaturate => TrackFieldRef::F32(&self.filter.filter_saturate),
+            FilterHueRotate => TrackFieldRef::F32(&self.filter.filter_hue_rotate),
+            FilterSepia => TrackFieldRef::F32(&self.filter.filter_sepia),
+            ShapeType => TrackFieldRef::ShapeType(&self.shape.shape_type),
+            LineFrom => TrackFieldRef::Vec2(&self.shape.line_from),
+            LineTo => TrackFieldRef::Vec2(&self.shape.line_to),
+            HeadSize => TrackFieldRef::F32(&self.shape.head_size),
+            LineCap => TrackFieldRef::U32(&self.style.line_cap),
+            LineJoin => TrackFieldRef::U32(&self.style.line_join),
+            ArcAngles => TrackFieldRef::Vec2(&self.shape.arc_angles),
+            Points => TrackFieldRef::PointList(&self.shape.points),
+            Commands => TrackFieldRef::CommandList(&self.shape.commands),
+            TextContent => TrackFieldRef::String(&self.text.text_content),
+            TextMaxWidth => TrackFieldRef::F32(&self.text.text_max_width),
+            TextAlign => TrackFieldRef::String(&self.text.text_align),
+            Overflow => TrackFieldRef::String(&self.text.overflow),
+            FontFamily => TrackFieldRef::String(&self.text.font_family),
+            FontSize => TrackFieldRef::F32(&self.text.font_size),
+            PlacementMode => TrackFieldRef::PlacementMode(&self.geometry.placement_mode),
+            MorphOptions => TrackFieldRef::MorphOptions(&self.style.morph_options),
+            Ascent => TrackFieldRef::F32(&self.text.ascent),
+            Descent => TrackFieldRef::F32(&self.text.descent),
+            Baseline => TrackFieldRef::F32(&self.text.baseline),
+            HighlightColor => TrackFieldRef::Vec4(&self.highlight.highlight_color),
+            HighlightOpacity => TrackFieldRef::F32(&self.highlight.highlight_opacity),
+            HighlightPadding => TrackFieldRef::F32(&self.highlight.highlight_padding),
+            HighlightRadius => TrackFieldRef::F32(&self.highlight.highlight_radius),
+            FontWeight => TrackFieldRef::F32(&self.text.font_weight),
+            FontStyle => TrackFieldRef::String(&self.text.font_style),
+            LineHeight => TrackFieldRef::F32(&self.text.line_height),
+            LetterSpacing => TrackFieldRef::F32(&self.text.letter_spacing),
+            WordSpacing => TrackFieldRef::F32(&self.text.word_spacing),
+            MinWidth => TrackFieldRef::F32(&self.geometry.min_width),
+            MinHeight => TrackFieldRef::F32(&self.geometry.min_height),
+            MaxHeight => TrackFieldRef::F32(&self.geometry.max_height),
+            VectorPaths => TrackFieldRef::VectorPaths(&self.shape.vector_paths),
+            TextPaths => TrackFieldRef::TextPaths(&self.text.text_paths),
+            #[cfg(feature = "render")]
+            ImageData => TrackFieldRef::Image(&self.image),
+            #[cfg(not(feature = "render"))]
+            ImageData => return None,
+            PositionBinding => TrackFieldRef::PositionBinding(&self.geometry.position_binding),
+            // Remaining variants without track storage
+            SvgPaths | AudioSource | AudioVolume
+            | PositionBindingGroup | VectorShapeGroup | PlotDomainGroup
+            | ContainerLayoutGroup | NoStorage => return None,
+        })
+    }
+
+    /// Get a mutable reference to the track field identified by `field`.
+    pub fn field_mut(&mut self, field: ActorField) -> Option<TrackFieldMut<'_>> {
+        use ActorField::*;
+        Some(match field {
+            Position => TrackFieldMut::Vec2(&mut self.geometry.position),
+            MotionOffset => TrackFieldMut::Vec2(&mut self.geometry.motion_offset),
+            Size => TrackFieldMut::Vec2(&mut self.geometry.size),
+            LayoutSize => TrackFieldMut::Vec2(&mut self.geometry.layout_size),
+            Rotation => TrackFieldMut::F32(&mut self.geometry.rotation),
+            Scale => TrackFieldMut::F32(&mut self.geometry.scale),
+            Transform => TrackFieldMut::Transform(&mut self.geometry.transform),
+            Color => TrackFieldMut::Vec4(&mut self.style.color),
+            Opacity => TrackFieldMut::F32(&mut self.style.opacity),
+            StrokeWidth => TrackFieldMut::F32(&mut self.style.stroke_width),
+            StrokeColor => TrackFieldMut::Vec4(&mut self.style.stroke_color),
+            StrokeProgress => TrackFieldMut::F32(&mut self.style.stroke_progress),
+            FillOpacity => TrackFieldMut::F32(&mut self.style.fill_opacity),
+            FilterBlur => TrackFieldMut::F32(&mut self.filter.filter_blur),
+            FilterBrightness => TrackFieldMut::F32(&mut self.filter.filter_brightness),
+            FilterContrast => TrackFieldMut::F32(&mut self.filter.filter_contrast),
+            FilterSaturate => TrackFieldMut::F32(&mut self.filter.filter_saturate),
+            FilterHueRotate => TrackFieldMut::F32(&mut self.filter.filter_hue_rotate),
+            FilterSepia => TrackFieldMut::F32(&mut self.filter.filter_sepia),
+            ShapeType => TrackFieldMut::ShapeType(&mut self.shape.shape_type),
+            LineFrom => TrackFieldMut::Vec2(&mut self.shape.line_from),
+            LineTo => TrackFieldMut::Vec2(&mut self.shape.line_to),
+            HeadSize => TrackFieldMut::F32(&mut self.shape.head_size),
+            LineCap => TrackFieldMut::U32(&mut self.style.line_cap),
+            LineJoin => TrackFieldMut::U32(&mut self.style.line_join),
+            ArcAngles => TrackFieldMut::Vec2(&mut self.shape.arc_angles),
+            Points => TrackFieldMut::PointList(&mut self.shape.points),
+            Commands => TrackFieldMut::CommandList(&mut self.shape.commands),
+            TextContent => TrackFieldMut::String(&mut self.text.text_content),
+            TextMaxWidth => TrackFieldMut::F32(&mut self.text.text_max_width),
+            TextAlign => TrackFieldMut::String(&mut self.text.text_align),
+            Overflow => TrackFieldMut::String(&mut self.text.overflow),
+            FontFamily => TrackFieldMut::String(&mut self.text.font_family),
+            FontSize => TrackFieldMut::F32(&mut self.text.font_size),
+            PlacementMode => TrackFieldMut::PlacementMode(&mut self.geometry.placement_mode),
+            MorphOptions => TrackFieldMut::MorphOptions(&mut self.style.morph_options),
+            Ascent => TrackFieldMut::F32(&mut self.text.ascent),
+            Descent => TrackFieldMut::F32(&mut self.text.descent),
+            Baseline => TrackFieldMut::F32(&mut self.text.baseline),
+            HighlightColor => TrackFieldMut::Vec4(&mut self.highlight.highlight_color),
+            HighlightOpacity => TrackFieldMut::F32(&mut self.highlight.highlight_opacity),
+            HighlightPadding => TrackFieldMut::F32(&mut self.highlight.highlight_padding),
+            HighlightRadius => TrackFieldMut::F32(&mut self.highlight.highlight_radius),
+            FontWeight => TrackFieldMut::F32(&mut self.text.font_weight),
+            FontStyle => TrackFieldMut::String(&mut self.text.font_style),
+            LineHeight => TrackFieldMut::F32(&mut self.text.line_height),
+            LetterSpacing => TrackFieldMut::F32(&mut self.text.letter_spacing),
+            WordSpacing => TrackFieldMut::F32(&mut self.text.word_spacing),
+            MinWidth => TrackFieldMut::F32(&mut self.geometry.min_width),
+            MinHeight => TrackFieldMut::F32(&mut self.geometry.min_height),
+            MaxHeight => TrackFieldMut::F32(&mut self.geometry.max_height),
+            VectorPaths => TrackFieldMut::VectorPaths(&mut self.shape.vector_paths),
+            TextPaths => TrackFieldMut::TextPaths(&mut self.text.text_paths),
+            #[cfg(feature = "render")]
+            ImageData => TrackFieldMut::Image(&mut self.image),
+            #[cfg(not(feature = "render"))]
+            ImageData => return None,
+            PositionBinding => TrackFieldMut::PositionBinding(&mut self.geometry.position_binding),
+            _ => return None,
+        })
+    }
+
+    /// Returns `true` if the property track for `field` is currently
+    /// interpolating between two keyframes at the given time (the next
+    /// keyframe after `time_ms` uses a non-Linear easing, distinguishing
+    /// real animation targets from build-time snapshot scaffolding).
+    ///
+    /// This is the frame-time definition of "being driven by keyframes"
+    /// used by the `_animating_*` environment flags.
+    pub fn is_field_currently_animating(&self, field: ActorField, time_ms: u64) -> bool {
+        self.field_ref(field).is_some_and(|f| match f {
+            TrackFieldRef::F32(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::Vec2(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::Vec4(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::Transform(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::String(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::U32(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::PointList(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::CommandList(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::ShapeType(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::PlacementMode(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::MorphOptions(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::VectorPaths(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::TextPaths(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            #[cfg(feature = "render")]
+            TrackFieldRef::Image(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::PositionBinding(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+        })
+    }
+
+    /// Check if a keyframe exists for the given property at exactly `time_ms`.
+    /// The `property` parameter is a string name like `"position"`, `"opacity"`, etc.
+    pub fn has_keyframe_at(&self, property: &str, time_ms: u64) -> bool {
+        use ActorField::*;
+        let field = match property {
+            "position" => Position,
+            "motion_offset" => MotionOffset,
+            "size" => Size,
+            "layout_size" => LayoutSize,
+            "rotation" => Rotation,
+            "scale" => Scale,
+            "transform" => Transform,
+            "color" => Color,
+            "opacity" => Opacity,
+            "stroke_width" => StrokeWidth,
+            "stroke_color" => StrokeColor,
+            "stroke_progress" => StrokeProgress,
+            "fill_opacity" => FillOpacity,
+            "filter_blur" => FilterBlur,
+            "filter_brightness" => FilterBrightness,
+            "filter_contrast" => FilterContrast,
+            "filter_saturate" => FilterSaturate,
+            "filter_hue_rotate" => FilterHueRotate,
+            "filter_sepia" => FilterSepia,
+            "shape_type" => ShapeType,
+            "line_from" => LineFrom,
+            "line_to" => LineTo,
+            "arc_angles" => ArcAngles,
+            "points" => Points,
+            "commands" => Commands,
+            "head_size" => HeadSize,
+            "text_content" => TextContent,
+            "font_family" => FontFamily,
+            "font_size" => FontSize,
+            "font_weight" => FontWeight,
+            "font_style" => FontStyle,
+            "line_height" => LineHeight,
+            "letter_spacing" => LetterSpacing,
+            "word_spacing" => WordSpacing,
+            "max_width" => TextMaxWidth,
+            "text_align" => TextAlign,
+            "overflow" => Overflow,
+            "placement_mode" => PlacementMode,
+            "morph_options" => MorphOptions,
+            _ => return false,
+        };
+
+        self.field_ref(field).is_some_and(|f| f.has_keyframe_at(time_ms))
+    }
+
+    /// Check if the property has any keyframes at all (regardless of time).
+    /// The `property` parameter is a string name like `"position"`, `"opacity"`, etc.
+    pub fn has_keyframes_for(&self, property: &str) -> bool {
+        use ActorField::*;
+        let field = match property {
+            "position" => Position,
+            "motion_offset" => MotionOffset,
+            "size" => Size,
+            "layout_size" => LayoutSize,
+            "rotation" => Rotation,
+            "scale" => Scale,
+            "transform" => Transform,
+            "color" => Color,
+            "opacity" => Opacity,
+            "stroke_width" => StrokeWidth,
+            "stroke_color" => StrokeColor,
+            "stroke_progress" => StrokeProgress,
+            "fill_opacity" => FillOpacity,
+            "filter_blur" => FilterBlur,
+            "filter_brightness" => FilterBrightness,
+            "filter_contrast" => FilterContrast,
+            "filter_saturate" => FilterSaturate,
+            "filter_hue_rotate" => FilterHueRotate,
+            "filter_sepia" => FilterSepia,
+            "shape_type" => ShapeType,
+            "line_from" => LineFrom,
+            "line_to" => LineTo,
+            "arc_angles" => ArcAngles,
+            "points" => Points,
+            "commands" => Commands,
+            "head_size" => HeadSize,
+            "text_content" => TextContent,
+            "font_family" => FontFamily,
+            "font_size" => FontSize,
+            "font_weight" => FontWeight,
+            "font_style" => FontStyle,
+            "line_height" => LineHeight,
+            "letter_spacing" => LetterSpacing,
+            "word_spacing" => WordSpacing,
+            "max_width" => TextMaxWidth,
+            "text_align" => TextAlign,
+            "overflow" => Overflow,
+            "placement_mode" => PlacementMode,
+            "morph_options" => MorphOptions,
+            _ => return false,
+        };
+
+        self.field_ref(field).is_some_and(|f| f.keyframe_count() > 0)
+    }
+
+    /// List all keyframe times (in ms) for the given property.
+    /// The `property` parameter is a string name like `"position"`, `"opacity"`, etc.
+    /// Returns a sorted, deduplicated list of timestamps.
+    pub fn list_keyframes(&self, property: &str) -> Vec<u64> {
+        use ActorField::*;
+        let field = match property {
+            "position" => Position,
+            "motion_offset" => MotionOffset,
+            "size" => Size,
+            "layout_size" => LayoutSize,
+            "rotation" => Rotation,
+            "scale" => Scale,
+            "transform" => Transform,
+            "color" => Color,
+            "opacity" => Opacity,
+            "stroke_width" => StrokeWidth,
+            "stroke_color" => StrokeColor,
+            "stroke_progress" => StrokeProgress,
+            "fill_opacity" => FillOpacity,
+            "filter_blur" => FilterBlur,
+            "filter_brightness" => FilterBrightness,
+            "filter_contrast" => FilterContrast,
+            "filter_saturate" => FilterSaturate,
+            "filter_hue_rotate" => FilterHueRotate,
+            "filter_sepia" => FilterSepia,
+            "shape_type" => ShapeType,
+            "line_from" => LineFrom,
+            "line_to" => LineTo,
+            "arc_angles" => ArcAngles,
+            "points" => Points,
+            "commands" => Commands,
+            "head_size" => HeadSize,
+            "text_content" => TextContent,
+            "font_family" => FontFamily,
+            "font_size" => FontSize,
+            "font_weight" => FontWeight,
+            "font_style" => FontStyle,
+            "line_height" => LineHeight,
+            "letter_spacing" => LetterSpacing,
+            "word_spacing" => WordSpacing,
+            "max_width" => TextMaxWidth,
+            "text_align" => TextAlign,
+            "overflow" => Overflow,
+            "placement_mode" => PlacementMode,
+            "morph_options" => MorphOptions,
+            _ => return Vec::new(),
+        };
+
+        let mut times: Vec<u64> = self.field_ref(field).map(|f| f.keyframe_times()).unwrap_or_default();
+        times.sort_unstable();
+        times.dedup();
+        times
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Free functions: Property value reading & keyframe introspection
+// ─────────────────────────────────────────────────────────────
+
+/// Read the current value of a property from a track at the given time.
+/// Returns `None` if the property has no track (not set on this actor).
+pub fn read_property_value(track: &AnimationTrack, field: ActorField, time_ms: u64) -> Option<PropertyValue> {
+    track.field_ref(field).and_then(|f| f.evaluate_value(time_ms))
+}
+
+/// Read a property value, falling back to the schema default if the track
+/// has no value for this property.
+pub fn read_property_value_or_default(
+    track: &AnimationTrack,
+    schema: &PropertySchema,
+    time_ms: u64,
+) -> PropertyValue {
+    read_property_value(track, schema.field, time_ms)
+        .unwrap_or_else(|| (schema.default_value)(track.kind))
+}
+
+/// Returns whether a property has any keyframes on the given track.
+pub fn property_has_keyframes(track: &AnimationTrack, field: ActorField) -> bool {
+    property_keyframe_count(track, field) > 0
+}
+
+/// Returns whether a property has a keyframe at exactly the given time.
+pub fn property_has_keyframe_at(track: &AnimationTrack, field: ActorField, time_ms: u64) -> bool {
+    track.field_ref(field).is_some_and(|f| f.has_keyframe_at(time_ms))
+}
+
+/// Returns the number of keyframes for a property on the given track.
+pub fn property_keyframe_count(track: &AnimationTrack, field: ActorField) -> usize {
+    track.field_ref(field).map_or(0, |f| f.keyframe_count())
+}
+
+/// Returns all keyframe times (in ms) for a property, sorted.
+pub fn property_keyframe_times(track: &AnimationTrack, field: ActorField) -> Vec<u64> {
+    track.field_ref(field).map_or(Vec::new(), |f| f.keyframe_times())
+}
+
+/// Returns the easing at a specific keyframe time for a property.
+pub fn property_keyframe_easing(track: &AnimationTrack, field: ActorField, time_ms: u64) -> Option<Easing> {
+    track.field_ref(field).and_then(|f| f.keyframe_easing(time_ms))
+}
