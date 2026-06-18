@@ -28,8 +28,9 @@ use crate::timeline::shapes::ShapeType;
 use crate::timeline::property_registry::{ActorField, PropertySchema};
 pub use crate::timeline::property_engine::PropertyValue;
 use super::actor_kind::{ActorKindId, ShapeKind};
+use super::morph;
 use super::track::{
-    self, GeometryTracks, StyleTracks, FilterTracks, ShapeTracks, TextTracks, HighlightTracks,
+    GeometryTracks, StyleTracks, FilterTracks, ShapeTracks, TextTracks, HighlightTracks,
     PlacementMode, PositionBinding,
 };
 use std::collections::HashMap;
@@ -197,7 +198,7 @@ impl AnimationTrack {
         let paths_track = self.text.text_paths.as_ref().unwrap_or(&default_paths);
         let default_morph = PropertyTrack::new(MorphOptions::default());
         let morph_track = self.style.morph_options.as_ref().unwrap_or(&default_morph);
-        track::evaluate_paths_with_options(paths_track, morph_track, time_ms, track::interpolate_text_paths)
+        morph::evaluate_paths_with_options(paths_track, morph_track, time_ms, morph::interpolate_text_paths)
     }
 
     /// Evaluate vector paths at `time_ms`, applying morphing if configured.
@@ -206,7 +207,7 @@ impl AnimationTrack {
         let paths_track = self.shape.vector_paths.as_ref().unwrap_or(&default_paths);
         let default_morph = PropertyTrack::new(MorphOptions::default());
         let morph_track = self.style.morph_options.as_ref().unwrap_or(&default_morph);
-        track::evaluate_paths_with_options(paths_track, morph_track, time_ms, track::interpolate_vello_paths)
+        morph::evaluate_paths_with_options(paths_track, morph_track, time_ms, morph::interpolate_vello_paths)
     }
 
     /// Return the maximum keyframe time across all property tracks.

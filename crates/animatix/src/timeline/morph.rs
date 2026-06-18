@@ -1,5 +1,9 @@
 use kurbo::{BezPath, CubicBez, ParamCurve, PathEl, Point};
 
+use crate::easing::apply_easing;
+use super::property_track::{Interpolate, PropertyTrack};
+use crate::renderer::types::{TextPath, VelloPath};
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// Strategy for aligning paths before morphing.
 pub enum MorphStrategy {
@@ -687,9 +691,175 @@ fn split_longest(curves: &mut Vec<PathEl>) -> bool {
     false
 }
 
+// ─────────────────────────────────────────────────────────────
+// Morph evaluation helpers (moved from track.rs)
+// ─────────────────────────────────────────────────────────────
+
+fn lerp_color(c1: vello::peniko::Color, c2: vello::peniko::Color, t: f32) -> vello::peniko::Color {
+    let t = t.clamp(0.0, 1.0);
+    let comp1 = c1.to_rgba8();
+    let comp2 = c2.to_rgba8();
+    vello::peniko::Color::from_rgba8(
+        (comp1.r as f32 + (comp2.r as f32 - comp1.r as f32) * t) as u8,
+        (comp1.g as f32 + (comp2.g as f32 - comp1.g as f32) * t) as u8,
+        (comp1.b as f32 + (comp2.b as f32 - comp1.b as f32) * t) as u8,
+        (comp1.a as f32 + (comp2.a as f32 - comp1.a as f32) * t) as u8,
+    )
+}
+
+impl Interpolate for Vec<TextPath> {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        interpolate_text_paths(self, other, t, MorphOptions::default())
+    }
+}
+
+impl Interpolate for Vec<VelloPath> {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        interpolate_vello_paths(self, other, t, MorphOptions::default())
+    }
+}
+
+/// Evaluate a path track with morph option interpolation.
+///
+/// Samples `paths` at `time_ms`, reads the nearest morph options from
+/// `morph_options`, and calls the provided `interpolate` callback with
+/// the resolved `MorphOptions`.
+pub fn evaluate_paths_with_options<T: Interpolate>(
+    paths: &PropertyTrack<T>,
+    morph_options: &PropertyTrack<MorphOptions>,
+    time_ms: u64,
+    interpolate: fn(&T, &T, f32, MorphOptions) -> T,
+) -> T {
+    if let Some((found_time, prev_val, found_val, progress, found_easing)) = paths.interpolation_segment(time_ms) {
+        let eased_progress = apply_easing(progress, *found_easing);
+        let options = morph_options.keyframes.get(&found_time).map(|(value, _)| *value).unwrap_or_default();
+        interpolate(prev_val, found_val, eased_progress, options)
+    } else {
+        // No interior segment - use default or boundary value
+        if paths.keyframes.is_empty() {
+            paths.default_value.clone()
+        } else if let Some((&first_time, (val, _))) = paths.keyframes.iter().next() {
+            if time_ms <= first_time {
+                val.clone()
+            } else {
+                paths.last_value()
+            }
+        } else {
+            paths.default_value.clone()
+        }
+    }
+}
+
+/// Interpolate between two `Vec<TextPath>` using morph options.
+pub fn interpolate_text_paths(source: &Vec<TextPath>, target: &Vec<TextPath>, t: f32, options: MorphOptions) -> Vec<TextPath> {
+    if options.strategy == MorphStrategy::Fade {
+        if t <= 0.0 {
+            return source.clone();
+        }
+        if t >= 1.0 {
+            return target.clone();
+        }
+        let source_alpha = 1.0 - t;
+        let target_alpha = t;
+        let mut result = Vec::with_capacity(source.len() + target.len());
+        for path in source {
+            result.push(TextPath {
+                path: path.path.clone(),
+                color: path.color.clone(),
+                opacity: path.opacity * source_alpha,
+            });
+        }
+        for path in target {
+            result.push(TextPath {
+                path: path.path.clone(),
+                color: path.color.clone(),
+                opacity: path.opacity * target_alpha,
+            });
+        }
+        return result;
+    }
+
+    let source_paths: Vec<_> = source.iter().map(|path| path.path.clone()).collect();
+    let target_paths: Vec<_> = target.iter().map(|path| path.path.clone()).collect();
+    let aligned_lists = align_path_lists_with_strategy(&source_paths, &target_paths, options.strategy);
+    aligned_lists.into_iter().enumerate().map(|(index, (source_path, target_path))| TextPath {
+        path: morph_paths_with_options(&source_path, &target_path, t as f64, options),
+        color: if t < 0.5 {
+            source.get(index).map(|path| path.color.clone())
+                .unwrap_or_else(|| target.get(index).map(|path| path.color.clone())
+                .unwrap_or_else(|| typst::visualize::Paint::Solid(typst::visualize::Color::BLACK)))
+        } else {
+            target.get(index).map(|path| path.color.clone())
+                .unwrap_or_else(|| source.get(index).map(|path| path.color.clone())
+                .unwrap_or_else(|| typst::visualize::Paint::Solid(typst::visualize::Color::BLACK)))
+        },
+        opacity: 1.0,
+    }).collect()
+}
+
+/// Interpolate between two `Vec<VelloPath>` using morph options.
+pub fn interpolate_vello_paths(source: &Vec<VelloPath>, target: &Vec<VelloPath>, t: f32, options: MorphOptions) -> Vec<VelloPath> {
+    if options.strategy == MorphStrategy::Fade {
+        if t <= 0.0 {
+            return source.clone();
+        }
+        if t >= 1.0 {
+            return target.clone();
+        }
+        let source_alpha = 1.0 - t;
+        let target_alpha = t;
+        let mut result = Vec::with_capacity(source.len() + target.len());
+        for path in source {
+            result.push(VelloPath {
+                path: path.path.clone(),
+                fill: path.fill.map(|c| c.multiply_alpha(source_alpha)),
+                stroke: path.stroke.map(|(c, w)| (c.multiply_alpha(source_alpha), w)),
+                line_cap: path.line_cap,
+                line_join: path.line_join,
+            });
+        }
+        for path in target {
+            result.push(VelloPath {
+                path: path.path.clone(),
+                fill: path.fill.map(|c| c.multiply_alpha(target_alpha)),
+                stroke: path.stroke.map(|(c, w)| (c.multiply_alpha(target_alpha), w)),
+                line_cap: path.line_cap,
+                line_join: path.line_join,
+            });
+        }
+        return result;
+    }
+
+    let source_paths: Vec<_> = source.iter().map(|path| path.path.clone()).collect();
+    let target_paths: Vec<_> = target.iter().map(|path| path.path.clone()).collect();
+    let aligned_lists = align_path_lists_with_strategy(&source_paths, &target_paths, options.strategy);
+    aligned_lists.into_iter().enumerate().map(|(index, (source_path, target_path))| {
+        let source_element = source.get(index);
+        let target_element = target.get(index);
+        VelloPath {
+            path: morph_paths_with_options(&source_path, &target_path, t as f64, options),
+            fill: match (source_element.and_then(|e| e.fill), target_element.and_then(|e| e.fill)) {
+                (Some(c1), Some(c2)) => Some(lerp_color(c1, c2, t)),
+                (Some(c), None) => Some(if t < 0.5 { c } else { vello::peniko::Color::TRANSPARENT }),
+                (None, Some(c)) => Some(if t >= 0.5 { c } else { vello::peniko::Color::TRANSPARENT }),
+                (None, None) => None,
+            },
+            stroke: match (source_element.and_then(|e| e.stroke), target_element.and_then(|e| e.stroke)) {
+                (Some((c1, w1)), Some((c2, w2))) => Some((lerp_color(c1, c2, t), w1 + (w2 - w1) * t)),
+                (Some((c, w)), None) => Some((if t < 0.5 { c } else { vello::peniko::Color::TRANSPARENT }, if t < 0.5 { w } else { 0.0 })),
+                (None, Some((c, w))) => Some((if t >= 0.5 { c } else { vello::peniko::Color::TRANSPARENT }, if t >= 0.5 { w } else { 0.0 })),
+                (None, None) => None,
+            },
+            line_cap: source_element.map(|e| e.line_cap).unwrap_or(0),
+            line_join: source_element.map(|e| e.line_join).unwrap_or(0),
+        }
+    }).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::easing::Easing;
 
     #[test]
     fn test_list_alignment() {
@@ -943,5 +1113,188 @@ mod tests {
         let stretched_bounds = path_bounds(&stretched);
         let unstretched_bounds = path_bounds(&unstretched);
         assert!(stretched_bounds.width() >= unstretched_bounds.width());
+    }
+
+    // ────────────────────────────────────────────────────────
+    // evaluate_paths_with_options tests (moved from track.rs)
+    // ────────────────────────────────────────────────────────
+
+    fn identity_interpolate<T: Interpolate>(source: &T, target: &T, t: f32, _options: MorphOptions) -> T {
+        source.interpolate(target, t)
+    }
+
+    #[test]
+    fn test_evaluate_paths_with_options_empty_track() {
+        let paths: PropertyTrack<f32> = PropertyTrack::new(42.0);
+        let morph: PropertyTrack<MorphOptions> = PropertyTrack::new(MorphOptions::default());
+        let result = evaluate_paths_with_options(&paths, &morph, 500, identity_interpolate);
+        assert_eq!(result, 42.0);
+    }
+
+    #[test]
+    fn test_evaluate_paths_with_options_before_first_keyframe() {
+        let mut paths = PropertyTrack::new(0.0);
+        paths.add_keyframe(1000, 100.0, Easing::Linear);
+        let morph = PropertyTrack::new(MorphOptions::default());
+        let result = evaluate_paths_with_options(&paths, &morph, 500, identity_interpolate);
+        // Before first keyframe, evaluate_paths_with_options returns the first keyframe's value
+        assert_eq!(result, 100.0);
+    }
+
+    #[test]
+    fn test_evaluate_paths_with_options_after_last_keyframe() {
+        let mut paths = PropertyTrack::new(0.0);
+        paths.add_keyframe(0, 10.0, Easing::Linear);
+        paths.add_keyframe(1000, 100.0, Easing::Linear);
+        let morph = PropertyTrack::new(MorphOptions::default());
+        let result = evaluate_paths_with_options(&paths, &morph, 2000, identity_interpolate);
+        assert_eq!(result, 100.0);
+    }
+
+    #[test]
+    fn test_evaluate_paths_with_options_between_two_keyframes() {
+        let mut paths = PropertyTrack::new(0.0);
+        paths.add_keyframe(0, 0.0, Easing::Linear);
+        paths.add_keyframe(1000, 100.0, Easing::Linear);
+        let morph = PropertyTrack::new(MorphOptions::default());
+        let result = evaluate_paths_with_options(&paths, &morph, 500, identity_interpolate);
+        assert_eq!(result, 50.0);
+    }
+
+    #[test]
+    fn test_evaluate_paths_with_options_uses_morph_at_second_keyframe() {
+        let mut paths = PropertyTrack::new(0.0);
+        paths.add_keyframe(0, 0.0, Easing::Linear);
+        paths.add_keyframe(1000, 100.0, Easing::Linear);
+        let mut morph = PropertyTrack::new(MorphOptions::default());
+        // Morph at the same time as the second keyframe
+        morph.add_keyframe(1000, MorphOptions { strategy: MorphStrategy::Fade, path_arc: 0.0, stretch: false }, Easing::Linear);
+        // Should use Fade morph strategy (which just returns source+target)
+        let result = evaluate_paths_with_options(&paths, &morph, 500, identity_interpolate);
+        // identity_interpolate just does normal interpolation regardless of morph
+        // So result should be 50.0
+        assert_eq!(result, 50.0);
+    }
+
+    // ────────────────────────────────────────────────────────
+    // Morph interpolation tests (moved from track.rs)
+    // ────────────────────────────────────────────────────────
+
+    #[test]
+    fn fade_vello_paths_at_start_returns_only_source() {
+        let source = vec![VelloPath {
+            path: BezPath::new(),
+            fill: Some(vello::peniko::Color::from_rgba8(255, 0, 0, 255)),
+            stroke: None,
+            line_cap: 0,
+            line_join: 0,
+        }];
+        let target = vec![VelloPath {
+            path: BezPath::new(),
+            fill: Some(vello::peniko::Color::from_rgba8(0, 255, 0, 255)),
+            stroke: None,
+            line_cap: 0,
+            line_join: 0,
+        }];
+        let result = interpolate_vello_paths(&source, &target, 0.0, MorphOptions { strategy: MorphStrategy::Fade, path_arc: 0.0, stretch: false });
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].fill.unwrap().to_rgba8().a, 255);
+    }
+
+    #[test]
+    fn fade_vello_paths_at_end_returns_only_target() {
+        let source = vec![VelloPath {
+            path: BezPath::new(),
+            fill: Some(vello::peniko::Color::from_rgba8(255, 0, 0, 255)),
+            stroke: None,
+            line_cap: 0,
+            line_join: 0,
+        }];
+        let target = vec![VelloPath {
+            path: BezPath::new(),
+            fill: Some(vello::peniko::Color::from_rgba8(0, 255, 0, 255)),
+            stroke: None,
+            line_cap: 0,
+            line_join: 0,
+        }];
+        let result = interpolate_vello_paths(&source, &target, 1.0, MorphOptions { strategy: MorphStrategy::Fade, path_arc: 0.0, stretch: false });
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].fill.unwrap().to_rgba8().a, 255);
+    }
+
+    #[test]
+    fn fade_vello_paths_at_midpoint_returns_both_halved() {
+        let source = vec![VelloPath {
+            path: BezPath::new(),
+            fill: Some(vello::peniko::Color::from_rgba8(255, 0, 0, 200)),
+            stroke: Some((vello::peniko::Color::from_rgba8(255, 255, 255, 100), 2.0)),
+            line_cap: 0,
+            line_join: 0,
+        }];
+        let target = vec![VelloPath {
+            path: BezPath::new(),
+            fill: Some(vello::peniko::Color::from_rgba8(0, 255, 0, 128)),
+            stroke: None,
+            line_cap: 0,
+            line_join: 0,
+        }];
+        let result = interpolate_vello_paths(&source, &target, 0.5, MorphOptions { strategy: MorphStrategy::Fade, path_arc: 0.0, stretch: false });
+        assert_eq!(result.len(), 2);
+        // Source path alpha should be halved: 200 * 0.5 = 100
+        assert_eq!(result[0].fill.unwrap().to_rgba8().a, 100);
+        // Source stroke alpha should be halved: 100 * 0.5 = 50
+        assert_eq!(result[0].stroke.unwrap().0.to_rgba8().a, 50);
+        assert_eq!(result[0].stroke.unwrap().1, 2.0);
+        // Target path alpha should be halved: 128 * 0.5 = 64
+        assert_eq!(result[1].fill.unwrap().to_rgba8().a, 64);
+        assert!(result[1].stroke.is_none());
+    }
+
+    #[test]
+    fn fade_text_paths_at_midpoint_returns_both_halved() {
+        let source = vec![TextPath {
+            path: BezPath::new(),
+            color: typst::visualize::Paint::Solid(typst::visualize::Color::BLACK),
+            opacity: 1.0,
+        }];
+        let target = vec![TextPath {
+            path: BezPath::new(),
+            color: typst::visualize::Paint::Solid(typst::visualize::Color::WHITE),
+            opacity: 0.8,
+        }];
+        let result = interpolate_text_paths(&source, &target, 0.5, MorphOptions { strategy: MorphStrategy::Fade, path_arc: 0.0, stretch: false });
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].opacity, 0.5);
+        assert_eq!(result[1].opacity, 0.4);
+    }
+
+    #[test]
+    fn fade_vello_paths_empty_source() {
+        let source: Vec<VelloPath> = vec![];
+        let target = vec![VelloPath {
+            path: BezPath::new(),
+            fill: Some(vello::peniko::Color::from_rgba8(0, 255, 0, 128)),
+            stroke: None,
+            line_cap: 0,
+            line_join: 0,
+        }];
+        let result = interpolate_vello_paths(&source, &target, 0.25, MorphOptions { strategy: MorphStrategy::Fade, path_arc: 0.0, stretch: false });
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].fill.unwrap().to_rgba8().a, 32); // 128 * 0.25
+    }
+
+    #[test]
+    fn fade_vello_paths_empty_target() {
+        let source = vec![VelloPath {
+            path: BezPath::new(),
+            fill: Some(vello::peniko::Color::from_rgba8(255, 0, 0, 200)),
+            stroke: None,
+            line_cap: 0,
+            line_join: 0,
+        }];
+        let target: Vec<VelloPath> = vec![];
+        let result = interpolate_vello_paths(&source, &target, 0.75, MorphOptions { strategy: MorphStrategy::Fade, path_arc: 0.0, stretch: false });
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].fill.unwrap().to_rgba8().a, 50); // 200 * 0.25
     }
 }
