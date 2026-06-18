@@ -120,3 +120,32 @@ pub const MODAL: Transition = Transition {
     duration: SLOW,
     easing: DECELERATE,
 };
+
+/// Exit transition for dialogs — shorter and stiffer than entrance,
+/// using STANDARD (symmetric ease-in-out) at NORMAL (0.20s) so the
+/// animation ends cleanly with no perceptible front-loaded stall.
+pub const MODAL_EXIT: Transition = Transition {
+    duration: NORMAL,
+    easing: STANDARD,
+};
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn modal_exit_is_not_front_loaded() {
+        // At 20% of exit, STANDARD leaves openness at ~0.86.
+        // A front-loaded curve (DECELERATE) would drop to ~0.5, stalling.
+        let openness_at_20pct = 1.0 - STANDARD.sample(0.2);
+        assert!(
+            openness_at_20pct > 0.8,
+            "Exit drops too fast at start: {}",
+            openness_at_20pct
+        );
+
+        // Full sample reaches exactly 1.0
+        let sample_1 = STANDARD.sample(1.0);
+        assert!((sample_1 - 1.0).abs() < 0.001, "sample(1.0) != 1.0: {}", sample_1);
+    }
+}

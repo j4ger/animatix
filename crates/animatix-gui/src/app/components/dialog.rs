@@ -120,20 +120,24 @@ pub fn modal(
         ctx.data_mut(|d| d.insert_temp(opened_id, true));
     }
 
-    // Get linear animation progress (0→1 for open, 1→0 for close)
+    // Use separate transitions for open vs close:
+    //   - Open:  MODAL (DECELERATE, 0.40s) — fast rise, gentle settle
+    //   - Close: MODAL_EXIT (STANDARD, 0.20s) — shorter symmetric exit;
+    //            avoids the front-loaded ghost-tail stall of DECELERATE
+    //            applied to the closing direction.
+    let transition = if is_closing { motion::MODAL_EXIT } else { motion::MODAL };
     let anim_target = if is_closing { 0.0 } else { 1.0 };
-    let raw_progress = anim::animate_toward(ctx, anim_id, anim_target, motion::MODAL);
+    let raw_progress = anim::animate_toward(ctx, anim_id, anim_target, transition);
 
-    // Apply direction-aware easing so both open and close feel snappy:
-    //   - Open:  DECELERATE on 0→1  →  fast rise, gentle settle
-    //   - Close: 1 - DECELERATE(1 - raw)  →  fast initial drop, gentle fade-out
-    // The raw DECELERATE sample on 1→0 would be sluggish at close-start
-    // because the curve is flat near x=1.
+    // Apply easing based on direction:
     let progress = if is_closing {
         let close_t = 1.0 - raw_progress; // 0→1 over close duration
-        1.0 - motion::DECELERATE.sample(close_t)
+        // 1 - STANDARD(close_t): openness drops uniformly; STANDARD's
+        // symmetric round-trip avoids the long phantom tail of DECELERATE.
+        1.0 - transition.easing.sample(close_t)
     } else {
-        motion::DECELERATE.sample(raw_progress)
+        // DECELERATE on 0→1: fast initial rise, gentle settle
+        transition.easing.sample(raw_progress)
     };
 
     // ── Animated backdrop (painted before window, layered behind it) ──
@@ -218,8 +222,11 @@ pub fn modal(
         ctx.request_repaint();
     }
 
-    // When fully closed, clean up animation state and hide
-    let fully_closed = is_closing && progress < 0.01;
+    // When fully closed (egui reached the target value via animate_value_with_time),
+    // clean up and hide. Keys off `raw_progress` (the actual animation value) rather
+    // than the eased progress, so the dialog hides exactly when the animation
+    // completes with no threshold-magic ghost tail.
+    let fully_closed = is_closing && raw_progress <= 0.0;
     if fully_closed {
         ctx.data_mut(|d| {
             d.remove::<bool>(closing_id);
