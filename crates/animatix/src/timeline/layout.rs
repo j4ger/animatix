@@ -772,7 +772,7 @@ impl Timeline {
             if let Some(track) = self.tracks.get(&cl.label) {
                 size_specs.push(track.size_spec);
                 let min_w = track.min_width.get(time_ms, 0.0);
-                let max_w = track.max_width.get(time_ms, f32::INFINITY);
+                let max_w = f32::INFINITY;
                 let min_h = track.min_height.get(time_ms, 0.0);
                 let max_h = track.max_height.get(time_ms, f32::INFINITY);
                 constraints.push(SizeConstraints {

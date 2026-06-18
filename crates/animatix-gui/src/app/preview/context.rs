@@ -95,11 +95,11 @@ impl PreviewContext<'_> {
         let timeline = self.timeline?;
         let track = timeline.get_track(actor)?;
         let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
+        let schema = animatix::timeline::lookup_property("text").unwrap();
         let value = animatix::timeline::read_property_value_or_default(
             track,
-            animatix::timeline::ActorField::TextContent,
+            schema,
             time_ms,
-            track.kind,
         );
         match value {
             animatix::timeline::PropertyValue::String(s) => Some(s),

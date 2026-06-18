@@ -686,8 +686,7 @@ pub struct AnimationTrack {
     // ── Min/Max constraints (Phase 7: percentage & intrinsic sizing) ──
     /// Minimum width constraint.
     pub min_width: Option<PropertyTrack<f32>>,
-    /// Maximum width constraint (for layout sizing, distinct from text max_width).
-    pub max_width: Option<PropertyTrack<f32>>,
+
     /// Minimum height constraint.
     pub min_height: Option<PropertyTrack<f32>>,
     /// Maximum height constraint.
@@ -794,7 +793,7 @@ impl AnimationTrack {
 
             // Min/Max constraints (Phase 7)
             min_width: None,
-            max_width: None,
+
             min_height: None,
             max_height: None,
             size_spec: None,
@@ -881,71 +880,33 @@ impl AnimationTrack {
 
     /// Return the maximum keyframe time across all property tracks.
     pub fn max_keyframe_time(&self) -> Option<u64> {
-        let mut times: Vec<Option<u64>> = vec![
-            self.position.last_time(), self.motion_offset.last_time(),
-            self.rotation.last_time(), self.scale.last_time(),
-            self.placement_mode.last_time(), self.position_binding.last_time(),
-            self.size.last_time(), self.layout_size.last_time(),
-            self.line_from.last_time(), self.line_to.last_time(),
-            self.arc_angles.last_time(), self.color.last_time(),
-            self.shape_type.last_time(), self.opacity.last_time(),
-            self.stroke_width.last_time(), self.stroke_color.last_time(),
-            self.stroke_progress.last_time(), self.fill_opacity.last_time(),
-            self.morph_options.last_time(), self.text_paths.last_time(),
-            self.vector_paths.last_time(), self.image.last_time(),
-            self.points.last_time(), self.commands.last_time(),
-            self.font_family.last_time(), self.font_size.last_time(),
-            self.font_weight.last_time(), self.font_style.last_time(),
-            self.line_height.last_time(), self.letter_spacing.last_time(),
-            self.word_spacing.last_time(),
-            self.text_max_width.last_time(),
-            self.text_align.last_time(),
-            self.overflow.last_time(),
-            self.filter_blur.last_time(), self.filter_brightness.last_time(),
-            self.filter_contrast.last_time(), self.filter_saturate.last_time(),
-            self.filter_hue_rotate.last_time(), self.filter_sepia.last_time(),
-            self.head_size.last_time(),
-            self.min_width.last_time(),
-            self.max_width.last_time(),
-            self.min_height.last_time(),
-            self.max_height.last_time(),
-        ];
-        // Include plot parameter tracks
-        for param_track in self.plot_param_tracks.values() {
-            times.push(param_track.last_keyframe_time());
+        use crate::timeline::property_registry::PROPERTY_REGISTRY;
+        let mut max: Option<u64> = None;
+        for schema in PROPERTY_REGISTRY {
+            if let Some(t) = crate::timeline::property_engine::property_keyframe_times(self, schema.field).into_iter().max() {
+                max = Some(max.map_or(t, |m| m.max(t)));
+            }
         }
-        times.into_iter().flatten().max()
+        // Dynamic plot parameter tracks (not registry-representable)
+        for pt in self.plot_param_tracks.values() {
+            if let Some(t) = pt.last_keyframe_time() {
+                max = Some(max.map_or(t, |m| m.max(t)));
+            }
+        }
+        max
     }
 
     /// Returns true if any property track has animated keyframes.
     /// A track is "animated" if it has 2+ keyframes or 1 keyframe at time > 0.
     pub fn has_any_keyframes(&self) -> bool {
-        macro_rules! check {
-            ($track:expr) => {
-                $track.as_ref().map(|t| !t.is_effectively_static()).unwrap_or(false)
-            };
+        use crate::timeline::property_registry::PROPERTY_REGISTRY;
+        for schema in PROPERTY_REGISTRY {
+            let times = crate::timeline::property_engine::property_keyframe_times(self, schema.field);
+            if times.len() > 1 || (times.len() == 1 && times[0] > 0) {
+                return true;
+            }
         }
-        check!(self.position) || check!(self.motion_offset) || check!(self.rotation)
-            || check!(self.scale) || check!(self.transform) || check!(self.placement_mode)
-            || check!(self.position_binding) || check!(self.size) || check!(self.layout_size)
-            || check!(self.color) || check!(self.opacity) || check!(self.stroke_width)
-            || check!(self.stroke_color) || check!(self.stroke_progress) || check!(self.fill_opacity)
-            || check!(self.morph_options) || check!(self.shape_type) || check!(self.line_from)
-            || check!(self.line_to) || check!(self.arc_angles) || check!(self.points)
-            || check!(self.commands) || check!(self.vector_paths) || check!(self.text_content)
-            || check!(self.font_family) || check!(self.font_size)
-            || check!(self.font_weight) || check!(self.font_style)
-            || check!(self.line_height) || check!(self.letter_spacing)
-            || check!(self.word_spacing) || check!(self.text_max_width)
-            || check!(self.text_align) || check!(self.overflow) || check!(self.text_paths)
-            || check!(self.image)
-            || check!(self.filter_blur) || check!(self.filter_brightness)
-            || check!(self.filter_contrast) || check!(self.filter_saturate)
-            || check!(self.filter_hue_rotate) || check!(self.filter_sepia)
-            || check!(self.head_size)
-            || check!(self.min_width) || check!(self.max_width)
-            || check!(self.min_height) || check!(self.max_height)
-            || self.plot_param_tracks.values().any(|t| !t.is_effectively_static())
+        self.plot_param_tracks.values().any(|t| !t.is_effectively_static())
     }
 }
 
@@ -1176,7 +1137,7 @@ impl AnimationTrack {
             Points => TrackFieldRef::PointList(&self.points),
             Commands => TrackFieldRef::CommandList(&self.commands),
             TextContent => TrackFieldRef::String(&self.text_content),
-            TextMaxWidth => TrackFieldRef::F32(&self.max_width),
+            TextMaxWidth => TrackFieldRef::F32(&self.text_max_width),
             TextAlign => TrackFieldRef::String(&self.text_align),
             Overflow => TrackFieldRef::String(&self.overflow),
             FontFamily => TrackFieldRef::String(&self.font_family),
@@ -1227,7 +1188,7 @@ impl AnimationTrack {
             Points => TrackFieldMut::PointList(&mut self.points),
             Commands => TrackFieldMut::CommandList(&mut self.commands),
             TextContent => TrackFieldMut::String(&mut self.text_content),
-            TextMaxWidth => TrackFieldMut::F32(&mut self.max_width),
+            TextMaxWidth => TrackFieldMut::F32(&mut self.text_max_width),
             TextAlign => TrackFieldMut::String(&mut self.text_align),
             Overflow => TrackFieldMut::String(&mut self.overflow),
             FontFamily => TrackFieldMut::String(&mut self.font_family),

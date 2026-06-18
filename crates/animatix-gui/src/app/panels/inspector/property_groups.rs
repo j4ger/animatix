@@ -77,7 +77,7 @@ pub(crate) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
             continue;
         }
 
-        let value = read_property_value_or_default(track, schema.field, time_ms, track.kind);
+        let value = read_property_value_or_default(track, schema, time_ms);
         let has_kf = property_has_keyframes(track, schema.field);
         let has_kf_now = animatix::timeline::property_has_keyframe_at(track, schema.field, time_ms);
         let kf_count = animatix::timeline::property_keyframe_count(track, schema.field);

@@ -13,7 +13,8 @@ use crate::app::design_tokens::spatial::{
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::preview::{ActorProps, PreviewTransform};
 use animatix::timeline::{
-    PropertyValue as TlPropertyValue, SceneDimensions, Timeline, read_property_value_or_default,
+    lookup_property, PropertyValue as TlPropertyValue, SceneDimensions, Timeline,
+    read_property_value_or_default,
 };
 use egui::{Color32, Pos2, Rect, RichText, Sense, Stroke, Vec2};
 /// Show the property popup attached to a selected actor.
@@ -119,12 +120,8 @@ pub fn show_property_popup(
     let opacity = timeline
         .and_then(|tl| {
             tl.get_track(actor).map(|track| {
-                let val = read_property_value_or_default(
-                    track,
-                    animatix::timeline::ActorField::Opacity,
-                    time_ms,
-                    track.kind,
-                );
+                let schema = lookup_property("opacity").unwrap();
+                let val = read_property_value_or_default(track, schema, time_ms);
                 match val {
                     TlPropertyValue::F32(v) => v,
                     _ => 1.0,

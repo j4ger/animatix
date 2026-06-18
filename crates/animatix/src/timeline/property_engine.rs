@@ -37,7 +37,7 @@ use crate::ast::Expr;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
 use crate::timeline::env::{Environment, Value};
-use crate::timeline::property_registry::{ActorField, ValueType};
+use crate::timeline::property_registry::{ActorField, PropertySchema, ValueType};
 use crate::timeline::{
     AnimationTrack, PropertyTrack, ShapeType, TrackAccessor,
 };
@@ -461,22 +461,11 @@ fn read_property_value_inner(track: &AnimationTrack, field: ActorField, time_ms:
 /// has no value for this property.
 pub fn read_property_value_or_default(
     track: &AnimationTrack,
-    field: ActorField,
+    schema: &PropertySchema,
     time_ms: u64,
-    kind: crate::timeline::ActorKindId,
 ) -> PropertyValue {
-    read_property_value(track, field, time_ms)
-        .unwrap_or_else(|| {
-            // Look up the schema for this field and return its default
-            use crate::timeline::property_registry::PROPERTY_REGISTRY;
-            for schema in PROPERTY_REGISTRY.iter() {
-                if schema.field == field {
-                    return (schema.default_value)(kind);
-                }
-            }
-            // Fallback for unknown fields
-            PropertyValue::F32(0.0)
-        })
+    read_property_value(track, schema.field, time_ms)
+        .unwrap_or_else(|| (schema.default_value)(track.kind))
 }
 
 fn shape_type_to_u32(st: ShapeType) -> u32 {
