@@ -1288,6 +1288,7 @@ fn equation_fragment_dot_path_assignment() {
     // Fragment f1 should have highlight_opacity animated
     let f1_track = timeline.tracks.get("f1").expect("f1 track should exist");
     let highlight_opacity_at_1s = f1_track
+        .highlight
         .highlight_opacity
         .as_ref()
         .expect("f1 should have highlight_opacity track")
@@ -1299,6 +1300,7 @@ fn equation_fragment_dot_path_assignment() {
     );
 
     let highlight_opacity_at_end = f1_track
+        .highlight
         .highlight_opacity
         .as_ref()
         .expect("f1 should have highlight_opacity track")
@@ -1571,9 +1573,9 @@ fn test_keyframe_times_s_includes_highlight_fields() {
     let mut track = AnimationTrack::new("test".to_string());
     track.kind = ActorKindId::Equation;
 
-    track.highlight_color.ensure([0.3, 0.5, 1.0, 1.0])
+    track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0])
         .add_keyframe(500, [1.0, 0.0, 0.0, 1.0], Easing::Linear);
-    track.highlight_opacity.ensure(0.0).add_keyframe(2500, 0.8, Easing::Linear);
+    track.highlight.highlight_opacity.ensure(0.0).add_keyframe(2500, 0.8, Easing::Linear);
 
     timeline.tracks.insert("test".to_string(), track);
     let times = timeline.keyframe_times_s();

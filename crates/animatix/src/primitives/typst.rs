@@ -120,7 +120,7 @@ impl Primitive for TypstPrimitive {
             Ok(None)
         } else {
             // Check highlight properties for optional highlight overlay.
-            let hl_opacity = ctx.track.highlight_opacity.get(ctx.time_ms, 0.0);
+            let hl_opacity = ctx.track.highlight.highlight_opacity.get(ctx.time_ms, 0.0);
             if hl_opacity > 0.001 {
                 // Compute bounding box of all glyph paths.
                 use kurbo::Shape;
@@ -137,10 +137,10 @@ impl Primitive for TypstPrimitive {
                 }
                 if min_x.is_finite() && max_x.is_finite() {
                     let hl_color_arr =
-                        ctx.track.highlight_color.get(ctx.time_ms, [0.3, 0.5, 1.0, 1.0]);
-                    let hl_padding = ctx.track.highlight_padding.get(ctx.time_ms, 4.0);
-                    let hl_radius = ctx.track.highlight_radius.get(ctx.time_ms, 3.0);
-                    let hl_blend = ctx.track.highlight_blend;
+                        ctx.track.highlight.highlight_color.get(ctx.time_ms, [0.3, 0.5, 1.0, 1.0]);
+                    let hl_padding = ctx.track.highlight.highlight_padding.get(ctx.time_ms, 4.0);
+                    let hl_radius = ctx.track.highlight.highlight_radius.get(ctx.time_ms, 3.0);
+                    let hl_blend = ctx.track.highlight.highlight_blend;
 
                     let pad = hl_padding as f64;
                     let hl_rect =

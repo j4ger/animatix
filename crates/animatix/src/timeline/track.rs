@@ -624,6 +624,37 @@ pub struct FilterTracks {
 }
 
 // ─────────────────────────────────────────────────────────────
+// HighlightTracks
+// ─────────────────────────────────────────────────────────────
+
+/// Per-actor highlight property tracks (for equation fragment highlights).
+#[derive(Clone, Debug)]
+pub struct HighlightTracks {
+    /// Highlight background color (RGBA) for equation fragments.
+    pub highlight_color: Option<PropertyTrack<[f32; 4]>>,
+    /// Highlight opacity for equation fragments.
+    pub highlight_opacity: Option<PropertyTrack<f32>>,
+    /// Highlight padding (in logical pixels) around equation fragments.
+    pub highlight_padding: Option<PropertyTrack<f32>>,
+    /// Highlight corner radius for equation fragments.
+    pub highlight_radius: Option<PropertyTrack<f32>>,
+    /// Highlight blend mode for equation fragments (non-animated configuration).
+    pub highlight_blend: vello::peniko::Mix,
+}
+
+impl Default for HighlightTracks {
+    fn default() -> Self {
+        Self {
+            highlight_color: None,
+            highlight_opacity: None,
+            highlight_padding: None,
+            highlight_radius: None,
+            highlight_blend: vello::peniko::Mix::Difference,
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
 // AnimationTrack
 // ─────────────────────────────────────────────────────────────
 
@@ -769,17 +800,9 @@ pub struct AnimationTrack {
     /// Maps parameter name (e.g. "freq") to an f64 property track.
     pub plot_param_tracks: HashMap<String, PropertyTrack<f64>>,
 
-    // ── Highlight (for Fragment in Equation) ──
-    /// Highlight background color (RGBA) for equation fragments.
-    pub highlight_color: Option<PropertyTrack<[f32; 4]>>,
-    /// Highlight opacity for equation fragments.
-    pub highlight_opacity: Option<PropertyTrack<f32>>,
-    /// Highlight padding (in logical pixels) around equation fragments.
-    pub highlight_padding: Option<PropertyTrack<f32>>,
-    /// Highlight corner radius for equation fragments.
-    pub highlight_radius: Option<PropertyTrack<f32>>,
-    /// Highlight blend mode for equation fragments (non-animated configuration).
-    pub highlight_blend: vello::peniko::Mix,
+    // ── Highlight tier (sub-struct) ──
+    /// Highlight property tracks (color, opacity, padding, radius, blend).
+    pub highlight: HighlightTracks,
 }
 
 impl AnimationTrack {
@@ -866,12 +889,8 @@ impl AnimationTrack {
             // Plot parameter tracks
             plot_param_tracks: HashMap::new(),
 
-            // Highlight (Fragment in Equation)
-            highlight_color: None,
-            highlight_opacity: None,
-            highlight_padding: None,
-            highlight_radius: None,
-            highlight_blend: vello::peniko::Mix::Difference,
+            // Highlight tier (sub-struct)
+            highlight: HighlightTracks::default(),
         }
     }
 
@@ -1356,10 +1375,10 @@ impl AnimationTrack {
             Ascent => TrackFieldRef::F32(&self.ascent),
             Descent => TrackFieldRef::F32(&self.descent),
             Baseline => TrackFieldRef::F32(&self.baseline),
-            HighlightColor => TrackFieldRef::Vec4(&self.highlight_color),
-            HighlightOpacity => TrackFieldRef::F32(&self.highlight_opacity),
-            HighlightPadding => TrackFieldRef::F32(&self.highlight_padding),
-            HighlightRadius => TrackFieldRef::F32(&self.highlight_radius),
+            HighlightColor => TrackFieldRef::Vec4(&self.highlight.highlight_color),
+            HighlightOpacity => TrackFieldRef::F32(&self.highlight.highlight_opacity),
+            HighlightPadding => TrackFieldRef::F32(&self.highlight.highlight_padding),
+            HighlightRadius => TrackFieldRef::F32(&self.highlight.highlight_radius),
             FontWeight => TrackFieldRef::F32(&self.font_weight),
             FontStyle => TrackFieldRef::String(&self.font_style),
             LineHeight => TrackFieldRef::F32(&self.line_height),
@@ -1425,10 +1444,10 @@ impl AnimationTrack {
             Ascent => TrackFieldMut::F32(&mut self.ascent),
             Descent => TrackFieldMut::F32(&mut self.descent),
             Baseline => TrackFieldMut::F32(&mut self.baseline),
-            HighlightColor => TrackFieldMut::Vec4(&mut self.highlight_color),
-            HighlightOpacity => TrackFieldMut::F32(&mut self.highlight_opacity),
-            HighlightPadding => TrackFieldMut::F32(&mut self.highlight_padding),
-            HighlightRadius => TrackFieldMut::F32(&mut self.highlight_radius),
+            HighlightColor => TrackFieldMut::Vec4(&mut self.highlight.highlight_color),
+            HighlightOpacity => TrackFieldMut::F32(&mut self.highlight.highlight_opacity),
+            HighlightPadding => TrackFieldMut::F32(&mut self.highlight.highlight_padding),
+            HighlightRadius => TrackFieldMut::F32(&mut self.highlight.highlight_radius),
             FontWeight => TrackFieldMut::F32(&mut self.font_weight),
             FontStyle => TrackFieldMut::String(&mut self.font_style),
             LineHeight => TrackFieldMut::F32(&mut self.line_height),
@@ -2131,7 +2150,7 @@ mod tests {
     #[test]
     fn test_max_keyframe_time_with_highlight_color() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.highlight_color.ensure([0.3, 0.5, 1.0, 1.0])
+        track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0])
             .add_keyframe(3000, [1.0, 0.0, 0.0, 0.5], Easing::Linear);
         assert_eq!(track.max_keyframe_time(), Some(3000));
     }
@@ -2157,7 +2176,7 @@ mod tests {
         let mut track = AnimationTrack::new("test".to_string());
         track.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
         track.position.ensure([0.0, 0.0]).add_keyframe(5000, [100.0, 100.0], Easing::Linear);
-        track.highlight_opacity.ensure(0.0).add_keyframe(3000, 0.8, Easing::Linear);
+        track.highlight.highlight_opacity.ensure(0.0).add_keyframe(3000, 0.8, Easing::Linear);
         assert_eq!(track.max_keyframe_time(), Some(5000));
     }
 
@@ -2170,7 +2189,7 @@ mod tests {
     #[test]
     fn test_has_any_keyframes_returns_true_for_highlight_fields() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.highlight_color.ensure([0.3, 0.5, 1.0, 1.0])
+        track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0])
             .add_keyframe(1000, [1.0, 0.0, 0.0, 0.5], Easing::Linear);
         assert!(track.has_any_keyframes());
     }
@@ -2408,7 +2427,7 @@ mod tests {
     fn test_has_any_keyframes_iterates_through_all_registry_fields() {
         let mut track = AnimationTrack::new("test".to_string());
         // Put a keyframe on a field that might have been missed
-        track.highlight_padding.ensure(4.0).add_keyframe(500, 8.0, Easing::Linear);
+        track.highlight.highlight_padding.ensure(4.0).add_keyframe(500, 8.0, Easing::Linear);
         assert!(track.has_any_keyframes());
     }
 

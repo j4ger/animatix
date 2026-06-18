@@ -714,11 +714,11 @@ impl Timeline {
                 if let Some(child_track) = self.tracks.get(*child_label) {
                     if child_track.kind == ActorKindId::Fragment {
                         let content = child_track.text_content.get(time_ms, String::new());
-                        let hl_color = child_track.highlight_color.get(time_ms, [0.3, 0.5, 1.0, 1.0]);
-                        let hl_opacity = child_track.highlight_opacity.get(time_ms, 0.0);
-                        let hl_padding = child_track.highlight_padding.get(time_ms, 4.0);
-                        let hl_radius = child_track.highlight_radius.get(time_ms, 3.0);
-                        let hl_blend = child_track.highlight_blend;
+                        let hl_color = child_track.highlight.highlight_color.get(time_ms, [0.3, 0.5, 1.0, 1.0]);
+                        let hl_opacity = child_track.highlight.highlight_opacity.get(time_ms, 0.0);
+                        let hl_padding = child_track.highlight.highlight_padding.get(time_ms, 4.0);
+                        let hl_radius = child_track.highlight.highlight_radius.get(time_ms, 3.0);
+                        let hl_blend = child_track.highlight.highlight_blend;
                         frags.push(FragInfo { content, hl_color, hl_opacity, hl_padding, hl_radius, hl_blend });
                     }
                 }

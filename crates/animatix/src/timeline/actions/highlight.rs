@@ -145,6 +145,7 @@ impl BuiltinAction for Highlight {
             // Set highlight color keyframe if specified
             if let Some(c) = color {
                 track
+                    .highlight
                     .highlight_color
                     .ensure([1.0, 1.0, 1.0, 1.0])
                     .add_keyframe(t_start_ms, c, Easing::Linear);
@@ -153,6 +154,7 @@ impl BuiltinAction for Highlight {
             // Set highlight padding keyframe if specified
             if let Some(p) = padding {
                 track
+                    .highlight
                     .highlight_padding
                     .ensure(4.0)
                     .add_keyframe(t_start_ms, p, Easing::Linear);
@@ -161,21 +163,24 @@ impl BuiltinAction for Highlight {
             // Set highlight radius keyframe if specified
             if let Some(r) = radius {
                 track
+                    .highlight
                     .highlight_radius
                     .ensure(2.0)
                     .add_keyframe(t_start_ms, r, Easing::Linear);
             }
 
             // Set blend mode (non-animated configuration value)
-            track.highlight_blend = blend;
+            track.highlight.highlight_blend = blend;
 
             // Animate highlight opacity: 0 → 1
-            let start_opacity = track.highlight_opacity.get(t_start_ms, 0.0);
+            let start_opacity = track.highlight.highlight_opacity.get(t_start_ms, 0.0);
             track
+                .highlight
                 .highlight_opacity
                 .ensure(0.0)
                 .add_keyframe(t_start_ms, start_opacity, Easing::Linear);
             track
+                .highlight
                 .highlight_opacity
                 .ensure(0.0)
                 .add_keyframe(t_end_ms, 1.0, easing);
@@ -228,12 +233,14 @@ impl BuiltinAction for Unhighlight {
             };
 
             // Animate highlight opacity: current → 0
-            let start_opacity = track.highlight_opacity.get(t_start_ms, 1.0);
+            let start_opacity = track.highlight.highlight_opacity.get(t_start_ms, 1.0);
             track
+                .highlight
                 .highlight_opacity
                 .ensure(0.0)
                 .add_keyframe(t_start_ms, start_opacity, Easing::Linear);
             track
+                .highlight
                 .highlight_opacity
                 .ensure(0.0)
                 .add_keyframe(t_end_ms, 0.0, easing);
@@ -305,6 +312,7 @@ mod tests {
             // highlight_opacity should have keyframes
             assert!(
                 track
+                    .highlight
                     .highlight_opacity
                     .as_ref()
                     .map(|t| !t.keyframes.is_empty())
@@ -346,6 +354,7 @@ mod tests {
         if let Some(track) = report.output.tracks.get("f1") {
             assert!(
                 track
+                    .highlight
                     .highlight_opacity
                     .as_ref()
                     .map(|t| !t.keyframes.is_empty())
