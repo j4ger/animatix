@@ -27,9 +27,10 @@ use crate::timeline::plot::ProceduralPlot;
 use crate::timeline::shapes::ShapeType;
 use crate::timeline::property_registry::{ActorField, PropertySchema};
 pub use crate::timeline::property_engine::PropertyValue;
+use super::actor_kind::{ActorKindId, ShapeKind};
 use super::track::{
     self, GeometryTracks, StyleTracks, FilterTracks, ShapeTracks, TextTracks, HighlightTracks,
-    ActorKindId, ShapeKind, PlacementMode, PositionBinding,
+    PlacementMode, PositionBinding,
 };
 use std::collections::HashMap;
 

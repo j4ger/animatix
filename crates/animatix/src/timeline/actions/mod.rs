@@ -20,7 +20,7 @@ use crate::ast::Action;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
 use crate::timeline::property_track::{Interpolate, PropertyTrack, TrackAccessor};
-use crate::timeline::track::ActorKindId;
+use crate::timeline::actor_kind::ActorKindId;
 use crate::timeline::Timeline;
 use tracing::{debug, instrument, warn};
 use effects::{Bounce, Pulse, Shake};

@@ -54,152 +54,6 @@ pub enum ActionCategory {
     Reveal,
 }
 
-// ─────────────────────────────────────────────────────────────
-// Actor kind identification
-// ─────────────────────────────────────────────────────────────
-
-/// Stable, compile-time constant identifying an actor's type.
-/// Set once at first declaration and never changes.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum ActorKindId {
-    /// Geometric shape (rect, ellipse, line, polygon, path).
-    Shape(ShapeKind),
-    /// Plain text actor.
-    Text,
-    /// Code block actor.
-    Code,
-    /// Typst document actor.
-    Typst,
-    /// Raster image actor.
-    Image,
-    /// SVG graphic actor.
-    Svg,
-    /// Graph / chart actor.
-    Graph,
-    /// Single curve plot actor.
-    PlotCurve,
-    /// Vector field visualization actor.
-    VectorField,
-    /// Heatmap visualization actor.
-    Heatmap,
-    /// Contour set visualization actor.
-    ContourSet,
-    /// Number plane / coordinate grid actor.
-    NumberPlane,
-    /// Bar chart / column chart actor.
-    BarChart,
-    /// Horizontal row layout container.
-    Row,
-    /// Vertical column layout container.
-    Col,
-    /// Grid layout container.
-    Grid,
-    /// Stack layout container.
-    Stack,
-    /// Generic group container.
-    Group,
-    /// Mask / clip container.
-    Mask,
-    /// Filter / post-processing container.
-    Filter,
-    /// Audio track actor.
-    Audio,
-    /// Equation container (Typst math with fragment highlighting).
-    Equation,
-    /// Fragment sub-item within an Equation.
-    Fragment,
-}
-
-impl ActorKindId {
-    /// Parse an actor kind from its type name (e.g. `"rect"`, `"text"`).
-    pub fn from_type_name(ty: &str) -> Option<Self> {
-        crate::primitives::find_primitive(ty).map(|p| p.kind_id())
-    }
-}
-
-/// Specific shape geometry variant.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum ShapeKind {
-    /// Axis-aligned rectangle.
-    Rect,
-    /// Ellipse (or circle).
-    Ellipse,
-    /// Straight line segment.
-    Line,
-    /// Closed polygon.
-    Polygon,
-    /// Arbitrary Bézier path.
-    Path,
-    /// Arrow with a dedicated arrowhead.
-    Arrow,
-}
-
-impl From<super::shapes::ShapeType> for ShapeKind {
-    fn from(st: super::shapes::ShapeType) -> Self {
-        match st {
-            super::shapes::ShapeType::Rect => Self::Rect,
-            super::shapes::ShapeType::Ellipse => Self::Ellipse,
-            super::shapes::ShapeType::Line => Self::Line,
-            super::shapes::ShapeType::Polygon => Self::Polygon,
-            super::shapes::ShapeType::Path => Self::Path,
-            super::shapes::ShapeType::Graph => Self::Rect,
-            super::shapes::ShapeType::Plot => Self::Rect,
-            super::shapes::ShapeType::Arrow => Self::Arrow,
-        }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────
-// Actor kind metadata registry
-// ─────────────────────────────────────────────────────────────
-
-/// High-level category for grouping actor kinds in UI palettes and docs.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum ActorCategory {
-    /// Geometric shapes (rect, ellipse, etc.).
-    Shape,
-    /// Text and typographic actors.
-    Text,
-    /// Image, SVG, and audio actors.
-    Media,
-    /// Plot and graph actors.
-    Plot,
-    /// Layout containers (row, column, grid, etc.).
-    Container,
-}
-
-impl ActorCategory {
-    /// Human-readable label for this category.
-    pub const fn label(&self) -> &'static str {
-        match self {
-            Self::Shape => "Shapes",
-            Self::Text => "Text",
-            Self::Media => "Media",
-            Self::Plot => "Plots",
-            Self::Container => "Containers",
-        }
-    }
-}
-
-pub use crate::primitives::ActorKindMeta;
-
-/// Global registry of all supported actor kinds.
-pub fn actor_kind_registry() -> &'static [ActorKindMeta] {
-    crate::primitives::actor_kind_registry()
-}
-
-/// Lookup metadata for a specific [`ActorKindId`].
-pub fn actor_kind_meta(kind: ActorKindId) -> Option<&'static ActorKindMeta> {
-    crate::primitives::actor_kind_meta(kind)
-}
-
-/// Lookup metadata by the actor's type name (e.g. `"rect"`, `"text"`).
-pub fn actor_kind_meta_by_name(name: &str) -> Option<&'static ActorKindMeta> {
-    crate::primitives::actor_kind_meta_by_name(name)
-}
-
-
-
 /// Controls whether an actor's position is managed by a layout container.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlacementMode {
@@ -659,6 +513,9 @@ pub(crate) fn interpolate_vello_paths(source: &Vec<VelloPath>, target: &Vec<Vell
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::timeline::actor_kind::{
+        ActorKindId, ShapeKind, actor_kind_registry,
+    };
     use crate::timeline::property_registry::ActorField;
     use crate::timeline::property_track::TrackAccessor;
     use kurbo::BezPath;

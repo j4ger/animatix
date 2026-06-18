@@ -209,10 +209,13 @@ use timing::{
 };
 pub use property_track::{Interpolate, PropertyTrack, TrackAccessor, Easing};
 pub use dispatch::{AnimationTrack, TrackFieldRef, TrackFieldMut};
-pub use track::{
-    ActionCategory, ActionEvent, ActorCategory, ActorKindId, ActorKindMeta, ShapeKind, ResizeMode,
-    PlacementMode, PositionBinding, SceneAnchor, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
+pub use actor_kind::{
+    ActorCategory, ActorKindId, ActorKindMeta, ShapeKind,
     actor_kind_registry, actor_kind_meta, actor_kind_meta_by_name,
+};
+pub use track::{
+    ActionCategory, ActionEvent, ResizeMode,
+    PlacementMode, PositionBinding, SceneAnchor, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
 };
 /// Collect all keyframe times (in seconds) across all property tracks of an
 /// `AnimationTrack`, using the property registry to discover all possible fields.
