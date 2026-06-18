@@ -1,13 +1,13 @@
-pub use super::types::TextPath;
 use super::error::RenderError;
+pub use super::types::TextPath;
 use kurbo::{Affine, BezPath, Point, Shape};
 
+use typst::World;
 use typst::foundations::{Bytes, Datetime};
 use typst::layout::{Frame, FrameItem, Transform};
 use typst::syntax::{FileId, Source, VirtualPath};
 use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
-use typst::World;
 use typst::{Library, LibraryExt};
 
 // ─────────────────────────────────────────────────────────────
@@ -62,11 +62,7 @@ impl FontContext {
             .db
             .faces()
             .filter_map(|face| {
-                self.db
-                    .face(face.id)?
-                    .families
-                    .first()
-                    .map(|(name, _)| name.clone())
+                self.db.face(face.id)?.families.first().map(|(name, _)| name.clone())
             })
             .collect();
         names.sort();
@@ -112,14 +108,19 @@ pub const DEFAULT_FONT_FAMILY: &str = "Open Sans";
 pub const DEFAULT_MATH_FONT_FAMILY: &str = "Fira Math";
 
 /// Build a TypstWorld with bundled fonts + any requested system fonts loaded.
-fn build_world(source: Source, extra_fonts: &[&str], font_ctx: &FontContext) -> Result<TypstWorld, RenderError> {
+fn build_world(
+    source: Source,
+    extra_fonts: &[&str],
+    font_ctx: &FontContext,
+) -> Result<TypstWorld, RenderError> {
     let mut fonts = Vec::with_capacity(BUNDLED_FONTS.len() + extra_fonts.len());
     let mut book = FontBook::new();
 
     // Load bundled fonts
     for bf in BUNDLED_FONTS {
-        let font = Font::new(Bytes::new(bf.data), 0)
-            .ok_or_else(|| RenderError::TextCompilation(format!("Failed to load bundled font: {}", bf.family)))?;
+        let font = Font::new(Bytes::new(bf.data), 0).ok_or_else(|| {
+            RenderError::TextCompilation(format!("Failed to load bundled font: {}", bf.family))
+        })?;
         book.push(font.info().clone());
         fonts.push(font);
     }
@@ -183,10 +184,7 @@ impl ttf_parser::OutlineBuilder for PathBuilder {
         self.0.line_to(Point::new(x as f64, y as f64));
     }
     fn quad_to(&mut self, x1: f32, y1: f32, x: f32, y: f32) {
-        self.0.quad_to(
-            Point::new(x1 as f64, y1 as f64),
-            Point::new(x as f64, y as f64),
-        );
+        self.0.quad_to(Point::new(x1 as f64, y1 as f64), Point::new(x as f64, y as f64));
     }
     fn curve_to(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32) {
         self.0.curve_to(
@@ -228,7 +226,11 @@ impl TypstWorld {
     }
 
     /// Create a new Typst world with additional font families.
-    pub fn with_fonts(source: Source, fonts: &[&str], font_ctx: &FontContext) -> Result<Self, RenderError> {
+    pub fn with_fonts(
+        source: Source,
+        fonts: &[&str],
+        font_ctx: &FontContext,
+    ) -> Result<Self, RenderError> {
         build_world(source, fonts, font_ctx)
     }
 }
@@ -250,16 +252,12 @@ impl World for TypstWorld {
         if id == self.source.id() {
             Ok(self.source.clone())
         } else {
-            Err(typst::diag::FileError::NotFound(
-                id.vpath().as_rootless_path().into(),
-            ))
+            Err(typst::diag::FileError::NotFound(id.vpath().as_rootless_path().into()))
         }
     }
 
     fn file(&self, id: FileId) -> typst::diag::FileResult<Bytes> {
-        Err(typst::diag::FileError::NotFound(
-            id.vpath().as_rootless_path().into(),
-        ))
+        Err(typst::diag::FileError::NotFound(id.vpath().as_rootless_path().into()))
     }
 
     fn font(&self, index: usize) -> Option<Font> {
@@ -272,7 +270,104 @@ impl World for TypstWorld {
 }
 
 /// Compile Typst math markup into a frame.
-pub fn compile_math(math: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Result<Frame, RenderError> {
+
+/// Build a Typst `#set text(...)` rule string from the given typography parameters.
+fn typst_text_set_rules(
+    font_weight: f32,
+    font_style: &str,
+    letter_spacing: f32,
+    word_spacing: f32,
+) -> String {
+    let mut parts: Vec<String> = Vec::new();
+
+    // Weight: map numeric (100-900) to Typst weight strings
+    let weight_str = font_weight_to_typst(font_weight);
+    if weight_str != "regular" {
+        parts.push(format!("weight: \"{}\"", weight_str));
+    }
+
+    // Style
+    if font_style == "italic" {
+        parts.push("style: \"italic\"".to_string());
+    }
+
+    // Letter spacing (tracking)
+    if letter_spacing != 0.0 {
+        parts.push(format!("tracking: {}pt", letter_spacing));
+    }
+
+    // Word spacing
+    if word_spacing != 0.0 {
+        parts.push(format!("spacing: {}pt", word_spacing));
+    }
+
+    if parts.is_empty() {
+        String::new()
+    } else {
+        format!("#set text({}); ", parts.join(", "))
+    }
+}
+
+/// Build a Typst `#set par(leading: ...)` rule for line height.
+fn typst_par_leading_rule(line_height: f32) -> String {
+    if (line_height - 1.2).abs() < f32::EPSILON {
+        return String::new();
+    }
+    let leading_em = line_height - 1.0;
+    if leading_em.abs() < 0.001 {
+        return String::new();
+    }
+    format!("#set par(leading: {}em); ", leading_em)
+}
+
+/// Map a numeric font weight (100-900) to a Typst weight string.
+pub fn font_weight_to_typst(weight: f32) -> &'static str {
+    let w = weight.round() as i32;
+    match w {
+        100 => "thin",
+        200 => "extralight",
+        300 => "light",
+        400 => "regular",
+        500 => "medium",
+        600 => "semibold",
+        700 => "bold",
+        800 => "extrabold",
+        900 => "black",
+        _ if w < 300 => "light",
+        _ if w < 500 => "regular",
+        _ if w < 700 => "medium",
+        _ if w < 800 => "bold",
+        _ => "black",
+    }
+}
+
+/// Parse a font weight value (numeric or string alias) to f32.
+pub fn parse_font_weight(value: &str) -> f32 {
+    match value {
+        "thin" => 100.0,
+        "extralight" => 200.0,
+        "light" => 300.0,
+        "normal" => 400.0,
+        "regular" => 400.0,
+        "medium" => 500.0,
+        "semibold" => 600.0,
+        "bold" => 700.0,
+        "extrabold" => 800.0,
+        "black" => 900.0,
+        _ => {
+            // Try to parse as number
+            value.parse::<f32>().unwrap_or(400.0)
+        },
+    }
+}
+
+pub fn compile_math(
+    math: &str,
+    font_size: f32,
+    color: typst::visualize::Color,
+    font_family: &str,
+    font_ctx: &FontContext,
+) -> Result<Frame, RenderError> {
     let text_font = resolve_font_family(font_family, font_ctx);
     let markup = format!(
         "#set text(size: {}pt, fill: rgb(\"{}\"), font: (\"{}\", \"Fira Math\")); #show math.equation: set text(font: \"Fira Math\"); $ {} $",
@@ -284,19 +379,35 @@ pub fn compile_math(math: &str, font_size: f32, color: typst::visualize::Color, 
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
     let world = TypstWorld::with_fonts(source, &[&text_font, DEFAULT_MATH_FONT_FAMILY], font_ctx)?;
-    let document: typst::layout::PagedDocument = typst::compile(&world).output
-        .map_err(|_| RenderError::TextCompilation("failed to compile Typst math document".to_string()))?;
+    let document: typst::layout::PagedDocument = typst::compile(&world).output.map_err(|_| {
+        RenderError::TextCompilation("failed to compile Typst math document".to_string())
+    })?;
 
     Ok(document.pages[0].frame.clone())
 }
 
 /// Compile Typst markup into a frame.
-pub fn compile_typst(typst_markup: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Result<Frame, RenderError> {
+pub fn compile_typst(
+    typst_markup: &str,
+    font_size: f32,
+    color: typst::visualize::Color,
+    font_family: &str,
+    font_ctx: &FontContext,
+    font_weight: f32,
+    font_style: &str,
+    line_height: f32,
+    letter_spacing: f32,
+    word_spacing: f32,
+) -> Result<Frame, RenderError> {
     let font = resolve_font_family(font_family, font_ctx);
+    let extra_rules = typst_text_set_rules(font_weight, font_style, letter_spacing, word_spacing);
+    let leading_rule = typst_par_leading_rule(line_height);
     // Include math font so that $...$ math expressions compile correctly.
     // Mirror the compile_math show-rule for math.equation font.
     let markup = format!(
-        "#set text(size: {}pt, fill: rgb(\"{}\"), font: (\"{}\", \"{}\")); #show math.equation: set text(font: \"{}\")\n{}",
+        "{}{}#set text(size: {}pt, fill: rgb(\"{}\"), font: (\"{}\", \"{}\")); #show math.equation: set text(font: \"{}\")\n{}",
+        extra_rules,
+        leading_rule,
         font_size,
         color.to_hex(),
         font,
@@ -307,22 +418,37 @@ pub fn compile_typst(typst_markup: &str, font_size: f32, color: typst::visualize
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
     let world = TypstWorld::with_fonts(source, &[&font, DEFAULT_MATH_FONT_FAMILY], font_ctx)?;
-    let document: typst::layout::PagedDocument = typst::compile(&world).output
-        .map_err(|_| RenderError::TextCompilation("failed to compile Typst document".to_string()))?;
+    let document: typst::layout::PagedDocument = typst::compile(&world).output.map_err(|_| {
+        RenderError::TextCompilation("failed to compile Typst document".to_string())
+    })?;
 
     Ok(document.pages[0].frame.clone())
 }
 
 /// Compile plain text into a Typst frame.
-pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Result<Frame, RenderError> {
+pub fn compile_text(
+    text: &str,
+    font_size: f32,
+    color: typst::visualize::Color,
+    font_family: &str,
+    font_ctx: &FontContext,
+    font_weight: f32,
+    font_style: &str,
+    line_height: f32,
+    letter_spacing: f32,
+    word_spacing: f32,
+) -> Result<Frame, RenderError> {
     let font = resolve_font_family(font_family, font_ctx);
+    let extra_rules = typst_text_set_rules(font_weight, font_style, letter_spacing, word_spacing);
+    let leading_rule = typst_par_leading_rule(line_height);
     // Use Typst raw block (4 backticks) to avoid markup interpretation of user text.
     // 4-backtick delimiter handles text containing up to 3 consecutive backticks.
     // Block raw also handles newlines, which inline raw cannot.
-    let escaped = text
-        .replace('\\', "\\\\");
+    let escaped = text.replace('\\', "\\\\");
     let markup = format!(
-        "#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\")\n````\n{}````",
+        "{}{}#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\")\n````\n{}````",
+        extra_rules,
+        leading_rule,
         font_size,
         color.to_hex(),
         font,
@@ -331,20 +457,35 @@ pub fn compile_text(text: &str, font_size: f32, color: typst::visualize::Color, 
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
     let world = TypstWorld::with_fonts(source, &[&font], font_ctx)?;
-    let document: typst::layout::PagedDocument = typst::compile(&world).output
-        .map_err(|_| RenderError::TextCompilation("failed to compile Typst text document".to_string()))?;
+    let document: typst::layout::PagedDocument = typst::compile(&world).output.map_err(|_| {
+        RenderError::TextCompilation("failed to compile Typst text document".to_string())
+    })?;
 
     Ok(document.pages[0].frame.clone())
 }
 
 /// Compile code text into a Typst frame.
-pub fn compile_code(code: &str, font_size: f32, color: typst::visualize::Color, font_family: &str, font_ctx: &FontContext) -> Result<Frame, RenderError> {
+pub fn compile_code(
+    code: &str,
+    font_size: f32,
+    color: typst::visualize::Color,
+    font_family: &str,
+    font_ctx: &FontContext,
+    font_weight: f32,
+    font_style: &str,
+    line_height: f32,
+    letter_spacing: f32,
+    word_spacing: f32,
+) -> Result<Frame, RenderError> {
     let font = resolve_font_family(font_family, font_ctx);
+    let extra_rules = typst_text_set_rules(font_weight, font_style, letter_spacing, word_spacing);
+    let leading_rule = typst_par_leading_rule(line_height);
     // Use Typst raw block (4 backticks) to avoid markup interpretation of code text.
-    let escaped = code
-        .replace('\\', "\\\\");
+    let escaped = code.replace('\\', "\\\\");
     let markup = format!(
-        "#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\")\n````\n{}````",
+        "{}{}#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\")\n````\n{}````",
+        extra_rules,
+        leading_rule,
         font_size,
         color.to_hex(),
         font,
@@ -353,8 +494,9 @@ pub fn compile_code(code: &str, font_size: f32, color: typst::visualize::Color, 
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
     let world = TypstWorld::with_fonts(source, &[&font], font_ctx)?;
-    let document: typst::layout::PagedDocument = typst::compile(&world).output
-        .map_err(|_| RenderError::TextCompilation("failed to compile Typst code document".to_string()))?;
+    let document: typst::layout::PagedDocument = typst::compile(&world).output.map_err(|_| {
+        RenderError::TextCompilation("failed to compile Typst code document".to_string())
+    })?;
 
     Ok(document.pages[0].frame.clone())
 }
@@ -391,7 +533,7 @@ pub fn extract_glyphs_grouped(frame: &Frame) -> (Vec<TextPath>, Vec<std::ops::Ra
                 if end > start {
                     ranges.push(start..end);
                 }
-            }
+            },
             FrameItem::Text(_) => {
                 // Top-level text not wrapped in a group — collect into an implicit group
                 let start = all_glyphs.len();
@@ -400,8 +542,8 @@ pub fn extract_glyphs_grouped(frame: &Frame) -> (Vec<TextPath>, Vec<std::ops::Ra
                 if end > start {
                     ranges.push(start..end);
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 
@@ -411,7 +553,11 @@ pub fn extract_glyphs_grouped(frame: &Frame) -> (Vec<TextPath>, Vec<std::ops::Ra
 }
 
 /// Helper: extract glyphs from a single `FrameItem::Text` (not recursing into groups).
-fn walk_frame_for_glyphs_text_item(item: &FrameItem, transform: Transform, glyphs: &mut Vec<TextPath>) {
+fn walk_frame_for_glyphs_text_item(
+    item: &FrameItem,
+    transform: Transform,
+    glyphs: &mut Vec<TextPath>,
+) {
     if let FrameItem::Text(text) = item {
         let size = text.size.to_pt() as f32;
         let units_per_em = text.font.units_per_em() as f32;
@@ -514,7 +660,7 @@ fn walk_frame_for_glyphs(frame: &Frame, current_transform: Transform, glyphs: &m
             FrameItem::Group(group) => {
                 let group_transform = transform.pre_concat(group.transform);
                 walk_frame_for_glyphs(&group.frame, group_transform, glyphs);
-            }
+            },
             FrameItem::Text(text) => {
                 let size = text.size.to_pt() as f32;
                 let units_per_em = text.font.units_per_em() as f32;
@@ -563,8 +709,8 @@ fn walk_frame_for_glyphs(frame: &Frame, current_transform: Transform, glyphs: &m
 
                     x_curr += advance;
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 }
@@ -587,7 +733,7 @@ fn walk_frame_for_shapes(
             FrameItem::Group(group) => {
                 let group_transform = transform.pre_concat(group.transform);
                 walk_frame_for_shapes(&group.frame, group_transform, shapes);
-            }
+            },
             FrameItem::Shape(shape, _span) => {
                 if let typst::visualize::Geometry::Curve(curve) = &shape.geometry {
                     shapes.push(ExtractedShape {
@@ -595,8 +741,8 @@ fn walk_frame_for_shapes(
                         transform,
                     });
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 }
@@ -626,6 +772,11 @@ struct TextCacheKey {
     content: String,
     font_family: String,
     font_size_bits: u32,
+    font_weight_bits: u32,
+    font_style: String,
+    line_height_bits: u32,
+    letter_spacing_bits: u32,
+    word_spacing_bits: u32,
     color: [u8; 4],
     kind: TextKind,
 }
@@ -655,6 +806,11 @@ impl TextCompiler {
         content: &str,
         font_family: &str,
         font_size: f32,
+        font_weight: f32,
+        font_style: &str,
+        line_height: f32,
+        letter_spacing: f32,
+        word_spacing: f32,
         color: [f32; 4],
         kind: TextKind,
         font_ctx: &FontContext,
@@ -663,6 +819,11 @@ impl TextCompiler {
             content: content.to_string(),
             font_family: font_family.to_string(),
             font_size_bits: font_size.to_bits(),
+            font_weight_bits: font_weight.to_bits(),
+            font_style: font_style.to_string(),
+            line_height_bits: line_height.to_bits(),
+            letter_spacing_bits: letter_spacing.to_bits(),
+            word_spacing_bits: word_spacing.to_bits(),
             color: [
                 (color[0] * 255.0) as u8,
                 (color[1] * 255.0) as u8,
@@ -679,21 +840,56 @@ impl TextCompiler {
         // Evict cache if it grows too large to prevent unbounded memory use.
         // Remove ~half the entries to avoid a full clear spike.
         if self.cache.len() > 1000 {
-            let to_remove: Vec<_> = self.cache.keys()
-                .take(self.cache.len() / 2)
-                .cloned()
-                .collect();
+            let to_remove: Vec<_> = self.cache.keys().take(self.cache.len() / 2).cloned().collect();
             for k in to_remove {
                 self.cache.remove(&k);
             }
         }
 
-        let typst_color = typst::visualize::Color::from_u8(key.color[0], key.color[1], key.color[2], key.color[3]);
+        let typst_color = typst::visualize::Color::from_u8(
+            key.color[0],
+            key.color[1],
+            key.color[2],
+            key.color[3],
+        );
         let frame = match kind {
-            TextKind::Text => compile_text(content, font_size, typst_color, font_family, font_ctx)?,
+            TextKind::Text => compile_text(
+                content,
+                font_size,
+                typst_color,
+                font_family,
+                font_ctx,
+                font_weight,
+                font_style,
+                line_height,
+                letter_spacing,
+                word_spacing,
+            )?,
             TextKind::Math => compile_math(content, font_size, typst_color, font_family, font_ctx)?,
-            TextKind::Code => compile_code(content, font_size, typst_color, font_family, font_ctx)?,
-            TextKind::Typst => compile_typst(content, font_size, typst_color, font_family, font_ctx)?,
+            TextKind::Code => compile_code(
+                content,
+                font_size,
+                typst_color,
+                font_family,
+                font_ctx,
+                font_weight,
+                font_style,
+                line_height,
+                letter_spacing,
+                word_spacing,
+            )?,
+            TextKind::Typst => compile_typst(
+                content,
+                font_size,
+                typst_color,
+                font_family,
+                font_ctx,
+                font_weight,
+                font_style,
+                line_height,
+                letter_spacing,
+                word_spacing,
+            )?,
         };
         let paths: std::sync::Arc<[TextPath]> = extract_glyphs(&frame).into();
         self.cache.insert(key, std::sync::Arc::clone(&paths));

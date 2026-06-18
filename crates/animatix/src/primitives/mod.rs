@@ -43,8 +43,8 @@ use crate::easing::Easing;
 use crate::renderer::error::RenderError;
 use crate::renderer::types::TextPath;
 use crate::timeline::{
-    ActorCategory, ActorKindId, AnimationTrack, Environment, SceneDimensions, Timeline, TrackAccessor, Value,
-    VectorShapeState, VectorShapeStyle, VelloPath, DEFAULT_WHITE,
+    ActorCategory, ActorKindId, AnimationTrack, DEFAULT_WHITE, Environment, SceneDimensions,
+    Timeline, TrackAccessor, Value, VectorShapeState, VectorShapeStyle, VelloPath,
 };
 
 /// Evaluate text paths for a text primitive at frame time.
@@ -57,16 +57,23 @@ pub fn evaluate_text_paths(
     text_ctx: &mut TextCompileCtx,
     kind: crate::renderer::text::TextKind,
     default_font_size: f32,
-) -> Result<std::sync::Arc<[crate::renderer::types::TextPath]>, crate::renderer::error::RenderError> {
+) -> Result<std::sync::Arc<[crate::renderer::types::TextPath]>, crate::renderer::error::RenderError>
+{
     use crate::timeline::TrackAccessor;
 
     let mut content = ctx.track.text_content.get(ctx.time_ms, String::new());
     let mut font_family = ctx.track.font_family.get(ctx.time_ms, String::new());
     let mut font_size = ctx.track.font_size.get(ctx.time_ms, default_font_size);
+    let mut font_weight = ctx.track.font_weight.get(ctx.time_ms, 400.0);
+    let mut font_style = ctx.track.font_style.get(ctx.time_ms, "normal".to_string());
+    let mut line_height = ctx.track.line_height.get(ctx.time_ms, 1.2);
+    let mut letter_spacing = ctx.track.letter_spacing.get(ctx.time_ms, 0.0);
+    let mut word_spacing = ctx.track.word_spacing.get(ctx.time_ms, 0.0);
     let mut color = ctx.track.color.get(ctx.time_ms, DEFAULT_WHITE);
 
     if let Some(ov) = ctx.overrides {
-        if let Some(Value::Str(s)) = ov.get("text")
+        if let Some(Value::Str(s)) = ov
+            .get("text")
             .or_else(|| ov.get("code"))
             .or_else(|| ov.get("math"))
             .or_else(|| ov.get("latex"))
@@ -80,6 +87,21 @@ pub fn evaluate_text_paths(
         if let Some(Value::Num(n)) = ov.get("font_size") {
             font_size = *n as f32;
         }
+        if let Some(Value::Num(n)) = ov.get("font_weight") {
+            font_weight = *n as f32;
+        }
+        if let Some(Value::Str(s)) = ov.get("font_style") {
+            font_style = s.clone();
+        }
+        if let Some(Value::Num(n)) = ov.get("line_height") {
+            line_height = *n as f32;
+        }
+        if let Some(Value::Num(n)) = ov.get("letter_spacing") {
+            letter_spacing = *n as f32;
+        }
+        if let Some(Value::Num(n)) = ov.get("word_spacing") {
+            word_spacing = *n as f32;
+        }
         if let Some(Value::Color(c) | Value::Vec4(c)) = ov.get("color") {
             color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
         }
@@ -90,6 +112,11 @@ pub fn evaluate_text_paths(
             &content,
             &font_family,
             font_size,
+            font_weight,
+            &font_style,
+            line_height,
+            letter_spacing,
+            word_spacing,
             color,
             kind,
             text_ctx.font_context,
@@ -117,15 +144,13 @@ pub fn sample_shape_style(
         if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides.get("color") {
             color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
         }
-        if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides
-            .get("stroke_color")
-            .or_else(|| node_overrides.get("stroke"))
+        if let Some(Value::Color(c) | Value::Vec4(c)) =
+            node_overrides.get("stroke_color").or_else(|| node_overrides.get("stroke"))
         {
             stroke_color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
         }
-        if let Some(Value::Num(width)) = node_overrides
-            .get("stroke_width")
-            .or_else(|| node_overrides.get("width"))
+        if let Some(Value::Num(width)) =
+            node_overrides.get("stroke_width").or_else(|| node_overrides.get("width"))
         {
             stroke_width = *width as f32;
         }
@@ -157,43 +182,67 @@ pub(crate) fn evaluate_shape_render(
     state: &VectorShapeState,
 ) -> Result<Option<Vec<RenderCommand>>, crate::renderer::error::RenderError> {
     let style = sample_shape_style(ctx.track, ctx.time_ms, ctx.overrides);
-    let paths = primitive.render(&RenderCtx {
-        state,
-        style,
-        time_ms: ctx.time_ms,
-    })
-    .unwrap_or_default();
+    let paths = primitive
+        .render(&RenderCtx {
+            state,
+            style,
+            time_ms: ctx.time_ms,
+        })
+        .unwrap_or_default();
     Ok(Some(vec![RenderCommand::Paths { paths }]))
 }
 
 // ── Re-export all primitive modules ──────────────────────────────────────
 
-mod rect;       pub use rect::RECT;
-mod ellipse;    pub use ellipse::ELLIPSE;
-mod line;       pub use line::LINE;
-mod arrow;      pub use arrow::ARROW;
-mod polygon;    pub use polygon::POLYGON;
-mod path;       pub use path::PATH;
-mod text;       pub use text::TEXT;
-mod code;       pub use code::CODE;
-mod image;      pub use image::IMAGE;
-mod svg;        pub use svg::SVG;
-mod bar_chart;  pub use bar_chart::BAR_CHART;
-mod plot;       pub use plot::{GRAPH, PLOT_CURVE, VECTOR_FIELD, HEATMAP, CONTOUR_SET, NUMBER_PLANE};
-mod row;        pub use row::ROW;
-mod col;        pub use col::COL;
-mod grid;       pub use grid::GRID;
-mod stack;      pub use stack::STACK;
-mod group;      pub use group::GROUP;
-mod mask;       pub use mask::MASK;
-mod filter;     pub use filter::FILTER;
+mod rect;
+pub use rect::RECT;
+mod ellipse;
+pub use ellipse::ELLIPSE;
+mod line;
+pub use line::LINE;
+mod arrow;
+pub use arrow::ARROW;
+mod polygon;
+pub use polygon::POLYGON;
+mod path;
+pub use path::PATH;
+mod text;
+pub use text::TEXT;
+mod code;
+pub use code::CODE;
+mod image;
+pub use image::IMAGE;
+mod svg;
+pub use svg::SVG;
+mod bar_chart;
+pub use bar_chart::BAR_CHART;
+mod plot;
+pub use plot::{CONTOUR_SET, GRAPH, HEATMAP, NUMBER_PLANE, PLOT_CURVE, VECTOR_FIELD};
+mod row;
+pub use row::ROW;
+mod col;
+pub use col::COL;
+mod grid;
+pub use grid::GRID;
+mod stack;
+pub use stack::STACK;
+mod group;
+pub use group::GROUP;
+mod mask;
+pub use mask::MASK;
+mod filter;
+pub use filter::FILTER;
 
-mod typst;      pub use typst::TYPST;
+mod typst;
+pub use typst::TYPST;
 
-mod audio;      pub use audio::AUDIO;
+mod audio;
+pub use audio::AUDIO;
 
-mod equation; pub use equation::EQUATION;
-mod fragment; pub use fragment::FRAGMENT;
+mod equation;
+pub use equation::EQUATION;
+mod fragment;
+pub use fragment::FRAGMENT;
 
 // ── Primitive trait ─────────────────────────────────────────────────────
 
@@ -308,24 +357,13 @@ pub enum RenderCommand {
 
 impl RenderCommand {
     /// Execute this command into a Vello scene with the given transform and opacity.
-    pub fn execute(
-        &self,
-        scene: &mut vello::Scene,
-        transform: &kurbo::Affine,
-        opacity: f32,
-    ) {
+    pub fn execute(&self, scene: &mut vello::Scene, transform: &kurbo::Affine, opacity: f32) {
         match self {
             RenderCommand::Paths { paths } => {
                 for path in paths {
                     if let Some(mut fc) = path.fill {
                         fc = fc.with_alpha(fc.components[3] * opacity);
-                        scene.fill(
-                            vello::peniko::Fill::NonZero,
-                            *transform,
-                            fc,
-                            None,
-                            &path.path,
-                        );
+                        scene.fill(vello::peniko::Fill::NonZero, *transform, fc, None, &path.path);
                     }
                     if let Some((mut sc, sw)) = path.stroke {
                         sc = sc.with_alpha(sc.components[3] * opacity);
@@ -351,7 +389,7 @@ impl RenderCommand {
                         scene.stroke(&stroke, *transform, sc, None, &path.path);
                     }
                 }
-            }
+            },
             RenderCommand::Text { paths } => {
                 for text_path in paths.iter() {
                     let color = match &text_path.color {
@@ -363,7 +401,7 @@ impl RenderCommand {
                                 rgba[2],
                                 (rgba[3] as f32 * opacity * text_path.opacity) as u8,
                             )
-                        }
+                        },
                         _ => vello::peniko::Color::WHITE,
                     };
                     scene.fill(
@@ -374,8 +412,11 @@ impl RenderCommand {
                         &text_path.path,
                     );
                 }
-            }
-            RenderCommand::Image { image, natural_size } => {
+            },
+            RenderCommand::Image {
+                image,
+                natural_size,
+            } => {
                 let [nw, nh] = *natural_size;
                 let image_transform = *transform
                     * kurbo::Affine::scale_non_uniform(
@@ -387,8 +428,14 @@ impl RenderCommand {
                     .with_quality(vello::peniko::ImageQuality::Medium)
                     .with_alpha(opacity);
                 scene.draw_image(&brush, image_transform);
-            }
-            RenderCommand::HighlightLayer { rect, color, blend, alpha, corner_radius } => {
+            },
+            RenderCommand::HighlightLayer {
+                rect,
+                color,
+                blend,
+                alpha,
+                corner_radius,
+            } => {
                 let rounded = kurbo::RoundedRect::from_rect(*rect, *corner_radius);
                 scene.push_layer(
                     vello::peniko::Fill::NonZero,
@@ -405,7 +452,7 @@ impl RenderCommand {
                     &rounded,
                 );
                 scene.pop_layer();
-            }
+            },
         }
     }
 
@@ -427,24 +474,23 @@ impl RenderCommand {
                 for path in paths {
                     bounds = union(bounds, path.path.bounding_box());
                 }
-            }
+            },
             RenderCommand::Text { paths } => {
                 for text_path in paths.iter() {
                     bounds = union(bounds, text_path.path.bounding_box());
                 }
-            }
+            },
             RenderCommand::Image { .. } => {
                 if let Some([half_w, half_h]) = display_size {
-                    bounds = union(bounds, kurbo::Rect::new(
-                        0.0, 0.0,
-                        (half_w * 2.0) as f64,
-                        (half_h * 2.0) as f64,
-                    ));
+                    bounds = union(
+                        bounds,
+                        kurbo::Rect::new(0.0, 0.0, (half_w * 2.0) as f64, (half_h * 2.0) as f64),
+                    );
                 }
-            }
+            },
             RenderCommand::HighlightLayer { rect, .. } => {
                 bounds = union(bounds, *rect);
-            }
+            },
         }
         bounds
     }
@@ -469,13 +515,19 @@ pub trait Primitive: Send + Sync {
     fn icon_id(&self) -> &'static str;
 
     /// When true, shown in a "More..." submenu instead of top-level.
-    fn is_advanced(&self) -> bool { false }
+    fn is_advanced(&self) -> bool {
+        false
+    }
 
     /// Returns true if this primitive is a layout container.
-    fn is_container(&self) -> bool { false }
+    fn is_container(&self) -> bool {
+        false
+    }
 
     /// Returns true if this primitive renders as a vector shape.
-    fn is_shape(&self) -> bool { false }
+    fn is_shape(&self) -> bool {
+        false
+    }
 
     /// Returns the corresponding `ActorKindId` variant.
     fn kind_id(&self) -> ActorKindId;
@@ -523,13 +575,19 @@ pub trait Primitive: Send + Sync {
     fn finalize_state(&self, _state: &mut VectorShapeState) {}
 
     /// Returns true if this shape uses a custom path (Polygon, Path).
-    fn uses_custom_path(&self) -> bool { false }
+    fn uses_custom_path(&self) -> bool {
+        false
+    }
 
     /// Returns true if this shape exposes tip size properties (Line with arrows).
-    fn exposes_tip_size(&self) -> bool { false }
+    fn exposes_tip_size(&self) -> bool {
+        false
+    }
 
     /// Returns true if this shape supports fill.
-    fn supports_fill(&self) -> bool { true }
+    fn supports_fill(&self) -> bool {
+        true
+    }
 
     /// Returns the colorscheme key for default color lookup.
     /// For example, "Text" returns "text.primary", shapes return "accent.primary".
@@ -554,7 +612,7 @@ pub trait Primitive: Send + Sync {
         match self.category() {
             ActorCategory::Text | ActorCategory::Media | ActorCategory::Plot => {
                 crate::timeline::ResizeMode::Scale
-            }
+            },
             _ => crate::timeline::ResizeMode::Size,
         }
     }
@@ -586,6 +644,22 @@ pub trait Primitive: Send + Sync {
 
     // ── Trait-dispatch scene evaluation (Phase 10b.3) ──
 
+    // ── Post-children build finalization (for containers) ──
+
+    /// Finalize the actor build after all children have been processed.
+    ///
+    /// Layout containers (Row, Col, Grid, Stack) override this to register
+    /// container metadata and apply layout, which must happen after children
+    /// are processed so that child tracks exist for layout computation.
+    fn finalize_container_build(
+        &self,
+        _ctx: &mut BuildCtx,
+        _label: &str,
+        _props: &[Property],
+    ) -> Result<(), Vec<Diagnostic>> {
+        Ok(())
+    }
+
     /// Evaluate this primitive at frame time and return render commands.
     ///
     /// When this returns `Some(commands)`, `scene_eval.rs` will execute the
@@ -611,17 +685,39 @@ pub trait Primitive: Send + Sync {
 /// **This is the only place you add a new primitive.**
 pub static PRIMITIVES: &[&dyn Primitive] = &[
     // Shapes
-    &RECT, &ELLIPSE, &LINE, &ARROW, &POLYGON, &PATH,
+    &RECT,
+    &ELLIPSE,
+    &LINE,
+    &ARROW,
+    &POLYGON,
+    &PATH,
     // Text
-    &TEXT, &CODE, &TYPST,
+    &TEXT,
+    &CODE,
+    &TYPST,
     // Media
-    &IMAGE, &SVG, &AUDIO,
+    &IMAGE,
+    &SVG,
+    &AUDIO,
     // Plots
-    &GRAPH, &PLOT_CURVE, &VECTOR_FIELD, &HEATMAP, &CONTOUR_SET, &NUMBER_PLANE, &BAR_CHART,
+    &GRAPH,
+    &PLOT_CURVE,
+    &VECTOR_FIELD,
+    &HEATMAP,
+    &CONTOUR_SET,
+    &NUMBER_PLANE,
+    &BAR_CHART,
     // Containers
-    &ROW, &COL, &GRID, &STACK, &GROUP, &MASK, &FILTER,
+    &ROW,
+    &COL,
+    &GRID,
+    &STACK,
+    &GROUP,
+    &MASK,
+    &FILTER,
     // Equation / Fragment
-    &EQUATION, &FRAGMENT,
+    &EQUATION,
+    &FRAGMENT,
 ];
 
 // ── Auto-generated registry ─────────────────────────────────────────────
@@ -668,9 +764,7 @@ pub fn actor_kind_registry() -> &'static [ActorKindMeta] {
 
 /// Look up metadata by `ActorKindId`.
 pub fn actor_kind_meta(kind: ActorKindId) -> Option<&'static ActorKindMeta> {
-    actor_kind_registry()
-        .iter()
-        .find(|m| m.kind == kind)
+    actor_kind_registry().iter().find(|m| m.kind == kind)
 }
 
 /// Look up metadata by type name.
@@ -696,11 +790,7 @@ mod tests {
         let mut seen = std::collections::HashSet::new();
         for p in PRIMITIVES.iter() {
             let name = p.type_name();
-            assert!(
-                seen.insert(name),
-                "Duplicate type_name: {:?}",
-                name
-            );
+            assert!(seen.insert(name), "Duplicate type_name: {:?}", name);
         }
     }
 
@@ -708,11 +798,7 @@ mod tests {
     fn find_primitive_roundtrips() {
         for p in PRIMITIVES.iter() {
             let found = find_primitive(p.type_name());
-            assert!(
-                found.is_some(),
-                "find_primitive({:?}) returned None",
-                p.type_name()
-            );
+            assert!(found.is_some(), "find_primitive({:?}) returned None", p.type_name());
             assert_eq!(found.unwrap().type_name(), p.type_name());
         }
     }
@@ -736,12 +822,14 @@ mod tests {
         // This enumerates all variants and verifies they're in the registry
         use crate::timeline::ShapeKind;
         let registry = actor_kind_registry();
-        let kinds: std::collections::HashSet<_> =
-            registry.iter().map(|m| m.kind).collect();
+        let kinds: std::collections::HashSet<_> = registry.iter().map(|m| m.kind).collect();
 
         let shape_kinds = [
-            ShapeKind::Rect, ShapeKind::Ellipse,
-            ShapeKind::Line, ShapeKind::Polygon, ShapeKind::Path,
+            ShapeKind::Rect,
+            ShapeKind::Ellipse,
+            ShapeKind::Line,
+            ShapeKind::Polygon,
+            ShapeKind::Path,
             ShapeKind::Arrow,
         ];
         for sk in &shape_kinds {
@@ -750,15 +838,27 @@ mod tests {
         }
 
         for id in [
-            ActorKindId::Text, ActorKindId::Code, ActorKindId::Typst,
-            ActorKindId::Image, ActorKindId::Svg,
-            ActorKindId::Graph, ActorKindId::PlotCurve,
-            ActorKindId::VectorField, ActorKindId::Heatmap, ActorKindId::ContourSet,
+            ActorKindId::Text,
+            ActorKindId::Code,
+            ActorKindId::Typst,
+            ActorKindId::Image,
+            ActorKindId::Svg,
+            ActorKindId::Graph,
+            ActorKindId::PlotCurve,
+            ActorKindId::VectorField,
+            ActorKindId::Heatmap,
+            ActorKindId::ContourSet,
             ActorKindId::NumberPlane,
-            ActorKindId::Row, ActorKindId::Col, ActorKindId::Grid,
-            ActorKindId::Stack, ActorKindId::Group, ActorKindId::Mask, ActorKindId::Filter,
+            ActorKindId::Row,
+            ActorKindId::Col,
+            ActorKindId::Grid,
+            ActorKindId::Stack,
+            ActorKindId::Group,
+            ActorKindId::Mask,
+            ActorKindId::Filter,
             ActorKindId::Audio,
-            ActorKindId::Equation, ActorKindId::Fragment,
+            ActorKindId::Equation,
+            ActorKindId::Fragment,
         ] {
             assert!(kinds.contains(&id), "Missing ActorKindMeta for {:?}", id);
         }

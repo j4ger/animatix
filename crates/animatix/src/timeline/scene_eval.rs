@@ -735,6 +735,11 @@ impl Timeline {
                 let font_size = track.font_size.get(time_ms, 48.0);
                 let eq_color = track.color.get(time_ms, DEFAULT_WHITE);
                 let font_family = track.font_family.get(time_ms, String::new());
+                let font_weight = track.font_weight.get(time_ms, 400.0);
+                let font_style = track.font_style.get(time_ms, "normal".to_string());
+                let line_height = track.line_height.get(time_ms, 1.2);
+                let letter_spacing = track.letter_spacing.get(time_ms, 0.0);
+                let word_spacing = track.word_spacing.get(time_ms, 0.0);
 
                 let typst_color = typst::visualize::Color::from_u8(
                     (eq_color[0] * 255.0) as u8,
@@ -750,6 +755,11 @@ impl Timeline {
                     typst_color,
                     &font_family,
                     self.font_context.as_ref(),
+                    font_weight,
+                    &font_style,
+                    line_height,
+                    letter_spacing,
+                    word_spacing,
                 ) {
                     Ok(frame) => {
                         // Extract grouped glyphs — one group per #box() wrapper.

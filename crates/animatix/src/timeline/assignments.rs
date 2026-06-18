@@ -1,24 +1,21 @@
 use super::{
-    AnimationTrack, Diagnostic, Easing, Environment, ModifierHost, ParsedTimingModifiers,
-    PositionBinding, ShapeType, Timeline, Value, VectorShapeState, VectorShapeStyle,
-    assignment_target_key, best_path_suggestion,
-    build_shape_vello_path, build_vector_shape_vello_path,
-    evaluate_expr, evaluate_expr_with_lookup_diagnostic,
-    mark_track_manual_position, parse_color_in_env_with_lookup_diagnostic,
-    parse_timing_modifiers, preserve_discrete_position_state_before,
-    preserve_instant_delayed_value, push_unknown_target_path_diagnostic,
-    resolve_position_binding_with_lookup_diagnostic, set_track_position_binding,
-    DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
+    AnimationTrack, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, Diagnostic, Easing, Environment,
+    ModifierHost, ParsedTimingModifiers, PositionBinding, ShapeType, Timeline, Value,
+    VectorShapeState, VectorShapeStyle, assignment_target_key, best_path_suggestion,
+    build_shape_vello_path, build_vector_shape_vello_path, evaluate_expr,
+    evaluate_expr_with_lookup_diagnostic, mark_track_manual_position,
+    parse_color_in_env_with_lookup_diagnostic, parse_timing_modifiers,
+    preserve_discrete_position_state_before, preserve_instant_delayed_value,
+    push_unknown_target_path_diagnostic, resolve_position_binding_with_lookup_diagnostic,
+    set_track_position_binding,
 };
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
-use crate::timeline::build::build_graph_axis_paths;
 use crate::primitives::{AssignmentCtx, find_primitive};
 use crate::renderer::error::RenderError;
 use crate::timeline::VelloPath;
-use crate::timeline::property_engine::{
-    parse_property_value, write_property_field,
-};
-use crate::timeline::property_registry::{lookup_property, PropertyFlags};
+use crate::timeline::build::build_graph_axis_paths;
+use crate::timeline::property_engine::{parse_property_value, write_property_field};
+use crate::timeline::property_registry::{PropertyFlags, lookup_property};
 use crate::timeline::track::TrackAccessor;
 
 impl Timeline {
@@ -70,9 +67,7 @@ impl Timeline {
             diagnostics.push(Diagnostic::error(
                 DiagnosticCode::InvalidAssignmentTarget,
                 DiagnosticPhase::Build,
-                format!(
-                    "Assignment '{property} = ...' must include an actor label.",
-                ),
+                format!("Assignment '{property} = ...' must include an actor label.",),
             ));
             return;
         }
@@ -99,16 +94,25 @@ impl Timeline {
         if target.len() == 1 && target[0] == "scene" {
             if property == "background_color" {
                 let Some(target_color) = parse_color_in_env_with_lookup_diagnostic(
-                    "scene", "background_color", value, &eval_env, diagnostics, &assignment_subject,
-                ) else { return; };
+                    "scene",
+                    "background_color",
+                    value,
+                    &eval_env,
+                    diagnostics,
+                    &assignment_subject,
+                ) else {
+                    return;
+                };
                 if duration_ms > 0.0 {
                     let start_val = self.background_color.evaluate(t_start_ms);
                     self.background_color.add_keyframe(t_start_ms, start_val, Easing::Linear);
                 } else if instant_delayed
-                    && t_start_ms > 0 && !self.background_color.keyframes.contains_key(&(t_start_ms - 1)) {
-                        let prev_val = self.background_color.evaluate(t_start_ms - 1);
-                        self.background_color.add_keyframe(t_start_ms - 1, prev_val, Easing::Linear);
-                    }
+                    && t_start_ms > 0
+                    && !self.background_color.keyframes.contains_key(&(t_start_ms - 1))
+                {
+                    let prev_val = self.background_color.evaluate(t_start_ms - 1);
+                    self.background_color.add_keyframe(t_start_ms - 1, prev_val, Easing::Linear);
+                }
                 self.background_color.add_keyframe(t_end_ms, target_color, easing);
             }
             return;
@@ -119,7 +123,9 @@ impl Timeline {
         if target.len() == 1 {
             let var_name = &target[0];
             // Check if this variable exists as a variable track holding an Object value
-            if let Some(current) = self.variable_tracks.get(var_name)
+            if let Some(current) = self
+                .variable_tracks
+                .get(var_name)
                 .and_then(|track| track.evaluate(time_ms as u64))
             {
                 if matches!(current, Value::Object(_, _)) {
@@ -136,7 +142,7 @@ impl Timeline {
                                 ),
                             ));
                             return;
-                        }
+                        },
                     };
                     // Update the Object's field (immutable update via with_field)
                     let new_obj = current.with_field(property, eval_val);
@@ -164,14 +170,15 @@ impl Timeline {
                     suggestion,
                 );
                 return;
-            }
+            },
         };
 
-        let track = self.tracks
+        let track = self
+            .tracks
             .entry(target_key.clone())
             .or_insert_with(|| AnimationTrack::new(target_key.clone()));
 
-// ── Special cases that can't go through the generic engine ──
+        // ── Special cases that can't go through the generic engine ──
 
         // Position / at — uses position binding resolution (compound property)
         if matches!(property, "position" | "at") {
@@ -179,15 +186,29 @@ impl Timeline {
             let default_binding = PositionBinding::Absolute;
             let target_pos = if let Some((binding, position)) =
                 resolve_position_binding_with_lookup_diagnostic(
-                    Some(value), None, None, &eval_env, diagnostics, &assignment_subject,
+                    Some(value),
+                    None,
+                    None,
+                    &eval_env,
+                    diagnostics,
+                    &assignment_subject,
                 ) {
                 preserve_discrete_position_state_before(track, t_start_ms);
-                if instant_delayed { preserve_instant_delayed_value(&mut track.position, t_start_ms); }
+                if instant_delayed {
+                    preserve_instant_delayed_value(&mut track.position, t_start_ms);
+                }
                 mark_track_manual_position(track, t_start_ms);
                 if duration_ms > 0.0 {
                     let start_binding = track.position_binding.get(t_start_ms, default_binding);
-                    track.position_binding.ensure(default_binding).add_keyframe(t_start_ms, start_binding, Easing::Linear);
-                    track.position_binding.ensure(default_binding).add_keyframe(t_end_ms, binding, easing);
+                    track.position_binding.ensure(default_binding).add_keyframe(
+                        t_start_ms,
+                        start_binding,
+                        Easing::Linear,
+                    );
+                    track
+                        .position_binding
+                        .ensure(default_binding)
+                        .add_keyframe(t_end_ms, binding, easing);
                 } else {
                     set_track_position_binding(track, t_start_ms, binding);
                 }
@@ -197,7 +218,11 @@ impl Timeline {
             };
             if duration_ms > 0.0 {
                 let start_val = track.position.get(t_start_ms, default_pos);
-                track.position.ensure(default_pos).add_keyframe(t_start_ms, start_val, Easing::Linear);
+                track.position.ensure(default_pos).add_keyframe(
+                    t_start_ms,
+                    start_val,
+                    Easing::Linear,
+                );
             } else if instant_delayed {
                 preserve_instant_delayed_value(&mut track.position, t_start_ms);
             }
@@ -218,7 +243,15 @@ impl Timeline {
                 font_context: self.font_context.as_ref(),
                 text_compiler: &mut self.text_compiler.borrow_mut(),
             };
-            if primitive.handle_assignment(track, property, value, &mut ctx, &eval_env, diagnostics, &assignment_subject) {
+            if primitive.handle_assignment(
+                track,
+                property,
+                value,
+                &mut ctx,
+                &eval_env,
+                diagnostics,
+                &assignment_subject,
+            ) {
                 return;
             }
         }
@@ -236,7 +269,10 @@ impl Timeline {
             // Check if the property is assignable
             if !schema.flags.contains(PropertyFlags::ASSIGNABLE) {
                 push_unsupported_assignment_property_diagnostic(
-                    diagnostics, &assignment_subject, &target_key, property,
+                    diagnostics,
+                    &assignment_subject,
+                    &target_key,
+                    property,
                 );
                 return;
             }
@@ -246,8 +282,18 @@ impl Timeline {
                 // Save parent's old size before assignment (for scaling children)
                 let old_half_size = track.size.last(DEFAULT_LAYOUT_HALF_SIZE);
 
-                let new_half_size = handle_size_assignment(track, property, value, &eval_env, &assignment_subject,
-                    t_start_ms, t_end_ms, easing, instant_delayed, diagnostics);
+                let new_half_size = handle_size_assignment(
+                    track,
+                    property,
+                    value,
+                    &eval_env,
+                    &assignment_subject,
+                    t_start_ms,
+                    t_end_ms,
+                    easing,
+                    instant_delayed,
+                    diagnostics,
+                );
 
                 // For Graph actors, also rebuild PlotCurve children whose
                 // paths depend on the parent's size (p_size), and scale
@@ -262,23 +308,40 @@ impl Timeline {
                             // Scale PlotCurve paths
                             if child_track.kind == super::ActorKindId::PlotCurve {
                                 scale_plot_curve_paths(
-                                    child_track, scale_x, scale_y, t_start_ms, t_end_ms, easing,
+                                    child_track,
+                                    scale_x,
+                                    scale_y,
+                                    t_start_ms,
+                                    t_end_ms,
+                                    easing,
                                 );
                             }
                             // Scale tick label positions (Text children named {label}_tick_x_N / _tick_y_N)
                             if child_track.kind == super::ActorKindId::Text
-                                && (child_label.contains("_tick_x_") || child_label.contains("_tick_y_"))
+                                && (child_label.contains("_tick_x_")
+                                    || child_label.contains("_tick_y_"))
                             {
                                 let old_pos = child_track.position.last([0.0, 0.0]);
                                 let new_pos = [old_pos[0] * scale_x, old_pos[1] * scale_y];
                                 let child_has_duration = t_end_ms > t_start_ms;
                                 if child_has_duration {
-                                    let start_pos = child_track.position.get(t_start_ms, [0.0, 0.0]);
-                                    child_track.position.ensure([0.0, 0.0]).add_keyframe(t_start_ms, start_pos, Easing::Linear);
+                                    let start_pos =
+                                        child_track.position.get(t_start_ms, [0.0, 0.0]);
+                                    child_track.position.ensure([0.0, 0.0]).add_keyframe(
+                                        t_start_ms,
+                                        start_pos,
+                                        Easing::Linear,
+                                    );
                                 } else if instant_delayed {
-                                    preserve_instant_delayed_value(&mut child_track.position, t_start_ms);
+                                    preserve_instant_delayed_value(
+                                        &mut child_track.position,
+                                        t_start_ms,
+                                    );
                                 }
-                                child_track.position.ensure([0.0, 0.0]).add_keyframe(t_end_ms, new_pos, easing);
+                                child_track
+                                    .position
+                                    .ensure([0.0, 0.0])
+                                    .add_keyframe(t_end_ms, new_pos, easing);
                             }
                         }
                     }
@@ -288,13 +351,33 @@ impl Timeline {
             }
 
             // Standard engine dispatch for everything else
-            if let Some(pv) = parse_property_value(schema.value_type, value, &eval_env, diagnostics, &assignment_subject) {
-                write_property_field(track, schema.field, pv, t_start_ms, t_end_ms, easing, diagnostics);
+            if let Some(pv) = parse_property_value(
+                schema.value_type,
+                value,
+                &eval_env,
+                diagnostics,
+                &assignment_subject,
+            ) {
+                write_property_field(
+                    track,
+                    schema.field,
+                    pv,
+                    t_start_ms,
+                    t_end_ms,
+                    easing,
+                    diagnostics,
+                );
 
                 // For Line actors, `color` assignment also sets `stroke_color` (Line is stroke-only)
-                if property == "color" && track.kind == super::ActorKindId::Shape(super::ShapeKind::Line) {
+                if property == "color"
+                    && track.kind == super::ActorKindId::Shape(super::ShapeKind::Line)
+                {
                     if let Some(spv) = parse_property_value(
-                        schema.value_type, value, &eval_env, diagnostics, &assignment_subject,
+                        schema.value_type,
+                        value,
+                        &eval_env,
+                        diagnostics,
+                        &assignment_subject,
                     ) {
                         write_property_field(
                             track,
@@ -310,12 +393,21 @@ impl Timeline {
 
                 // If this property affects shape geometry, rebuild vector paths
                 if affects_shape_geometry(property) {
-                    rebuild_vector_paths(track, t_start_ms, t_end_ms, easing, diagnostics, Some(&eval_env));
+                    rebuild_vector_paths(
+                        track,
+                        t_start_ms,
+                        t_end_ms,
+                        easing,
+                        diagnostics,
+                        Some(&eval_env),
+                    );
                 }
             }
         } else {
             // Check if this is a plot parameter assignment
-            let is_plot_param = track.procedural_plot.as_ref()
+            let is_plot_param = track
+                .procedural_plot
+                .as_ref()
                 .map(|p| p.param_names.iter().any(|n| n == property))
                 .unwrap_or(false);
 
@@ -323,32 +415,39 @@ impl Timeline {
                 let target_val = match evaluate_expr(value, &eval_env) {
                     Ok(Value::Num(n)) => n,
                     Ok(_) => {
-                        diagnostics.push(Diagnostic::error(
-                            DiagnosticCode::InvalidPropertyValue,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "Plot parameter '{}' on '{}' must be numeric",
-                                property, target_key
-                            ),
-                        ).with_subject(&assignment_subject));
+                        diagnostics.push(
+                            Diagnostic::error(
+                                DiagnosticCode::InvalidPropertyValue,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "Plot parameter '{}' on '{}' must be numeric",
+                                    property, target_key
+                                ),
+                            )
+                            .with_subject(&assignment_subject),
+                        );
                         return;
-                    }
+                    },
                     Err(e) => {
-                        diagnostics.push(Diagnostic::error(
-                            DiagnosticCode::InvalidPropertyValue,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "Failed to evaluate plot parameter '{}.{}': {}",
-                                target_key, property, e
-                            ),
-                        ).with_subject(&assignment_subject));
+                        diagnostics.push(
+                            Diagnostic::error(
+                                DiagnosticCode::InvalidPropertyValue,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "Failed to evaluate plot parameter '{}.{}': {}",
+                                    target_key, property, e
+                                ),
+                            )
+                            .with_subject(&assignment_subject),
+                        );
                         return;
-                    }
+                    },
                 };
 
                 let has_duration = t_end_ms > t_start_ms;
                 let prop_name = property.to_string();
-                let param_track = track.plot_param_tracks
+                let param_track = track
+                    .plot_param_tracks
                     .entry(prop_name)
                     .or_insert_with(|| super::PropertyTrack::new(target_val));
 
@@ -363,7 +462,10 @@ impl Timeline {
             } else {
                 // Unknown property — report diagnostic
                 push_unsupported_assignment_property_diagnostic(
-                    diagnostics, &assignment_subject, &target_key, property,
+                    diagnostics,
+                    &assignment_subject,
+                    &target_key,
+                    property,
                 );
             }
         }
@@ -398,34 +500,45 @@ fn handle_size_assignment(
             } else {
                 track.size.last(default_size)
             }
-        }
+        },
         "radius_x" => {
             let mut s = track.size.last(default_size);
             s[0] = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                .map(|v| v.as_num() as f32).unwrap_or(s[0]);
+                .map(|v| v.as_num() as f32)
+                .unwrap_or(s[0]);
             s
-        }
+        },
         "radius_y" => {
             let mut s = track.size.last(default_size);
             s[1] = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                .map(|v| v.as_num() as f32).unwrap_or(s[1]);
+                .map(|v| v.as_num() as f32)
+                .unwrap_or(s[1]);
             s
-        }
+        },
         _ => track.size.last(default_size),
     };
 
     if has_duration {
         let start_val = track.size.get(t_start_ms, default_size);
-        track.size.ensure(default_size).add_keyframe(t_start_ms, start_val, Easing::Linear);
+        track
+            .size
+            .ensure(default_size)
+            .add_keyframe(t_start_ms, start_val, Easing::Linear);
         if let Some(layout_start) = track.layout_size_get(t_start_ms) {
-            track.ensure_layout_size(default_size).add_keyframe(t_start_ms, layout_start, Easing::Linear);
+            track.ensure_layout_size(default_size).add_keyframe(
+                t_start_ms,
+                layout_start,
+                Easing::Linear,
+            );
         }
     } else if instant_delayed {
         preserve_instant_delayed_value(&mut track.size, t_start_ms);
         preserve_instant_delayed_value(&mut track.layout_size, t_start_ms);
     }
     track.size.ensure(default_size).add_keyframe(t_end_ms, target_size, easing);
-    track.ensure_layout_size(default_size).add_keyframe(t_end_ms, target_size, easing);
+    track
+        .ensure_layout_size(default_size)
+        .add_keyframe(t_end_ms, target_size, easing);
 
     // Rebuild vector paths after size change
     rebuild_vector_paths(track, t_start_ms, t_end_ms, easing, diagnostics, Some(env));
@@ -450,11 +563,18 @@ pub(crate) fn recompile_text_at_assignment(
 ) -> Result<(), RenderError> {
     if duration_ms > 0.0 {
         let start_val = track.text_content.get(t_start_ms, String::new());
-        track.text_content.ensure(String::new()).add_keyframe(t_start_ms, start_val, Easing::Linear);
+        track.text_content.ensure(String::new()).add_keyframe(
+            t_start_ms,
+            start_val,
+            Easing::Linear,
+        );
     } else if instant_delayed {
         preserve_instant_delayed_value(&mut track.text_content, t_start_ms);
     }
-    track.text_content.ensure(String::new()).add_keyframe(t_end_ms, target_text.clone(), easing);
+    track
+        .text_content
+        .ensure(String::new())
+        .add_keyframe(t_end_ms, target_text.clone(), easing);
 
     let text_kind = match track.kind {
         super::ActorKindId::Text => crate::renderer::text::TextKind::Text,
@@ -465,27 +585,66 @@ pub(crate) fn recompile_text_at_assignment(
 
     let font_family = track.font_family.get(t_end_ms, String::new());
     let font_size = track.font_size.get(t_end_ms, 48.0);
+    let font_weight = track.font_weight.get(t_end_ms, 400.0);
+    let font_style = track.font_style.get(t_end_ms, "normal".to_string());
+    let line_height = track.line_height.get(t_end_ms, 1.2);
+    let letter_spacing = track.letter_spacing.get(t_end_ms, 0.0);
+    let word_spacing = track.word_spacing.get(t_end_ms, 0.0);
     let color = track.color.get(t_end_ms, [1.0, 1.0, 1.0, 1.0]);
 
-    let new_paths = text_compiler.compile(&target_text, &font_family, font_size, color, text_kind, font_ctx)?;
+    let new_paths = text_compiler.compile(
+        &target_text,
+        &font_family,
+        font_size,
+        font_weight,
+        &font_style,
+        line_height,
+        letter_spacing,
+        word_spacing,
+        color,
+        text_kind,
+        font_ctx,
+    )?;
     let new_half_size = crate::renderer::text::measure_text_paths(&new_paths);
 
     if duration_ms > 0.0 {
         let start_val = track.evaluate_text_paths(t_start_ms);
-        track.text_paths.ensure(Vec::new()).add_keyframe(t_start_ms, start_val, Easing::Linear);
+        track
+            .text_paths
+            .ensure(Vec::new())
+            .add_keyframe(t_start_ms, start_val, Easing::Linear);
         let start_size = track.size.get(t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
-        let start_layout_size = track.layout_size_get(t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
-        track.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(t_start_ms, start_size, Easing::Linear);
-        track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(t_start_ms, start_layout_size, Easing::Linear);
+        let start_layout_size =
+            track.layout_size_get(t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
+        track.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+            t_start_ms,
+            start_size,
+            Easing::Linear,
+        );
+        track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+            t_start_ms,
+            start_layout_size,
+            Easing::Linear,
+        );
     } else if instant_delayed {
         preserve_instant_delayed_value(&mut track.text_paths, t_start_ms);
         preserve_instant_delayed_value(&mut track.size, t_start_ms);
         preserve_instant_delayed_value(&mut track.layout_size, t_start_ms);
     }
 
-    track.text_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths.to_vec(), easing);
-    track.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(t_end_ms, new_half_size, easing);
-    track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(t_end_ms, new_half_size, easing);
+    track
+        .text_paths
+        .ensure(Vec::new())
+        .add_keyframe(t_end_ms, new_paths.to_vec(), easing);
+    track
+        .size
+        .ensure(DEFAULT_LAYOUT_HALF_SIZE)
+        .add_keyframe(t_end_ms, new_half_size, easing);
+    track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+        t_end_ms,
+        new_half_size,
+        easing,
+    );
     Ok(())
 }
 
@@ -513,45 +672,80 @@ fn rebuild_vector_paths(
             let label = &track.label;
             let x_domain = env
                 .get(&format!("{}_x_domain", label))
-                .and_then(|v| if let Value::Vec2(d) = v { Some(d) } else { None })
+                .and_then(|v| {
+                    if let Value::Vec2(d) = v {
+                        Some(d)
+                    } else {
+                        None
+                    }
+                })
                 .unwrap_or([-10.0, 10.0]);
             let y_domain = env
                 .get(&format!("{}_y_domain", label))
-                .and_then(|v| if let Value::Vec2(d) = v { Some(d) } else { None })
+                .and_then(|v| {
+                    if let Value::Vec2(d) = v {
+                        Some(d)
+                    } else {
+                        None
+                    }
+                })
                 .unwrap_or([-10.0, 10.0]);
             let stroke_color = track.stroke_color.last(DEFAULT_WHITE);
 
             // Read graph axis settings from env (stored during build)
             let grid = env
                 .get(&format!("{}_grid", label))
-                .and_then(|v| if let Value::Bool(b) = v { Some(b) } else { None })
+                .and_then(|v| {
+                    if let Value::Bool(b) = v {
+                        Some(b)
+                    } else {
+                        None
+                    }
+                })
                 .unwrap_or(false);
             let ticks = env
                 .get(&format!("{}_ticks", label))
-                .and_then(|v| if let Value::Bool(b) = v { Some(b) } else { None })
+                .and_then(|v| {
+                    if let Value::Bool(b) = v {
+                        Some(b)
+                    } else {
+                        None
+                    }
+                })
                 .unwrap_or(false);
             let tick_labels_str = env
                 .get(&format!("{}_tick_labels", label))
-                .and_then(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
+                .and_then(|v| {
+                    if let Value::Str(s) = v {
+                        Some(s.clone())
+                    } else {
+                        None
+                    }
+                })
                 .unwrap_or_else(|| "auto".to_string());
             let has_labels = matches!(tick_labels_str.as_str(), "auto" | "true" | "both");
 
             let new_paths = build_graph_axis_paths(
-                size, x_domain, y_domain, stroke_color, grid, ticks, has_labels,
+                size,
+                x_domain,
+                y_domain,
+                stroke_color,
+                grid,
+                ticks,
+                has_labels,
             );
 
             if has_duration {
                 let start_paths = track.evaluate_vector_paths(t_start_ms);
-                track.vector_paths
-                    .ensure(Vec::new())
-                    .add_keyframe(t_start_ms, start_paths, Easing::Linear);
+                track.vector_paths.ensure(Vec::new()).add_keyframe(
+                    t_start_ms,
+                    start_paths,
+                    Easing::Linear,
+                );
             } else if t_end_ms > 0 {
                 preserve_instant_delayed_value(&mut track.vector_paths, t_end_ms);
             }
-            track
-                .vector_paths
-                .ensure(Vec::new())
-                .add_keyframe(t_end_ms, new_paths, easing);
+            track.vector_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths, easing);
             return;
         }
     }
@@ -564,30 +758,32 @@ fn rebuild_vector_paths(
     let stroke_color = track.stroke_color.last(DEFAULT_WHITE);
     let fill_opacity = track.fill_opacity.last(1.0);
 
-        // Build vector shape state and compute paths
+    // Build vector shape state and compute paths
     let mut vector_shape_state = VectorShapeState::new(shape_type, size);
     // Restore shape-specific fields from track data
     match &mut vector_shape_state {
         VectorShapeState::Line(line) => {
             line.line_from = track.line_from.last([-50.0, 0.0]);
             line.line_to = track.line_to.last([50.0, 0.0]);
-        }
+        },
         VectorShapeState::Arrow(arrow) => {
             arrow.from = track.line_from.last([-50.0, 0.0]);
             arrow.to = track.line_to.last([50.0, 0.0]);
             arrow.head_size = track.head_size.last(10.0);
-        }
+        },
         VectorShapeState::Polygon(poly) => {
             // Restore points for Polygon actors
             poly.points = track.points.last(Vec::new());
             if !poly.points.is_empty() {
                 use crate::timeline::KurboShape;
-                let pts: Vec<kurbo::Point> = poly.points.iter().map(|&[x, y]| kurbo::Point::new(x as f64, y as f64)).collect();
-                poly.custom_path = Some(KurboShape::Polygon {
-                    points: pts,
-                }.to_path_default());
+                let pts: Vec<kurbo::Point> = poly
+                    .points
+                    .iter()
+                    .map(|&[x, y]| kurbo::Point::new(x as f64, y as f64))
+                    .collect();
+                poly.custom_path = Some(KurboShape::Polygon { points: pts }.to_path_default());
             }
-        }
+        },
         VectorShapeState::Path(path_state) => {
             // Restore commands for Path actors
             let commands_svg = track.commands.last(String::new());
@@ -596,13 +792,20 @@ fn rebuild_vector_paths(
                     path_state.custom_path = Some(path);
                 }
             }
-        }
-        _ => {}
+        },
+        _ => {},
     }
     let target_vello_path = build_vector_shape_vello_path(
         shape_type,
         &vector_shape_state,
-        VectorShapeStyle { color, stroke_width, stroke_color, fill_opacity, line_cap: 0, line_join: 0 },
+        VectorShapeStyle {
+            color,
+            stroke_width,
+            stroke_color,
+            fill_opacity,
+            line_cap: 0,
+            line_join: 0,
+        },
     )
     .unwrap_or_else(|| {
         build_shape_vello_path(
@@ -620,11 +823,17 @@ fn rebuild_vector_paths(
 
     if has_duration {
         let start_paths = track.evaluate_vector_paths(t_start_ms);
-        track.vector_paths.ensure(Vec::new()).add_keyframe(t_start_ms, start_paths, Easing::Linear);
+        track
+            .vector_paths
+            .ensure(Vec::new())
+            .add_keyframe(t_start_ms, start_paths, Easing::Linear);
     } else if t_end_ms > 0 {
         preserve_instant_delayed_value(&mut track.vector_paths, t_end_ms);
     }
-    track.vector_paths.ensure(Vec::new()).add_keyframe(t_end_ms, vec![target_vello_path], easing);
+    track
+        .vector_paths
+        .ensure(Vec::new())
+        .add_keyframe(t_end_ms, vec![target_vello_path], easing);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -661,11 +870,17 @@ fn scale_plot_curve_paths(
 
     if has_duration {
         let start_paths = track.evaluate_vector_paths(t_start_ms);
-        track.vector_paths.ensure(Vec::new()).add_keyframe(t_start_ms, start_paths, Easing::Linear);
+        track
+            .vector_paths
+            .ensure(Vec::new())
+            .add_keyframe(t_start_ms, start_paths, Easing::Linear);
     } else if t_end_ms > 0 {
         preserve_instant_delayed_value(&mut track.vector_paths, t_end_ms);
     }
-    track.vector_paths.ensure(Vec::new()).add_keyframe(t_end_ms, scaled_paths, easing);
+    track
+        .vector_paths
+        .ensure(Vec::new())
+        .add_keyframe(t_end_ms, scaled_paths, easing);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -673,10 +888,9 @@ fn scale_plot_curve_paths(
 // ─────────────────────────────────────────────────────────────
 
 fn affects_shape_geometry(property: &str) -> bool {
-    matches!(property,
-        "from" | "to" | "radius_x" | "radius_y" | "size"
-        | "points" | "commands"
-        | "shape_type"
+    matches!(
+        property,
+        "from" | "to" | "radius_x" | "radius_y" | "size" | "points" | "commands" | "shape_type"
     )
 }
 

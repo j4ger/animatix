@@ -645,6 +645,16 @@ pub struct AnimationTrack {
     pub font_family: Option<PropertyTrack<String>>,
     /// Font size in points.
     pub font_size: Option<PropertyTrack<f32>>,
+    /// Font weight (100–900).
+    pub font_weight: Option<PropertyTrack<f32>>,
+    /// Font style ("normal" | "italic").
+    pub font_style: Option<PropertyTrack<String>>,
+    /// Line height multiplier.
+    pub line_height: Option<PropertyTrack<f32>>,
+    /// Letter spacing in points.
+    pub letter_spacing: Option<PropertyTrack<f32>>,
+    /// Word spacing in points.
+    pub word_spacing: Option<PropertyTrack<f32>>,
     /// Pre-built text paths for rendering.
     pub text_paths: Option<PropertyTrack<Vec<TextPath>>>,
     /// Static SVG paths.
@@ -733,6 +743,11 @@ impl AnimationTrack {
             text_content: None,
             font_family: None,
             font_size: None,
+            font_weight: None,
+            font_style: None,
+            line_height: None,
+            letter_spacing: None,
+            word_spacing: None,
             text_paths: None,
             svg_paths: Vec::new(),
             image: None,
@@ -814,6 +829,9 @@ impl AnimationTrack {
             self.vector_paths.last_time(), self.image.last_time(),
             self.points.last_time(), self.commands.last_time(),
             self.font_family.last_time(), self.font_size.last_time(),
+            self.font_weight.last_time(), self.font_style.last_time(),
+            self.line_height.last_time(), self.letter_spacing.last_time(),
+            self.word_spacing.last_time(),
             self.filter_blur.last_time(), self.filter_brightness.last_time(),
             self.filter_contrast.last_time(), self.filter_saturate.last_time(),
             self.filter_hue_rotate.last_time(), self.filter_sepia.last_time(),
@@ -842,7 +860,10 @@ impl AnimationTrack {
             || check!(self.morph_options) || check!(self.shape_type) || check!(self.line_from)
             || check!(self.line_to) || check!(self.arc_angles) || check!(self.points)
             || check!(self.commands) || check!(self.vector_paths) || check!(self.text_content)
-            || check!(self.font_family) || check!(self.font_size) || check!(self.text_paths)
+            || check!(self.font_family) || check!(self.font_size)
+            || check!(self.font_weight) || check!(self.font_style)
+            || check!(self.line_height) || check!(self.letter_spacing)
+            || check!(self.word_spacing) || check!(self.text_paths)
             || check!(self.image)
             || check!(self.filter_blur) || check!(self.filter_brightness)
             || check!(self.filter_contrast) || check!(self.filter_saturate)
@@ -1185,6 +1206,11 @@ impl AnimationTrack {
             "text_content" => ActorField::TextContent,
             "font_family" => ActorField::FontFamily,
             "font_size" => ActorField::FontSize,
+            "font_weight" => ActorField::FontWeight,
+            "font_style" => ActorField::FontStyle,
+            "line_height" => ActorField::LineHeight,
+            "letter_spacing" => ActorField::LetterSpacing,
+            "word_spacing" => ActorField::WordSpacing,
             "placement_mode" => ActorField::PlacementMode,
             "morph_options" => ActorField::MorphOptions,
             _ => return false,
@@ -1240,6 +1266,11 @@ impl AnimationTrack {
             "text_content" => ActorField::TextContent,
             "font_family" => ActorField::FontFamily,
             "font_size" => ActorField::FontSize,
+            "font_weight" => ActorField::FontWeight,
+            "font_style" => ActorField::FontStyle,
+            "line_height" => ActorField::LineHeight,
+            "letter_spacing" => ActorField::LetterSpacing,
+            "word_spacing" => ActorField::WordSpacing,
             "placement_mode" => ActorField::PlacementMode,
             "morph_options" => ActorField::MorphOptions,
             _ => return false,
@@ -1296,6 +1327,11 @@ impl AnimationTrack {
             "text_content" => ActorField::TextContent,
             "font_family" => ActorField::FontFamily,
             "font_size" => ActorField::FontSize,
+            "font_weight" => ActorField::FontWeight,
+            "font_style" => ActorField::FontStyle,
+            "line_height" => ActorField::LineHeight,
+            "letter_spacing" => ActorField::LetterSpacing,
+            "word_spacing" => ActorField::WordSpacing,
             "placement_mode" => ActorField::PlacementMode,
             "morph_options" => ActorField::MorphOptions,
             _ => return Vec::new(),

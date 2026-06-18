@@ -313,6 +313,7 @@ fn type_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
     symbols.types.iter().map(|ty| {
         let doc = match ty.as_str() {
             "Text" => Some("Text element with content and styling"),
+            "Typst" => Some("Typst document with markup support"),
             "Code" => Some("Code block with syntax highlighting"),
             "Svg" => Some("SVG image element"),
             "Image" => Some("Raster image element"),
@@ -405,6 +406,11 @@ pub fn property_documentation(name: &str) -> Option<&str> {
         "content" => Some("Text content"),
         "font_size" => Some("Font size in pixels"),
         "font_family" => Some("Font family name"),
+        "font_weight" => Some("Font weight: 100-900, or named (normal=400, bold=700, light=300, medium=500, semibold=600, black=900)"),
+        "font_style" => Some("Font style: 'normal' or 'italic'"),
+        "line_height" => Some("Line height multiplier (default 1.2)"),
+        "letter_spacing" => Some("Letter spacing in points (default 0)"),
+        "word_spacing" => Some("Word spacing in points (default 0)"),
         "text_align" => Some("Text alignment (left, center, right)"),
         "fill" => Some("Fill color"),
         "stroke" => Some("Stroke color"),

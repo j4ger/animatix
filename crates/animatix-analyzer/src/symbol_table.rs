@@ -141,7 +141,7 @@ pub struct SceneInfo {
 
 /// Known built-in types in the Animatix DSL.
 const BUILTIN_TYPES: &[&str] = &[
-    "Text", "Code", "Svg", "Image",
+    "Text", "Code", "Typst", "Svg", "Image",
     "Rect", "Ellipse", "Line", "Polygon", "Path",
     "Graph", "PlotCurve",
     "Button",
@@ -183,17 +183,39 @@ fn known_properties() -> &'static HashMap<String, Vec<String>> {
         "content".to_string(),
         "font_size".to_string(),
         "font_family".to_string(),
+        "font_weight".to_string(),
+        "font_style".to_string(),
+        "line_height".to_string(),
+        "letter_spacing".to_string(),
+        "word_spacing".to_string(),
         "text_align".to_string(),
     ]);
     map.insert("Text".to_string(), text_props);
 
-
+    // Typst-specific (shares Text props)
+    let mut typst_props = common.clone();
+    typst_props.extend([
+        "content".to_string(),
+        "font_size".to_string(),
+        "font_family".to_string(),
+        "font_weight".to_string(),
+        "font_style".to_string(),
+        "line_height".to_string(),
+        "letter_spacing".to_string(),
+        "word_spacing".to_string(),
+    ]);
+    map.insert("Typst".to_string(), typst_props);
 
     // Code-specific
     let mut code_props = common.clone();
     code_props.extend([
         "content".to_string(),
         "language".to_string(),
+        "font_weight".to_string(),
+        "font_style".to_string(),
+        "line_height".to_string(),
+        "letter_spacing".to_string(),
+        "word_spacing".to_string(),
     ]);
     map.insert("Code".to_string(), code_props);
 
@@ -274,11 +296,31 @@ fn known_property_types() -> &'static HashMap<(String, String), PropertyType> {
     map.insert(("Text".to_string(), "content".to_string()), PropertyType::String);
     map.insert(("Text".to_string(), "font_size".to_string()), PropertyType::Num);
     map.insert(("Text".to_string(), "font_family".to_string()), PropertyType::String);
+    map.insert(("Text".to_string(), "font_weight".to_string()), PropertyType::Num);
+    map.insert(("Text".to_string(), "font_style".to_string()), PropertyType::String);
+    map.insert(("Text".to_string(), "line_height".to_string()), PropertyType::Num);
+    map.insert(("Text".to_string(), "letter_spacing".to_string()), PropertyType::Num);
+    map.insert(("Text".to_string(), "word_spacing".to_string()), PropertyType::Num);
     map.insert(("Text".to_string(), "text_align".to_string()), PropertyType::String);
+
+    // Typst-specific
+    map.insert(("Typst".to_string(), "content".to_string()), PropertyType::String);
+    map.insert(("Typst".to_string(), "font_size".to_string()), PropertyType::Num);
+    map.insert(("Typst".to_string(), "font_family".to_string()), PropertyType::String);
+    map.insert(("Typst".to_string(), "font_weight".to_string()), PropertyType::Num);
+    map.insert(("Typst".to_string(), "font_style".to_string()), PropertyType::String);
+    map.insert(("Typst".to_string(), "line_height".to_string()), PropertyType::Num);
+    map.insert(("Typst".to_string(), "letter_spacing".to_string()), PropertyType::Num);
+    map.insert(("Typst".to_string(), "word_spacing".to_string()), PropertyType::Num);
 
     // Code-specific
     map.insert(("Code".to_string(), "content".to_string()), PropertyType::String);
     map.insert(("Code".to_string(), "language".to_string()), PropertyType::String);
+    map.insert(("Code".to_string(), "font_weight".to_string()), PropertyType::Num);
+    map.insert(("Code".to_string(), "font_style".to_string()), PropertyType::String);
+    map.insert(("Code".to_string(), "line_height".to_string()), PropertyType::Num);
+    map.insert(("Code".to_string(), "letter_spacing".to_string()), PropertyType::Num);
+    map.insert(("Code".to_string(), "word_spacing".to_string()), PropertyType::Num);
 
     // Shape-specific
     for shape in &["Rect", "Ellipse", "Polygon"] {

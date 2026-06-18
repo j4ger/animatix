@@ -256,6 +256,16 @@ pub enum ActorField {
     FontFamily,
     /// Font size in points.
     FontSize,
+    /// Font weight (100–900).
+    FontWeight,
+    /// Font style ("normal" | "italic").
+    FontStyle,
+    /// Line height multiplier.
+    LineHeight,
+    /// Letter spacing in points.
+    LetterSpacing,
+    /// Word spacing in points.
+    WordSpacing,
 
     // ── Media payload ──
     /// Loaded image or video data.
@@ -355,6 +365,11 @@ impl ActorField {
             ActorField::TextPaths => return None,
             ActorField::FontFamily => PropertyValue::String(String::new()),
             ActorField::FontSize => PropertyValue::F32(48.0),
+            ActorField::FontWeight => PropertyValue::F32(400.0),
+            ActorField::FontStyle => PropertyValue::String("normal".to_string()),
+            ActorField::LineHeight => PropertyValue::F32(1.2),
+            ActorField::LetterSpacing => PropertyValue::F32(0.0),
+            ActorField::WordSpacing => PropertyValue::F32(0.0),
 
             // ── Media payload ──
             ActorField::ImageData => return None,
@@ -551,6 +566,8 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("fill_opacity",  ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::FillOpacity,         None,                             Applicable::AllShapesExceptLine, |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("font_family",   ValueType::String,      F::ASSIGNABLE,                ActorField::FontFamily,          None,                             Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]), |_| super::property_engine::PropertyValue::String(crate::renderer::text::DEFAULT_FONT_FAMILY.to_string())),
     schema!("font_size",     ValueType::F32,         F::ASSIGNABLE_A,              ActorField::FontSize,            None,                             Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]), |kind| match kind { A::Text => super::property_engine::PropertyValue::F32(48.0), A::Typst => super::property_engine::PropertyValue::F32(36.0), A::Code => super::property_engine::PropertyValue::F32(24.0), _ => super::property_engine::PropertyValue::F32(24.0) }),
+    schema!("font_style",    ValueType::String,      F::ASSIGNABLE,                ActorField::FontStyle,           None,                             Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]), |_| super::property_engine::PropertyValue::String("normal".to_string())),
+    schema!("font_weight",   ValueType::F32,         F::ASSIGNABLE,                ActorField::FontWeight,          None,                             Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]), |_| super::property_engine::PropertyValue::F32(400.0)),
     schema!("from",          ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::LineFrom,            Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Line, S::Arrow]), |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])),
     schema!("func",          ValueType::BuildTimeOnly, F::empty(),                 ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve, A::VectorField, A::Heatmap, A::ContourSet]), |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("gap",           ValueType::F32,         F::empty(),                   ActorField::ContainerLayoutGroup, Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }), Applicable::ActorKinds(&[A::Row, A::Col, A::Grid]), |_| super::property_engine::PropertyValue::F32(0.0)),
@@ -560,7 +577,9 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("hue_rotate",    ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::FilterHueRotate,     None,                             Applicable::ActorKinds(&[A::Filter]), |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("kind",          ValueType::String,      F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve]), |_| super::property_engine::PropertyValue::String("cartesian".to_string())),
     schema!("latex",         ValueType::String,      F::ANIMATED,                  ActorField::TextContent,         None,                             Applicable::Never, |_| super::property_engine::PropertyValue::String(String::new())),
+    schema!("letter_spacing",ValueType::F32,         F::ASSIGNABLE,                ActorField::LetterSpacing,       None,                             Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]), |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("levels",        ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::ContourSet]), |_| super::property_engine::PropertyValue::Vec2([0.0, 1.0])),
+    schema!("line_height",   ValueType::F32,         F::ASSIGNABLE,                ActorField::LineHeight,          None,                             Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]), |_| super::property_engine::PropertyValue::F32(1.2)),
     schema!("line_cap",      ValueType::U32,         F::ASSIGNABLE_AI,             ActorField::LineCap,             None,                             Applicable::AllShapes, |_| super::property_engine::PropertyValue::U32(0)),
     schema!("line_join",     ValueType::U32,         F::ASSIGNABLE_AI,             ActorField::LineJoin,            None,                             Applicable::AllShapes, |_| super::property_engine::PropertyValue::U32(0)),
     schema!("math",          ValueType::String,      F::ANIMATED,                  ActorField::TextContent,         None,                             Applicable::ActorKinds(&[A::Typst]), |_| super::property_engine::PropertyValue::String(String::new())),
@@ -596,6 +615,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("url",           ValueType::String,      F::ASSIGNABLE,                ActorField::ImageData,           None,                             Applicable::ActorKinds(&[A::Image, A::Svg]), |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("volume",        ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::AudioVolume,         None,                             Applicable::ActorKinds(&[A::Audio]), |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("width",          ValueType::F32,         F::ANIMATED_I,                ActorField::Size,                None,                             Applicable::SizedActors, |_| super::property_engine::PropertyValue::F32(100.0), ReadSource::Component { field: ActorField::Size, index: 0, scale: 2.0 }),
+    schema!("word_spacing",  ValueType::F32,         F::ASSIGNABLE,                ActorField::WordSpacing,         None,                             Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]), |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("x_domain",      ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph, A::PlotCurve, A::VectorField, A::Heatmap, A::ContourSet, A::NumberPlane, A::BarChart]), |_| super::property_engine::PropertyValue::Vec2([-5.0, 5.0])),
     schema!("x_range",       ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::NumberPlane]), |_| super::property_engine::PropertyValue::Vec2([-10.0, 10.0])),
     schema!("y_domain",      ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph, A::PlotCurve, A::VectorField, A::Heatmap, A::ContourSet, A::NumberPlane, A::BarChart]), |_| super::property_engine::PropertyValue::Vec2([-5.0, 5.0])),

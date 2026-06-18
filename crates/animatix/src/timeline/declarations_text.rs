@@ -1,14 +1,14 @@
+use super::property_engine::{parse_property_value, write_property_field};
+use super::property_registry::lookup_property;
 use super::{
-    apply_explicit_position_binding, evaluate_expr_with_lookup_diagnostic,
+    AnimationTrack, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, Diagnostic, DiagnosticCode,
+    DiagnosticPhase, Easing, Expr, Modifier, ModifierHost, MorphOptions, ParsedTimingModifiers,
+    Timeline, TrackAccessor, apply_explicit_position_binding, evaluate_expr_with_lookup_diagnostic,
     has_non_default_morph_options, parse_color_in_env_with_lookup_diagnostic,
     parse_timing_modifiers, preserve_discrete_position_state_before,
     preserve_instant_delayed_value, push_modifier_diagnostic,
-    resolve_position_binding_with_lookup_diagnostic, AnimationTrack, Diagnostic, DiagnosticCode,
-    DiagnosticPhase, Easing, Expr, Modifier, ModifierHost, MorphOptions, ParsedTimingModifiers, Timeline,
-    TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
+    resolve_position_binding_with_lookup_diagnostic,
 };
-use super::property_engine::{parse_property_value, write_property_field};
-use super::property_registry::lookup_property;
 use crate::ast::Property;
 use crate::renderer::error::RenderError;
 
@@ -55,13 +55,13 @@ impl TextDeclarationKind {
         match self {
             Self::Text => {
                 "Morph-specific modifiers on text declaration require a re-declaration with non-zero duration; ignoring them for now."
-            }
+            },
             Self::Code => {
                 "Morph-specific modifiers on code declaration require a re-declaration with non-zero duration; ignoring them for now."
-            }
+            },
             Self::Typst => {
                 "Morph-specific modifiers on typst declaration require a re-declaration with non-zero duration; ignoring them for now."
-            }
+            },
         }
     }
 }
@@ -77,27 +77,23 @@ impl Timeline {
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Result<(), RenderError> {
-        let label_str = label
-            .map(str::to_string)
-            .unwrap_or_else(|| kind.unnamed_label().to_string());
+        let label_str =
+            label.map(str::to_string).unwrap_or_else(|| kind.unnamed_label().to_string());
         let eval_env = self.build_eval_env(time_ms as u64);
         self.add_node(label_str.clone(), parent_label);
         let had_text_paths = self
             .tracks
             .get(&label_str)
-            .map(|track| track.text_paths.as_ref().map(|t| !t.keyframes.is_empty()).unwrap_or(false))
+            .map(|track| {
+                track.text_paths.as_ref().map(|t| !t.keyframes.is_empty()).unwrap_or(false)
+            })
             .unwrap_or(false);
         let ParsedTimingModifiers {
             duration_ms,
             delay_ms,
             easing,
             morph_options,
-        } = parse_timing_modifiers(
-            modifiers,
-            kind.modifier_host(),
-            Some(&label_str),
-            diagnostics,
-        );
+        } = parse_timing_modifiers(modifiers, kind.modifier_host(), Some(&label_str), diagnostics);
         let t_start_ms = (time_ms + delay_ms) as u64;
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
         let supports_morph_options = had_text_paths && duration_ms > 0.0;
@@ -114,6 +110,11 @@ impl Timeline {
         let mut text_content = String::new();
         let mut font_family = String::new();
         let mut font_size = kind.default_font_size();
+        let mut font_weight = 400.0f32;
+        let mut font_style = "normal".to_string();
+        let mut line_height = 1.2f32;
+        let mut letter_spacing = 0.0f32;
+        let mut word_spacing = 0.0f32;
         let mut color = typst::visualize::Color::from_u8(255, 255, 255, 255);
         let mut initial_track_color: Option<[f32; 4]> = None;
         let mut at_expr: Option<Expr> = None;
@@ -132,7 +133,7 @@ impl Timeline {
                     )
                     .map(|v| v.as_str())
                     .unwrap_or_default();
-                }
+                },
                 "font_family" => {
                     font_family = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -142,7 +143,7 @@ impl Timeline {
                     )
                     .map(|v| v.as_str().to_string())
                     .unwrap_or_default();
-                }
+                },
                 "font_size" => {
                     let value = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -152,7 +153,64 @@ impl Timeline {
                     )
                     .unwrap_or(super::Value::Num(0.0));
                     font_size = value.as_num() as f32;
-                }
+                },
+                "font_weight" => {
+                    let value = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    );
+                    match value {
+                        Some(super::Value::Str(s)) => {
+                            font_weight = crate::renderer::text::parse_font_weight(&s);
+                        },
+                        Some(super::Value::Num(n)) => {
+                            font_weight = n as f32;
+                        },
+                        _ => {},
+                    }
+                },
+                "font_style" => {
+                    font_style = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map(|v| v.as_str())
+                    .unwrap_or_else(|| "normal".to_string());
+                },
+                "line_height" => {
+                    let value = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(super::Value::Num(1.2));
+                    line_height = value.as_num() as f32;
+                },
+                "letter_spacing" => {
+                    let value = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(super::Value::Num(0.0));
+                    letter_spacing = value.as_num() as f32;
+                },
+                "word_spacing" => {
+                    let value = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(super::Value::Num(0.0));
+                    word_spacing = value.as_num() as f32;
+                },
                 "color" => {
                     let resolved_color = if matches!(&prop.value, Expr::Ident(name) if name == "auto")
                     {
@@ -190,11 +248,11 @@ impl Timeline {
                             (resolved_color[3] * 255.0) as u8,
                         );
                     }
-                }
+                },
                 "at" => at_expr = Some(prop.value.clone()),
                 "anchor" => anchor_expr = Some(prop.value.clone()),
                 "offset" => offset_expr = Some(prop.value.clone()),
-                _ => {}
+                _ => {},
             }
         }
 
@@ -276,7 +334,8 @@ impl Timeline {
         for prop in props {
             let already_handled = match prop.name.as_str() {
                 name if kind.content_matches(name) => true,
-                "font_family" | "font_size" | "color" | "at" | "anchor" | "offset" => true,
+                "font_family" | "font_size" | "font_weight" | "font_style" | "line_height"
+                | "letter_spacing" | "word_spacing" | "color" | "at" | "anchor" | "offset" => true,
                 _ => false,
             };
             if already_handled {
@@ -284,33 +343,93 @@ impl Timeline {
             }
             let prop_subject = format!("{}.{}", label_str, prop.name);
             if let Some(schema) = lookup_property(&prop.name) {
-                if let Some(pv) = parse_property_value(schema.value_type, &prop.value, &eval_env, diagnostics, &prop_subject) {
-                    write_property_field(track, schema.field, pv, t_start_ms, t_end_ms, easing, diagnostics);
+                if let Some(pv) = parse_property_value(
+                    schema.value_type,
+                    &prop.value,
+                    &eval_env,
+                    diagnostics,
+                    &prop_subject,
+                ) {
+                    write_property_field(
+                        track,
+                        schema.field,
+                        pv,
+                        t_start_ms,
+                        t_end_ms,
+                        easing,
+                        diagnostics,
+                    );
                 }
             }
         }
 
         // Store text_content, font_family and font_size on the track so Phase-2 runtime
         // recompilation knows what text and font to use when color or other properties change.
-        track.text_content.ensure(String::new()).add_keyframe(t_end_ms, text_content.clone(), easing);
+        track.text_content.ensure(String::new()).add_keyframe(
+            t_end_ms,
+            text_content.clone(),
+            easing,
+        );
         let font_family = if font_family.is_empty() {
             crate::renderer::text::DEFAULT_FONT_FAMILY.to_string()
         } else {
             font_family
         };
-        track.font_family.ensure(crate::renderer::text::DEFAULT_FONT_FAMILY.to_string()).add_keyframe(t_end_ms, font_family.clone(), easing);
-        track.font_size.ensure(kind.default_font_size()).add_keyframe(t_end_ms, font_size, easing);
+        track
+            .font_family
+            .ensure(crate::renderer::text::DEFAULT_FONT_FAMILY.to_string())
+            .add_keyframe(t_end_ms, font_family.clone(), easing);
+        track
+            .font_size
+            .ensure(kind.default_font_size())
+            .add_keyframe(t_end_ms, font_size, easing);
+        track.font_weight.ensure(400.0).add_keyframe(t_end_ms, font_weight, easing);
+        track.font_style.ensure("normal".to_string()).add_keyframe(
+            t_end_ms,
+            font_style.clone(),
+            easing,
+        );
+        track.line_height.ensure(1.2).add_keyframe(t_end_ms, line_height, easing);
+        track.letter_spacing.ensure(0.0).add_keyframe(t_end_ms, letter_spacing, easing);
+        track.word_spacing.ensure(0.0).add_keyframe(t_end_ms, word_spacing, easing);
 
         let frame = match kind {
-            TextDeclarationKind::Text => {
-                crate::renderer::text::compile_text(&text_content, font_size, color, &font_family, self.font_context.as_ref())?
-            }
-            TextDeclarationKind::Code => {
-                crate::renderer::text::compile_code(&text_content, font_size, color, &font_family, self.font_context.as_ref())?
-            }
-            TextDeclarationKind::Typst => {
-                crate::renderer::text::compile_typst(&text_content, font_size, color, &font_family, self.font_context.as_ref())?
-            }
+            TextDeclarationKind::Text => crate::renderer::text::compile_text(
+                &text_content,
+                font_size,
+                color,
+                &font_family,
+                self.font_context.as_ref(),
+                font_weight,
+                &font_style,
+                line_height,
+                letter_spacing,
+                word_spacing,
+            )?,
+            TextDeclarationKind::Code => crate::renderer::text::compile_code(
+                &text_content,
+                font_size,
+                color,
+                &font_family,
+                self.font_context.as_ref(),
+                font_weight,
+                &font_style,
+                line_height,
+                letter_spacing,
+                word_spacing,
+            )?,
+            TextDeclarationKind::Typst => crate::renderer::text::compile_typst(
+                &text_content,
+                font_size,
+                color,
+                &font_family,
+                self.font_context.as_ref(),
+                font_weight,
+                &font_style,
+                line_height,
+                letter_spacing,
+                word_spacing,
+            )?,
         };
         let new_paths = crate::renderer::text::extract_glyphs(&frame);
         let new_half_size = crate::renderer::text::measure_text_paths(&new_paths);
@@ -322,28 +441,40 @@ impl Timeline {
                 .ensure(Vec::new())
                 .add_keyframe(t_start_ms, start_val, Easing::Linear);
             let start_size = track.size.get(t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
-            let start_layout_size = track.layout_size_get(t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
-            track
-                .size
-                .ensure(DEFAULT_LAYOUT_HALF_SIZE)
-                .add_keyframe(t_start_ms, start_size, Easing::Linear);
-            track
-                .ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE)
-                .add_keyframe(t_start_ms, start_layout_size, Easing::Linear);
+            let start_layout_size =
+                track.layout_size_get(t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
+            track.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                t_start_ms,
+                start_size,
+                Easing::Linear,
+            );
+            track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                t_start_ms,
+                start_layout_size,
+                Easing::Linear,
+            );
         } else if delay_ms > 0.0 {
             preserve_instant_delayed_value(&mut track.text_paths, t_start_ms);
             preserve_instant_delayed_value(&mut track.size, t_start_ms);
             preserve_instant_delayed_value(&mut track.layout_size, t_start_ms);
         }
         if supports_morph_options {
-            track
-                .morph_options
-                .ensure(MorphOptions::default())
-                .add_keyframe(t_end_ms, morph_options, Easing::Linear);
+            track.morph_options.ensure(MorphOptions::default()).add_keyframe(
+                t_end_ms,
+                morph_options,
+                Easing::Linear,
+            );
         }
         track.text_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths, easing);
-        track.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(t_end_ms, new_half_size, easing);
-        track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(t_end_ms, new_half_size, easing);
+        track
+            .size
+            .ensure(DEFAULT_LAYOUT_HALF_SIZE)
+            .add_keyframe(t_end_ms, new_half_size, easing);
+        track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+            t_end_ms,
+            new_half_size,
+            easing,
+        );
         Ok(())
     }
 
