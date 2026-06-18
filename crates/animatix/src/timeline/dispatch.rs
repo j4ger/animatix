@@ -29,7 +29,7 @@ use crate::timeline::property_registry::{ActorField, PropertySchema};
 pub use crate::timeline::property_engine::PropertyValue;
 use super::actor_kind::{ActorKindId, ShapeKind};
 use super::morph;
-use super::track::{
+use super::animation_track::{
     GeometryTracks, StyleTracks, FilterTracks, ShapeTracks, TextTracks, HighlightTracks,
     PlacementMode, PositionBinding,
 };

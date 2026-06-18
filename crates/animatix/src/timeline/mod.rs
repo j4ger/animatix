@@ -106,7 +106,7 @@ pub use timing::parse_easing_name;
 /// Field dispatch and track access for property animation.
 pub mod dispatch;
 /// Keyframed property tracks, tier sub-structs, and helpers.
-pub mod track;
+pub mod animation_track;
 pub mod utils;
 /// Vello path wrapper with fill/stroke.
 pub mod vello_path;
@@ -213,7 +213,7 @@ pub use actor_kind::{
     ActorCategory, ActorKindId, ActorKindMeta, ShapeKind,
     actor_kind_registry, actor_kind_meta, actor_kind_meta_by_name,
 };
-pub use track::{
+pub use animation_track::{
     ActionCategory, ActionEvent, ResizeMode,
     PlacementMode, PositionBinding, SceneAnchor, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
 };
@@ -517,7 +517,7 @@ pub struct Timeline {
     /// These are muxed into the output during video export.
     pub(crate) audio_segments: Vec<AudioSegment>,
     /// Action events collected during build, for GUI timeline visualization.
-    pub action_events: Vec<crate::timeline::track::ActionEvent>,
+    pub action_events: Vec<crate::timeline::animation_track::ActionEvent>,
     /// Cache for static plot paths keyed by parameter hash (Phase 6.4).
     /// Survives across rebuilds when the GUI copies it from the old timeline.
     pub plot_path_cache: std::collections::HashMap<u64, Vec<crate::timeline::vello_path::VelloPath>>,

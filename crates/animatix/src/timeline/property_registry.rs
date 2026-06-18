@@ -349,7 +349,7 @@ impl ActorField {
     /// and generated payloads like VectorPaths/TextPaths).
     pub fn default_value(self) -> Option<super::property_engine::PropertyValue> {
         use super::property_engine::PropertyValue;
-        use super::track::{DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE};
+        use super::animation_track::{DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE};
         Some(match self {
             // ── Geometry tier ──
             ActorField::Position => PropertyValue::Vec2([0.0, 0.0]),
