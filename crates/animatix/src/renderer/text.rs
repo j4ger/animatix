@@ -547,9 +547,9 @@ pub fn compile_text(
     line_height: f32,
     letter_spacing: f32,
     word_spacing: f32,
-    max_width: f32,
-    text_align: &str,
-    overflow: &str,
+    _max_width: f32,
+    _text_align: &str,
+    _overflow: &str,
 ) -> Result<Frame, RenderError> {
     let font = resolve_font_family(font_family, font_ctx);
     let extra_rules = typst_text_set_rules(font_weight, font_style, letter_spacing, word_spacing);
@@ -996,7 +996,7 @@ pub fn compile_text_fast(
     let ascent = face.ascender() as f32;
     let descent = face.descender() as f32;
     let line_gap = face.line_gap() as f32;
-    let metrics = TextMetrics {
+    let _metrics = TextMetrics {
         ascent,
         descent,
         line_gap,
