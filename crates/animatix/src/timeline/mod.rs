@@ -209,13 +209,6 @@ pub use track::{
     TrackAccessor, TrackFieldMut, TrackFieldRef, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
     actor_kind_registry, actor_kind_meta, actor_kind_meta_by_name,
 };
-/// Extend a time_ms vector with keyframe times from a property track, if present.
-fn extend_track_times<T>(times: &mut Vec<u64>, track: &Option<PropertyTrack<T>>) {
-    if let Some(t) = track.as_ref() {
-        times.extend(t.keyframes.keys().copied());
-    }
-}
-
 /// Collect all keyframe times (in seconds) across all property tracks of an
 /// `AnimationTrack`, using the property registry to discover all possible fields.
 /// Used by the GUI to show keyframe markers on the mini timeline and time lens.
@@ -239,7 +232,7 @@ pub use vello_path::VelloPath;
 use crate::ast::{Expr, Modifier, Stmt};
 use crate::timeline::modifier_runtime::ir::ModifierIrProgram;
 use crate::easing::*;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Layout strategy for container actors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -654,53 +647,31 @@ impl Timeline {
 
     /// Returns all keyframe time positions across all tracks, in seconds.
     /// Used by the GUI timeline scrubber to show keyframe markers.
+    ///
+    /// Uses the property registry to discover all applicable fields per actor kind,
+    /// plus cross-track sources (background_color, child_orders, variable_tracks)
+    /// and dynamic plot parameter tracks that the registry cannot enumerate statically.
     pub fn keyframe_times_s(&self) -> Vec<f64> {
-        let mut times_ms = Vec::new();
+        let mut times_ms: BTreeSet<u64> = BTreeSet::new();
         for track in self.tracks.values() {
-            // Geometry
-            extend_track_times(&mut times_ms, &track.position);
-            extend_track_times(&mut times_ms, &track.motion_offset);
-            extend_track_times(&mut times_ms, &track.rotation);
-            extend_track_times(&mut times_ms, &track.scale);
-            extend_track_times(&mut times_ms, &track.placement_mode);
-            extend_track_times(&mut times_ms, &track.position_binding);
-            extend_track_times(&mut times_ms, &track.size);
-            // Layout
-            if let Some(ls) = track.layout_size.as_ref() {
-                times_ms.extend(ls.keyframes.keys().copied());
+            // Registry-driven: covers all applicable fields for this actor kind
+            for &time_s in collect_all_keyframe_times(track).iter() {
+                let ms = (time_s * 1000.0) as u64;
+                times_ms.insert(ms);
             }
-            // Style
-            extend_track_times(&mut times_ms, &track.color);
-            extend_track_times(&mut times_ms, &track.opacity);
-            extend_track_times(&mut times_ms, &track.stroke_width);
-            extend_track_times(&mut times_ms, &track.stroke_color);
-            extend_track_times(&mut times_ms, &track.stroke_progress);
-            extend_track_times(&mut times_ms, &track.fill_opacity);
-            extend_track_times(&mut times_ms, &track.morph_options);
-            // Text
-            extend_track_times(&mut times_ms, &track.text_content);
-            extend_track_times(&mut times_ms, &track.font_family);
-            extend_track_times(&mut times_ms, &track.font_size);
-            if let Some(tp) = track.text_paths.as_ref() {
-                times_ms.extend(tp.keyframes.keys().copied());
-            }
-            // Vector paths
-            if let Some(vp) = track.vector_paths.as_ref() {
-                times_ms.extend(vp.keyframes.keys().copied());
-            }
-            // Shape-specific
-            extend_track_times(&mut times_ms, &track.shape_type);
-            extend_track_times(&mut times_ms, &track.line_from);
-            extend_track_times(&mut times_ms, &track.line_to);
-            extend_track_times(&mut times_ms, &track.arc_angles);
-            extend_track_times(&mut times_ms, &track.points);
-            // Image
-            if let Some(im) = track.image.as_ref() {
-                times_ms.extend(im.keyframes.keys().copied());
+            // D4 exception: dynamic plot parameter tracks (not statically representable)
+            for pt in track.plot_param_tracks.values() {
+                times_ms.extend(pt.keyframes.keys().copied());
             }
         }
-        times_ms.sort_unstable();
-        times_ms.dedup();
+        // Cross-track sources
+        times_ms.extend(self.background_color.keyframes.keys().copied());
+        for t in self.child_orders.values() {
+            times_ms.extend(t.keyframes.keys().copied());
+        }
+        for t in self.variable_tracks.values() {
+            times_ms.extend(t.keyframes.keys().copied());
+        }
         times_ms.into_iter().map(|ms| ms as f64 / 1000.0).collect()
     }
 

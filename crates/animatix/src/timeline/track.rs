@@ -486,6 +486,29 @@ impl<T: Interpolate + Clone> PropertyTrack<T> {
             .next()
             .is_some_and(|(_, (_, easing))| *easing != crate::easing::Easing::Linear)
     }
+    /// Returns the interpolation segment for `time_ms`, if one exists between
+    /// two keyframes. Returns `(found_time, prev_val, found_val, progress, found_easing)`
+    /// where `progress` is in `(0, 1]`.
+    fn interpolation_segment(&self, time_ms: u64) -> Option<(u64, &T, &T, f32, &Easing)> {
+        let found = self.keyframes.range(time_ms..).next()?;
+        let (&found_time, (found_val, found_easing)) = found;
+
+        // Before or at first keyframe: no interior segment
+        if let Some((&first_time, _)) = self.keyframes.iter().next() {
+            if time_ms <= first_time {
+                return None;
+            }
+        }
+
+        // Find the previous keyframe before time_ms
+        let (prev_time, (prev_val, _)) = self.keyframes.range(..time_ms).next_back()?;
+
+        let duration = (found_time - prev_time) as f32;
+        let elapsed = (time_ms - prev_time) as f32;
+        let progress = elapsed / duration;
+
+        Some((found_time, prev_val, found_val, progress, found_easing))
+    }
     /// Core evaluation logic parameterized by clone strategy.
     fn evaluate_with(&self, time_ms: u64, clone_val: impl Fn(&T) -> T) -> T {
         // P2.20: Memoization — return cached value if time matches
@@ -495,30 +518,22 @@ impl<T: Interpolate + Clone> PropertyTrack<T> {
             }
         }
 
-        let result = if self.keyframes.is_empty() {
-            clone_val(&self.default_value)
-        } else {
-            let found = match self.keyframes.range(time_ms..).next() {
-                Some(entry) => entry,
-                None => return self.last_value_with(clone_val),
-            };
-            let (&found_time, (found_val, found_easing)) = found;
-            if let Some((&first_time, _)) = self.keyframes.iter().next() {
-                if time_ms <= first_time {
-                    let value = clone_val(found_val);
-                    *self.last_evaluated.borrow_mut() = Some((time_ms, clone_val(&value)));
-                    return value;
-                }
-            }
-            let (prev_time, prev_val) = match self.keyframes.range(..time_ms).next_back() {
-                Some((&t, (val, _))) => (t, clone_val(val)),
-                None => (0, clone_val(&self.default_value)),
-            };
-            let duration = (found_time - prev_time) as f32;
-            let elapsed = (time_ms - prev_time) as f32;
-            let progress = elapsed / duration;
+        let result = if let Some((_found_time, prev_val, found_val, progress, found_easing)) = self.interpolation_segment(time_ms) {
             let eased_progress = apply_easing(progress, *found_easing);
             prev_val.interpolate(found_val, eased_progress)
+        } else {
+            // No interior segment — use default or boundary value
+            if self.keyframes.is_empty() {
+                clone_val(&self.default_value)
+            } else if let Some((&first_time, (val, _))) = self.keyframes.iter().next() {
+                if time_ms <= first_time {
+                    clone_val(val)
+                } else {
+                    self.last_value_with(&clone_val)
+                }
+            } else {
+                clone_val(&self.default_value)
+            }
         };
 
         *self.last_evaluated.borrow_mut() = Some((time_ms, clone_val(&result)));
@@ -916,25 +931,24 @@ fn evaluate_paths_with_options<T: Clone + Interpolate>(
     time_ms: u64,
     interpolate: fn(&T, &T, f32, MorphOptions) -> T,
 ) -> T {
-    if paths.keyframes.is_empty() { return paths.default_value.clone(); }
-    let found = match paths.keyframes.range(time_ms..).next() {
-        Some(entry) => entry,
-        None => return paths.last_value(),
-    };
-    let (&found_time, (found_val, found_easing)) = found;
-    if let Some((&first_time, _)) = paths.keyframes.iter().next() {
-        if time_ms <= first_time { return found_val.clone(); }
+    if let Some((found_time, prev_val, found_val, progress, found_easing)) = paths.interpolation_segment(time_ms) {
+        let eased_progress = apply_easing(progress, *found_easing);
+        let options = morph_options.keyframes.get(&found_time).map(|(value, _)| *value).unwrap_or_default();
+        interpolate(prev_val, found_val, eased_progress, options)
+    } else {
+        // No interior segment — use default or boundary value
+        if paths.keyframes.is_empty() {
+            paths.default_value.clone()
+        } else if let Some((&first_time, (val, _))) = paths.keyframes.iter().next() {
+            if time_ms <= first_time {
+                val.clone()
+            } else {
+                paths.last_value()
+            }
+        } else {
+            paths.default_value.clone()
+        }
     }
-    let (prev_time, prev_val) = match paths.keyframes.range(..time_ms).next_back() {
-        Some((&t, (val, _))) => (t, val.clone()),
-        None => (0, paths.default_value.clone()),
-    };
-    let duration = (found_time - prev_time) as f32;
-    let elapsed = (time_ms - prev_time) as f32;
-    let progress = elapsed / duration;
-    let eased_progress = apply_easing(progress, *found_easing);
-    let options = morph_options.keyframes.get(&found_time).map(|(value, _)| *value).unwrap_or_default();
-    interpolate(&prev_val, found_val, eased_progress, options)
 }
 
 fn interpolate_text_paths(source: &Vec<TextPath>, target: &Vec<TextPath>, t: f32, options: MorphOptions) -> Vec<TextPath> {
@@ -1151,6 +1165,14 @@ impl AnimationTrack {
             HighlightOpacity => TrackFieldRef::F32(&self.highlight_opacity),
             HighlightPadding => TrackFieldRef::F32(&self.highlight_padding),
             HighlightRadius => TrackFieldRef::F32(&self.highlight_radius),
+            FontWeight => TrackFieldRef::F32(&self.font_weight),
+            FontStyle => TrackFieldRef::String(&self.font_style),
+            LineHeight => TrackFieldRef::F32(&self.line_height),
+            LetterSpacing => TrackFieldRef::F32(&self.letter_spacing),
+            WordSpacing => TrackFieldRef::F32(&self.word_spacing),
+            MinWidth => TrackFieldRef::F32(&self.min_width),
+            MinHeight => TrackFieldRef::F32(&self.min_height),
+            MaxHeight => TrackFieldRef::F32(&self.max_height),
             _ => return None,
         })
     }
@@ -1202,6 +1224,14 @@ impl AnimationTrack {
             HighlightOpacity => TrackFieldMut::F32(&mut self.highlight_opacity),
             HighlightPadding => TrackFieldMut::F32(&mut self.highlight_padding),
             HighlightRadius => TrackFieldMut::F32(&mut self.highlight_radius),
+            FontWeight => TrackFieldMut::F32(&mut self.font_weight),
+            FontStyle => TrackFieldMut::String(&mut self.font_style),
+            LineHeight => TrackFieldMut::F32(&mut self.line_height),
+            LetterSpacing => TrackFieldMut::F32(&mut self.letter_spacing),
+            WordSpacing => TrackFieldMut::F32(&mut self.word_spacing),
+            MinWidth => TrackFieldMut::F32(&mut self.min_width),
+            MinHeight => TrackFieldMut::F32(&mut self.min_height),
+            MaxHeight => TrackFieldMut::F32(&mut self.max_height),
             _ => return None,
         })
     }
