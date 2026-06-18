@@ -1,5 +1,6 @@
 //! Command palette: Cmd+Shift+P searchable list of all commands.
 
+use crate::app::components::dialog::{self, DialogSpec};
 use crate::app::GuiShell;
 use crate::app::commands::ViewAction;
 use crate::app::commands::{
@@ -7,13 +8,12 @@ use crate::app::commands::{
 };
 use crate::app::design_tokens::semantic::accent;
 use crate::app::design_tokens::semantic::border;
-use crate::app::design_tokens::semantic::overlay;
 use crate::app::design_tokens::semantic::surface;
 
 use crate::app::design_tokens::semantic::text;
 
 use crate::app::design_tokens::spatial::{
-    RADIUS_M, RADIUS_XL, ROW_M, SPACE_M, SPACE_S, SPACE_XL, STROKE_WIDTH,
+    RADIUS_M, ROW_M, SPACE_M, SPACE_S, STROKE_WIDTH,
 };
 use crate::app::design_tokens::typography::TextRole;
 
@@ -26,130 +26,115 @@ struct PaletteItem {
 
 impl GuiShell {
     pub(crate) fn command_palette_ui(&mut self, ui: &mut egui::Ui) {
-        let screen_rect = ui.ctx().viewport_rect();
-        ui.painter().rect_filled(screen_rect, 0.0, overlay::backdrop());
-
-        // Close on Escape or backdrop click
-        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.ui_store.view.command_palette_open = false;
-        }
-        let backdrop =
-            ui.interact(screen_rect, ui.id().with("cmd_palette_backdrop"), egui::Sense::click());
-        if backdrop.clicked() {
-            self.ui_store.view.command_palette_open = false;
-        }
+        let spec = DialogSpec::new("command_palette", [480.0, 400.0])
+            .with_min_size([400.0, 300.0])
+            .with_max_size([600.0, 500.0])
+            .with_anchor_offset([0.0, -80.0]);
 
         let mut commands = Vec::new();
+        let mut body_close = false;
 
-        egui::Window::new("")
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, -80.0])
-            .default_size([480.0, 400.0])
-            .min_size([400.0, 300.0])
-            .max_size([600.0, 500.0])
-            .resizable(false)
-            .collapsible(false)
-            .title_bar(false)
-            .frame(
-                egui::Frame::new()
-                    .fill(surface::BASE)
-                    .stroke(egui::Stroke::new(STROKE_WIDTH, border::DEFAULT))
-                    .corner_radius(RADIUS_XL)
-                    .inner_margin(egui::Margin::same(SPACE_XL as i8)),
-            )
-            .show(ui.ctx(), |ui| {
-                ui.set_min_width(360.0);
+        let open = dialog::modal(ui, &spec, |ui, _dc| -> bool {
+            let close = dialog::title_row(ui, "Command Palette");
+            ui.add_space(SPACE_M);
 
-                // Search input
-                let search_resp = ui.add(
-                    egui::TextEdit::singleline(&mut self.ui_store.command_palette_query)
-                        .hint_text("Type a command…")
-                        .font(TextRole::Body.font_id())
-                        .desired_width(f32::INFINITY)
-                        .id_source("cmd_palette_search"),
-                );
-                search_resp.request_focus();
-                ui.add_space(SPACE_M);
-                ui.separator();
-                ui.add_space(SPACE_S);
+            // Search input
+            let search_resp = ui.add(
+                egui::TextEdit::singleline(&mut self.ui_store.command_palette_query)
+                    .hint_text("Type a command…")
+                    .font(TextRole::Body.font_id())
+                    .desired_width(f32::INFINITY)
+                    .id_source("cmd_palette_search"),
+            );
+            search_resp.request_focus();
+            ui.add_space(SPACE_M);
+            ui.separator();
+            ui.add_space(SPACE_S);
 
-                let query = self.ui_store.command_palette_query.to_lowercase();
-                let items = self.build_palette_items();
-                let filtered: Vec<&PaletteItem> = items
-                    .iter()
-                    .filter(|item| {
-                        item.label.to_lowercase().contains(&query)
-                            || item.keywords.to_lowercase().contains(&query)
-                    })
-                    .collect();
+            let query = self.ui_store.command_palette_query.to_lowercase();
+            let items = self.build_palette_items();
+            let filtered: Vec<&PaletteItem> = items
+                .iter()
+                .filter(|item| {
+                    item.label.to_lowercase().contains(&query)
+                        || item.keywords.to_lowercase().contains(&query)
+                })
+                .collect();
 
-                // Clamp selected index after filtering
-                if self.ui_store.command_palette_selected >= filtered.len() {
-                    self.ui_store.command_palette_selected = filtered.len().saturating_sub(1);
+            // Clamp selected index after filtering
+            if self.ui_store.command_palette_selected >= filtered.len() {
+                self.ui_store.command_palette_selected = filtered.len().saturating_sub(1);
+            }
+
+            // Keyboard navigation
+            let mut enter_pressed = false;
+            ui.input(|i| {
+                if i.key_pressed(egui::Key::ArrowDown) {
+                    let len = filtered.len();
+                    if len > 0 {
+                        self.ui_store.command_palette_selected =
+                            (self.ui_store.command_palette_selected + 1) % len;
+                    }
                 }
-
-                // Keyboard navigation
-                let mut enter_pressed = false;
-                ui.input(|i| {
-                    if i.key_pressed(egui::Key::ArrowDown) {
-                        let len = filtered.len();
-                        if len > 0 {
-                            self.ui_store.command_palette_selected =
-                                (self.ui_store.command_palette_selected + 1) % len;
-                        }
+                if i.key_pressed(egui::Key::ArrowUp) {
+                    let len = filtered.len();
+                    if len > 0 {
+                        self.ui_store.command_palette_selected =
+                            (self.ui_store.command_palette_selected + len - 1) % len;
                     }
-                    if i.key_pressed(egui::Key::ArrowUp) {
-                        let len = filtered.len();
-                        if len > 0 {
-                            self.ui_store.command_palette_selected =
-                                (self.ui_store.command_palette_selected + len - 1) % len;
-                        }
-                    }
-                    if i.key_pressed(egui::Key::Enter) {
-                        enter_pressed = true;
-                    }
-                });
-                if enter_pressed && !filtered.is_empty() {
-                    let item = filtered[self.ui_store.command_palette_selected];
-                    commands.push(item.action.clone());
-                    self.ui_store.view.command_palette_open = false;
-                    self.ui_store.command_palette_query.clear();
                 }
-
-                if filtered.is_empty() {
-                    ui.label(
-                        egui::RichText::new("No commands match your search")
-                            .size(TextRole::BodyS.size())
-                            .color(text::MUTED),
-                    );
-                } else {
-                    egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
-                        for (idx, item) in filtered.iter().enumerate() {
-                            let is_selected = idx == self.ui_store.command_palette_selected;
-
-                            let resp = ui.add(
-                                egui::Button::new(
-                                    egui::RichText::new(format!("{}  {}", item.icon, item.label))
-                                        .size(TextRole::Body.size())
-                                        .color(text::PRIMARY),
-                                )
-                                .fill(if is_selected {
-                                    accent::PRIMARY.linear_multiply(0.15)
-                                } else {
-                                    surface::WIDGET
-                                })
-                                .stroke(egui::Stroke::new(STROKE_WIDTH, border::DEFAULT))
-                                .corner_radius(RADIUS_M)
-                                .min_size(egui::vec2(ui.available_width(), ROW_M)),
-                            );
-                            if resp.clicked() {
-                                commands.push(item.action.clone());
-                                self.ui_store.view.command_palette_open = false;
-                                self.ui_store.command_palette_query.clear();
-                            }
-                        }
-                    });
+                if i.key_pressed(egui::Key::Enter) {
+                    enter_pressed = true;
                 }
             });
+            if enter_pressed && !filtered.is_empty() {
+                let item = filtered[self.ui_store.command_palette_selected];
+                commands.push(item.action.clone());
+                self.ui_store.command_palette_query.clear();
+                body_close = true;
+            }
+
+            if filtered.is_empty() {
+                ui.label(
+                    egui::RichText::new("No commands match your search")
+                        .size(TextRole::BodyS.size())
+                        .color(text::MUTED),
+                );
+            } else {
+                egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
+                    for (idx, item) in filtered.iter().enumerate() {
+                        let is_selected = idx == self.ui_store.command_palette_selected;
+
+                        let resp = ui.add(
+                            egui::Button::new(
+                                egui::RichText::new(format!("{}  {}", item.icon, item.label))
+                                    .size(TextRole::Body.size())
+                                    .color(text::PRIMARY),
+                            )
+                            .fill(if is_selected {
+                                accent::PRIMARY.linear_multiply(0.15)
+                            } else {
+                                surface::WIDGET
+                            })
+                            .stroke(egui::Stroke::new(STROKE_WIDTH, border::DEFAULT))
+                            .corner_radius(RADIUS_M)
+                            .min_size(egui::vec2(ui.available_width(), ROW_M)),
+                        );
+                        if resp.clicked() {
+                            commands.push(item.action.clone());
+                            self.ui_store.command_palette_query.clear();
+                            body_close = true;
+                        }
+                    }
+                });
+            }
+
+            close || body_close
+        });
+
+        if !open {
+            self.ui_store.view.command_palette_open = false;
+        }
 
         for action in commands {
             let effects = self.handle_action(action);

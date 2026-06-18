@@ -8,18 +8,6 @@ Keep track of what is yet to be done here, when a segment is fully done, remove 
 
 ### Architecture & Maintainability
 
-### GUI Design Language Migration
-
-Spec: [`docs/gui_design_language.md`](gui_design_language.md)
-
-- [x] **Phase 1: Token Refoundation** — Replaced flat `design_tokens.rs` with 3-layer module system (`design_tokens/` dir with `primitive`, `semantic`, `spatial`, `typography`, `motion`, `util`). All UI code imports from `semantic::{surface, text, accent}` etc. — no backward-compat aliases remain. Deleted `PAD_*` duplicates (unified with `SPACE_*` scale). Updated `runtime.rs::install_theme` to consume semantic tokens.
-- [x] **Phase 2: Component Unification** — Added unified `Button` widget (struct + `egui::Widget` trait) with `ButtonVariant` (Primary, Secondary, Ghost, Icon) and `ButtonSize`. Replaced all call sites (`shell/toolbar.rs`, `panels/timeline_panel.rs`, `panels/sidebar.rs`, `preview/property_popup.rs`). Deleted 4 ad-hoc free functions. Added `components/text.rs` with `TextRole` RichText helpers. Migrated all `FONT_SIZE_*`/raw `FontId::new` to `TextRole` across ~25 files. Removed `to_uppercase()` from `section_header`/`render_menu_header`.
-- [x] **Phase 3: Command System Split** — Split flat `Command` enum (61 variants) into 6 domain packages (`DocumentCommand`, `ActorCommand`, `KeyframeCommand`, `SceneCommand`, `PlaybackCommand`, `ViewCommand`) with `From` conversions. Added `UndoLabel` to tighten undo stack typing (undo stack now only accepts undoable mutations). Migrated all ~90+ emission sites from `Command::X{...}` to `DomainCommand::X{...}.into()`.
-- [x] **Phase 4: Interaction Layer Upgrade** — Added gesture primitives (`Gesture`/`GestureHandler`/`gesture_router.rs`). Extracted shared drag utilities (`drag_utils.rs`). Added keyboard shortcut registry (`interaction/keyboard.rs`) with declarative shortcuts replacing ad-hoc `handle_keyboard_shortcuts`. Added motion helper API (`components/anim.rs`) with `Transition`/`animate_toward`; migrated `animate_value_with_time` call sites.
-  - **8 gesture handlers extracted**: `PivotGesture`, `RotateGesture`, `ScaleGesture`, `VertexGesture`, `MotionPathGesture`, `MoveActorGesture`, `ReorderGesture`, `MarqueeGesture`.
-  - Legacy `drag_handler.rs` (788 lines) **deleted** — all drag modes flow through `GestureRouter → gestures/*`.
-- [ ] **Phase 5: Dialog Unification** — Migrate remaining 5 Pattern B dialog sites (Settings, FindReplace, CommandPalette, WorkspaceSwitcher, UnsavedChanges) to `components::dialog::modal`. Created reusable `DialogSpec`/`modal`/`title_row` API in Phase 4; only mechanical wiring remains.
-
 ### Primitives & Syntax
 
 - [ ] Equation: bare string syntax sugar for anonymous Fragments (currently requires explicit `label: Fragment, content: "..."`)

@@ -1,66 +1,26 @@
 //! Find / Replace dialog for the source editor.
 
+use crate::app::components::dialog;
 use crate::app::GuiShell;
 use crate::app::commands::UndoLabel;
 use crate::app::design_tokens::semantic::accent;
-use crate::app::design_tokens::semantic::border;
-use crate::app::design_tokens::semantic::overlay;
 use crate::app::design_tokens::semantic::surface;
 
 use crate::app::design_tokens::semantic::text;
 
-use crate::app::design_tokens::spatial::{
-    RADIUS_XL, ROW_M, SPACE_M, SPACE_S, SPACE_XL, STROKE_WIDTH,
-};
+use crate::app::design_tokens::spatial::{ROW_M, SPACE_M, SPACE_S};
 use crate::app::design_tokens::typography::TextRole;
 
 impl GuiShell {
     pub(crate) fn find_replace_ui(&mut self, ui: &mut egui::Ui) {
-        let screen_rect = ui.ctx().viewport_rect();
-        ui.painter().rect_filled(screen_rect, 0.0, overlay::backdrop());
+        let spec = dialog::DialogSpec::new("find_replace", [420.0, 160.0])
+            .with_min_size([380.0, 140.0]);
 
-        // Close on Escape or backdrop click
-        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.ui_store.view.find_replace_open = false;
-        }
-        let backdrop =
-            ui.interact(screen_rect, ui.id().with("find_replace_backdrop"), egui::Sense::click());
-        if backdrop.clicked() {
-            self.ui_store.view.find_replace_open = false;
-        }
-
-        egui::Window::new("")
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .default_size([420.0, 160.0])
-            .min_size([380.0, 140.0])
-            .resizable(false)
-            .collapsible(false)
-            .title_bar(false)
-            .frame(
-                egui::Frame::new()
-                    .fill(surface::BASE)
-                    .stroke(egui::Stroke::new(STROKE_WIDTH, border::DEFAULT))
-                    .corner_radius(RADIUS_XL)
-                    .inner_margin(egui::Margin::same(SPACE_XL as i8)),
-            )
-            .show(ui.ctx(), |ui| {
-                ui.set_min_width(340.0);
-
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new("Find & Replace")
-                            .size(TextRole::Heading.size())
-                            .color(text::PRIMARY),
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button(egui_phosphor::regular::X).clicked() {
-                            self.ui_store.view.find_replace_open = false;
-                        }
-                    });
-                });
-                ui.add_space(SPACE_M);
-                ui.separator();
-                ui.add_space(SPACE_M);
+        let open = dialog::modal(ui, &spec, |ui, _dc| -> bool {
+            let close = dialog::title_row(ui, "Find & Replace");
+            ui.add_space(SPACE_M);
+            ui.separator();
+            ui.add_space(SPACE_M);
 
                 ui.label(
                     egui::RichText::new("Find").size(TextRole::BodyS.size()).color(text::SECONDARY),
@@ -113,7 +73,13 @@ impl GuiShell {
                         }
                     });
                 });
-            });
+
+            close
+        });
+
+        if !open {
+            self.ui_store.view.find_replace_open = false;
+        }
     }
 
     fn perform_find_replace_all(&mut self) {

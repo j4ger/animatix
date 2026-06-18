@@ -57,28 +57,25 @@ impl<'a> DialogSpec<'a> {
     }
 
     /// Allow the dialog to be resized by the user.
-    #[allow(dead_code)] // Reserved for migrating Settings and Export dialogs
     pub fn with_resizable(mut self, resizable: bool) -> Self {
         self.resizable = resizable;
         self
     }
 
     /// Cap the maximum size of the dialog.
-    #[allow(dead_code)] // Reserved for migrating Settings and Export dialogs
     pub fn with_max_size(mut self, max_size: [f32; 2]) -> Self {
         self.max_size = Some(max_size);
         self
     }
 
     /// Set custom viewport-relative sizing fractions (width, height).
-    #[allow(dead_code)] // Reserved for migrating Settings and Export dialogs
+    #[allow(dead_code)] // Reserved for future Export dialog with viewport-relative sizing
     pub fn with_max_viewport_frac(mut self, frac: [f32; 2]) -> Self {
         self.max_viewport_frac = frac;
         self
     }
 
     /// Offset from screen center (e.g. `[0.0, -80.0]` for command palette).
-    #[allow(dead_code)] // Reserved for migrating Command Palette dialog
     pub fn with_anchor_offset(mut self, offset: [f32; 2]) -> Self {
         self.anchor_offset = offset;
         self

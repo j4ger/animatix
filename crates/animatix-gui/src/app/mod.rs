@@ -21,13 +21,12 @@ pub(crate) mod shell;
 pub(crate) mod stores;
 mod utils;
 
-use crate::app::design_tokens::semantic::overlay;
 use crate::app::design_tokens::semantic::{accent, border, status, surface, text};
 use crate::app::design_tokens::spatial::welcome::{
     BTN_HEIGHT as WELCOME_BTN_HEIGHT, TOP_OFFSET_FRAC as WELCOME_TOP_OFFSET_FRAC,
 };
 use crate::app::design_tokens::spatial::{
-    RADIUS_L, RADIUS_M, RADIUS_S, RADIUS_XL, ROW_L, SPACE_L, SPACE_M, SPACE_S, SPACE_XL,
+    RADIUS_L, RADIUS_M, RADIUS_S, ROW_L, SPACE_L, SPACE_M, SPACE_S, SPACE_XL,
     STROKE_WIDTH,
 };
 use crate::app::design_tokens::typography::TextRole;
@@ -50,6 +49,7 @@ use persistence::{
 use preview::fit_preview;
 
 use crate::app::commands::{ActionQueue, DocumentCommand, Effect, UndoLabel, ViewCommand};
+use crate::app::components::dialog;
 use crate::app::components::toast::Toast;
 use crate::app::document::rebuild::RebuildWorker;
 use crate::app::handlers::file;
@@ -1061,108 +1061,80 @@ impl GuiShell {
 
     /// Workspace switcher dialog — small centered window for typing a directory path.
     fn workspace_switcher_ui(&mut self, ui: &mut egui::Ui) {
-        let screen_rect = ui.ctx().viewport_rect();
-        ui.painter().rect_filled(screen_rect, 0.0, overlay::backdrop());
-
-        // Close on Escape or backdrop click
-        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.ui_store.view.workspace_switcher_open = false;
-        }
-        let backdrop = ui.interact(screen_rect, ui.id().with("ws_backdrop"), egui::Sense::click());
-        if backdrop.clicked() {
-            self.ui_store.view.workspace_switcher_open = false;
-        }
+        let spec = dialog::DialogSpec::new("workspace_switcher", [400.0, 140.0])
+            .with_min_size([360.0, 120.0]);
 
         let mut commands = ActionQueue::default();
-        egui::Window::new("Switch Workspace")
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .default_size([400.0, 140.0])
-            .min_size([360.0, 120.0])
-            .resizable(false)
-            .collapsible(false)
-            .title_bar(false)
-            .frame(
-                egui::Frame::new()
-                    .fill(surface::BASE)
-                    .stroke(Stroke::new(STROKE_WIDTH, border::DEFAULT))
-                    .corner_radius(RADIUS_XL)
-                    .inner_margin(egui::Margin::same(SPACE_XL as i8)),
-            )
-            .show(ui.ctx(), |ui| {
-                ui.set_min_width(320.0);
+        let open = dialog::modal(ui, &spec, |ui, _dc| -> bool {
+            let title_close = dialog::title_row(ui, "Switch Workspace");
+            let mut body_close = false;
 
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new("Switch Workspace")
-                            .size(TextRole::Heading.size())
-                            .color(text::PRIMARY),
+            ui.add_space(SPACE_M);
+            ui.separator();
+            ui.add_space(SPACE_M);
+
+            ui.label(
+                egui::RichText::new("Directory path")
+                    .size(TextRole::BodyS.size())
+                    .color(text::SECONDARY),
+            );
+            ui.add_space(SPACE_S);
+            ui.add(
+                egui::TextEdit::singleline(&mut self.ui_store.workspace_switcher_path)
+                    .desired_width(f32::INFINITY)
+                    .hint_text("/path/to/workspace"),
+            );
+            ui.add_space(SPACE_M);
+
+            ui.horizontal(|ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let confirm = ui.add_sized(
+                        [80.0, 28.0],
+                        egui::Button::new(
+                            egui::RichText::new("Switch")
+                                .size(TextRole::BodyS.size())
+                                .color(text::PRIMARY),
+                        )
+                        .fill(accent::PRIMARY),
                     );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button(egui_phosphor::regular::X).clicked() {
-                            self.ui_store.view.workspace_switcher_open = false;
+                    if confirm.clicked() {
+                        // P0.3: warn if there are unsaved changes before switching workspace
+                        if self.document_store.source.is_dirty() {
+                            self.preview_store.preview.status =
+                                "Save changes before switching workspace".to_string();
+                            self.ui_store.toasts.push(
+                                crate::app::components::toast::Toast::warning(
+                                    "Save changes before switching workspace",
+                                ),
+                            );
+                        } else {
+                            let path = PathBuf::from(&self.ui_store.workspace_switcher_path);
+                            commands.push_back(DocumentCommand::SwitchWorkspace(path).into());
+                            body_close = true;
                         }
-                    });
-                });
-                ui.add_space(SPACE_M);
-                ui.separator();
-                ui.add_space(SPACE_M);
+                    }
 
-                ui.label(
-                    egui::RichText::new("Directory path")
-                        .size(TextRole::BodyS.size())
-                        .color(text::SECONDARY),
-                );
-                ui.add_space(SPACE_S);
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.ui_store.workspace_switcher_path)
-                        .desired_width(f32::INFINITY)
-                        .hint_text("/path/to/workspace"),
-                );
-                ui.add_space(SPACE_M);
-
-                ui.horizontal(|ui| {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let confirm = ui.add_sized(
-                            [80.0, 28.0],
-                            egui::Button::new(
-                                egui::RichText::new("Switch")
-                                    .size(TextRole::BodyS.size())
-                                    .color(text::PRIMARY),
-                            )
-                            .fill(accent::PRIMARY),
-                        );
-                        if confirm.clicked() {
-                            // P0.3: warn if there are unsaved changes before switching workspace
-                            if self.document_store.source.is_dirty() {
-                                self.preview_store.preview.status =
-                                    "Save changes before switching workspace".to_string();
-                                self.ui_store.toasts.push(
-                                    crate::app::components::toast::Toast::warning(
-                                        "Save changes before switching workspace",
-                                    ),
-                                );
-                            } else {
-                                let path = PathBuf::from(&self.ui_store.workspace_switcher_path);
-                                commands.push_back(DocumentCommand::SwitchWorkspace(path).into());
-                                self.ui_store.view.workspace_switcher_open = false;
-                            }
-                        }
-
-                        let cancel = ui.add_sized(
-                            [80.0, 28.0],
-                            egui::Button::new(
-                                egui::RichText::new("Cancel")
-                                    .size(TextRole::BodyS.size())
-                                    .color(text::SECONDARY),
-                            )
-                            .fill(surface::WIDGET),
-                        );
-                        if cancel.clicked() {
-                            self.ui_store.view.workspace_switcher_open = false;
-                        }
-                    });
+                    let cancel = ui.add_sized(
+                        [80.0, 28.0],
+                        egui::Button::new(
+                            egui::RichText::new("Cancel")
+                                .size(TextRole::BodyS.size())
+                                .color(text::SECONDARY),
+                        )
+                        .fill(surface::WIDGET),
+                    );
+                    if cancel.clicked() {
+                        body_close = true;
+                    }
                 });
             });
+
+            title_close || body_close
+        });
+
+        if !open {
+            self.ui_store.view.workspace_switcher_open = false;
+        }
 
         for cmd in commands {
             let effects = self.handle_action(cmd);
@@ -1172,134 +1144,109 @@ impl GuiShell {
 
     /// Confirmation dialog for unsaved changes (Save / Discard / Cancel).
     fn unsaved_changes_dialog_ui(&mut self, ui: &mut egui::Ui) {
-        let screen_rect = ui.ctx().viewport_rect();
-        ui.painter().rect_filled(screen_rect, 0.0, overlay::backdrop());
+        let spec = dialog::DialogSpec::new("unsaved_changes", [400.0, 200.0])
+            .with_min_size([360.0, 180.0]);
 
-        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.ui_store.unsaved_changes.close();
-        }
-        let backdrop =
-            ui.interact(screen_rect, ui.id().with("unsaved_backdrop"), egui::Sense::click());
-        if backdrop.clicked() {
-            self.ui_store.unsaved_changes.close();
-        }
+        let open = dialog::modal(ui, &spec, |ui, _dc| -> bool {
+            let title_close = dialog::title_row(
+                ui,
+                &format!("{}  Unsaved changes", egui_phosphor::regular::FLOPPY_DISK),
+            );
+            let mut body_close = false;
 
-        egui::Window::new("")
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .default_size([400.0, 200.0])
-            .min_size([360.0, 180.0])
-            .resizable(false)
-            .collapsible(false)
-            .title_bar(false)
-            .frame(
-                egui::Frame::new()
-                    .fill(surface::BASE)
-                    .stroke(egui::Stroke::new(STROKE_WIDTH, border::DEFAULT))
-                    .corner_radius(RADIUS_XL)
-                    .inner_margin(egui::Margin::same(SPACE_XL as i8)),
-            )
-            .show(ui.ctx(), |ui| {
-                ui.set_min_width(320.0);
+            ui.add_space(SPACE_M);
+            ui.separator();
+            ui.add_space(SPACE_M);
 
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new(format!(
-                            "{}  Unsaved changes",
-                            egui_phosphor::regular::FLOPPY_DISK
-                        ))
-                        .size(TextRole::Heading.size())
-                        .color(text::PRIMARY),
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(&self.ui_store.unsaved_changes.message)
+                        .size(TextRole::Body.size())
+                        .color(text::SECONDARY),
+                )
+                .selectable(false),
+            );
+            ui.add_space(SPACE_XL);
+
+            ui.horizontal(|ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    // Save button
+                    let save = ui.add_sized(
+                        [90.0, ROW_L],
+                        egui::Button::new(
+                            egui::RichText::new(format!(
+                                "{}  Save",
+                                egui_phosphor::regular::FLOPPY_DISK
+                            ))
+                            .size(TextRole::BodyS.size())
+                            .color(text::PRIMARY),
+                        )
+                        .fill(accent::PRIMARY),
                     );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button(egui_phosphor::regular::X).clicked() {
-                            self.ui_store.unsaved_changes.close();
-                        }
-                    });
-                });
-                ui.add_space(SPACE_M);
-                ui.separator();
-                ui.add_space(SPACE_M);
-
-                ui.add(
-                    egui::Label::new(
-                        egui::RichText::new(&self.ui_store.unsaved_changes.message)
-                            .size(TextRole::Body.size())
-                            .color(text::SECONDARY),
-                    )
-                    .selectable(false),
-                );
-                ui.add_space(SPACE_XL);
-
-                ui.horizontal(|ui| {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        // Save button
-                        let save = ui.add_sized(
-                            [90.0, ROW_L],
-                            egui::Button::new(
-                                egui::RichText::new(format!(
-                                    "{}  Save",
-                                    egui_phosphor::regular::FLOPPY_DISK
-                                ))
-                                .size(TextRole::BodyS.size())
-                                .color(text::PRIMARY),
-                            )
-                            .fill(accent::PRIMARY),
+                    if save.clicked() {
+                        // Save first, then execute pending action
+                        let effects = file::handle_save(
+                            &mut self.document_store,
+                            &mut self.preview_store,
                         );
-                        if save.clicked() {
-                            // Save first, then execute pending action
-                            let effects = file::handle_save(
-                                &mut self.document_store,
-                                &mut self.preview_store,
-                            );
-                            self.apply_effects(effects);
-                            let was_close = self.ui_store.unsaved_changes.pending_close;
-                            self.execute_unsaved_pending_action();
-                            self.ui_store.unsaved_changes.close();
-                            if was_close {
-                                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-                            }
+                        self.apply_effects(effects);
+                        let was_close = self.ui_store.unsaved_changes.pending_close;
+                        self.execute_unsaved_pending_action();
+                        self.ui_store.unsaved_changes.close();
+                        if was_close {
+                            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                         }
+                        body_close = true;
+                    }
 
-                        // Discard button
-                        let discard = ui.add_sized(
-                            [90.0, ROW_L],
-                            egui::Button::new(
-                                egui::RichText::new(format!(
-                                    "{}  Discard",
-                                    egui_phosphor::regular::TRASH
-                                ))
+                    // Discard button
+                    let discard = ui.add_sized(
+                        [90.0, ROW_L],
+                        egui::Button::new(
+                            egui::RichText::new(format!(
+                                "{}  Discard",
+                                egui_phosphor::regular::TRASH
+                            ))
+                            .size(TextRole::BodyS.size())
+                            .color(text::SECONDARY),
+                        )
+                        .fill(surface::WIDGET),
+                    );
+                    if discard.clicked() {
+                        // Mark document as no longer dirty, then execute pending
+                        self.document_store.source.document.is_dirty = false;
+                        let was_close = self.ui_store.unsaved_changes.pending_close;
+                        self.execute_unsaved_pending_action();
+                        self.ui_store.unsaved_changes.close();
+                        if was_close {
+                            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                        }
+                        body_close = true;
+                    }
+
+                    // Cancel button
+                    let cancel = ui.add_sized(
+                        [90.0, ROW_L],
+                        egui::Button::new(
+                            egui::RichText::new("Cancel")
                                 .size(TextRole::BodyS.size())
                                 .color(text::SECONDARY),
-                            )
-                            .fill(surface::WIDGET),
-                        );
-                        if discard.clicked() {
-                            // Mark document as no longer dirty, then execute pending
-                            self.document_store.source.document.is_dirty = false;
-                            let was_close = self.ui_store.unsaved_changes.pending_close;
-                            self.execute_unsaved_pending_action();
-                            self.ui_store.unsaved_changes.close();
-                            if was_close {
-                                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-                            }
-                        }
-
-                        // Cancel button
-                        let cancel = ui.add_sized(
-                            [90.0, ROW_L],
-                            egui::Button::new(
-                                egui::RichText::new("Cancel")
-                                    .size(TextRole::BodyS.size())
-                                    .color(text::SECONDARY),
-                            )
-                            .fill(surface::WIDGET),
-                        );
-                        if cancel.clicked() {
-                            self.ui_store.unsaved_changes.close();
-                        }
-                    });
+                        )
+                        .fill(surface::WIDGET),
+                    );
+                    if cancel.clicked() {
+                        self.ui_store.unsaved_changes.close();
+                        body_close = true;
+                    }
                 });
             });
+
+            title_close || body_close
+        });
+
+        if !open {
+            self.ui_store.unsaved_changes.close();
+        }
     }
 
     /// Execute the pending action stored in the unsaved changes dialog.
