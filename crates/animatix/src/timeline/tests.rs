@@ -1462,9 +1462,10 @@ fn test_percentage_child_sizing_row() {
     );
 
     assert_eq!(positions.len(), 2);
-    // a (50%) should be at the start, b (fill) should be at x=200
-    assert!((positions[0][0] - 100.0).abs() < 5.0,
-        "Child a (50%) expected x~100 (200/2 from center), got {}", positions[0][0]);
+    // a (50%) should be at the start (left half of container), b (fill) should take remaining
+    // In center-relative coords: a starts at left edge (x=-200), center is at x=-100
+    assert!((positions[0][0] - (-100.0)).abs() < 5.0,
+        "Child a (50%) expected x~-100 (left of center), got {}", positions[0][0]);
     assert!((positions[1][0] - (-0.0)).abs() < 5.0 || positions[1][0] > positions[0][0],
         "Child b (fill) should be after child a");
 }

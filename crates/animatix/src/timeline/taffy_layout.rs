@@ -176,12 +176,35 @@ fn build_child_style(
     parent_content_size: [f32; 2],
 ) -> Style {
     let spec = spec.unwrap_or_else(|| ChildSizeSpec::fixed(half_size));
-    
+
+    // Resolve width: if parent_content_size is available, pre-resolve Percent/Fill to absolute
+    let width_is_fill = matches!(spec.width, SizeSpec::Fill);
+    let width_dim = if width_is_fill {
+        // Fill: use auto with flex_grow to take remaining space
+        Dimension::auto()
+    } else if parent_content_size[0] > 0.0 {
+        // Pre-resolve against parent width so Taffy doesn't need to know about percentages
+        Dimension::length(spec.width.resolve_absolute(parent_content_size[0]))
+    } else {
+        spec.width.resolve(parent_content_size[0])
+    };
+
+    // Resolve height similarly
+    let height_is_fill = matches!(spec.height, SizeSpec::Fill);
+    let height_dim = if height_is_fill {
+        Dimension::auto()
+    } else if parent_content_size[1] > 0.0 {
+        Dimension::length(spec.height.resolve_absolute(parent_content_size[1]))
+    } else {
+        spec.height.resolve(parent_content_size[1])
+    };
+
     Style {
         size: Size {
-            width: spec.width.resolve(parent_content_size[0]),
-            height: spec.height.resolve(parent_content_size[1]),
+            width: width_dim,
+            height: height_dim,
         },
+        flex_grow: if width_is_fill || height_is_fill { 1.0 } else { 0.0 },
         min_size: Size {
             width: constraints.min_width.map_or(Dimension::auto(), |v| {
                 if v == 0.0 { Dimension::auto() } else { Dimension::length(v) }
@@ -380,9 +403,18 @@ pub fn compute_taffy_linear_layout_with_specs(
         child_nodes.push(node);
     }
 
+    // Check if any spec needs parent sizing (Percent or Fill)
+    let needs_parent_size = size_specs.iter().any(|spec| {
+        spec.as_ref().is_some_and(|s| {
+            matches!(s.width, SizeSpec::Percent(_) | SizeSpec::Fill)
+                || matches!(s.height, SizeSpec::Percent(_) | SizeSpec::Fill)
+        })
+    });
+
+    let is_row = layout_type == LayoutType::Row;
     let container_style = Style {
         display: Display::Flex,
-        flex_direction: if layout_type == LayoutType::Row {
+        flex_direction: if is_row {
             FlexDirection::Row
         } else {
             FlexDirection::Column
@@ -392,6 +424,20 @@ pub fn compute_taffy_linear_layout_with_specs(
             "end" => AlignItems::End,
             _ => AlignItems::Center,
         }),
+        // When children have percentage/fill specs, set the container's main-axis size
+        // from parent_content_size so Taffy can distribute space correctly.
+        size: Size {
+            width: if is_row && needs_parent_size && parent_content_size[0] > 0.0 {
+                Dimension::length(parent_content_size[0])
+            } else {
+                Dimension::auto()
+            },
+            height: if !is_row && needs_parent_size && parent_content_size[1] > 0.0 {
+                Dimension::length(parent_content_size[1])
+            } else {
+                Dimension::auto()
+            },
+        },
         gap: Size {
             width: LengthPercentage::length(gap[0]),
             height: LengthPercentage::length(gap[1]),
@@ -405,8 +451,17 @@ pub fn compute_taffy_linear_layout_with_specs(
         ..Default::default()
     };
 
+    // Also pass definite available space so percentage/fill children can resolve correctly
+    let available = if needs_parent_size && (parent_content_size[0] > 0.0 || parent_content_size[1] > 0.0) {
+        Size {
+            width: if is_row { AvailableSpace::Definite(parent_content_size[0]) } else { AvailableSpace::MaxContent },
+            height: if is_row { AvailableSpace::MaxContent } else { AvailableSpace::Definite(parent_content_size[1]) },
+        }
+    } else {
+        Size::MAX_CONTENT
+    };
     let container_node = taffy.new_with_children(container_style, &child_nodes).expect("taffy new_with_children should succeed");
-    taffy.compute_layout(container_node, Size::MAX_CONTENT).expect("taffy compute_layout should succeed");
+    taffy.compute_layout(container_node, available).expect("taffy compute_layout should succeed");
 
     let container_layout = taffy.layout(container_node).expect("taffy layout should exist");
     let container_size = [container_layout.size.width, container_layout.size.height];
@@ -980,11 +1035,14 @@ mod tests {
             &child_baselines, "baseline",
         );
 
-        // Center: both children at Y=0
-        assert!((center_output.positions[0].position[1]).abs() < 0.01);
-        assert!((center_output.positions[1].position[1]).abs() < 0.01);
+        // Center: children stacked vertically in Col
+        // a (60px tall) is at y=0, b (40px tall) at y=70 (after 10px gap)
+        // Container height = 60 + 10 + 40 = 110, center at y=55
+        // Center-relative positions: a_y = 0 + 30 - 55 = -25, b_y = 70 + 20 - 55 = 35
+        assert!((center_output.positions[0].position[1] - (-25.0)).abs() < 1.0);
+        assert!((center_output.positions[1].position[1] - 35.0).abs() < 1.0);
 
-        // Baseline: should differ from center
+        // Baseline: should adjust Y positions differently from center
         assert!(
             (baseline_output.positions[0].position[1] - center_output.positions[0].position[1]).abs() > 0.01,
             "Baseline alignment should differ from center alignment in Col"
