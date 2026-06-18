@@ -489,7 +489,7 @@ mod tests {
         let mut timeline = Timeline::new();
         let mut track = AnimationTrack::new("test".to_string());
         track.first_seen_ms = 0;
-        track.color = Some({
+        track.style.color = Some({
             let mut t = PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);
             t.add_keyframe(0, [1.0, 0.0, 0.0, 1.0], Easing::Linear);
             t

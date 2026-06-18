@@ -591,7 +591,7 @@ pub(crate) fn recompile_text_at_assignment(
     let line_height = track.text.line_height.get(t_end_ms, 1.2);
     let letter_spacing = track.text.letter_spacing.get(t_end_ms, 0.0);
     let word_spacing = track.text.word_spacing.get(t_end_ms, 0.0);
-    let color = track.color.get(t_end_ms, [1.0, 1.0, 1.0, 1.0]);
+    let color = track.style.color.get(t_end_ms, [1.0, 1.0, 1.0, 1.0]);
 
     let new_paths = text_compiler.compile(
         &target_text,
@@ -759,7 +759,7 @@ fn rebuild_vector_paths(
                     }
                 })
                 .unwrap_or([-10.0, 10.0]);
-            let stroke_color = track.stroke_color.last(DEFAULT_WHITE);
+            let stroke_color = track.style.stroke_color.last(DEFAULT_WHITE);
 
             // Read graph axis settings from env (stored during build)
             let grid = env
@@ -822,10 +822,10 @@ fn rebuild_vector_paths(
     let line_from = track.shape.line_from.last([-50.0, 0.0]);
     let line_to = track.shape.line_to.last([50.0, 0.0]);
     let arc_angles = track.shape.arc_angles.last(default_arc);
-    let color = track.color.last(DEFAULT_WHITE);
-    let stroke_width = track.stroke_width.last(2.0);
-    let stroke_color = track.stroke_color.last(DEFAULT_WHITE);
-    let fill_opacity = track.fill_opacity.last(1.0);
+    let color = track.style.color.last(DEFAULT_WHITE);
+    let stroke_width = track.style.stroke_width.last(2.0);
+    let stroke_color = track.style.stroke_color.last(DEFAULT_WHITE);
+    let fill_opacity = track.style.fill_opacity.last(1.0);
 
     // Build vector shape state and compute paths
     let mut vector_shape_state = VectorShapeState::new(shape_type, size);

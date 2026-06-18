@@ -44,8 +44,8 @@ fn bench_cost_breakdown(c: &mut Criterion) {
             for track in timeline.tracks().values() {
                 let _ = track.size.get(time_ms, [50.0, 50.0]);
                 let _ = track.position.get(time_ms, [0.0, 0.0]);
-                let _ = track.color.get(time_ms, [1.0, 1.0, 1.0, 1.0]);
-                let _ = track.opacity.get(time_ms, 1.0);
+                let _ = track.style.color.get(time_ms, [1.0, 1.0, 1.0, 1.0]);
+                let _ = track.style.opacity.get(time_ms, 1.0);
                 let _ = track.rotation.get(time_ms, 0.0);
             }
         })

@@ -501,7 +501,7 @@ mod tests {
         // stroke_width is only applicable to AllShapes — not Text
         let mut sw = PropertyTrack::new(1.0);
         sw.add_keyframe(0, 2.0, Easing::Linear);
-        track.stroke_width = Some(sw);
+        track.style.stroke_width = Some(sw);
 
         // text is applicable to Text
         let mut txt = PropertyTrack::new(String::new());

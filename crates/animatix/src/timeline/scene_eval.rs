@@ -733,7 +733,7 @@ impl Timeline {
 
                 // Use equation-level font_size and color from the Equation track.
                 let font_size = track.text.font_size.get(time_ms, 48.0);
-                let eq_color = track.color.get(time_ms, DEFAULT_WHITE);
+                let eq_color = track.style.color.get(time_ms, DEFAULT_WHITE);
                 let font_family = track.text.font_family.get(time_ms, String::new());
                 let font_weight = track.text.font_weight.get(time_ms, 400.0);
                 let font_style = track.text.font_style.get(time_ms, "normal".to_string());
@@ -1096,7 +1096,7 @@ mod tests {
             t
         });
         // Add a color so it renders something visible
-        track.color = Some({
+        track.style.color = Some({
             let mut t = PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);
             t.add_keyframe(0, [1.0, 0.0, 0.0, 1.0], Easing::Linear);
             t
@@ -1275,7 +1275,7 @@ mod tests {
             t.add_keyframe(0, [50.0, 50.0], Easing::Linear);
             t
         });
-        child_track.color = Some({
+        child_track.style.color = Some({
             let mut t = PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);
             t.add_keyframe(0, [1.0, 0.0, 0.0, 1.0], Easing::Linear);
             t

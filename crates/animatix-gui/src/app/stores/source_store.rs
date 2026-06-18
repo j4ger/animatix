@@ -135,12 +135,12 @@ pub fn rebuild_cache(
                     push_kf_props(&mut result, &track.rotation, "rotation");
                     push_kf_props(&mut result, &track.scale, "scale");
                     push_kf_props(&mut result, &track.size, "size");
-                    push_kf_props(&mut result, &track.color, "color");
-                    push_kf_props(&mut result, &track.opacity, "opacity");
-                    push_kf_props(&mut result, &track.stroke_width, "stroke_width");
-                    push_kf_props(&mut result, &track.stroke_color, "stroke_color");
-                    push_kf_props(&mut result, &track.stroke_progress, "stroke_progress");
-                    push_kf_props(&mut result, &track.fill_opacity, "fill_opacity");
+                    push_kf_props(&mut result, &track.style.color, "color");
+                    push_kf_props(&mut result, &track.style.opacity, "opacity");
+                    push_kf_props(&mut result, &track.style.stroke_width, "stroke_width");
+                    push_kf_props(&mut result, &track.style.stroke_color, "stroke_color");
+                    push_kf_props(&mut result, &track.style.stroke_progress, "stroke_progress");
+                    push_kf_props(&mut result, &track.style.fill_opacity, "fill_opacity");
                     push_kf_props(&mut result, &track.text.text_content, "text_content");
                     push_kf_props(&mut result, &track.text.font_family, "font_family");
                     push_kf_props(&mut result, &track.text.font_size, "font_size");

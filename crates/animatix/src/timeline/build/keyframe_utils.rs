@@ -12,13 +12,13 @@ pub(crate) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64
     let start_line_from = track.shape.line_from.get(t_start_ms, [-50.0, 0.0]);
     let start_line_to = track.shape.line_to.get(t_start_ms, [50.0, 0.0]);
     let start_arc_angles = track.shape.arc_angles.get(t_start_ms, default_arc);
-    let start_color = track.color.get(t_start_ms, DEFAULT_WHITE);
+    let start_color = track.style.color.get(t_start_ms, DEFAULT_WHITE);
     let start_shape_type = track.shape.shape_type.get(t_start_ms, ShapeType::Rect);
-    let start_opacity = track.opacity.get(t_start_ms, 1.0);
-    let start_stroke_width = track.stroke_width.get(t_start_ms, 2.0);
-    let start_stroke_color = track.stroke_color.get(t_start_ms, DEFAULT_WHITE);
-    let start_stroke_progress = track.stroke_progress.get(t_start_ms, 1.0);
-    let start_fill_opacity = track.fill_opacity.get(t_start_ms, 1.0);
+    let start_opacity = track.style.opacity.get(t_start_ms, 1.0);
+    let start_stroke_width = track.style.stroke_width.get(t_start_ms, 2.0);
+    let start_stroke_color = track.style.stroke_color.get(t_start_ms, DEFAULT_WHITE);
+    let start_stroke_progress = track.style.stroke_progress.get(t_start_ms, 1.0);
+    let start_fill_opacity = track.style.fill_opacity.get(t_start_ms, 1.0);
 
     track
         .shape
@@ -51,7 +51,7 @@ pub(crate) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64
         .arc_angles
         .ensure(default_arc)
         .add_keyframe(t_start_ms, start_arc_angles, Easing::Linear);
-    track
+    track.style
         .color
         .ensure(DEFAULT_WHITE)
         .add_keyframe(t_start_ms, start_color, Easing::Linear);
@@ -61,22 +61,27 @@ pub(crate) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64
         .ensure(ShapeType::Rect)
         .add_keyframe(t_start_ms, start_shape_type, Easing::Linear);
     track
+        .style
         .opacity
         .ensure(1.0)
         .add_keyframe(t_start_ms, start_opacity, Easing::Linear);
     track
+        .style
         .stroke_width
         .ensure(2.0)
         .add_keyframe(t_start_ms, start_stroke_width, Easing::Linear);
     track
+        .style
         .stroke_color
         .ensure(DEFAULT_WHITE)
         .add_keyframe(t_start_ms, start_stroke_color, Easing::Linear);
     track
+        .style
         .stroke_progress
         .ensure(1.0)
         .add_keyframe(t_start_ms, start_stroke_progress, Easing::Linear);
     track
+        .style
         .fill_opacity
         .ensure(1.0)
         .add_keyframe(t_start_ms, start_fill_opacity, Easing::Linear);
@@ -92,13 +97,13 @@ pub(crate) fn preserve_delayed_values(track: &mut AnimationTrack, t_start_ms: u6
     preserve_instant_delayed_value(&mut track.shape.line_from, t_start_ms);
     preserve_instant_delayed_value(&mut track.shape.line_to, t_start_ms);
     preserve_instant_delayed_value(&mut track.shape.arc_angles, t_start_ms);
-    preserve_instant_delayed_value(&mut track.color, t_start_ms);
+    preserve_instant_delayed_value(&mut track.style.color, t_start_ms);
     preserve_instant_delayed_value(&mut track.shape.shape_type, t_start_ms);
-    preserve_instant_delayed_value(&mut track.opacity, t_start_ms);
-    preserve_instant_delayed_value(&mut track.stroke_width, t_start_ms);
-    preserve_instant_delayed_value(&mut track.stroke_color, t_start_ms);
-    preserve_instant_delayed_value(&mut track.stroke_progress, t_start_ms);
-    preserve_instant_delayed_value(&mut track.fill_opacity, t_start_ms);
+    preserve_instant_delayed_value(&mut track.style.opacity, t_start_ms);
+    preserve_instant_delayed_value(&mut track.style.stroke_width, t_start_ms);
+    preserve_instant_delayed_value(&mut track.style.stroke_color, t_start_ms);
+    preserve_instant_delayed_value(&mut track.style.stroke_progress, t_start_ms);
+    preserve_instant_delayed_value(&mut track.style.fill_opacity, t_start_ms);
 }
 
 /// Insert end keyframes at `t_end_ms` with the given values and easing.
@@ -156,6 +161,7 @@ pub(crate) fn insert_end_keyframes(
         .ensure(default_arc)
         .add_keyframe(t_end_ms, arc_angles, easing);
     track
+        .style
         .color
         .ensure(DEFAULT_WHITE)
         .add_keyframe(t_end_ms, color, easing);
@@ -165,22 +171,27 @@ pub(crate) fn insert_end_keyframes(
         .ensure(ShapeType::Rect)
         .add_keyframe(t_end_ms, shape_type, easing);
     track
+        .style
         .opacity
         .ensure(1.0)
         .add_keyframe(t_end_ms, opacity, easing);
     track
+        .style
         .stroke_width
         .ensure(2.0)
         .add_keyframe(t_end_ms, stroke_width, easing);
     track
+        .style
         .stroke_color
         .ensure(DEFAULT_WHITE)
         .add_keyframe(t_end_ms, stroke_color, easing);
     track
+        .style
         .stroke_progress
         .ensure(1.0)
         .add_keyframe(t_end_ms, stroke_progress, easing);
     track
+        .style
         .fill_opacity
         .ensure(1.0)
         .add_keyframe(t_end_ms, fill_opacity, easing);

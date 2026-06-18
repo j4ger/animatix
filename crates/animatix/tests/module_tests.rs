@@ -450,7 +450,7 @@ sequence {
           scale.evaluate(250)
       );
       // At 500ms, fade-in is 100ms into 300ms: opacity ~0.33
-      let opacity = track.opacity.as_ref().expect("opacity should exist");
+      let opacity = track.style.opacity.as_ref().expect("opacity should exist");
       assert!(
           opacity.evaluate(500) > 0.2 && opacity.evaluate(500) < 0.5,
           "Opacity should be fading in at 500ms, got {}",

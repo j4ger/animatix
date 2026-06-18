@@ -333,14 +333,15 @@ impl Timeline {
         }
 
         if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
-            track.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
+            track.style.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
         }
 
         if let Some(track_color) = initial_track_color {
             if delay_ms > 0.0 && duration_ms == 0.0 {
-                preserve_instant_delayed_value(&mut track.color, t_start_ms);
+                preserve_instant_delayed_value(&mut track.style.color, t_start_ms);
             }
             track
+                .style
                 .color
                 .ensure(DEFAULT_WHITE)
                 .add_keyframe(t_start_ms, track_color, Easing::Linear);
@@ -527,7 +528,7 @@ impl Timeline {
             preserve_instant_delayed_value(&mut track.layout_size, t_start_ms);
         }
         if supports_morph_options {
-            track.morph_options.ensure(MorphOptions::default()).add_keyframe(
+            track.style.morph_options.ensure(MorphOptions::default()).add_keyframe(
                 t_end_ms,
                 morph_options,
                 Easing::Linear,

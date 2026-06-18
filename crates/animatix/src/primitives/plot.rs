@@ -116,7 +116,7 @@ impl Primitive for PlotCurvePrimitive {
         }
 
         // Sample stroke_progress from the track
-        let progress = ctx.track.stroke_progress.get(ctx.time_ms, 1.0) as f64;
+        let progress = ctx.track.style.stroke_progress.get(ctx.time_ms, 1.0) as f64;
         let progress = progress.clamp(0.0, 1.0);
 
         let paths: Vec<_> = if progress < 1.0 {

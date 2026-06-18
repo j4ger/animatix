@@ -894,7 +894,7 @@ mod tests {
     #[test]
     fn test_property_has_keyframes() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
+        track.style.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
         assert!(property_has_keyframes(&track, ActorField::Opacity));
         assert!(!property_has_keyframes(&track, ActorField::Rotation));
     }
@@ -902,7 +902,7 @@ mod tests {
     #[test]
     fn test_property_has_keyframe_at() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
+        track.style.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
         assert!(property_has_keyframe_at(&track, ActorField::Opacity, 500));
         assert!(!property_has_keyframe_at(&track, ActorField::Opacity, 0));
     }
@@ -910,8 +910,8 @@ mod tests {
     #[test]
     fn test_property_keyframe_times_sorted() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.opacity.ensure(1.0).add_keyframe(1000, 0.0, Easing::Linear);
-        track.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
+        track.style.opacity.ensure(1.0).add_keyframe(1000, 0.0, Easing::Linear);
+        track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
         let times = property_keyframe_times(&track, ActorField::Opacity);
         assert_eq!(times, vec![0, 1000]);
     }
@@ -919,8 +919,8 @@ mod tests {
     #[test]
     fn test_property_keyframe_count() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-        track.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
+        track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
+        track.style.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
         assert_eq!(property_keyframe_count(&track, ActorField::Opacity), 2);
         assert_eq!(property_keyframe_count(&track, ActorField::Rotation), 0);
     }
@@ -928,7 +928,7 @@ mod tests {
     #[test]
     fn test_property_keyframe_easing() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::EaseInOut);
+        track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::EaseInOut);
         let easing = property_keyframe_easing(&track, ActorField::Opacity, 0);
         assert_eq!(easing, Some(Easing::EaseInOut));
     }

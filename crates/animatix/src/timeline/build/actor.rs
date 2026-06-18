@@ -142,7 +142,7 @@ impl Timeline {
             preserve_delayed_values(track, t_start_ms);
         }
         if supports_morph_options {
-            track.morph_options.ensure(MorphOptions::default()).add_keyframe(
+            track.style.morph_options.ensure(MorphOptions::default()).add_keyframe(
                 t_end_ms,
                 morph_options,
                 Easing::Linear,
@@ -285,18 +285,18 @@ impl Timeline {
         let mut line_from = existing_track.shape.line_from.last([-50.0, 0.0]);
         let mut line_to = existing_track.shape.line_to.last([50.0, 0.0]);
         let mut arc_angles = existing_track.shape.arc_angles.last(default_arc);
-        let mut color = existing_track.color.last(DEFAULT_WHITE);
+        let mut color = existing_track.style.color.last(DEFAULT_WHITE);
         let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
         let is_first_decl = !self.tracks.contains_key(label);
         let opacity = if is_first_decl && !has_explicit_opacity {
             self.default_opacity
         } else {
-            existing_track.opacity.last(1.0)
+            existing_track.style.opacity.last(1.0)
         };
-        let mut stroke_width = existing_track.stroke_width.last(2.0);
-        let mut stroke_color = existing_track.stroke_color.last(DEFAULT_WHITE);
-        let mut stroke_progress = existing_track.stroke_progress.last(1.0);
-        let mut fill_opacity = existing_track.fill_opacity.last(1.0);
+        let mut stroke_width = existing_track.style.stroke_width.last(2.0);
+        let mut stroke_color = existing_track.style.stroke_color.last(DEFAULT_WHITE);
+        let mut stroke_progress = existing_track.style.stroke_progress.last(1.0);
+        let mut fill_opacity = existing_track.style.fill_opacity.last(1.0);
 
         let vector_shape = crate::primitives::find_primitive(ty).filter(|p| p.is_shape());
         let shape_type = shape_type_for_actor(ty).unwrap_or(ShapeType::Rect);
@@ -612,7 +612,7 @@ impl Timeline {
         // Pre-seed opacity for pre-keyframe first declarations so that
         // insert_start_keyframes captures the correct invisible start value.
         if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
-            track.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
+            track.style.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
         }
 
         if let Some((binding, bound_position)) = position_binding {
@@ -790,7 +790,7 @@ impl Timeline {
             // Pre-seed opacity for pre-keyframe first declarations so that
             // insert_start_keyframes captures the correct invisible start value.
             if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
-                track.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
+                track.style.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
             }
 
             // === Keyframe Insertion ===

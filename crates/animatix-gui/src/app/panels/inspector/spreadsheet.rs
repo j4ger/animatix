@@ -458,27 +458,27 @@ fn get_property_gui_value(
             let v = t.evaluate_copy(time_ms);
             GuiPropertyValue::Float(v)
         }),
-        "opacity" => track.opacity.as_ref().map(|t| {
+        "opacity" => track.style.opacity.as_ref().map(|t| {
             let v = t.evaluate_copy(time_ms);
             GuiPropertyValue::Float(v)
         }),
-        "color" => track.color.as_ref().map(|t| {
+        "color" => track.style.color.as_ref().map(|t| {
             let v = t.evaluate_copy(time_ms);
             GuiPropertyValue::Color(v)
         }),
-        "stroke_width" => track.stroke_width.as_ref().map(|t| {
+        "stroke_width" => track.style.stroke_width.as_ref().map(|t| {
             let v = t.evaluate_copy(time_ms);
             GuiPropertyValue::Float(v)
         }),
-        "stroke_color" => track.stroke_color.as_ref().map(|t| {
+        "stroke_color" => track.style.stroke_color.as_ref().map(|t| {
             let v = t.evaluate_copy(time_ms);
             GuiPropertyValue::Color(v)
         }),
-        "stroke_progress" => track.stroke_progress.as_ref().map(|t| {
+        "stroke_progress" => track.style.stroke_progress.as_ref().map(|t| {
             let v = t.evaluate_copy(time_ms);
             GuiPropertyValue::Float(v)
         }),
-        "fill_opacity" => track.fill_opacity.as_ref().map(|t| {
+        "fill_opacity" => track.style.fill_opacity.as_ref().map(|t| {
             let v = t.evaluate_copy(time_ms);
             GuiPropertyValue::Float(v)
         }),
@@ -493,12 +493,12 @@ fn has_property_track(track: &AnimationTrack, prop_name: &str) -> bool {
         "size" => track.size.is_some(),
         "rotation" => track.rotation.is_some(),
         "scale" => track.scale.is_some(),
-        "opacity" => track.opacity.is_some(),
-        "color" => track.color.is_some(),
-        "stroke_width" => track.stroke_width.is_some(),
-        "stroke_color" => track.stroke_color.is_some(),
-        "stroke_progress" => track.stroke_progress.is_some(),
-        "fill_opacity" => track.fill_opacity.is_some(),
+        "opacity" => track.style.opacity.is_some(),
+        "color" => track.style.color.is_some(),
+        "stroke_width" => track.style.stroke_width.is_some(),
+        "stroke_color" => track.style.stroke_color.is_some(),
+        "stroke_progress" => track.style.stroke_progress.is_some(),
+        "fill_opacity" => track.style.fill_opacity.is_some(),
         _ => false,
     }
 }

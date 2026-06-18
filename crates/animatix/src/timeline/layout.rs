@@ -454,7 +454,7 @@ impl Timeline {
             line_height: track.text.line_height.get(time_ms, 1.2),
             letter_spacing: track.text.letter_spacing.get(time_ms, 0.0),
             word_spacing: track.text.word_spacing.get(time_ms, 0.0),
-            color: track.color.get(time_ms, [1.0, 1.0, 1.0, 1.0]),
+            color: track.style.color.get(time_ms, [1.0, 1.0, 1.0, 1.0]),
             text_align: track.text.text_align.get(time_ms, "left".to_string()),
             overflow: track.text.overflow.get(time_ms, "visible".to_string()),
             existing_max_width: track.text.text_max_width.get(time_ms, 0.0),

@@ -72,7 +72,7 @@ pub fn evaluate_text_paths(
     let mut max_width = ctx.track.text.text_max_width.get(ctx.time_ms, 0.0);
     let mut text_align = ctx.track.text.text_align.get(ctx.time_ms, "left".to_string());
     let mut overflow = ctx.track.text.overflow.get(ctx.time_ms, "visible".to_string());
-    let mut color = ctx.track.color.get(ctx.time_ms, DEFAULT_WHITE);
+    let mut color = ctx.track.style.color.get(ctx.time_ms, DEFAULT_WHITE);
 
     if let Some(ov) = ctx.overrides {
         if let Some(Value::Str(s)) = ov
@@ -148,12 +148,12 @@ pub fn sample_shape_style(
     time_ms: u64,
     overrides: Option<&std::collections::HashMap<String, Value>>,
 ) -> VectorShapeStyle {
-    let mut color = track.color.get(time_ms, DEFAULT_WHITE);
-    let mut stroke_width = track.stroke_width.get(time_ms, 2.0);
-    let mut stroke_color = track.stroke_color.get(time_ms, DEFAULT_WHITE);
-    let mut fill_opacity = track.fill_opacity.get(time_ms, 1.0);
-    let mut line_cap = track.line_cap.get(time_ms, 0);
-    let mut line_join = track.line_join.get(time_ms, 0);
+    let mut color = track.style.color.get(time_ms, DEFAULT_WHITE);
+    let mut stroke_width = track.style.stroke_width.get(time_ms, 2.0);
+    let mut stroke_color = track.style.stroke_color.get(time_ms, DEFAULT_WHITE);
+    let mut fill_opacity = track.style.fill_opacity.get(time_ms, 1.0);
+    let mut line_cap = track.style.line_cap.get(time_ms, 0);
+    let mut line_join = track.style.line_join.get(time_ms, 0);
 
     if let Some(node_overrides) = overrides {
         if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides.get("color") {

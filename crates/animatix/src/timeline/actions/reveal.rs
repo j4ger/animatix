@@ -53,28 +53,28 @@ impl BuiltinAction for DrawIn {
 
             if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                super::ensure_guard_keyframe(&mut track.stroke_progress, guard_time, 1.0);
-                super::ensure_guard_keyframe(&mut track.fill_opacity, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut track.style.stroke_progress, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
             }
 
-            track
+            track.style
                 .stroke_progress
                 .ensure(1.0)
                 .add_keyframe(t_start_ms, 0.0, Easing::Linear);
-            track
+            track.style
                 .fill_opacity
                 .ensure(1.0)
                 .add_keyframe(t_start_ms, 0.0, Easing::Linear);
 
             if duration_ms > 0.0 && t_end_ms > t_start_ms {
-                track
+                track.style
                     .fill_opacity
                     .ensure(1.0)
                     .add_keyframe(t_end_ms.saturating_sub(1), 0.0, Easing::Linear);
             }
 
-            track.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
-            track
+            track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+            track.style
                 .fill_opacity
                 .ensure(1.0)
                 .add_keyframe(t_end_ms, 1.0, easing);
@@ -128,35 +128,35 @@ impl BuiltinAction for RevealIn {
                 None => continue,
             };
 
-            let has_prior_stroke = track.stroke_progress.as_ref().map(|t| t.keyframes.keys().any(|&k| k < t_start_ms)).unwrap_or(false);
-            let start_stroke = if has_prior_stroke { track.stroke_progress.get(t_start_ms, 1.0) } else { 0.0 };
+            let has_prior_stroke = track.style.stroke_progress.as_ref().map(|t| t.keyframes.keys().any(|&k| k < t_start_ms)).unwrap_or(false);
+            let start_stroke = if has_prior_stroke { track.style.stroke_progress.get(t_start_ms, 1.0) } else { 0.0 };
 
             if duration_ms > 0.0 {
-                track
+                track.style
                     .stroke_progress
                     .ensure(1.0)
                     .add_keyframe(t_start_ms, start_stroke, Easing::Linear);
-                track
+                track.style
                     .fill_opacity
                     .ensure(1.0)
                     .add_keyframe(t_start_ms, 0.0, Easing::Linear);
                 if t_end_ms > t_start_ms {
-                    track
+                    track.style
                         .fill_opacity
                         .ensure(1.0)
                         .add_keyframe(t_end_ms.saturating_sub(1), 0.0, Easing::Linear);
                 }
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                super::ensure_guard_keyframe(&mut track.stroke_progress, guard_time, 1.0);
-                super::ensure_guard_keyframe(&mut track.fill_opacity, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut track.style.stroke_progress, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
             }
 
-            track
+            track.style
                 .fill_opacity
                 .ensure(1.0)
                 .add_keyframe(t_end_ms, 1.0, Easing::Linear);
-            track.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+            track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
         }
     }
 }
@@ -207,26 +207,26 @@ impl BuiltinAction for WipeOut {
                 None => continue,
             };
 
-            let start_stroke = track.stroke_progress.get(t_start_ms, 1.0);
-            let start_fill = track.fill_opacity.get(t_start_ms, 1.0);
+            let start_stroke = track.style.stroke_progress.get(t_start_ms, 1.0);
+            let start_fill = track.style.fill_opacity.get(t_start_ms, 1.0);
 
             if duration_ms > 0.0 {
-                track
+                track.style
                     .stroke_progress
                     .ensure(1.0)
                     .add_keyframe(t_start_ms, start_stroke, Easing::Linear);
-                track
+                track.style
                     .fill_opacity
                     .ensure(1.0)
                     .add_keyframe(t_start_ms, start_fill, Easing::Linear);
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                super::ensure_guard_keyframe(&mut track.stroke_progress, guard_time, 1.0);
-                super::ensure_guard_keyframe(&mut track.fill_opacity, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut track.style.stroke_progress, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
             }
 
-            track.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
-            track.fill_opacity.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
+            track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
+            track.style.fill_opacity.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
         }
     }
 }
@@ -277,24 +277,24 @@ impl BuiltinAction for RevealOut {
                 None => continue,
             };
 
-            let start_stroke = track.stroke_progress.get(t_start_ms, 1.0);
+            let start_stroke = track.style.stroke_progress.get(t_start_ms, 1.0);
 
             if duration_ms > 0.0 {
-                track
+                track.style
                     .stroke_progress
                     .ensure(1.0)
                     .add_keyframe(t_start_ms, start_stroke, Easing::Linear);
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                super::ensure_guard_keyframe(&mut track.stroke_progress, guard_time, 1.0);
-                super::ensure_guard_keyframe(&mut track.fill_opacity, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut track.style.stroke_progress, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
             }
 
-            track
+            track.style
                 .fill_opacity
                 .ensure(1.0)
                 .add_keyframe(t_start_ms, 0.0, Easing::Linear);
-            track.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
+            track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
         }
     }
 }
@@ -345,31 +345,31 @@ impl BuiltinAction for DrawOut {
                 None => continue,
             };
 
-            let start_stroke = track.stroke_progress.get(t_start_ms, 1.0);
-            let start_fill = track.fill_opacity.get(t_start_ms, 1.0);
+            let start_stroke = track.style.stroke_progress.get(t_start_ms, 1.0);
+            let start_fill = track.style.fill_opacity.get(t_start_ms, 1.0);
 
             if duration_ms > 0.0 {
-                track
+                track.style
                     .stroke_progress
                     .ensure(1.0)
                     .add_keyframe(t_start_ms, start_stroke, Easing::Linear);
-                track
+                track.style
                     .fill_opacity
                     .ensure(1.0)
                     .add_keyframe(t_start_ms, start_fill, Easing::Linear);
-                track.fill_opacity.ensure(1.0).add_keyframe(
+                track.style.fill_opacity.ensure(1.0).add_keyframe(
                     t_end_ms.saturating_sub(1),
                     start_fill,
                     Easing::Linear,
                 );
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                super::ensure_guard_keyframe(&mut track.stroke_progress, guard_time, 1.0);
-                super::ensure_guard_keyframe(&mut track.fill_opacity, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut track.style.stroke_progress, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
             }
 
-            track.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
-            track
+            track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
+            track.style
                 .fill_opacity
                 .ensure(1.0)
                 .add_keyframe(t_end_ms, 0.0, Easing::Linear);
@@ -506,10 +506,10 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("shape").expect("shape track");
 
-        assert_eq!(track.stroke_progress.get(0, 1.0), 0.0);
-        assert_eq!(track.stroke_progress.get(1000, 1.0), 1.0);
-        assert_eq!(track.fill_opacity.get(500, 1.0), 0.0);
-        assert_eq!(track.fill_opacity.get(1000, 1.0), 1.0);
+        assert_eq!(track.style.stroke_progress.get(0, 1.0), 0.0);
+        assert_eq!(track.style.stroke_progress.get(1000, 1.0), 1.0);
+        assert_eq!(track.style.fill_opacity.get(500, 1.0), 0.0);
+        assert_eq!(track.style.fill_opacity.get(1000, 1.0), 1.0);
         assert!(report.diagnostics.is_empty());
     }
 
@@ -545,11 +545,11 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("shape").expect("shape track");
 
-        assert_eq!(track.fill_opacity.get(0, 1.0), 0.0);
-        assert_eq!(track.stroke_progress.get(0, 1.0), 1.0);
-        assert!(track.stroke_progress.get(500, 1.0) > 0.0);
-        assert!(track.stroke_progress.get(500, 1.0) < 1.0);
-        assert_eq!(track.stroke_progress.get(1000, 1.0), 0.0);
+        assert_eq!(track.style.fill_opacity.get(0, 1.0), 0.0);
+        assert_eq!(track.style.stroke_progress.get(0, 1.0), 1.0);
+        assert!(track.style.stroke_progress.get(500, 1.0) > 0.0);
+        assert!(track.style.stroke_progress.get(500, 1.0) < 1.0);
+        assert_eq!(track.style.stroke_progress.get(1000, 1.0), 0.0);
         assert!(report.diagnostics.is_empty());
     }
 
@@ -582,10 +582,10 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("shape").expect("shape track");
 
-        assert_eq!(track.fill_opacity.get(249, 1.0), 1.0);
-        assert_eq!(track.stroke_progress.get(249, 1.0), 1.0);
-        assert_eq!(track.fill_opacity.get(250, 1.0), 0.0);
-        assert_eq!(track.stroke_progress.get(250, 1.0), 0.0);
+        assert_eq!(track.style.fill_opacity.get(249, 1.0), 1.0);
+        assert_eq!(track.style.stroke_progress.get(249, 1.0), 1.0);
+        assert_eq!(track.style.fill_opacity.get(250, 1.0), 0.0);
+        assert_eq!(track.style.stroke_progress.get(250, 1.0), 0.0);
         assert!(report.diagnostics.is_empty());
     }
 
@@ -621,13 +621,13 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("shape").expect("shape track");
 
-        assert_eq!(track.stroke_progress.get(0, 1.0), 1.0);
-        assert_eq!(track.fill_opacity.get(0, 1.0), 1.0);
-        assert!(track.stroke_progress.get(500, 1.0) > 0.0);
-        assert!(track.stroke_progress.get(500, 1.0) < 1.0);
-        assert_eq!(track.fill_opacity.get(500, 1.0), 1.0);
-        assert_eq!(track.stroke_progress.get(1000, 1.0), 0.0);
-        assert_eq!(track.fill_opacity.get(1000, 1.0), 0.0);
+        assert_eq!(track.style.stroke_progress.get(0, 1.0), 1.0);
+        assert_eq!(track.style.fill_opacity.get(0, 1.0), 1.0);
+        assert!(track.style.stroke_progress.get(500, 1.0) > 0.0);
+        assert!(track.style.stroke_progress.get(500, 1.0) < 1.0);
+        assert_eq!(track.style.fill_opacity.get(500, 1.0), 1.0);
+        assert_eq!(track.style.stroke_progress.get(1000, 1.0), 0.0);
+        assert_eq!(track.style.fill_opacity.get(1000, 1.0), 0.0);
         assert!(report.diagnostics.is_empty());
     }
 
@@ -663,13 +663,13 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("shape").expect("shape track");
 
-        assert_eq!(track.stroke_progress.get(0, 1.0), 0.0);
-        assert_eq!(track.fill_opacity.get(0, 1.0), 0.0);
-        assert!(track.stroke_progress.get(500, 1.0) > 0.0);
-        assert!(track.stroke_progress.get(500, 1.0) < 1.0);
-        assert_eq!(track.fill_opacity.get(500, 1.0), 0.0);
-        assert_eq!(track.stroke_progress.get(1000, 1.0), 1.0);
-        assert_eq!(track.fill_opacity.get(1000, 1.0), 1.0);
+        assert_eq!(track.style.stroke_progress.get(0, 1.0), 0.0);
+        assert_eq!(track.style.fill_opacity.get(0, 1.0), 0.0);
+        assert!(track.style.stroke_progress.get(500, 1.0) > 0.0);
+        assert!(track.style.stroke_progress.get(500, 1.0) < 1.0);
+        assert_eq!(track.style.fill_opacity.get(500, 1.0), 0.0);
+        assert_eq!(track.style.stroke_progress.get(1000, 1.0), 1.0);
+        assert_eq!(track.style.fill_opacity.get(1000, 1.0), 1.0);
         assert!(report.diagnostics.is_empty());
     }
 

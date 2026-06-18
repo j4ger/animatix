@@ -665,11 +665,11 @@ fn test_animated_scene_has_keyframes() {
         "position should have at least 2 keyframes"
     );
     assert!(
-        track.color.as_ref().map(|t| t.keyframes.len()).unwrap_or(0) >= 2,
+        track.style.color.as_ref().map(|t| t.keyframes.len()).unwrap_or(0) >= 2,
         "color should have at least 2 keyframes"
     );
     assert!(
-        track.opacity.as_ref().map(|t| t.keyframes.len()).unwrap_or(0) >= 2,
+        track.style.opacity.as_ref().map(|t| t.keyframes.len()).unwrap_or(0) >= 2,
         "opacity should have at least 2 keyframes"
     );
 }
@@ -926,7 +926,7 @@ fn test_hierarchical_assignment_target() {
 
     // At t=0s, circ.opacity should be 0.0 (pre-keyframe default is hidden)
     let circ_track = timeline.tracks.get("circ").expect("circ track should exist");
-    let opacity_at_0 = circ_track.opacity.as_ref().unwrap().evaluate(0);
+    let opacity_at_0 = circ_track.style.opacity.as_ref().unwrap().evaluate(0);
     assert!(
         (opacity_at_0 - 0.0).abs() < 0.01,
         "Expected circ.opacity=0.0 at t=0 (pre-keyframe default), got {:?}",
@@ -934,7 +934,7 @@ fn test_hierarchical_assignment_target() {
     );
 
     // At t=1s, circ.opacity should be 0.5
-    let opacity_at_1s = circ_track.opacity.as_ref().unwrap().evaluate(1000);
+    let opacity_at_1s = circ_track.style.opacity.as_ref().unwrap().evaluate(1000);
     assert!(
         (opacity_at_1s - 0.5).abs() < 0.01,
         "Expected circ.opacity=0.5 at t=1s, got {:?}",
@@ -955,10 +955,10 @@ fn graph_axes_invisible_before_fadein() {
     let timeline = report.output;
 
     let track = timeline.tracks.get("g1").expect("g1 track should exist");
-    let opacity_at_0 = track.opacity.as_ref().map(|t| t.evaluate(0));
-    let opacity_at_500 = track.opacity.as_ref().map(|t| t.evaluate(500));
-    let opacity_at_900 = track.opacity.as_ref().map(|t| t.evaluate(900));
-    let opacity_at_1000 = track.opacity.as_ref().map(|t| t.evaluate(1000));
+    let opacity_at_0 = track.style.opacity.as_ref().map(|t| t.evaluate(0));
+    let opacity_at_500 = track.style.opacity.as_ref().map(|t| t.evaluate(500));
+    let opacity_at_900 = track.style.opacity.as_ref().map(|t| t.evaluate(900));
+    let opacity_at_1000 = track.style.opacity.as_ref().map(|t| t.evaluate(1000));
 
     assert_eq!(opacity_at_0, Some(0.0), "opacity should be 0 at t=0");
     assert_eq!(opacity_at_500, Some(0.0), "opacity should be 0 at t=500ms (fade-in start)");
@@ -1555,7 +1555,7 @@ fn test_keyframe_times_s_collects_all_fields() {
     let mut track = AnimationTrack::new("test".to_string());
 
     // Add keyframes to various fields
-    track.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
+    track.style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
     track.position.ensure([0.0, 0.0]).add_keyframe(2000, [100.0, 0.0], Easing::Linear);
     track.transform.ensure([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
         .add_keyframe(3000, [2.0, 0.0, 0.0, 2.0, 0.0, 0.0], Easing::Linear);
@@ -1590,10 +1590,10 @@ fn test_keyframe_times_s_includes_highlight_fields() {
 fn test_keyframe_times_s_returns_unique_times() {
     let mut timeline = keyframe_times_s_timeline();
     let mut track_a = AnimationTrack::new("a".to_string());
-    track_a.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
+    track_a.style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
 
     let mut track_b = AnimationTrack::new("b".to_string());
-    track_b.opacity.ensure(1.0).add_keyframe(1000, 0.0, Easing::Linear);
+    track_b.style.opacity.ensure(1.0).add_keyframe(1000, 0.0, Easing::Linear);
 
     timeline.tracks.insert("a".to_string(), track_a);
     timeline.tracks.insert("b".to_string(), track_b);
@@ -1607,7 +1607,7 @@ fn test_keyframe_times_s_returns_unique_times() {
 fn test_keyframe_times_s_returns_seconds_not_milliseconds() {
     let mut timeline = keyframe_times_s_timeline();
     let mut track = AnimationTrack::new("test".to_string());
-    track.opacity.ensure(1.0).add_keyframe(5000, 0.5, Easing::Linear);
+    track.style.opacity.ensure(1.0).add_keyframe(5000, 0.5, Easing::Linear);
     timeline.tracks.insert("test".to_string(), track);
     let times = timeline.keyframe_times_s();
     assert!(!times.contains(&5000.0), "Should be in seconds, not milliseconds");

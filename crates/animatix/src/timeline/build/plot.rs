@@ -456,10 +456,10 @@ impl Timeline {
         let initial_eval_env = self.build_eval_env(time_ms as u64);
 
         // Start with track defaults, override from props.
-        let mut color = existing_track.color.last(DEFAULT_WHITE);
-        let mut stroke_width = existing_track.stroke_width.last(2.0);
-        let mut stroke_color = existing_track.stroke_color.last(DEFAULT_WHITE);
-        let mut stroke_progress = existing_track.stroke_progress.last(1.0);
+        let mut color = existing_track.style.color.last(DEFAULT_WHITE);
+        let mut stroke_width = existing_track.style.stroke_width.last(2.0);
+        let mut stroke_color = existing_track.style.stroke_color.last(DEFAULT_WHITE);
+        let mut stroke_progress = existing_track.style.stroke_progress.last(1.0);
 
         for prop in props {
             let prop_subject = format!("{}.{}", label, prop.name);

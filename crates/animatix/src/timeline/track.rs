@@ -720,6 +720,33 @@ pub struct TextTracks {
 }
 
 // ─────────────────────────────────────────────────────────────
+// StyleTracks sub-struct
+// ─────────────────────────────────────────────────────────────
+
+/// Sub-struct holding all style-related property tracks.
+#[derive(Clone, Debug, Default)]
+pub struct StyleTracks {
+    /// Fill color in RGBA.
+    pub color: Option<PropertyTrack<[f32; 4]>>,
+    /// Overall opacity multiplier.
+    pub opacity: Option<PropertyTrack<f32>>,
+    /// Stroke width.
+    pub stroke_width: Option<PropertyTrack<f32>>,
+    /// Stroke color in RGBA.
+    pub stroke_color: Option<PropertyTrack<[f32; 4]>>,
+    /// Stroke draw progress (0-1).
+    pub stroke_progress: Option<PropertyTrack<f32>>,
+    /// Fill opacity multiplier.
+    pub fill_opacity: Option<PropertyTrack<f32>>,
+    /// Stroke line cap (0=Butt, 1=Round, 2=Square).
+    pub line_cap: Option<PropertyTrack<u32>>,
+    /// Stroke line join (0=Miter, 1=Round, 2=Bevel).
+    pub line_join: Option<PropertyTrack<u32>>,
+    /// Path morphing options.
+    pub morph_options: Option<PropertyTrack<MorphOptions>>,
+}
+
+// ─────────────────────────────────────────────────────────────
 // AnimationTrack
 // ─────────────────────────────────────────────────────────────
 
@@ -758,25 +785,9 @@ pub struct AnimationTrack {
     /// Width and height.
     pub size: Option<PropertyTrack<[f32; 2]>>,
 
-    // ── Style tier (flat compat fields) ──
-    /// Fill color in RGBA.
-    pub color: Option<PropertyTrack<[f32; 4]>>,
-    /// Overall opacity multiplier.
-    pub opacity: Option<PropertyTrack<f32>>,
-    /// Stroke width.
-    pub stroke_width: Option<PropertyTrack<f32>>,
-    /// Stroke color in RGBA.
-    pub stroke_color: Option<PropertyTrack<[f32; 4]>>,
-    /// Stroke draw progress (0-1).
-    pub stroke_progress: Option<PropertyTrack<f32>>,
-    /// Fill opacity multiplier.
-    pub fill_opacity: Option<PropertyTrack<f32>>,
-    /// Stroke line cap (0=Butt, 1=Round, 2=Square).
-    pub line_cap: Option<PropertyTrack<u32>>,
-    /// Stroke line join (0=Miter, 1=Round, 2=Bevel).
-    pub line_join: Option<PropertyTrack<u32>>,
-    /// Path morphing options.
-    pub morph_options: Option<PropertyTrack<MorphOptions>>,
+    // ── Style tier (sub-struct) ──
+    /// Style property tracks (color, opacity, stroke, line_cap, line_join, morph_options).
+    pub style: StyleTracks,
 
     // ── Filter tier (sub-struct) ──
     /// Filter property tracks (blur, brightness, contrast, etc.).
@@ -846,16 +857,8 @@ impl AnimationTrack {
             position_binding: None,
             size: None,
 
-            // Style flat fields
-            color: None,
-            opacity: None,
-            stroke_width: None,
-            stroke_color: None,
-            stroke_progress: None,
-            fill_opacity: None,
-            line_cap: None,
-            line_join: None,
-            morph_options: None,
+            // Style tier (sub-struct)
+            style: StyleTracks::default(),
 
             // Filter tier (sub-struct)
             filter: FilterTracks::default(),
@@ -942,7 +945,7 @@ impl AnimationTrack {
         let default_paths = PropertyTrack::new(Vec::new());
         let paths_track = self.text.text_paths.as_ref().unwrap_or(&default_paths);
         let default_morph = PropertyTrack::new(MorphOptions::default());
-        let morph_track = self.morph_options.as_ref().unwrap_or(&default_morph);
+        let morph_track = self.style.morph_options.as_ref().unwrap_or(&default_morph);
         evaluate_paths_with_options(paths_track, morph_track, time_ms, interpolate_text_paths)
     }
 
@@ -951,7 +954,7 @@ impl AnimationTrack {
         let default_paths = PropertyTrack::new(Vec::new());
         let paths_track = self.shape.vector_paths.as_ref().unwrap_or(&default_paths);
         let default_morph = PropertyTrack::new(MorphOptions::default());
-        let morph_track = self.morph_options.as_ref().unwrap_or(&default_morph);
+        let morph_track = self.style.morph_options.as_ref().unwrap_or(&default_morph);
         evaluate_paths_with_options(paths_track, morph_track, time_ms, interpolate_vello_paths)
     }
 
@@ -1339,12 +1342,12 @@ impl AnimationTrack {
             Rotation => TrackFieldRef::F32(&self.rotation),
             Scale => TrackFieldRef::F32(&self.scale),
             Transform => TrackFieldRef::Transform(&self.transform),
-            Color => TrackFieldRef::Vec4(&self.color),
-            Opacity => TrackFieldRef::F32(&self.opacity),
-            StrokeWidth => TrackFieldRef::F32(&self.stroke_width),
-            StrokeColor => TrackFieldRef::Vec4(&self.stroke_color),
-            StrokeProgress => TrackFieldRef::F32(&self.stroke_progress),
-            FillOpacity => TrackFieldRef::F32(&self.fill_opacity),
+            Color => TrackFieldRef::Vec4(&self.style.color),
+            Opacity => TrackFieldRef::F32(&self.style.opacity),
+            StrokeWidth => TrackFieldRef::F32(&self.style.stroke_width),
+            StrokeColor => TrackFieldRef::Vec4(&self.style.stroke_color),
+            StrokeProgress => TrackFieldRef::F32(&self.style.stroke_progress),
+            FillOpacity => TrackFieldRef::F32(&self.style.fill_opacity),
             FilterBlur => TrackFieldRef::F32(&self.filter.filter_blur),
             FilterBrightness => TrackFieldRef::F32(&self.filter.filter_brightness),
             FilterContrast => TrackFieldRef::F32(&self.filter.filter_contrast),
@@ -1355,8 +1358,8 @@ impl AnimationTrack {
             LineFrom => TrackFieldRef::Vec2(&self.shape.line_from),
             LineTo => TrackFieldRef::Vec2(&self.shape.line_to),
             HeadSize => TrackFieldRef::F32(&self.shape.head_size),
-            LineCap => TrackFieldRef::U32(&self.line_cap),
-            LineJoin => TrackFieldRef::U32(&self.line_join),
+            LineCap => TrackFieldRef::U32(&self.style.line_cap),
+            LineJoin => TrackFieldRef::U32(&self.style.line_join),
             ArcAngles => TrackFieldRef::Vec2(&self.shape.arc_angles),
             Points => TrackFieldRef::PointList(&self.shape.points),
             Commands => TrackFieldRef::CommandList(&self.shape.commands),
@@ -1367,7 +1370,7 @@ impl AnimationTrack {
             FontFamily => TrackFieldRef::String(&self.text.font_family),
             FontSize => TrackFieldRef::F32(&self.text.font_size),
             PlacementMode => TrackFieldRef::PlacementMode(&self.placement_mode),
-            MorphOptions => TrackFieldRef::MorphOptions(&self.morph_options),
+            MorphOptions => TrackFieldRef::MorphOptions(&self.style.morph_options),
             Ascent => TrackFieldRef::F32(&self.text.ascent),
             Descent => TrackFieldRef::F32(&self.text.descent),
             Baseline => TrackFieldRef::F32(&self.text.baseline),
@@ -1408,12 +1411,12 @@ impl AnimationTrack {
             Rotation => TrackFieldMut::F32(&mut self.rotation),
             Scale => TrackFieldMut::F32(&mut self.scale),
             Transform => TrackFieldMut::Transform(&mut self.transform),
-            Color => TrackFieldMut::Vec4(&mut self.color),
-            Opacity => TrackFieldMut::F32(&mut self.opacity),
-            StrokeWidth => TrackFieldMut::F32(&mut self.stroke_width),
-            StrokeColor => TrackFieldMut::Vec4(&mut self.stroke_color),
-            StrokeProgress => TrackFieldMut::F32(&mut self.stroke_progress),
-            FillOpacity => TrackFieldMut::F32(&mut self.fill_opacity),
+            Color => TrackFieldMut::Vec4(&mut self.style.color),
+            Opacity => TrackFieldMut::F32(&mut self.style.opacity),
+            StrokeWidth => TrackFieldMut::F32(&mut self.style.stroke_width),
+            StrokeColor => TrackFieldMut::Vec4(&mut self.style.stroke_color),
+            StrokeProgress => TrackFieldMut::F32(&mut self.style.stroke_progress),
+            FillOpacity => TrackFieldMut::F32(&mut self.style.fill_opacity),
             FilterBlur => TrackFieldMut::F32(&mut self.filter.filter_blur),
             FilterBrightness => TrackFieldMut::F32(&mut self.filter.filter_brightness),
             FilterContrast => TrackFieldMut::F32(&mut self.filter.filter_contrast),
@@ -1424,8 +1427,8 @@ impl AnimationTrack {
             LineFrom => TrackFieldMut::Vec2(&mut self.shape.line_from),
             LineTo => TrackFieldMut::Vec2(&mut self.shape.line_to),
             HeadSize => TrackFieldMut::F32(&mut self.shape.head_size),
-            LineCap => TrackFieldMut::U32(&mut self.line_cap),
-            LineJoin => TrackFieldMut::U32(&mut self.line_join),
+            LineCap => TrackFieldMut::U32(&mut self.style.line_cap),
+            LineJoin => TrackFieldMut::U32(&mut self.style.line_join),
             ArcAngles => TrackFieldMut::Vec2(&mut self.shape.arc_angles),
             Points => TrackFieldMut::PointList(&mut self.shape.points),
             Commands => TrackFieldMut::CommandList(&mut self.shape.commands),
@@ -1436,7 +1439,7 @@ impl AnimationTrack {
             FontFamily => TrackFieldMut::String(&mut self.text.font_family),
             FontSize => TrackFieldMut::F32(&mut self.text.font_size),
             PlacementMode => TrackFieldMut::PlacementMode(&mut self.placement_mode),
-            MorphOptions => TrackFieldMut::MorphOptions(&mut self.morph_options),
+            MorphOptions => TrackFieldMut::MorphOptions(&mut self.style.morph_options),
             Ascent => TrackFieldMut::F32(&mut self.text.ascent),
             Descent => TrackFieldMut::F32(&mut self.text.descent),
             Baseline => TrackFieldMut::F32(&mut self.text.baseline),
@@ -2170,7 +2173,7 @@ mod tests {
     #[test]
     fn test_max_keyframe_time_returns_max_across_all_fields() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
+        track.style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
         track.position.ensure([0.0, 0.0]).add_keyframe(5000, [100.0, 100.0], Easing::Linear);
         track.highlight.highlight_opacity.ensure(0.0).add_keyframe(3000, 0.8, Easing::Linear);
         assert_eq!(track.max_keyframe_time(), Some(5000));
@@ -2206,15 +2209,15 @@ mod tests {
     #[test]
     fn test_has_any_keyframes_returns_false_for_single_keyframe_at_time_zero() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.opacity.ensure(1.0).add_keyframe(0, 0.5, Easing::Linear);
+        track.style.opacity.ensure(1.0).add_keyframe(0, 0.5, Easing::Linear);
         assert!(!track.has_any_keyframes());
     }
 
     #[test]
     fn test_has_any_keyframes_returns_true_for_multiple_keyframes() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.opacity.ensure(1.0).add_keyframe(0, 0.5, Easing::Linear);
-        track.opacity.ensure(0.5).add_keyframe(1000, 1.0, Easing::Linear);
+        track.style.opacity.ensure(1.0).add_keyframe(0, 0.5, Easing::Linear);
+        track.style.opacity.ensure(0.5).add_keyframe(1000, 1.0, Easing::Linear);
         assert!(track.has_any_keyframes());
     }
 
@@ -2479,7 +2482,7 @@ mod tests {
     #[test]
     fn test_track_field_ref_has_keyframe_at() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
+        track.style.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
         let rf = track.field_ref(ActorField::Opacity).unwrap();
         assert!(rf.has_keyframe_at(500));
         assert!(!rf.has_keyframe_at(0));
@@ -2489,9 +2492,9 @@ mod tests {
     #[test]
     fn test_track_field_ref_keyframe_count() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-        track.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
-        track.opacity.ensure(0.5).add_keyframe(1000, 0.0, Easing::Linear);
+        track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
+        track.style.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
+        track.style.opacity.ensure(0.5).add_keyframe(1000, 0.0, Easing::Linear);
         let rf = track.field_ref(ActorField::Opacity).unwrap();
         assert_eq!(rf.keyframe_count(), 3);
     }
@@ -2499,8 +2502,8 @@ mod tests {
     #[test]
     fn test_track_field_ref_keyframe_times() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.opacity.ensure(1.0).add_keyframe(1000, 0.0, Easing::Linear);
-        track.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
+        track.style.opacity.ensure(1.0).add_keyframe(1000, 0.0, Easing::Linear);
+        track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
         let rf = track.field_ref(ActorField::Opacity).unwrap();
         let mut times = rf.keyframe_times();
         times.sort();
@@ -2510,8 +2513,8 @@ mod tests {
     #[test]
     fn test_track_field_ref_keyframe_easing() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::EaseOut);
-        track.opacity.ensure(0.0).add_keyframe(500, 0.0, Easing::Linear);
+        track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::EaseOut);
+        track.style.opacity.ensure(0.0).add_keyframe(500, 0.0, Easing::Linear);
         let rf = track.field_ref(ActorField::Opacity).unwrap();
         assert_eq!(rf.keyframe_easing(0), Some(Easing::EaseOut));
         assert_eq!(rf.keyframe_easing(500), Some(Easing::Linear));
@@ -2647,8 +2650,8 @@ mod tests {
         assert_eq!(track.shape.line_from.get(0, [-50.0, 0.0]), [-50.0, 0.0]);
         assert_eq!(track.shape.line_to.get(0, [50.0, 0.0]), [50.0, 0.0]);
         assert_eq!(track.shape.arc_angles.get(0, [0.0, std::f32::consts::PI]), [0.0, std::f32::consts::PI]);
-        assert_eq!(track.color.get(0, [1.0, 1.0, 1.0, 1.0]), [1.0, 1.0, 1.0, 1.0]);
+        assert_eq!(track.style.color.get(0, [1.0, 1.0, 1.0, 1.0]), [1.0, 1.0, 1.0, 1.0]);
         assert_eq!(track.shape.shape_type.get(0, ShapeType::Rect), ShapeType::Rect);
-        assert_eq!(track.opacity.get(0, 1.0), 1.0);
+        assert_eq!(track.style.opacity.get(0, 1.0), 1.0);
     }
 }

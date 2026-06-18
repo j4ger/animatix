@@ -159,7 +159,7 @@ impl Timeline {
         }
 
         if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
-            track.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
+            track.style.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
         }
 
         let mut url = String::new();
