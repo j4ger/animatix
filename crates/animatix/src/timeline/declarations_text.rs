@@ -426,7 +426,7 @@ impl Timeline {
         track.line_height.ensure(1.2).add_keyframe(t_end_ms, line_height, easing);
         track.letter_spacing.ensure(0.0).add_keyframe(t_end_ms, letter_spacing, easing);
         track.word_spacing.ensure(0.0).add_keyframe(t_end_ms, word_spacing, easing);
-        track.max_width.ensure(0.0).add_keyframe(t_end_ms, max_width, easing);
+        track.text_max_width.ensure(0.0).add_keyframe(t_end_ms, max_width, easing);
         track.text_align.ensure("left".to_string()).add_keyframe(
             t_end_ms,
             text_align.clone(),

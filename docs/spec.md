@@ -436,6 +436,56 @@ row: Row, gap: 12, padding: 20, align: "center" {
 **Scene anchors:** `scene.top_left`, `scene.top`, `scene.center`, etc.  
 **Percentage placement:** `at: (82%, 76%)`
 
+### Phase 7: Percentage & Intrinsic Sizing
+
+**Percentage child sizing:** Container children can be sized relative to the parent's content box using percentage strings:
+
+```animatix
+Row, gap: 0 {
+    a: Rect, size: (50%, 40)    // 50% of parent width, 40px height
+    b: Rect, size: fill          // fill remaining (100% width, auto height)
+}
+```
+
+- Percentage values (e.g. `"50%"`) resolve against the parent container's **content box** (after padding/gap).
+- `size: fill` is shorthand for `size: (100%, auto)` — fills the available width.
+- `size: auto` or `size: fit` on a layout container makes it shrink-wrap to its children's content.
+- `size: auto` on a non-container primitive produces a build-time warning (only containers shrink-wrap).
+- `size: fill` at the top level (no parent container) produces a build-time warning.
+
+**Intrinsic container sizing:** Containers with `size: auto` or `size: fit` compute their own size from children:
+
+```animatix
+// Row shrink-wraps to its children
+row: Row, size: auto, gap: 10 {
+    a: Rect, size: (100, 50)
+    b: Rect, size: (200, 50)
+}
+// row.total_width ≈ 100 + 10 + 200 = 310px
+```
+
+- **Row:**  width = sum of child widths + gaps; height = max child height.
+- **Col:**  width = max child width; height = sum of child heights + gaps.
+- **Grid:** uses Taffy's `Auto` track sizing when no explicit template is given.
+- `size: fit` behaves identically to `size: auto` (both rely on intrinsic sizing).
+
+**Min/Max constraints:** Clamp the resolved size of any actor (child or container):
+
+```animatix
+a: Rect, size: (500, 50), min_width: 100, max_width: 300, min_height: 20
+```
+
+- `min_width`, `min_height` — enforce a minimum size.
+- `max_height` — enforce a maximum size.
+- All four are optional (omit for no constraint).
+- Constraints apply after percentage resolution: `min ≤ resolved ≤ max`.
+- These are animatable (ASSIGNABLE).
+
+**Important notes:**
+- Percentage sizing resolves against the parent's **content box** (size minus padding).
+- If the parent container also uses intrinsic sizing, percentages resolve after the parent's size is computed from non-percentage children.
+- Existing fixed-size layouts continue to work unchanged (backward compatible).
+
 ---
 
 ## 9. Primitive Types

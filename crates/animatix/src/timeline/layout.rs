@@ -33,7 +33,7 @@ use crate::renderer::text::TextKind;
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
 use tracing::warn;
 
-use super::taffy_layout::{compute_taffy_linear_layout, compute_taffy_linear_layout_with_baselines, compute_taffy_grid_layout};
+use super::taffy_layout::{compute_taffy_linear_layout, compute_taffy_linear_layout_with_baselines, compute_taffy_grid_layout, ChildSizeSpec, SizeConstraints};
 
 /// Represents a child's layout-relevant size at a specific point in time.
 #[derive(Clone, Debug)]
@@ -79,16 +79,44 @@ fn compute_linear_layout(
     metadata: &ContainerMetadata,
     child_baselines: &[f32],
 ) -> Vec<[f32; 2]> {
+    compute_linear_layout_with_specs_inner(
+        children, is_row, gap, padding, align, metadata, child_baselines,
+        &[], &[], [0.0, 0.0],
+    )
+}
+
+/// Like `compute_linear_layout` but supports size specs and constraints.
+fn compute_linear_layout_with_specs_inner(
+    children: &[ChildExtent],
+    is_row: bool,
+    gap: [f32; 2],
+    padding: [f32; 4],
+    align: &str,
+    metadata: &ContainerMetadata,
+    child_baselines: &[f32],
+    size_specs: &[Option<super::taffy_layout::ChildSizeSpec>],
+    constraints: &[super::taffy_layout::SizeConstraints],
+    parent_content_size: [f32; 2],
+) -> Vec<[f32; 2]> {
     let layout_type = if is_row {
         super::LayoutType::Row
     } else {
         super::LayoutType::Col
     };
 
-    let output = compute_taffy_linear_layout_with_baselines(
-        children, layout_type, gap, padding, align,
-        child_baselines, &metadata.vertical_align,
-    );
+    let output = if size_specs.is_empty() && constraints.is_empty() {
+        // Legacy path: no specs
+        compute_taffy_linear_layout_with_baselines(
+            children, layout_type, gap, padding, align,
+            child_baselines, &metadata.vertical_align,
+        )
+    } else {
+        compute_taffy_linear_layout_with_specs(
+            children, layout_type, gap, padding, align,
+            child_baselines, &metadata.vertical_align,
+            size_specs, constraints, parent_content_size,
+        )
+    };
     output.positions.into_iter().map(|r| r.position).collect()
 }
 
@@ -100,7 +128,28 @@ fn compute_grid_layout(
     padding: [f32; 4],
     cols: usize,
 ) -> Vec<[f32; 2]> {
-    let output = compute_taffy_grid_layout(children, gap, padding, cols);
+    compute_grid_layout_with_specs_inner(
+        children, gap, padding, cols, &[], &[], [0.0, 0.0],
+    )
+}
+
+/// Like `compute_grid_layout` but supports size specs and constraints.
+fn compute_grid_layout_with_specs_inner(
+    children: &[ChildExtent],
+    gap: [f32; 2],
+    padding: [f32; 4],
+    cols: usize,
+    size_specs: &[Option<super::taffy_layout::ChildSizeSpec>],
+    constraints: &[super::taffy_layout::SizeConstraints],
+    parent_content_size: [f32; 2],
+) -> Vec<[f32; 2]> {
+    let output = if size_specs.is_empty() && constraints.is_empty() {
+        compute_taffy_grid_layout(children, gap, padding, cols)
+    } else {
+        compute_taffy_grid_layout_with_specs(
+            children, gap, padding, cols, size_specs, constraints, parent_content_size,
+        )
+    };
     output.positions.into_iter().map(|r| r.position).collect()
 }
 
@@ -108,6 +157,17 @@ fn compute_grid_layout(
 pub(crate) fn compute_container_size(
     children: &[ChildExtent],
     metadata: &ContainerMetadata,
+) -> [f32; 2] {
+    compute_container_size_with_specs(children, metadata, &[], &[], [0.0, 0.0])
+}
+
+/// Like `compute_container_size` but supports size specs and constraints.
+pub(crate) fn compute_container_size_with_specs(
+    children: &[ChildExtent],
+    metadata: &ContainerMetadata,
+    size_specs: &[Option<super::taffy_layout::ChildSizeSpec>],
+    constraints: &[super::taffy_layout::SizeConstraints],
+    parent_content_size: [f32; 2],
 ) -> [f32; 2] {
     let is_row = metadata.layout_type == super::LayoutType::Row;
     let is_col = metadata.layout_type == super::LayoutType::Col;
@@ -119,21 +179,28 @@ pub(crate) fn compute_container_size(
         } else {
             super::LayoutType::Col
         };
-        let output = compute_taffy_linear_layout(
-            children,
-            layout_type,
-            metadata.gap,
-            metadata.padding,
-            &metadata.align,
-        );
+        let output = if size_specs.is_empty() && constraints.is_empty() {
+            compute_taffy_linear_layout(
+                children, layout_type, metadata.gap, metadata.padding, &metadata.align,
+            )
+        } else {
+            compute_taffy_linear_layout_with_specs(
+                children, layout_type, metadata.gap, metadata.padding, &metadata.align,
+                &[], "center", size_specs, constraints, parent_content_size,
+            )
+        };
         output.container_size
     } else if is_grid {
-        let output = compute_taffy_grid_layout(
-            children,
-            metadata.gap,
-            metadata.padding,
-            metadata.cols.unwrap_or(1).max(1),
-        );
+        let output = if size_specs.is_empty() && constraints.is_empty() {
+            compute_taffy_grid_layout(
+                children, metadata.gap, metadata.padding, metadata.cols.unwrap_or(1).max(1),
+            )
+        } else {
+            compute_taffy_grid_layout_with_specs(
+                children, metadata.gap, metadata.padding, metadata.cols.unwrap_or(1).max(1),
+                size_specs, constraints, parent_content_size,
+            )
+        };
         output.container_size
     } else {
         // Stack or unknown: no meaningful container size
@@ -181,6 +248,21 @@ impl LayoutEngine {
         children: &[ChildExtent],
         child_baselines: &[f32],
     ) -> Vec<[f32; 2]> {
+        Self::compute_positions_with_specs(
+            metadata, children, child_baselines,
+            &[], &[], [0.0, 0.0],
+        )
+    }
+
+    /// Like `compute_positions_with_baselines` but supports size specs and constraints.
+    pub(crate) fn compute_positions_with_specs(
+        metadata: &ContainerMetadata,
+        children: &[ChildExtent],
+        child_baselines: &[f32],
+        size_specs: &[Option<super::taffy_layout::ChildSizeSpec>],
+        constraints: &[super::taffy_layout::SizeConstraints],
+        parent_content_size: [f32; 2],
+    ) -> Vec<[f32; 2]> {
         let is_row = metadata.layout_type == super::LayoutType::Row;
         let is_col = metadata.layout_type == super::LayoutType::Col;
         let is_stack = metadata.layout_type == super::LayoutType::Stack;
@@ -193,14 +275,27 @@ impl LayoutEngine {
         if is_stack {
             compute_stack_layout(children, &metadata.align)
         } else if is_grid {
-            compute_grid_layout(
-                children,
-                metadata.gap,
-                metadata.padding,
-                metadata.cols.unwrap_or(1).max(1),
-            )
+            if size_specs.is_empty() && constraints.is_empty() {
+                compute_grid_layout(
+                    children, metadata.gap, metadata.padding, metadata.cols.unwrap_or(1).max(1),
+                )
+            } else {
+                compute_grid_layout_with_specs_inner(
+                    children, metadata.gap, metadata.padding, metadata.cols.unwrap_or(1).max(1),
+                    size_specs, constraints, parent_content_size,
+                )
+            }
         } else {
-            compute_linear_layout(children, is_row, metadata.gap, metadata.padding, &metadata.align, metadata, child_baselines)
+            if size_specs.is_empty() && constraints.is_empty() {
+                compute_linear_layout(
+                    children, is_row, metadata.gap, metadata.padding, &metadata.align, metadata, child_baselines,
+                )
+            } else {
+                compute_linear_layout_with_specs_inner(
+                    children, is_row, metadata.gap, metadata.padding, &metadata.align, metadata, child_baselines,
+                    size_specs, constraints, parent_content_size,
+                )
+            }
         }
     }
 
@@ -362,7 +457,7 @@ impl Timeline {
             color: track.color.get(time_ms, [1.0, 1.0, 1.0, 1.0]),
             text_align: track.text_align.get(time_ms, "left".to_string()),
             overflow: track.overflow.get(time_ms, "visible".to_string()),
-            existing_max_width: track.max_width.get(time_ms, 0.0),
+            existing_max_width: track.text_max_width.get(time_ms, 0.0),
         })
     }
 
@@ -487,7 +582,7 @@ impl Timeline {
         };
 
         // Update max_width track
-        track.max_width.ensure(0.0).add_keyframe(time_ms, effective_max_width, Easing::Linear);
+        track.text_max_width.ensure(0.0).add_keyframe(time_ms, effective_max_width, Easing::Linear);
 
         // Update text_paths, size, layout_size, and metrics tracks
         track.text_paths.ensure(Vec::new()).add_keyframe(time_ms, compiled.glyphs, Easing::Linear);
@@ -529,15 +624,6 @@ impl Timeline {
                 f32::MAX
             }
         }
-    }
-
-    /// Collected text child info for width propagation.
-    /// Holds all data needed to recompile a text child, gathered during the
-    /// immutable-read phase to avoid borrow conflicts.
-    struct TextChildRecompile {
-        label: String,
-        props: TextChildProps,
-        available_width: f32,
     }
 
     /// Collect text child properties (immutable read phase) and return a list of
@@ -669,6 +755,40 @@ impl Timeline {
         layout_children
     }
 
+    /// Collect size specs and constraints for a container's children from tracks.
+    fn collect_child_layout_specs(
+        &self,
+        children: &[ContainerLayoutChild],
+        time_ms: u64,
+    ) -> (Vec<Option<ChildSizeSpec>>, Vec<SizeConstraints>, [f32; 2]) {
+        let mut size_specs: Vec<Option<ChildSizeSpec>> = Vec::with_capacity(children.len());
+        let mut constraints: Vec<SizeConstraints> = Vec::with_capacity(children.len());
+
+        // Compute parent content size first (from container's own layout_size)
+        // If the container has no layout_size, use a default
+        let parent_content_size = [0.0f32, 0.0f32];
+
+        for cl in children {
+            if let Some(track) = self.tracks.get(&cl.label) {
+                size_specs.push(track.size_spec);
+                let min_w = track.min_width.get(time_ms, 0.0);
+                let max_w = track.max_width.get(time_ms, f32::INFINITY);
+                let min_h = track.min_height.get(time_ms, 0.0);
+                let max_h = track.max_height.get(time_ms, f32::INFINITY);
+                constraints.push(SizeConstraints {
+                    min_width: if min_w > 0.0 { Some(min_w) } else { None },
+                    max_width: if !max_w.is_infinite() && !max_w.is_nan() { Some(max_w) } else { None },
+                    min_height: if min_h > 0.0 { Some(min_h) } else { None },
+                    max_height: if !max_h.is_infinite() && !max_h.is_nan() { Some(max_h) } else { None },
+                });
+            } else {
+                size_specs.push(None);
+                constraints.push(SizeConstraints::default());
+            }
+        }
+        (size_specs, constraints, parent_content_size)
+    }
+
     pub(super) fn apply_container_layout(
         &mut self,
         container_label: &str,
@@ -711,7 +831,22 @@ impl Timeline {
             })
             .collect();
 
-        let positions = LayoutEngine::compute_positions_with_baselines(&metadata, &child_extents, &child_baselines);
+        // Collect size specs and constraints for phase 7
+        let (size_specs, constraints, _parent_content_size) =
+            self.collect_child_layout_specs(&children, t_ms);
+
+        // Use the parent container's own layout_size as the content box for percentage resolution.
+        // For the container itself, we may need to do a two-pass: first compute the container size
+        // without percentage children, then resolve percentages against it.
+        let parent_content_size = self.tracks.get(container_label)
+            .and_then(|t| t.layout_size_last())
+            .map(|s| [s[0] * 2.0, s[1] * 2.0])
+            .unwrap_or([0.0, 0.0]);
+
+        let positions = LayoutEngine::compute_positions_with_specs(
+            &metadata, &child_extents, &child_baselines,
+            &size_specs, &constraints, parent_content_size,
+        );
 
         // Write positions to tracks, only for LayoutManaged children
         for (i, child) in children.iter().enumerate() {
@@ -722,4 +857,16 @@ impl Timeline {
             }
         }
     }
+}
+
+/// Collected text child info for width propagation.
+/// Holds all data needed to recompile a text child, gathered during the
+/// immutable-read phase to avoid borrow conflicts.
+pub(crate) struct TextChildRecompile {
+    /// Child label.
+    pub label: String,
+    /// Text child properties.
+    pub props: TextChildProps,
+    /// Available width for text wrapping.
+    pub available_width: f32,
 }

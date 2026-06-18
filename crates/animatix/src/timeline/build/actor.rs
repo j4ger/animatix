@@ -541,6 +541,73 @@ impl Timeline {
             track.first_seen_ms = t_start_ms;
         }
 
+        // Phase 7: Parse size spec from `size` property for percentage/auto/fill/fit sizing
+        {
+            let is_container = primitive.is_layout_container();
+            for prop in props {
+                if prop.name == "size" {
+                    let spec = crate::timeline::taffy_layout::parse_size_spec(&prop.value);
+                    track.size_spec = Some(spec);
+
+                    // Warn on auto/fit for non-container primitives
+                    if !is_container {
+                        match &prop.value {
+                            crate::ast::Expr::Ident(s) if s == "auto" || s == "fit" => {
+                                diagnostics.push(
+                                    Diagnostic::warning(
+                                        DiagnosticCode::InvalidModifierValue,
+                                        DiagnosticPhase::Build,
+                                        format!(
+                                            "size: {} on non-container primitive '{}' — auto/fit sizing only applies to layout containers",
+                                            s, label
+                                        ),
+                                    )
+                                    .with_subject(label),
+                                );
+                            },
+                            crate::ast::Expr::Str(s) if s == "auto" || s == "fit" => {
+                                diagnostics.push(
+                                    Diagnostic::warning(
+                                        DiagnosticCode::InvalidModifierValue,
+                                        DiagnosticPhase::Build,
+                                        format!(
+                                            "size: {} on non-container primitive '{}' — auto/fit sizing only applies to layout containers",
+                                            s, label
+                                        ),
+                                    )
+                                    .with_subject(label),
+                                );
+                            },
+                            _ => {},
+                        }
+                    }
+
+                    // Warn on fill at top level (no parent container)
+                    if parent_label.is_none() {
+                        let is_fill = match &prop.value {
+                            crate::ast::Expr::Ident(s) if s == "fill" => true,
+                            crate::ast::Expr::Str(s) if s == "fill" => true,
+                            _ => false,
+                        };
+                        if is_fill {
+                            diagnostics.push(
+                                Diagnostic::warning(
+                                    DiagnosticCode::InvalidModifierValue,
+                                    DiagnosticPhase::Build,
+                                    format!(
+                                        "size: fill on top-level actor '{}' — fill only makes sense inside a layout container",
+                                        label
+                                    ),
+                                )
+                                .with_subject(label),
+                            );
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
         // Pre-seed opacity for pre-keyframe first declarations so that
         // insert_start_keyframes captures the correct invisible start value.
         if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {

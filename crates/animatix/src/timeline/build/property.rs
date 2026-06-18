@@ -33,6 +33,10 @@ impl Timeline {
             let prop_subject = format!("{}.{}", label, prop.name);
             match prop.name.as_str() {
                 "size" => {
+                    // Parse the size spec for percentage/auto/fill/fit support
+                    // Store it on the track later (in process_actor_decl)
+                    // For initial_size calculation (used by plot actors), try numeric tuple first,
+                    // fall back to default if percentage/auto
                     let size_val = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
                         &initial_eval_env,

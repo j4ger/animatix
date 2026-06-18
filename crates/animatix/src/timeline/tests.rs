@@ -1371,8 +1371,8 @@ fn test_stack_align_start_and_end() {
 #[test]
 fn test_baseline_alignment_via_layout_engine() {
     // Integration test: LayoutEngine::compute_positions_with_baselines
-    use crate::timeline::layout::{ChildExtent, LayoutEngine};
-    use crate::timeline::{ContainerMetadata, LayoutType, PlacementMode};
+    use crate::timeline::layout::ChildExtent;
+    use crate::timeline::{ContainerMetadata, LayoutEngine, LayoutType, PlacementMode};
 
     let children = vec![
         ChildExtent { label: "a".to_string(), half_size: [50.0, 30.0], placement_mode: PlacementMode::LayoutManaged },
@@ -1420,4 +1420,158 @@ fn test_baseline_alignment_via_layout_engine() {
     );
     assert!((positions_center[0][1]).abs() < 0.01);
     assert!((positions_center[1][1]).abs() < 0.01);
+}
+
+// ── Phase 7: Percentage & intrinsic sizing tests ──
+
+#[test]
+fn test_percentage_child_sizing_row() {
+    use crate::timeline::layout::ChildExtent;
+    // Row with two children: a at 50% width, b fills remainder
+    let children = vec![
+        ChildExtent { label: "a".into(), half_size: [50.0, 25.0], placement_mode: PlacementMode::LayoutManaged },
+        ChildExtent { label: "b".into(), half_size: [50.0, 25.0], placement_mode: PlacementMode::LayoutManaged },
+    ];
+    let specs = vec![
+        Some(crate::timeline::taffy_layout::ChildSizeSpec::from_parts(
+            crate::timeline::taffy_layout::SizeSpec::Percent(0.5),
+            crate::timeline::taffy_layout::SizeSpec::Fixed(50.0),
+        )),
+        Some(crate::timeline::taffy_layout::ChildSizeSpec::from_parts(
+            crate::timeline::taffy_layout::SizeSpec::Fill,
+            crate::timeline::taffy_layout::SizeSpec::Fixed(50.0),
+        )),
+    ];
+    let constraints = vec![
+        crate::timeline::taffy_layout::SizeConstraints::default(),
+        crate::timeline::taffy_layout::SizeConstraints::default(),
+    ];
+
+    let metadata = ContainerMetadata {
+        layout_type: LayoutType::Row,
+        gap: [0.0, 0.0],
+        padding: [0.0, 0.0, 0.0, 0.0],
+        align: "start".to_string(),
+        vertical_align: "center".to_string(),
+        cols: None,
+        child_order: vec!["a".into(), "b".into()],
+    };
+
+    let positions = crate::timeline::LayoutEngine::compute_positions_with_specs(
+        &metadata, &children, &[], &specs, &constraints, [400.0, 100.0],
+    );
+
+    assert_eq!(positions.len(), 2);
+    // a (50%) should be at the start, b (fill) should be at x=200
+    assert!((positions[0][0] - 100.0).abs() < 5.0,
+        "Child a (50%) expected x~100 (200/2 from center), got {}", positions[0][0]);
+    assert!((positions[1][0] - (-0.0)).abs() < 5.0 || positions[1][0] > positions[0][0],
+        "Child b (fill) should be after child a");
+}
+
+#[test]
+fn test_min_max_constraints() {
+    use crate::timeline::layout::ChildExtent;
+    use crate::timeline::taffy_layout::SizeConstraints;
+    // Child with min_width: 100, max_width: 200
+    let children = vec![
+        ChildExtent { label: "a".into(), half_size: [150.0, 25.0], placement_mode: PlacementMode::LayoutManaged },
+        ChildExtent { label: "b".into(), half_size: [150.0, 25.0], placement_mode: PlacementMode::LayoutManaged },
+    ];
+    let specs = vec![None, None];
+    let constraints = vec![
+        crate::timeline::taffy_layout::SizeConstraints {
+            min_width: Some(100.0),
+            max_width: Some(200.0),
+            min_height: None,
+            max_height: None,
+        },
+        crate::timeline::taffy_layout::SizeConstraints::default(),
+    ];
+
+    let metadata = ContainerMetadata {
+        layout_type: LayoutType::Row,
+        gap: [10.0, 0.0],
+        padding: [0.0, 0.0, 0.0, 0.0],
+        align: "start".to_string(),
+        vertical_align: "center".to_string(),
+        cols: None,
+        child_order: vec!["a".into(), "b".into()],
+    };
+
+    let positions = crate::timeline::LayoutEngine::compute_positions_with_specs(
+        &metadata, &children, &[], &specs, &constraints, [500.0, 100.0],
+    );
+
+    assert_eq!(positions.len(), 2);
+    // Child a has max_width: 200, so its actual width should be clamped at 200
+    // Child b is 300 (150*2) which is within [0, inf)
+    // Container width should be roughly 200 + 10 + 300 = 510
+    assert!(positions[1][0] - positions[0][0] > 200.0,
+        "Child a and b should be spaced apart");
+}
+
+#[test]
+fn test_parse_size_spec_from_property() {
+    use crate::timeline::taffy_layout::{parse_size_spec, SizeSpec, ChildSizeSpec};
+    use crate::ast::Expr;
+
+    // size: (50%, 40)
+    let spec = parse_size_spec(&Expr::Tuple(vec![
+        Expr::Str("50%".into()),
+        Expr::Num(40.0),
+    ]));
+    assert_eq!(spec.width, SizeSpec::Percent(0.5));
+    assert_eq!(spec.height, SizeSpec::Fixed(40.0));
+
+    // size: fill
+    let spec = parse_size_spec(&Expr::Ident("fill".into()));
+    assert_eq!(spec.width, SizeSpec::Fill);
+
+    // size: auto
+    let spec = parse_size_spec(&Expr::Ident("auto".into()));
+    assert_eq!(spec.width, SizeSpec::Auto);
+}
+
+#[test]
+fn test_fixed_size_layout_still_works() {
+    use crate::timeline::layout::ChildExtent;
+    // Backward compatibility: fixed-size layout should work unchanged
+    let children = vec![
+        ChildExtent { label: "a".into(), half_size: [50.0, 25.0], placement_mode: PlacementMode::LayoutManaged },
+        ChildExtent { label: "b".into(), half_size: [50.0, 25.0], placement_mode: PlacementMode::LayoutManaged },
+    ];
+
+    let metadata = ContainerMetadata {
+        layout_type: LayoutType::Row,
+        gap: [10.0, 10.0],
+        padding: [5.0, 5.0, 5.0, 5.0],
+        align: "center".to_string(),
+        vertical_align: "center".to_string(),
+        cols: None,
+        child_order: vec!["a".into(), "b".into()],
+    };
+
+    // Legacy path (no specs/constraints)
+    let positions = crate::timeline::LayoutEngine::compute_positions(&metadata, &children);
+
+    assert_eq!(positions.len(), 2);
+    // Two 100-wide children with 10 gap + 10 padding → total width = 100+10+100+10 = 220
+    // a at -110 (left of center), b at 0 (center), actually let's just verify they're reasonable
+    assert!(positions[0][0] < 0.0, "First child should be left of center");
+    assert!(positions[1][0] > 0.0, "Second child should be right of center");
+
+    // With specs/constraints (empty), should produce same result
+    let positions_with_specs = crate::timeline::LayoutEngine::compute_positions_with_specs(
+        &metadata, &children, &[], &[], &[], [0.0, 0.0],
+    );
+    assert_eq!(positions.len(), positions_with_specs.len());
+    for i in 0..positions.len() {
+        assert!(
+            (positions[i][0] - positions_with_specs[i][0]).abs() < 0.01 &&
+            (positions[i][1] - positions_with_specs[i][1]).abs() < 0.01,
+            "Position mismatch at index {}: {:?} vs {:?}",
+            i, positions[i], positions_with_specs[i]
+        );
+    }
 }

@@ -69,7 +69,7 @@ pub fn evaluate_text_paths(
     let mut line_height = ctx.track.line_height.get(ctx.time_ms, 1.2);
     let mut letter_spacing = ctx.track.letter_spacing.get(ctx.time_ms, 0.0);
     let mut word_spacing = ctx.track.word_spacing.get(ctx.time_ms, 0.0);
-    let mut max_width = ctx.track.max_width.get(ctx.time_ms, 0.0);
+    let mut max_width = ctx.track.text_max_width.get(ctx.time_ms, 0.0);
     let mut text_align = ctx.track.text_align.get(ctx.time_ms, "left".to_string());
     let mut overflow = ctx.track.overflow.get(ctx.time_ms, "visible".to_string());
     let mut color = ctx.track.color.get(ctx.time_ms, DEFAULT_WHITE);

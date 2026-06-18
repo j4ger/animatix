@@ -261,7 +261,7 @@ pub enum ActorField {
     /// Font style ("normal" | "italic").
     FontStyle,
     /// Max width for text wrapping (0 = no wrap).
-    MaxWidth,
+    TextMaxWidth,
     /// Text alignment ("left", "center", "right", "justify").
     TextAlign,
     /// Overflow behavior ("visible", "clip", "ellipsis").
@@ -301,6 +301,14 @@ pub enum ActorField {
     // ── Transform tier ──
     /// 2D affine transform matrix.
     Transform,
+
+    // ── Min/Max size constraints (Phase 7) ──
+    /// Minimum width constraint.
+    MinWidth,
+    /// Minimum height constraint.
+    MinHeight,
+    /// Maximum height constraint.
+    MaxHeight,
 
     // ── Compound resolution groups (handled by GroupHandler) ──
     /// Compound group for position binding resolution.
@@ -375,7 +383,7 @@ impl ActorField {
             ActorField::FontStyle => PropertyValue::String("normal".to_string()),
             ActorField::LineHeight => PropertyValue::F32(1.2),
             ActorField::LetterSpacing => PropertyValue::F32(0.0),
-            ActorField::MaxWidth => PropertyValue::F32(0.0),
+            ActorField::TextMaxWidth => PropertyValue::F32(0.0),
             ActorField::TextAlign => PropertyValue::String("left".to_string()),
             ActorField::Overflow => PropertyValue::String("visible".to_string()),
             ActorField::WordSpacing => PropertyValue::F32(0.0),
@@ -385,6 +393,11 @@ impl ActorField {
             ActorField::SvgPaths => return None,
             ActorField::AudioSource => return None,
             ActorField::AudioVolume => PropertyValue::F32(1.0),
+
+            // ── Min/Max size constraints ──
+            ActorField::MinWidth => PropertyValue::F32(0.0),
+            ActorField::MinHeight => PropertyValue::F32(0.0),
+            ActorField::MaxHeight => PropertyValue::F32(f32::INFINITY),
 
             // ── Group fields ──
             ActorField::PositionBindingGroup
@@ -593,8 +606,11 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("line_join",     ValueType::U32,         F::ASSIGNABLE_AI,             ActorField::LineJoin,            None,                             Applicable::AllShapes, |_| super::property_engine::PropertyValue::U32(0)),
     schema!("math",          ValueType::String,      F::ANIMATED,                  ActorField::TextContent,         None,                             Applicable::ActorKinds(&[A::Typst]), |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("max_depth",     ValueType::F32,         F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve, A::ContourSet]), |_| super::property_engine::PropertyValue::F32(12.0)),
+    schema!("max_height",    ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::MaxHeight,           None,                             Applicable::SizedActors, |_| super::property_engine::PropertyValue::F32(f32::INFINITY)),
     schema!("max_value",     ValueType::F32,       F::empty(),                   ActorField::NoStorage,              None,                             Applicable::ActorKinds(&[A::BarChart]), |_| super::property_engine::PropertyValue::F32(0.0)),
-    schema!("max_width",     ValueType::F32,         F::ASSIGNABLE,                ActorField::MaxWidth,            None,                             Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]), |_| super::property_engine::PropertyValue::F32(0.0)),
+    schema!("max_width",     ValueType::F32,         F::ASSIGNABLE,                ActorField::TextMaxWidth,        None,                             Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]), |_| super::property_engine::PropertyValue::F32(0.0)),
+    schema!("min_height",    ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::MinHeight,           None,                             Applicable::SizedActors, |_| super::property_engine::PropertyValue::F32(0.0)),
+    schema!("min_width",     ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::MinWidth,            None,                             Applicable::SizedActors, |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("offset",        ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::PositionBindingGroup, Some(GroupMembership { group_id: GroupHandlerId::PositionBinding }), Applicable::Everything, |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0]), ReadSource::None_),
     schema!("opacity",       ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::Opacity,             None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("overflow",       ValueType::String,      F::ASSIGNABLE,                ActorField::Overflow,            None,                             Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]), |_| super::property_engine::PropertyValue::String("visible".to_string())),

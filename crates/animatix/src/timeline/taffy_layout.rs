@@ -26,6 +26,179 @@ use taffy::prelude::*;
 use crate::timeline::layout::ChildExtent;
 use crate::timeline::LayoutType;
 
+/// Describes how a single dimension (width or height) of a child should be sized.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SizeSpec {
+    /// Fixed absolute size in logical pixels.
+    Fixed(f32),
+    /// Percentage of the parent's content box dimension (0.0–1.0).
+    Percent(f32),
+    /// Auto / intrinsic — size from content (container shrink-wrap).
+    Auto,
+    /// Fill — 100% of the parent's content box (same as Percent(1.0)).
+    Fill,
+    /// Fit-content — size to content, clamped by available space.
+    Fit,
+}
+
+impl SizeSpec {
+    /// Resolve this SizeSpec against a parent dimension (content box size).
+    pub fn resolve(&self, parent_dim: f32) -> Dimension {
+        match self {
+            SizeSpec::Fixed(v) => Dimension::length(*v),
+            SizeSpec::Percent(pct) => Dimension::percent(*pct),
+            SizeSpec::Auto | SizeSpec::Fit => Dimension::Auto,
+            SizeSpec::Fill => Dimension::percent(1.0),
+        }
+    }
+
+    /// Resolve to an absolute pixel value, given the parent content box size.
+    pub fn resolve_absolute(&self, parent_dim: f32) -> f32 {
+        match self {
+            SizeSpec::Fixed(v) => *v,
+            SizeSpec::Percent(pct) => parent_dim * pct,
+            SizeSpec::Fill => parent_dim,
+            SizeSpec::Auto | SizeSpec::Fit => 0.0, // unresolved
+        }
+    }
+}
+
+/// Full size specification for a child node (width and height).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ChildSizeSpec {
+    /// Width specification.
+    pub width: SizeSpec,
+    /// Height specification.
+    pub height: SizeSpec,
+}
+
+impl ChildSizeSpec {
+    /// Create a fixed size spec from half-extents (legacy).
+    pub fn fixed(half_size: [f32; 2]) -> Self {
+        Self {
+            width: SizeSpec::Fixed(half_size[0] * 2.0),
+            height: SizeSpec::Fixed(half_size[1] * 2.0),
+        }
+    }
+
+    /// Create a size spec from percentage strings (e.g. "50%") and auto.
+    pub fn from_parts(w_spec: SizeSpec, h_spec: SizeSpec) -> Self {
+        Self { width: w_spec, height: h_spec }
+    }
+
+    /// Return true if both dimensions are fixed absolute sizes.
+    pub fn is_fixed(&self) -> bool {
+        matches!(self.width, SizeSpec::Fixed(_)) && matches!(self.height, SizeSpec::Fixed(_))
+    }
+}
+
+/// Parse a single dimension expression (Expr) into a SizeSpec.
+/// Supports: numeric literal (fixed), string "50%" (percent), "auto", "fill", "fit", and ident auto/fill/fit.
+pub fn parse_dimension_spec(expr: &crate::ast::Expr) -> SizeSpec {
+    use crate::ast::Expr;
+    match expr {
+        Expr::Num(n) => SizeSpec::Fixed(*n as f32),
+        Expr::Str(s) => {
+            if let Some(pct_str) = s.strip_suffix('%') {
+                if let Ok(pct) = pct_str.parse::<f32>() {
+                    return SizeSpec::Percent(pct / 100.0);
+                }
+            }
+            match s.as_str() {
+                "auto" => SizeSpec::Auto,
+                "fill" => SizeSpec::Fill,
+                "fit" => SizeSpec::Fit,
+                _ => SizeSpec::Auto,
+            }
+        },
+        Expr::Ident(s) => {
+            match s.as_str() {
+                "auto" => SizeSpec::Auto,
+                "fill" => SizeSpec::Fill,
+                "fit" => SizeSpec::Fit,
+                _ => SizeSpec::Auto,
+            }
+        },
+        _ => SizeSpec::Auto,
+    }
+}
+
+/// Parse a `size` property expression into a ChildSizeSpec.
+/// Supports: `(width, height)`, `fill`, `auto`, `fit`.
+pub fn parse_size_spec(expr: &crate::ast::Expr) -> ChildSizeSpec {
+    use crate::ast::Expr;
+    match expr {
+        Expr::Tuple(items) if items.len() == 2 => {
+            ChildSizeSpec::from_parts(
+                parse_dimension_spec(&items[0]),
+                parse_dimension_spec(&items[1]),
+            )
+        },
+        // Single value: `size: fill`, `size: auto`, `size: fit`
+        Expr::Str(s) => {
+            match s.as_str() {
+                "fill" => ChildSizeSpec::from_parts(SizeSpec::Fill, SizeSpec::Auto),
+                "auto" | "fit" => ChildSizeSpec::from_parts(SizeSpec::Auto, SizeSpec::Auto),
+                _ => ChildSizeSpec::fixed(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE),
+            }
+        },
+        Expr::Ident(s) => {
+            match s.as_str() {
+                "fill" => ChildSizeSpec::from_parts(SizeSpec::Fill, SizeSpec::Auto),
+                "auto" | "fit" => ChildSizeSpec::from_parts(SizeSpec::Auto, SizeSpec::Auto),
+                _ => ChildSizeSpec::fixed(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE),
+            }
+        },
+        _ => ChildSizeSpec::fixed(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE),
+    }
+}
+
+/// Constraints for min/max size clamping.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct SizeConstraints {
+    /// Minimum width in logical pixels.
+    pub min_width: Option<f32>,
+    /// Maximum width in logical pixels.
+    pub max_width: Option<f32>,
+    /// Minimum height in logical pixels.
+    pub min_height: Option<f32>,
+    /// Maximum height in logical pixels.
+    pub max_height: Option<f32>,
+}
+
+fn build_child_style(
+    spec: Option<ChildSizeSpec>,
+    half_size: [f32; 2],
+    constraints: SizeConstraints,
+    parent_content_size: [f32; 2],
+) -> Style {
+    let spec = spec.unwrap_or_else(|| ChildSizeSpec::fixed(half_size));
+    
+    Style {
+        size: Size {
+            width: spec.width.resolve(parent_content_size[0]),
+            height: spec.height.resolve(parent_content_size[1]),
+        },
+        min_size: Size {
+            width: constraints.min_width.map_or(Dimension::Auto, |v| {
+                if v == 0.0 { Dimension::Auto } else { Dimension::length(v) }
+            }),
+            height: constraints.min_height.map_or(Dimension::Auto, |v| {
+                if v == 0.0 { Dimension::Auto } else { Dimension::length(v) }
+            }),
+        },
+        max_size: Size {
+            width: constraints.max_width.map_or(Dimension::Auto, |v| {
+                if v.is_infinite() || v.is_nan() { Dimension::Auto } else { Dimension::length(v) }
+            }),
+            height: constraints.max_height.map_or(Dimension::Auto, |v| {
+                if v.is_infinite() || v.is_nan() { Dimension::Auto } else { Dimension::length(v) }
+            }),
+        },
+        ..Default::default()
+    }
+}
+
 fn fixed_leaf_style(half_size: [f32; 2]) -> Style {
     Style {
         size: Size {
@@ -171,6 +344,97 @@ pub fn compute_taffy_linear_layout_with_baselines(
     TaffyLayoutOutput { positions, container_size }
 }
 
+/// Like `compute_taffy_linear_layout_with_baselines` but supports child size specs and constraints.
+pub fn compute_taffy_linear_layout_with_specs(
+    children: &[ChildExtent],
+    layout_type: LayoutType,
+    gap: [f32; 2],
+    padding: [f32; 4],
+    align: &str,
+    child_baselines: &[f32],
+    vertical_align: &str,
+    size_specs: &[Option<ChildSizeSpec>],
+    constraints: &[SizeConstraints],
+    parent_content_size: [f32; 2],
+) -> TaffyLayoutOutput {
+    debug_assert!(layout_type == LayoutType::Row || layout_type == LayoutType::Col);
+
+    if children.is_empty() {
+        return TaffyLayoutOutput {
+            positions: Vec::new(),
+            container_size: [0.0, 0.0],
+        };
+    }
+
+    let mut taffy: TaffyTree<()> = TaffyTree::new();
+    let mut child_nodes: Vec<NodeId> = Vec::with_capacity(children.len());
+
+    for (i, child) in children.iter().enumerate() {
+        let spec = size_specs.get(i).copied().flatten();
+        let cons = constraints.get(i).copied().unwrap_or_default();
+        let style = build_child_style(spec, child.half_size, cons, parent_content_size);
+        let node = taffy.new_leaf(style).expect("taffy new_leaf should succeed");
+        child_nodes.push(node);
+    }
+
+    let container_style = Style {
+        display: Display::Flex,
+        flex_direction: if layout_type == LayoutType::Row {
+            FlexDirection::Row
+        } else {
+            FlexDirection::Column
+        },
+        align_items: Some(match align {
+            "start" => AlignItems::Start,
+            "end" => AlignItems::End,
+            _ => AlignItems::Center,
+        }),
+        gap: Size {
+            width: LengthPercentage::length(gap[0]),
+            height: LengthPercentage::length(gap[1]),
+        },
+        padding: Rect {
+            left: LengthPercentage::length(padding[0]),
+            right: LengthPercentage::length(padding[2]),
+            top: LengthPercentage::length(padding[1]),
+            bottom: LengthPercentage::length(padding[3]),
+        },
+        ..Default::default()
+    };
+
+    let container_node = taffy.new_with_children(container_style, &child_nodes).expect("taffy new_with_children should succeed");
+    taffy.compute_layout(container_node, Size::MAX_CONTENT).expect("taffy compute_layout should succeed");
+
+    let container_layout = taffy.layout(container_node).expect("taffy layout should exist");
+    let container_size = [container_layout.size.width, container_layout.size.height];
+    let mut positions: Vec<TaffyLayoutResult> = children
+        .iter()
+        .zip(child_nodes)
+        .map(|(_child, node)| {
+            let child_layout = taffy.layout(node).expect("taffy layout should exist");
+            TaffyLayoutResult {
+                position: center_relative_position(container_layout, child_layout),
+            }
+        })
+        .collect();
+
+    // Baseline alignment (same as above)
+    if vertical_align == "baseline" && !child_baselines.is_empty() && child_baselines.len() >= positions.len() {
+        let child_baseline_ys: Vec<f64> = positions.iter().zip(child_baselines.iter()).map(|(pos, bl)| {
+            pos.position[1] as f64 + *bl as f64
+        }).collect();
+        let max_baseline_y = child_baseline_ys.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        for (i, pos) in positions.iter_mut().enumerate() {
+            if i < child_baselines.len() {
+                let adjustment = max_baseline_y - (pos.position[1] as f64 + child_baselines[i] as f64);
+                pos.position[1] += adjustment as f32;
+            }
+        }
+    }
+
+    TaffyLayoutOutput { positions, container_size }
+}
+
 /// Compute layout using Taffy for Grid containers.
 pub fn compute_taffy_grid_layout(
     children: &[ChildExtent],
@@ -262,6 +526,109 @@ pub fn compute_taffy_grid_layout(
     for (i, _child) in children.iter().enumerate() {
         let child_layout = taffy.layout(child_nodes[i]).expect("taffy layout should exist for computed grid child node");
 
+        results.push(TaffyLayoutResult {
+            position: center_relative_position(container_layout, child_layout),
+        });
+    }
+
+    TaffyLayoutOutput { positions: results, container_size }
+}
+
+/// Compute layout for Grid containers with size specs and constraints.
+pub fn compute_taffy_grid_layout_with_specs(
+    children: &[ChildExtent],
+    gap: [f32; 2],
+    padding: [f32; 4],
+    cols: usize,
+    size_specs: &[Option<ChildSizeSpec>],
+    constraints: &[SizeConstraints],
+    parent_content_size: [f32; 2],
+) -> TaffyLayoutOutput {
+    if children.is_empty() {
+        return TaffyLayoutOutput {
+            positions: Vec::new(),
+            container_size: [0.0, 0.0],
+        };
+    }
+
+    let cols = cols.max(1);
+    let rows = children.len().div_ceil(cols);
+
+    let mut taffy: TaffyTree<()> = TaffyTree::new();
+
+    let mut child_nodes: Vec<NodeId> = Vec::with_capacity(children.len());
+    for (i, child) in children.iter().enumerate() {
+        let spec = size_specs.get(i).copied().flatten();
+        let cons = constraints.get(i).copied().unwrap_or_default();
+        let style = build_child_style(spec, child.half_size, cons, parent_content_size);
+        let node = taffy.new_leaf(style).expect("taffy new_leaf should succeed");
+        child_nodes.push(node);
+    }
+
+    // Compute column widths and row heights
+    let (col_widths, row_heights) = compute_grid_tracks(children, cols, rows);
+
+    // Use Auto for container sizing to allow shrink-wrap
+    let col_template: Vec<GridTemplateComponent<String>> = (0..cols)
+        .map(|_| GridTemplateComponent::from_length(
+            col_widths.get(cols.min(cols.max(1)) - 1).copied().unwrap_or(0.0).max(1.0)
+        ))
+        .collect::<Vec<_>>();
+    
+    // Actually build proper col templates from computed widths
+    let col_template: Vec<GridTemplateComponent<String>> = col_widths
+        .iter()
+        .map(|&w| GridTemplateComponent::from_length(w.max(1.0)))
+        .collect();
+    let row_template: Vec<GridTemplateComponent<String>> = row_heights
+        .iter()
+        .map(|&h| GridTemplateComponent::from_length(h.max(1.0)))
+        .collect();
+
+    let container_style = Style {
+        display: Display::Grid,
+        grid_template_columns: col_template,
+        grid_template_rows: row_template,
+        gap: Size {
+            width: LengthPercentage::length(gap[0]),
+            height: LengthPercentage::length(gap[1]),
+        },
+        padding: Rect {
+            left: LengthPercentage::length(padding[0]),
+            right: LengthPercentage::length(padding[2]),
+            top: LengthPercentage::length(padding[1]),
+            bottom: LengthPercentage::length(padding[3]),
+        },
+        ..Default::default()
+    };
+
+    let container_node = taffy.new_leaf(container_style).expect("taffy new_leaf should succeed");
+
+    for (i, child_node) in child_nodes.iter().enumerate() {
+        taffy.add_child(container_node, *child_node).expect("taffy add_child should succeed");
+        let row = i / cols;
+        let col = i % cols;
+        taffy.set_style(
+            *child_node,
+            Style {
+                grid_row: line((row + 1) as i16),
+                grid_column: line((col + 1) as i16),
+                ..Default::default()
+            },
+        )
+        .expect("taffy set_style should succeed");
+    }
+
+    taffy
+        .compute_layout(container_node, Size::MAX_CONTENT)
+        .expect("taffy compute_layout should succeed for grid");
+
+    let container_layout = taffy.layout(container_node).expect("taffy layout should exist");
+    let container_size = [container_layout.size.width, container_layout.size.height];
+    let mut results: Vec<TaffyLayoutResult> = Vec::with_capacity(children.len());
+
+    for (i, _child) in children.iter().enumerate() {
+        let child_layout = taffy.layout(child_nodes[i]).expect("taffy layout should exist");
         results.push(TaffyLayoutResult {
             position: center_relative_position(container_layout, child_layout),
         });
@@ -648,5 +1015,168 @@ mod tests {
         // With empty baselines, should fall back to center
         assert!((baseline_output.positions[0].position[1]).abs() < 0.01);
         assert!((baseline_output.positions[1].position[1]).abs() < 0.01);
+    }
+
+    // ── Phase 7: SizeSpec and constraints tests ──
+
+    #[test]
+    fn test_size_spec_fixed() {
+        let spec = ChildSizeSpec::fixed([50.0, 30.0]);
+        assert_eq!(spec.width, SizeSpec::Fixed(100.0));
+        assert_eq!(spec.height, SizeSpec::Fixed(60.0));
+        assert!(spec.is_fixed());
+    }
+
+    #[test]
+    fn test_size_spec_percent() {
+        let spec = ChildSizeSpec::from_parts(SizeSpec::Percent(0.5), SizeSpec::Percent(0.75));
+        assert!(!spec.is_fixed());
+        assert_eq!(spec.width.resolve(200.0), Dimension::Percent(0.5));
+        assert_eq!(spec.height.resolve(200.0), Dimension::Percent(0.75));
+        // Resolve absolute
+        assert!((spec.width.resolve_absolute(200.0) - 100.0).abs() < 0.001);
+        assert!((spec.height.resolve_absolute(200.0) - 150.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_size_spec_fill() {
+        let spec = ChildSizeSpec::from_parts(SizeSpec::Fill, SizeSpec::Auto);
+        assert_eq!(spec.width, SizeSpec::Fill);
+        assert_eq!(spec.height, SizeSpec::Auto);
+        assert_eq!(spec.width.resolve(200.0), Dimension::Percent(1.0));
+        assert_eq!(spec.height.resolve(200.0), Dimension::Auto);
+    }
+
+    #[test]
+    fn test_parse_dimension_spec() {
+        use crate::ast::Expr;
+        // Numeric
+        assert_eq!(parse_dimension_spec(&Expr::Num(100.0)), SizeSpec::Fixed(100.0));
+        // Percentage string
+        assert_eq!(parse_dimension_spec(&Expr::Str("50%".into())), SizeSpec::Percent(0.5));
+        assert_eq!(parse_dimension_spec(&Expr::Str("30%".into())), SizeSpec::Percent(0.3));
+        // Keywords (string)
+        assert_eq!(parse_dimension_spec(&Expr::Str("auto".into())), SizeSpec::Auto);
+        assert_eq!(parse_dimension_spec(&Expr::Str("fill".into())), SizeSpec::Fill);
+        assert_eq!(parse_dimension_spec(&Expr::Str("fit".into())), SizeSpec::Fit);
+        // Keywords (ident)
+        assert_eq!(parse_dimension_spec(&Expr::Ident("auto".into())), SizeSpec::Auto);
+        assert_eq!(parse_dimension_spec(&Expr::Ident("fill".into())), SizeSpec::Fill);
+        assert_eq!(parse_dimension_spec(&Expr::Ident("fit".into())), SizeSpec::Fit);
+    }
+
+    #[test]
+    fn test_parse_size_spec() {
+        use crate::ast::Expr;
+        // size: (50%, auto)
+        let expr = Expr::Tuple(vec![
+            Expr::Str("50%".into()),
+            Expr::Ident("auto".into()),
+        ]);
+        let spec = parse_size_spec(&expr);
+        assert_eq!(spec.width, SizeSpec::Percent(0.5));
+        assert_eq!(spec.height, SizeSpec::Auto);
+
+        // size: (100, 200) — fixed tuple
+        let expr = Expr::Tuple(vec![
+            Expr::Num(100.0),
+            Expr::Num(200.0),
+        ]);
+        let spec = parse_size_spec(&expr);
+        assert_eq!(spec.width, SizeSpec::Fixed(100.0));
+        assert_eq!(spec.height, SizeSpec::Fixed(200.0));
+
+        // size: fill
+        let spec = parse_size_spec(&Expr::Ident("fill".into()));
+        assert_eq!(spec.width, SizeSpec::Fill);
+        assert_eq!(spec.height, SizeSpec::Auto);
+
+        // size: auto
+        let spec = parse_size_spec(&Expr::Ident("auto".into()));
+        assert_eq!(spec.width, SizeSpec::Auto);
+        assert_eq!(spec.height, SizeSpec::Auto);
+    }
+
+    #[test]
+    fn test_linear_layout_with_percent_spec() {
+        // Create two children: one with 50% width, one with fill
+        // in a Row. The parent content size is 400px.
+        let children = vec![
+            make_child("a", 50.0, 50.0, PlacementMode::LayoutManaged),
+            make_child("b", 50.0, 50.0, PlacementMode::LayoutManaged),
+        ];
+        let specs = vec![
+            Some(ChildSizeSpec::from_parts(SizeSpec::Percent(0.5), SizeSpec::Fixed(50.0))),
+            Some(ChildSizeSpec::from_parts(SizeSpec::Fill, SizeSpec::Fixed(50.0))),
+        ];
+        let constraints = vec![SizeConstraints::default(), SizeConstraints::default()];
+
+        let output = compute_taffy_linear_layout_with_specs(
+            &children, LayoutType::Row, [0.0, 0.0], [0.0, 0.0, 0.0, 0.0], "start",
+            &[], "center", &specs, &constraints, [400.0, 100.0],
+        );
+
+        // With 50% + Fill in a row with no gap: a gets 200px, b gets 200px
+        assert_eq!(output.positions.len(), 2);
+        // Container size should be 400 x 50
+        let container_w = output.container_size[0];
+        assert!((container_w - 400.0).abs() < 1.0, "Container width expected ~400, got {}", container_w);
+        assert!((output.container_size[1] - 50.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn test_linear_layout_with_constraints() {
+        let children = vec![
+            make_child("a", 200.0, 50.0, PlacementMode::LayoutManaged),
+        ];
+        let specs = vec![None];
+        let constraints = vec![SizeConstraints {
+            min_width: None,
+            max_width: Some(100.0),
+            min_height: Some(50.0),
+            max_height: None,
+        }];
+
+        let output = compute_taffy_linear_layout_with_specs(
+            &children, LayoutType::Row, [0.0, 0.0], [0.0, 0.0, 0.0, 0.0], "start",
+            &[], "center", &specs, &constraints, [500.0, 100.0],
+        );
+
+        // Child a wants 200px width, but max_width is 100px, so it should be clamped
+        assert!((output.container_size[0] - 100.0).abs() < 1.0,
+            "Container width expected ~100 (clamped by max), got {}", output.container_size[0]);
+    }
+
+    #[test]
+    fn test_grid_layout_with_specs() {
+        let children = vec![
+            make_child("a", 100.0, 50.0, PlacementMode::LayoutManaged),
+            make_child("b", 100.0, 50.0, PlacementMode::LayoutManaged),
+            make_child("c", 100.0, 50.0, PlacementMode::LayoutManaged),
+        ];
+        let specs = vec![None, None, None];
+        let constraints = vec![
+            SizeConstraints::default(),
+            SizeConstraints::default(),
+            SizeConstraints { min_width: Some(150.0), ..SizeConstraints::default() },
+        ];
+
+        let output = compute_taffy_grid_layout_with_specs(
+            &children, [0.0, 0.0], [0.0, 0.0, 0.0, 0.0], 2,
+            &specs, &constraints, [500.0, 200.0],
+        );
+
+        assert_eq!(output.positions.len(), 3);
+        // Container should fit all 3 children: cols=2, rows=2
+        assert!(output.container_size[0] > 0.0);
+    }
+
+    #[test]
+    fn test_constraints_default() {
+        let c = SizeConstraints::default();
+        assert_eq!(c.min_width, None);
+        assert_eq!(c.max_width, None);
+        assert_eq!(c.min_height, None);
+        assert_eq!(c.max_height, None);
     }
 }

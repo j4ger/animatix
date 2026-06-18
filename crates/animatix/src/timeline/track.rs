@@ -656,7 +656,7 @@ pub struct AnimationTrack {
     /// Word spacing in points.
     pub word_spacing: Option<PropertyTrack<f32>>,
     /// Max width for text wrapping (0 = no wrap).
-    pub max_width: Option<PropertyTrack<f32>>,
+    pub text_max_width: Option<PropertyTrack<f32>>,
     /// Text alignment ("left", "center", "right", "justify").
     pub text_align: Option<PropertyTrack<String>>,
     /// Overflow behavior ("visible", "clip", "ellipsis").
@@ -681,6 +681,18 @@ pub struct AnimationTrack {
     // ── Layout ──
     /// Size allocated by the layout system.
     pub layout_size: Option<PropertyTrack<[f32; 2]>>,
+
+    // ── Min/Max constraints (Phase 7: percentage & intrinsic sizing) ──
+    /// Minimum width constraint.
+    pub min_width: Option<PropertyTrack<f32>>,
+    /// Maximum width constraint (for layout sizing, distinct from text max_width).
+    pub max_width: Option<PropertyTrack<f32>>,
+    /// Minimum height constraint.
+    pub min_height: Option<PropertyTrack<f32>>,
+    /// Maximum height constraint.
+    pub max_height: Option<PropertyTrack<f32>>,
+    /// Size specification for percentage/auto/fill sizing (non-animated, set at build time).
+    pub size_spec: Option<crate::timeline::taffy_layout::ChildSizeSpec>,
 
     // ── Procedural plot (re-sampled at frame time) ──
     /// Procedural plot generator, re-sampled each frame.
@@ -764,7 +776,7 @@ impl AnimationTrack {
             line_height: None,
             letter_spacing: None,
             word_spacing: None,
-            max_width: None,
+            text_max_width: None,
             text_align: None,
             overflow: None,
             text_paths: None,
@@ -778,6 +790,13 @@ impl AnimationTrack {
 
             // Layout flat fields
             layout_size: None,
+
+            // Min/Max constraints (Phase 7)
+            min_width: None,
+            max_width: None,
+            min_height: None,
+            max_height: None,
+            size_spec: None,
 
             // Procedural plot
             procedural_plot: None,
@@ -878,13 +897,17 @@ impl AnimationTrack {
             self.font_weight.last_time(), self.font_style.last_time(),
             self.line_height.last_time(), self.letter_spacing.last_time(),
             self.word_spacing.last_time(),
-            self.max_width.last_time(),
+            self.text_max_width.last_time(),
             self.text_align.last_time(),
             self.overflow.last_time(),
             self.filter_blur.last_time(), self.filter_brightness.last_time(),
             self.filter_contrast.last_time(), self.filter_saturate.last_time(),
             self.filter_hue_rotate.last_time(), self.filter_sepia.last_time(),
             self.head_size.last_time(),
+            self.min_width.last_time(),
+            self.max_width.last_time(),
+            self.min_height.last_time(),
+            self.max_height.last_time(),
         ];
         // Include plot parameter tracks
         for param_track in self.plot_param_tracks.values() {
@@ -912,13 +935,15 @@ impl AnimationTrack {
             || check!(self.font_family) || check!(self.font_size)
             || check!(self.font_weight) || check!(self.font_style)
             || check!(self.line_height) || check!(self.letter_spacing)
-            || check!(self.word_spacing) || check!(self.max_width)
+            || check!(self.word_spacing) || check!(self.text_max_width)
             || check!(self.text_align) || check!(self.overflow) || check!(self.text_paths)
             || check!(self.image)
             || check!(self.filter_blur) || check!(self.filter_brightness)
             || check!(self.filter_contrast) || check!(self.filter_saturate)
             || check!(self.filter_hue_rotate) || check!(self.filter_sepia)
             || check!(self.head_size)
+            || check!(self.min_width) || check!(self.max_width)
+            || check!(self.min_height) || check!(self.max_height)
             || self.plot_param_tracks.values().any(|t| !t.is_effectively_static())
     }
 }
@@ -1267,7 +1292,7 @@ impl AnimationTrack {
             "line_height" => ActorField::LineHeight,
             "letter_spacing" => ActorField::LetterSpacing,
             "word_spacing" => ActorField::WordSpacing,
-            "max_width" => ActorField::MaxWidth,
+            "max_width" => ActorField::TextMaxWidth,
             "text_align" => ActorField::TextAlign,
             "overflow" => ActorField::Overflow,
             "placement_mode" => ActorField::PlacementMode,
@@ -1330,7 +1355,7 @@ impl AnimationTrack {
             "line_height" => ActorField::LineHeight,
             "letter_spacing" => ActorField::LetterSpacing,
             "word_spacing" => ActorField::WordSpacing,
-            "max_width" => ActorField::MaxWidth,
+            "max_width" => ActorField::TextMaxWidth,
             "text_align" => ActorField::TextAlign,
             "overflow" => ActorField::Overflow,
             "placement_mode" => ActorField::PlacementMode,
@@ -1394,7 +1419,7 @@ impl AnimationTrack {
             "line_height" => ActorField::LineHeight,
             "letter_spacing" => ActorField::LetterSpacing,
             "word_spacing" => ActorField::WordSpacing,
-            "max_width" => ActorField::MaxWidth,
+            "max_width" => ActorField::TextMaxWidth,
             "text_align" => ActorField::TextAlign,
             "overflow" => ActorField::Overflow,
             "placement_mode" => ActorField::PlacementMode,
