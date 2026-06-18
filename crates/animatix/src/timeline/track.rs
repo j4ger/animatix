@@ -1089,6 +1089,15 @@ pub enum TrackFieldRef<'a> {
     PlacementMode(&'a Option<PropertyTrack<PlacementMode>>),
     /// Morph options property track.
     MorphOptions(&'a Option<PropertyTrack<MorphOptions>>),
+    /// Vector paths property track.
+    VectorPaths(&'a Option<PropertyTrack<Vec<VelloPath>>>),
+    /// Text paths property track.
+    TextPaths(&'a Option<PropertyTrack<Vec<TextPath>>>),
+    /// Raster image data track (cfg-gated on "render").
+    #[cfg(feature = "render")]
+    Image(&'a Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>),
+    /// Position binding property track.
+    PositionBinding(&'a Option<PropertyTrack<PositionBinding>>),
 }
 
 /// Mutable reference to a track field, abstracting over the value type.
@@ -1115,6 +1124,145 @@ pub enum TrackFieldMut<'a> {
     PlacementMode(&'a mut Option<PropertyTrack<PlacementMode>>),
     /// Morph options property track.
     MorphOptions(&'a mut Option<PropertyTrack<MorphOptions>>),
+    /// Vector paths property track.
+    VectorPaths(&'a mut Option<PropertyTrack<Vec<VelloPath>>>),
+    /// Text paths property track.
+    TextPaths(&'a mut Option<PropertyTrack<Vec<TextPath>>>),
+    /// Raster image data track (cfg-gated on "render").
+    #[cfg(feature = "render")]
+    Image(&'a mut Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>),
+    /// Position binding property track.
+    PositionBinding(&'a mut Option<PropertyTrack<PositionBinding>>),
+}
+
+// ─────────────────────────────────────────────────────────────
+// TrackFieldRef convenience methods
+// ─────────────────────────────────────────────────────────────
+
+impl<'a> TrackFieldRef<'a> {
+    /// Evaluate the track value at `time_ms`, returning the result as a `PropertyValue`.
+    /// Returns `None` for types that cannot be represented as `PropertyValue`.
+    pub fn evaluate_value(&self, time_ms: u64) -> Option<crate::timeline::property_engine::PropertyValue> {
+        match self {
+            Self::F32(opt) => opt.as_ref().map(|pt| crate::timeline::property_engine::PropertyValue::F32(pt.evaluate_copy(time_ms))),
+            Self::Vec2(opt) => opt.as_ref().map(|pt| crate::timeline::property_engine::PropertyValue::Vec2(pt.evaluate_copy(time_ms))),
+            Self::Vec4(opt) => opt.as_ref().map(|pt| crate::timeline::property_engine::PropertyValue::Color(pt.evaluate_copy(time_ms))),
+            Self::Transform(opt) => opt.as_ref().map(|pt| crate::timeline::property_engine::PropertyValue::Transform(pt.evaluate_copy(time_ms))),
+            Self::U32(opt) => opt.as_ref().map(|pt| crate::timeline::property_engine::PropertyValue::U32(pt.evaluate_copy(time_ms))),
+            Self::ShapeType(opt) => opt.as_ref().map(|pt| crate::timeline::property_engine::PropertyValue::U32(shape_type_to_u32(pt.evaluate_copy(time_ms)))),
+            Self::PlacementMode(opt) => opt.as_ref().map(|pt| crate::timeline::property_engine::PropertyValue::PlacementMode(pt.evaluate_copy(time_ms))),
+            Self::MorphOptions(opt) => opt.as_ref().map(|pt| crate::timeline::property_engine::PropertyValue::MorphOptions(pt.evaluate_copy(time_ms))),
+            Self::String(opt) => opt.as_ref().map(|pt| crate::timeline::property_engine::PropertyValue::String(pt.evaluate(time_ms))),
+            Self::PointList(opt) => opt.as_ref().map(|pt| crate::timeline::property_engine::PropertyValue::PointList(pt.evaluate(time_ms))),
+            Self::CommandList(opt) => opt.as_ref().map(|pt| crate::timeline::property_engine::PropertyValue::CommandList(pt.evaluate(time_ms))),
+            Self::VectorPaths(_) | Self::TextPaths(_)
+            | Self::PositionBinding(_) => None,
+            #[cfg(feature = "render")]
+            Self::Image(_) => None,
+        }
+    }
+
+    /// Returns `true` if this track has a keyframe at exactly `time_ms`.
+    pub fn has_keyframe_at(&self, time_ms: u64) -> bool {
+        match self {
+            Self::F32(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::Vec2(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::Vec4(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::Transform(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::String(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::U32(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::PointList(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::CommandList(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::ShapeType(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::PlacementMode(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::MorphOptions(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::VectorPaths(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::TextPaths(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            #[cfg(feature = "render")]
+            Self::Image(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::PositionBinding(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+        }
+    }
+
+    /// Returns the number of keyframes in this track.
+    pub fn keyframe_count(&self) -> usize {
+        match self {
+            Self::F32(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::Vec2(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::Vec4(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::Transform(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::String(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::U32(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::PointList(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::CommandList(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::ShapeType(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::PlacementMode(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::MorphOptions(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::VectorPaths(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::TextPaths(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            #[cfg(feature = "render")]
+            Self::Image(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::PositionBinding(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+        }
+    }
+
+    /// Returns all keyframe timestamps (ms), sorted.
+    pub fn keyframe_times(&self) -> Vec<u64> {
+        match self {
+            Self::F32(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::Vec2(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::Vec4(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::Transform(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::String(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::U32(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::PointList(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::CommandList(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::ShapeType(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::PlacementMode(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::MorphOptions(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::VectorPaths(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::TextPaths(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            #[cfg(feature = "render")]
+            Self::Image(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::PositionBinding(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+        }
+    }
+
+    /// Returns the easing at a specific keyframe time, if one exists.
+    pub fn keyframe_easing(&self, time_ms: u64) -> Option<Easing> {
+        match self {
+            Self::F32(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::Vec2(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::Vec4(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::Transform(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::String(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::U32(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::PointList(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::CommandList(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::ShapeType(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::PlacementMode(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::MorphOptions(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::VectorPaths(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::TextPaths(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            #[cfg(feature = "render")]
+            Self::Image(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::PositionBinding(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+        }
+    }
+}
+
+/// Helper: convert a `ShapeType` to its `u32` representation.
+fn shape_type_to_u32(st: ShapeType) -> u32 {
+    match st {
+        ShapeType::Rect => 0,
+        ShapeType::Ellipse => 1,
+        ShapeType::Line => 2,
+        ShapeType::Polygon => 3,
+        ShapeType::Path => 4,
+        ShapeType::Graph => 5,
+        ShapeType::Plot => 6,
+        ShapeType::Arrow => 7,
+    }
 }
 
 impl AnimationTrack {
@@ -1173,7 +1321,17 @@ impl AnimationTrack {
             MinWidth => TrackFieldRef::F32(&self.min_width),
             MinHeight => TrackFieldRef::F32(&self.min_height),
             MaxHeight => TrackFieldRef::F32(&self.max_height),
-            _ => return None,
+            VectorPaths => TrackFieldRef::VectorPaths(&self.vector_paths),
+            TextPaths => TrackFieldRef::TextPaths(&self.text_paths),
+            #[cfg(feature = "render")]
+            ImageData => TrackFieldRef::Image(&self.image),
+            #[cfg(not(feature = "render"))]
+            ImageData => return None,
+            PositionBinding => TrackFieldRef::PositionBinding(&self.position_binding),
+            // Remaining variants without track storage
+            SvgPaths | AudioSource | AudioVolume
+            | PositionBindingGroup | VectorShapeGroup | PlotDomainGroup
+            | ContainerLayoutGroup | NoStorage => return None,
         })
     }
 
@@ -1232,6 +1390,13 @@ impl AnimationTrack {
             MinWidth => TrackFieldMut::F32(&mut self.min_width),
             MinHeight => TrackFieldMut::F32(&mut self.min_height),
             MaxHeight => TrackFieldMut::F32(&mut self.max_height),
+            VectorPaths => TrackFieldMut::VectorPaths(&mut self.vector_paths),
+            TextPaths => TrackFieldMut::TextPaths(&mut self.text_paths),
+            #[cfg(feature = "render")]
+            ImageData => TrackFieldMut::Image(&mut self.image),
+            #[cfg(not(feature = "render"))]
+            ImageData => return None,
+            PositionBinding => TrackFieldMut::PositionBinding(&mut self.position_binding),
             _ => return None,
         })
     }
@@ -1256,6 +1421,11 @@ impl AnimationTrack {
             TrackFieldRef::ShapeType(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
             TrackFieldRef::PlacementMode(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
             TrackFieldRef::MorphOptions(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::VectorPaths(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::TextPaths(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            #[cfg(feature = "render")]
+            TrackFieldRef::Image(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::PositionBinding(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
         })
     }
 
@@ -1306,20 +1476,7 @@ impl AnimationTrack {
             _ => return false,
         };
 
-        match self.field_ref(field) {
-            Some(TrackFieldRef::F32(track)) => track.has_keyframe_at(time_ms),
-            Some(TrackFieldRef::Vec2(track)) => track.has_keyframe_at(time_ms),
-            Some(TrackFieldRef::Vec4(track)) => track.has_keyframe_at(time_ms),
-            Some(TrackFieldRef::Transform(track)) => track.has_keyframe_at(time_ms),
-            Some(TrackFieldRef::String(track)) => track.has_keyframe_at(time_ms),
-            Some(TrackFieldRef::U32(track)) => track.has_keyframe_at(time_ms),
-            Some(TrackFieldRef::PointList(track)) => track.has_keyframe_at(time_ms),
-            Some(TrackFieldRef::CommandList(track)) => track.has_keyframe_at(time_ms),
-            Some(TrackFieldRef::ShapeType(track)) => track.has_keyframe_at(time_ms),
-            Some(TrackFieldRef::PlacementMode(track)) => track.has_keyframe_at(time_ms),
-            Some(TrackFieldRef::MorphOptions(track)) => track.has_keyframe_at(time_ms),
-            None => false,
-        }
+        self.field_ref(field).is_some_and(|f| f.has_keyframe_at(time_ms))
     }
 
     /// Check if the property has any keyframes at all (regardless of time).
@@ -1369,20 +1526,7 @@ impl AnimationTrack {
             _ => return false,
         };
 
-        match self.field_ref(field) {
-            Some(TrackFieldRef::F32(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
-            Some(TrackFieldRef::Vec2(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
-            Some(TrackFieldRef::Vec4(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
-            Some(TrackFieldRef::Transform(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
-            Some(TrackFieldRef::String(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
-            Some(TrackFieldRef::U32(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
-            Some(TrackFieldRef::PointList(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
-            Some(TrackFieldRef::CommandList(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
-            Some(TrackFieldRef::ShapeType(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
-            Some(TrackFieldRef::PlacementMode(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
-            Some(TrackFieldRef::MorphOptions(track)) => track.as_ref().is_some_and(|t| !t.keyframes.is_empty()),
-            None => false,
-        }
+        self.field_ref(field).is_some_and(|f| f.keyframe_count() > 0)
     }
 
     /// List all keyframe times (in ms) for the given property.
@@ -1433,20 +1577,7 @@ impl AnimationTrack {
             _ => return Vec::new(),
         };
 
-        let mut times: Vec<u64> = match self.field_ref(field) {
-            Some(TrackFieldRef::F32(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
-            Some(TrackFieldRef::Vec2(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
-            Some(TrackFieldRef::Vec4(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
-            Some(TrackFieldRef::Transform(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
-            Some(TrackFieldRef::String(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
-            Some(TrackFieldRef::U32(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
-            Some(TrackFieldRef::PointList(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
-            Some(TrackFieldRef::CommandList(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
-            Some(TrackFieldRef::ShapeType(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
-            Some(TrackFieldRef::PlacementMode(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
-            Some(TrackFieldRef::MorphOptions(track)) => track.as_ref().map(|t| t.keyframes.keys().copied().collect()).unwrap_or_default(),
-            None => Vec::new(),
-        };
+        let mut times: Vec<u64> = self.field_ref(field).map(|f| f.keyframe_times()).unwrap_or_default();
         times.sort_unstable();
         times.dedup();
         times

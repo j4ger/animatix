@@ -257,6 +257,11 @@ pub(crate) fn write_property_field(
             TrackFieldMut::PlacementMode(_) | TrackFieldMut::MorphOptions(_) => {}
             // ShapeType is handled in tier 1 above
             TrackFieldMut::ShapeType(_) => {}
+            // VectorPaths, TextPaths, PositionBinding — generated/cached at build time, no keyframing.
+            TrackFieldMut::VectorPaths(_) | TrackFieldMut::TextPaths(_) | TrackFieldMut::PositionBinding(_) => {}
+            // Image — generated/cached at build time, no keyframing.
+            #[cfg(feature = "render")]
+            TrackFieldMut::Image(_) => {}
         }
     }
 }
@@ -435,26 +440,7 @@ pub(crate) fn write_string(
 /// Read the current value of a property from a track at the given time.
 /// Returns `None` if the property has no track (not set on this actor).
 pub fn read_property_value(track: &AnimationTrack, field: ActorField, time_ms: u64) -> Option<PropertyValue> {
-    read_property_value_inner(track, field, time_ms)
-}
-
-fn read_property_value_inner(track: &AnimationTrack, field: ActorField, time_ms: u64) -> Option<PropertyValue> {
-    use crate::timeline::track::TrackFieldRef;
-    track.field_ref(field).and_then(|f| match f {
-        // Copy types — use evaluate_copy to avoid cloning
-        TrackFieldRef::F32(opt) => opt.as_ref().map(|pt| PropertyValue::F32(pt.evaluate_copy(time_ms))),
-        TrackFieldRef::Vec2(opt) => opt.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate_copy(time_ms))),
-        TrackFieldRef::Vec4(opt) => opt.as_ref().map(|pt| PropertyValue::Color(pt.evaluate_copy(time_ms))),
-        TrackFieldRef::Transform(opt) => opt.as_ref().map(|pt| PropertyValue::Transform(pt.evaluate_copy(time_ms))),
-        TrackFieldRef::U32(opt) => opt.as_ref().map(|pt| PropertyValue::U32(pt.evaluate_copy(time_ms))),
-        TrackFieldRef::ShapeType(opt) => opt.as_ref().map(|pt| PropertyValue::U32(shape_type_to_u32(pt.evaluate_copy(time_ms)))),
-        TrackFieldRef::PlacementMode(opt) => opt.as_ref().map(|pt| PropertyValue::PlacementMode(pt.evaluate_copy(time_ms))),
-        TrackFieldRef::MorphOptions(opt) => opt.as_ref().map(|pt| PropertyValue::MorphOptions(pt.evaluate_copy(time_ms))),
-        // Clone types — keep using evaluate
-        TrackFieldRef::String(opt) => opt.as_ref().map(|pt| PropertyValue::String(pt.evaluate(time_ms))),
-        TrackFieldRef::PointList(opt) => opt.as_ref().map(|pt| PropertyValue::PointList(pt.evaluate(time_ms))),
-        TrackFieldRef::CommandList(opt) => opt.as_ref().map(|pt| PropertyValue::CommandList(pt.evaluate(time_ms))),
-    })
+    track.field_ref(field).and_then(|f| f.evaluate_value(time_ms))
 }
 
 /// Read a property value, falling back to the schema default if the track
@@ -468,19 +454,6 @@ pub fn read_property_value_or_default(
         .unwrap_or_else(|| (schema.default_value)(track.kind))
 }
 
-fn shape_type_to_u32(st: ShapeType) -> u32 {
-    match st {
-        ShapeType::Rect => 0,
-        ShapeType::Ellipse => 1,
-        ShapeType::Line => 2,
-        ShapeType::Polygon => 3,
-        ShapeType::Path => 4,
-        ShapeType::Graph => 5,
-        ShapeType::Plot => 6,
-        ShapeType::Arrow => 7,
-    }
-}
-
 // ─────────────────────────────────────────────────────────────
 // Keyframe introspection
 // ─────────────────────────────────────────────────────────────
@@ -492,74 +465,22 @@ pub fn property_has_keyframes(track: &AnimationTrack, field: ActorField) -> bool
 
 /// Returns whether a property has a keyframe at exactly the given time.
 pub fn property_has_keyframe_at(track: &AnimationTrack, field: ActorField, time_ms: u64) -> bool {
-    use crate::timeline::track::TrackFieldRef;
-    track.field_ref(field).is_some_and(|f| match f {
-        TrackFieldRef::F32(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-        TrackFieldRef::Vec2(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-        TrackFieldRef::Vec4(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-        TrackFieldRef::Transform(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-        TrackFieldRef::String(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-        TrackFieldRef::U32(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-        TrackFieldRef::PointList(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-        TrackFieldRef::CommandList(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-        TrackFieldRef::ShapeType(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-        TrackFieldRef::PlacementMode(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-        TrackFieldRef::MorphOptions(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-    })
+    track.field_ref(field).is_some_and(|f| f.has_keyframe_at(time_ms))
 }
 
 /// Returns the number of keyframes for a property on the given track.
 pub fn property_keyframe_count(track: &AnimationTrack, field: ActorField) -> usize {
-    use crate::timeline::track::TrackFieldRef;
-    track.field_ref(field).map_or(0, |f| match f {
-        TrackFieldRef::F32(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        TrackFieldRef::Vec2(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        TrackFieldRef::Vec4(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        TrackFieldRef::Transform(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        TrackFieldRef::String(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        TrackFieldRef::U32(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        TrackFieldRef::PointList(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        TrackFieldRef::CommandList(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        TrackFieldRef::ShapeType(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        TrackFieldRef::PlacementMode(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
-        TrackFieldRef::MorphOptions(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
-    })
+    track.field_ref(field).map_or(0, |f| f.keyframe_count())
 }
 
 /// Returns all keyframe times (in ms) for a property, sorted.
 pub fn property_keyframe_times(track: &AnimationTrack, field: ActorField) -> Vec<u64> {
-    use crate::timeline::track::TrackFieldRef;
-    track.field_ref(field).map_or(Vec::new(), |f| match f {
-        TrackFieldRef::F32(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        TrackFieldRef::Vec2(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        TrackFieldRef::Vec4(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        TrackFieldRef::Transform(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        TrackFieldRef::String(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        TrackFieldRef::U32(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        TrackFieldRef::PointList(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        TrackFieldRef::CommandList(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        TrackFieldRef::ShapeType(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        TrackFieldRef::PlacementMode(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-        TrackFieldRef::MorphOptions(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-    })
+    track.field_ref(field).map_or(Vec::new(), |f| f.keyframe_times())
 }
 
 /// Returns the easing at a specific keyframe time for a property.
 pub fn property_keyframe_easing(track: &AnimationTrack, field: ActorField, time_ms: u64) -> Option<Easing> {
-    use crate::timeline::track::TrackFieldRef;
-    track.field_ref(field).and_then(|f| match f {
-        TrackFieldRef::F32(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        TrackFieldRef::Vec2(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        TrackFieldRef::Vec4(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        TrackFieldRef::Transform(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        TrackFieldRef::String(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        TrackFieldRef::U32(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        TrackFieldRef::PointList(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        TrackFieldRef::CommandList(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        TrackFieldRef::ShapeType(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        TrackFieldRef::PlacementMode(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-        TrackFieldRef::MorphOptions(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-    })
+    track.field_ref(field).and_then(|f| f.keyframe_easing(time_ms))
 }
 
 // ─────────────────────────────────────────────────────────────
