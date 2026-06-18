@@ -49,25 +49,61 @@ impl Primitive for RowPrimitive {
         label: &str,
         props: &[Property],
     ) -> Result<(), Vec<Diagnostic>> {
-        let mut gap = 0.0f32;
-        let mut padding = 0.0f32;
+        let mut gap = [0.0f32; 2];
+        let mut padding = [0.0f32; 4];
         let mut align: Option<String> = None;
 
         let env = ctx.timeline.env();
         for prop in props {
             match prop.name.as_str() {
                 "gap" => {
-                    if let Ok(Value::Num(n)) =
-                        crate::timeline::utils::evaluate_expr(&prop.value, env)
-                    {
-                        gap = n as f32;
+                    match &prop.value {
+                        Expr::Tuple(items) if items.len() == 2 => {
+                            if let (Ok(Value::Num(a)), Ok(Value::Num(b))) = (
+                                crate::timeline::utils::evaluate_expr(&items[0], env),
+                                crate::timeline::utils::evaluate_expr(&items[1], env),
+                            ) {
+                                gap = [a as f32, b as f32];
+                            }
+                        },
+                        _ => {
+                            if let Ok(Value::Num(n)) =
+                                crate::timeline::utils::evaluate_expr(&prop.value, env)
+                            {
+                                gap = [n as f32, n as f32];
+                            }
+                        },
                     }
                 },
                 "padding" => {
-                    if let Ok(Value::Num(n)) =
-                        crate::timeline::utils::evaluate_expr(&prop.value, env)
-                    {
-                        padding = n as f32;
+                    match &prop.value {
+                        Expr::Tuple(items) if items.len() == 4 => {
+                            if let (Ok(Value::Num(a)), Ok(Value::Num(b)), Ok(Value::Num(c)), Ok(Value::Num(d))) = (
+                                crate::timeline::utils::evaluate_expr(&items[0], env),
+                                crate::timeline::utils::evaluate_expr(&items[1], env),
+                                crate::timeline::utils::evaluate_expr(&items[2], env),
+                                crate::timeline::utils::evaluate_expr(&items[3], env),
+                            ) {
+                                padding = [a as f32, b as f32, c as f32, d as f32];
+                            }
+                        },
+                        Expr::Tuple(items) if items.len() == 2 => {
+                            // (horizontal, vertical) → [h, v, h, v]
+                            if let (Ok(Value::Num(h)), Ok(Value::Num(v))) = (
+                                crate::timeline::utils::evaluate_expr(&items[0], env),
+                                crate::timeline::utils::evaluate_expr(&items[1], env),
+                            ) {
+                                padding = [h as f32, v as f32, h as f32, v as f32];
+                            }
+                        },
+                        _ => {
+                            if let Ok(Value::Num(n)) =
+                                crate::timeline::utils::evaluate_expr(&prop.value, env)
+                            {
+                                let v = n as f32;
+                                padding = [v, v, v, v];
+                            }
+                        },
                     }
                 },
                 "align" => {

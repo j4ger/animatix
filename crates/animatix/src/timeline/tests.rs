@@ -1322,3 +1322,48 @@ fn equation_fragment_dot_path_assignment() {
         f2_content_at_1s
     );
 }
+
+#[test]
+fn test_container_metadata_gap_helpers() {
+    // gap_uniform creates a uniform [f32; 2] from a scalar
+    let g = gap_uniform(10.0);
+    assert_eq!(g, [10.0, 10.0]);
+
+    // padding_uniform creates a uniform [f32; 4] from a scalar
+    let p = padding_uniform(8.0);
+    assert_eq!(p, [8.0, 8.0, 8.0, 8.0]);
+}
+
+#[test]
+fn test_stack_align_start_and_end() {
+    use crate::timeline::layout::ChildExtent;
+    use crate::timeline::PlacementMode;
+
+    let children = vec![
+        ChildExtent {
+            label: "a".to_string(),
+            half_size: [50.0, 30.0],
+            placement_mode: PlacementMode::LayoutManaged,
+        },
+        ChildExtent {
+            label: "b".to_string(),
+            half_size: [40.0, 20.0],
+            placement_mode: PlacementMode::LayoutManaged,
+        },
+    ];
+
+    // "center" alignment — all children at origin
+    let positions_center = crate::timeline::layout::compute_stack_layout(&children, "center");
+    assert_eq!(positions_center[0], [0.0, 0.0]);
+    assert_eq!(positions_center[1], [0.0, 0.0]);
+
+    // "start" alignment — shift toward negative
+    let positions_start = crate::timeline::layout::compute_stack_layout(&children, "start");
+    assert_eq!(positions_start[0], [-50.0, -30.0]);
+    assert_eq!(positions_start[1], [-40.0, -20.0]);
+
+    // "end" alignment — shift toward positive
+    let positions_end = crate::timeline::layout::compute_stack_layout(&children, "end");
+    assert_eq!(positions_end[0], [50.0, 30.0]);
+    assert_eq!(positions_end[1], [40.0, 20.0]);
+}

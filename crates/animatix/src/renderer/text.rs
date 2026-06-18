@@ -2,6 +2,24 @@ use super::error::RenderError;
 pub use super::types::TextPath;
 use kurbo::{Affine, BezPath, Point, Shape};
 
+// ─────────────────────────────────────────────────────────────
+// Text metrics for the plain-text fast path
+// ─────────────────────────────────────────────────────────────
+
+/// Font metrics extracted from `ttf_parser::Face`.
+/// Used by the plain-text fast path to compute line layout.
+#[allow(dead_code)] // Reserved for Phase 6 multi-line text layout
+pub struct TextMetrics {
+    /// Ascent in font units (positive).
+    pub ascent: f32,
+    /// Descent in font units (negative).
+    pub descent: f32,
+    /// Line gap in font units.
+    pub line_gap: f32,
+    /// Units per em from the font face.
+    pub units_per_em: f32,
+}
+
 use typst::World;
 use typst::foundations::{Bytes, Datetime};
 use typst::layout::{Frame, FrameItem, Transform};
@@ -21,6 +39,9 @@ use typst::{Library, LibraryExt};
 pub struct FontContext {
     /// The underlying font database.
     db: fontdb::Database,
+    /// Whether the plain-text fast path (bypassing Typst) is enabled.
+    /// Default: true. Set `text_fast_path: false` in the config block to disable.
+    pub text_fast_path: bool,
 }
 
 impl Default for FontContext {
@@ -31,10 +52,18 @@ impl Default for FontContext {
 
 impl FontContext {
     /// Create a new font context with system fonts loaded.
+    /// The plain-text fast path is enabled by default.
     pub fn new() -> Self {
         let mut db = fontdb::Database::new();
         db.load_system_fonts();
-        Self { db }
+        Self { db, text_fast_path: true }
+    }
+
+    /// Create a new font context with fast path explicitly enabled/disabled.
+    pub fn with_fast_path(text_fast_path: bool) -> Self {
+        let mut db = fontdb::Database::new();
+        db.load_system_fonts();
+        Self { db, text_fast_path }
     }
 
     fn load_font(&self, family: &str) -> Option<Font> {
@@ -77,6 +106,33 @@ impl FontContext {
             fontdb::Source::File(path) => std::fs::read(path).ok(),
             fontdb::Source::SharedFile(_path, data) => Some(data.as_ref().as_ref().to_vec()),
         }
+    }
+
+    /// Load a `ttf_parser::Face` for the given family, weight and style.
+    /// Returns `None` if the font cannot be found or is not a TrueType/OpenType font.
+    pub fn load_face(
+        &self,
+        family: &str,
+        weight: f32,
+        style: &str,
+    ) -> Option<ttf_parser::Face<'static>> {
+        let fontdb_style = match style {
+            "italic" | "oblique" => fontdb::Style::Italic,
+            _ => fontdb::Style::Normal,
+        };
+        let id = self.db.query(&fontdb::Query {
+            families: &[fontdb::Family::Name(family)],
+            weight: fontdb::Weight(weight.round() as u16),
+            style: fontdb_style,
+            ..Default::default()
+        })?;
+        let data = Self::face_data(&self.db, id)?;
+        // SAFETY: ttf_parser::Face borrows the data; we leak it so it lives for 'static.
+        // This is acceptable because FontContext is typically kept alive for the entire
+        // application lifetime, and the leaked memory is bounded by the number of distinct
+        // font faces loaded.
+        let leaked: &'static [u8] = Box::leak(data.into_boxed_slice());
+        ttf_parser::Face::parse(leaked, 0).ok()
     }
 }
 
@@ -748,6 +804,155 @@ fn walk_frame_for_shapes(
 }
 
 // ─────────────────────────────────────────────────────────────
+// Plain-text fast path helpers (Phase 4)
+// ─────────────────────────────────────────────────────────────
+
+/// Returns `true` iff the string contains no Typst markup-special characters
+/// and no newlines (single-line only).
+pub fn is_plain_text(content: &str) -> bool {
+    !content.contains('\n')
+        && !content.chars().any(|c| matches!(
+            c, '*' | '_' | '$' | '\\' | '#' | '<' | '>' | '~'
+            | '`' | '[' | ']' | '(' | ')' | '{' | '}' | '/' | '@'
+        ))
+}
+
+/// Returns `true` iff the string contains only characters in Latin script ranges
+/// (Basic Latin, Latin-1 Supplement, Latin Extended-A) plus common whitespace.
+/// Non-Latin text (CJK, Arabic, Cyrillic, etc.) falls back to the Typst path.
+pub fn is_latin_text(content: &str) -> bool {
+    content.chars().all(|c| {
+        let cp = c as u32;
+        // Basic Latin, Latin-1 Supplement, Latin Extended-A
+        cp <= 0x017F
+            // Spacing modifier letters / IPA Extensions
+            || (0x02B0..=0x02FF).contains(&cp)
+            // General punctuation block (spaces, dashes, quotes)
+            || (0x2000..=0x206F).contains(&cp)
+            // Also accept the replacement character \uFFFD (common in font fallback)
+            || cp == 0xFFFD
+    })
+}
+
+/// Compile plain text into glyph paths using `ttf_parser` directly,
+/// bypassing Typst entirely. This is the fast path.
+///
+/// The returned paths use the same coordinate convention as `extract_glyphs`
+/// (centered around origin), so `center_text_paths` and `measure_text_paths`
+/// work unchanged.
+pub fn compile_text_fast(
+    content: &str,
+    family: &str,
+    weight: f32,
+    style: &str,
+    size: f32,
+    color: [f32; 4],
+    letter_spacing: f32,
+    word_spacing: f32,
+    font_ctx: &FontContext,
+) -> Result<(Vec<TextPath>, TextMetrics), RenderError> {
+    let resolved_family = resolve_font_family(family, font_ctx);
+    let face = font_ctx.load_face(&resolved_family, weight, style).ok_or_else(|| {
+        RenderError::TextCompilation(format!(
+            "Failed to load font '{}' (weight={}, style={}) for fast path",
+            resolved_family, weight, style
+        ))
+    })?;
+
+    let units_per_em = face.units_per_em() as f32;
+    let font_scale = size / units_per_em;
+
+    let ascent = face.ascender() as f32;
+    let descent = face.descender() as f32;
+    let line_gap = face.line_gap() as f32;
+    let metrics = TextMetrics {
+        ascent,
+        descent,
+        line_gap,
+        units_per_em,
+    };
+
+    // Resolve kerning tables if available
+    let kern_tables = face.tables().kern;
+
+    // Build the paint color from [f32; 4]
+    let paint = typst::visualize::Paint::Solid(typst::visualize::Color::from_u8(
+        (color[0] * 255.0) as u8,
+        (color[1] * 255.0) as u8,
+        (color[2] * 255.0) as u8,
+        (color[3] * 255.0) as u8,
+    ));
+
+    let mut glyphs: Vec<TextPath> = Vec::with_capacity(content.len());
+    let mut x_curr: f64 = 0.0; // cumulative x offset in scene coordinates (points)
+    let mut prev_glyph_id: Option<ttf_parser::GlyphId> = None;
+
+    for c in content.chars() {
+        let glyph_id = match face.glyph_index(c) {
+            Some(id) => id,
+            None => continue,
+        };
+
+        // Get advance width in font units, then scale to scene units
+        let raw_advance = face
+            .glyph_hor_advance(glyph_id)
+            .unwrap_or(0)
+            as f32;
+        let mut advance = raw_advance * font_scale;
+
+        // Apply letter spacing
+        advance += letter_spacing;
+
+        // Apply word spacing when character is a space
+        if c == ' ' {
+            advance += word_spacing;
+        }
+
+        // Apply kerning from previous glyph to current glyph
+        if let Some(prev) = prev_glyph_id {
+            if let Some(table) = kern_tables {
+                for subtable in table.subtables {
+                    if subtable.horizontal {
+                        if let Some(kern) = subtable.glyphs_kerning(prev, glyph_id) {
+                            x_curr += (kern as f64) * font_scale as f64;
+                        }
+                    }
+                }
+            }
+        }
+        prev_glyph_id = Some(glyph_id);
+
+        // Build glyph outline path
+        let mut builder = PathBuilder(BezPath::new());
+        if face.outline_glyph(glyph_id, &mut builder).is_some() {
+            let path = builder.0;
+
+            // Apply scale (flip Y) and translate to cumulative x position
+            // Same coordinate convention as walk_frame_for_glyphs
+            let scale_affine = Affine::scale_non_uniform(font_scale as f64, -font_scale as f64);
+            let translate = Affine::translate(kurbo::Vec2::new(x_curr, 0.0));
+            let final_affine = translate * scale_affine;
+
+            let mut final_path = path;
+            final_path.apply_affine(final_affine);
+
+            glyphs.push(TextPath {
+                path: final_path,
+                color: paint.clone(),
+                opacity: 1.0,
+            });
+        }
+
+        x_curr += advance as f64;
+    }
+
+    // Center paths around origin (same as center_text_paths)
+    center_text_paths(&mut glyphs);
+
+    Ok((glyphs, metrics))
+}
+
+// ─────────────────────────────────────────────────────────────
 // Runtime text recompilation (Phase 2)
 // ─────────────────────────────────────────────────────────────
 
@@ -787,13 +992,25 @@ struct TextCacheKey {
 /// this service recompiles glyph paths on-demand and caches them so that
 /// identical `(content, font_family, font_size, color, kind)` tuples only
 /// pay compilation cost once.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct TextCompiler {
     cache: std::collections::HashMap<TextCacheKey, std::sync::Arc<[TextPath]>>,
+    /// Whether the plain-text fast path is enabled (default: true).
+    /// Can be disabled via `config { text_fast_path: false }` for debugging.
+    pub text_fast_path: bool,
+}
+
+impl Default for TextCompiler {
+    fn default() -> Self {
+        Self {
+            cache: std::collections::HashMap::new(),
+            text_fast_path: true,
+        }
+    }
 }
 
 impl TextCompiler {
-    /// Create a new text compiler with an empty cache.
+    /// Create a new text compiler with an empty cache and fast path enabled.
     pub fn new() -> Self {
         Self::default()
     }
@@ -845,6 +1062,43 @@ impl TextCompiler {
                 self.cache.remove(&k);
             }
         }
+
+        // Route plain text to the fast path when:
+        // 1. The text_fast_path flag is enabled (config option)
+        // 2. The kind is Text (not Code, Typst, or Math)
+        // 3. The content is plain (no Typst markup)
+        // 4. The content is LTR Latin only
+        if self.text_fast_path
+            && kind == TextKind::Text
+            && is_plain_text(content)
+            && is_latin_text(content)
+        {
+            tracing::debug!(
+                "TextCompiler: using fast path for '{}' (family={}, size={})",
+                content, font_family, font_size
+            );
+            let (paths_vec, _metrics) = compile_text_fast(
+                content,
+                font_family,
+                font_weight,
+                font_style,
+                font_size,
+                color,
+                letter_spacing,
+                word_spacing,
+                font_ctx,
+            )?;
+            let paths: std::sync::Arc<[TextPath]> = paths_vec.into();
+            self.cache.insert(key, std::sync::Arc::clone(&paths));
+            return Ok(paths);
+        }
+
+        // Fall back to Typst path
+        tracing::debug!(
+            "TextCompiler: using Typst path for '{}' (kind={:?}, plain={}, latin={}, fast_path={})",
+            content, kind, is_plain_text(content), content.chars().all(|c| (c as u32) <= 0x017F),
+            self.text_fast_path
+        );
 
         let typst_color = typst::visualize::Color::from_u8(
             key.color[0],
@@ -904,5 +1158,300 @@ impl TextCompiler {
     /// Number of entries in the cache (for testing).
     pub fn cache_len(&self) -> usize {
         self.cache.len()
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Tests
+// ─────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Helper: create a default FontContext (loads system fonts, may be slow on CI).
+    fn test_font_ctx() -> FontContext {
+        FontContext::with_fast_path(true)
+    }
+
+    #[test]
+    fn is_plain_text_basic() {
+        assert!(is_plain_text("Hello World"));
+        assert!(is_plain_text("abc123"));
+        assert!(is_plain_text(""));
+        assert!(!is_plain_text("Hello\nWorld"));
+        assert!(!is_plain_text("Hello *World*"));
+        assert!(!is_plain_text("$x^2$"));
+        assert!(!is_plain_text("#emoji"));
+        assert!(!is_plain_text("`code`"));
+        assert!(!is_plain_text("Hello_World"));
+        assert!(!is_plain_text("a/b"));
+    }
+
+    #[test]
+    fn is_latin_text_basic() {
+        assert!(is_latin_text("Hello World"));
+        assert!(is_latin_text("Café")); // Latin-1 Supplement
+        assert!(is_latin_text("Âmbit")); // Latin Extended-A
+        assert!(is_latin_text(""));
+        assert!(!is_latin_text("中文"));
+        assert!(!is_latin_text("Привет"));
+        assert!(!is_latin_text("مرحبا"));
+    }
+
+    #[test]
+    fn fast_path_produces_glyphs() {
+        let font_ctx = test_font_ctx();
+        let family = "Open Sans";
+
+        // Verify the bundled font is available
+        assert!(font_ctx.load_face(family, 400.0, "normal").is_some(),
+            "Open Sans font should be loadable");
+
+        let (paths, metrics) = compile_text_fast(
+            "Hello",
+            family,
+            400.0,  // weight
+            "normal",  // style
+            48.0,   // size
+            [1.0, 1.0, 1.0, 1.0],  // white
+            0.0,    // letter_spacing
+            0.0,    // word_spacing
+            &font_ctx,
+        ).expect("fast path should succeed");
+
+        // Should produce at least one glyph path per character
+        assert!(!paths.is_empty(), "Should produce glyph paths");
+
+        // Metrics should be populated
+        assert!(metrics.units_per_em > 0.0);
+        assert!(metrics.ascent > 0.0);
+    }
+
+    #[test]
+    fn fast_path_with_bold_weight() {
+        let font_ctx = test_font_ctx();
+        let family = "Open Sans";
+
+        // Bold weight should also resolve
+        assert!(font_ctx.load_face(family, 700.0, "normal").is_some(),
+            "Open Sans bold should be loadable");
+
+        let (paths, _metrics) = compile_text_fast(
+            "Bold Text",
+            family,
+            700.0,  // bold
+            "normal",
+            48.0,
+            [1.0, 1.0, 1.0, 1.0],
+            0.0,
+            0.0,
+            &font_ctx,
+        ).expect("bold fast path should succeed");
+
+        assert!(!paths.is_empty(), "Bold text should produce glyph paths");
+    }
+
+    #[test]
+    fn fast_path_vs_typst_visually_equivalent() {
+        // Compare fast-path output against Typst output for a simple string.
+        // They should produce bounding boxes that are close (sub-pixel tolerance).
+        let font_ctx = test_font_ctx();
+        let family = "Open Sans";
+        let text = "Hello World";
+        let size = 48.0;
+        let color = [1.0, 1.0, 1.0, 1.0];
+
+        // Fast path
+        let (fast_paths, _metrics) = compile_text_fast(
+            text, family, 400.0, "normal", size, color, 0.0, 0.0, &font_ctx,
+        ).expect("fast path should succeed");
+
+        // Typst path
+        let typst_color = typst::visualize::Color::from_u8(255, 255, 255, 255);
+        let frame = compile_text(
+            text, size, typst_color, family, &font_ctx,
+            400.0, "normal", 1.2, 0.0, 0.0,
+        ).expect("Typst path should succeed");
+        let typst_paths = extract_glyphs(&frame);
+
+        assert!(!fast_paths.is_empty(), "Fast path should produce paths");
+        assert!(!typst_paths.is_empty(), "Typst path should produce paths");
+
+        // Compare overall bounding box (centered) — allow 0.5px tolerance
+        // for sub-pixel differences in glyph positioning/kerning.
+        let fast_bbox = measure_text_paths(&fast_paths);
+        let typst_bbox = measure_text_paths(&typst_paths);
+
+        let half_w_diff = (fast_bbox[0] - typst_bbox[0]).abs();
+        let half_h_diff = (fast_bbox[1] - typst_bbox[1]).abs();
+        assert!(
+            half_w_diff < 0.5,
+            "Width mismatch: fast={:.3}, typst={:.3}, diff={:.3}",
+            fast_bbox[0] * 2.0, typst_bbox[0] * 2.0, half_w_diff * 2.0
+        );
+        assert!(
+            half_h_diff < 0.5,
+            "Height mismatch: fast={:.3}, typst={:.3}, diff={:.3}",
+            fast_bbox[1] * 2.0, typst_bbox[1] * 2.0, half_h_diff * 2.0
+        );
+    }
+
+    #[test]
+    fn fast_path_caches_results() {
+        let font_ctx = test_font_ctx();
+        let mut compiler = TextCompiler::new();
+        compiler.text_fast_path = true;
+
+        let paths1 = compiler.compile(
+            "Cache Test",
+            "Open Sans",
+            24.0, 400.0, "normal", 1.2, 0.0, 0.0,
+            [1.0, 1.0, 1.0, 1.0],
+            TextKind::Text,
+            &font_ctx,
+        ).expect("first compile should succeed");
+
+        let paths2 = compiler.compile(
+            "Cache Test",
+            "Open Sans",
+            24.0, 400.0, "normal", 1.2, 0.0, 0.0,
+            [1.0, 1.0, 1.0, 1.0],
+            TextKind::Text,
+            &font_ctx,
+        ).expect("second compile should succeed (cache hit)");
+
+        // Same Arc should be returned (cache hit)
+        assert_eq!(paths1.as_ptr(), paths2.as_ptr(),
+            "Cache should return the same Arc pointer");
+    }
+
+    #[test]
+    fn non_plain_text_routes_to_typst() {
+        let font_ctx = test_font_ctx();
+        let mut compiler = TextCompiler::new();
+        compiler.text_fast_path = true;
+
+        // Text with asterisk should route to Typst (not fast path)
+        let paths = compiler.compile(
+            "Hello *World*",
+            "Open Sans",
+            24.0, 400.0, "normal", 1.2, 0.0, 0.0,
+            [1.0, 1.0, 1.0, 1.0],
+            TextKind::Text,
+            &font_ctx,
+        ).expect("Typst fallback should succeed");
+
+        assert!(!paths.is_empty(), "Should produce glyph paths via Typst");
+    }
+
+    #[test]
+    fn non_latin_text_routes_to_typst() {
+        let font_ctx = test_font_ctx();
+        let mut compiler = TextCompiler::new();
+        compiler.text_fast_path = true;
+
+        // Non-Latin text should route to Typst
+        let paths = compiler.compile(
+            "中文测试",
+            "Open Sans",
+            24.0, 400.0, "normal", 1.2, 0.0, 0.0,
+            [1.0, 1.0, 1.0, 1.0],
+            TextKind::Text,
+            &font_ctx,
+        ).expect("Typst path for non-Latin should succeed");
+
+        // Even though Typst may not render CJK with Open Sans, it should not crash
+        // and should produce some output (even if it's just .notdef glyphs)
+        assert!(!paths.is_empty(), "Non-Latin text should still produce glyph paths via Typst fallback");
+    }
+
+    #[test]
+    fn fast_path_disabled_via_config_falls_back() {
+        let font_ctx = test_font_ctx();
+        let mut compiler = TextCompiler::new();
+        compiler.text_fast_path = false;  // disabled
+
+        // Plain text should still compile via Typst
+        let paths = compiler.compile(
+            "Plain Text",
+            "Open Sans",
+            24.0, 400.0, "normal", 1.2, 0.0, 0.0,
+            [1.0, 1.0, 1.0, 1.0],
+            TextKind::Text,
+            &font_ctx,
+        ).expect("Typst fallback should succeed when fast path disabled");
+
+        assert!(!paths.is_empty(), "Should produce glyph paths");
+    }
+
+    #[test]
+    fn code_kind_uses_typst_not_fast_path() {
+        let font_ctx = test_font_ctx();
+        let mut compiler = TextCompiler::new();
+        compiler.text_fast_path = true;
+
+        // Even plain text should use Typst for Code kind
+        let paths = compiler.compile(
+            "fn main()",
+            "Open Sans",
+            24.0, 400.0, "normal", 1.2, 0.0, 0.0,
+            [1.0, 1.0, 1.0, 1.0],
+            TextKind::Code,  // Code kind → always Typst
+            &font_ctx,
+        ).expect("Code kind should compile via Typst");
+
+        assert!(!paths.is_empty(), "Should produce glyph paths");
+    }
+
+    #[test]
+    fn fast_path_letter_spacing() {
+        // Verify that letter_spacing affects the total width.
+        let font_ctx = test_font_ctx();
+
+        let (paths_no_spacing, _) = compile_text_fast(
+            "AB", "Open Sans", 400.0, "normal", 48.0,
+            [1.0; 4], 0.0, 0.0, &font_ctx,
+        ).unwrap();
+
+        let (paths_with_spacing, _) = compile_text_fast(
+            "AB", "Open Sans", 400.0, "normal", 48.0,
+            [1.0; 4], 10.0, 0.0, &font_ctx,  // 10pt letter spacing
+        ).unwrap();
+
+        let bbox_no = measure_text_paths(&paths_no_spacing);
+        let bbox_with = measure_text_paths(&paths_with_spacing);
+
+        // Width should be larger with letter spacing
+        assert!(
+            bbox_with[0] > bbox_no[0],
+            "Letter spacing should increase width: no_spacing={:.3}, with_spacing={:.3}",
+            bbox_no[0], bbox_with[0]
+        );
+    }
+
+    #[test]
+    fn fast_path_resolves_bundled_and_system_fonts() {
+        let font_ctx = test_font_ctx();
+
+        // Open Sans is bundled, should always work
+        let face = font_ctx.load_face("Open Sans", 400.0, "normal");
+        assert!(face.is_some(), "Open Sans should resolve");
+
+        // Try system font (may or may not exist, but shouldn't crash)
+        let _ = font_ctx.load_face("Arial", 400.0, "normal");
+        let _ = font_ctx.load_face("sans-serif", 400.0, "normal");
+    }
+
+    #[test]
+    fn compile_text_fast_empty_string() {
+        let font_ctx = test_font_ctx();
+        let (paths, metrics) = compile_text_fast(
+            "", "Open Sans", 400.0, "normal", 48.0,
+            [1.0; 4], 0.0, 0.0, &font_ctx,
+        ).unwrap();
+
+        assert!(paths.is_empty(), "Empty string should produce no paths");
+        assert!(metrics.units_per_em > 0.0);
     }
 }

@@ -278,9 +278,11 @@ pub struct ContainerMetadata {
     /// Row, Col, Grid, or Stack.
     pub layout_type: LayoutType,
     /// Gap between children in logical pixels.
-    pub gap: f32,
+    /// `[0]` = main-axis gap, `[1]` = cross-axis gap.
+    pub gap: [f32; 2],
     /// Padding inside the container bounds in logical pixels.
-    pub padding: f32,
+    /// `[left, top, right, bottom]`.
+    pub padding: [f32; 4],
     /// Cross-axis alignment string (e.g. "center", "start").
     pub align: String,
     /// Number of columns when `layout_type` is `Grid`.
@@ -292,6 +294,16 @@ pub struct ContainerMetadata {
     /// Layout-admitted children are derived from this on demand via
     /// `Timeline::layout_children_for` or `ContainerMetadata::layout_children`.
     pub child_order: Vec<String>,
+}
+
+/// Create a uniform `[f32; 2]` gap array where both axes use the same value.
+pub fn gap_uniform(v: f32) -> [f32; 2] {
+    [v, v]
+}
+
+/// Create a uniform `[f32; 4]` padding array where all sides use the same value.
+pub fn padding_uniform(v: f32) -> [f32; 4] {
+    [v, v, v, v]
 }
 
 impl ContainerMetadata {

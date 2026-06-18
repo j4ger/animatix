@@ -158,6 +158,18 @@ impl Timeline {
                 continue;
             }
 
+            if setting.name == "text_fast_path" {
+                let enabled = match &setting.value {
+                    Expr::Bool(b) => *b,
+                    Expr::Str(s) => s.parse().unwrap_or(true),
+                    _ => true,
+                };
+                if let Ok(mut compiler) = self.text_compiler.try_borrow_mut() {
+                    compiler.text_fast_path = enabled;
+                }
+                continue;
+            }
+
             if setting.name != "colorscheme" {
                 continue;
             }

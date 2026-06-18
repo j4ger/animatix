@@ -59,8 +59,8 @@ pub struct TaffyLayoutResult {
 pub fn compute_taffy_linear_layout(
     children: &[ChildExtent],
     layout_type: LayoutType,
-    gap: f32,
-    padding: f32,
+    gap: [f32; 2],
+    padding: [f32; 4],
     align: &str,
 ) -> Vec<TaffyLayoutResult> {
     // Stack is handled separately - all children at origin
@@ -91,14 +91,14 @@ pub fn compute_taffy_linear_layout(
             _ => AlignItems::Center,
         }),
         gap: Size {
-            width: LengthPercentage::length(gap),
-            height: LengthPercentage::length(gap),
+            width: LengthPercentage::length(gap[0]),
+            height: LengthPercentage::length(gap[1]),
         },
         padding: Rect {
-            left: LengthPercentage::length(padding),
-            right: LengthPercentage::length(padding),
-            top: LengthPercentage::length(padding),
-            bottom: LengthPercentage::length(padding),
+            left: LengthPercentage::length(padding[0]),
+            right: LengthPercentage::length(padding[2]),
+            top: LengthPercentage::length(padding[1]),
+            bottom: LengthPercentage::length(padding[3]),
         },
         ..Default::default()
     };
@@ -122,8 +122,8 @@ pub fn compute_taffy_linear_layout(
 /// Compute layout using Taffy for Grid containers.
 pub fn compute_taffy_grid_layout(
     children: &[ChildExtent],
-    gap: f32,
-    padding: f32,
+    gap: [f32; 2],
+    padding: [f32; 4],
     cols: usize,
 ) -> Vec<TaffyLayoutResult> {
     if children.is_empty() {
@@ -163,14 +163,14 @@ pub fn compute_taffy_grid_layout(
         grid_template_columns: col_template,
         grid_template_rows: row_template,
         gap: Size {
-            width: LengthPercentage::length(gap),
-            height: LengthPercentage::length(gap),
+            width: LengthPercentage::length(gap[0]),
+            height: LengthPercentage::length(gap[1]),
         },
         padding: Rect {
-            left: LengthPercentage::length(padding),
-            right: LengthPercentage::length(padding),
-            top: LengthPercentage::length(padding),
-            bottom: LengthPercentage::length(padding),
+            left: LengthPercentage::length(padding[0]),
+            right: LengthPercentage::length(padding[2]),
+            top: LengthPercentage::length(padding[1]),
+            bottom: LengthPercentage::length(padding[3]),
         },
         ..Default::default()
     };
@@ -257,7 +257,7 @@ mod tests {
             make_child("b", 100.0, 50.0, PlacementMode::LayoutManaged),
         ];
 
-        let results = compute_taffy_linear_layout(&children, LayoutType::Row, 10.0, 0.0, "center");
+        let results = compute_taffy_linear_layout(&children, LayoutType::Row, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center");
 
         // Two 100-wide children with 10 gap, centered
         // Total width = 100 + 10 + 100 = 210
@@ -275,7 +275,7 @@ mod tests {
             make_child("b", 50.0, 100.0, PlacementMode::LayoutManaged),
         ];
 
-        let results = compute_taffy_linear_layout(&children, LayoutType::Col, 10.0, 0.0, "center");
+        let results = compute_taffy_linear_layout(&children, LayoutType::Col, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center");
 
         // Two 100-tall children with 10 gap, centered
         // Total height = 100 + 10 + 100 = 210
@@ -293,7 +293,7 @@ mod tests {
             make_child("c", 100.0, 50.0, PlacementMode::LayoutManaged),
         ];
 
-        let results = compute_taffy_linear_layout(&children, LayoutType::Row, 10.0, 0.0, "center");
+        let results = compute_taffy_linear_layout(&children, LayoutType::Row, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center");
 
         assert_eq!(results.len(), 3);
         // b (Manual) should still receive a computed slot in declaration order,
@@ -310,10 +310,10 @@ mod tests {
     #[test]
     fn test_empty_children() {
         let children: Vec<ChildExtent> = vec![];
-        let results = compute_taffy_linear_layout(&children, LayoutType::Row, 10.0, 0.0, "center");
+        let results = compute_taffy_linear_layout(&children, LayoutType::Row, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center");
         assert!(results.is_empty());
 
-        let results = compute_taffy_grid_layout(&children, 10.0, 0.0, 2);
+        let results = compute_taffy_grid_layout(&children, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], 2);
         assert!(results.is_empty());
     }
 }

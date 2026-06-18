@@ -43,9 +43,28 @@ pub struct ChildExtent {
 }
 
 /// Pure layout computation for a Stack container.
-/// Stack places all children at origin (0, 0).
-fn compute_stack_layout(children: &[ChildExtent]) -> Vec<[f32; 2]> {
-    children.iter().map(|_| [0.0, 0.0]).collect()
+/// Stack places all children at origin (0, 0) on the main axis,
+/// but honors `align` for cross-axis positioning.
+pub(crate) fn compute_stack_layout(children: &[ChildExtent], align: &str) -> Vec<[f32; 2]> {
+    // Stack is an overlap container — all children share the same origin,
+    // creating a layered visual effect. The `align` property controls
+    // cross-axis positioning within the stack's conceptual extent.
+    //
+    // Since Stack has no intrinsic main/cross axis direction, we apply
+    // alignment symmetrically: both X and Y axes respond to align.
+    //
+    // - "start":  children are shifted toward negative X/Y (top-left)
+    // - "center": children stay at origin (default)
+    // - "end":    children are shifted toward positive X/Y (bottom-right)
+    children.iter().map(|child| {
+        // Use the child's own half-size to position relative to origin
+        // "start" aligns to top-left, "center" at origin, "end" aligns to bottom-right
+        match align {
+            "start" => [-child.half_size[0], -child.half_size[1]],
+            "end" => [child.half_size[0], child.half_size[1]],
+            _ => [0.0, 0.0], // center
+        }
+    }).collect()
 }
 
 /// Pure layout computation for Row/Col containers using Taffy.
@@ -53,8 +72,8 @@ fn compute_stack_layout(children: &[ChildExtent]) -> Vec<[f32; 2]> {
 fn compute_linear_layout(
     children: &[ChildExtent],
     is_row: bool,
-    gap: f32,
-    padding: f32,
+    gap: [f32; 2],
+    padding: [f32; 4],
     align: &str,
 ) -> Vec<[f32; 2]> {
     let layout_type = if is_row {
@@ -71,8 +90,8 @@ fn compute_linear_layout(
 /// Returns the positions of each child relative to the container center.
 fn compute_grid_layout(
     children: &[ChildExtent],
-    gap: f32,
-    padding: f32,
+    gap: [f32; 2],
+    padding: [f32; 4],
     cols: usize,
 ) -> Vec<[f32; 2]> {
     let results = compute_taffy_grid_layout(children, gap, padding, cols);
@@ -118,7 +137,7 @@ impl LayoutEngine {
         }
 
         if is_stack {
-            compute_stack_layout(children)
+            compute_stack_layout(children, &metadata.align)
         } else if is_grid {
             compute_grid_layout(
                 children,
