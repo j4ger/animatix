@@ -12,13 +12,27 @@ pub struct MaskPrimitive;
 pub const MASK: MaskPrimitive = MaskPrimitive;
 
 impl Primitive for MaskPrimitive {
-    fn type_name(&self) -> &'static str { "Mask" }
-    fn display_name(&self) -> &'static str { "Mask" }
-    fn category(&self) -> ActorCategory { ActorCategory::Container }
-    fn icon_id(&self) -> &'static str { crate::icon_glyphs::MASK_HAPPY }
-    fn is_advanced(&self) -> bool { true }
-    fn is_container(&self) -> bool { true }
-    fn kind_id(&self) -> ActorKindId { ActorKindId::Mask }
+    fn type_name(&self) -> &'static str {
+        "Mask"
+    }
+    fn display_name(&self) -> &'static str {
+        "Mask"
+    }
+    fn category(&self) -> ActorCategory {
+        ActorCategory::Container
+    }
+    fn icon_id(&self) -> &'static str {
+        crate::icon_glyphs::MASK_HAPPY
+    }
+    fn is_advanced(&self) -> bool {
+        true
+    }
+    fn is_container(&self) -> bool {
+        true
+    }
+    fn kind_id(&self) -> ActorKindId {
+        ActorKindId::Mask
+    }
 
     fn build(
         &self,
@@ -35,7 +49,8 @@ impl Primitive for MaskPrimitive {
         &self,
         _ctx: &crate::primitives::EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
-    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
+    {
         // Mask has no visual content of its own; children are handled
         // by render_node_children with clipping. Return empty commands
         // so the trait-dispatch path computes hit regions.
@@ -43,8 +58,9 @@ impl Primitive for MaskPrimitive {
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
-        vec![
-            Property::new("size", Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(200.0)])),
-        ]
+        vec![Property::new(
+            "size",
+            Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(200.0)]),
+        )]
     }
 }

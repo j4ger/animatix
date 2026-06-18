@@ -12,12 +12,24 @@ pub struct GroupPrimitive;
 pub const GROUP: GroupPrimitive = GroupPrimitive;
 
 impl Primitive for GroupPrimitive {
-    fn type_name(&self) -> &'static str { "Group" }
-    fn display_name(&self) -> &'static str { "Group" }
-    fn category(&self) -> ActorCategory { ActorCategory::Container }
-    fn icon_id(&self) -> &'static str { crate::icon_glyphs::FOLDER }
-    fn is_container(&self) -> bool { true }
-    fn kind_id(&self) -> ActorKindId { ActorKindId::Group }
+    fn type_name(&self) -> &'static str {
+        "Group"
+    }
+    fn display_name(&self) -> &'static str {
+        "Group"
+    }
+    fn category(&self) -> ActorCategory {
+        ActorCategory::Container
+    }
+    fn icon_id(&self) -> &'static str {
+        crate::icon_glyphs::FOLDER
+    }
+    fn is_container(&self) -> bool {
+        true
+    }
+    fn kind_id(&self) -> ActorKindId {
+        ActorKindId::Group
+    }
 
     fn build(
         &self,
@@ -35,7 +47,8 @@ impl Primitive for GroupPrimitive {
         &self,
         _ctx: &crate::primitives::EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
-    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
+    {
         Ok(Some(vec![]))
     }
 

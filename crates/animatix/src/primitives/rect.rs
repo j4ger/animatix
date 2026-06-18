@@ -4,7 +4,7 @@ use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
 use crate::timeline::{
-    kurbo_shapes::KurboShape, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath,
+    SceneDimensions, TrackAccessor, VectorShapeState, VelloPath, kurbo_shapes::KurboShape,
 };
 
 /// The `Rect` primitive.
@@ -61,7 +61,12 @@ impl Primitive for RectPrimitive {
         }
         .to_path_default();
         Some(vec![crate::timeline::shapes::build_vello_path(
-            path, ctx.style.color, ctx.style.stroke_color, ctx.style.stroke_width, ctx.style.fill_opacity, false,
+            path,
+            ctx.style.color,
+            ctx.style.stroke_color,
+            ctx.style.stroke_width,
+            ctx.style.fill_opacity,
+            false,
         )])
     }
 
@@ -77,20 +82,27 @@ impl Primitive for RectPrimitive {
 
     fn finalize_state(&self, _state: &mut VectorShapeState) {}
 
-    fn uses_custom_path(&self) -> bool { false }
+    fn uses_custom_path(&self) -> bool {
+        false
+    }
 
-    fn exposes_tip_size(&self) -> bool { false }
+    fn exposes_tip_size(&self) -> bool {
+        false
+    }
 
-    fn supports_fill(&self) -> bool { true }
+    fn supports_fill(&self) -> bool {
+        true
+    }
 
     fn evaluate(
         &self,
         ctx: &crate::primitives::EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
-    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
+    {
         use crate::primitives::evaluate_shape_render;
-        use crate::timeline::{DEFAULT_LAYOUT_HALF_SIZE, VectorShapeState};
         use crate::timeline::shapes::RectState;
+        use crate::timeline::{DEFAULT_LAYOUT_HALF_SIZE, VectorShapeState};
 
         let half_size = ctx.track.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE);
         let mut state = RectState { size: half_size };

@@ -3,9 +3,9 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::primitives::{ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, Primitive};
-use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
 use crate::timeline::property_lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::svg::parse_svg;
+use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
 
 /// The `Svg` primitive.
 pub struct SvgPrimitive;
@@ -14,12 +14,24 @@ pub struct SvgPrimitive;
 pub const SVG: SvgPrimitive = SvgPrimitive;
 
 impl Primitive for SvgPrimitive {
-    fn type_name(&self) -> &'static str { "Svg" }
-    fn display_name(&self) -> &'static str { "SVG" }
-    fn category(&self) -> ActorCategory { ActorCategory::Media }
-    fn icon_id(&self) -> &'static str { crate::icon_glyphs::VECTOR_THREE }
-    fn is_advanced(&self) -> bool { true }
-    fn kind_id(&self) -> ActorKindId { ActorKindId::Svg }
+    fn type_name(&self) -> &'static str {
+        "Svg"
+    }
+    fn display_name(&self) -> &'static str {
+        "SVG"
+    }
+    fn category(&self) -> ActorCategory {
+        ActorCategory::Media
+    }
+    fn icon_id(&self) -> &'static str {
+        crate::icon_glyphs::VECTOR_THREE
+    }
+    fn is_advanced(&self) -> bool {
+        true
+    }
+    fn kind_id(&self) -> ActorKindId {
+        ActorKindId::Svg
+    }
 
     fn build(
         &self,
@@ -29,7 +41,6 @@ impl Primitive for SvgPrimitive {
         modifiers: &[Modifier],
         _children: &[InlineItem],
     ) -> Result<(), Vec<Diagnostic>> {
-        
         ctx.timeline.process_media_actor_decl(
             self.type_name(),
             label,
@@ -55,12 +66,10 @@ impl Primitive for SvgPrimitive {
         if property != "url" {
             return false;
         }
-        let target_url = evaluate_expr_with_lookup_diagnostic(
-            value, env, diagnostics, subject,
-        )
-        .unwrap_or(Value::Str(String::new()))
-        .as_str()
-        .to_string();
+        let target_url = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+            .unwrap_or(Value::Str(String::new()))
+            .as_str()
+            .to_string();
         if target_url.is_empty() {
             return true;
         }
@@ -69,7 +78,7 @@ impl Primitive for SvgPrimitive {
             Ok(svg_content) => match parse_svg(&svg_content) {
                 Ok(parsed_paths) => {
                     track.svg_paths = parsed_paths;
-                }
+                },
                 Err(error) => {
                     diagnostics.push(
                         Diagnostic::error(
@@ -80,7 +89,7 @@ impl Primitive for SvgPrimitive {
                         .with_subject(subject)
                         .with_path(&target_url),
                     );
-                }
+                },
             },
             Err(error) => {
                 diagnostics.push(
@@ -92,7 +101,7 @@ impl Primitive for SvgPrimitive {
                     .with_subject(subject)
                     .with_path(&target_url),
                 );
-            }
+            },
         }
         true
     }
@@ -101,7 +110,8 @@ impl Primitive for SvgPrimitive {
         &self,
         ctx: &crate::primitives::EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
-    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
+    {
         use crate::primitives::RenderCommand;
 
         if ctx.track.svg_paths.is_empty() {
@@ -115,7 +125,13 @@ impl Primitive for SvgPrimitive {
 
     fn default_props(&self, scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            Property::new("at", Expr::Tuple(vec![Expr::Num(scene.width as f64 / 2.0), Expr::Num(scene.height as f64 / 2.0)])),
+            Property::new(
+                "at",
+                Expr::Tuple(vec![
+                    Expr::Num(scene.width as f64 / 2.0),
+                    Expr::Num(scene.height as f64 / 2.0),
+                ]),
+            ),
             Property::new("url", Expr::Str(String::new())),
             Property::new("size", Expr::Tuple(vec![Expr::Num(240.0), Expr::Num(160.0)])),
         ]

@@ -3,11 +3,11 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
-use crate::timeline::{
-    evaluate_expr, lookup_parse_numeric_vec2_with_lookup_diagnostic as parse_numeric_vec2_with_lookup_diagnostic,
-    Environment, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath,
-};
 use crate::timeline::shapes::build_vello_path;
+use crate::timeline::{
+    Environment, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath, evaluate_expr,
+    lookup_parse_numeric_vec2_with_lookup_diagnostic as parse_numeric_vec2_with_lookup_diagnostic,
+};
 
 /// The `Arrow` primitive.
 pub struct ArrowPrimitive;
@@ -16,14 +16,33 @@ pub struct ArrowPrimitive;
 pub const ARROW: ArrowPrimitive = ArrowPrimitive;
 
 impl Primitive for ArrowPrimitive {
-    fn type_name(&self) -> &'static str { "Arrow" }
-    fn display_name(&self) -> &'static str { "Arrow" }
-    fn category(&self) -> ActorCategory { ActorCategory::Shape }
-    fn icon_id(&self) -> &'static str { crate::icon_glyphs::ARROW_RIGHT }
-    fn is_shape(&self) -> bool { true }
-    fn kind_id(&self) -> ActorKindId { ActorKindId::Shape(crate::timeline::ShapeKind::Arrow) }
+    fn type_name(&self) -> &'static str {
+        "Arrow"
+    }
+    fn display_name(&self) -> &'static str {
+        "Arrow"
+    }
+    fn category(&self) -> ActorCategory {
+        ActorCategory::Shape
+    }
+    fn icon_id(&self) -> &'static str {
+        crate::icon_glyphs::ARROW_RIGHT
+    }
+    fn is_shape(&self) -> bool {
+        true
+    }
+    fn kind_id(&self) -> ActorKindId {
+        ActorKindId::Shape(crate::timeline::ShapeKind::Arrow)
+    }
 
-    fn build(&self, _ctx: &mut BuildCtx, _label: &str, _props: &[Property], _modifiers: &[Modifier], _children: &[InlineItem]) -> Result<(), Vec<Diagnostic>> {
+    fn build(
+        &self,
+        _ctx: &mut BuildCtx,
+        _label: &str,
+        _props: &[Property],
+        _modifiers: &[Modifier],
+        _children: &[InlineItem],
+    ) -> Result<(), Vec<Diagnostic>> {
         Ok(())
     }
 
@@ -49,7 +68,12 @@ impl Primitive for ArrowPrimitive {
             path.move_to(kurbo::Point::new(to_x, to_y));
             path.close_path();
             return Some(vec![build_vello_path(
-                path, ctx.style.color, ctx.style.stroke_color, ctx.style.stroke_width, 0.0, true,
+                path,
+                ctx.style.color,
+                ctx.style.stroke_color,
+                ctx.style.stroke_width,
+                0.0,
+                true,
             )]);
         }
 
@@ -94,13 +118,21 @@ impl Primitive for ArrowPrimitive {
                 (ctx.style.stroke_color[2] * 255.0) as u8,
                 (ctx.style.stroke_color[3] * 255.0) as u8,
             )),
-            stroke: crate::timeline::shapes::shape_stroke(ctx.style.stroke_color, ctx.style.stroke_width)
-                .or_else(|| Some((vello::peniko::Color::from_rgba8(
-                    (ctx.style.stroke_color[0] * 255.0) as u8,
-                    (ctx.style.stroke_color[1] * 255.0) as u8,
-                    (ctx.style.stroke_color[2] * 255.0) as u8,
-                    (ctx.style.stroke_color[3] * 255.0) as u8,
-                ), 1.0))),
+            stroke: crate::timeline::shapes::shape_stroke(
+                ctx.style.stroke_color,
+                ctx.style.stroke_width,
+            )
+            .or_else(|| {
+                Some((
+                    vello::peniko::Color::from_rgba8(
+                        (ctx.style.stroke_color[0] * 255.0) as u8,
+                        (ctx.style.stroke_color[1] * 255.0) as u8,
+                        (ctx.style.stroke_color[2] * 255.0) as u8,
+                        (ctx.style.stroke_color[3] * 255.0) as u8,
+                    ),
+                    1.0,
+                ))
+            }),
             line_cap: 0,
             line_join: 0,
         }])
@@ -126,11 +158,17 @@ impl Primitive for ArrowPrimitive {
 
     fn finalize_state(&self, _state: &mut VectorShapeState) {}
 
-    fn uses_custom_path(&self) -> bool { false }
+    fn uses_custom_path(&self) -> bool {
+        false
+    }
 
-    fn exposes_tip_size(&self) -> bool { false }
+    fn exposes_tip_size(&self) -> bool {
+        false
+    }
 
-    fn supports_fill(&self) -> bool { false }
+    fn supports_fill(&self) -> bool {
+        false
+    }
 
     fn default_color_key(&self, property: &str) -> Option<&'static str> {
         match property {
@@ -144,10 +182,11 @@ impl Primitive for ArrowPrimitive {
         &self,
         ctx: &crate::primitives::EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
-    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
+    {
         use crate::primitives::evaluate_shape_render;
-        use crate::timeline::shapes::ArrowState;
         use crate::timeline::Value;
+        use crate::timeline::shapes::ArrowState;
 
         let mut line_from = ctx.track.line_from.get(ctx.time_ms, [-50.0, 0.0]);
         let mut line_to = ctx.track.line_to.get(ctx.time_ms, [50.0, 0.0]);
@@ -185,23 +224,29 @@ impl Primitive for ArrowPrimitive {
         };
         match name {
             "from" => {
-                if let Some(parsed) = parse_numeric_vec2_with_lookup_diagnostic(value, env, diagnostics, subject) {
+                if let Some(parsed) =
+                    parse_numeric_vec2_with_lookup_diagnostic(value, env, diagnostics, subject)
+                {
                     arrow.from = parsed;
                 }
                 true
-            }
+            },
             "to" => {
-                if let Some(parsed) = parse_numeric_vec2_with_lookup_diagnostic(value, env, diagnostics, subject) {
+                if let Some(parsed) =
+                    parse_numeric_vec2_with_lookup_diagnostic(value, env, diagnostics, subject)
+                {
                     arrow.to = parsed;
                 }
                 true
-            }
+            },
             "head_size" => {
-                if let crate::timeline::Value::Num(val) = evaluate_expr(value, env).unwrap_or(crate::timeline::Value::Num(10.0)) {
+                if let crate::timeline::Value::Num(val) =
+                    evaluate_expr(value, env).unwrap_or(crate::timeline::Value::Num(10.0))
+                {
                     arrow.head_size = val.max(1.0) as f32;
                 }
                 true
-            }
+            },
             _ => false,
         }
     }

@@ -9,7 +9,9 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
-use crate::primitives::{ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, Primitive, RenderCommand};
+use crate::primitives::{
+    ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, Primitive, RenderCommand,
+};
 use crate::timeline::property_lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::{AnimationTrack, Environment, TrackAccessor};
 
@@ -20,11 +22,21 @@ pub struct FragmentPrimitive;
 pub const FRAGMENT: FragmentPrimitive = FragmentPrimitive;
 
 impl Primitive for FragmentPrimitive {
-    fn type_name(&self) -> &'static str { "Fragment" }
-    fn display_name(&self) -> &'static str { "Fragment" }
-    fn category(&self) -> ActorCategory { ActorCategory::Text }
-    fn icon_id(&self) -> &'static str { crate::icon_glyphs::HIGHLIGHTER }
-    fn kind_id(&self) -> ActorKindId { ActorKindId::Fragment }
+    fn type_name(&self) -> &'static str {
+        "Fragment"
+    }
+    fn display_name(&self) -> &'static str {
+        "Fragment"
+    }
+    fn category(&self) -> ActorCategory {
+        ActorCategory::Text
+    }
+    fn icon_id(&self) -> &'static str {
+        crate::icon_glyphs::HIGHLIGHTER
+    }
+    fn kind_id(&self) -> ActorKindId {
+        ActorKindId::Fragment
+    }
 
     fn build(
         &self,
@@ -55,26 +67,28 @@ impl Primitive for FragmentPrimitive {
                             crate::timeline::evaluate_expr(other, &env)
                                 .map(|v| v.as_str().to_string())
                                 .unwrap_or_default()
-                        }
+                        },
                     };
-                    track
-                        .text_content
-                        .ensure(String::new())
-                        .add_keyframe(ctx.time_ms as u64, content_str, Easing::Linear);
-                }
+                    track.text_content.ensure(String::new()).add_keyframe(
+                        ctx.time_ms as u64,
+                        content_str,
+                        Easing::Linear,
+                    );
+                },
                 "highlight_color" => {
                     // Initial highlight color (stored for later use by scene_eval).
                     if let Expr::Ident(name) = &prop.value {
                         if name == "auto" {
                             // Use default highlight color
-                            track
-                                .highlight_color
-                                .ensure([0.3, 0.5, 1.0, 1.0])
-                                .add_keyframe(ctx.time_ms as u64, [0.3, 0.5, 1.0, 1.0], Easing::Linear);
+                            track.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(
+                                ctx.time_ms as u64,
+                                [0.3, 0.5, 1.0, 1.0],
+                                Easing::Linear,
+                            );
                         }
                     }
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
 
@@ -93,16 +107,25 @@ impl Primitive for FragmentPrimitive {
     ) -> bool {
         match property {
             "content" => {
-                let content_str = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                    .map(|v| v.as_str().to_string())
-                    .unwrap_or_default();
+                let content_str =
+                    evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+                        .map(|v| v.as_str().to_string())
+                        .unwrap_or_default();
                 if ctx.duration_ms > 0.0 {
                     let start_val = track.text_content.get(ctx.t_start_ms, String::new());
-                    track.text_content.ensure(String::new()).add_keyframe(ctx.t_start_ms, start_val, Easing::Linear);
+                    track.text_content.ensure(String::new()).add_keyframe(
+                        ctx.t_start_ms,
+                        start_val,
+                        Easing::Linear,
+                    );
                 }
-                track.text_content.ensure(String::new()).add_keyframe(ctx.t_end_ms, content_str, ctx.easing);
+                track.text_content.ensure(String::new()).add_keyframe(
+                    ctx.t_end_ms,
+                    content_str,
+                    ctx.easing,
+                );
                 true
-            }
+            },
             "highlight_color" => {
                 let color = crate::timeline::resolve_color_in_env(value, env)
                     .ok()
@@ -110,44 +133,75 @@ impl Primitive for FragmentPrimitive {
                     .unwrap_or([0.3, 0.5, 1.0, 1.0]);
                 if ctx.duration_ms > 0.0 {
                     let start_val = track.highlight_color.get(ctx.t_start_ms, [0.3, 0.5, 1.0, 1.0]);
-                    track.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(ctx.t_start_ms, start_val, Easing::Linear);
+                    track.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(
+                        ctx.t_start_ms,
+                        start_val,
+                        Easing::Linear,
+                    );
                 }
-                track.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(ctx.t_end_ms, color, ctx.easing);
+                track.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(
+                    ctx.t_end_ms,
+                    color,
+                    ctx.easing,
+                );
                 true
-            }
+            },
             "highlight_opacity" => {
-                let opacity = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                    .map(|v| v.as_num() as f32)
-                    .unwrap_or(0.0);
+                let opacity =
+                    evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+                        .map(|v| v.as_num() as f32)
+                        .unwrap_or(0.0);
                 if ctx.duration_ms > 0.0 {
                     let start_val = track.highlight_opacity.get(ctx.t_start_ms, 0.0);
-                    track.highlight_opacity.ensure(0.0).add_keyframe(ctx.t_start_ms, start_val, Easing::Linear);
+                    track.highlight_opacity.ensure(0.0).add_keyframe(
+                        ctx.t_start_ms,
+                        start_val,
+                        Easing::Linear,
+                    );
                 }
-                track.highlight_opacity.ensure(0.0).add_keyframe(ctx.t_end_ms, opacity, ctx.easing);
+                track
+                    .highlight_opacity
+                    .ensure(0.0)
+                    .add_keyframe(ctx.t_end_ms, opacity, ctx.easing);
                 true
-            }
+            },
             "highlight_padding" => {
-                let padding = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                    .map(|v| v.as_num() as f32)
-                    .unwrap_or(4.0);
+                let padding =
+                    evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+                        .map(|v| v.as_num() as f32)
+                        .unwrap_or(4.0);
                 if ctx.duration_ms > 0.0 {
                     let start_val = track.highlight_padding.get(ctx.t_start_ms, 4.0);
-                    track.highlight_padding.ensure(4.0).add_keyframe(ctx.t_start_ms, start_val, Easing::Linear);
+                    track.highlight_padding.ensure(4.0).add_keyframe(
+                        ctx.t_start_ms,
+                        start_val,
+                        Easing::Linear,
+                    );
                 }
-                track.highlight_padding.ensure(4.0).add_keyframe(ctx.t_end_ms, padding, ctx.easing);
+                track
+                    .highlight_padding
+                    .ensure(4.0)
+                    .add_keyframe(ctx.t_end_ms, padding, ctx.easing);
                 true
-            }
+            },
             "highlight_radius" => {
                 let radius = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                     .map(|v| v.as_num() as f32)
                     .unwrap_or(3.0);
                 if ctx.duration_ms > 0.0 {
                     let start_val = track.highlight_radius.get(ctx.t_start_ms, 3.0);
-                    track.highlight_radius.ensure(3.0).add_keyframe(ctx.t_start_ms, start_val, Easing::Linear);
+                    track.highlight_radius.ensure(3.0).add_keyframe(
+                        ctx.t_start_ms,
+                        start_val,
+                        Easing::Linear,
+                    );
                 }
-                track.highlight_radius.ensure(3.0).add_keyframe(ctx.t_end_ms, radius, ctx.easing);
+                track
+                    .highlight_radius
+                    .ensure(3.0)
+                    .add_keyframe(ctx.t_end_ms, radius, ctx.easing);
                 true
-            }
+            },
             _ => false,
         }
     }

@@ -8,12 +8,24 @@ pub struct AudioPrimitive;
 pub const AUDIO: AudioPrimitive = AudioPrimitive;
 
 impl Primitive for AudioPrimitive {
-    fn type_name(&self) -> &'static str { "Audio" }
-    fn display_name(&self) -> &'static str { "Audio" }
-    fn category(&self) -> ActorCategory { ActorCategory::Media }
-    fn icon_id(&self) -> &'static str { crate::icon_glyphs::SPEAKER_HIGH }
-    fn is_advanced(&self) -> bool { true }
-    fn kind_id(&self) -> ActorKindId { ActorKindId::Audio }
+    fn type_name(&self) -> &'static str {
+        "Audio"
+    }
+    fn display_name(&self) -> &'static str {
+        "Audio"
+    }
+    fn category(&self) -> ActorCategory {
+        ActorCategory::Media
+    }
+    fn icon_id(&self) -> &'static str {
+        crate::icon_glyphs::SPEAKER_HIGH
+    }
+    fn is_advanced(&self) -> bool {
+        true
+    }
+    fn kind_id(&self) -> ActorKindId {
+        ActorKindId::Audio
+    }
 
     fn build(
         &self,
@@ -38,7 +50,8 @@ impl Primitive for AudioPrimitive {
         &self,
         _ctx: &crate::primitives::EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
-    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
+    {
         Ok(Some(vec![]))
     }
 

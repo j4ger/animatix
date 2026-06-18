@@ -3,9 +3,9 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
-use crate::timeline::{Environment, TrackAccessor, VectorShapeState};
 use crate::timeline::shapes::parse_point_list_expr;
-use crate::timeline::{kurbo_shapes::KurboShape, SceneDimensions, VelloPath};
+use crate::timeline::{Environment, TrackAccessor, VectorShapeState};
+use crate::timeline::{SceneDimensions, VelloPath, kurbo_shapes::KurboShape};
 
 /// The `Polygon` primitive.
 pub struct PolygonPrimitive;
@@ -14,14 +14,33 @@ pub struct PolygonPrimitive;
 pub const POLYGON: PolygonPrimitive = PolygonPrimitive;
 
 impl Primitive for PolygonPrimitive {
-    fn type_name(&self) -> &'static str { "Polygon" }
-    fn display_name(&self) -> &'static str { "Polygon" }
-    fn category(&self) -> ActorCategory { ActorCategory::Shape }
-    fn icon_id(&self) -> &'static str { crate::icon_glyphs::POLYGON }
-    fn is_shape(&self) -> bool { true }
-    fn kind_id(&self) -> ActorKindId { ActorKindId::Shape(crate::timeline::ShapeKind::Polygon) }
+    fn type_name(&self) -> &'static str {
+        "Polygon"
+    }
+    fn display_name(&self) -> &'static str {
+        "Polygon"
+    }
+    fn category(&self) -> ActorCategory {
+        ActorCategory::Shape
+    }
+    fn icon_id(&self) -> &'static str {
+        crate::icon_glyphs::POLYGON
+    }
+    fn is_shape(&self) -> bool {
+        true
+    }
+    fn kind_id(&self) -> ActorKindId {
+        ActorKindId::Shape(crate::timeline::ShapeKind::Polygon)
+    }
 
-    fn build(&self, _ctx: &mut BuildCtx, _label: &str, _props: &[Property], _modifiers: &[Modifier], _children: &[InlineItem]) -> Result<(), Vec<Diagnostic>> {
+    fn build(
+        &self,
+        _ctx: &mut BuildCtx,
+        _label: &str,
+        _props: &[Property],
+        _modifiers: &[Modifier],
+        _children: &[InlineItem],
+    ) -> Result<(), Vec<Diagnostic>> {
         Ok(())
     }
 
@@ -37,22 +56,33 @@ impl Primitive for PolygonPrimitive {
                 .collect();
             KurboShape::Polygon { points }.to_path_default()
         } else if let Some(custom_path) = &state.custom_path {
-            KurboShape::Path { path: custom_path.clone() }.to_path_default()
+            KurboShape::Path {
+                path: custom_path.clone(),
+            }
+            .to_path_default()
         } else {
             KurboShape::Polygon { points: Vec::new() }.to_path_default()
         };
         Some(vec![crate::timeline::shapes::build_vello_path(
-            path, ctx.style.color, ctx.style.stroke_color, ctx.style.stroke_width, ctx.style.fill_opacity, false,
+            path,
+            ctx.style.color,
+            ctx.style.stroke_color,
+            ctx.style.stroke_width,
+            ctx.style.fill_opacity,
+            false,
         )])
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            Property::new("points", Expr::List(vec![
-                Expr::Tuple(vec![Expr::Num(-60.0), Expr::Num(60.0)]),
-                Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(-60.0)]),
-                Expr::Tuple(vec![Expr::Num(60.0), Expr::Num(60.0)]),
-            ])),
+            Property::new(
+                "points",
+                Expr::List(vec![
+                    Expr::Tuple(vec![Expr::Num(-60.0), Expr::Num(60.0)]),
+                    Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(-60.0)]),
+                    Expr::Tuple(vec![Expr::Num(60.0), Expr::Num(60.0)]),
+                ]),
+            ),
             Property::new("color", Expr::Ident("accent.primary".into())),
         ]
     }
@@ -61,13 +91,16 @@ impl Primitive for PolygonPrimitive {
 
     fn finalize_state(&self, _state: &mut VectorShapeState) {}
 
-    fn supports_fill(&self) -> bool { true }
+    fn supports_fill(&self) -> bool {
+        true
+    }
 
     fn evaluate(
         &self,
         ctx: &crate::primitives::EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
-    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
+    {
         use crate::primitives::evaluate_shape_render;
         use crate::timeline::shapes::PolygonState;
 
@@ -116,10 +149,12 @@ impl Primitive for PolygonPrimitive {
                     polygon.custom_path = Some(KurboShape::Polygon { points }.to_path_default());
                 }
                 true
-            }
+            },
             _ => false,
         }
     }
 
-    fn uses_custom_path(&self) -> bool { true }
+    fn uses_custom_path(&self) -> bool {
+        true
+    }
 }

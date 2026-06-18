@@ -3,10 +3,13 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
-use crate::timeline::{kurbo_shapes::KurboShape, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath, DEFAULT_LAYOUT_HALF_SIZE};
 use crate::timeline::{
-    lookup_evaluate_expr_with_lookup_diagnostic as evaluate_expr_with_lookup_diagnostic,
+    DEFAULT_LAYOUT_HALF_SIZE, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath,
+    kurbo_shapes::KurboShape,
+};
+use crate::timeline::{
     Environment, Value,
+    lookup_evaluate_expr_with_lookup_diagnostic as evaluate_expr_with_lookup_diagnostic,
 };
 
 /// The `Ellipse` primitive.
@@ -16,14 +19,33 @@ pub struct EllipsePrimitive;
 pub const ELLIPSE: EllipsePrimitive = EllipsePrimitive;
 
 impl Primitive for EllipsePrimitive {
-    fn type_name(&self) -> &'static str { "Ellipse" }
-    fn display_name(&self) -> &'static str { "Ellipse" }
-    fn category(&self) -> ActorCategory { ActorCategory::Shape }
-    fn icon_id(&self) -> &'static str { crate::icon_glyphs::CIRCLE_NOTCH }
-    fn is_shape(&self) -> bool { true }
-    fn kind_id(&self) -> ActorKindId { ActorKindId::Shape(crate::timeline::ShapeKind::Ellipse) }
+    fn type_name(&self) -> &'static str {
+        "Ellipse"
+    }
+    fn display_name(&self) -> &'static str {
+        "Ellipse"
+    }
+    fn category(&self) -> ActorCategory {
+        ActorCategory::Shape
+    }
+    fn icon_id(&self) -> &'static str {
+        crate::icon_glyphs::CIRCLE_NOTCH
+    }
+    fn is_shape(&self) -> bool {
+        true
+    }
+    fn kind_id(&self) -> ActorKindId {
+        ActorKindId::Shape(crate::timeline::ShapeKind::Ellipse)
+    }
 
-    fn build(&self, _ctx: &mut BuildCtx, _label: &str, _props: &[Property], _modifiers: &[Modifier], _children: &[InlineItem]) -> Result<(), Vec<Diagnostic>> {
+    fn build(
+        &self,
+        _ctx: &mut BuildCtx,
+        _label: &str,
+        _props: &[Property],
+        _modifiers: &[Modifier],
+        _children: &[InlineItem],
+    ) -> Result<(), Vec<Diagnostic>> {
         Ok(())
     }
 
@@ -38,7 +60,11 @@ impl Primitive for EllipsePrimitive {
         }
         .to_path_default();
         Some(vec![crate::timeline::shapes::build_vello_path(
-            path, ctx.style.color, ctx.style.stroke_color, ctx.style.stroke_width, ctx.style.fill_opacity,
+            path,
+            ctx.style.color,
+            ctx.style.stroke_color,
+            ctx.style.stroke_width,
+            ctx.style.fill_opacity,
             false,
         )])
     }
@@ -57,17 +83,24 @@ impl Primitive for EllipsePrimitive {
 
     fn finalize_state(&self, _state: &mut VectorShapeState) {}
 
-    fn uses_custom_path(&self) -> bool { false }
+    fn uses_custom_path(&self) -> bool {
+        false
+    }
 
-    fn exposes_tip_size(&self) -> bool { false }
+    fn exposes_tip_size(&self) -> bool {
+        false
+    }
 
-    fn supports_fill(&self) -> bool { true }
+    fn supports_fill(&self) -> bool {
+        true
+    }
 
     fn evaluate(
         &self,
         ctx: &crate::primitives::EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
-    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
+    {
         use crate::primitives::evaluate_shape_render;
         use crate::timeline::shapes::EllipseState;
 
@@ -112,13 +145,13 @@ impl Primitive for EllipsePrimitive {
                     .unwrap_or(Value::Num(ellipse.size[0] as f64));
                 ellipse.size[0] = v.as_num() as f32;
                 true
-            }
+            },
             "radius_y" => {
                 let v = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                     .unwrap_or(Value::Num(ellipse.size[1] as f64));
                 ellipse.size[1] = v.as_num() as f32;
                 true
-            }
+            },
             _ => false,
         }
     }

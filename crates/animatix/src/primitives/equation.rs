@@ -18,12 +18,24 @@ pub struct EquationPrimitive;
 pub const EQUATION: EquationPrimitive = EquationPrimitive;
 
 impl Primitive for EquationPrimitive {
-    fn type_name(&self) -> &'static str { "Equation" }
-    fn display_name(&self) -> &'static str { "Equation" }
-    fn category(&self) -> ActorCategory { ActorCategory::Container }
-    fn icon_id(&self) -> &'static str { crate::icon_glyphs::SIGMA }
-    fn is_container(&self) -> bool { true }
-    fn kind_id(&self) -> ActorKindId { ActorKindId::Equation }
+    fn type_name(&self) -> &'static str {
+        "Equation"
+    }
+    fn display_name(&self) -> &'static str {
+        "Equation"
+    }
+    fn category(&self) -> ActorCategory {
+        ActorCategory::Container
+    }
+    fn icon_id(&self) -> &'static str {
+        crate::icon_glyphs::SIGMA
+    }
+    fn is_container(&self) -> bool {
+        true
+    }
+    fn kind_id(&self) -> ActorKindId {
+        ActorKindId::Equation
+    }
 
     fn build(
         &self,
@@ -50,14 +62,12 @@ impl Primitive for EquationPrimitive {
     }
 
     fn default_props(&self, scene: &SceneDimensions) -> Vec<Property> {
-        vec![
-            Property::new(
-                "at",
-                Expr::Tuple(vec![
-                    Expr::Num(scene.width as f64 / 2.0),
-                    Expr::Num(scene.height as f64 / 2.0),
-                ]),
-            ),
-        ]
+        vec![Property::new(
+            "at",
+            Expr::Tuple(vec![
+                Expr::Num(scene.width as f64 / 2.0),
+                Expr::Num(scene.height as f64 / 2.0),
+            ]),
+        )]
     }
 }

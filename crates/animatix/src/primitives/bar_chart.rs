@@ -2,7 +2,9 @@
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx};
+use crate::primitives::{
+    ActorCategory, ActorKindId, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx,
+};
 use crate::renderer::error::RenderError;
 use crate::timeline::SceneDimensions;
 

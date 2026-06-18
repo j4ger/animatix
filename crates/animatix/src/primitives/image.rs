@@ -4,11 +4,11 @@ use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
 use crate::primitives::{ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, Primitive};
-use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
 use crate::timeline::image::load_image;
 use crate::timeline::preserve_instant_delayed_value;
 use crate::timeline::property_lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::track::TrackAccessor;
+use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
 
 /// The `Image` primitive.
 pub struct ImagePrimitive;
@@ -17,11 +17,21 @@ pub struct ImagePrimitive;
 pub const IMAGE: ImagePrimitive = ImagePrimitive;
 
 impl Primitive for ImagePrimitive {
-    fn type_name(&self) -> &'static str { "Image" }
-    fn display_name(&self) -> &'static str { "Image" }
-    fn category(&self) -> ActorCategory { ActorCategory::Media }
-    fn icon_id(&self) -> &'static str { crate::icon_glyphs::IMAGE }
-    fn kind_id(&self) -> ActorKindId { ActorKindId::Image }
+    fn type_name(&self) -> &'static str {
+        "Image"
+    }
+    fn display_name(&self) -> &'static str {
+        "Image"
+    }
+    fn category(&self) -> ActorCategory {
+        ActorCategory::Media
+    }
+    fn icon_id(&self) -> &'static str {
+        crate::icon_glyphs::IMAGE
+    }
+    fn kind_id(&self) -> ActorKindId {
+        ActorKindId::Image
+    }
 
     fn build(
         &self,
@@ -31,7 +41,6 @@ impl Primitive for ImagePrimitive {
         modifiers: &[Modifier],
         _children: &[InlineItem],
     ) -> Result<(), Vec<Diagnostic>> {
-        
         ctx.timeline.process_media_actor_decl(
             self.type_name(),
             label,
@@ -57,12 +66,10 @@ impl Primitive for ImagePrimitive {
         if property != "url" {
             return false;
         }
-        let target_url = evaluate_expr_with_lookup_diagnostic(
-            value, env, diagnostics, subject,
-        )
-        .unwrap_or(Value::Str(String::new()))
-        .as_str()
-        .to_string();
+        let target_url = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+            .unwrap_or(Value::Str(String::new()))
+            .as_str()
+            .to_string();
         if target_url.is_empty() {
             return true;
         }
@@ -71,12 +78,19 @@ impl Primitive for ImagePrimitive {
             Ok(target_image) => {
                 if ctx.duration_ms > 0.0 {
                     let start_val = track.image.get(ctx.t_start_ms, None);
-                    track.image.ensure(None).add_keyframe(ctx.t_start_ms, start_val, Easing::Linear);
+                    track.image.ensure(None).add_keyframe(
+                        ctx.t_start_ms,
+                        start_val,
+                        Easing::Linear,
+                    );
                 } else if ctx.instant_delayed {
                     preserve_instant_delayed_value(&mut track.image, ctx.t_start_ms);
                 }
-                track.image.ensure(None).add_keyframe(ctx.t_end_ms, Some(target_image), ctx.easing);
-            }
+                track
+                    .image
+                    .ensure(None)
+                    .add_keyframe(ctx.t_end_ms, Some(target_image), ctx.easing);
+            },
             Err(error) => {
                 diagnostics.push(
                     Diagnostic::error(
@@ -87,7 +101,7 @@ impl Primitive for ImagePrimitive {
                     .with_subject(subject)
                     .with_path(&target_url),
                 );
-            }
+            },
         }
         true
     }
@@ -96,7 +110,8 @@ impl Primitive for ImagePrimitive {
         &self,
         ctx: &crate::primitives::EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
-    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
+    {
         use crate::primitives::RenderCommand;
         use crate::timeline::DEFAULT_LAYOUT_HALF_SIZE;
 
@@ -109,7 +124,10 @@ impl Primitive for ImagePrimitive {
                 }
             }
             let natural_size = [half_size[0] * 2.0, half_size[1] * 2.0];
-            Ok(Some(vec![RenderCommand::Image { image, natural_size }]))
+            Ok(Some(vec![RenderCommand::Image {
+                image,
+                natural_size,
+            }]))
         } else {
             Ok(None)
         }
@@ -117,7 +135,13 @@ impl Primitive for ImagePrimitive {
 
     fn default_props(&self, scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            Property::new("at", Expr::Tuple(vec![Expr::Num(scene.width as f64 / 2.0), Expr::Num(scene.height as f64 / 2.0)])),
+            Property::new(
+                "at",
+                Expr::Tuple(vec![
+                    Expr::Num(scene.width as f64 / 2.0),
+                    Expr::Num(scene.height as f64 / 2.0),
+                ]),
+            ),
             Property::new("url", Expr::Str(String::new())),
             Property::new("size", Expr::Tuple(vec![Expr::Num(240.0), Expr::Num(160.0)])),
         ]

@@ -3,8 +3,8 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, Primitive};
-use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
 use crate::timeline::property_lookup::evaluate_expr_with_lookup_diagnostic;
+use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
 
 /// The `Text` primitive.
 pub struct TextPrimitive;
@@ -13,11 +13,21 @@ pub struct TextPrimitive;
 pub const TEXT: TextPrimitive = TextPrimitive;
 
 impl Primitive for TextPrimitive {
-    fn type_name(&self) -> &'static str { "Text" }
-    fn display_name(&self) -> &'static str { "Text" }
-    fn category(&self) -> ActorCategory { ActorCategory::Text }
-    fn icon_id(&self) -> &'static str { crate::icon_glyphs::TEXT_T }
-    fn kind_id(&self) -> ActorKindId { ActorKindId::Text }
+    fn type_name(&self) -> &'static str {
+        "Text"
+    }
+    fn display_name(&self) -> &'static str {
+        "Text"
+    }
+    fn category(&self) -> ActorCategory {
+        ActorCategory::Text
+    }
+    fn icon_id(&self) -> &'static str {
+        crate::icon_glyphs::TEXT_T
+    }
+    fn kind_id(&self) -> ActorKindId {
+        ActorKindId::Text
+    }
 
     fn build(
         &self,
@@ -27,7 +37,6 @@ impl Primitive for TextPrimitive {
         modifiers: &[Modifier],
         _children: &[InlineItem],
     ) -> Result<(), Vec<Diagnostic>> {
-        
         if let Err(e) = ctx.timeline.process_text_actor_decl(
             self.type_name(),
             label,
@@ -62,12 +71,10 @@ impl Primitive for TextPrimitive {
         if !matches!(property, "text" | "latex" | "math" | "code") {
             return false;
         }
-        let target_text = evaluate_expr_with_lookup_diagnostic(
-            value, env, diagnostics, subject,
-        )
-        .unwrap_or(Value::Str(String::new()))
-        .as_str()
-        .to_string();
+        let target_text = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+            .unwrap_or(Value::Str(String::new()))
+            .as_str()
+            .to_string();
         if let Err(e) = crate::timeline::recompile_text_at_assignment(
             track,
             target_text,
@@ -95,7 +102,8 @@ impl Primitive for TextPrimitive {
         &self,
         ctx: &crate::primitives::EvaluateCtx,
         text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
-    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
+    {
         use crate::primitives::{RenderCommand, evaluate_text_paths};
         use crate::renderer::text::TextKind;
 
@@ -113,7 +121,13 @@ impl Primitive for TextPrimitive {
 
     fn default_props(&self, scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            Property::new("at", Expr::Tuple(vec![Expr::Num(scene.width as f64 / 2.0), Expr::Num(scene.height as f64 / 2.0)])),
+            Property::new(
+                "at",
+                Expr::Tuple(vec![
+                    Expr::Num(scene.width as f64 / 2.0),
+                    Expr::Num(scene.height as f64 / 2.0),
+                ]),
+            ),
             Property::new("text", Expr::Str("Text".into())),
             Property::new("font_size", Expr::Num(48.0)),
         ]

@@ -3,8 +3,8 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, Primitive};
-use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
 use crate::timeline::property_lookup::evaluate_expr_with_lookup_diagnostic;
+use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
 
 /// The `Typst` primitive.
 pub struct TypstPrimitive;
@@ -13,12 +13,24 @@ pub struct TypstPrimitive;
 pub const TYPST: TypstPrimitive = TypstPrimitive;
 
 impl Primitive for TypstPrimitive {
-    fn type_name(&self) -> &'static str { "Typst" }
-    fn display_name(&self) -> &'static str { "Typst" }
-    fn category(&self) -> ActorCategory { ActorCategory::Text }
-    fn icon_id(&self) -> &'static str { crate::icon_glyphs::ARTICLE }
-    fn is_advanced(&self) -> bool { true }
-    fn kind_id(&self) -> ActorKindId { ActorKindId::Typst }
+    fn type_name(&self) -> &'static str {
+        "Typst"
+    }
+    fn display_name(&self) -> &'static str {
+        "Typst"
+    }
+    fn category(&self) -> ActorCategory {
+        ActorCategory::Text
+    }
+    fn icon_id(&self) -> &'static str {
+        crate::icon_glyphs::ARTICLE
+    }
+    fn is_advanced(&self) -> bool {
+        true
+    }
+    fn kind_id(&self) -> ActorKindId {
+        ActorKindId::Typst
+    }
 
     fn build(
         &self,
@@ -62,12 +74,10 @@ impl Primitive for TypstPrimitive {
         if !matches!(property, "text" | "latex" | "math" | "code" | "content") {
             return false;
         }
-        let target_text = evaluate_expr_with_lookup_diagnostic(
-            value, env, diagnostics, subject,
-        )
-        .unwrap_or(Value::Str(String::new()))
-        .as_str()
-        .to_string();
+        let target_text = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+            .unwrap_or(Value::Str(String::new()))
+            .as_str()
+            .to_string();
         if let Err(e) = crate::timeline::recompile_text_at_assignment(
             track,
             target_text,
@@ -95,7 +105,8 @@ impl Primitive for TypstPrimitive {
         &self,
         ctx: &crate::primitives::EvaluateCtx,
         text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
-    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError> {
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
+    {
         use crate::primitives::{RenderCommand, evaluate_text_paths};
         use crate::renderer::text::TextKind;
         use crate::timeline::TrackAccessor;
@@ -125,16 +136,15 @@ impl Primitive for TypstPrimitive {
                     max_y = max_y.max(b.y1);
                 }
                 if min_x.is_finite() && max_x.is_finite() {
-                    let hl_color_arr = ctx.track.highlight_color.get(ctx.time_ms, [0.3, 0.5, 1.0, 1.0]);
+                    let hl_color_arr =
+                        ctx.track.highlight_color.get(ctx.time_ms, [0.3, 0.5, 1.0, 1.0]);
                     let hl_padding = ctx.track.highlight_padding.get(ctx.time_ms, 4.0);
                     let hl_radius = ctx.track.highlight_radius.get(ctx.time_ms, 3.0);
                     let hl_blend = ctx.track.highlight_blend;
 
                     let pad = hl_padding as f64;
-                    let hl_rect = kurbo::Rect::new(
-                        min_x - pad, min_y - pad,
-                        max_x + pad, max_y + pad,
-                    );
+                    let hl_rect =
+                        kurbo::Rect::new(min_x - pad, min_y - pad, max_x + pad, max_y + pad);
                     let hl_color = vello::peniko::Color::from_rgba8(
                         (hl_color_arr[0] * 255.0) as u8,
                         (hl_color_arr[1] * 255.0) as u8,
@@ -160,7 +170,13 @@ impl Primitive for TypstPrimitive {
 
     fn default_props(&self, scene: &SceneDimensions) -> Vec<Property> {
         vec![
-            Property::new("at", Expr::Tuple(vec![Expr::Num(scene.width as f64 / 2.0), Expr::Num(scene.height as f64 / 2.0)])),
+            Property::new(
+                "at",
+                Expr::Tuple(vec![
+                    Expr::Num(scene.width as f64 / 2.0),
+                    Expr::Num(scene.height as f64 / 2.0),
+                ]),
+            ),
             Property::new("content", Expr::Str("*bold* and _italic_".into())),
             Property::new("font_size", Expr::Num(48.0)),
         ]
