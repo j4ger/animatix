@@ -417,9 +417,9 @@ morpher.size = (100, 100) [2s, ease: ease-out]
 
 Implemented: `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`.
 
-- **Row/Col:** `gap` (spacing), `padding` (inset), `align` ("start" | "center" | "end")
+- **Row/Col:** `gap` (spacing, single value or per-axis tuple `(row_gap, col_gap)`), `padding` (inset, single value or per-side tuple `(top, right, bottom, left)`), `align` ("start" | "center" | "end"), `vertical_align` ("baseline" — aligns children by their text baseline instead of the container's cross-axis center)
 - **Grid:** `cols` + `gap` + `padding`
-- **Stack:** Overlapping children around shared origin (supports `padding`)
+- **Stack:** Overlapping children around shared origin; supports `padding`, `align` ("start" | "center" | "end")
 - **Group:** Non-layout grouping/transform inheritance
 
 **Declaration-time measure/place contract:** Layout containers consume each child's `size` track at timeline build; children with explicit `at` opt into manual placement instead.
@@ -430,6 +430,24 @@ Implemented: `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`.
 row: Row, gap: 12, padding: 20, align: "center" {
   Rect, color: red
   Ellipse, color: blue
+}
+
+// Per-axis gap and per-side padding
+col: Col, gap: (8, 16), padding: (10, 20, 10, 20) {
+  a: Rect, size: (100, 50)
+  b: Rect, size: (100, 50)
+}
+
+// Stack with alignment
+stack: Stack, align: "center", padding: 24 {
+  bg: Rect, size: (200, 100), color: surface.secondary
+  label: Text, text: "Centered", color: text.primary
+}
+
+// Baseline alignment in a Row
+badge_row: Row, vertical_align: "baseline" {
+  icon: Text, text: "✦", font_size: 24
+  label: Text, text: "Premium", font_size: 14
 }
 ```
 
@@ -520,11 +538,11 @@ img: Image, url: "examples/assets/checker.png", at: (100, 100), size: (200, 150)
 | `Arrow` | `from`, `to`, `head_size` |
 | `Polygon` | `points: {(x, y), ...}` |
 | `Path` | `commands: {move_to(...), line_to(...), curve_to(...), close()}` |
-| `Text` / `Typst` / `Code` | `text` / `content` / `code`, `font_size`, `font_family` |
+| `Text` / `Typst` / `Code` | `text` / `content` / `code`, `font_size`, `font_family`, `font_weight`, `font_style`, `line_height`, `letter_spacing`, `word_spacing`, `text_max_width`, `text_align`, `overflow` |
 | `Image` / `Svg` | `url` |
 | `Filter` | `blur`, `brightness`, `contrast`, `saturate`, `hue_rotate`, `sepia` |
 | `Graph` / plots | `x_domain`, `y_domain`, `func`, `kind`, `resolution`, `density`, `levels` |
-| `Row` / `Col` / `Grid` / `Stack` | `gap`, `padding`, `align`, `cols` (`Grid`) |
+| `Row` / `Col` / `Grid` / `Stack` | `gap` / `gap: (row, col)`, `padding` / `padding: (top, right, bottom, left)`, `align`, `vertical_align` (Row/Col), `cols` (Grid) |
 
 **Text shorthand:**
 ```animatix
@@ -539,6 +557,72 @@ eq: $$ x^2 $$ [2s, ease: bounce]       // with modifiers
 ```
 
 A bare `$$ ... $$` block produces a `Typst` actor. The content between `$$` delimiters is taken as raw Text (unquoted) and becomes the `content` property. A label is required. Modifiers are supported.
+
+### Typography Properties
+
+Text-like primitives (`Text`, `Typst`, `Code`) support typography properties for fine-grained control over text appearance:
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `font_weight` | Num or Str | `400` | Font weight. Numeric values 100–900, or strings `"normal"` (400) / `"bold"` (700). |
+| `font_style` | Str | `"normal"` | Font style. `"normal"` or `"italic"`. |
+| `line_height` | Num | `1.2` | Line height multiplier relative to font size. `1.0` = single-spaced, `1.5` = 1.5× spacing. |
+| `letter_spacing` | Num | `0.0` | Additional spacing between letters in pixels. Positive values increase spacing; negative values tighten. |
+| `word_spacing` | Num | `0.0` | Additional spacing between words in pixels. |
+
+```animatix
+label: Text, text: "Typography", font_size: 48,
+  font_weight: "bold", font_style: "italic",
+  letter_spacing: 2.0, line_height: 1.4
+```
+
+`font_weight` accepts numeric values or keyword strings:
+- `100`–`900`: standard CSS-like weight scale
+- `"normal"`: equivalent to `400`
+- `"bold"`: equivalent to `700`
+
+All typography properties are animatable via keyframes:
+
+```animatix
+#0s
+label: Text, text: "Hello", font_weight: "normal"
+
+#2s
+label.font_weight = "bold" [1s]
+label.letter_spacing = 4.0 [1s]
+```
+
+### Text Wrapping & Overflow
+
+Text primitives support wrapping and overflow control for multi-line layout:
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `text_max_width` | Num | `0` | Maximum width in pixels for text wrapping. `0` = no wrapping (single line). |
+| `text_align` | Str | `"left"` | Horizontal alignment within the text box. `"left"`, `"center"`, `"right"`, or `"justify"`. |
+| `overflow` | Str | `"visible"` | Text overflow behavior. `"visible"` (render beyond bounds), `"clip"` (hide overflow), or `"ellipsis"` (show `…` truncation). |
+
+```animatix
+// Wrapped text with center alignment
+desc: Text, text: "Long paragraph that wraps at 300px",
+  text_max_width: 300, text_align: "center", line_height: 1.5
+
+// Single-line text with ellipsis overflow
+trunc: Text, text: "Very long title that gets truncated",
+  text_max_width: 200, overflow: "ellipsis"
+```
+
+**Automatic container-to-child width propagation:** When a `Text`/`Typst`/`Code` actor is placed as a direct child of a `Col` or `Grid` container (i.e., a container that constrains its children along the cross axis), the child's `text_max_width` is automatically set to the container's content-box width if no explicit `text_max_width` is specified. This enables natural text wrapping inside columns without manual width configuration:
+
+```animatix
+col: Col, gap: 8, padding: 16 {
+  // text_max_width auto-set to col's content width
+  title: Text, text: "Wrapped title inside a column", font_size: 24
+  body: Text, text: "Body text that wraps naturally at the column's width"
+}
+```
+
+> **Note:** `Row` does NOT propagate width to children (it places them side-by-side). Use `Col` or `Grid` when you want text to wrap at the container width.
 
 ### Transform Property
 

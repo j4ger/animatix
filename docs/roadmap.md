@@ -4,6 +4,22 @@ Keep track of what is yet to be done here, when a segment is fully done, remove 
 
 ---
 
+## Completed
+
+### Layout & Typography Improvement Roadmap (7 phases)
+
+All 7 phases of the layout/typography improvement roadmap are complete:
+
+- **Phase 1:** Typography properties (`font_weight`, `font_style`, `line_height`, `letter_spacing`, `word_spacing`)
+- **Phase 2:** (Container sizing — already shipped prior to roadmap)
+- **Phase 3:** Per-axis gap (`gap: (row, col)`), per-side padding (`padding: (top, right, bottom, left)`), Stack `align`
+- **Phase 4:** (Existing layout features — already shipped)
+- **Phase 5:** Text wrapping (`text_max_width`, `text_align`, `overflow`), automatic container-to-child width propagation
+- **Phase 6:** Baseline alignment (`vertical_align: "baseline"` on Row/Col)
+- **Phase 7:** Percentage and intrinsic sizing (`"50%"`, `fill`, `auto`/`fit`, `min_width`, `max_height`)
+
+---
+
 ## Planned
 
 ### Architecture & Maintainability
