@@ -105,9 +105,20 @@ pub fn modal(
     // ── Animation state ──
     let anim_id = egui::Id::new(spec.id).with("anim");
     let closing_id = egui::Id::new(spec.id).with("closing");
+    let opened_id = egui::Id::new(spec.id).with("opened");
 
     // Read current closing state (persists across frames)
     let is_closing = ctx.data(|d| d.get_temp::<bool>(closing_id).unwrap_or(false));
+
+    // First-ever-frame detection: seed animation value at 0.0 so the
+    // entrance transition doesn't snap to 1.0 on the very first summon
+    // (egui's animate_value_with_time returns the target immediately
+    // for a brand-new id that has no previous value).
+    let first_frame = !ctx.data(|d| d.get_temp::<bool>(opened_id).unwrap_or(false));
+    if first_frame && !is_closing {
+        ctx.animate_value_with_time(anim_id, 0.0, 0.0);
+        ctx.data_mut(|d| d.insert_temp(opened_id, true));
+    }
 
     // Target: 1.0 = fully open, 0.0 = fully closed
     let anim_target = if is_closing { 0.0 } else { 1.0 };
@@ -173,12 +184,6 @@ pub fn modal(
 
     let resp = window.show(ctx, |window_ui| {
         window_ui.set_min_width(spec.min_size[0] - 2.0 * spatial::dialog::INNER_MARGIN);
-        // Detect first frame
-        let opened_id = egui::Id::new(spec.id).with("opened");
-        let first_frame = !ctx.data(|d| d.get_temp::<bool>(opened_id).unwrap_or(false));
-        if first_frame {
-            ctx.data_mut(|d| d.insert_temp(opened_id, true));
-        }
         let dc = DialogCtx { first_frame };
         body(window_ui, &dc)
     });
@@ -206,7 +211,7 @@ pub fn modal(
     if fully_closed {
         ctx.data_mut(|d| {
             d.remove::<bool>(closing_id);
-            d.remove::<bool>(egui::Id::new(spec.id).with("opened"));
+            d.remove::<bool>(opened_id);
         });
     }
 
