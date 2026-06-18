@@ -603,6 +603,27 @@ impl<T: Interpolate> PropertyTrack<T> {
 }
 
 // ─────────────────────────────────────────────────────────────
+// FilterTracks sub-struct
+// ─────────────────────────────────────────────────────────────
+
+/// Sub-struct holding all filter-related property tracks.
+#[derive(Clone, Debug, Default)]
+pub struct FilterTracks {
+    /// Gaussian blur radius.
+    pub filter_blur: Option<PropertyTrack<f32>>,
+    /// Brightness multiplier.
+    pub filter_brightness: Option<PropertyTrack<f32>>,
+    /// Contrast multiplier.
+    pub filter_contrast: Option<PropertyTrack<f32>>,
+    /// Saturation multiplier.
+    pub filter_saturate: Option<PropertyTrack<f32>>,
+    /// Hue rotation in degrees.
+    pub filter_hue_rotate: Option<PropertyTrack<f32>>,
+    /// Sepia intensity.
+    pub filter_sepia: Option<PropertyTrack<f32>>,
+}
+
+// ─────────────────────────────────────────────────────────────
 // AnimationTrack
 // ─────────────────────────────────────────────────────────────
 
@@ -661,19 +682,9 @@ pub struct AnimationTrack {
     /// Path morphing options.
     pub morph_options: Option<PropertyTrack<MorphOptions>>,
 
-    // ── Filter tier ──
-    /// Gaussian blur radius.
-    pub filter_blur: Option<PropertyTrack<f32>>,
-    /// Brightness multiplier.
-    pub filter_brightness: Option<PropertyTrack<f32>>,
-    /// Contrast multiplier.
-    pub filter_contrast: Option<PropertyTrack<f32>>,
-    /// Saturation multiplier.
-    pub filter_saturate: Option<PropertyTrack<f32>>,
-    /// Hue rotation in degrees.
-    pub filter_hue_rotate: Option<PropertyTrack<f32>>,
-    /// Sepia intensity.
-    pub filter_sepia: Option<PropertyTrack<f32>>,
+    // ── Filter tier (sub-struct) ──
+    /// Filter property tracks (blur, brightness, contrast, etc.).
+    pub filter: FilterTracks,
 
     // ── Shape payload (flat compat fields) ──
     /// Specific shape geometry type.
@@ -804,13 +815,8 @@ impl AnimationTrack {
             line_join: None,
             morph_options: None,
 
-            // Filter flat fields
-            filter_blur: None,
-            filter_brightness: None,
-            filter_contrast: None,
-            filter_saturate: None,
-            filter_hue_rotate: None,
-            filter_sepia: None,
+            // Filter tier (sub-struct)
+            filter: FilterTracks::default(),
 
             // Shape flat fields
             shape_type: None,
@@ -1324,12 +1330,12 @@ impl AnimationTrack {
             StrokeColor => TrackFieldRef::Vec4(&self.stroke_color),
             StrokeProgress => TrackFieldRef::F32(&self.stroke_progress),
             FillOpacity => TrackFieldRef::F32(&self.fill_opacity),
-            FilterBlur => TrackFieldRef::F32(&self.filter_blur),
-            FilterBrightness => TrackFieldRef::F32(&self.filter_brightness),
-            FilterContrast => TrackFieldRef::F32(&self.filter_contrast),
-            FilterSaturate => TrackFieldRef::F32(&self.filter_saturate),
-            FilterHueRotate => TrackFieldRef::F32(&self.filter_hue_rotate),
-            FilterSepia => TrackFieldRef::F32(&self.filter_sepia),
+            FilterBlur => TrackFieldRef::F32(&self.filter.filter_blur),
+            FilterBrightness => TrackFieldRef::F32(&self.filter.filter_brightness),
+            FilterContrast => TrackFieldRef::F32(&self.filter.filter_contrast),
+            FilterSaturate => TrackFieldRef::F32(&self.filter.filter_saturate),
+            FilterHueRotate => TrackFieldRef::F32(&self.filter.filter_hue_rotate),
+            FilterSepia => TrackFieldRef::F32(&self.filter.filter_sepia),
             ShapeType => TrackFieldRef::ShapeType(&self.shape_type),
             LineFrom => TrackFieldRef::Vec2(&self.line_from),
             LineTo => TrackFieldRef::Vec2(&self.line_to),
@@ -1393,12 +1399,12 @@ impl AnimationTrack {
             StrokeColor => TrackFieldMut::Vec4(&mut self.stroke_color),
             StrokeProgress => TrackFieldMut::F32(&mut self.stroke_progress),
             FillOpacity => TrackFieldMut::F32(&mut self.fill_opacity),
-            FilterBlur => TrackFieldMut::F32(&mut self.filter_blur),
-            FilterBrightness => TrackFieldMut::F32(&mut self.filter_brightness),
-            FilterContrast => TrackFieldMut::F32(&mut self.filter_contrast),
-            FilterSaturate => TrackFieldMut::F32(&mut self.filter_saturate),
-            FilterHueRotate => TrackFieldMut::F32(&mut self.filter_hue_rotate),
-            FilterSepia => TrackFieldMut::F32(&mut self.filter_sepia),
+            FilterBlur => TrackFieldMut::F32(&mut self.filter.filter_blur),
+            FilterBrightness => TrackFieldMut::F32(&mut self.filter.filter_brightness),
+            FilterContrast => TrackFieldMut::F32(&mut self.filter.filter_contrast),
+            FilterSaturate => TrackFieldMut::F32(&mut self.filter.filter_saturate),
+            FilterHueRotate => TrackFieldMut::F32(&mut self.filter.filter_hue_rotate),
+            FilterSepia => TrackFieldMut::F32(&mut self.filter.filter_sepia),
             ShapeType => TrackFieldMut::ShapeType(&mut self.shape_type),
             LineFrom => TrackFieldMut::Vec2(&mut self.line_from),
             LineTo => TrackFieldMut::Vec2(&mut self.line_to),
@@ -2133,7 +2139,7 @@ mod tests {
     #[test]
     fn test_max_keyframe_time_with_filter_blur() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.filter_blur.ensure(0.0)
+        track.filter.filter_blur.ensure(0.0)
             .add_keyframe(2000, 5.0, Easing::Linear);
         assert_eq!(track.max_keyframe_time(), Some(2000));
     }
@@ -2141,7 +2147,7 @@ mod tests {
     #[test]
     fn test_max_keyframe_time_with_filter_brightness() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.filter_brightness.ensure(1.0)
+        track.filter.filter_brightness.ensure(1.0)
             .add_keyframe(1500, 2.0, Easing::Linear);
         assert_eq!(track.max_keyframe_time(), Some(1500));
     }
@@ -2200,7 +2206,7 @@ mod tests {
     #[test]
     fn test_has_any_keyframes_returns_true_for_filter_contrast() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.filter_contrast.ensure(1.0).add_keyframe(2000, 2.0, Easing::Linear);
+        track.filter.filter_contrast.ensure(1.0).add_keyframe(2000, 2.0, Easing::Linear);
         assert!(track.has_any_keyframes());
     }
 

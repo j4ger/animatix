@@ -582,12 +582,12 @@ impl Timeline {
             }
 
             // Sample filter properties
-            let mut blur = track.filter_blur.get(time_ms, 0.0);
-            let mut brightness = track.filter_brightness.get(time_ms, 1.0);
-            let mut contrast = track.filter_contrast.get(time_ms, 1.0);
-            let mut saturate = track.filter_saturate.get(time_ms, 1.0);
-            let mut hue_rotate = track.filter_hue_rotate.get(time_ms, 0.0);
-            let mut sepia = track.filter_sepia.get(time_ms, 0.0);
+            let mut blur = track.filter.filter_blur.get(time_ms, 0.0);
+            let mut brightness = track.filter.filter_brightness.get(time_ms, 1.0);
+            let mut contrast = track.filter.filter_contrast.get(time_ms, 1.0);
+            let mut saturate = track.filter.filter_saturate.get(time_ms, 1.0);
+            let mut hue_rotate = track.filter.filter_hue_rotate.get(time_ms, 0.0);
+            let mut sepia = track.filter.filter_sepia.get(time_ms, 0.0);
 
             // Apply modifier overrides for filter properties
             if let Some(ov) = overrides.get(node_label) {

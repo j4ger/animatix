@@ -1623,9 +1623,9 @@ fn test_keyframe_times_s_includes_filter_fields() {
     // Filter fields apply to Filter actor kind
     let mut track = AnimationTrack::new("test".to_string());
     track.kind = ActorKindId::Filter;
-    track.filter_brightness.ensure(1.0).add_keyframe(500, 2.0, Easing::Linear);
-    track.filter_contrast.ensure(1.0).add_keyframe(1200, 1.5, Easing::Linear);
-    track.filter_saturate.ensure(1.0).add_keyframe(800, 0.0, Easing::Linear);
+    track.filter.filter_brightness.ensure(1.0).add_keyframe(500, 2.0, Easing::Linear);
+    track.filter.filter_contrast.ensure(1.0).add_keyframe(1200, 1.5, Easing::Linear);
+    track.filter.filter_saturate.ensure(1.0).add_keyframe(800, 0.0, Easing::Linear);
     timeline.tracks.insert("test".to_string(), track);
     let times = timeline.keyframe_times_s();
     assert!(times.contains(&0.5));
