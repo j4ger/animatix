@@ -655,6 +655,66 @@ impl SymbolTable {
     }
 }
 
+// NOTE: This function returns PropertyType and recurses by calling itself on
+// child nodes. The shared walk_expr is incompatible because it uses a
+// FnMut(&Expr) -> () visitor pattern that cannot propagate return values.
+
+/// Infer the type of an expression for type checking.
+pub fn infer_expr_type(expr: &Expr) -> PropertyType {
+    match expr {
+        Expr::Num(_) => PropertyType::Num,
+        Expr::Percent(_) => PropertyType::Num,
+        Expr::Str(_) => PropertyType::String,
+        Expr::Bool(_) => PropertyType::Bool,
+        Expr::Null => PropertyType::Any,
+        Expr::Tuple(elements) => {
+            if elements.len() == 2 {
+                PropertyType::Vec2
+            } else {
+                PropertyType::Array
+            }
+        }
+        Expr::List(_) => PropertyType::Array,
+        Expr::Ident(_) => PropertyType::Any,
+        Expr::Path(_) => PropertyType::Any, // e.g., text.primary
+        Expr::Index(_, _) => PropertyType::Any,
+        Expr::Binary(left, op, right) => {
+            let lt = infer_expr_type(left);
+            let rt = infer_expr_type(right);
+            match op {
+                // Arithmetic: result is Num if both operands are numeric, Any otherwise
+                BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod | BinaryOp::Pow => {
+                    if lt == PropertyType::Num && rt == PropertyType::Num {
+                        PropertyType::Num
+                    } else if lt == PropertyType::String || rt == PropertyType::String {
+                        PropertyType::String // string concatenation
+                    } else {
+                        PropertyType::Any
+                    }
+                }
+                // Comparison: result is Bool
+                BinaryOp::Eq | BinaryOp::Neq | BinaryOp::Lt | BinaryOp::Gt | BinaryOp::Lte | BinaryOp::Gte => PropertyType::Bool,
+                // Logical: result is Bool
+                BinaryOp::And | BinaryOp::Or => PropertyType::Bool,
+            }
+        }
+        Expr::Unary(op, inner) => {
+            match op {
+                UnaryOp::Neg => {
+                    let t = infer_expr_type(inner);
+                    if t == PropertyType::Num { PropertyType::Num } else { PropertyType::Any }
+                }
+                UnaryOp::Not => PropertyType::Bool,
+            }
+        }
+        Expr::Call(_, _) => PropertyType::Any,
+        Expr::Method(_, _, _) => PropertyType::Any,
+        Expr::Closure(_, _) => PropertyType::Any,
+        Expr::Conditional(_, _, _) => PropertyType::Any,
+        Expr::Construct(_, _) => PropertyType::Actor,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -756,65 +816,5 @@ mod tests {
         let text_props = table.properties.get("Text").unwrap();
         assert!(text_props.contains(&"content".to_string()));
         assert!(text_props.contains(&"font_size".to_string()));
-    }
-}
-
-// NOTE: This function returns PropertyType and recurses by calling itself on
-// child nodes. The shared walk_expr is incompatible because it uses a
-// FnMut(&Expr) -> () visitor pattern that cannot propagate return values.
-
-/// Infer the type of an expression for type checking.
-pub fn infer_expr_type(expr: &Expr) -> PropertyType {
-    match expr {
-        Expr::Num(_) => PropertyType::Num,
-        Expr::Percent(_) => PropertyType::Num,
-        Expr::Str(_) => PropertyType::String,
-        Expr::Bool(_) => PropertyType::Bool,
-        Expr::Null => PropertyType::Any,
-        Expr::Tuple(elements) => {
-            if elements.len() == 2 {
-                PropertyType::Vec2
-            } else {
-                PropertyType::Array
-            }
-        }
-        Expr::List(_) => PropertyType::Array,
-        Expr::Ident(_) => PropertyType::Any,
-        Expr::Path(_) => PropertyType::Any, // e.g., text.primary
-        Expr::Index(_, _) => PropertyType::Any,
-        Expr::Binary(left, op, right) => {
-            let lt = infer_expr_type(left);
-            let rt = infer_expr_type(right);
-            match op {
-                // Arithmetic: result is Num if both operands are numeric, Any otherwise
-                BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod | BinaryOp::Pow => {
-                    if lt == PropertyType::Num && rt == PropertyType::Num {
-                        PropertyType::Num
-                    } else if lt == PropertyType::String || rt == PropertyType::String {
-                        PropertyType::String // string concatenation
-                    } else {
-                        PropertyType::Any
-                    }
-                }
-                // Comparison: result is Bool
-                BinaryOp::Eq | BinaryOp::Neq | BinaryOp::Lt | BinaryOp::Gt | BinaryOp::Lte | BinaryOp::Gte => PropertyType::Bool,
-                // Logical: result is Bool
-                BinaryOp::And | BinaryOp::Or => PropertyType::Bool,
-            }
-        }
-        Expr::Unary(op, inner) => {
-            match op {
-                UnaryOp::Neg => {
-                    let t = infer_expr_type(inner);
-                    if t == PropertyType::Num { PropertyType::Num } else { PropertyType::Any }
-                }
-                UnaryOp::Not => PropertyType::Bool,
-            }
-        }
-        Expr::Call(_, _) => PropertyType::Any,
-        Expr::Method(_, _, _) => PropertyType::Any,
-        Expr::Closure(_, _) => PropertyType::Any,
-        Expr::Conditional(_, _, _) => PropertyType::Any,
-        Expr::Construct(_, _) => PropertyType::Actor,
     }
 }

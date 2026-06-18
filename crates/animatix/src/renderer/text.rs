@@ -1008,7 +1008,7 @@ pub fn compile_text_fast(
         if let Some(bf) = BUNDLED_FONTS.iter().find(|bf| bf.family == resolved_family) {
             // SAFETY: ttf_parser::Face borrows the data; we leak it so it lives for 'static.
             let leaked: &'static [u8] = Box::leak(bf.data.to_vec().into_boxed_slice());
-            if let Some(face) = ttf_parser::Face::parse(leaked, 0).ok() {
+            if let Ok(face) = ttf_parser::Face::parse(leaked, 0) {
                 break 'font face;
             }
         }
@@ -1147,7 +1147,7 @@ pub fn compile_text_fast_wrapped(
         if let Some(bf) = BUNDLED_FONTS.iter().find(|bf| bf.family == resolved_family) {
             // SAFETY: ttf_parser::Face borrows the data; we leak it so it lives for 'static.
             let leaked: &'static [u8] = Box::leak(bf.data.to_vec().into_boxed_slice());
-            if let Some(face) = ttf_parser::Face::parse(leaked, 0).ok() {
+            if let Ok(face) = ttf_parser::Face::parse(leaked, 0) {
                 break 'font face;
             }
         }
@@ -1854,7 +1854,7 @@ mod tests {
         compiler.text_fast_path = true;
 
         // Non-Latin text should route to Typst
-        let paths = compiler.compile(
+        let _paths = compiler.compile(
             "中文测试",
             "Open Sans",
             24.0, 400.0, "normal", 1.2, 0.0, 0.0,

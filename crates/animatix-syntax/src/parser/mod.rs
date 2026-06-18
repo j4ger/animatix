@@ -316,7 +316,7 @@ mod tests {
 
         // Find the LetDecl stmt
         if let Stmt::LetDecl { is_pub, name, value, .. } = &res[0] {
-            assert_eq!(*is_pub, false);
+            assert!(!(*is_pub));
             assert_eq!(name, "f");
             assert_eq!(
                 *value,
@@ -349,7 +349,7 @@ mod tests {
             ..
         } = &res[0]
         {
-            assert_eq!(*is_pub, false);
+            assert!(!(*is_pub));
             assert_eq!(label, "a");
             assert_eq!(ty, "Text");
             assert_eq!(props.len(), 1);
@@ -401,7 +401,7 @@ mod tests {
             ..
         } = &res[0]
         {
-            assert_eq!(*is_pub, false);
+            assert!(!(*is_pub));
             assert_eq!(label, "eq");
             assert_eq!(ty, "Typst");
             assert_eq!(props.len(), 1);

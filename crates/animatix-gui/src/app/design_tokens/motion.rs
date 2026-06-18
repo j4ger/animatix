@@ -66,7 +66,7 @@ impl CubicBezier {
             if dx.abs() < 1e-7 {
                 break;
             }
-            s = s - (x - t) / dx;
+            s -= (x - t) / dx;
             s = s.clamp(0.0, 1.0);
         }
 

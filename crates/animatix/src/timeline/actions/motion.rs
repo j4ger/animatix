@@ -657,7 +657,7 @@ mod tests {
             time: Time::Seconds(0.0),
             body: vec![
                 circle_decl("badge"),
-                rotate_action("badge", Expr::Num(1.5708)),
+                rotate_action("badge", Expr::Num(std::f64::consts::FRAC_PI_2)),
             ],
             span: None,
         }];
@@ -666,7 +666,7 @@ mod tests {
         let track = report.output.tracks.get("badge").expect("badge track");
 
         assert!((track.rotation.get(0, 0.0) - 0.0).abs() < f32::EPSILON);
-        assert!((track.rotation.get(1000, 0.0) - 1.5708).abs() < 0.0001);
+        assert!((track.rotation.get(1000, 0.0) - std::f32::consts::FRAC_PI_2).abs() < 0.0001);
         assert!(report.diagnostics.is_empty());
     }
 

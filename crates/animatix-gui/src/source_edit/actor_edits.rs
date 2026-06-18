@@ -850,14 +850,14 @@ btn.position = (200, 100)"#);
                 }
             }
         }
-        fn walk_inline(items: &[InlineItem], found_color: &mut bool, found_position: &mut bool) {
+        fn walk_inline(items: &[InlineItem], _found_color: &mut bool, _found_position: &mut bool) {
             for item in items {
                 match item {
                     InlineItem::Labeled { children, .. } | InlineItem::Anonymous { children, .. } | InlineItem::ForLoop { body: children, .. } => {
-                        walk_inline(children, found_color, found_position);
+                        walk_inline(children, _found_color, _found_position);
                     }
                     InlineItem::SlotFill { items: slot_items, .. } => {
-                        walk_inline(slot_items, found_color, found_position);
+                        walk_inline(slot_items, _found_color, _found_position);
                     }
                     _ => {}
                 }

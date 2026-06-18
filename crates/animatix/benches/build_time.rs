@@ -1,4 +1,3 @@
-use animatix::timeline::Timeline;
 use criterion::{Criterion, criterion_group, criterion_main};
 
 mod common;

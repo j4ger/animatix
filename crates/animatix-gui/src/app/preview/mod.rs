@@ -1125,7 +1125,7 @@ mod tests {
         for (local, position, expected) in &cases {
             let result = local_to_world(*local, *position, 0.0);
             assert!(
-                (result.x - expected[0] as f64).abs() < 1e-6,
+                (result.x - expected[0]).abs() < 1e-6,
                 "local={:?} pos={:?}: expected x={}, got x={}",
                 local,
                 position,
@@ -1133,7 +1133,7 @@ mod tests {
                 result.x,
             );
             assert!(
-                (result.y - expected[1] as f64).abs() < 1e-6,
+                (result.y - expected[1]).abs() < 1e-6,
                 "local={:?} pos={:?}: expected y={}, got y={}",
                 local,
                 position,
@@ -1166,20 +1166,20 @@ mod tests {
             [0.0, -25.0],
             [50.0, 0.0],
         ];
-        for i in 0..8 {
+        for (i, expected_item) in expected.iter().enumerate() {
             let result = handle_anchor_local(i, size);
             assert!(
-                (result[0] - expected[i][0]).abs() < 1e-6,
+                (result[0] - expected_item[0]).abs() < 1e-6,
                 "handle {}: expected x={}, got x={}",
                 i,
-                expected[i][0],
+                expected_item[0],
                 result[0],
             );
             assert!(
-                (result[1] - expected[i][1]).abs() < 1e-6,
+                (result[1] - expected_item[1]).abs() < 1e-6,
                 "handle {}: expected y={}, got y={}",
                 i,
-                expected[i][1],
+                expected_item[1],
                 result[1],
             );
         }

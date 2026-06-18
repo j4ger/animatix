@@ -1164,7 +1164,7 @@ mod tests {
             "fade-in label [500ms]\n",
         )).unwrap();
 
-        std::fs::write(&main_file, &format!(
+        std::fs::write(&main_file, format!(
             "import \"{}\" as scenes\n\n# Intro\n#0s\ntitle: Text, text: \"Welcome\"\nplay scenes.FadeIn [fade, 300ms]\n",
             scenes_file.display(),
         )).unwrap();
@@ -1203,7 +1203,7 @@ mod tests {
 
         std::fs::write(&scenes_file, "# ExistingScene\n#0s\nlabel: Text, text: \"Hi\"\n").unwrap();
 
-        std::fs::write(&main_file, &format!(
+        std::fs::write(&main_file, format!(
             "import \"{}\" as scenes\n\n# Intro\n#0s\ntitle: Text, text: \"Welcome\"\nplay scenes.NonExistent\n",
             scenes_file.display(),
         )).unwrap();
@@ -1239,7 +1239,7 @@ mod tests {
             "label: Text, text: \"Timed\"\n",
         )).unwrap();
 
-        std::fs::write(&main_file, &format!(
+        std::fs::write(&main_file, format!(
             "import \"{}\" as scenes\n\n# Intro\n#0s\ntitle: Text, text: \"Welcome\"\nplay scenes.TimedScene\n",
             scenes_file.display(),
         )).unwrap();

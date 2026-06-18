@@ -1,3 +1,5 @@
+#![allow(clippy::approx_constant)]
+
 use animatix_syntax::ast::{
     Action, ByteSpan, Expr, InlineItem, Modifier, Property, Stmt, Time,
     UnaryOp,

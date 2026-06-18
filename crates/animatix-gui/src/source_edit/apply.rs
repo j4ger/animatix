@@ -295,8 +295,6 @@ pub(super) use animatix_syntax::walk::{
 
 #[cfg(test)]
 mod variant_coverage_guardrails {
-    use super::SourceEdit;
-
     /// When adding a new variant to `SourceEdit`, update:
     /// - `apply_edit` in this file
     /// - Any handler that constructs or matches SourceEdit variants

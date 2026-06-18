@@ -17,7 +17,7 @@ fn collect_amx_files(dir: &Path) -> Vec<std::path::PathBuf> {
             let path = entry.path();
             if path.is_dir() {
                 files.extend(collect_amx_files(&path));
-            } else if path.extension().map_or(false, |e| e == "amx") {
+            } else if path.extension().is_some_and(|e| e == "amx") {
                 files.push(path);
             }
         }

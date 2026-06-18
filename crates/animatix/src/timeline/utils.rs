@@ -1597,7 +1597,7 @@ mod tests {
             .unwrap_or(Value::Num(0.0));
         let val = result.as_num();
         assert!(
-            val >= 0.0 && val < 1.0,
+            (0.0..1.0).contains(&val),
             "rand() should return value in [0, 1), got {}",
             val
         );
@@ -1614,7 +1614,7 @@ mod tests {
         .unwrap_or(Value::Num(0.0));
         let val = result.as_num();
         assert!(
-            val >= 0.0 && val < 100.0,
+            (0.0..100.0).contains(&val),
             "rand() * 100 should be in [0, 100), got {}",
             val
         );

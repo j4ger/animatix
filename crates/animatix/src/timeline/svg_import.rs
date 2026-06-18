@@ -2138,7 +2138,7 @@ mod tests {
         std::fs::remove_file(&path).ok();
 
         // First statement should be the @config from viewBox
-        assert!(stmts.len() >= 1);
+        assert!(!stmts.is_empty());
         if let Stmt::Config { settings, .. } = &stmts[0] {
             assert_eq!(settings.len(), 1);
             assert_eq!(settings[0].name, "size");
@@ -2165,7 +2165,7 @@ mod tests {
         let stmts = import_svg(&path).unwrap();
         std::fs::remove_file(&path).ok();
 
-        assert!(stmts.len() >= 1);
+        assert!(!stmts.is_empty());
         if let Stmt::Config { settings, .. } = &stmts[0] {
             assert_eq!(settings[0].name, "size");
             assert_eq!(
