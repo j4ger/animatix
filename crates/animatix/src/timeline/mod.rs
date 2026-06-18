@@ -19,7 +19,7 @@
 //! |--------|------|
 //! | `build.rs` | AST lowering into Timeline |
 //! | `runtime.rs` / `scene_eval.rs` | Frame-time evaluation and render-scene assembly |
-//! | `track.rs` | Keyframed property tracks and interpolation |
+//! | `property_track.rs`, `animation_track.rs`, `dispatch.rs`, `actor_kind.rs` | Keyframed property tracks, interpolation, and track dispatch |
 //! | `layout.rs` | Container placement (Row, Col, Grid, Stack) |
 //! | `colorscheme.rs` | Built-in and inline colorscheme resolution |
 //! | `morph.rs` | Path morphing between vector shapes |
