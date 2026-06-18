@@ -1183,6 +1183,13 @@ impl AnimationTrack {
             FontSize => TrackFieldRef::F32(&self.font_size),
             PlacementMode => TrackFieldRef::PlacementMode(&self.placement_mode),
             MorphOptions => TrackFieldRef::MorphOptions(&self.morph_options),
+            Ascent => TrackFieldRef::F32(&self.ascent),
+            Descent => TrackFieldRef::F32(&self.descent),
+            Baseline => TrackFieldRef::F32(&self.baseline),
+            HighlightColor => TrackFieldRef::Vec4(&self.highlight_color),
+            HighlightOpacity => TrackFieldRef::F32(&self.highlight_opacity),
+            HighlightPadding => TrackFieldRef::F32(&self.highlight_padding),
+            HighlightRadius => TrackFieldRef::F32(&self.highlight_radius),
             _ => return None,
         })
     }
@@ -1227,6 +1234,13 @@ impl AnimationTrack {
             FontSize => TrackFieldMut::F32(&mut self.font_size),
             PlacementMode => TrackFieldMut::PlacementMode(&mut self.placement_mode),
             MorphOptions => TrackFieldMut::MorphOptions(&mut self.morph_options),
+            Ascent => TrackFieldMut::F32(&mut self.ascent),
+            Descent => TrackFieldMut::F32(&mut self.descent),
+            Baseline => TrackFieldMut::F32(&mut self.baseline),
+            HighlightColor => TrackFieldMut::Vec4(&mut self.highlight_color),
+            HighlightOpacity => TrackFieldMut::F32(&mut self.highlight_opacity),
+            HighlightPadding => TrackFieldMut::F32(&mut self.highlight_padding),
+            HighlightRadius => TrackFieldMut::F32(&mut self.highlight_radius),
             _ => return None,
         })
     }

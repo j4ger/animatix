@@ -260,18 +260,18 @@ pub enum ActorField {
     FontWeight,
     /// Font style ("normal" | "italic").
     FontStyle,
-    /// Max width for text wrapping (0 = no wrap).
-    TextMaxWidth,
-    /// Text alignment ("left", "center", "right", "justify").
-    TextAlign,
-    /// Overflow behavior ("visible", "clip", "ellipsis").
-    Overflow,
     /// Line height multiplier.
     LineHeight,
     /// Letter spacing in points.
     LetterSpacing,
     /// Word spacing in points.
     WordSpacing,
+    /// Max width for text wrapping (0 = no wrap).
+    TextMaxWidth,
+    /// Text alignment ("left", "center", "right", "justify").
+    TextAlign,
+    /// Overflow behavior ("visible", "clip", "ellipsis").
+    Overflow,
 
     // ── Media payload ──
     /// Loaded image or video data.
@@ -282,6 +282,24 @@ pub enum ActorField {
     AudioSource,
     /// Audio volume multiplier.
     AudioVolume,
+
+    // ── Font metrics (baseline alignment) ──
+    /// Font ascent in scene units.
+    Ascent,
+    /// Font descent in scene units.
+    Descent,
+    /// Baseline offset from text center.
+    Baseline,
+
+    // ── Highlight properties ──
+    /// Highlight background color for equation fragments.
+    HighlightColor,
+    /// Highlight opacity for equation fragments.
+    HighlightOpacity,
+    /// Highlight padding for equation fragments.
+    HighlightPadding,
+    /// Highlight corner radius for equation fragments.
+    HighlightRadius,
 
     // ── Effects tier ──
     // ── Filter tier ──
@@ -387,6 +405,17 @@ impl ActorField {
             ActorField::TextAlign => PropertyValue::String("left".to_string()),
             ActorField::Overflow => PropertyValue::String("visible".to_string()),
             ActorField::WordSpacing => PropertyValue::F32(0.0),
+
+            // ── Font metrics ──
+            ActorField::Ascent => PropertyValue::F32(0.0),
+            ActorField::Descent => PropertyValue::F32(0.0),
+            ActorField::Baseline => PropertyValue::F32(0.0),
+
+            // ── Highlight ──
+            ActorField::HighlightColor => PropertyValue::Vec4([0.3, 0.5, 1.0, 1.0]),
+            ActorField::HighlightOpacity => PropertyValue::F32(0.0),
+            ActorField::HighlightPadding => PropertyValue::F32(4.0),
+            ActorField::HighlightRadius => PropertyValue::F32(3.0),
 
             // ── Media payload ──
             ActorField::ImageData => return None,
@@ -571,10 +600,12 @@ macro_rules! schema {
 pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("align",         ValueType::String,      F::empty(),                   ActorField::ContainerLayoutGroup, Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }), Applicable::ActorKinds(&[A::Row, A::Col, A::Grid, A::Stack]), |_| super::property_engine::PropertyValue::String("center".to_string())),
     schema!("anchor",        ValueType::SceneAnchor, F::ASSIGNABLE_AI,             ActorField::PositionBindingGroup, Some(GroupMembership { group_id: GroupHandlerId::PositionBinding }), Applicable::Everything, |_| super::property_engine::PropertyValue::String("center".to_string()), ReadSource::None_),
+    schema!("ascent",        ValueType::F32,         F::ANIMATED,                  ActorField::Ascent,              None,                             Applicable::Never, |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("at",            ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::PositionBindingGroup, Some(GroupMembership { group_id: GroupHandlerId::PositionBinding }), Applicable::Everything, |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0]), ReadSource::Alias(ActorField::Position)),
     schema!("background_color", ValueType::Color,    F::ASSIGNABLE_AI,             ActorField::Color,               None,                             Applicable::Never, |_| super::property_engine::PropertyValue::Color([0.0, 0.0, 0.0, 1.0]), ReadSource::None_),
     schema!("bar_colors",    ValueType::String,    F::empty(),                   ActorField::NoStorage,              None,                             Applicable::ActorKinds(&[A::BarChart]), |_| super::property_engine::PropertyValue::String("auto".to_string())),
     schema!("bar_width",     ValueType::F32,       F::empty(),                   ActorField::NoStorage,              None,                             Applicable::ActorKinds(&[A::BarChart]), |_| super::property_engine::PropertyValue::F32(0.0)),
+    schema!("baseline",      ValueType::F32,         F::ANIMATED,                  ActorField::Baseline,            None,                             Applicable::Never, |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("blur",            ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::FilterBlur,          None,                             Applicable::ActorKinds(&[A::Filter]), |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("brightness",      ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::FilterBrightness,    None,                             Applicable::ActorKinds(&[A::Filter]), |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("code",          ValueType::String,      F::ANIMATED,                  ActorField::TextContent,         None,                             Applicable::ActorKinds(&[A::Code]), |_| super::property_engine::PropertyValue::String(String::new())),
@@ -584,6 +615,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("contrast",      ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::FilterContrast,      None,                             Applicable::ActorKinds(&[A::Filter]), |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("data",          ValueType::String,    F::empty(),                   ActorField::NoStorage,              None,                             Applicable::ActorKinds(&[A::BarChart]), |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("density",       ValueType::F32,         F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::VectorField]), |_| super::property_engine::PropertyValue::F32(16.0)),
+    schema!("descent",       ValueType::F32,         F::ANIMATED,                  ActorField::Descent,             None,                             Applicable::Never, |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("direction",     ValueType::String,    F::empty(),                   ActorField::NoStorage,              None,                             Applicable::ActorKinds(&[A::BarChart]), |_| super::property_engine::PropertyValue::String("vertical".to_string())),
     schema!("fill_opacity",  ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::FillOpacity,         None,                             Applicable::AllShapesExceptLine, |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("font_family",   ValueType::String,      F::ASSIGNABLE,                ActorField::FontFamily,          None,                             Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]), |_| super::property_engine::PropertyValue::String(crate::renderer::text::DEFAULT_FONT_FAMILY.to_string())),
@@ -596,6 +628,10 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("grid",          ValueType::String,      F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph]), |_| super::property_engine::PropertyValue::String("auto".to_string())),
     schema!("head_size",     ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::HeadSize,            Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Arrow]), |_| super::property_engine::PropertyValue::F32(10.0)),
     schema!("height",         ValueType::F32,         F::ANIMATED_I,                ActorField::Size,                None,                             Applicable::SizedActors, |_| super::property_engine::PropertyValue::F32(100.0), ReadSource::Component { field: ActorField::Size, index: 1, scale: 2.0 }),
+    schema!("highlight_color",ValueType::Color,       F::ANIMATED,                  ActorField::HighlightColor,      None,                             Applicable::ActorKinds(&[A::Equation, A::Fragment]), |_| super::property_engine::PropertyValue::Vec4([0.3, 0.5, 1.0, 1.0])),
+    schema!("highlight_opacity",ValueType::F32,       F::ANIMATED,                  ActorField::HighlightOpacity,    None,                             Applicable::ActorKinds(&[A::Equation, A::Fragment]), |_| super::property_engine::PropertyValue::F32(0.0)),
+    schema!("highlight_padding",ValueType::F32,       F::ANIMATED,                  ActorField::HighlightPadding,    None,                             Applicable::ActorKinds(&[A::Equation, A::Fragment]), |_| super::property_engine::PropertyValue::F32(4.0)),
+    schema!("highlight_radius",ValueType::F32,        F::ANIMATED,                  ActorField::HighlightRadius,     None,                             Applicable::ActorKinds(&[A::Equation, A::Fragment]), |_| super::property_engine::PropertyValue::F32(3.0)),
     schema!("hue_rotate",    ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::FilterHueRotate,     None,                             Applicable::ActorKinds(&[A::Filter]), |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("kind",          ValueType::String,      F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve]), |_| super::property_engine::PropertyValue::String("cartesian".to_string())),
     schema!("latex",         ValueType::String,      F::ANIMATED,                  ActorField::TextContent,         None,                             Applicable::Never, |_| super::property_engine::PropertyValue::String(String::new())),

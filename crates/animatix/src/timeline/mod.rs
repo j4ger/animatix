@@ -418,13 +418,6 @@ pub struct VariableTrack {
 }
 
 impl VariableTrack {
-    /// Create a new empty variable track.
-    pub fn new() -> Self {
-        Self {
-            keyframes: BTreeMap::new(),
-        }
-    }
-
     /// Evaluate the variable at the given time, returning the most recent keyframe value.
     pub fn evaluate(&self, time_ms: u64) -> Option<Value> {
         self.keyframes
