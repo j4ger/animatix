@@ -211,7 +211,7 @@ impl Timeline {
         let parent_pos = self
             .tracks
             .get(parent_label)
-            .map(|t| t.position.last([0.0, 0.0]))
+            .map(|t| t.geometry.position.last([0.0, 0.0]))
             .unwrap_or([0.0, 0.0]);
 
         let half_w = p_size[0] / 2.0;

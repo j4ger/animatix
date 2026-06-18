@@ -280,8 +280,8 @@ impl Timeline {
 
         let default_size = DEFAULT_LAYOUT_HALF_SIZE;
         let default_arc = [0.0, 0.0];
-        let mut position = existing_track.position.last([0.0, 0.0]);
-        let mut size = existing_track.size.last(default_size);
+        let mut position = existing_track.geometry.position.last([0.0, 0.0]);
+        let mut size = existing_track.geometry.size.last(default_size);
         let mut line_from = existing_track.shape.line_from.last([-50.0, 0.0]);
         let mut line_to = existing_track.shape.line_to.last([50.0, 0.0]);
         let mut arc_angles = existing_track.shape.arc_angles.last(default_arc);
@@ -548,7 +548,7 @@ impl Timeline {
             for prop in props {
                 if prop.name == "size" {
                     let spec = crate::timeline::taffy_layout::parse_size_spec(&prop.value);
-                    track.size_spec = Some(spec);
+                    track.geometry.size_spec = Some(spec);
 
                     // Warn on auto/fit for non-container primitives
                     if !is_container {
@@ -727,7 +727,7 @@ impl Timeline {
             &existing_track,
         ) {
             // Use returned values for keyframe insertion
-            let mut position = existing_track.position.last([0.0, 0.0]);
+            let mut position = existing_track.geometry.position.last([0.0, 0.0]);
             let eval_env = self.build_eval_env(time_ms as u64);
             for prop in props {
                 if prop.name == "at" || prop.name == "position" {

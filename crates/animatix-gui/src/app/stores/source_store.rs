@@ -130,11 +130,11 @@ pub fn rebuild_cache(
                 .and_then(|tl| tl.get_track(label))
                 .map(|track| {
                     let mut result = Vec::new();
-                    push_kf_props(&mut result, &track.position, "position");
-                    push_kf_props(&mut result, &track.motion_offset, "motion_offset");
-                    push_kf_props(&mut result, &track.rotation, "rotation");
-                    push_kf_props(&mut result, &track.scale, "scale");
-                    push_kf_props(&mut result, &track.size, "size");
+                    push_kf_props(&mut result, &track.geometry.position, "position");
+                    push_kf_props(&mut result, &track.geometry.motion_offset, "motion_offset");
+                    push_kf_props(&mut result, &track.geometry.rotation, "rotation");
+                    push_kf_props(&mut result, &track.geometry.scale, "scale");
+                    push_kf_props(&mut result, &track.geometry.size, "size");
                     push_kf_props(&mut result, &track.style.color, "color");
                     push_kf_props(&mut result, &track.style.opacity, "opacity");
                     push_kf_props(&mut result, &track.style.stroke_width, "stroke_width");
@@ -150,7 +150,7 @@ pub fn rebuild_cache(
                     push_kf_props(&mut result, &track.shape.arc_angles, "arc_angles");
                     push_kf_props(&mut result, &track.shape.points, "points");
                     push_kf_props(&mut result, &track.shape.commands, "commands");
-                    push_kf_props(&mut result, &track.layout_size, "layout_size");
+                    push_kf_props(&mut result, &track.geometry.layout_size, "layout_size");
                     push_kf_props(&mut result, &track.shape.vector_paths, "vector_paths");
                     result.sort_by_key(|(ms, _)| *ms);
                     result.dedup_by(|a, b| a.0 == b.0);

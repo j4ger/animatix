@@ -93,7 +93,7 @@ impl Primitive for PathPrimitive {
         use crate::primitives::evaluate_shape_render;
         use crate::timeline::shapes::PathState;
 
-        let half_size = ctx.track.size.get(ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+        let half_size = ctx.track.geometry.size.get(ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
         let vector_paths = ctx.track.evaluate_vector_paths(ctx.time_ms);
 
         let mut state = PathState {

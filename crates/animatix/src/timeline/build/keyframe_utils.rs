@@ -7,8 +7,8 @@ pub(crate) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64
     let default_arc = [0.0, std::f32::consts::PI];
 
     let start_vector_paths = track.evaluate_vector_paths(t_start_ms);
-    let start_position = track.position.get(t_start_ms, [0.0, 0.0]);
-    let start_size = track.size.get(t_start_ms, default_size);
+    let start_position = track.geometry.position.get(t_start_ms, [0.0, 0.0]);
+    let start_size = track.geometry.size.get(t_start_ms, default_size);
     let start_line_from = track.shape.line_from.get(t_start_ms, [-50.0, 0.0]);
     let start_line_to = track.shape.line_to.get(t_start_ms, [50.0, 0.0]);
     let start_arc_angles = track.shape.arc_angles.get(t_start_ms, default_arc);
@@ -26,10 +26,12 @@ pub(crate) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64
         .ensure(Vec::new())
         .add_keyframe(t_start_ms, start_vector_paths, Easing::Linear);
     track
+        .geometry
         .position
         .ensure([0.0, 0.0])
         .add_keyframe(t_start_ms, start_position, Easing::Linear);
     track
+        .geometry
         .size
         .ensure(default_size)
         .add_keyframe(t_start_ms, start_size, Easing::Linear);
@@ -91,9 +93,9 @@ pub(crate) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64
 /// Used when an actor declaration has a delay but no duration.
 pub(crate) fn preserve_delayed_values(track: &mut AnimationTrack, t_start_ms: u64) {
     preserve_instant_delayed_value(&mut track.shape.vector_paths, t_start_ms);
-    preserve_instant_delayed_value(&mut track.position, t_start_ms);
-    preserve_instant_delayed_value(&mut track.size, t_start_ms);
-    preserve_instant_delayed_value(&mut track.layout_size, t_start_ms);
+    preserve_instant_delayed_value(&mut track.geometry.position, t_start_ms);
+    preserve_instant_delayed_value(&mut track.geometry.size, t_start_ms);
+    preserve_instant_delayed_value(&mut track.geometry.layout_size, t_start_ms);
     preserve_instant_delayed_value(&mut track.shape.line_from, t_start_ms);
     preserve_instant_delayed_value(&mut track.shape.line_to, t_start_ms);
     preserve_instant_delayed_value(&mut track.shape.arc_angles, t_start_ms);
@@ -135,10 +137,12 @@ pub(crate) fn insert_end_keyframes(
         .ensure(Vec::new())
         .add_keyframe(t_end_ms, vello_paths, easing);
     track
+        .geometry
         .position
         .ensure([0.0, 0.0])
         .add_keyframe(t_end_ms, position, easing);
     track
+        .geometry
         .size
         .ensure(default_size)
         .add_keyframe(t_end_ms, size, easing);

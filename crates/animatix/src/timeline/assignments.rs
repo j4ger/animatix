@@ -195,38 +195,39 @@ impl Timeline {
                 ) {
                 preserve_discrete_position_state_before(track, t_start_ms);
                 if instant_delayed {
-                    preserve_instant_delayed_value(&mut track.position, t_start_ms);
+                    preserve_instant_delayed_value(&mut track.geometry.position, t_start_ms);
                 }
                 mark_track_manual_position(track, t_start_ms);
                 if duration_ms > 0.0 {
-                    let start_binding = track.position_binding.get(t_start_ms, default_binding);
-                    track.position_binding.ensure(default_binding).add_keyframe(
+                    let start_binding = track.geometry.position_binding.get(t_start_ms, default_binding);
+                    track.geometry.position_binding.ensure(default_binding).add_keyframe(
                         t_start_ms,
                         start_binding,
                         Easing::Linear,
                     );
                     track
+                        .geometry
                         .position_binding
                         .ensure(default_binding)
                         .add_keyframe(t_end_ms, binding, easing);
                 } else {
                     set_track_position_binding(track, t_start_ms, binding);
                 }
-                position.unwrap_or_else(|| track.position.last(default_pos))
+                position.unwrap_or_else(|| track.geometry.position.last(default_pos))
             } else {
-                track.position.last(default_pos)
+                track.geometry.position.last(default_pos)
             };
             if duration_ms > 0.0 {
-                let start_val = track.position.get(t_start_ms, default_pos);
-                track.position.ensure(default_pos).add_keyframe(
+                let start_val = track.geometry.position.get(t_start_ms, default_pos);
+                track.geometry.position.ensure(default_pos).add_keyframe(
                     t_start_ms,
                     start_val,
                     Easing::Linear,
                 );
             } else if instant_delayed {
-                preserve_instant_delayed_value(&mut track.position, t_start_ms);
+                preserve_instant_delayed_value(&mut track.geometry.position, t_start_ms);
             }
-            track.position.ensure(default_pos).add_keyframe(t_end_ms, target_pos, easing);
+            track.geometry.position.ensure(default_pos).add_keyframe(t_end_ms, target_pos, easing);
             return;
         }
 
@@ -280,7 +281,7 @@ impl Timeline {
             // Special handling for properties that write to size + layout_size together
             if is_size_property {
                 // Save parent's old size before assignment (for scaling children)
-                let old_half_size = track.size.last(DEFAULT_LAYOUT_HALF_SIZE);
+                let old_half_size = track.geometry.size.last(DEFAULT_LAYOUT_HALF_SIZE);
 
                 let new_half_size = handle_size_assignment(
                     track,
@@ -321,24 +322,25 @@ impl Timeline {
                                 && (child_label.contains("_tick_x_")
                                     || child_label.contains("_tick_y_"))
                             {
-                                let old_pos = child_track.position.last([0.0, 0.0]);
+                                let old_pos = child_track.geometry.position.last([0.0, 0.0]);
                                 let new_pos = [old_pos[0] * scale_x, old_pos[1] * scale_y];
                                 let child_has_duration = t_end_ms > t_start_ms;
                                 if child_has_duration {
                                     let start_pos =
-                                        child_track.position.get(t_start_ms, [0.0, 0.0]);
-                                    child_track.position.ensure([0.0, 0.0]).add_keyframe(
+                                        child_track.geometry.position.get(t_start_ms, [0.0, 0.0]);
+                                    child_track.geometry.position.ensure([0.0, 0.0]).add_keyframe(
                                         t_start_ms,
                                         start_pos,
                                         Easing::Linear,
                                     );
                                 } else if instant_delayed {
                                     preserve_instant_delayed_value(
-                                        &mut child_track.position,
+                                        &mut child_track.geometry.position,
                                         t_start_ms,
                                     );
                                 }
                                 child_track
+                                    .geometry
                                     .position
                                     .ensure([0.0, 0.0])
                                     .add_keyframe(t_end_ms, new_pos, easing);
@@ -498,29 +500,30 @@ fn handle_size_assignment(
             {
                 [w as f32 / 2.0, h as f32 / 2.0]
             } else {
-                track.size.last(default_size)
+                track.geometry.size.last(default_size)
             }
         },
         "radius_x" => {
-            let mut s = track.size.last(default_size);
+            let mut s = track.geometry.size.last(default_size);
             s[0] = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                 .map(|v| v.as_num() as f32)
                 .unwrap_or(s[0]);
             s
         },
         "radius_y" => {
-            let mut s = track.size.last(default_size);
+            let mut s = track.geometry.size.last(default_size);
             s[1] = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                 .map(|v| v.as_num() as f32)
                 .unwrap_or(s[1]);
             s
         },
-        _ => track.size.last(default_size),
+        _ => track.geometry.size.last(default_size),
     };
 
     if has_duration {
-        let start_val = track.size.get(t_start_ms, default_size);
+        let start_val = track.geometry.size.get(t_start_ms, default_size);
         track
+            .geometry
             .size
             .ensure(default_size)
             .add_keyframe(t_start_ms, start_val, Easing::Linear);
@@ -532,10 +535,10 @@ fn handle_size_assignment(
             );
         }
     } else if instant_delayed {
-        preserve_instant_delayed_value(&mut track.size, t_start_ms);
-        preserve_instant_delayed_value(&mut track.layout_size, t_start_ms);
+        preserve_instant_delayed_value(&mut track.geometry.size, t_start_ms);
+        preserve_instant_delayed_value(&mut track.geometry.layout_size, t_start_ms);
     }
-    track.size.ensure(default_size).add_keyframe(t_end_ms, target_size, easing);
+    track.geometry.size.ensure(default_size).add_keyframe(t_end_ms, target_size, easing);
     track
         .ensure_layout_size(default_size)
         .add_keyframe(t_end_ms, target_size, easing);
@@ -618,10 +621,10 @@ pub(crate) fn recompile_text_at_assignment(
             .text_paths
             .ensure(Vec::new())
             .add_keyframe(t_start_ms, start_val, Easing::Linear);
-        let start_size = track.size.get(t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
+        let start_size = track.geometry.size.get(t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
         let start_layout_size =
             track.layout_size_get(t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
-        track.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+        track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
             t_start_ms,
             start_size,
             Easing::Linear,
@@ -633,8 +636,8 @@ pub(crate) fn recompile_text_at_assignment(
         );
     } else if instant_delayed {
         preserve_instant_delayed_value(&mut track.text.text_paths, t_start_ms);
-        preserve_instant_delayed_value(&mut track.size, t_start_ms);
-        preserve_instant_delayed_value(&mut track.layout_size, t_start_ms);
+        preserve_instant_delayed_value(&mut track.geometry.size, t_start_ms);
+        preserve_instant_delayed_value(&mut track.geometry.layout_size, t_start_ms);
     }
 
     // Compute font metrics for baseline alignment
@@ -705,6 +708,7 @@ pub(crate) fn recompile_text_at_assignment(
         .ensure(Vec::new())
         .add_keyframe(t_end_ms, new_paths.to_vec(), easing);
     track
+        .geometry
         .size
         .ensure(DEFAULT_LAYOUT_HALF_SIZE)
         .add_keyframe(t_end_ms, new_half_size, easing);
@@ -732,7 +736,7 @@ fn rebuild_vector_paths(
     let default_size = DEFAULT_LAYOUT_HALF_SIZE;
     let default_arc = [0.0, 0.0];
     let has_duration = t_end_ms > t_start_ms;
-    let size = track.size.last(default_size);
+    let size = track.geometry.size.last(default_size);
     let shape_type = track.shape.shape_type.last(ShapeType::Rect);
 
     // ── Special case: Graph actors rebuild axis/grid/tick paths ──

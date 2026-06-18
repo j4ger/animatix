@@ -744,13 +744,13 @@ fn track_max_ms(track: &AnimationTrack) -> u64 {
     let mut max_ms = 0u64;
 
     for time in [
-        latest_keyframe_ms(&track.position),
-        latest_keyframe_ms(&track.motion_offset),
-        latest_keyframe_ms(&track.rotation),
-        latest_keyframe_ms(&track.scale),
-        latest_keyframe_ms(&track.placement_mode),
-        latest_keyframe_ms(&track.position_binding),
-        latest_keyframe_ms(&track.size),
+        latest_keyframe_ms(&track.geometry.position),
+        latest_keyframe_ms(&track.geometry.motion_offset),
+        latest_keyframe_ms(&track.geometry.rotation),
+        latest_keyframe_ms(&track.geometry.scale),
+        latest_keyframe_ms(&track.geometry.placement_mode),
+        latest_keyframe_ms(&track.geometry.position_binding),
+        latest_keyframe_ms(&track.geometry.size),
         latest_keyframe_ms(&track.shape.line_from),
         latest_keyframe_ms(&track.shape.line_to),
         latest_keyframe_ms(&track.shape.arc_angles),

@@ -586,7 +586,7 @@ impl Timeline {
 
         // Update text_paths, size, layout_size, and metrics tracks
         track.text.text_paths.ensure(Vec::new()).add_keyframe(time_ms, compiled.glyphs, Easing::Linear);
-        track.size.ensure(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
+        track.geometry.size.ensure(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
             .add_keyframe(time_ms, new_half_size, Easing::Linear);
         track.ensure_layout_size(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
             .add_keyframe(time_ms, new_half_size, Easing::Linear);
@@ -725,7 +725,7 @@ impl Timeline {
                 continue;
             };
 
-            let placement_mode = track.placement_mode.last(PlacementMode::LayoutManaged);
+            let placement_mode = track.geometry.placement_mode.last(PlacementMode::LayoutManaged);
 
             // Only children with seeded layout_size are admitted into the layout set.
             // Manual children may still exist in the scene graph via track.children,
@@ -770,11 +770,11 @@ impl Timeline {
 
         for cl in children {
             if let Some(track) = self.tracks.get(&cl.label) {
-                size_specs.push(track.size_spec);
-                let min_w = track.min_width.get(time_ms, 0.0);
+                size_specs.push(track.geometry.size_spec);
+                let min_w = track.geometry.min_width.get(time_ms, 0.0);
                 let max_w = f32::INFINITY;
-                let min_h = track.min_height.get(time_ms, 0.0);
-                let max_h = track.max_height.get(time_ms, f32::INFINITY);
+                let min_h = track.geometry.min_height.get(time_ms, 0.0);
+                let max_h = track.geometry.max_height.get(time_ms, f32::INFINITY);
                 constraints.push(SizeConstraints {
                     min_width: if min_w > 0.0 { Some(min_w) } else { None },
                     max_width: if !max_w.is_infinite() && !max_w.is_nan() { Some(max_w) } else { None },
@@ -852,7 +852,7 @@ impl Timeline {
         for (i, child) in children.iter().enumerate() {
             if child.placement_mode == PlacementMode::LayoutManaged {
                 if let Some(track) = self.tracks.get_mut(&child.label) {
-                    track.position.ensure([0.0, 0.0]).add_keyframe(t_ms, positions[i], Easing::Linear);
+                    track.geometry.position.ensure([0.0, 0.0]).add_keyframe(t_ms, positions[i], Easing::Linear);
                 }
             }
         }

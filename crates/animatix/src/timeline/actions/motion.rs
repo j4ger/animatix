@@ -241,18 +241,20 @@ impl BuiltinAction for Move {
                 Some(t) => t,
                 None => continue,
             };
-            let start_offset = track.motion_offset.get(t_start_ms, [0.0, 0.0]);
+            let start_offset = track.geometry.motion_offset.get(t_start_ms, [0.0, 0.0]);
 
             if duration_ms > 0.0 {
                 track
+                    .geometry
                     .motion_offset
                     .ensure([0.0, 0.0])
                     .add_keyframe(t_start_ms, start_offset, Easing::Linear);
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                let prior_offset = track.motion_offset.get(guard_time, [0.0, 0.0]);
-                if !track.motion_offset.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
+                let prior_offset = track.geometry.motion_offset.get(guard_time, [0.0, 0.0]);
+                if !track.geometry.motion_offset.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
                     track
+                        .geometry
                         .motion_offset
                         .ensure([0.0, 0.0])
                         .add_keyframe(guard_time, prior_offset, Easing::Linear);
@@ -260,6 +262,7 @@ impl BuiltinAction for Move {
             }
 
             track
+                .geometry
                 .motion_offset
                 .ensure([0.0, 0.0])
                 .add_keyframe(t_end_ms, target_offset, easing);
@@ -323,19 +326,21 @@ impl BuiltinAction for Shift {
                 Some(t) => t,
                 None => continue,
             };
-            let start_offset = track.motion_offset.get(t_start_ms, [0.0, 0.0]);
+            let start_offset = track.geometry.motion_offset.get(t_start_ms, [0.0, 0.0]);
             let end_offset = [start_offset[0] + shift_by[0], start_offset[1] + shift_by[1]];
 
             if duration_ms > 0.0 {
                 track
+                    .geometry
                     .motion_offset
                     .ensure([0.0, 0.0])
                     .add_keyframe(t_start_ms, start_offset, Easing::Linear);
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                let prior_offset = track.motion_offset.get(guard_time, [0.0, 0.0]);
-                if !track.motion_offset.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
+                let prior_offset = track.geometry.motion_offset.get(guard_time, [0.0, 0.0]);
+                if !track.geometry.motion_offset.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
                     track
+                        .geometry
                         .motion_offset
                         .ensure([0.0, 0.0])
                         .add_keyframe(guard_time, prior_offset, Easing::Linear);
@@ -343,6 +348,7 @@ impl BuiltinAction for Shift {
             }
 
             track
+                .geometry
                 .motion_offset
                 .ensure([0.0, 0.0])
                 .add_keyframe(t_end_ms, end_offset, easing);
@@ -406,26 +412,28 @@ impl BuiltinAction for Rotate {
                 Some(t) => t,
                 None => continue,
             };
-            let start_rotation = track.rotation.get(t_start_ms, 0.0);
+            let start_rotation = track.geometry.rotation.get(t_start_ms, 0.0);
             let end_rotation = start_rotation + angle_by;
 
             if duration_ms > 0.0 {
                 track
+                    .geometry
                     .rotation
                     .ensure(0.0)
                     .add_keyframe(t_start_ms, start_rotation, Easing::Linear);
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                let prior_rotation = track.rotation.get(guard_time, 0.0);
-                if !track.rotation.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
+                let prior_rotation = track.geometry.rotation.get(guard_time, 0.0);
+                if !track.geometry.rotation.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
                     track
+                        .geometry
                         .rotation
                         .ensure(0.0)
                         .add_keyframe(guard_time, prior_rotation, Easing::Linear);
                 }
             }
 
-            track.rotation.ensure(0.0).add_keyframe(t_end_ms, end_rotation, easing);
+            track.geometry.rotation.ensure(0.0).add_keyframe(t_end_ms, end_rotation, easing);
         }
     }
 }
@@ -486,26 +494,28 @@ impl BuiltinAction for Scale {
                 Some(t) => t,
                 None => continue,
             };
-            let start_scale = track.scale.get(t_start_ms, 1.0);
+            let start_scale = track.geometry.scale.get(t_start_ms, 1.0);
             let end_scale = start_scale * scale_by;
 
             if duration_ms > 0.0 {
                 track
+                    .geometry
                     .scale
                     .ensure(1.0)
                     .add_keyframe(t_start_ms, start_scale, Easing::Linear);
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                let prior_scale = track.scale.get(guard_time, 1.0);
-                if !track.scale.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
+                let prior_scale = track.geometry.scale.get(guard_time, 1.0);
+                if !track.geometry.scale.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
                     track
+                        .geometry
                         .scale
                         .ensure(1.0)
                         .add_keyframe(guard_time, prior_scale, Easing::Linear);
                 }
             }
 
-            track.scale.ensure(1.0).add_keyframe(t_end_ms, end_scale, easing);
+            track.geometry.scale.ensure(1.0).add_keyframe(t_end_ms, end_scale, easing);
         }
     }
 }
@@ -628,8 +638,8 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("badge").expect("badge track");
 
-        assert_eq!(track.motion_offset.get(0, [0.0, 0.0]), [0.0, 0.0]);
-        assert_eq!(track.motion_offset.get(1000, [0.0, 0.0]), [120.0, -30.0]);
+        assert_eq!(track.geometry.motion_offset.get(0, [0.0, 0.0]), [0.0, 0.0]);
+        assert_eq!(track.geometry.motion_offset.get(1000, [0.0, 0.0]), [120.0, -30.0]);
         assert!(report.diagnostics.is_empty());
     }
 
@@ -665,8 +675,8 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("badge").expect("badge track");
 
-        assert!((track.rotation.get(0, 0.0) - 0.0).abs() < f32::EPSILON);
-        assert!((track.rotation.get(1000, 0.0) - std::f32::consts::FRAC_PI_2).abs() < 0.0001);
+        assert!((track.geometry.rotation.get(0, 0.0) - 0.0).abs() < f32::EPSILON);
+        assert!((track.geometry.rotation.get(1000, 0.0) - std::f32::consts::FRAC_PI_2).abs() < 0.0001);
         assert!(report.diagnostics.is_empty());
     }
 
@@ -702,8 +712,8 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("badge").expect("badge track");
 
-        assert!((track.scale.get(0, 1.0) - 1.0).abs() < f32::EPSILON);
-        assert!((track.scale.get(1000, 1.0) - 1.5).abs() < 0.0001);
+        assert!((track.geometry.scale.get(0, 1.0) - 1.0).abs() < f32::EPSILON);
+        assert!((track.geometry.scale.get(1000, 1.0) - 1.5).abs() < 0.0001);
         assert!(report.diagnostics.is_empty());
     }
 
@@ -742,8 +752,8 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.tracks.get("badge").expect("badge track");
 
-        assert_eq!(track.motion_offset.get(0, [0.0, 0.0]), [0.0, 0.0]);
-        assert_eq!(track.motion_offset.get(1000, [0.0, 0.0]), [40.0, -24.0]);
+        assert_eq!(track.geometry.motion_offset.get(0, [0.0, 0.0]), [0.0, 0.0]);
+        assert_eq!(track.geometry.motion_offset.get(1000, [0.0, 0.0]), [40.0, -24.0]);
         assert!(report.diagnostics.is_empty());
     }
 
@@ -807,9 +817,9 @@ mod tests {
         let track = report.output.tracks.get("child").expect("child track");
 
         assert_eq!(
-            track.placement_mode.get(0, PlacementMode::LayoutManaged),
+            track.geometry.placement_mode.get(0, PlacementMode::LayoutManaged),
             PlacementMode::LayoutManaged
         );
-        assert_eq!(track.motion_offset.get(1000, [0.0, 0.0]), [25.0, 0.0]);
+        assert_eq!(track.geometry.motion_offset.get(1000, [0.0, 0.0]), [25.0, 0.0]);
     }
 }

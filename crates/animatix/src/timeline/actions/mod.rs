@@ -488,11 +488,11 @@ mod tests {
 
         // Set up child tracks with layout size so they're admitted
         let mut child_a = AnimationTrack::new("a".to_string());
-        child_a.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
+        child_a.geometry.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
         timeline.tracks.insert("a".to_string(), child_a);
 
         let mut child_b = AnimationTrack::new("b".to_string());
-        child_b.layout_size = Some(PropertyTrack::new([15.0, 40.0]));
+        child_b.geometry.layout_size = Some(PropertyTrack::new([15.0, 40.0]));
         timeline.tracks.insert("b".to_string(), child_b);
 
         // Set up container metadata with layout children
@@ -547,7 +547,7 @@ mod tests {
 
         for label in ["a", "b", "c"] {
             let mut child = AnimationTrack::new(label.to_string());
-            child.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
+            child.geometry.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
             timeline.tracks.insert(label.to_string(), child);
         }
 
@@ -653,7 +653,7 @@ mod tests {
 
         for label in ["a", "b", "c"] {
             let mut child = AnimationTrack::new(label.to_string());
-            child.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
+            child.geometry.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
             timeline.tracks.insert(label.to_string(), child);
         }
 
@@ -717,7 +717,7 @@ mod tests {
 
         for label in ["a", "b"] {
             let mut child = AnimationTrack::new(label.to_string());
-            child.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
+            child.geometry.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
             timeline.tracks.insert(label.to_string(), child);
         }
 
@@ -799,7 +799,7 @@ mod tests {
 
         for label in ["a", "b", "c"] {
             let mut child = AnimationTrack::new(label.to_string());
-            child.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
+            child.geometry.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
             timeline.tracks.insert(label.to_string(), child);
         }
 
@@ -879,7 +879,7 @@ mod tests {
         let sizes: [f32; 2] = [30.0, 40.0]; // half-size (60x80 rects)
         for label in ["bar1", "bar2", "bar3", "bar4", "bar5"] {
             let mut child = AnimationTrack::new(label.to_string());
-            child.layout_size = Some(PropertyTrack::new(sizes));
+            child.geometry.layout_size = Some(PropertyTrack::new(sizes));
             timeline.tracks.insert(label.to_string(), child);
         }
 

@@ -45,7 +45,7 @@ impl GestureHandler for MotionPathGesture {
                 let hit_radius = PREVIEW_HANDLE_HIT_RADIUS;
                 if let Some(timeline) = ctx.timeline {
                     if let Some(track) = timeline.get_track(&actor) {
-                        if let Some(pos_track) = &track.position {
+                        if let Some(pos_track) = &track.geometry.position {
                             for (&time_ms, (kf_pos, _)) in pos_track.keyframes() {
                                 let screen = ctx.preview_scene_to_screen(
                                     preview_rect,

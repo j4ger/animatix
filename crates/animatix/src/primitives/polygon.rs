@@ -104,9 +104,9 @@ impl Primitive for PolygonPrimitive {
         use crate::primitives::evaluate_shape_render;
         use crate::timeline::shapes::PolygonState;
 
-        let half_size = ctx.track.size.get(ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+        let half_size = ctx.track.geometry.size.get(ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
         let points = ctx.track.shape.points.get(ctx.time_ms, Vec::new());
-        let rot = ctx.track.rotation.get(ctx.time_ms, 0.0);
+        let rot = ctx.track.geometry.rotation.get(ctx.time_ms, 0.0);
         let vector_paths = ctx.track.evaluate_vector_paths(ctx.time_ms);
 
         let mut state = PolygonState {

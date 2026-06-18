@@ -357,7 +357,7 @@ impl Timeline {
         ) {
             if delay_ms > 0.0 && duration_ms == 0.0 {
                 preserve_discrete_position_state_before(track, t_start_ms);
-                preserve_instant_delayed_value(&mut track.position, t_start_ms);
+                preserve_instant_delayed_value(&mut track.geometry.position, t_start_ms);
             }
             apply_explicit_position_binding(track, t_start_ms, binding, position);
         }
@@ -509,10 +509,10 @@ impl Timeline {
                 .text_paths
                 .ensure(Vec::new())
                 .add_keyframe(t_start_ms, start_val, Easing::Linear);
-            let start_size = track.size.get(t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
+            let start_size = track.geometry.size.get(t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
             let start_layout_size =
                 track.layout_size_get(t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
-            track.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+            track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                 t_start_ms,
                 start_size,
                 Easing::Linear,
@@ -524,8 +524,8 @@ impl Timeline {
             );
         } else if delay_ms > 0.0 {
             preserve_instant_delayed_value(&mut track.text.text_paths, t_start_ms);
-            preserve_instant_delayed_value(&mut track.size, t_start_ms);
-            preserve_instant_delayed_value(&mut track.layout_size, t_start_ms);
+            preserve_instant_delayed_value(&mut track.geometry.size, t_start_ms);
+            preserve_instant_delayed_value(&mut track.geometry.layout_size, t_start_ms);
         }
         if supports_morph_options {
             track.style.morph_options.ensure(MorphOptions::default()).add_keyframe(
@@ -536,6 +536,7 @@ impl Timeline {
         }
         track.text.text_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths, easing);
         track
+            .geometry
             .size
             .ensure(DEFAULT_LAYOUT_HALF_SIZE)
             .add_keyframe(t_end_ms, new_half_size, easing);

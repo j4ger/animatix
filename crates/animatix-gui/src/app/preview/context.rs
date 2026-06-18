@@ -60,7 +60,7 @@ impl PreviewContext<'_> {
     pub(crate) fn get_actor_props_at_time(&self, actor: &str, time_ms: u64) -> Option<ActorProps> {
         let timeline = self.timeline?;
         let track = timeline.get_track(actor)?;
-        let half = track.size.as_ref().map(|pt| pt.evaluate(time_ms))?;
+        let half = track.geometry.size.as_ref().map(|pt| pt.evaluate(time_ms))?;
         let local_size = [half[0] * 2.0, half[1] * 2.0];
         let world_affine = timeline.actor_world_affine(actor, time_ms, self.scene_dimensions)?;
         let coeffs = world_affine.as_coeffs();
@@ -856,7 +856,7 @@ impl PreviewContext<'_> {
                 Some(t) => t,
                 None => continue,
             };
-            let pos_track = match &track.position {
+            let pos_track = match &track.geometry.position {
                 Some(pt) => pt,
                 None => continue,
             };

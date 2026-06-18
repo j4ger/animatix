@@ -104,7 +104,7 @@ impl Primitive for RectPrimitive {
         use crate::timeline::shapes::RectState;
         use crate::timeline::{DEFAULT_LAYOUT_HALF_SIZE, VectorShapeState};
 
-        let half_size = ctx.track.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+        let half_size = ctx.track.geometry.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE);
         let mut state = RectState { size: half_size };
 
         if let Some(overrides) = ctx.overrides {

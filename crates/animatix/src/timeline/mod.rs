@@ -334,7 +334,7 @@ impl ContainerMetadata {
                 }
                 Some(ContainerLayoutChild {
                     label: child_label.clone(),
-                    placement_mode: track.placement_mode.last(PlacementMode::LayoutManaged),
+                    placement_mode: track.geometry.placement_mode.last(PlacementMode::LayoutManaged),
                 })
             })
             .collect()
@@ -735,7 +735,7 @@ impl Timeline {
                 }
                 Some(ContainerLayoutChild {
                     label: child_label.clone(),
-                    placement_mode: track.placement_mode.last(PlacementMode::LayoutManaged),
+                    placement_mode: track.geometry.placement_mode.last(PlacementMode::LayoutManaged),
                 })
             })
             .collect()
@@ -757,7 +757,7 @@ impl Timeline {
                 Some(ChildExtent {
                     label: label.clone(),
                     half_size: track.layout_size_get(time_ms)?,
-                    placement_mode: track.placement_mode.get(time_ms, PlacementMode::LayoutManaged),
+                    placement_mode: track.geometry.placement_mode.get(time_ms, PlacementMode::LayoutManaged),
                 })
             })
             .collect();
@@ -1010,8 +1010,8 @@ impl Timeline {
         for node_label in &path {
             let track = self.tracks.get(node_label)?;
 
-            let placement_mode = track.placement_mode.get(time_ms, PlacementMode::LayoutManaged);
-            let mut base_position = track.position.get(time_ms, [0.0, 0.0]);
+            let placement_mode = track.geometry.placement_mode.get(time_ms, PlacementMode::LayoutManaged);
+            let mut base_position = track.geometry.position.get(time_ms, [0.0, 0.0]);
 
             if self.dynamic_layout {
                 if let Some(layout_pos) = current_layout_positions.get(node_label.as_str()) {
@@ -1021,12 +1021,12 @@ impl Timeline {
                 }
             }
 
-            let binding = track.position_binding.get(time_ms, PositionBinding::Absolute);
+            let binding = track.geometry.position_binding.get(time_ms, PositionBinding::Absolute);
             let position =
                 resolve_bound_position(binding, base_position, parent_transform, scene_dimensions);
-            let motion_offset = track.motion_offset.get(time_ms, [0.0, 0.0]);
-            let rotation = track.rotation.get(time_ms, 0.0) as f64;
-            let scale = track.scale.get(time_ms, 1.0) as f64;
+            let motion_offset = track.geometry.motion_offset.get(time_ms, [0.0, 0.0]);
+            let rotation = track.geometry.rotation.get(time_ms, 0.0) as f64;
+            let scale = track.geometry.scale.get(time_ms, 1.0) as f64;
 
             parent_transform = parent_transform
                 * kurbo::Affine::translate((

@@ -174,7 +174,7 @@ impl DocumentController<'_> {
         if let Some(timeline) = self.document_store.source.document.active_timeline() {
             if let Some(track) = timeline.get_track(original_label) {
                 let position =
-                    track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+                    track.geometry.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
                 self.ui_store.interaction.drag_state = DragState::Move {
                     primary: new_label.clone(),
                     actors: vec![(new_label, position)],

@@ -466,7 +466,7 @@ mod tests {
         let mut track = make_track(ActorKindId::Shape(animatix::timeline::ShapeKind::Rect));
         let mut pt = PropertyTrack::new([0.0, 0.0]);
         pt.add_keyframe(0, [100.0, 200.0], Easing::Linear);
-        track.position = Some(pt);
+        track.geometry.position = Some(pt);
         assert_eq!(count_keyframes(&track), 1);
     }
 
@@ -478,12 +478,12 @@ mod tests {
         let mut pos = PropertyTrack::new([0.0, 0.0]);
         pos.add_keyframe(0, [100.0, 0.0], Easing::Linear);
         pos.add_keyframe(1000, [200.0, 0.0], Easing::EaseInOut);
-        track.position = Some(pos);
+        track.geometry.position = Some(pos);
 
         // One keyframe on rotation
         let mut rot = PropertyTrack::new(0.0);
         rot.add_keyframe(500, 1.57, Easing::EaseOut);
-        track.rotation = Some(rot);
+        track.geometry.rotation = Some(rot);
 
         assert_eq!(count_keyframes(&track), 3);
     }
@@ -496,7 +496,7 @@ mod tests {
         // position is applicable to Everything
         let mut pos = PropertyTrack::new([0.0, 0.0]);
         pos.add_keyframe(0, [100.0, 0.0], Easing::Linear);
-        track.position = Some(pos);
+        track.geometry.position = Some(pos);
 
         // stroke_width is only applicable to AllShapes — not Text
         let mut sw = PropertyTrack::new(1.0);

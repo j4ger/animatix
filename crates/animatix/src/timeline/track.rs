@@ -747,6 +747,41 @@ pub struct StyleTracks {
 }
 
 // ─────────────────────────────────────────────────────────────
+// GeometryTracks sub-struct
+// ─────────────────────────────────────────────────────────────
+
+/// Sub-struct holding all geometry-related property tracks.
+#[derive(Clone, Debug, Default)]
+pub struct GeometryTracks {
+    /// Position track (x, y).
+    pub position: Option<PropertyTrack<[f32; 2]>>,
+    /// Motion offset applied after layout.
+    pub motion_offset: Option<PropertyTrack<[f32; 2]>>,
+    /// Rotation angle in radians.
+    pub rotation: Option<PropertyTrack<f32>>,
+    /// Scale factor.
+    pub scale: Option<PropertyTrack<f32>>,
+    /// 2×3 affine transform matrix.
+    pub transform: Option<PropertyTrack<[f32; 6]>>,
+    /// Whether the actor is layout-managed or manually placed.
+    pub placement_mode: Option<PropertyTrack<PlacementMode>>,
+    /// Position binding strategy.
+    pub position_binding: Option<PropertyTrack<PositionBinding>>,
+    /// Width and height.
+    pub size: Option<PropertyTrack<[f32; 2]>>,
+    /// Size allocated by the layout system.
+    pub layout_size: Option<PropertyTrack<[f32; 2]>>,
+    /// Size specification for percentage/auto/fill sizing (non-animated, set at build time).
+    pub size_spec: Option<crate::timeline::taffy_layout::ChildSizeSpec>,
+    /// Minimum width constraint.
+    pub min_width: Option<PropertyTrack<f32>>,
+    /// Minimum height constraint.
+    pub min_height: Option<PropertyTrack<f32>>,
+    /// Maximum height constraint.
+    pub max_height: Option<PropertyTrack<f32>>,
+}
+
+// ─────────────────────────────────────────────────────────────
 // AnimationTrack
 // ─────────────────────────────────────────────────────────────
 
@@ -767,23 +802,9 @@ pub struct AnimationTrack {
     /// Whether the actor is locked (preventing selection and drag in the GUI).
     pub locked: bool,
 
-    // ── Geometry tier (flat compat fields) ──
-    /// Position track (x, y).
-    pub position: Option<PropertyTrack<[f32; 2]>>,
-    /// Motion offset applied after layout.
-    pub motion_offset: Option<PropertyTrack<[f32; 2]>>,
-    /// Rotation angle in radians.
-    pub rotation: Option<PropertyTrack<f32>>,
-    /// Uniform scale factor.
-    pub scale: Option<PropertyTrack<f32>>,
-    /// 2×3 affine transform matrix.
-    pub transform: Option<PropertyTrack<[f32; 6]>>,
-    /// Whether the actor is layout-managed or manually placed.
-    pub placement_mode: Option<PropertyTrack<PlacementMode>>,
-    /// Position binding strategy.
-    pub position_binding: Option<PropertyTrack<PositionBinding>>,
-    /// Width and height.
-    pub size: Option<PropertyTrack<[f32; 2]>>,
+    // ── Geometry tier (sub-struct) ──
+    /// Geometry property tracks (position, size, rotation, scale, etc.).
+    pub geometry: GeometryTracks,
 
     // ── Style tier (sub-struct) ──
     /// Style property tracks (color, opacity, stroke, line_cap, line_join, morph_options).
@@ -806,20 +827,7 @@ pub struct AnimationTrack {
     #[cfg(feature = "render")]
     pub image: Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>,
 
-    // ── Layout ──
-    /// Size allocated by the layout system.
-    pub layout_size: Option<PropertyTrack<[f32; 2]>>,
 
-    // ── Min/Max constraints (Phase 7: percentage & intrinsic sizing) ──
-    /// Minimum width constraint.
-    pub min_width: Option<PropertyTrack<f32>>,
-
-    /// Minimum height constraint.
-    pub min_height: Option<PropertyTrack<f32>>,
-    /// Maximum height constraint.
-    pub max_height: Option<PropertyTrack<f32>>,
-    /// Size specification for percentage/auto/fill sizing (non-animated, set at build time).
-    pub size_spec: Option<crate::timeline::taffy_layout::ChildSizeSpec>,
 
     // ── Procedural plot (re-sampled at frame time) ──
     /// Procedural plot generator, re-sampled each frame.
@@ -847,15 +855,8 @@ impl AnimationTrack {
             visible: true,
             locked: false,
 
-            // Geometry flat fields
-            position: None,
-            motion_offset: None,
-            rotation: None,
-            scale: None,
-            transform: None,
-            placement_mode: None,
-            position_binding: None,
-            size: None,
+            // Geometry tier (sub-struct)
+            geometry: GeometryTracks::default(),
 
             // Style tier (sub-struct)
             style: StyleTracks::default(),
@@ -872,15 +873,7 @@ impl AnimationTrack {
             #[cfg(feature = "render")]
             image: None,
 
-            // Layout flat fields
-            layout_size: None,
 
-            // Min/Max constraints (Phase 7)
-            min_width: None,
-
-            min_height: None,
-            max_height: None,
-            size_spec: None,
 
             // Procedural plot
             procedural_plot: None,
@@ -896,19 +889,19 @@ impl AnimationTrack {
     // ── layout_size convenience methods (replacing old LayoutSizeState) ──
     /// Evaluate `layout_size` at `time_ms`.
     pub fn layout_size_get(&self, time_ms: u64) -> Option<[f32; 2]> {
-        self.layout_size.as_ref().map(|t| t.evaluate(time_ms))
+        self.geometry.layout_size.as_ref().map(|t| t.evaluate(time_ms))
     }
     /// Return the last value of `layout_size`.
     pub fn layout_size_last(&self) -> Option<[f32; 2]> {
-        self.layout_size.as_ref().map(|t| t.last_value())
+        self.geometry.layout_size.as_ref().map(|t| t.last_value())
     }
     /// Ensure `layout_size` exists, creating it with `default` if absent.
     pub fn ensure_layout_size(&mut self, default: [f32; 2]) -> &mut PropertyTrack<[f32; 2]> {
-        self.layout_size.get_or_insert_with(|| PropertyTrack::new(default))
+        self.geometry.layout_size.get_or_insert_with(|| PropertyTrack::new(default))
     }
     /// Return `true` if `layout_size` has been set.
     pub fn has_layout_size(&self) -> bool {
-        self.layout_size.is_some()
+        self.geometry.layout_size.is_some()
     }
 
     // ── Font metrics accessors (Phase 6) ──
@@ -1335,13 +1328,13 @@ impl AnimationTrack {
     pub fn field_ref(&self, field: ActorField) -> Option<TrackFieldRef<'_>> {
         use ActorField::*;
         Some(match field {
-            Position => TrackFieldRef::Vec2(&self.position),
-            MotionOffset => TrackFieldRef::Vec2(&self.motion_offset),
-            Size => TrackFieldRef::Vec2(&self.size),
-            LayoutSize => TrackFieldRef::Vec2(&self.layout_size),
-            Rotation => TrackFieldRef::F32(&self.rotation),
-            Scale => TrackFieldRef::F32(&self.scale),
-            Transform => TrackFieldRef::Transform(&self.transform),
+            Position => TrackFieldRef::Vec2(&self.geometry.position),
+            MotionOffset => TrackFieldRef::Vec2(&self.geometry.motion_offset),
+            Size => TrackFieldRef::Vec2(&self.geometry.size),
+            LayoutSize => TrackFieldRef::Vec2(&self.geometry.layout_size),
+            Rotation => TrackFieldRef::F32(&self.geometry.rotation),
+            Scale => TrackFieldRef::F32(&self.geometry.scale),
+            Transform => TrackFieldRef::Transform(&self.geometry.transform),
             Color => TrackFieldRef::Vec4(&self.style.color),
             Opacity => TrackFieldRef::F32(&self.style.opacity),
             StrokeWidth => TrackFieldRef::F32(&self.style.stroke_width),
@@ -1369,7 +1362,7 @@ impl AnimationTrack {
             Overflow => TrackFieldRef::String(&self.text.overflow),
             FontFamily => TrackFieldRef::String(&self.text.font_family),
             FontSize => TrackFieldRef::F32(&self.text.font_size),
-            PlacementMode => TrackFieldRef::PlacementMode(&self.placement_mode),
+            PlacementMode => TrackFieldRef::PlacementMode(&self.geometry.placement_mode),
             MorphOptions => TrackFieldRef::MorphOptions(&self.style.morph_options),
             Ascent => TrackFieldRef::F32(&self.text.ascent),
             Descent => TrackFieldRef::F32(&self.text.descent),
@@ -1383,16 +1376,16 @@ impl AnimationTrack {
             LineHeight => TrackFieldRef::F32(&self.text.line_height),
             LetterSpacing => TrackFieldRef::F32(&self.text.letter_spacing),
             WordSpacing => TrackFieldRef::F32(&self.text.word_spacing),
-            MinWidth => TrackFieldRef::F32(&self.min_width),
-            MinHeight => TrackFieldRef::F32(&self.min_height),
-            MaxHeight => TrackFieldRef::F32(&self.max_height),
+            MinWidth => TrackFieldRef::F32(&self.geometry.min_width),
+            MinHeight => TrackFieldRef::F32(&self.geometry.min_height),
+            MaxHeight => TrackFieldRef::F32(&self.geometry.max_height),
             VectorPaths => TrackFieldRef::VectorPaths(&self.shape.vector_paths),
             TextPaths => TrackFieldRef::TextPaths(&self.text.text_paths),
             #[cfg(feature = "render")]
             ImageData => TrackFieldRef::Image(&self.image),
             #[cfg(not(feature = "render"))]
             ImageData => return None,
-            PositionBinding => TrackFieldRef::PositionBinding(&self.position_binding),
+            PositionBinding => TrackFieldRef::PositionBinding(&self.geometry.position_binding),
             // Remaining variants without track storage
             SvgPaths | AudioSource | AudioVolume
             | PositionBindingGroup | VectorShapeGroup | PlotDomainGroup
@@ -1404,13 +1397,13 @@ impl AnimationTrack {
     pub fn field_mut(&mut self, field: ActorField) -> Option<TrackFieldMut<'_>> {
         use ActorField::*;
         Some(match field {
-            Position => TrackFieldMut::Vec2(&mut self.position),
-            MotionOffset => TrackFieldMut::Vec2(&mut self.motion_offset),
-            Size => TrackFieldMut::Vec2(&mut self.size),
-            LayoutSize => TrackFieldMut::Vec2(&mut self.layout_size),
-            Rotation => TrackFieldMut::F32(&mut self.rotation),
-            Scale => TrackFieldMut::F32(&mut self.scale),
-            Transform => TrackFieldMut::Transform(&mut self.transform),
+            Position => TrackFieldMut::Vec2(&mut self.geometry.position),
+            MotionOffset => TrackFieldMut::Vec2(&mut self.geometry.motion_offset),
+            Size => TrackFieldMut::Vec2(&mut self.geometry.size),
+            LayoutSize => TrackFieldMut::Vec2(&mut self.geometry.layout_size),
+            Rotation => TrackFieldMut::F32(&mut self.geometry.rotation),
+            Scale => TrackFieldMut::F32(&mut self.geometry.scale),
+            Transform => TrackFieldMut::Transform(&mut self.geometry.transform),
             Color => TrackFieldMut::Vec4(&mut self.style.color),
             Opacity => TrackFieldMut::F32(&mut self.style.opacity),
             StrokeWidth => TrackFieldMut::F32(&mut self.style.stroke_width),
@@ -1438,7 +1431,7 @@ impl AnimationTrack {
             Overflow => TrackFieldMut::String(&mut self.text.overflow),
             FontFamily => TrackFieldMut::String(&mut self.text.font_family),
             FontSize => TrackFieldMut::F32(&mut self.text.font_size),
-            PlacementMode => TrackFieldMut::PlacementMode(&mut self.placement_mode),
+            PlacementMode => TrackFieldMut::PlacementMode(&mut self.geometry.placement_mode),
             MorphOptions => TrackFieldMut::MorphOptions(&mut self.style.morph_options),
             Ascent => TrackFieldMut::F32(&mut self.text.ascent),
             Descent => TrackFieldMut::F32(&mut self.text.descent),
@@ -1452,16 +1445,16 @@ impl AnimationTrack {
             LineHeight => TrackFieldMut::F32(&mut self.text.line_height),
             LetterSpacing => TrackFieldMut::F32(&mut self.text.letter_spacing),
             WordSpacing => TrackFieldMut::F32(&mut self.text.word_spacing),
-            MinWidth => TrackFieldMut::F32(&mut self.min_width),
-            MinHeight => TrackFieldMut::F32(&mut self.min_height),
-            MaxHeight => TrackFieldMut::F32(&mut self.max_height),
+            MinWidth => TrackFieldMut::F32(&mut self.geometry.min_width),
+            MinHeight => TrackFieldMut::F32(&mut self.geometry.min_height),
+            MaxHeight => TrackFieldMut::F32(&mut self.geometry.max_height),
             VectorPaths => TrackFieldMut::VectorPaths(&mut self.shape.vector_paths),
             TextPaths => TrackFieldMut::TextPaths(&mut self.text.text_paths),
             #[cfg(feature = "render")]
             ImageData => TrackFieldMut::Image(&mut self.image),
             #[cfg(not(feature = "render"))]
             ImageData => return None,
-            PositionBinding => TrackFieldMut::PositionBinding(&mut self.position_binding),
+            PositionBinding => TrackFieldMut::PositionBinding(&mut self.geometry.position_binding),
             _ => return None,
         })
     }
@@ -2141,7 +2134,7 @@ mod tests {
     #[test]
     fn test_max_keyframe_time_with_transform() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.transform.ensure([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
+        track.geometry.transform.ensure([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
             .add_keyframe(5000, [2.0, 0.0, 0.0, 2.0, 100.0, 200.0], Easing::Linear);
         assert_eq!(track.max_keyframe_time(), Some(5000));
     }
@@ -2174,7 +2167,7 @@ mod tests {
     fn test_max_keyframe_time_returns_max_across_all_fields() {
         let mut track = AnimationTrack::new("test".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
-        track.position.ensure([0.0, 0.0]).add_keyframe(5000, [100.0, 100.0], Easing::Linear);
+        track.geometry.position.ensure([0.0, 0.0]).add_keyframe(5000, [100.0, 100.0], Easing::Linear);
         track.highlight.highlight_opacity.ensure(0.0).add_keyframe(3000, 0.8, Easing::Linear);
         assert_eq!(track.max_keyframe_time(), Some(5000));
     }
@@ -2418,7 +2411,7 @@ mod tests {
         let mut track = AnimationTrack::new("test".to_string());
         // Expect max_keyframe_time to iterate registry-driven fields
         // Put a keyframe on an unconventional registry field
-        track.min_width.ensure(0.0).add_keyframe(7777, 50.0, Easing::Linear);
+        track.geometry.min_width.ensure(0.0).add_keyframe(7777, 50.0, Easing::Linear);
         assert_eq!(track.max_keyframe_time(), Some(7777));
     }
 
@@ -2433,7 +2426,7 @@ mod tests {
     #[test]
     fn test_registry_driven_max_keyframe_time_finds_min_width() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.min_height.ensure(0.0).add_keyframe(4000, 200.0, Easing::Linear);
+        track.geometry.min_height.ensure(0.0).add_keyframe(4000, 200.0, Easing::Linear);
         assert_eq!(track.max_keyframe_time(), Some(4000));
     }
 
@@ -2637,16 +2630,16 @@ mod tests {
     fn test_missing_properties() {
         let track = AnimationTrack::new("empty_actor".to_string());
 
-        assert_eq!(track.position.get(0, [0.0, 0.0]), [0.0, 0.0]);
+        assert_eq!(track.geometry.position.get(0, [0.0, 0.0]), [0.0, 0.0]);
         assert_eq!(
-            track.placement_mode.get(0, PlacementMode::LayoutManaged),
+            track.geometry.placement_mode.get(0, PlacementMode::LayoutManaged),
             PlacementMode::LayoutManaged
         );
         assert_eq!(
-            track.position_binding.get(0, PositionBinding::Absolute),
+            track.geometry.position_binding.get(0, PositionBinding::Absolute),
             PositionBinding::Absolute
         );
-        assert_eq!(track.size.get(0, [50.0, 50.0]), [50.0, 50.0]);
+        assert_eq!(track.geometry.size.get(0, [50.0, 50.0]), [50.0, 50.0]);
         assert_eq!(track.shape.line_from.get(0, [-50.0, 0.0]), [-50.0, 0.0]);
         assert_eq!(track.shape.line_to.get(0, [50.0, 0.0]), [50.0, 0.0]);
         assert_eq!(track.shape.arc_angles.get(0, [0.0, std::f32::consts::PI]), [0.0, std::f32::consts::PI]);

@@ -166,6 +166,7 @@ pub(crate) fn resolve_bound_position(
 
 pub(crate) fn mark_track_manual_position(track: &mut AnimationTrack, time_ms: u64) {
     track
+        .geometry
         .placement_mode
         .ensure(PlacementMode::LayoutManaged)
         .add_keyframe(time_ms, PlacementMode::Manual, Easing::Linear);
@@ -178,22 +179,25 @@ pub(crate) fn preserve_discrete_position_state_before(track: &mut AnimationTrack
 
     let previous_time = time_ms - 1;
 
-    if !track.placement_mode.as_ref().map(|t| t.keyframes.contains_key(&previous_time)).unwrap_or(false) {
-        let previous_mode = track.placement_mode.get(previous_time, PlacementMode::LayoutManaged);
+    if !track.geometry.placement_mode.as_ref().map(|t| t.keyframes.contains_key(&previous_time)).unwrap_or(false) {
+        let previous_mode = track.geometry.placement_mode.get(previous_time, PlacementMode::LayoutManaged);
         track
+            .geometry
             .placement_mode
             .ensure(PlacementMode::LayoutManaged)
             .add_keyframe(previous_time, previous_mode, Easing::Linear);
     }
 
     if !track
+        .geometry
         .position_binding
         .as_ref()
         .map(|t| t.keyframes.contains_key(&previous_time))
         .unwrap_or(false)
     {
-        let previous_binding = track.position_binding.get(previous_time, PositionBinding::Absolute);
+        let previous_binding = track.geometry.position_binding.get(previous_time, PositionBinding::Absolute);
         track
+            .geometry
             .position_binding
             .ensure(PositionBinding::Absolute)
             .add_keyframe(previous_time, previous_binding, Easing::Linear);
@@ -227,6 +231,7 @@ pub(crate) fn set_track_position_binding(
     binding: PositionBinding,
 ) {
     track
+        .geometry
         .position_binding
         .ensure(PositionBinding::Absolute)
         .add_keyframe(time_ms, binding, Easing::Linear);
@@ -242,6 +247,7 @@ pub(crate) fn apply_explicit_position_binding(
     set_track_position_binding(track, time_ms, binding);
     if let Some(position) = position {
         track
+            .geometry
             .position
             .ensure([0.0, 0.0])
             .add_keyframe(time_ms, position, Easing::Linear);

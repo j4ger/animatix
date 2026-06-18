@@ -442,19 +442,19 @@ fn get_property_gui_value(
     time_ms: u64,
 ) -> Option<GuiPropertyValue> {
     match prop_name {
-        "position" => track.position.as_ref().map(|t| {
+        "position" => track.geometry.position.as_ref().map(|t| {
             let v = t.evaluate_copy(time_ms);
             GuiPropertyValue::Vec2(v)
         }),
-        "size" => track.size.as_ref().map(|t| {
+        "size" => track.geometry.size.as_ref().map(|t| {
             let v = t.evaluate_copy(time_ms);
             GuiPropertyValue::Vec2([v[0] * 2.0, v[1] * 2.0])
         }),
-        "rotation" => track.rotation.as_ref().map(|t| {
+        "rotation" => track.geometry.rotation.as_ref().map(|t| {
             let v = t.evaluate_copy(time_ms);
             GuiPropertyValue::Float(v)
         }),
-        "scale" => track.scale.as_ref().map(|t| {
+        "scale" => track.geometry.scale.as_ref().map(|t| {
             let v = t.evaluate_copy(time_ms);
             GuiPropertyValue::Float(v)
         }),
@@ -489,10 +489,10 @@ fn get_property_gui_value(
 /// Check whether an actor has an actual property track for the given property name.
 fn has_property_track(track: &AnimationTrack, prop_name: &str) -> bool {
     match prop_name {
-        "position" => track.position.is_some(),
-        "size" => track.size.is_some(),
-        "rotation" => track.rotation.is_some(),
-        "scale" => track.scale.is_some(),
+        "position" => track.geometry.position.is_some(),
+        "size" => track.geometry.size.is_some(),
+        "rotation" => track.geometry.rotation.is_some(),
+        "scale" => track.geometry.scale.is_some(),
         "opacity" => track.style.opacity.is_some(),
         "color" => track.style.color.is_some(),
         "stroke_width" => track.style.stroke_width.is_some(),

@@ -49,7 +49,7 @@ fn seed_svg_track(
                     }
                 }
                 let measured_half_size = crate::timeline::svg::measure_svg_paths(&parsed_paths);
-                track.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                     time_ms,
                     measured_half_size,
                     Easing::Linear,
@@ -94,6 +94,7 @@ fn seed_image_track(
             let display_size = authored_half_size
                 .unwrap_or([image.natural_size[0] / 2.0, image.natural_size[1] / 2.0]);
             track
+                .geometry
                 .size
                 .ensure(DEFAULT_LAYOUT_HALF_SIZE)
                 .add_keyframe(time_ms, display_size, Easing::Linear);

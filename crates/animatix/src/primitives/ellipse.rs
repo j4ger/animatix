@@ -104,9 +104,9 @@ impl Primitive for EllipsePrimitive {
         use crate::primitives::evaluate_shape_render;
         use crate::timeline::shapes::EllipseState;
 
-        let half_size = ctx.track.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+        let half_size = ctx.track.geometry.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE);
         let arc_angles = ctx.track.shape.arc_angles.get(ctx.time_ms, [0.0, 0.0]);
-        let rot = ctx.track.rotation.get(ctx.time_ms, 0.0);
+        let rot = ctx.track.geometry.rotation.get(ctx.time_ms, 0.0);
 
         let mut state = EllipseState {
             size: half_size,

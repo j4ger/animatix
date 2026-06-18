@@ -292,7 +292,7 @@ pub fn handle_align_actors(
         for (actor, rect) in &rects[1..] {
             if let Some(track) = timeline.get_track(actor) {
                 let pos =
-                    track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+                    track.geometry.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
                 let new_pos = match alignment {
                     Align::Left => [ref_value as f32 + (pos[0] - rect.x0 as f32), pos[1]],
                     Align::Center => [
@@ -406,7 +406,7 @@ pub fn handle_distribute_actors(
         for (i, (actor, rect)) in rects.iter().enumerate() {
             if let Some(track) = timeline.get_track(actor) {
                 let pos =
-                    track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+                    track.geometry.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
                 let target = start + step * i as f64;
                 let new_pos = match axis {
                     Axis::Horizontal => [target as f32 + (pos[0] - rect.x0 as f32), pos[1]],

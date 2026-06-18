@@ -91,11 +91,11 @@ impl Timeline {
                 Value::Vec2(pos) => Some([pos[0] as f32, pos[1] as f32]),
                 _ => None,
             });
-        let placement_mode = track.placement_mode.get(time_ms, PlacementMode::LayoutManaged);
+        let placement_mode = track.geometry.placement_mode.get(time_ms, PlacementMode::LayoutManaged);
         let mut base_position = if let Some(ov_pos) = override_position {
             ov_pos
         } else {
-            track.position.get(time_ms, [0.0, 0.0])
+            track.geometry.position.get(time_ms, [0.0, 0.0])
         };
         if let Some(layout_pos) = layout_position {
             if placement_mode == PlacementMode::LayoutManaged && override_position.is_none() {
@@ -108,7 +108,7 @@ impl Timeline {
         let binding = if override_position.is_some() {
             PositionBinding::Absolute
         } else {
-            track.position_binding.get(time_ms, PositionBinding::Absolute)
+            track.geometry.position_binding.get(time_ms, PositionBinding::Absolute)
         };
         let position = resolve_bound_position(binding, base_position, parent_transform, scene_dimensions);
 
@@ -118,7 +118,7 @@ impl Timeline {
         let motion_offset = if let Some(Value::Vec2(v)) = node_overrides.and_then(|ov| ov.get("shift")) {
             [v[0] as f32, v[1] as f32]
         } else {
-            track.motion_offset.get(time_ms, [0.0, 0.0])
+            track.geometry.motion_offset.get(time_ms, [0.0, 0.0])
         };
         let rotation = effective_f32(track, node_overrides, time_ms, "rotation", 0.0) as f64;
         let scale = effective_f32(track, node_overrides, time_ms, "scale", 1.0) as f64;
@@ -658,7 +658,7 @@ impl Timeline {
                 }
             }
         } else if track.kind == ActorKindId::Mask {
-            let half_size = track.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+            let half_size = track.geometry.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
 
             // Build a rectangle clip path from -half_size to +half_size
             let w = half_size[0] as f64;
@@ -1090,7 +1090,7 @@ mod tests {
             t
         });
         // Give it a size so it has content
-        track.size = Some({
+        track.geometry.size = Some({
             let mut t = PropertyTrack::new([50.0, 50.0]);
             t.add_keyframe(0, [50.0, 50.0], Easing::Linear);
             t
@@ -1270,7 +1270,7 @@ mod tests {
             t.add_keyframe(0, ShapeType::Rect, Easing::Linear);
             t
         });
-        child_track.size = Some({
+        child_track.geometry.size = Some({
             let mut t = PropertyTrack::new([50.0, 50.0]);
             t.add_keyframe(0, [50.0, 50.0], Easing::Linear);
             t
@@ -1286,7 +1286,7 @@ mod tests {
         let mut mask_track = AnimationTrack::new("mask".to_string());
         mask_track.first_seen_ms = 0;
         mask_track.kind = ActorKindId::Mask;
-        mask_track.size = Some({
+        mask_track.geometry.size = Some({
             let mut t = PropertyTrack::new([100.0, 100.0]);
             t.add_keyframe(0, [100.0, 100.0], Easing::Linear);
             t

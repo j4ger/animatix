@@ -93,7 +93,7 @@ impl BuiltinAction for Shake {
             };
 
             // Get starting offset
-            let start_offset = track.motion_offset.get(t_start_ms, [0.0, 0.0]);
+            let start_offset = track.geometry.motion_offset.get(t_start_ms, [0.0, 0.0]);
 
             // Duration per shake cycle
             let _cycle_duration = if frequency > 0 {
@@ -113,6 +113,7 @@ impl BuiltinAction for Shake {
 
                 // Build up shake with linear interpolation between cycles
                 track
+                    .geometry
                     .motion_offset
                     .ensure([0.0, 0.0])
                     .add_keyframe(cycle_time, shake_offset, Easing::Linear);
@@ -120,6 +121,7 @@ impl BuiltinAction for Shake {
 
             // Return to original position at end
             track
+                .geometry
                 .motion_offset
                 .ensure([0.0, 0.0])
                 .add_keyframe(t_end_ms, start_offset, easing);
@@ -183,18 +185,19 @@ impl BuiltinAction for Pulse {
                 None => continue,
             };
 
-            let start_scale = track.scale.get(t_start_ms, 1.0);
+            let start_scale = track.geometry.scale.get(t_start_ms, 1.0);
             let peak_scale = start_scale * (1.0 + intensity);
 
             // Scale up to peak
             track
+                .geometry
                 .scale
                 .ensure(1.0)
                 .add_keyframe(t_start_ms, start_scale, Easing::Linear);
-            track.scale.ensure(1.0).add_keyframe(t_mid_ms, peak_scale, easing);
+            track.geometry.scale.ensure(1.0).add_keyframe(t_mid_ms, peak_scale, easing);
 
             // Scale back down
-            track.scale.ensure(1.0).add_keyframe(t_end_ms, start_scale, easing);
+            track.geometry.scale.ensure(1.0).add_keyframe(t_end_ms, start_scale, easing);
         }
     }
 }
@@ -254,7 +257,7 @@ impl BuiltinAction for Bounce {
                 None => continue,
             };
 
-            let start_offset = track.motion_offset.get(t_start_ms, [0.0, 0.0]);
+            let start_offset = track.geometry.motion_offset.get(t_start_ms, [0.0, 0.0]);
 
             // Bounce trajectory: down fast, up slower, settle
             // Keyframes at thirds of duration
@@ -263,6 +266,7 @@ impl BuiltinAction for Bounce {
 
             // Start
             track
+                .geometry
                 .motion_offset
                 .ensure([0.0, 0.0])
                 .add_keyframe(t_start_ms, start_offset, Easing::Linear);
@@ -270,6 +274,7 @@ impl BuiltinAction for Bounce {
             // Down (elastic overshoot)
             let bounce_down = [start_offset[0], start_offset[1] + intensity];
             track
+                .geometry
                 .motion_offset
                 .ensure([0.0, 0.0])
                 .add_keyframe(t_33, bounce_down, Easing::EaseOut);
@@ -277,12 +282,14 @@ impl BuiltinAction for Bounce {
             // Up (recovery)
             let bounce_up = [start_offset[0], start_offset[1] - intensity * 0.3];
             track
+                .geometry
                 .motion_offset
                 .ensure([0.0, 0.0])
                 .add_keyframe(t_66, bounce_up, Easing::EaseOut);
 
             // Settle back
             track
+                .geometry
                 .motion_offset
                 .ensure([0.0, 0.0])
                 .add_keyframe(t_end_ms, start_offset, easing);
@@ -348,7 +355,7 @@ mod tests {
         let track = report.output.tracks.get("badge").expect("badge track");
 
         // Check that multiple motion offset keyframes were added
-        assert!(track.motion_offset.as_ref().map(|t| !t.keyframes.is_empty()).unwrap_or(false));
+        assert!(track.geometry.motion_offset.as_ref().map(|t| !t.keyframes.is_empty()).unwrap_or(false));
         assert!(report.diagnostics.is_empty());
     }
 
@@ -379,7 +386,7 @@ mod tests {
         let track = report.output.tracks.get("badge").expect("badge track");
 
         // Check that scale keyframes were added
-        assert!(track.scale.as_ref().map(|t| t.keyframes.len() >= 2).unwrap_or(false));
+        assert!(track.geometry.scale.as_ref().map(|t| t.keyframes.len() >= 2).unwrap_or(false));
         assert!(report.diagnostics.is_empty());
     }
 }

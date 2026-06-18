@@ -57,7 +57,7 @@ impl Timeline {
                 Some(ChildExtent {
                     label: cl.clone(),
                     half_size,
-                    placement_mode: track.placement_mode.last(crate::timeline::PlacementMode::LayoutManaged),
+                    placement_mode: track.geometry.placement_mode.last(crate::timeline::PlacementMode::LayoutManaged),
                 })
             })
             .collect();

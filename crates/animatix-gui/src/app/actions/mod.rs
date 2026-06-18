@@ -384,7 +384,7 @@ fn apply_property_edit_to_track(
         "size" => {
             if let PV::Vec2(v) = value {
                 let half = [v[0] / 2.0, v[1] / 2.0];
-                let pt = track.size.get_or_insert_with(|| PropertyTrack::new(half));
+                let pt = track.geometry.size.get_or_insert_with(|| PropertyTrack::new(half));
                 pt.set_default_value(half);
                 pt.add_keyframe(time_ms, half, linear);
             }
@@ -392,7 +392,7 @@ fn apply_property_edit_to_track(
         },
         "offset" => {
             if let PV::Vec2(v) = value {
-                if let Some(ref mut pb_track) = track.position_binding {
+                if let Some(ref mut pb_track) = track.geometry.position_binding {
                     let current = pb_track.evaluate(time_ms);
                     if let animatix::timeline::PositionBinding::SceneAnchor { anchor, .. } = current
                     {
@@ -407,10 +407,10 @@ fn apply_property_edit_to_track(
         },
         "at" => {
             if let PV::Vec2(v) = value {
-                let binding = track.position_binding.as_ref().map(|pb| pb.evaluate(time_ms));
+                let binding = track.geometry.position_binding.as_ref().map(|pb| pb.evaluate(time_ms));
                 match binding {
                     Some(animatix::timeline::PositionBinding::ScenePercent { .. }) => {
-                        if let Some(ref mut pb_track) = track.position_binding {
+                        if let Some(ref mut pb_track) = track.geometry.position_binding {
                             let new_binding = animatix::timeline::PositionBinding::ScenePercent {
                                 x: v[0],
                                 y: v[1],
@@ -421,7 +421,7 @@ fn apply_property_edit_to_track(
                         }
                     },
                     _ => {
-                        let pt = track.position.get_or_insert_with(|| PropertyTrack::new(*v));
+                        let pt = track.geometry.position.get_or_insert_with(|| PropertyTrack::new(*v));
                         pt.set_default_value(*v);
                         pt.add_keyframe(time_ms, *v, linear);
                     },
@@ -432,7 +432,7 @@ fn apply_property_edit_to_track(
         "radius" => {
             if let PV::Float(v) = value {
                 let size = [*v, *v];
-                let pt = track.size.get_or_insert_with(|| PropertyTrack::new(size));
+                let pt = track.geometry.size.get_or_insert_with(|| PropertyTrack::new(size));
                 pt.set_default_value(size);
                 pt.add_keyframe(time_ms, size, linear);
             }
@@ -440,9 +440,9 @@ fn apply_property_edit_to_track(
         },
         "radius_x" => {
             if let PV::Float(v) = value {
-                let current = track.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+                let current = track.geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
                 let size = [*v, current[1]];
-                let pt = track.size.get_or_insert_with(|| PropertyTrack::new(size));
+                let pt = track.geometry.size.get_or_insert_with(|| PropertyTrack::new(size));
                 pt.set_default_value(size);
                 pt.add_keyframe(time_ms, size, linear);
             }
@@ -450,9 +450,9 @@ fn apply_property_edit_to_track(
         },
         "radius_y" => {
             if let PV::Float(v) = value {
-                let current = track.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+                let current = track.geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
                 let size = [current[0], *v];
-                let pt = track.size.get_or_insert_with(|| PropertyTrack::new(size));
+                let pt = track.geometry.size.get_or_insert_with(|| PropertyTrack::new(size));
                 pt.set_default_value(size);
                 pt.add_keyframe(time_ms, size, linear);
             }
@@ -480,9 +480,9 @@ fn apply_property_edit_to_track(
         },
         "tip_length" => {
             if let PV::Float(v) = value {
-                let current = track.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+                let current = track.geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
                 let size = [*v, current[1]];
-                let pt = track.size.get_or_insert_with(|| PropertyTrack::new(size));
+                let pt = track.geometry.size.get_or_insert_with(|| PropertyTrack::new(size));
                 pt.set_default_value(size);
                 pt.add_keyframe(time_ms, size, linear);
             }
@@ -490,9 +490,9 @@ fn apply_property_edit_to_track(
         },
         "tip_width" => {
             if let PV::Float(v) = value {
-                let current = track.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+                let current = track.geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
                 let size = [current[0], *v];
-                let pt = track.size.get_or_insert_with(|| PropertyTrack::new(size));
+                let pt = track.geometry.size.get_or_insert_with(|| PropertyTrack::new(size));
                 pt.set_default_value(size);
                 pt.add_keyframe(time_ms, size, linear);
             }

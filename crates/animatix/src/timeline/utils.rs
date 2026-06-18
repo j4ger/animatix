@@ -1630,11 +1630,11 @@ mod tests {
         "#;
         let ast = animatix_syntax::parser::parser().parse(source).into_result().unwrap();
         let timeline = super::super::Timeline::build(&ast);
-        let pos1 = timeline.tracks.get("c").unwrap().position.get(0, [0.0, 0.0]);
+        let pos1 = timeline.tracks.get("c").unwrap().geometry.position.get(0, [0.0, 0.0]);
 
         // Rebuild and re-evaluate — same seed must produce same value
         let timeline2 = super::super::Timeline::build(&ast);
-        let pos2 = timeline2.tracks.get("c").unwrap().position.get(0, [0.0, 0.0]);
+        let pos2 = timeline2.tracks.get("c").unwrap().geometry.position.get(0, [0.0, 0.0]);
         assert_eq!(pos1, pos2, "seeded_rand must be deterministic for the same seed");
     }
 
@@ -1648,7 +1648,7 @@ mod tests {
         "#;
         let ast = animatix_syntax::parser::parser().parse(source).into_result().unwrap();
         let timeline = super::super::Timeline::build(&ast);
-        let pos = timeline.tracks.get("c").unwrap().position.get(0, [0.0, 0.0]);
+        let pos = timeline.tracks.get("c").unwrap().geometry.position.get(0, [0.0, 0.0]);
         assert!(
             pos[0] >= 0.0 && pos[0] <= 100.0,
             "seeded_rand should return value in [0,1] range, got {}",

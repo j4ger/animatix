@@ -187,8 +187,8 @@ pub fn render_layout_debug(
         };
 
         // Get container position (center) and size (full width/height)
-        let pos = track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
-        let size = track.size.as_ref().map(|s| s.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+        let pos = track.geometry.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+        let size = track.geometry.size.as_ref().map(|s| s.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
         let half_w = size[0] / 2.0;
         let half_h = size[1] / 2.0;
 
@@ -229,9 +229,9 @@ pub fn render_layout_debug(
                 continue;
             };
             let child_pos =
-                child_track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+                child_track.geometry.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
             let child_size =
-                child_track.size.as_ref().map(|s| s.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+                child_track.geometry.size.as_ref().map(|s| s.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
 
             let child_tl = tx.scene_to_screen(kurbo::Point::new(
                 (child_pos[0] - child_size[0] / 2.0) as f64,
@@ -274,9 +274,9 @@ pub fn render_layout_debug(
                 .filter_map(|child| {
                     let track = timeline.get_track(&child.label)?;
                     let child_pos =
-                        track.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+                        track.geometry.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
                     let child_size =
-                        track.size.as_ref().map(|s| s.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+                        track.geometry.size.as_ref().map(|s| s.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
                     Some((child_pos, child_size))
                 })
                 .collect();
