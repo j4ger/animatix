@@ -257,6 +257,16 @@ impl LayoutType {
             _ => Self::Row,
         }
     }
+
+    /// Return the string representation of this layout type.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Row => "Row",
+            Self::Col => "Col",
+            Self::Grid => "Grid",
+            Self::Stack => "Stack",
+        }
+    }
 }
 
 /// A child actor admitted into a container's layout system.

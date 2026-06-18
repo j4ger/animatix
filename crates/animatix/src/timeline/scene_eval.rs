@@ -760,6 +760,9 @@ impl Timeline {
                     line_height,
                     letter_spacing,
                     word_spacing,
+                    0.0,
+                    "left",
+                    "visible",
                 ) {
                     Ok(frame) => {
                         // Extract grouped glyphs — one group per #box() wrapper.

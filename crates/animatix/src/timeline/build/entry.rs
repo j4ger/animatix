@@ -4,6 +4,7 @@
 //! `build_with_diagnostics()`, `build_with_diagnostics_and_font_context()`.
 
 use super::*;
+use crate::timeline::layout::ChildExtent;
 use tracing::instrument;
 
 impl Timeline {
@@ -26,18 +27,51 @@ impl Timeline {
         // layout_children is computed on demand via Timeline::layout_children_for
         let _layout_children = self.build_layout_children(label, container_ty, &child_order, diagnostics);
 
-        self.container_metadata.insert(
-            label.to_string(),
-            ContainerMetadata {
-                layout_type: LayoutType::from_container_ty(container_ty),
-                gap,
-                padding,
-                align: align.unwrap_or("center").to_string(),
-                cols,
-                child_order,
-            },
+        let metadata = ContainerMetadata {
+            layout_type: LayoutType::from_container_ty(container_ty),
+            gap,
+            padding,
+            align: align.unwrap_or("center").to_string(),
+            cols,
+            child_order: child_order.clone(),
+        };
+
+        self.container_metadata.insert(label.to_string(), metadata.clone());
+
+        // ─── Two-pass width propagation ───
+        // Pass 1: Apply layout to get container size from Taffy.
+        // This gives us the container's total width/height determined by children.
+        self.apply_container_layout(label, time_ms as f64, diagnostics);
+
+        // Compute container size for width propagation.
+        // The container_size comes from the Taffy layout we just computed.
+        let child_extents: Vec<ChildExtent> = child_order
+            .iter()
+            .filter_map(|cl| {
+                let track = self.tracks.get(cl)?;
+                // Use layout_size_last() to get the most recently keyframed value,
+                // consistent with apply_container_layout().
+                let half_size = track.layout_size_last()?;
+                Some(ChildExtent {
+                    label: cl.clone(),
+                    half_size,
+                    placement_mode: track.placement_mode.last(crate::timeline::PlacementMode::LayoutManaged),
+                })
+            })
+            .collect();
+
+        let container_size = crate::timeline::layout::compute_container_size(&child_extents, &metadata);
+
+        tracing::debug!(
+            "Width propagation: {} '{}' container_size={:?}, {} children",
+            container_ty, label, container_size, child_extents.len()
         );
 
+        // Propagate container width to text children
+        self.propagate_text_child_widths(label, container_size, time_ms, diagnostics);
+
+        // Pass 2: Re-apply layout with updated (wrapped) child sizes
+        // This ensures positions account for the new wrapped text dimensions.
         self.apply_container_layout(label, time_ms as f64, diagnostics);
     }
 

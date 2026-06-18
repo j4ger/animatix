@@ -188,7 +188,9 @@ fn known_properties() -> &'static HashMap<String, Vec<String>> {
         "line_height".to_string(),
         "letter_spacing".to_string(),
         "word_spacing".to_string(),
+        "max_width".to_string(),
         "text_align".to_string(),
+        "overflow".to_string(),
     ]);
     map.insert("Text".to_string(), text_props);
 
@@ -203,6 +205,9 @@ fn known_properties() -> &'static HashMap<String, Vec<String>> {
         "line_height".to_string(),
         "letter_spacing".to_string(),
         "word_spacing".to_string(),
+        "max_width".to_string(),
+        "text_align".to_string(),
+        "overflow".to_string(),
     ]);
     map.insert("Typst".to_string(), typst_props);
 
@@ -216,6 +221,9 @@ fn known_properties() -> &'static HashMap<String, Vec<String>> {
         "line_height".to_string(),
         "letter_spacing".to_string(),
         "word_spacing".to_string(),
+        "max_width".to_string(),
+        "text_align".to_string(),
+        "overflow".to_string(),
     ]);
     map.insert("Code".to_string(), code_props);
 
@@ -301,7 +309,9 @@ fn known_property_types() -> &'static HashMap<(String, String), PropertyType> {
     map.insert(("Text".to_string(), "line_height".to_string()), PropertyType::Num);
     map.insert(("Text".to_string(), "letter_spacing".to_string()), PropertyType::Num);
     map.insert(("Text".to_string(), "word_spacing".to_string()), PropertyType::Num);
+    map.insert(("Text".to_string(), "max_width".to_string()), PropertyType::Num);
     map.insert(("Text".to_string(), "text_align".to_string()), PropertyType::String);
+    map.insert(("Text".to_string(), "overflow".to_string()), PropertyType::String);
 
     // Typst-specific
     map.insert(("Typst".to_string(), "content".to_string()), PropertyType::String);
@@ -312,6 +322,9 @@ fn known_property_types() -> &'static HashMap<(String, String), PropertyType> {
     map.insert(("Typst".to_string(), "line_height".to_string()), PropertyType::Num);
     map.insert(("Typst".to_string(), "letter_spacing".to_string()), PropertyType::Num);
     map.insert(("Typst".to_string(), "word_spacing".to_string()), PropertyType::Num);
+    map.insert(("Typst".to_string(), "max_width".to_string()), PropertyType::Num);
+    map.insert(("Typst".to_string(), "text_align".to_string()), PropertyType::String);
+    map.insert(("Typst".to_string(), "overflow".to_string()), PropertyType::String);
 
     // Code-specific
     map.insert(("Code".to_string(), "content".to_string()), PropertyType::String);
@@ -321,6 +334,9 @@ fn known_property_types() -> &'static HashMap<(String, String), PropertyType> {
     map.insert(("Code".to_string(), "line_height".to_string()), PropertyType::Num);
     map.insert(("Code".to_string(), "letter_spacing".to_string()), PropertyType::Num);
     map.insert(("Code".to_string(), "word_spacing".to_string()), PropertyType::Num);
+    map.insert(("Code".to_string(), "max_width".to_string()), PropertyType::Num);
+    map.insert(("Code".to_string(), "text_align".to_string()), PropertyType::String);
+    map.insert(("Code".to_string(), "overflow".to_string()), PropertyType::String);
 
     // Shape-specific
     for shape in &["Rect", "Ellipse", "Polygon"] {

@@ -411,7 +411,9 @@ pub fn property_documentation(name: &str) -> Option<&str> {
         "line_height" => Some("Line height multiplier (default 1.2)"),
         "letter_spacing" => Some("Letter spacing in points (default 0)"),
         "word_spacing" => Some("Word spacing in points (default 0)"),
-        "text_align" => Some("Text alignment (left, center, right)"),
+        "max_width" => Some("Max width for text wrapping (0 = no wrap)"),
+        "text_align" => Some("Text alignment (left, center, right, justify)"),
+        "overflow" => Some("Overflow behavior (visible, clip, ellipsis)"),
         "fill" => Some("Fill color"),
         "stroke" => Some("Stroke color"),
         "stroke_width" => Some("Stroke width in pixels"),
@@ -600,8 +602,17 @@ fn value_for_property(
     if expected_type.is_none() {
         if let Some(name) = property_name {
             match name.as_str() {
+                "overflow" => {
+                    items.extend(["visible", "clip", "ellipsis"].iter().map(|v| CompletionItem {
+                        label: v.to_string(),
+                        kind: CompletionKind::Value,
+                        detail: Some("Overflow".to_string()),
+                        documentation: None,
+                        insert_text: Some(format!("\"{}\"", v)),
+                    }));
+                }
                 "text_align" => {
-                    items.extend(["left", "center", "right"].iter().map(|v| CompletionItem {
+                    items.extend(["left", "center", "right", "justify"].iter().map(|v| CompletionItem {
                         label: v.to_string(),
                         kind: CompletionKind::Value,
                         detail: Some("Alignment".to_string()),

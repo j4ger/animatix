@@ -69,6 +69,9 @@ pub fn evaluate_text_paths(
     let mut line_height = ctx.track.line_height.get(ctx.time_ms, 1.2);
     let mut letter_spacing = ctx.track.letter_spacing.get(ctx.time_ms, 0.0);
     let mut word_spacing = ctx.track.word_spacing.get(ctx.time_ms, 0.0);
+    let mut max_width = ctx.track.max_width.get(ctx.time_ms, 0.0);
+    let mut text_align = ctx.track.text_align.get(ctx.time_ms, "left".to_string());
+    let mut overflow = ctx.track.overflow.get(ctx.time_ms, "visible".to_string());
     let mut color = ctx.track.color.get(ctx.time_ms, DEFAULT_WHITE);
 
     if let Some(ov) = ctx.overrides {
@@ -102,6 +105,15 @@ pub fn evaluate_text_paths(
         if let Some(Value::Num(n)) = ov.get("word_spacing") {
             word_spacing = *n as f32;
         }
+        if let Some(Value::Num(n)) = ov.get("max_width") {
+            max_width = *n as f32;
+        }
+        if let Some(Value::Str(s)) = ov.get("text_align") {
+            text_align = s.clone();
+        }
+        if let Some(Value::Str(s)) = ov.get("overflow") {
+            overflow = s.clone();
+        }
         if let Some(Value::Color(c) | Value::Vec4(c)) = ov.get("color") {
             color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
         }
@@ -120,6 +132,9 @@ pub fn evaluate_text_paths(
             color,
             kind,
             text_ctx.font_context,
+            max_width,
+            &text_align,
+            &overflow,
         )
     } else {
         Ok(std::sync::Arc::from(ctx.track.evaluate_text_paths(ctx.time_ms)))

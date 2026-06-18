@@ -56,18 +56,30 @@ pub struct TaffyLayoutResult {
 /// IMPORTANT: Manual children participate in container sizing (spacing) but are excluded
 /// from authored position assignment by the caller. This preserves the original behavior
 /// where manual children affect the overall layout extent but don't receive assigned positions.
+/// Result of a Taffy layout computation, including container size and child positions.
+#[derive(Clone, Debug)]
+pub struct TaffyLayoutOutput {
+    /// Child positions relative to container center.
+    pub positions: Vec<TaffyLayoutResult>,
+    /// Container total size [width, height].
+    pub container_size: [f32; 2],
+}
+
 pub fn compute_taffy_linear_layout(
     children: &[ChildExtent],
     layout_type: LayoutType,
     gap: [f32; 2],
     padding: [f32; 4],
     align: &str,
-) -> Vec<TaffyLayoutResult> {
+) -> TaffyLayoutOutput {
     // Stack is handled separately - all children at origin
     debug_assert!(layout_type == LayoutType::Row || layout_type == LayoutType::Col);
 
     if children.is_empty() {
-        return Vec::new();
+        return TaffyLayoutOutput {
+            positions: Vec::new(),
+            container_size: [0.0, 0.0],
+        };
     }
 
     let mut taffy: TaffyTree<()> = TaffyTree::new();
@@ -107,7 +119,8 @@ pub fn compute_taffy_linear_layout(
     taffy.compute_layout(container_node, Size::MAX_CONTENT).expect("taffy compute_layout should succeed");
 
     let container_layout = taffy.layout(container_node).expect("taffy layout should exist for computed container node");
-    children
+    let container_size = [container_layout.size.width, container_layout.size.height];
+    let positions = children
         .iter()
         .zip(child_nodes)
         .map(|(_child, node)| {
@@ -116,7 +129,8 @@ pub fn compute_taffy_linear_layout(
                 position: center_relative_position(container_layout, child_layout),
             }
         })
-        .collect()
+        .collect();
+    TaffyLayoutOutput { positions, container_size }
 }
 
 /// Compute layout using Taffy for Grid containers.
@@ -125,9 +139,12 @@ pub fn compute_taffy_grid_layout(
     gap: [f32; 2],
     padding: [f32; 4],
     cols: usize,
-) -> Vec<TaffyLayoutResult> {
+) -> TaffyLayoutOutput {
     if children.is_empty() {
-        return Vec::new();
+        return TaffyLayoutOutput {
+            positions: Vec::new(),
+            container_size: [0.0, 0.0],
+        };
     }
 
     let cols = cols.max(1);
@@ -201,6 +218,7 @@ pub fn compute_taffy_grid_layout(
 
     // Extract positions
     let container_layout = taffy.layout(container_node).expect("taffy layout should exist for computed grid container");
+    let container_size = [container_layout.size.width, container_layout.size.height];
     let mut results: Vec<TaffyLayoutResult> = Vec::with_capacity(children.len());
 
     for (i, _child) in children.iter().enumerate() {
@@ -211,7 +229,7 @@ pub fn compute_taffy_grid_layout(
         });
     }
 
-    results
+    TaffyLayoutOutput { positions: results, container_size }
 }
 
 /// Compute grid column widths and row heights.
@@ -257,7 +275,8 @@ mod tests {
             make_child("b", 100.0, 50.0, PlacementMode::LayoutManaged),
         ];
 
-        let results = compute_taffy_linear_layout(&children, LayoutType::Row, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center");
+        let output = compute_taffy_linear_layout(&children, LayoutType::Row, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center");
+        let results = &output.positions;
 
         // Two 100-wide children with 10 gap, centered
         // Total width = 100 + 10 + 100 = 210
@@ -266,6 +285,9 @@ mod tests {
         // Check that positions are roughly centered
         let total_span = results[1].position[0] - results[0].position[0];
         assert!((total_span - 110.0).abs() < 0.1);
+        // Container size should be computed
+        assert!(output.container_size[0] > 0.0);
+        assert!(output.container_size[1] > 0.0);
     }
 
     #[test]
@@ -275,7 +297,8 @@ mod tests {
             make_child("b", 50.0, 100.0, PlacementMode::LayoutManaged),
         ];
 
-        let results = compute_taffy_linear_layout(&children, LayoutType::Col, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center");
+        let output = compute_taffy_linear_layout(&children, LayoutType::Col, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center");
+        let results = &output.positions;
 
         // Two 100-tall children with 10 gap, centered
         // Total height = 100 + 10 + 100 = 210
@@ -283,6 +306,9 @@ mod tests {
         assert_eq!(results.len(), 2);
         let total_span = results[1].position[1] - results[0].position[1];
         assert!((total_span - 110.0).abs() < 0.1);
+        // Container size should be computed
+        assert!(output.container_size[0] > 0.0);
+        assert!(output.container_size[1] > 0.0);
     }
 
     #[test]
@@ -293,7 +319,8 @@ mod tests {
             make_child("c", 100.0, 50.0, PlacementMode::LayoutManaged),
         ];
 
-        let results = compute_taffy_linear_layout(&children, LayoutType::Row, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center");
+        let output = compute_taffy_linear_layout(&children, LayoutType::Row, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center");
+        let results = &output.positions;
 
         assert_eq!(results.len(), 3);
         // b (Manual) should still receive a computed slot in declaration order,
@@ -310,10 +337,173 @@ mod tests {
     #[test]
     fn test_empty_children() {
         let children: Vec<ChildExtent> = vec![];
-        let results = compute_taffy_linear_layout(&children, LayoutType::Row, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center");
-        assert!(results.is_empty());
+        let output = compute_taffy_linear_layout(&children, LayoutType::Row, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center");
+        assert!(output.positions.is_empty());
 
-        let results = compute_taffy_grid_layout(&children, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], 2);
-        assert!(results.is_empty());
+        let output = compute_taffy_grid_layout(&children, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], 2);
+        assert!(output.positions.is_empty());
+    }
+
+    // ── Width propagation tests ──
+
+    #[test]
+    fn test_compute_available_width_col() {
+        // Col: available_width = container_size - horizontal padding
+        use crate::timeline::ContainerMetadata;
+        use crate::timeline::LayoutType;
+
+        let metadata = ContainerMetadata {
+            layout_type: LayoutType::Col,
+            gap: [0.0, 0.0],
+            padding: [10.0, 5.0, 10.0, 5.0], // left=10, right=10
+            align: "center".to_string(),
+            cols: None,
+            child_order: vec!["child".to_string()],
+        };
+
+        // Container width 500, padding left+right=20 → available = 480
+        let timeline = crate::timeline::Timeline::new();
+        let available = timeline.compute_available_width([500.0, 300.0], &metadata, 0);
+        assert!((available - 480.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_compute_available_width_grid() {
+        use crate::timeline::ContainerMetadata;
+        use crate::timeline::LayoutType;
+
+        let metadata = ContainerMetadata {
+            layout_type: LayoutType::Grid,
+            gap: [10.0, 10.0],
+            padding: [5.0, 5.0, 5.0, 5.0], // left=5, right=5
+            align: "center".to_string(),
+            cols: Some(3),
+            child_order: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+        };
+
+        // Container width 400, padding left+right=10, gaps=10*2=20, cols=3
+        // Available per cell = (400 - 10 - 20) / 3 = 370 / 3 = 123.33
+        let timeline = crate::timeline::Timeline::new();
+        let available = timeline.compute_available_width([400.0, 200.0], &metadata, 0);
+        assert!((available - 123.33).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_compute_available_width_row_unbounded() {
+        use crate::timeline::ContainerMetadata;
+        use crate::timeline::LayoutType;
+
+        let metadata = ContainerMetadata {
+            layout_type: LayoutType::Row,
+            gap: [0.0, 0.0],
+            padding: [0.0, 0.0, 0.0, 0.0],
+            align: "center".to_string(),
+            cols: None,
+            child_order: vec!["child".to_string()],
+        };
+
+        // Row: unbounded width
+        let timeline = crate::timeline::Timeline::new();
+        let available = timeline.compute_available_width([500.0, 300.0], &metadata, 0);
+        assert_eq!(available, f32::MAX);
+    }
+
+    #[test]
+    fn test_compute_available_width_min_1px() {
+        use crate::timeline::ContainerMetadata;
+        use crate::timeline::LayoutType;
+
+        let metadata = ContainerMetadata {
+            layout_type: LayoutType::Col,
+            gap: [0.0, 0.0],
+            padding: [100.0, 0.0, 100.0, 0.0], // left=100, right=100 (200 total)
+            align: "center".to_string(),
+            cols: None,
+            child_order: vec!["child".to_string()],
+        };
+
+        // Container width 50, padding 200 → available would be -150, clamped to 1
+        let timeline = crate::timeline::Timeline::new();
+        let available = timeline.compute_available_width([50.0, 300.0], &metadata, 0);
+        assert!((available - 1.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_compute_container_size_row() {
+        use crate::timeline::ContainerMetadata;
+        use crate::timeline::LayoutType;
+
+        let children = vec![
+            make_child("a", 100.0, 50.0, PlacementMode::LayoutManaged),
+            make_child("b", 200.0, 50.0, PlacementMode::LayoutManaged),
+        ];
+
+        let metadata = ContainerMetadata {
+            layout_type: LayoutType::Row,
+            gap: [10.0, 10.0],
+            padding: [5.0, 5.0, 5.0, 5.0],
+            align: "center".to_string(),
+            cols: None,
+            child_order: vec!["a".to_string(), "b".to_string()],
+        };
+
+        let size = compute_container_size(&children, &metadata);
+        // Total width should be sum of children + gap + padding
+        // children: 100 + 200 = 300, gap: 10, padding left+right: 10 = 320
+        assert!((size[0] - 320.0).abs() < 1.0, "Expected container width ~320, got {}", size[0]);
+    }
+
+    #[test]
+    fn test_compute_container_size_col() {
+        use crate::timeline::ContainerMetadata;
+        use crate::timeline::LayoutType;
+
+        let children = vec![
+            make_child("a", 150.0, 100.0, PlacementMode::LayoutManaged),
+            make_child("b", 100.0, 100.0, PlacementMode::LayoutManaged),
+        ];
+
+        let metadata = ContainerMetadata {
+            layout_type: LayoutType::Col,
+            gap: [10.0, 10.0],
+            padding: [0.0, 0.0, 0.0, 0.0],
+            align: "center".to_string(),
+            cols: None,
+            child_order: vec!["a".to_string(), "b".to_string()],
+        };
+
+        let size = compute_container_size(&children, &metadata);
+        // Col width = max child width = 150
+        assert!((size[0] - 150.0).abs() < 1.0, "Expected container width ~150, got {}", size[0]);
+    }
+
+    #[test]
+    fn test_read_text_child_props_non_existent_returns_none() {
+        let timeline = crate::timeline::Timeline::new();
+        // Non-existent labels should return None
+        let props = timeline.read_text_child_props("nonexistent", 0);
+        assert!(props.is_none());
+    }
+
+    #[test]
+    fn test_text_child_props_struct_clone_debug() {
+        // Verify TextChildProps derives Clone and Debug
+        let props = crate::timeline::layout::TextChildProps {
+            text_kind: crate::renderer::text::TextKind::Text,
+            content: "hello".to_string(),
+            font_family: "sans-serif".to_string(),
+            font_size: 48.0,
+            font_weight: 400.0,
+            font_style: "normal".to_string(),
+            line_height: 1.2,
+            letter_spacing: 0.0,
+            word_spacing: 0.0,
+            color: [1.0, 1.0, 1.0, 1.0],
+            text_align: "left".to_string(),
+            overflow: "visible".to_string(),
+            existing_max_width: 0.0,
+        };
+        let _cloned = props.clone();
+        let _debug = format!("{:?}", props);
     }
 }

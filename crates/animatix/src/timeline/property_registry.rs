@@ -260,6 +260,12 @@ pub enum ActorField {
     FontWeight,
     /// Font style ("normal" | "italic").
     FontStyle,
+    /// Max width for text wrapping (0 = no wrap).
+    MaxWidth,
+    /// Text alignment ("left", "center", "right", "justify").
+    TextAlign,
+    /// Overflow behavior ("visible", "clip", "ellipsis").
+    Overflow,
     /// Line height multiplier.
     LineHeight,
     /// Letter spacing in points.
@@ -369,6 +375,9 @@ impl ActorField {
             ActorField::FontStyle => PropertyValue::String("normal".to_string()),
             ActorField::LineHeight => PropertyValue::F32(1.2),
             ActorField::LetterSpacing => PropertyValue::F32(0.0),
+            ActorField::MaxWidth => PropertyValue::F32(0.0),
+            ActorField::TextAlign => PropertyValue::String("left".to_string()),
+            ActorField::Overflow => PropertyValue::String("visible".to_string()),
             ActorField::WordSpacing => PropertyValue::F32(0.0),
 
             // ── Media payload ──
@@ -585,8 +594,10 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("math",          ValueType::String,      F::ANIMATED,                  ActorField::TextContent,         None,                             Applicable::ActorKinds(&[A::Typst]), |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("max_depth",     ValueType::F32,         F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve, A::ContourSet]), |_| super::property_engine::PropertyValue::F32(12.0)),
     schema!("max_value",     ValueType::F32,       F::empty(),                   ActorField::NoStorage,              None,                             Applicable::ActorKinds(&[A::BarChart]), |_| super::property_engine::PropertyValue::F32(0.0)),
+    schema!("max_width",     ValueType::F32,         F::ASSIGNABLE,                ActorField::MaxWidth,            None,                             Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]), |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("offset",        ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::PositionBindingGroup, Some(GroupMembership { group_id: GroupHandlerId::PositionBinding }), Applicable::Everything, |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0]), ReadSource::None_),
     schema!("opacity",       ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::Opacity,             None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::F32(1.0)),
+    schema!("overflow",       ValueType::String,      F::ASSIGNABLE,                ActorField::Overflow,            None,                             Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]), |_| super::property_engine::PropertyValue::String("visible".to_string())),
     schema!("padding",       ValueType::F32,         F::empty(),                   ActorField::ContainerLayoutGroup, Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }), Applicable::ActorKinds(&[A::Row, A::Col, A::Grid, A::Stack]), |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("points",        ValueType::PointList,   F::ASSIGNABLE_A,              ActorField::Points,              Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Polygon]), |_| super::property_engine::PropertyValue::PointList(Vec::new())),
     schema!("position",      ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::Position,            None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])),
@@ -607,6 +618,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("stroke_width",  ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::StrokeWidth,         None,                             Applicable::AllStrokePaths, |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("t_domain",      ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve]), |_| super::property_engine::PropertyValue::Vec2([0.0, 1.0])),
     schema!("text",          ValueType::String,      F::ASSIGNABLE_A,              ActorField::TextContent,         None,                             Applicable::ActorKinds(&[A::Text]), |_| super::property_engine::PropertyValue::String(String::new())),
+    schema!("text_align",    ValueType::String,      F::ASSIGNABLE,                ActorField::TextAlign,           None,                             Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]), |_| super::property_engine::PropertyValue::String("left".to_string())),
     schema!("tick_labels",   ValueType::String,      F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph]), |_| super::property_engine::PropertyValue::String("auto".to_string())),
     schema!("ticks",         ValueType::String,      F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph]), |_| super::property_engine::PropertyValue::String("auto".to_string())),
     schema!("to",            ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::LineTo,              Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Line, S::Arrow]), |_| super::property_engine::PropertyValue::Vec2([100.0, 0.0])),

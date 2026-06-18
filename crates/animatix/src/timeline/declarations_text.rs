@@ -115,6 +115,9 @@ impl Timeline {
         let mut line_height = 1.2f32;
         let mut letter_spacing = 0.0f32;
         let mut word_spacing = 0.0f32;
+        let mut max_width = 0.0f32;
+        let mut text_align = "left".to_string();
+        let mut overflow = "visible".to_string();
         let mut color = typst::visualize::Color::from_u8(255, 255, 255, 255);
         let mut initial_track_color: Option<[f32; 4]> = None;
         let mut at_expr: Option<Expr> = None;
@@ -210,6 +213,36 @@ impl Timeline {
                     )
                     .unwrap_or(super::Value::Num(0.0));
                     word_spacing = value.as_num() as f32;
+                },
+                "max_width" => {
+                    let value = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(super::Value::Num(0.0));
+                    max_width = value.as_num() as f32;
+                },
+                "text_align" => {
+                    text_align = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map(|v| v.as_str())
+                    .unwrap_or_else(|| "left".to_string());
+                },
+                "overflow" => {
+                    overflow = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map(|v| v.as_str())
+                    .unwrap_or_else(|| "visible".to_string());
                 },
                 "color" => {
                     let resolved_color = if matches!(&prop.value, Expr::Ident(name) if name == "auto")
@@ -335,7 +368,8 @@ impl Timeline {
             let already_handled = match prop.name.as_str() {
                 name if kind.content_matches(name) => true,
                 "font_family" | "font_size" | "font_weight" | "font_style" | "line_height"
-                | "letter_spacing" | "word_spacing" | "color" | "at" | "anchor" | "offset" => true,
+                | "letter_spacing" | "word_spacing" | "max_width" | "text_align" | "overflow"
+                | "color" | "at" | "anchor" | "offset" => true,
                 _ => false,
             };
             if already_handled {
@@ -392,6 +426,17 @@ impl Timeline {
         track.line_height.ensure(1.2).add_keyframe(t_end_ms, line_height, easing);
         track.letter_spacing.ensure(0.0).add_keyframe(t_end_ms, letter_spacing, easing);
         track.word_spacing.ensure(0.0).add_keyframe(t_end_ms, word_spacing, easing);
+        track.max_width.ensure(0.0).add_keyframe(t_end_ms, max_width, easing);
+        track.text_align.ensure("left".to_string()).add_keyframe(
+            t_end_ms,
+            text_align.clone(),
+            easing,
+        );
+        track.overflow.ensure("visible".to_string()).add_keyframe(
+            t_end_ms,
+            overflow.clone(),
+            easing,
+        );
 
         let frame = match kind {
             TextDeclarationKind::Text => crate::renderer::text::compile_text(
@@ -405,6 +450,9 @@ impl Timeline {
                 line_height,
                 letter_spacing,
                 word_spacing,
+                0.0,
+                "left",
+                "visible",
             )?,
             TextDeclarationKind::Code => crate::renderer::text::compile_code(
                 &text_content,
@@ -417,6 +465,9 @@ impl Timeline {
                 line_height,
                 letter_spacing,
                 word_spacing,
+                0.0,
+                "left",
+                "visible",
             )?,
             TextDeclarationKind::Typst => crate::renderer::text::compile_typst(
                 &text_content,
@@ -429,6 +480,9 @@ impl Timeline {
                 line_height,
                 letter_spacing,
                 word_spacing,
+                0.0,
+                "left",
+                "visible",
             )?,
         };
         let new_paths = crate::renderer::text::extract_glyphs(&frame);

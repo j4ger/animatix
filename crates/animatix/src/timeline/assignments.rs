@@ -604,6 +604,9 @@ pub(crate) fn recompile_text_at_assignment(
         color,
         text_kind,
         font_ctx,
+        0.0,
+        "left",
+        "visible",
     )?;
     let new_half_size = crate::renderer::text::measure_text_paths(&new_paths);
 

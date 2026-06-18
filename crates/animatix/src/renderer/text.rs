@@ -376,6 +376,33 @@ fn typst_par_leading_rule(line_height: f32) -> String {
     format!("#set par(leading: {}em); ", leading_em)
 }
 
+/// Build a Typst wrapping preamble string for max_width, text_align, and overflow.
+fn typst_wrapping_preamble(max_width: f32, text_align: &str, overflow: &str, inner_content: &str) -> String {
+    let mut inner = String::new();
+
+    // Text alignment
+    match text_align {
+        "center" => inner.push_str("#set align(center); "),
+        "right" => inner.push_str("#set align(right); "),
+        "justify" => inner.push_str("#set align(justify); "),
+        _ => {} // "left" is default
+    }
+
+    // Overflow
+    if overflow == "ellipsis" {
+        inner.push_str("#set text(overflow: '...'); ");
+    }
+
+    inner.push_str(inner_content);
+
+    if max_width > 0.0 {
+        // Wrap in a block with the given width
+        format!("#block(width: {}pt, inset: 0pt)[\n{}]", max_width, inner)
+    } else {
+        inner
+    }
+}
+
 /// Map a numeric font weight (100-900) to a Typst weight string.
 pub fn font_weight_to_typst(weight: f32) -> &'static str {
     let w = weight.round() as i32;
@@ -423,15 +450,21 @@ pub fn compile_math(
     color: typst::visualize::Color,
     font_family: &str,
     font_ctx: &FontContext,
+    max_width: f32,
+    text_align: &str,
+    overflow: &str,
 ) -> Result<Frame, RenderError> {
     let text_font = resolve_font_family(font_family, font_ctx);
-    let markup = format!(
+    let base_markup = format!(
         "#set text(size: {}pt, fill: rgb(\"{}\"), font: (\"{}\", \"Fira Math\")); #show math.equation: set text(font: \"Fira Math\"); $ {} $",
         font_size,
         color.to_hex(),
         text_font,
         math
     );
+
+    let markup = typst_wrapping_preamble(max_width, text_align, overflow, &base_markup);
+
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
     let world = TypstWorld::with_fonts(source, &[&text_font, DEFAULT_MATH_FONT_FAMILY], font_ctx)?;
@@ -454,13 +487,16 @@ pub fn compile_typst(
     line_height: f32,
     letter_spacing: f32,
     word_spacing: f32,
+    max_width: f32,
+    text_align: &str,
+    overflow: &str,
 ) -> Result<Frame, RenderError> {
     let font = resolve_font_family(font_family, font_ctx);
     let extra_rules = typst_text_set_rules(font_weight, font_style, letter_spacing, word_spacing);
     let leading_rule = typst_par_leading_rule(line_height);
     // Include math font so that $...$ math expressions compile correctly.
     // Mirror the compile_math show-rule for math.equation font.
-    let markup = format!(
+    let base_markup = format!(
         "{}{}#set text(size: {}pt, fill: rgb(\"{}\"), font: (\"{}\", \"{}\")); #show math.equation: set text(font: \"{}\")\n{}",
         extra_rules,
         leading_rule,
@@ -471,6 +507,8 @@ pub fn compile_typst(
         DEFAULT_MATH_FONT_FAMILY,
         typst_markup
     );
+    let markup = typst_wrapping_preamble(max_width, text_align, overflow, &base_markup);
+
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
     let world = TypstWorld::with_fonts(source, &[&font, DEFAULT_MATH_FONT_FAMILY], font_ctx)?;
@@ -493,6 +531,9 @@ pub fn compile_text(
     line_height: f32,
     letter_spacing: f32,
     word_spacing: f32,
+    max_width: f32,
+    text_align: &str,
+    overflow: &str,
 ) -> Result<Frame, RenderError> {
     let font = resolve_font_family(font_family, font_ctx);
     let extra_rules = typst_text_set_rules(font_weight, font_style, letter_spacing, word_spacing);
@@ -532,13 +573,16 @@ pub fn compile_code(
     line_height: f32,
     letter_spacing: f32,
     word_spacing: f32,
+    max_width: f32,
+    text_align: &str,
+    overflow: &str,
 ) -> Result<Frame, RenderError> {
     let font = resolve_font_family(font_family, font_ctx);
     let extra_rules = typst_text_set_rules(font_weight, font_style, letter_spacing, word_spacing);
     let leading_rule = typst_par_leading_rule(line_height);
     // Use Typst raw block (4 backticks) to avoid markup interpretation of code text.
     let escaped = code.replace('\\', "\\\\");
-    let markup = format!(
+    let base_markup = format!(
         "{}{}#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\")\n````\n{}````",
         extra_rules,
         leading_rule,
@@ -547,6 +591,8 @@ pub fn compile_code(
         font,
         escaped
     );
+    let markup = typst_wrapping_preamble(max_width, text_align, overflow, &base_markup);
+
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
     let world = TypstWorld::with_fonts(source, &[&font], font_ctx)?;
@@ -952,6 +998,265 @@ pub fn compile_text_fast(
     Ok((glyphs, metrics))
 }
 
+
+/// Compile plain text into glyph paths with word wrapping (fast path).
+///
+/// Like `compile_text_fast`, but wraps text at `max_width` points.
+/// Honors `text_align` per line and `overflow` mode.
+pub fn compile_text_fast_wrapped(
+    content: &str,
+    family: &str,
+    weight: f32,
+    style: &str,
+    size: f32,
+    color: [f32; 4],
+    letter_spacing: f32,
+    word_spacing: f32,
+    font_ctx: &FontContext,
+    max_width: f32,
+    text_align: &str,
+    overflow: &str,
+) -> Result<(Vec<TextPath>, TextMetrics), RenderError> {
+    let resolved_family = resolve_font_family(family, font_ctx);
+    let face = font_ctx.load_face(&resolved_family, weight, style).ok_or_else(|| {
+        RenderError::TextCompilation(format!(
+            "Failed to load font '{}' (weight={}, style={}) for fast path wrapped",
+            resolved_family, weight, style
+        ))
+    })?;
+
+    let units_per_em = face.units_per_em() as f32;
+    let font_scale = size / units_per_em;
+
+    let ascent = face.ascender() as f32;
+    let descent = face.descender() as f32;
+    let line_gap = face.line_gap() as f32;
+    let metrics = TextMetrics {
+        ascent,
+        descent,
+        line_gap,
+        units_per_em,
+    };
+
+    let kern_tables = face.tables().kern;
+
+    let paint = typst::visualize::Paint::Solid(typst::visualize::Color::from_u8(
+        (color[0] * 255.0) as u8,
+        (color[1] * 255.0) as u8,
+        (color[2] * 255.0) as u8,
+        (color[3] * 255.0) as u8,
+    ));
+
+    // Line height in absolute points
+    let line_height_pts = (ascent - descent + line_gap) * font_scale * 1.2; // default 1.2 line height multiplier
+
+    // Split content into words (preserve spaces as word boundaries)
+    let words: Vec<&str> = content.split(' ').collect();
+    if words.is_empty() {
+        return Ok((Vec::new(), metrics));
+    }
+
+    // Pre-compute advance widths for each word
+    struct WordInfo {
+        text: String,
+        width: f64, // total advance in scene coords
+        glyphs: Vec<(ttf_parser::GlyphId, f64, f64)>, // (glyph_id, advance, x_offset at build time)
+    }
+
+    let mut word_infos: Vec<WordInfo> = Vec::with_capacity(words.len());
+    let mut space_advance = 0.0f64;
+    if let Some(space_gid) = face.glyph_index(' ') {
+        let raw = face.glyph_hor_advance(space_gid).unwrap_or(0) as f32;
+        space_advance = (raw * font_scale + letter_spacing + word_spacing) as f64;
+    }
+
+    for w in words {
+        if w.is_empty() {
+            continue;
+        }
+        let mut total_width = 0.0f64;
+        let mut glyph_data: Vec<(ttf_parser::GlyphId, f64, f64)> = Vec::with_capacity(w.len());
+        let mut prev_gid: Option<ttf_parser::GlyphId> = None;
+
+        for c in w.chars() {
+            if let Some(gid) = face.glyph_index(c) {
+                let raw_adv = face.glyph_hor_advance(gid).unwrap_or(0) as f32;
+                let mut adv = raw_adv * font_scale + letter_spacing;
+
+                // Kerning
+                if let Some(prev) = prev_gid {
+                    if let Some(table) = kern_tables {
+                        for subtable in table.subtables {
+                            if subtable.horizontal {
+                                if let Some(kern) = subtable.glyphs_kerning(prev, gid) {
+                                    total_width += (kern as f64) * font_scale as f64;
+                                }
+                            }
+                        }
+                    }
+                }
+                prev_gid = Some(gid);
+
+                glyph_data.push((gid, adv as f64, total_width));
+                total_width += adv as f64;
+            }
+        }
+
+        word_infos.push(WordInfo {
+            text: w.to_string(),
+            width: total_width,
+            glyphs: glyph_data,
+        });
+    }
+
+    if word_infos.is_empty() {
+        return Ok((Vec::new(), metrics));
+    }
+
+    // Greedy word-wrap: pack words into lines
+    struct LineInfo {
+        words: Vec<usize>,          // indices into word_infos
+        total_width: f64,
+    }
+
+    let mut lines: Vec<LineInfo> = Vec::new();
+    let mut current_line = LineInfo { words: Vec::new(), total_width: 0.0 };
+    let wrap_threshold = max_width as f64;
+
+    for (wi_idx, wi) in word_infos.iter().enumerate() {
+        // Add space before this word (except first word on the line)
+        let space_needed = if current_line.words.is_empty() { 0.0 } else { space_advance };
+
+        if current_line.total_width + space_needed + wi.width > wrap_threshold && !current_line.words.is_empty() {
+            // Start new line
+            lines.push(current_line);
+            current_line = LineInfo { words: Vec::new(), total_width: 0.0 };
+        }
+
+        if !current_line.words.is_empty() {
+            current_line.total_width += space_advance;
+        }
+        current_line.words.push(wi_idx);
+        current_line.total_width += wi.width;
+    }
+    if !current_line.words.is_empty() {
+        lines.push(current_line);
+    }
+
+    // Handle overflow
+    let max_lines = if overflow == "ellipsis" || overflow == "clip" {
+        // Limit to roughly the visible area: one page worth (no explicit height limit yet)
+        // For now, just prevent unbounded growth
+        Some(100usize)
+    } else {
+        None
+    };
+
+    let truncated_lines: &[LineInfo] = if let Some(limit) = max_lines {
+        if lines.len() > limit {
+            &lines[..limit]
+        } else {
+            &lines
+        }
+    } else {
+        &lines
+    };
+
+    let mut glyphs: Vec<TextPath> = Vec::new();
+    let mut y_curr: f64 = -(truncated_lines.len() as f64 * line_height_pts as f64) / 2.0; // start at top, centered vertically
+
+    for (line_idx, line) in truncated_lines.iter().enumerate() {
+        let mut x_curr: f64 = 0.0;
+
+        // Compute line width from word widths
+        let line_width = line.total_width;
+
+        // Compute x offset based on text_align
+        let x_offset = match text_align {
+            "center" => (wrap_threshold - line_width) / 2.0,
+            "right" => wrap_threshold - line_width,
+            "justify" => 0.0, // handled per-word below
+            _ => 0.0, // left
+        };
+
+        let is_last_line = line_idx == truncated_lines.len() - 1;
+        let is_justify = text_align == "justify" && !is_last_line && line.words.len() > 1;
+        let extra_space_per_gap = if is_justify {
+            (wrap_threshold - line_width) / (line.words.len() - 1) as f64
+        } else {
+            0.0
+        };
+
+        for (wi_idx_in_line, &wi_idx) in line.words.iter().enumerate() {
+            let wi = &word_infos[wi_idx];
+
+            // Add space before word (except first)
+            if wi_idx_in_line > 0 {
+                if is_justify {
+                    x_curr += space_advance + extra_space_per_gap;
+                } else {
+                    x_curr += space_advance;
+                }
+            }
+
+            // Render each glyph in the word
+            for (gid, adv, _glyph_x_offset) in &wi.glyphs {
+                let mut builder = PathBuilder(BezPath::new());
+                if face.outline_glyph(*gid, &mut builder).is_some() {
+                    let path = builder.0;
+                    let scale_affine = Affine::scale_non_uniform(font_scale as f64, -font_scale as f64);
+                    let translate = Affine::translate(kurbo::Vec2::new(x_curr + x_offset, y_curr));
+                    let final_affine = translate * scale_affine;
+
+                    let mut final_path = path;
+                    final_path.apply_affine(final_affine);
+
+                    glyphs.push(TextPath {
+                        path: final_path,
+                        color: paint.clone(),
+                        opacity: 1.0,
+                    });
+                }
+                x_curr += adv;
+            }
+        }
+
+        // Add ellipsis for overflow: "ellipsis" on last visible line if truncated
+        if overflow == "ellipsis" && line_idx == truncated_lines.len() - 1 && lines.len() > truncated_lines.len() {
+            // Append ellipsis glyph "\u{2026}" if available
+            if let Some(ellipsis_gid) = face.glyph_index('\u{2026}') {
+                // Use period '.' as fallback
+                let ellipsis_gid = Some(ellipsis_gid).or_else(|| face.glyph_index('.'));
+                if let Some(gid) = ellipsis_gid {
+                    let raw_adv = face.glyph_hor_advance(gid).unwrap_or(0) as f32;
+                    let adv = raw_adv * font_scale;
+                    let mut builder = PathBuilder(BezPath::new());
+                    if face.outline_glyph(gid, &mut builder).is_some() {
+                        let path = builder.0;
+                        let scale_affine = Affine::scale_non_uniform(font_scale as f64, -font_scale as f64);
+                        let translate = Affine::translate(kurbo::Vec2::new(x_curr + x_offset, y_curr));
+                        let final_affine = translate * scale_affine;
+                        let mut final_path = path;
+                        final_path.apply_affine(final_affine);
+                        glyphs.push(TextPath {
+                            path: final_path,
+                            color: paint.clone(),
+                            opacity: 1.0,
+                        });
+                    }
+                }
+            }
+        }
+
+        y_curr += line_height_pts as f64;
+    }
+
+    // Center all paths around origin
+    center_text_paths(&mut glyphs);
+
+    Ok((glyphs, metrics))
+}
+
 // ─────────────────────────────────────────────────────────────
 // Runtime text recompilation (Phase 2)
 // ─────────────────────────────────────────────────────────────
@@ -1031,6 +1336,9 @@ impl TextCompiler {
         color: [f32; 4],
         kind: TextKind,
         font_ctx: &FontContext,
+        max_width: f32,
+        text_align: &str,
+        overflow: &str,
     ) -> Result<std::sync::Arc<[TextPath]>, RenderError> {
         let key = TextCacheKey {
             content: content.to_string(),
@@ -1074,20 +1382,38 @@ impl TextCompiler {
             && is_latin_text(content)
         {
             tracing::debug!(
-                "TextCompiler: using fast path for '{}' (family={}, size={})",
-                content, font_family, font_size
+                "TextCompiler: using fast path for '{}' (family={}, size={}, max_width={}, text_align={}, overflow={})",
+                content, font_family, font_size, max_width, text_align, overflow
             );
-            let (paths_vec, _metrics) = compile_text_fast(
-                content,
-                font_family,
-                font_weight,
-                font_style,
-                font_size,
-                color,
-                letter_spacing,
-                word_spacing,
-                font_ctx,
-            )?;
+            let (paths_vec, _metrics) = if max_width > 0.0 {
+                tracing::debug!("TextCompiler: wrapping at {}pt", max_width);
+                compile_text_fast_wrapped(
+                    content,
+                    font_family,
+                    font_weight,
+                    font_style,
+                    font_size,
+                    color,
+                    letter_spacing,
+                    word_spacing,
+                    font_ctx,
+                    max_width,
+                    text_align,
+                    overflow,
+                )?
+            } else {
+                compile_text_fast(
+                    content,
+                    font_family,
+                    font_weight,
+                    font_style,
+                    font_size,
+                    color,
+                    letter_spacing,
+                    word_spacing,
+                    font_ctx,
+                )?
+            };
             let paths: std::sync::Arc<[TextPath]> = paths_vec.into();
             self.cache.insert(key, std::sync::Arc::clone(&paths));
             return Ok(paths);
@@ -1118,8 +1444,11 @@ impl TextCompiler {
                 line_height,
                 letter_spacing,
                 word_spacing,
+                max_width,
+                text_align,
+                overflow,
             )?,
-            TextKind::Math => compile_math(content, font_size, typst_color, font_family, font_ctx)?,
+            TextKind::Math => compile_math(content, font_size, typst_color, font_family, font_ctx, max_width, text_align, overflow)?,
             TextKind::Code => compile_code(
                 content,
                 font_size,
@@ -1131,6 +1460,9 @@ impl TextCompiler {
                 line_height,
                 letter_spacing,
                 word_spacing,
+                max_width,
+                text_align,
+                overflow,
             )?,
             TextKind::Typst => compile_typst(
                 content,
@@ -1143,6 +1475,9 @@ impl TextCompiler {
                 line_height,
                 letter_spacing,
                 word_spacing,
+                max_width,
+                text_align,
+                overflow,
             )?,
         };
         let paths: std::sync::Arc<[TextPath]> = extract_glyphs(&frame).into();
@@ -1218,7 +1553,7 @@ mod tests {
             0.0,    // letter_spacing
             0.0,    // word_spacing
             &font_ctx,
-        ).expect("fast path should succeed");
+            ).expect("fast path should succeed");
 
         // Should produce at least one glyph path per character
         assert!(!paths.is_empty(), "Should produce glyph paths");
@@ -1247,7 +1582,7 @@ mod tests {
             0.0,
             0.0,
             &font_ctx,
-        ).expect("bold fast path should succeed");
+            ).expect("bold fast path should succeed");
 
         assert!(!paths.is_empty(), "Bold text should produce glyph paths");
     }
@@ -1265,13 +1600,14 @@ mod tests {
         // Fast path
         let (fast_paths, _metrics) = compile_text_fast(
             text, family, 400.0, "normal", size, color, 0.0, 0.0, &font_ctx,
-        ).expect("fast path should succeed");
+            ).expect("fast path should succeed");
 
         // Typst path
         let typst_color = typst::visualize::Color::from_u8(255, 255, 255, 255);
         let frame = compile_text(
             text, size, typst_color, family, &font_ctx,
             400.0, "normal", 1.2, 0.0, 0.0,
+            0.0, "left", "visible",
         ).expect("Typst path should succeed");
         let typst_paths = extract_glyphs(&frame);
 
@@ -1310,7 +1646,10 @@ mod tests {
             [1.0, 1.0, 1.0, 1.0],
             TextKind::Text,
             &font_ctx,
-        ).expect("first compile should succeed");
+            0.0,
+            "left",
+            "visible",
+            ).expect("first compile should succeed");
 
         let paths2 = compiler.compile(
             "Cache Test",
@@ -1319,7 +1658,10 @@ mod tests {
             [1.0, 1.0, 1.0, 1.0],
             TextKind::Text,
             &font_ctx,
-        ).expect("second compile should succeed (cache hit)");
+            0.0,
+            "left",
+            "visible",
+            ).expect("second compile should succeed (cache hit)");
 
         // Same Arc should be returned (cache hit)
         assert_eq!(paths1.as_ptr(), paths2.as_ptr(),
@@ -1340,7 +1682,10 @@ mod tests {
             [1.0, 1.0, 1.0, 1.0],
             TextKind::Text,
             &font_ctx,
-        ).expect("Typst fallback should succeed");
+            0.0,
+            "left",
+            "visible",
+            ).expect("Typst fallback should succeed");
 
         assert!(!paths.is_empty(), "Should produce glyph paths via Typst");
     }
@@ -1359,7 +1704,10 @@ mod tests {
             [1.0, 1.0, 1.0, 1.0],
             TextKind::Text,
             &font_ctx,
-        ).expect("Typst path for non-Latin should succeed");
+            0.0,
+            "left",
+            "visible",
+            ).expect("Typst path for non-Latin should succeed");
 
         // Even though Typst may not render CJK with Open Sans, it should not crash
         // and should produce some output (even if it's just .notdef glyphs)
@@ -1380,7 +1728,10 @@ mod tests {
             [1.0, 1.0, 1.0, 1.0],
             TextKind::Text,
             &font_ctx,
-        ).expect("Typst fallback should succeed when fast path disabled");
+            0.0,
+            "left",
+            "visible",
+            ).expect("Typst fallback should succeed when fast path disabled");
 
         assert!(!paths.is_empty(), "Should produce glyph paths");
     }
@@ -1399,7 +1750,10 @@ mod tests {
             [1.0, 1.0, 1.0, 1.0],
             TextKind::Code,  // Code kind → always Typst
             &font_ctx,
-        ).expect("Code kind should compile via Typst");
+            0.0,
+            "left",
+            "visible",
+            ).expect("Code kind should compile via Typst");
 
         assert!(!paths.is_empty(), "Should produce glyph paths");
     }
@@ -1453,5 +1807,119 @@ mod tests {
 
         assert!(paths.is_empty(), "Empty string should produce no paths");
         assert!(metrics.units_per_em > 0.0);
+    }
+
+    #[test]
+    fn wrapped_fast_path_produces_multiple_lines() {
+        // A long string wrapped at narrow width should produce multiple lines
+        let font_ctx = test_font_ctx();
+        let text = "Hello world this is a long string that should wrap";
+        let (paths_single, _) = compile_text_fast(
+            text, "Open Sans", 400.0, "normal", 24.0,
+            [1.0; 4], 0.0, 0.0, &font_ctx,
+        ).unwrap();
+
+        // With a narrow max_width, wrapping should produce more glyphs due to vertical layout
+        let (paths_wrapped, _) = compile_text_fast_wrapped(
+            text, "Open Sans", 400.0, "normal", 24.0,
+            [1.0; 4], 0.0, 0.0, &font_ctx,
+            50.0, "left", "visible",
+        ).unwrap();
+
+        // Wrapped text should produce glyphs
+        assert!(!paths_wrapped.is_empty(), "Wrapped text should produce glyphs");
+
+        // The bounding box height should be taller (multiple lines) vs single line width
+        let single_bbox = measure_text_paths(&paths_single);
+        let wrapped_bbox = measure_text_paths(&paths_wrapped);
+
+        // Wrapped text should have a taller bounding box (multiple lines)
+        assert!(
+            wrapped_bbox[1] > single_bbox[1],
+            "Wrapped text should be taller (multi-line): single_h={:.3}, wrapped_h={:.3}",
+            single_bbox[1], wrapped_bbox[1]
+        );
+    }
+
+    #[test]
+    fn wrapped_fast_path_centered_alignment() {
+        let font_ctx = test_font_ctx();
+        let text = "left center right";
+
+        // Left-aligned: first glyph starts near x = -max_width/2
+        let (paths_left, _) = compile_text_fast_wrapped(
+            text, "Open Sans", 400.0, "normal", 24.0,
+            [1.0; 4], 0.0, 0.0, &font_ctx,
+            200.0, "left", "visible",
+        ).unwrap();
+
+        // Center-aligned
+        let (paths_center, _) = compile_text_fast_wrapped(
+            text, "Open Sans", 400.0, "normal", 24.0,
+            [1.0; 4], 0.0, 0.0, &font_ctx,
+            200.0, "center", "visible",
+        ).unwrap();
+
+        // Right-aligned
+        let (paths_right, _) = compile_text_fast_wrapped(
+            text, "Open Sans", 400.0, "normal", 24.0,
+            [1.0; 4], 0.0, 0.0, &font_ctx,
+            200.0, "right", "visible",
+        ).unwrap();
+
+        assert!(!paths_left.is_empty());
+        assert!(!paths_center.is_empty());
+        assert!(!paths_right.is_empty());
+
+        // All should produce glyphs (sanity check)
+        let bbox_left = measure_text_paths(&paths_left);
+        let bbox_center = measure_text_paths(&paths_center);
+        let bbox_right = measure_text_paths(&paths_right);
+
+        // Widths should be roughly equal
+        assert!(
+            (bbox_left[0] - bbox_center[0]).abs() < 1.0,
+            "Left and center widths should match: left={:.3}, center={:.3}",
+            bbox_left[0], bbox_center[0]
+        );
+    }
+
+    #[test]
+    fn no_max_width_is_identical() {
+        // Text without max_width renders the same as before
+        let font_ctx = test_font_ctx();
+        let text = "NoWrapTest";
+
+        let (paths_normal, _) = compile_text_fast(
+            text, "Open Sans", 400.0, "normal", 24.0,
+            [1.0; 4], 0.0, 0.0, &font_ctx,
+        ).unwrap();
+
+        // Wrapping with very large max_width (effectively no wrap) should match single-line
+        let (paths_wide, _) = compile_text_fast_wrapped(
+            text, "Open Sans", 400.0, "normal", 24.0,
+            [1.0; 4], 0.0, 0.0, &font_ctx,
+            10000.0, "left", "visible",
+        ).unwrap();
+
+        // Both should produce the same number of glyphs
+        assert_eq!(
+            paths_normal.len(), paths_wide.len(),
+            "No-wrap and wide-wrap should produce same glyph count"
+        );
+
+        // Bounding box should be the same
+        let bbox_normal = measure_text_paths(&paths_normal);
+        let bbox_wide = measure_text_paths(&paths_wide);
+        assert!(
+            (bbox_normal[0] - bbox_wide[0]).abs() < 0.5,
+            "Widths should match: normal={:.3}, wide={:.3}",
+            bbox_normal[0], bbox_wide[0]
+        );
+        assert!(
+            (bbox_normal[1] - bbox_wide[1]).abs() < 0.5,
+            "Heights should match: normal={:.3}, wide={:.3}",
+            bbox_normal[1], bbox_wide[1]
+        );
     }
 }

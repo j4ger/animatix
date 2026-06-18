@@ -655,12 +655,19 @@ pub struct AnimationTrack {
     pub letter_spacing: Option<PropertyTrack<f32>>,
     /// Word spacing in points.
     pub word_spacing: Option<PropertyTrack<f32>>,
+    /// Max width for text wrapping (0 = no wrap).
+    pub max_width: Option<PropertyTrack<f32>>,
+    /// Text alignment ("left", "center", "right", "justify").
+    pub text_align: Option<PropertyTrack<String>>,
+    /// Overflow behavior ("visible", "clip", "ellipsis").
+    pub overflow: Option<PropertyTrack<String>>,
     /// Pre-built text paths for rendering.
     pub text_paths: Option<PropertyTrack<Vec<TextPath>>>,
     /// Static SVG paths.
     pub svg_paths: Vec<crate::timeline::VelloPath>,
     /// Raster image data.
-    pub image: Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>,
+    pub image: Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>, 
+
 
     // ── Layout ──
     /// Size allocated by the layout system.
@@ -748,6 +755,9 @@ impl AnimationTrack {
             line_height: None,
             letter_spacing: None,
             word_spacing: None,
+            max_width: None,
+            text_align: None,
+            overflow: None,
             text_paths: None,
             svg_paths: Vec::new(),
             image: None,
@@ -832,6 +842,9 @@ impl AnimationTrack {
             self.font_weight.last_time(), self.font_style.last_time(),
             self.line_height.last_time(), self.letter_spacing.last_time(),
             self.word_spacing.last_time(),
+            self.max_width.last_time(),
+            self.text_align.last_time(),
+            self.overflow.last_time(),
             self.filter_blur.last_time(), self.filter_brightness.last_time(),
             self.filter_contrast.last_time(), self.filter_saturate.last_time(),
             self.filter_hue_rotate.last_time(), self.filter_sepia.last_time(),
@@ -863,7 +876,8 @@ impl AnimationTrack {
             || check!(self.font_family) || check!(self.font_size)
             || check!(self.font_weight) || check!(self.font_style)
             || check!(self.line_height) || check!(self.letter_spacing)
-            || check!(self.word_spacing) || check!(self.text_paths)
+            || check!(self.word_spacing) || check!(self.max_width)
+            || check!(self.text_align) || check!(self.overflow) || check!(self.text_paths)
             || check!(self.image)
             || check!(self.filter_blur) || check!(self.filter_brightness)
             || check!(self.filter_contrast) || check!(self.filter_saturate)
@@ -1100,6 +1114,9 @@ impl AnimationTrack {
             Points => TrackFieldRef::PointList(&self.points),
             Commands => TrackFieldRef::CommandList(&self.commands),
             TextContent => TrackFieldRef::String(&self.text_content),
+            MaxWidth => TrackFieldRef::F32(&self.max_width),
+            TextAlign => TrackFieldRef::String(&self.text_align),
+            Overflow => TrackFieldRef::String(&self.overflow),
             FontFamily => TrackFieldRef::String(&self.font_family),
             FontSize => TrackFieldRef::F32(&self.font_size),
             PlacementMode => TrackFieldRef::PlacementMode(&self.placement_mode),
@@ -1141,6 +1158,9 @@ impl AnimationTrack {
             Points => TrackFieldMut::PointList(&mut self.points),
             Commands => TrackFieldMut::CommandList(&mut self.commands),
             TextContent => TrackFieldMut::String(&mut self.text_content),
+            MaxWidth => TrackFieldMut::F32(&mut self.max_width),
+            TextAlign => TrackFieldMut::String(&mut self.text_align),
+            Overflow => TrackFieldMut::String(&mut self.overflow),
             FontFamily => TrackFieldMut::String(&mut self.font_family),
             FontSize => TrackFieldMut::F32(&mut self.font_size),
             PlacementMode => TrackFieldMut::PlacementMode(&mut self.placement_mode),
@@ -1211,6 +1231,9 @@ impl AnimationTrack {
             "line_height" => ActorField::LineHeight,
             "letter_spacing" => ActorField::LetterSpacing,
             "word_spacing" => ActorField::WordSpacing,
+            "max_width" => ActorField::MaxWidth,
+            "text_align" => ActorField::TextAlign,
+            "overflow" => ActorField::Overflow,
             "placement_mode" => ActorField::PlacementMode,
             "morph_options" => ActorField::MorphOptions,
             _ => return false,
@@ -1271,6 +1294,9 @@ impl AnimationTrack {
             "line_height" => ActorField::LineHeight,
             "letter_spacing" => ActorField::LetterSpacing,
             "word_spacing" => ActorField::WordSpacing,
+            "max_width" => ActorField::MaxWidth,
+            "text_align" => ActorField::TextAlign,
+            "overflow" => ActorField::Overflow,
             "placement_mode" => ActorField::PlacementMode,
             "morph_options" => ActorField::MorphOptions,
             _ => return false,
@@ -1332,6 +1358,9 @@ impl AnimationTrack {
             "line_height" => ActorField::LineHeight,
             "letter_spacing" => ActorField::LetterSpacing,
             "word_spacing" => ActorField::WordSpacing,
+            "max_width" => ActorField::MaxWidth,
+            "text_align" => ActorField::TextAlign,
+            "overflow" => ActorField::Overflow,
             "placement_mode" => ActorField::PlacementMode,
             "morph_options" => ActorField::MorphOptions,
             _ => return Vec::new(),
