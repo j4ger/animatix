@@ -297,10 +297,7 @@ impl Timeline {
         let mut stroke_color = existing_track.stroke_color.last(DEFAULT_WHITE);
         let mut stroke_progress = existing_track.stroke_progress.last(1.0);
         let mut fill_opacity = existing_track.fill_opacity.last(1.0);
-        let mut gap = extracted.gap;
-        let mut padding = extracted.padding;
-        let mut align = extracted.align.clone();
-        let mut cols = extracted.cols;
+
         let vector_shape = crate::primitives::find_primitive(ty).filter(|p| p.is_shape());
         let shape_type = shape_type_for_actor(ty).unwrap_or(ShapeType::Rect);
         let mut vector_shape_state = self.build_vector_shape_state(
@@ -404,43 +401,7 @@ impl Timeline {
                         }
                     }
                 },
-                "gap" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    gap = v.as_num() as f32;
-                },
-                "padding" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    padding = v.as_num() as f32;
-                },
-                "align" => {
-                    if let Expr::Str(s) = &prop.value {
-                        align = Some(s.clone());
-                    } else if let Expr::Ident(s) = &prop.value {
-                        align = Some(s.clone());
-                    }
-                },
-                "cols" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(1.0));
-                    cols = Some(v.as_num().max(1.0) as usize);
-                },
+
                 "stroke_width" | "width" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -628,17 +589,16 @@ impl Timeline {
             morph_options,
         );
 
-        if primitive.is_layout_container() {
-            self.register_container_metadata_and_apply_layout(
-                label,
-                ty,
-                time_ms as u64,
-                gap,
-                padding,
-                align.as_deref(),
-                cols,
+        if let Some(p) = crate::primitives::find_primitive(ty) {
+            let mut ctx = crate::primitives::BuildCtx {
+                timeline: self,
+                time_ms,
+                parent_label,
                 diagnostics,
-            );
+            };
+            if let Err(mut diags) = p.finalize_container_build(&mut ctx, label, props) {
+                diagnostics.append(&mut diags);
+            }
         }
     }
 
@@ -836,20 +796,6 @@ impl Timeline {
                 }
             }
 
-            // === Container Layout ===
-            let primitive = PrimitiveDescriptor::for_actor_type(ty);
-            if primitive.is_layout_container() {
-                self.register_container_metadata_and_apply_layout(
-                    label,
-                    ty,
-                    t_start_ms,
-                    0.0,
-                    0.0,
-                    Some("center"),
-                    None,
-                    diagnostics,
-                );
-            }
         }
     }
 }

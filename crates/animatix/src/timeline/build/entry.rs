@@ -7,7 +7,7 @@ use super::*;
 use tracing::instrument;
 
 impl Timeline {
-    pub(super) fn register_container_metadata_and_apply_layout(
+    pub(crate) fn register_container_metadata_and_apply_layout(
         &mut self,
         label: &str,
         container_ty: &str,
