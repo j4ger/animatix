@@ -506,7 +506,7 @@ mod tests {
         // text is applicable to Text
         let mut txt = PropertyTrack::new(String::new());
         txt.add_keyframe(0, "hello".to_string(), Easing::Linear);
-        track.text_content = Some(txt);
+        track.text.text_content = Some(txt);
 
         // Only position and text_content should count (stroke_width is not applicable)
         assert_eq!(count_keyframes(&track), 2);

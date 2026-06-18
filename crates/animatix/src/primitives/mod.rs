@@ -61,17 +61,17 @@ pub fn evaluate_text_paths(
 {
     use crate::timeline::TrackAccessor;
 
-    let mut content = ctx.track.text_content.get(ctx.time_ms, String::new());
-    let mut font_family = ctx.track.font_family.get(ctx.time_ms, String::new());
-    let mut font_size = ctx.track.font_size.get(ctx.time_ms, default_font_size);
-    let mut font_weight = ctx.track.font_weight.get(ctx.time_ms, 400.0);
-    let mut font_style = ctx.track.font_style.get(ctx.time_ms, "normal".to_string());
-    let mut line_height = ctx.track.line_height.get(ctx.time_ms, 1.2);
-    let mut letter_spacing = ctx.track.letter_spacing.get(ctx.time_ms, 0.0);
-    let mut word_spacing = ctx.track.word_spacing.get(ctx.time_ms, 0.0);
-    let mut max_width = ctx.track.text_max_width.get(ctx.time_ms, 0.0);
-    let mut text_align = ctx.track.text_align.get(ctx.time_ms, "left".to_string());
-    let mut overflow = ctx.track.overflow.get(ctx.time_ms, "visible".to_string());
+    let mut content = ctx.track.text.text_content.get(ctx.time_ms, String::new());
+    let mut font_family = ctx.track.text.font_family.get(ctx.time_ms, String::new());
+    let mut font_size = ctx.track.text.font_size.get(ctx.time_ms, default_font_size);
+    let mut font_weight = ctx.track.text.font_weight.get(ctx.time_ms, 400.0);
+    let mut font_style = ctx.track.text.font_style.get(ctx.time_ms, "normal".to_string());
+    let mut line_height = ctx.track.text.line_height.get(ctx.time_ms, 1.2);
+    let mut letter_spacing = ctx.track.text.letter_spacing.get(ctx.time_ms, 0.0);
+    let mut word_spacing = ctx.track.text.word_spacing.get(ctx.time_ms, 0.0);
+    let mut max_width = ctx.track.text.text_max_width.get(ctx.time_ms, 0.0);
+    let mut text_align = ctx.track.text.text_align.get(ctx.time_ms, "left".to_string());
+    let mut overflow = ctx.track.text.overflow.get(ctx.time_ms, "visible".to_string());
     let mut color = ctx.track.color.get(ctx.time_ms, DEFAULT_WHITE);
 
     if let Some(ov) = ctx.overrides {

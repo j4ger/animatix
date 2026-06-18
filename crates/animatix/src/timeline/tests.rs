@@ -1236,6 +1236,7 @@ fn equation_container_builds_with_fragment_children() {
     // Fragment f1 track should exist with content stored
     let f1_track = report.output.tracks.get("f1").expect("f1 track should exist");
     let f1_content = f1_track
+        .text
         .text_content
         .as_ref()
         .expect("f1 should have text_content")
@@ -1245,6 +1246,7 @@ fn equation_container_builds_with_fragment_children() {
     // Fragment f2 track should exist with content stored
     let f2_track = report.output.tracks.get("f2").expect("f2 track should exist");
     let f2_content = f2_track
+        .text
         .text_content
         .as_ref()
         .expect("f2 should have text_content")
@@ -1314,6 +1316,7 @@ fn equation_fragment_dot_path_assignment() {
     // Fragment f2 should have updated content
     let f2_track = timeline.tracks.get("f2").expect("f2 track should exist");
     let f2_content_at_1s = f2_track
+        .text
         .text_content
         .as_ref()
         .expect("f2 should have text_content")

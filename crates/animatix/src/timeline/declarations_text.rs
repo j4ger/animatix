@@ -85,7 +85,7 @@ impl Timeline {
             .tracks
             .get(&label_str)
             .map(|track| {
-                track.text_paths.as_ref().map(|t| !t.keyframes.is_empty()).unwrap_or(false)
+                track.text.text_paths.as_ref().map(|t| !t.keyframes.is_empty()).unwrap_or(false)
             })
             .unwrap_or(false);
         let ParsedTimingModifiers {
@@ -399,7 +399,7 @@ impl Timeline {
 
         // Store text_content, font_family and font_size on the track so Phase-2 runtime
         // recompilation knows what text and font to use when color or other properties change.
-        track.text_content.ensure(String::new()).add_keyframe(
+        track.text.text_content.ensure(String::new()).add_keyframe(
             t_end_ms,
             text_content.clone(),
             easing,
@@ -410,29 +410,31 @@ impl Timeline {
             font_family
         };
         track
+            .text
             .font_family
             .ensure(crate::renderer::text::DEFAULT_FONT_FAMILY.to_string())
             .add_keyframe(t_end_ms, font_family.clone(), easing);
         track
+            .text
             .font_size
             .ensure(kind.default_font_size())
             .add_keyframe(t_end_ms, font_size, easing);
-        track.font_weight.ensure(400.0).add_keyframe(t_end_ms, font_weight, easing);
-        track.font_style.ensure("normal".to_string()).add_keyframe(
+        track.text.font_weight.ensure(400.0).add_keyframe(t_end_ms, font_weight, easing);
+        track.text.font_style.ensure("normal".to_string()).add_keyframe(
             t_end_ms,
             font_style.clone(),
             easing,
         );
-        track.line_height.ensure(1.2).add_keyframe(t_end_ms, line_height, easing);
-        track.letter_spacing.ensure(0.0).add_keyframe(t_end_ms, letter_spacing, easing);
-        track.word_spacing.ensure(0.0).add_keyframe(t_end_ms, word_spacing, easing);
-        track.text_max_width.ensure(0.0).add_keyframe(t_end_ms, max_width, easing);
-        track.text_align.ensure("left".to_string()).add_keyframe(
+        track.text.line_height.ensure(1.2).add_keyframe(t_end_ms, line_height, easing);
+        track.text.letter_spacing.ensure(0.0).add_keyframe(t_end_ms, letter_spacing, easing);
+        track.text.word_spacing.ensure(0.0).add_keyframe(t_end_ms, word_spacing, easing);
+        track.text.text_max_width.ensure(0.0).add_keyframe(t_end_ms, max_width, easing);
+        track.text.text_align.ensure("left".to_string()).add_keyframe(
             t_end_ms,
             text_align.clone(),
             easing,
         );
-        track.overflow.ensure("visible".to_string()).add_keyframe(
+        track.text.overflow.ensure("visible".to_string()).add_keyframe(
             t_end_ms,
             overflow.clone(),
             easing,
@@ -502,6 +504,7 @@ impl Timeline {
         if duration_ms > 0.0 {
             let start_val = track.evaluate_text_paths(t_start_ms);
             track
+                .text
                 .text_paths
                 .ensure(Vec::new())
                 .add_keyframe(t_start_ms, start_val, Easing::Linear);
@@ -519,7 +522,7 @@ impl Timeline {
                 Easing::Linear,
             );
         } else if delay_ms > 0.0 {
-            preserve_instant_delayed_value(&mut track.text_paths, t_start_ms);
+            preserve_instant_delayed_value(&mut track.text.text_paths, t_start_ms);
             preserve_instant_delayed_value(&mut track.size, t_start_ms);
             preserve_instant_delayed_value(&mut track.layout_size, t_start_ms);
         }
@@ -530,7 +533,7 @@ impl Timeline {
                 Easing::Linear,
             );
         }
-        track.text_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths, easing);
+        track.text.text_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths, easing);
         track
             .size
             .ensure(DEFAULT_LAYOUT_HALF_SIZE)

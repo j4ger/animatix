@@ -40,17 +40,17 @@ pub struct ActionEvent {
 /// Category of an action for UI color coding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ActionCategory {
-    /// Entrance actions (fade-in, wipe-in, etc.) — green.
+    /// Entrance actions (fade-in, wipe-in, etc.) - green.
     Entrance,
-    /// Motion actions (move, shift, rotate, scale) — blue.
+    /// Motion actions (move, shift, rotate, scale) - blue.
     Motion,
-    /// Exit actions (fade-out, wipe-out) — red.
+    /// Exit actions (fade-out, wipe-out) - red.
     Exit,
-    /// Effect actions (bounce, pulse, shake) — amber.
+    /// Effect actions (bounce, pulse, shake) - amber.
     Effect,
-    /// Reorder actions (swap, reorder) — purple.
+    /// Reorder actions (swap, reorder) - purple.
     Reorder,
-    /// Reveal actions (draw-in, reveal-in, draw-out, reveal-out) — cyan.
+    /// Reveal actions (draw-in, reveal-in, draw-out, reveal-out) - cyan.
     Reveal,
 }
 
@@ -359,9 +359,9 @@ pub enum PositionBinding {
     },
     /// Percentage-based position within the scene, plus offset.
     ScenePercent {
-        /// Horizontal percentage (0–1).
+        /// Horizontal percentage (0-1).
         x: f32,
-        /// Vertical percentage (0–1).
+        /// Vertical percentage (0-1).
         y: f32,
         /// Pixel offset from the computed position.
         offset: [f32; 2],
@@ -373,9 +373,9 @@ pub enum PositionBinding {
     },
     /// Percentage-based position inside a container.
     ContainerPercent {
-        /// Horizontal percentage (0–1).
+        /// Horizontal percentage (0-1).
         x: f32,
-        /// Vertical percentage (0–1).
+        /// Vertical percentage (0-1).
         y: f32,
     },
 }
@@ -488,12 +488,12 @@ impl<T: Interpolate> PropertyTrack<T> {
     pub fn evaluate(&self, time_ms: u64) -> T {
         self.evaluate_with(time_ms, T::clone)
     }
-    /// Optimized evaluate for `Copy` types — avoids heap allocation on clone.
+    /// Optimized evaluate for `Copy` types - avoids heap allocation on clone.
     pub fn evaluate_copy(&self, time_ms: u64) -> T where T: Copy {
         self.evaluate_with(time_ms, |v| *v)
     }
     /// Returns `true` if this property track is currently inside an
-    /// interpolation segment — there exists both a previous keyframe at
+    /// interpolation segment - there exists both a previous keyframe at
     /// `time <= time_ms` AND a next keyframe at `time > time_ms`.
     pub fn is_currently_animating(&self, time_ms: u64) -> bool {
         use std::ops::Bound;
@@ -526,7 +526,7 @@ impl<T: Interpolate> PropertyTrack<T> {
     }
     /// Core evaluation logic parameterized by clone strategy.
     fn evaluate_with(&self, time_ms: u64, clone_val: impl Fn(&T) -> T) -> T {
-        // P2.20: Memoization — return cached value if time matches
+        // P2.20: Memoization - return cached value if time matches
         if let Some((cached_time, cached_value)) = self.last_evaluated.borrow().as_ref() {
             if *cached_time == time_ms {
                 return clone_val(cached_value);
@@ -537,7 +537,7 @@ impl<T: Interpolate> PropertyTrack<T> {
             let eased_progress = apply_easing(progress, *found_easing);
             prev_val.interpolate(found_val, eased_progress)
         } else {
-            // No interior segment — use default or boundary value
+            // No interior segment - use default or boundary value
             if self.keyframes.is_empty() {
                 clone_val(&self.default_value)
             } else if let Some((&first_time, (val, _))) = self.keyframes.iter().next() {
@@ -680,6 +680,46 @@ pub struct ShapeTracks {
 }
 
 // ─────────────────────────────────────────────────────────────
+// TextTracks sub-struct
+// ─────────────────────────────────────────────────────────────
+
+/// Sub-struct holding all text-related property tracks.
+#[derive(Clone, Debug, Default)]
+pub struct TextTracks {
+    /// Raw text content.
+    pub text_content: Option<PropertyTrack<String>>,
+    /// Font family name.
+    pub font_family: Option<PropertyTrack<String>>,
+    /// Font size in points.
+    pub font_size: Option<PropertyTrack<f32>>,
+    /// Font weight (100-900).
+    pub font_weight: Option<PropertyTrack<f32>>,
+    /// Font style ("normal" | "italic").
+    pub font_style: Option<PropertyTrack<String>>,
+    /// Line height multiplier.
+    pub line_height: Option<PropertyTrack<f32>>,
+    /// Letter spacing in points.
+    pub letter_spacing: Option<PropertyTrack<f32>>,
+    /// Word spacing in points.
+    pub word_spacing: Option<PropertyTrack<f32>>,
+    /// Max width for text wrapping (0 = no wrap).
+    pub text_max_width: Option<PropertyTrack<f32>>,
+    /// Text alignment ("left", "center", "right", "justify").
+    pub text_align: Option<PropertyTrack<String>>,
+    /// Overflow behavior ("visible", "clip", "ellipsis").
+    pub overflow: Option<PropertyTrack<String>>,
+    /// Pre-built text paths for rendering.
+    pub text_paths: Option<PropertyTrack<Vec<TextPath>>>,
+    /// Font ascent in scene units (points), used for baseline alignment.
+    pub ascent: Option<PropertyTrack<f32>>,
+    /// Font descent in scene units (points), used for baseline alignment.
+    pub descent: Option<PropertyTrack<f32>>,
+    /// Baseline offset from text center, used for baseline alignment.
+    /// A positive value means the baseline is above the text center.
+    pub baseline: Option<PropertyTrack<f32>>,
+}
+
+// ─────────────────────────────────────────────────────────────
 // AnimationTrack
 // ─────────────────────────────────────────────────────────────
 
@@ -727,7 +767,7 @@ pub struct AnimationTrack {
     pub stroke_width: Option<PropertyTrack<f32>>,
     /// Stroke color in RGBA.
     pub stroke_color: Option<PropertyTrack<[f32; 4]>>,
-    /// Stroke draw progress (0–1).
+    /// Stroke draw progress (0-1).
     pub stroke_progress: Option<PropertyTrack<f32>>,
     /// Fill opacity multiplier.
     pub fill_opacity: Option<PropertyTrack<f32>>,
@@ -746,46 +786,14 @@ pub struct AnimationTrack {
     /// Shape property tracks (shape_type, line_from, line_to, etc.).
     pub shape: ShapeTracks,
 
-    // ── Text / media payload (flat compat fields) ──
-    /// Raw text content.
-    pub text_content: Option<PropertyTrack<String>>,
-    /// Font family name.
-    pub font_family: Option<PropertyTrack<String>>,
-    /// Font size in points.
-    pub font_size: Option<PropertyTrack<f32>>,
-    /// Font weight (100–900).
-    pub font_weight: Option<PropertyTrack<f32>>,
-    /// Font style ("normal" | "italic").
-    pub font_style: Option<PropertyTrack<String>>,
-    /// Line height multiplier.
-    pub line_height: Option<PropertyTrack<f32>>,
-    /// Letter spacing in points.
-    pub letter_spacing: Option<PropertyTrack<f32>>,
-    /// Word spacing in points.
-    pub word_spacing: Option<PropertyTrack<f32>>,
-    /// Max width for text wrapping (0 = no wrap).
-    pub text_max_width: Option<PropertyTrack<f32>>,
-    /// Text alignment ("left", "center", "right", "justify").
-    pub text_align: Option<PropertyTrack<String>>,
-    /// Overflow behavior ("visible", "clip", "ellipsis").
-    pub overflow: Option<PropertyTrack<String>>,
-    /// Pre-built text paths for rendering.
-    pub text_paths: Option<PropertyTrack<Vec<TextPath>>>,
+    // ── Text tier (sub-struct) ──
+    /// Text property tracks (text_content, font_family, font_size, etc.).
+    pub text: TextTracks,
     /// Static SVG paths.
     pub svg_paths: Vec<crate::timeline::VelloPath>,
     /// Raster image data.
     #[cfg(feature = "render")]
-    pub image: Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>, 
-
-
-    // ── Font metrics (Phase 6: baseline alignment) ──
-    /// Font ascent in scene units (points), used for baseline alignment.
-    pub ascent: Option<PropertyTrack<f32>>,
-    /// Font descent in scene units (points), used for baseline alignment.
-    pub descent: Option<PropertyTrack<f32>>,
-    /// Baseline offset from text center, used for baseline alignment.
-    /// A positive value means the baseline is above the text center.
-    pub baseline: Option<PropertyTrack<f32>>,
+    pub image: Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>,
 
     // ── Layout ──
     /// Size allocated by the layout system.
@@ -855,27 +863,11 @@ impl AnimationTrack {
             // Shape tier (sub-struct)
             shape: ShapeTracks::default(),
 
-            // Text / media flat fields
-            text_content: None,
-            font_family: None,
-            font_size: None,
-            font_weight: None,
-            font_style: None,
-            line_height: None,
-            letter_spacing: None,
-            word_spacing: None,
-            text_max_width: None,
-            text_align: None,
-            overflow: None,
-            text_paths: None,
+            // Text tier (sub-struct)
+            text: TextTracks::default(),
             svg_paths: Vec::new(),
             #[cfg(feature = "render")]
             image: None,
-
-            // Font metrics (Phase 6)
-            ascent: None,
-            descent: None,
-            baseline: None,
 
             // Layout flat fields
             layout_size: None,
@@ -919,36 +911,36 @@ impl AnimationTrack {
     // ── Font metrics accessors (Phase 6) ──
     /// Evaluate `ascent` at `time_ms`.
     pub fn ascent_get(&self, time_ms: u64) -> f32 {
-        self.ascent.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
+        self.text.ascent.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
     }
     /// Evaluate `descent` at `time_ms`.
     pub fn descent_get(&self, time_ms: u64) -> f32 {
-        self.descent.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
+        self.text.descent.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
     }
     /// Evaluate `baseline` at `time_ms`.
     /// This is the offset of the baseline from the text center (0,0) after centering paths.
     pub fn baseline_get(&self, time_ms: u64) -> f32 {
-        self.baseline.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
+        self.text.baseline.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
     }
     /// Set all three font metrics on the track at the given time.
     pub fn set_metrics(&mut self, time_ms: u64, ascent: f32, descent: f32, baseline: f32) {
         use crate::easing::Easing;
-        self.ascent.ensure(0.0).add_keyframe(time_ms, ascent, Easing::Linear);
-        self.descent.ensure(0.0).add_keyframe(time_ms, descent, Easing::Linear);
-        self.baseline.ensure(0.0).add_keyframe(time_ms, baseline, Easing::Linear);
+        self.text.ascent.ensure(0.0).add_keyframe(time_ms, ascent, Easing::Linear);
+        self.text.descent.ensure(0.0).add_keyframe(time_ms, descent, Easing::Linear);
+        self.text.baseline.ensure(0.0).add_keyframe(time_ms, baseline, Easing::Linear);
     }
 
     // ── Path evaluation ──
     /// Evaluate text paths at `time_ms`, applying morphing if configured.
     pub fn evaluate_text_paths(&self, time_ms: u64) -> Vec<TextPath> {
-        if let Some(content_track) = &self.text_content {
+        if let Some(content_track) = &self.text.text_content {
             if !content_track.keyframes.is_empty() {
                 let current_text = content_track.evaluate(time_ms);
                 if current_text.is_empty() { return Vec::new(); }
             }
         }
         let default_paths = PropertyTrack::new(Vec::new());
-        let paths_track = self.text_paths.as_ref().unwrap_or(&default_paths);
+        let paths_track = self.text.text_paths.as_ref().unwrap_or(&default_paths);
         let default_morph = PropertyTrack::new(MorphOptions::default());
         let morph_track = self.morph_options.as_ref().unwrap_or(&default_morph);
         evaluate_paths_with_options(paths_track, morph_track, time_ms, interpolate_text_paths)
@@ -1006,7 +998,7 @@ fn evaluate_paths_with_options<T: Interpolate>(
         let options = morph_options.keyframes.get(&found_time).map(|(value, _)| *value).unwrap_or_default();
         interpolate(prev_val, found_val, eased_progress, options)
     } else {
-        // No interior segment — use default or boundary value
+        // No interior segment - use default or boundary value
         if paths.keyframes.is_empty() {
             paths.default_value.clone()
         } else if let Some((&first_time, (val, _))) = paths.keyframes.iter().next() {
@@ -1368,31 +1360,31 @@ impl AnimationTrack {
             ArcAngles => TrackFieldRef::Vec2(&self.shape.arc_angles),
             Points => TrackFieldRef::PointList(&self.shape.points),
             Commands => TrackFieldRef::CommandList(&self.shape.commands),
-            TextContent => TrackFieldRef::String(&self.text_content),
-            TextMaxWidth => TrackFieldRef::F32(&self.text_max_width),
-            TextAlign => TrackFieldRef::String(&self.text_align),
-            Overflow => TrackFieldRef::String(&self.overflow),
-            FontFamily => TrackFieldRef::String(&self.font_family),
-            FontSize => TrackFieldRef::F32(&self.font_size),
+            TextContent => TrackFieldRef::String(&self.text.text_content),
+            TextMaxWidth => TrackFieldRef::F32(&self.text.text_max_width),
+            TextAlign => TrackFieldRef::String(&self.text.text_align),
+            Overflow => TrackFieldRef::String(&self.text.overflow),
+            FontFamily => TrackFieldRef::String(&self.text.font_family),
+            FontSize => TrackFieldRef::F32(&self.text.font_size),
             PlacementMode => TrackFieldRef::PlacementMode(&self.placement_mode),
             MorphOptions => TrackFieldRef::MorphOptions(&self.morph_options),
-            Ascent => TrackFieldRef::F32(&self.ascent),
-            Descent => TrackFieldRef::F32(&self.descent),
-            Baseline => TrackFieldRef::F32(&self.baseline),
+            Ascent => TrackFieldRef::F32(&self.text.ascent),
+            Descent => TrackFieldRef::F32(&self.text.descent),
+            Baseline => TrackFieldRef::F32(&self.text.baseline),
             HighlightColor => TrackFieldRef::Vec4(&self.highlight.highlight_color),
             HighlightOpacity => TrackFieldRef::F32(&self.highlight.highlight_opacity),
             HighlightPadding => TrackFieldRef::F32(&self.highlight.highlight_padding),
             HighlightRadius => TrackFieldRef::F32(&self.highlight.highlight_radius),
-            FontWeight => TrackFieldRef::F32(&self.font_weight),
-            FontStyle => TrackFieldRef::String(&self.font_style),
-            LineHeight => TrackFieldRef::F32(&self.line_height),
-            LetterSpacing => TrackFieldRef::F32(&self.letter_spacing),
-            WordSpacing => TrackFieldRef::F32(&self.word_spacing),
+            FontWeight => TrackFieldRef::F32(&self.text.font_weight),
+            FontStyle => TrackFieldRef::String(&self.text.font_style),
+            LineHeight => TrackFieldRef::F32(&self.text.line_height),
+            LetterSpacing => TrackFieldRef::F32(&self.text.letter_spacing),
+            WordSpacing => TrackFieldRef::F32(&self.text.word_spacing),
             MinWidth => TrackFieldRef::F32(&self.min_width),
             MinHeight => TrackFieldRef::F32(&self.min_height),
             MaxHeight => TrackFieldRef::F32(&self.max_height),
             VectorPaths => TrackFieldRef::VectorPaths(&self.shape.vector_paths),
-            TextPaths => TrackFieldRef::TextPaths(&self.text_paths),
+            TextPaths => TrackFieldRef::TextPaths(&self.text.text_paths),
             #[cfg(feature = "render")]
             ImageData => TrackFieldRef::Image(&self.image),
             #[cfg(not(feature = "render"))]
@@ -1437,31 +1429,31 @@ impl AnimationTrack {
             ArcAngles => TrackFieldMut::Vec2(&mut self.shape.arc_angles),
             Points => TrackFieldMut::PointList(&mut self.shape.points),
             Commands => TrackFieldMut::CommandList(&mut self.shape.commands),
-            TextContent => TrackFieldMut::String(&mut self.text_content),
-            TextMaxWidth => TrackFieldMut::F32(&mut self.text_max_width),
-            TextAlign => TrackFieldMut::String(&mut self.text_align),
-            Overflow => TrackFieldMut::String(&mut self.overflow),
-            FontFamily => TrackFieldMut::String(&mut self.font_family),
-            FontSize => TrackFieldMut::F32(&mut self.font_size),
+            TextContent => TrackFieldMut::String(&mut self.text.text_content),
+            TextMaxWidth => TrackFieldMut::F32(&mut self.text.text_max_width),
+            TextAlign => TrackFieldMut::String(&mut self.text.text_align),
+            Overflow => TrackFieldMut::String(&mut self.text.overflow),
+            FontFamily => TrackFieldMut::String(&mut self.text.font_family),
+            FontSize => TrackFieldMut::F32(&mut self.text.font_size),
             PlacementMode => TrackFieldMut::PlacementMode(&mut self.placement_mode),
             MorphOptions => TrackFieldMut::MorphOptions(&mut self.morph_options),
-            Ascent => TrackFieldMut::F32(&mut self.ascent),
-            Descent => TrackFieldMut::F32(&mut self.descent),
-            Baseline => TrackFieldMut::F32(&mut self.baseline),
+            Ascent => TrackFieldMut::F32(&mut self.text.ascent),
+            Descent => TrackFieldMut::F32(&mut self.text.descent),
+            Baseline => TrackFieldMut::F32(&mut self.text.baseline),
             HighlightColor => TrackFieldMut::Vec4(&mut self.highlight.highlight_color),
             HighlightOpacity => TrackFieldMut::F32(&mut self.highlight.highlight_opacity),
             HighlightPadding => TrackFieldMut::F32(&mut self.highlight.highlight_padding),
             HighlightRadius => TrackFieldMut::F32(&mut self.highlight.highlight_radius),
-            FontWeight => TrackFieldMut::F32(&mut self.font_weight),
-            FontStyle => TrackFieldMut::String(&mut self.font_style),
-            LineHeight => TrackFieldMut::F32(&mut self.line_height),
-            LetterSpacing => TrackFieldMut::F32(&mut self.letter_spacing),
-            WordSpacing => TrackFieldMut::F32(&mut self.word_spacing),
+            FontWeight => TrackFieldMut::F32(&mut self.text.font_weight),
+            FontStyle => TrackFieldMut::String(&mut self.text.font_style),
+            LineHeight => TrackFieldMut::F32(&mut self.text.line_height),
+            LetterSpacing => TrackFieldMut::F32(&mut self.text.letter_spacing),
+            WordSpacing => TrackFieldMut::F32(&mut self.text.word_spacing),
             MinWidth => TrackFieldMut::F32(&mut self.min_width),
             MinHeight => TrackFieldMut::F32(&mut self.min_height),
             MaxHeight => TrackFieldMut::F32(&mut self.max_height),
             VectorPaths => TrackFieldMut::VectorPaths(&mut self.shape.vector_paths),
-            TextPaths => TrackFieldMut::TextPaths(&mut self.text_paths),
+            TextPaths => TrackFieldMut::TextPaths(&mut self.text.text_paths),
             #[cfg(feature = "render")]
             ImageData => TrackFieldMut::Image(&mut self.image),
             #[cfg(not(feature = "render"))]
@@ -2201,7 +2193,7 @@ mod tests {
     #[test]
     fn test_has_any_keyframes_returns_true_for_font_metrics() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.ascent.ensure(0.0).add_keyframe(500, 10.0, Easing::Linear);
+        track.text.ascent.ensure(0.0).add_keyframe(500, 10.0, Easing::Linear);
         assert!(track.has_any_keyframes());
     }
 
@@ -2445,14 +2437,14 @@ mod tests {
     #[test]
     fn test_registry_driven_max_keyframe_time_finds_letter_spacing() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.letter_spacing.ensure(0.0).add_keyframe(2500, 1.0, Easing::Linear);
+        track.text.letter_spacing.ensure(0.0).add_keyframe(2500, 1.0, Easing::Linear);
         assert_eq!(track.max_keyframe_time(), Some(2500));
     }
 
     #[test]
     fn test_registry_driven_has_any_keyframes_finds_word_spacing() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.word_spacing.ensure(0.0).add_keyframe(1000, 5.0, Easing::Linear);
+        track.text.word_spacing.ensure(0.0).add_keyframe(1000, 5.0, Easing::Linear);
         assert!(track.has_any_keyframes());
     }
 

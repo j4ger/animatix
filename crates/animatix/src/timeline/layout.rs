@@ -432,12 +432,12 @@ impl Timeline {
             _ => return None,
         };
 
-        let content = track.text_content.get(time_ms, String::new());
+        let content = track.text.text_content.get(time_ms, String::new());
         if content.is_empty() {
             return None;
         }
 
-        let font_family = track.font_family.get(time_ms, String::new());
+        let font_family = track.text.font_family.get(time_ms, String::new());
         let font_family = if font_family.is_empty() {
             crate::renderer::text::DEFAULT_FONT_FAMILY.to_string()
         } else {
@@ -448,16 +448,16 @@ impl Timeline {
             text_kind,
             content,
             font_family,
-            font_size: track.font_size.get(time_ms, 48.0),
-            font_weight: track.font_weight.get(time_ms, 400.0),
-            font_style: track.font_style.get(time_ms, "normal".to_string()),
-            line_height: track.line_height.get(time_ms, 1.2),
-            letter_spacing: track.letter_spacing.get(time_ms, 0.0),
-            word_spacing: track.word_spacing.get(time_ms, 0.0),
+            font_size: track.text.font_size.get(time_ms, 48.0),
+            font_weight: track.text.font_weight.get(time_ms, 400.0),
+            font_style: track.text.font_style.get(time_ms, "normal".to_string()),
+            line_height: track.text.line_height.get(time_ms, 1.2),
+            letter_spacing: track.text.letter_spacing.get(time_ms, 0.0),
+            word_spacing: track.text.word_spacing.get(time_ms, 0.0),
             color: track.color.get(time_ms, [1.0, 1.0, 1.0, 1.0]),
-            text_align: track.text_align.get(time_ms, "left".to_string()),
-            overflow: track.overflow.get(time_ms, "visible".to_string()),
-            existing_max_width: track.text_max_width.get(time_ms, 0.0),
+            text_align: track.text.text_align.get(time_ms, "left".to_string()),
+            overflow: track.text.overflow.get(time_ms, "visible".to_string()),
+            existing_max_width: track.text.text_max_width.get(time_ms, 0.0),
         })
     }
 
@@ -582,10 +582,10 @@ impl Timeline {
         };
 
         // Update max_width track
-        track.text_max_width.ensure(0.0).add_keyframe(time_ms, effective_max_width, Easing::Linear);
+        track.text.text_max_width.ensure(0.0).add_keyframe(time_ms, effective_max_width, Easing::Linear);
 
         // Update text_paths, size, layout_size, and metrics tracks
-        track.text_paths.ensure(Vec::new()).add_keyframe(time_ms, compiled.glyphs, Easing::Linear);
+        track.text.text_paths.ensure(Vec::new()).add_keyframe(time_ms, compiled.glyphs, Easing::Linear);
         track.size.ensure(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
             .add_keyframe(time_ms, new_half_size, Easing::Linear);
         track.ensure_layout_size(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)

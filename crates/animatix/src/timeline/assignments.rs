@@ -562,16 +562,17 @@ pub(crate) fn recompile_text_at_assignment(
     text_compiler: &mut crate::renderer::text::TextCompiler,
 ) -> Result<(), RenderError> {
     if duration_ms > 0.0 {
-        let start_val = track.text_content.get(t_start_ms, String::new());
-        track.text_content.ensure(String::new()).add_keyframe(
+        let start_val = track.text.text_content.get(t_start_ms, String::new());
+        track.text.text_content.ensure(String::new()).add_keyframe(
             t_start_ms,
             start_val,
             Easing::Linear,
         );
     } else if instant_delayed {
-        preserve_instant_delayed_value(&mut track.text_content, t_start_ms);
+        preserve_instant_delayed_value(&mut track.text.text_content, t_start_ms);
     }
     track
+        .text
         .text_content
         .ensure(String::new())
         .add_keyframe(t_end_ms, target_text.clone(), easing);
@@ -583,13 +584,13 @@ pub(crate) fn recompile_text_at_assignment(
         _ => return Ok(()),
     };
 
-    let font_family = track.font_family.get(t_end_ms, String::new());
-    let font_size = track.font_size.get(t_end_ms, 48.0);
-    let font_weight = track.font_weight.get(t_end_ms, 400.0);
-    let font_style = track.font_style.get(t_end_ms, "normal".to_string());
-    let line_height = track.line_height.get(t_end_ms, 1.2);
-    let letter_spacing = track.letter_spacing.get(t_end_ms, 0.0);
-    let word_spacing = track.word_spacing.get(t_end_ms, 0.0);
+    let font_family = track.text.font_family.get(t_end_ms, String::new());
+    let font_size = track.text.font_size.get(t_end_ms, 48.0);
+    let font_weight = track.text.font_weight.get(t_end_ms, 400.0);
+    let font_style = track.text.font_style.get(t_end_ms, "normal".to_string());
+    let line_height = track.text.line_height.get(t_end_ms, 1.2);
+    let letter_spacing = track.text.letter_spacing.get(t_end_ms, 0.0);
+    let word_spacing = track.text.word_spacing.get(t_end_ms, 0.0);
     let color = track.color.get(t_end_ms, [1.0, 1.0, 1.0, 1.0]);
 
     let new_paths = text_compiler.compile(
@@ -613,6 +614,7 @@ pub(crate) fn recompile_text_at_assignment(
     if duration_ms > 0.0 {
         let start_val = track.evaluate_text_paths(t_start_ms);
         track
+            .text
             .text_paths
             .ensure(Vec::new())
             .add_keyframe(t_start_ms, start_val, Easing::Linear);
@@ -630,7 +632,7 @@ pub(crate) fn recompile_text_at_assignment(
             Easing::Linear,
         );
     } else if instant_delayed {
-        preserve_instant_delayed_value(&mut track.text_paths, t_start_ms);
+        preserve_instant_delayed_value(&mut track.text.text_paths, t_start_ms);
         preserve_instant_delayed_value(&mut track.size, t_start_ms);
         preserve_instant_delayed_value(&mut track.layout_size, t_start_ms);
     }
@@ -698,6 +700,7 @@ pub(crate) fn recompile_text_at_assignment(
     };
 
     track
+        .text
         .text_paths
         .ensure(Vec::new())
         .add_keyframe(t_end_ms, new_paths.to_vec(), easing);

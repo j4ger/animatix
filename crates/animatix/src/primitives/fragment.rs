@@ -69,7 +69,7 @@ impl Primitive for FragmentPrimitive {
                                 .unwrap_or_default()
                         },
                     };
-                    track.text_content.ensure(String::new()).add_keyframe(
+                    track.text.text_content.ensure(String::new()).add_keyframe(
                         ctx.time_ms as u64,
                         content_str,
                         Easing::Linear,
@@ -112,14 +112,14 @@ impl Primitive for FragmentPrimitive {
                         .map(|v| v.as_str().to_string())
                         .unwrap_or_default();
                 if ctx.duration_ms > 0.0 {
-                    let start_val = track.text_content.get(ctx.t_start_ms, String::new());
-                    track.text_content.ensure(String::new()).add_keyframe(
+                    let start_val = track.text.text_content.get(ctx.t_start_ms, String::new());
+                    track.text.text_content.ensure(String::new()).add_keyframe(
                         ctx.t_start_ms,
                         start_val,
                         Easing::Linear,
                     );
                 }
-                track.text_content.ensure(String::new()).add_keyframe(
+                track.text.text_content.ensure(String::new()).add_keyframe(
                     ctx.t_end_ms,
                     content_str,
                     ctx.easing,

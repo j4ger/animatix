@@ -185,7 +185,7 @@ impl Timeline {
     pub fn extract_all_glyphs(&self) -> Vec<TextPath> {
         let mut glyphs = Vec::new();
         for track in self.tracks.values() {
-            if let Some(text_paths) = &track.text_paths {
+            if let Some(text_paths) = &track.text.text_paths {
                 for (paths, _) in text_paths.keyframes.values() {
                     for glyph in paths {
                         glyphs.push(glyph.clone());
@@ -713,7 +713,7 @@ impl Timeline {
             for child_label in &children {
                 if let Some(child_track) = self.tracks.get(*child_label) {
                     if child_track.kind == ActorKindId::Fragment {
-                        let content = child_track.text_content.get(time_ms, String::new());
+                        let content = child_track.text.text_content.get(time_ms, String::new());
                         let hl_color = child_track.highlight.highlight_color.get(time_ms, [0.3, 0.5, 1.0, 1.0]);
                         let hl_opacity = child_track.highlight.highlight_opacity.get(time_ms, 0.0);
                         let hl_padding = child_track.highlight.highlight_padding.get(time_ms, 4.0);
@@ -732,14 +732,14 @@ impl Timeline {
                 }).collect::<Vec<_>>().join("");
 
                 // Use equation-level font_size and color from the Equation track.
-                let font_size = track.font_size.get(time_ms, 48.0);
+                let font_size = track.text.font_size.get(time_ms, 48.0);
                 let eq_color = track.color.get(time_ms, DEFAULT_WHITE);
-                let font_family = track.font_family.get(time_ms, String::new());
-                let font_weight = track.font_weight.get(time_ms, 400.0);
-                let font_style = track.font_style.get(time_ms, "normal".to_string());
-                let line_height = track.line_height.get(time_ms, 1.2);
-                let letter_spacing = track.letter_spacing.get(time_ms, 0.0);
-                let word_spacing = track.word_spacing.get(time_ms, 0.0);
+                let font_family = track.text.font_family.get(time_ms, String::new());
+                let font_weight = track.text.font_weight.get(time_ms, 400.0);
+                let font_style = track.text.font_style.get(time_ms, "normal".to_string());
+                let line_height = track.text.line_height.get(time_ms, 1.2);
+                let letter_spacing = track.text.letter_spacing.get(time_ms, 0.0);
+                let word_spacing = track.text.word_spacing.get(time_ms, 0.0);
 
                 let typst_color = typst::visualize::Color::from_u8(
                     (eq_color[0] * 255.0) as u8,

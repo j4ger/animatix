@@ -238,7 +238,7 @@ pub(crate) fn ensure_vector_reveal_target(
         return false;
     }
 
-    if track.text_paths.as_ref().map(|t| !t.default_value.is_empty() || !t.keyframes.is_empty()).unwrap_or(false) {
+    if track.text.text_paths.as_ref().map(|t| !t.default_value.is_empty() || !t.keyframes.is_empty()).unwrap_or(false) {
         push_unsupported_action_target_diagnostic(
             verb,
             target,

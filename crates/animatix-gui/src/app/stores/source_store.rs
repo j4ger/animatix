@@ -141,9 +141,9 @@ pub fn rebuild_cache(
                     push_kf_props(&mut result, &track.stroke_color, "stroke_color");
                     push_kf_props(&mut result, &track.stroke_progress, "stroke_progress");
                     push_kf_props(&mut result, &track.fill_opacity, "fill_opacity");
-                    push_kf_props(&mut result, &track.text_content, "text_content");
-                    push_kf_props(&mut result, &track.font_family, "font_family");
-                    push_kf_props(&mut result, &track.font_size, "font_size");
+                    push_kf_props(&mut result, &track.text.text_content, "text_content");
+                    push_kf_props(&mut result, &track.text.font_family, "font_family");
+                    push_kf_props(&mut result, &track.text.font_size, "font_size");
                     push_kf_props(&mut result, &track.shape.shape_type, "shape_type");
                     push_kf_props(&mut result, &track.shape.line_from, "line_from");
                     push_kf_props(&mut result, &track.shape.line_to, "line_to");
