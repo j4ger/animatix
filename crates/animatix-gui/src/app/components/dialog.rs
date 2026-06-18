@@ -151,6 +151,14 @@ pub fn modal(
     let backdrop_id = egui::Id::new(spec.id).with("backdrop");
     let backdrop = ui.interact(screen_rect, backdrop_id, egui::Sense::click());
 
+    // ── Window fill opacity — scales with animation progress ──
+    let window_bg = egui::Color32::from_rgba_premultiplied(
+        surface::BASE.r(),
+        surface::BASE.g(),
+        surface::BASE.b(),
+        (surface::BASE.a() as f32 * progress).round() as u8,
+    );
+
     // ── Slide offset for window ──
     let slide_offset = dialog_token::SLIDE_PX * (1.0 - progress);
 
@@ -182,7 +190,7 @@ pub fn modal(
         .title_bar(false)
         .frame(
             egui::Frame::new()
-                .fill(surface::BASE)
+                .fill(window_bg)
                 .stroke(Stroke::new(STROKE_WIDTH, border::DEFAULT))
                 .corner_radius(RADIUS_XL)
                 .inner_margin(Margin::same(spatial::dialog::INNER_MARGIN as i8)),
@@ -199,6 +207,8 @@ pub fn modal(
     };
 
     let resp = window.show(ctx, |window_ui| {
+        // Fade window content (widgets, text, etc.) with animation progress
+        window_ui.set_opacity(progress);
         window_ui.set_min_width(spec.min_size[0] - 2.0 * spatial::dialog::INNER_MARGIN);
         let dc = DialogCtx { first_frame };
         body(window_ui, &dc)
