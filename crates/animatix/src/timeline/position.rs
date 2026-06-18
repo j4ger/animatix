@@ -200,7 +200,7 @@ pub(crate) fn preserve_discrete_position_state_before(track: &mut AnimationTrack
     }
 }
 
-pub(crate) fn preserve_instant_delayed_value<T: Interpolate + Clone + Default>(
+pub(crate) fn preserve_instant_delayed_value<T: Interpolate + Default>(
     track: &mut Option<PropertyTrack<T>>,
     t_start_ms: u64,
 ) {

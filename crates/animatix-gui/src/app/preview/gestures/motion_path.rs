@@ -46,7 +46,7 @@ impl GestureHandler for MotionPathGesture {
                 if let Some(timeline) = ctx.timeline {
                     if let Some(track) = timeline.get_track(&actor) {
                         if let Some(pos_track) = &track.position {
-                            for (&time_ms, (kf_pos, _)) in &pos_track.keyframes {
+                            for (&time_ms, (kf_pos, _)) in pos_track.keyframes() {
                                 let screen = ctx.preview_scene_to_screen(
                                     preview_rect,
                                     kurbo::Point::new(kf_pos[0] as f64, kf_pos[1] as f64),

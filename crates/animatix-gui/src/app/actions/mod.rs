@@ -385,7 +385,7 @@ fn apply_property_edit_to_track(
             if let PV::Vec2(v) = value {
                 let half = [v[0] / 2.0, v[1] / 2.0];
                 let pt = track.size.get_or_insert_with(|| PropertyTrack::new(half));
-                pt.default_value = half;
+                pt.set_default_value(half);
                 pt.add_keyframe(time_ms, half, linear);
             }
             return;
@@ -398,7 +398,7 @@ fn apply_property_edit_to_track(
                     {
                         let new_binding =
                             animatix::timeline::PositionBinding::SceneAnchor { anchor, offset: *v };
-                        pb_track.default_value = new_binding;
+                        pb_track.set_default_value(new_binding);
                         pb_track.add_keyframe(time_ms, new_binding, linear);
                     }
                 }
@@ -416,13 +416,13 @@ fn apply_property_edit_to_track(
                                 y: v[1],
                                 offset: [0.0, 0.0],
                             };
-                            pb_track.default_value = new_binding;
+                            pb_track.set_default_value(new_binding);
                             pb_track.add_keyframe(time_ms, new_binding, linear);
                         }
                     },
                     _ => {
                         let pt = track.position.get_or_insert_with(|| PropertyTrack::new(*v));
-                        pt.default_value = *v;
+                        pt.set_default_value(*v);
                         pt.add_keyframe(time_ms, *v, linear);
                     },
                 }
@@ -433,7 +433,7 @@ fn apply_property_edit_to_track(
             if let PV::Float(v) = value {
                 let size = [*v, *v];
                 let pt = track.size.get_or_insert_with(|| PropertyTrack::new(size));
-                pt.default_value = size;
+                pt.set_default_value(size);
                 pt.add_keyframe(time_ms, size, linear);
             }
             return;
@@ -443,7 +443,7 @@ fn apply_property_edit_to_track(
                 let current = track.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
                 let size = [*v, current[1]];
                 let pt = track.size.get_or_insert_with(|| PropertyTrack::new(size));
-                pt.default_value = size;
+                pt.set_default_value(size);
                 pt.add_keyframe(time_ms, size, linear);
             }
             return;
@@ -453,7 +453,7 @@ fn apply_property_edit_to_track(
                 let current = track.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
                 let size = [current[0], *v];
                 let pt = track.size.get_or_insert_with(|| PropertyTrack::new(size));
-                pt.default_value = size;
+                pt.set_default_value(size);
                 pt.add_keyframe(time_ms, size, linear);
             }
             return;
@@ -463,7 +463,7 @@ fn apply_property_edit_to_track(
                 let current = track.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
                 let angles = [*v, current[1]];
                 let pt = track.arc_angles.get_or_insert_with(|| PropertyTrack::new(angles));
-                pt.default_value = angles;
+                pt.set_default_value(angles);
                 pt.add_keyframe(time_ms, angles, linear);
             }
             return;
@@ -473,7 +473,7 @@ fn apply_property_edit_to_track(
                 let current = track.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
                 let angles = [current[0], *v];
                 let pt = track.arc_angles.get_or_insert_with(|| PropertyTrack::new(angles));
-                pt.default_value = angles;
+                pt.set_default_value(angles);
                 pt.add_keyframe(time_ms, angles, linear);
             }
             return;
@@ -483,7 +483,7 @@ fn apply_property_edit_to_track(
                 let current = track.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
                 let size = [*v, current[1]];
                 let pt = track.size.get_or_insert_with(|| PropertyTrack::new(size));
-                pt.default_value = size;
+                pt.set_default_value(size);
                 pt.add_keyframe(time_ms, size, linear);
             }
             return;
@@ -493,7 +493,7 @@ fn apply_property_edit_to_track(
                 let current = track.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
                 let size = [current[0], *v];
                 let pt = track.size.get_or_insert_with(|| PropertyTrack::new(size));
-                pt.default_value = size;
+                pt.set_default_value(size);
                 pt.add_keyframe(time_ms, size, linear);
             }
             return;
@@ -507,33 +507,33 @@ fn apply_property_edit_to_track(
             match (field_mut, value) {
                 (TrackFieldMut::Vec2(f), PV::Vec2(v)) => {
                     let pt = f.get_or_insert_with(|| PropertyTrack::new(*v));
-                    pt.default_value = *v;
+                    pt.set_default_value(*v);
                     pt.add_keyframe(time_ms, *v, linear);
                 },
                 (TrackFieldMut::F32(f), PV::Float(v)) => {
                     let pt = f.get_or_insert_with(|| PropertyTrack::new(*v));
-                    pt.default_value = *v;
+                    pt.set_default_value(*v);
                     pt.add_keyframe(time_ms, *v, linear);
                 },
                 (TrackFieldMut::Vec4(f), PV::Color(v)) => {
                     let pt = f.get_or_insert_with(|| PropertyTrack::new(*v));
-                    pt.default_value = *v;
+                    pt.set_default_value(*v);
                     pt.add_keyframe(time_ms, *v, linear);
                 },
                 (TrackFieldMut::String(f), PV::Text(v)) => {
                     let pt = f.get_or_insert_with(|| PropertyTrack::new(v.clone()));
-                    pt.default_value = v.clone();
+                    pt.set_default_value(v.clone());
                     pt.add_keyframe(time_ms, v.clone(), linear);
                 },
                 (TrackFieldMut::PointList(f), PV::PointList(v)) => {
                     let pt = f.get_or_insert_with(|| PropertyTrack::new(v.clone()));
-                    pt.default_value = v.clone();
+                    pt.set_default_value(v.clone());
                     pt.add_keyframe(time_ms, v.clone(), linear);
                 },
                 (TrackFieldMut::ShapeType(f), PV::Text(v)) => {
                     if let Ok(shape) = v.parse::<animatix::timeline::ShapeType>() {
                         let pt = f.get_or_insert_with(|| PropertyTrack::new(shape));
-                        pt.default_value = shape;
+                        pt.set_default_value(shape);
                         pt.add_keyframe(time_ms, shape, linear);
                     }
                 },
@@ -545,7 +545,7 @@ fn apply_property_edit_to_track(
                     };
                     if let Some(mode) = mode {
                         let pt = f.get_or_insert_with(|| PropertyTrack::new(mode));
-                        pt.default_value = mode;
+                        pt.set_default_value(mode);
                         pt.add_keyframe(time_ms, mode, linear);
                     }
                 },

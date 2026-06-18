@@ -432,7 +432,7 @@ impl HasDuration for AnimationTrack {
     }
 }
 
-impl<T: Interpolate + Clone> HasDuration for PropertyTrack<T> {
+impl<T: Interpolate> HasDuration for PropertyTrack<T> {
     fn max_keyframe_time_ms(&self) -> u64 {
         self.last_keyframe_time().unwrap_or(0)
     }

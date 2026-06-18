@@ -70,7 +70,7 @@ fn push_unsupported_action_target_diagnostic(
 
 /// Insert a guard keyframe at `guard_time` for a single property track if one doesn't already exist.
 /// This preserves the pre-delay value for instant-change actions (duration == 0) with delay.
-pub(crate) fn ensure_guard_keyframe<T: Interpolate + Clone>(
+pub(crate) fn ensure_guard_keyframe<T: Interpolate>(
     track: &mut Option<PropertyTrack<T>>,
     guard_time: u64,
     default: T,
@@ -215,9 +215,19 @@ pub(crate) fn ensure_vector_reveal_target(
         return false;
     };
 
-    if track.kind == crate::timeline::ActorKindId::Image
-        || track.image.as_ref().and_then(|t| t.last_value()).is_some()
-    {
+    if track.kind == crate::timeline::ActorKindId::Image {
+        push_unsupported_action_target_diagnostic(
+            verb,
+            target,
+            "image targets only support opacity-based actions right now",
+            diagnostics,
+            span,
+        );
+        return false;
+    }
+
+    #[cfg(feature = "render")]
+    if track.image.as_ref().and_then(|t| t.last_value()).is_some() {
         push_unsupported_action_target_diagnostic(
             verb,
             target,

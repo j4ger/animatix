@@ -1,7 +1,7 @@
 use image::GenericImageView;
 
 /// Loaded image data with its natural pixel dimensions.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SceneImage {
     /// Vello image data buffer.
     pub data: vello::peniko::ImageData,

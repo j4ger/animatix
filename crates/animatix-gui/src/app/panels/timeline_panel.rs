@@ -218,7 +218,7 @@ fn collect_actor_keyframes(track: &animatix::timeline::AnimationTrack) -> Vec<(u
         name: &'static str,
     ) {
         if let Some(pt) = opt {
-            result.extend(pt.keyframes.keys().copied().map(|ms| (ms, name)));
+            result.extend(pt.keyframes().keys().copied().map(|ms| (ms, name)));
         }
     }
     macro_rules! push_all {
@@ -276,8 +276,8 @@ fn collect_per_property_keyframes(
         name: &'static str,
     ) {
         if let Some(pt) = opt {
-            if !pt.keyframes.is_empty() {
-                result.push((name, pt.keyframes.keys().copied().collect()));
+            if !pt.keyframes().is_empty() {
+                result.push((name, pt.keyframes().keys().copied().collect()));
             }
         }
     }

@@ -2,7 +2,7 @@ use kurbo::BezPath;
 use vello::peniko::Color;
 
 /// A glyph path extracted from text, with color and opacity.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct TextPath {
     /// The glyph path.
     pub path: BezPath,

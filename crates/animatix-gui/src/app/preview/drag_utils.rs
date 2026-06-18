@@ -209,7 +209,7 @@ pub(crate) fn resolve_snap(
 
     if let Some(track) = ctx.timeline.and_then(|t| t.get_track(actor)) {
         if let Some(ref pos_track) = track.position {
-            let prev_kf_time = pos_track.keyframes.range(..time_ms).next_back().map(|(&t, _)| t);
+            let prev_kf_time = pos_track.keyframes().range(..time_ms).next_back().map(|(&t, _)| t);
             if let Some(kf_ms) = prev_kf_time {
                 if let Some(kf_props) = ctx.get_actor_props_at_time(actor, kf_ms) {
                     if (nx - kf_props.position[0]).abs() < threshold {

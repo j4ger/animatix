@@ -860,13 +860,13 @@ impl PreviewContext<'_> {
                 Some(pt) => pt,
                 None => continue,
             };
-            if pos_track.keyframes.len() < 2 {
+            if pos_track.keyframes().len() < 2 {
                 continue;
             }
 
             // Collect keyframe positions
             let mut kf_points: Vec<(u64, [f32; 2])> = Vec::new();
-            for (&time_ms, (val, _)) in &pos_track.keyframes {
+            for (&time_ms, (val, _)) in pos_track.keyframes() {
                 kf_points.push((time_ms, *val));
             }
             kf_points.sort_by_key(|(t, _)| *t);

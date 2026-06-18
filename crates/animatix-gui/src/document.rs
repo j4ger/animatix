@@ -737,7 +737,7 @@ fn document_scene_dimensions(ast: &[Stmt]) -> SceneDimensions {
 }
 
 fn latest_keyframe_ms<T>(track: &Option<PropertyTrack<T>>) -> Option<u64> {
-    track.as_ref().and_then(|t| t.keyframes.keys().next_back().copied())
+    track.as_ref().and_then(|t| t.keyframes().keys().next_back().copied())
 }
 
 fn track_max_ms(track: &AnimationTrack) -> u64 {

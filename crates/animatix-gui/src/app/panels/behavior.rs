@@ -157,7 +157,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                                             $(
                                                 if let Some(pt) = &track.$field {
                                                     track_times.extend(
-                                                        pt.keyframes.keys().map(|ms| *ms as f64 / 1000.0)
+                                                        pt.keyframes().keys().map(|ms| *ms as f64 / 1000.0)
                                                     );
                                                 }
                                             )*
