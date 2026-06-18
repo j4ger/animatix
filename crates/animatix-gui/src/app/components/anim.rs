@@ -38,6 +38,7 @@ pub fn animate_channel(ctx: &Context, id: Id, target: f32, transition: Transitio
 /// Returns the eased progress in [0, 1].
 /// Uses `animate_toward` for linear time progress, then applies the
 /// transition's cubic-bezier easing via `CubicBezier::sample()`.
+#[allow(dead_code)] // Reserved for future animation call sites; dialog now handles easing inline
 pub fn animate_toward_eased(ctx: &Context, id: Id, target: f32, transition: Transition) -> f32 {
     if transition.duration == INSTANT {
         return target;

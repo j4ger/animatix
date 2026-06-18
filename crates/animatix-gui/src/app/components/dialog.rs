@@ -120,9 +120,21 @@ pub fn modal(
         ctx.data_mut(|d| d.insert_temp(opened_id, true));
     }
 
-    // Target: 1.0 = fully open, 0.0 = fully closed
+    // Get linear animation progress (0→1 for open, 1→0 for close)
     let anim_target = if is_closing { 0.0 } else { 1.0 };
-    let progress = anim::animate_toward_eased(ctx, anim_id, anim_target, motion::MODAL);
+    let raw_progress = anim::animate_toward(ctx, anim_id, anim_target, motion::MODAL);
+
+    // Apply direction-aware easing so both open and close feel snappy:
+    //   - Open:  DECELERATE on 0→1  →  fast rise, gentle settle
+    //   - Close: 1 - DECELERATE(1 - raw)  →  fast initial drop, gentle fade-out
+    // The raw DECELERATE sample on 1→0 would be sluggish at close-start
+    // because the curve is flat near x=1.
+    let progress = if is_closing {
+        let close_t = 1.0 - raw_progress; // 0→1 over close duration
+        1.0 - motion::DECELERATE.sample(close_t)
+    } else {
+        motion::DECELERATE.sample(raw_progress)
+    };
 
     // ── Animated backdrop (painted before window, layered behind it) ──
     let bg = overlay::backdrop();
