@@ -10,7 +10,6 @@ Keep track of what is yet to be done here, when a segment is fully done, remove 
 
 ### Primitives & Syntax
 
-- [ ] Equation: bare string syntax sugar for anonymous Fragments (currently requires explicit `label: Fragment, content: "..."`)
 - [ ] **Callout / annotation primitive** — An `Annotation` or `Callout` primitive that draws a labeled arrow/line from a text label to a target actor or coordinate. Currently requires manual `Arrow` + `Text` with hardcoded `from`/`to`. Useful for educational diagrams (e.g., "this is the 2 Hz component").
 - [ ] **Legend primitive** — A `Legend` container that auto-generates color swatches + labels from child actors or an explicit data list. Currently requires manual `Rect` swatches + `Text` rows.
 - [ ] **Auto color cycling per instance** — `color: auto` should cycle through a deterministic palette across multiple instances of the same kind (e.g., 3 `PlotCurve` actors get distinct colors). Currently `auto` assigns one color per primitive type, not per instance.

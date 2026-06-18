@@ -430,6 +430,10 @@
           "named": true
         },
         {
+          "type": "display_math",
+          "named": true
+        },
+        {
           "type": "for_block",
           "named": true
         },
@@ -549,6 +553,10 @@
         },
         {
           "type": "config",
+          "named": true
+        },
+        {
+          "type": "display_math",
           "named": true
         },
         {
@@ -747,6 +755,32 @@
       "types": [
         {
           "type": "property_list",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "display_math",
+    "named": true,
+    "fields": {
+      "label": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "modifier_block",
           "named": true
         }
       ]
@@ -2531,6 +2565,10 @@
           "named": true
         },
         {
+          "type": "display_math",
+          "named": true
+        },
+        {
           "type": "for_block",
           "named": true
         },
@@ -2946,6 +2984,10 @@
   },
   {
     "type": "#",
+    "named": false
+  },
+  {
+    "type": "$$",
     "named": false
   },
   {

@@ -30,10 +30,34 @@ Replaces the deprecated `Math` primitive.
 - `font_size`: Number
 - `color`: Color
 - `at`: Tuple `(x, y)`
+- `highlight_color`: Color — color of whole-actor highlight overlay (default `white`)
+- `highlight_opacity`: Number — opacity of highlight, 0 = hidden, 1 = full (default `0.0`)
+- `highlight_blend`: String — blend mode: `difference`, `exclusion`, `normal`, `multiply`, `screen` (default `"difference"`)
+- `highlight_padding`: Number — padding around actor bounding box (default `4.0`)
+- `highlight_radius`: Number — corner radius of highlight rectangle (default `2.0`)
+
+**Shorthand:** `$$ ... $$` desugars to a `Typst` actor with the content taken as raw text (unquoted). A label is required. Modifiers are supported.
+
+```animatix
+eq: $$ x^2 + y^2 $$                    // desugars to: eq: Typst, content: "x^2 + y^2"
+eq: $$ x^2 $$ [2s, ease: bounce]       // with modifiers
+```
+
+**Actions:**
+- `highlight target [color: C, blend: B, padding: P, radius: R, duration, ease]` — animate `highlight_opacity` from 0 to 1 (whole-actor highlight)
+- `unhighlight target [duration, ease]` — animate `highlight_opacity` from current to 0
+
+This is distinct from Equation+Fragment per-segment highlighting — a Typst actor is highlighted as a single unit.
 
 **Example:**
 ```animatix
 eq: Typst, content: "x^2 + 3", font_size: 18, at: (640, 360)
+
+#2s
+  highlight eq [color: yellow, blend: multiply, 800ms]
+
+#4s
+  unhighlight eq [400ms]
 ```
 
 ## Code

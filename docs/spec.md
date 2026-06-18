@@ -251,7 +251,7 @@ Duplicate modifier keys: last value wins. `ease` without duration = instant chan
 - **Entrance:** `fade-in`, `draw-in`, `wipe-in`, `reveal-in`
 - **Exit:** `fade-out`, `wipe-out`, `reveal-out`, `draw-out`
 - **Effects:** `shake`, `pulse`, `bounce`
-- **Equation:** `highlight`, `unhighlight` — animate Fragment highlight overlay
+- **Highlight:** `highlight`, `unhighlight` — animate highlight overlay on Equation fragments or Typst actors (whole-actor highlighting)
 - **Reorder:** `swap`, `reorder`
 
 **Action signatures for generation:**
@@ -264,6 +264,8 @@ Duplicate modifier keys: last value wins. `ease` without duration = instant chan
 | `rotate` | `rotate target [by: Num, duration, ease]` |
 | `scale` | `scale target [by: Num, duration, ease]` |
 | `shake`, `pulse`, `bounce` | `verb target [duration, intensity: Num]` |
+| `highlight` | `highlight target [color: Color, blend: Str, padding: Num, radius: Num, duration, ease]` |
+| `unhighlight` | `unhighlight target [duration, ease]` |
 | `swap` | `swap childA, childB [duration, ease]` |
 | `reorder` | `reorder container [order: {childA, childB, ...}, duration, ease]` |
 
@@ -479,6 +481,14 @@ img: Image, url: "examples/assets/checker.png", at: (100, 100), size: (200, 150)
 title: "Hello"                    // desugars to: title: Text, text: "Hello"
 title: "Hello" [2s, ease: bounce] // with modifiers
 ```
+
+**Typst shorthand:**
+```animatix
+eq: $$ x^2 + y^2 $$                    // desugars to: eq: Typst, content: "x^2 + y^2"
+eq: $$ x^2 $$ [2s, ease: bounce]       // with modifiers
+```
+
+A bare `$$ ... $$` block produces a `Typst` actor. The content between `$$` delimiters is taken as raw Text (unquoted) and becomes the `content` property. A label is required. Modifiers are supported.
 
 ### Transform Property
 
@@ -1156,6 +1166,8 @@ The `Typst` primitive uses **Typst** syntax, not LaTeX. Common mistakes:
 | `\infty` | `infinity` | Named constant |
 
 **Full Typst math reference:** <https://typst.app/docs/reference/math/>
+
+> **Typst highlight support:** Typst actors support per-actor highlight properties (`highlight_color`, `highlight_opacity`, `highlight_padding`, `highlight_radius`, `highlight_blend`) and the `highlight`/`unhighlight` built-in actions for whole-actor highlighting. This is distinct from Equation+Fragment per-segment highlighting — a Typst actor is highlighted as a single unit.
 
 ---
 

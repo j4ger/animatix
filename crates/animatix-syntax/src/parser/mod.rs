@@ -387,6 +387,58 @@ mod tests {
     }
 
     #[test]
+    fn test_typst_shorthand_parser() {
+        let input = "eq: $$ x^2 + y^2 $$";
+        let res = parser().parse(input).unwrap();
+
+        if let Stmt::ActorDecl {
+            is_pub,
+            label,
+            ty,
+            props,
+            modifiers,
+            children,
+            ..
+        } = &res[0]
+        {
+            assert_eq!(*is_pub, false);
+            assert_eq!(label, "eq");
+            assert_eq!(ty, "Typst");
+            assert_eq!(props.len(), 1);
+            assert_eq!(props[0].name, "content");
+            assert_eq!(props[0].value, Expr::Str("x^2 + y^2".to_string()));
+            assert!(modifiers.is_empty());
+            assert!(children.is_empty());
+        } else {
+            panic!("Expected ActorDecl, got {:?}", res[0]);
+        }
+    }
+
+    #[test]
+    fn test_typst_shorthand_with_modifiers() {
+        let input = "eq: $$ x^2 $$ [2s]";
+        let res = parser().parse(input).unwrap();
+
+        if let Stmt::ActorDecl {
+            label,
+            ty,
+            props,
+            modifiers,
+            ..
+        } = &res[0]
+        {
+            assert_eq!(label, "eq");
+            assert_eq!(ty, "Typst");
+            assert_eq!(props.len(), 1);
+            assert_eq!(props[0].name, "content");
+            assert_eq!(props[0].value, Expr::Str("x^2".to_string()));
+            assert_eq!(modifiers.len(), 1);
+        } else {
+            panic!("Expected ActorDecl, got {:?}", res[0]);
+        }
+    }
+
+    #[test]
     fn test_vec2_value_span_accuracy() {
         // Reproduce the bug: size: (2494.552, 1377.7778) should have correct span
         let input = r#"backdrop: Rect, size: (2494.552, 1377.7778), color: scene.background"#;

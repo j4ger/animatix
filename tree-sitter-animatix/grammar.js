@@ -42,6 +42,7 @@ module.exports = grammar({
       $.scene_declaration,
       $.keyframe,
       $.actor_declaration,
+      $.display_math,
       $.property_assignment,
       $.reactive_binding,
       $.action_invocation,
@@ -139,6 +140,15 @@ module.exports = grammar({
       optional(seq(',', $.property_list)),
       optional($.modifier_block),
       optional($.children_block)
+    ),
+
+    display_math: $ => seq(
+      field('label', $.identifier),
+      ':',
+      '$$',
+      field('content', token(/[^$]*/)),
+      '$$',
+      optional($.modifier_block)
     ),
 
     property_assignment: $ => seq(

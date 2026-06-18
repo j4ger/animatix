@@ -14,6 +14,7 @@
 //! * `reactive_binding` — `actor.prop := expr`
 //! * `svg_stmt` — `label: Svg { ... }`
 //! * `image_stmt` — `label: Image { ... }`
+//! * `typst_shorthand` — `label: $$ content $$ [modifiers]`
 //! * `text_shorthand` — `label: "string" [modifiers]`
 //! * `actor_decl` — `label: Type, props [modifiers] { children }`
 //! * `action` — `verb target [args] [modifiers]`
@@ -251,6 +252,38 @@ pub(crate) fn parser<'src>(
                 ty: "Image".to_string(),
                 props,
                 modifiers: vec![],
+                children: vec![],
+                span: None,
+            })
+            .padded();
+
+        // Shorthand: label: $$ content $$ → label: Typst, content: content
+        let typst_shorthand = ident
+            .clone()
+            .then_ignore(just(':').padded())
+            .then_ignore(just("$$"))
+            .then(
+                just("$$").not()
+                    .ignore_then(any())
+                    .repeated()
+                    .collect::<String>()
+                    .map(|s: String| s.trim().to_string()),
+            )
+            .then_ignore(just("$$"))
+            .then(modifiers.clone())
+            .map(|((label, content), modifiers)| Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label,
+                array_index: None,
+                ty: "Typst".to_string(),
+                props: vec![Property {
+                    name: "content".to_string(),
+                    value: Expr::Str(content),
+                    value_span: None,
+                    trailing_comment: None,
+                }],
+                modifiers,
                 children: vec![],
                 span: None,
             })
@@ -541,6 +574,7 @@ pub(crate) fn parser<'src>(
             stagger_stmt,
             component_action_stmt,
             component_def,
+            typst_shorthand,
             text_shorthand,
             actor_decl,
             action,
