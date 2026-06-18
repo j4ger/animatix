@@ -147,11 +147,18 @@ pub fn modal(
         egui::Color32::from_rgba_premultiplied(bg.r(), bg.g(), bg.b(), alpha);
     ui.painter().rect_filled(screen_rect, 0.0, backdrop_color);
 
-    // Close on backdrop click
+    // Close on backdrop click (gated until the dialog is visually established)
     let backdrop_id = egui::Id::new(spec.id).with("backdrop");
     let backdrop = ui.interact(screen_rect, backdrop_id, egui::Sense::click());
+    let backdrop_clicked = backdrop.clicked() && progress > 0.05;
 
-    // ── Window fill opacity — scales with animation progress ──
+    // ── Window fill and border opacity — scales with animation progress ──
+    let border_color = egui::Color32::from_rgba_premultiplied(
+        border::DEFAULT.r(),
+        border::DEFAULT.g(),
+        border::DEFAULT.b(),
+        (border::DEFAULT.a() as f32 * progress).round() as u8,
+    );
     let window_bg = egui::Color32::from_rgba_premultiplied(
         surface::BASE.r(),
         surface::BASE.g(),
@@ -191,7 +198,7 @@ pub fn modal(
         .frame(
             egui::Frame::new()
                 .fill(window_bg)
-                .stroke(Stroke::new(STROKE_WIDTH, border::DEFAULT))
+                .stroke(Stroke::new(STROKE_WIDTH, border_color))
                 .corner_radius(RADIUS_XL)
                 .inner_margin(Margin::same(spatial::dialog::INNER_MARGIN as i8)),
         );
@@ -219,7 +226,7 @@ pub fn modal(
 
     // ── Close request detection ──
     let close_requested = ctx.input(|i| i.key_pressed(egui::Key::Escape))
-        || backdrop.clicked()
+        || backdrop_clicked
         || body_close;
 
     // Start closing animation (only once, on first close request)
