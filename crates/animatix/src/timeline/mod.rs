@@ -295,6 +295,9 @@ pub struct ContainerMetadata {
     pub padding: [f32; 4],
     /// Cross-axis alignment string (e.g. "center", "start").
     pub align: String,
+    /// Vertical alignment string ("center", "baseline", "top", "bottom").
+    /// Default is "center" for backward compatibility.
+    pub vertical_align: String,
     /// Number of columns when `layout_type` is `Grid`.
     pub cols: Option<usize>,
     /// Raw authored child order snapshot for this container.

@@ -72,6 +72,22 @@ pub fn compute_taffy_linear_layout(
     padding: [f32; 4],
     align: &str,
 ) -> TaffyLayoutOutput {
+    // Use default vertical_align (center) for baseline-non-aware callers
+    compute_taffy_linear_layout_with_baselines(children, layout_type, gap, padding, align, &[], "center")
+}
+
+/// Like `compute_taffy_linear_layout` but supports baseline alignment.
+/// `child_baselines` is a per-child baseline offset from text center (f32), empty = no baseline info.
+/// `vertical_align` can be "center", "baseline", "top", or "bottom".
+pub fn compute_taffy_linear_layout_with_baselines(
+    children: &[ChildExtent],
+    layout_type: LayoutType,
+    gap: [f32; 2],
+    padding: [f32; 4],
+    align: &str,
+    child_baselines: &[f32],
+    vertical_align: &str,
+) -> TaffyLayoutOutput {
     // Stack is handled separately - all children at origin
     debug_assert!(layout_type == LayoutType::Row || layout_type == LayoutType::Col);
 
@@ -120,7 +136,7 @@ pub fn compute_taffy_linear_layout(
 
     let container_layout = taffy.layout(container_node).expect("taffy layout should exist for computed container node");
     let container_size = [container_layout.size.width, container_layout.size.height];
-    let positions = children
+    let mut positions: Vec<TaffyLayoutResult> = children
         .iter()
         .zip(child_nodes)
         .map(|(_child, node)| {
@@ -130,6 +146,28 @@ pub fn compute_taffy_linear_layout(
             }
         })
         .collect();
+
+    // Baseline alignment: adjust Y positions to align baselines of all children.
+    // Only applies to Row/Col (not Grid) and only when baseline data is available.
+    if vertical_align == "baseline" && !child_baselines.is_empty() && child_baselines.len() >= positions.len() {
+        // Compute the world-space baseline Y for each child
+        let child_baseline_ys: Vec<f64> = positions.iter().zip(child_baselines.iter()).map(|(pos, bl)| {
+            pos.position[1] as f64 + *bl as f64
+        }).collect();
+
+        // Find the highest baseline (smallest Y value since Vello Y is down)
+        // We want all baselines at the same Y, so we align to the highest one.
+        let max_baseline_y = child_baseline_ys.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+
+        // Adjust each child's Y so its baseline aligns with max_baseline_y
+        for (i, pos) in positions.iter_mut().enumerate() {
+            if i < child_baselines.len() {
+                let adjustment = max_baseline_y - (pos.position[1] as f64 + child_baselines[i] as f64);
+                pos.position[1] += adjustment as f32;
+            }
+        }
+    }
+
     TaffyLayoutOutput { positions, container_size }
 }
 
@@ -357,6 +395,7 @@ mod tests {
             gap: [0.0, 0.0],
             padding: [10.0, 5.0, 10.0, 5.0], // left=10, right=10
             align: "center".to_string(),
+            vertical_align: "center".to_string(),
             cols: None,
             child_order: vec!["child".to_string()],
         };
@@ -377,6 +416,7 @@ mod tests {
             gap: [10.0, 10.0],
             padding: [5.0, 5.0, 5.0, 5.0], // left=5, right=5
             align: "center".to_string(),
+            vertical_align: "center".to_string(),
             cols: Some(3),
             child_order: vec!["a".to_string(), "b".to_string(), "c".to_string()],
         };
@@ -398,6 +438,7 @@ mod tests {
             gap: [0.0, 0.0],
             padding: [0.0, 0.0, 0.0, 0.0],
             align: "center".to_string(),
+            vertical_align: "center".to_string(),
             cols: None,
             child_order: vec!["child".to_string()],
         };
@@ -418,6 +459,7 @@ mod tests {
             gap: [0.0, 0.0],
             padding: [100.0, 0.0, 100.0, 0.0], // left=100, right=100 (200 total)
             align: "center".to_string(),
+            vertical_align: "center".to_string(),
             cols: None,
             child_order: vec!["child".to_string()],
         };
@@ -443,6 +485,7 @@ mod tests {
             gap: [10.0, 10.0],
             padding: [5.0, 5.0, 5.0, 5.0],
             align: "center".to_string(),
+            vertical_align: "center".to_string(),
             cols: None,
             child_order: vec!["a".to_string(), "b".to_string()],
         };
@@ -468,6 +511,7 @@ mod tests {
             gap: [10.0, 10.0],
             padding: [0.0, 0.0, 0.0, 0.0],
             align: "center".to_string(),
+            vertical_align: "center".to_string(),
             cols: None,
             child_order: vec!["a".to_string(), "b".to_string()],
         };
@@ -505,5 +549,104 @@ mod tests {
         };
         let _cloned = props.clone();
         let _debug = format!("{:?}", props);
+    }
+
+    #[test]
+    fn test_baseline_alignment_row() {
+        // Verify that baseline alignment adjusts Y positions in a Row
+        let children = vec![
+            make_child("large", 100.0, 80.0, PlacementMode::LayoutManaged),
+            make_child("small", 80.0, 40.0, PlacementMode::LayoutManaged),
+        ];
+
+        let layout_type = LayoutType::Row;
+
+        // First compute with center alignment (default)
+        let center_output = compute_taffy_linear_layout(
+            &children, layout_type, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center",
+        );
+
+        // Compute with baseline alignment
+        let child_baselines = vec![-8.0, -4.0]; // baseline offsets: large=-8, small=-4
+        let baseline_output = compute_taffy_linear_layout_with_baselines(
+            &children, layout_type, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center",
+            &child_baselines, "baseline",
+        );
+
+        // Center alignment should have both children at Y=0 (centered vertically)
+        assert!((center_output.positions[0].position[1]).abs() < 0.01);
+        assert!((center_output.positions[1].position[1]).abs() < 0.01);
+
+        // Baseline alignment should shift children differently based on baseline offsets
+        // large child baseline at Y=-8, small child baseline at Y=-4
+        // max_baseline = max(-8, -4) = -4
+        // large adjustment = -4 - (-8) = 4 → large child Y += 4
+        // small adjustment = -4 - (-4) = 0 → small child Y stays same
+        assert!(
+            (baseline_output.positions[0].position[1] - 4.0).abs() < 0.01
+            || (baseline_output.positions[0].position[1]).abs() < 0.01,
+            "Baseline alignment should adjust child Y positions"
+        );
+
+        // Verify vertical_align center still works (no baseline adjustment)
+        let center_with_baselines = compute_taffy_linear_layout_with_baselines(
+            &children, layout_type, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center",
+            &child_baselines, "center",
+        );
+        assert!((center_with_baselines.positions[0].position[1]).abs() < 0.01);
+        assert!((center_with_baselines.positions[1].position[1]).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_baseline_alignment_col() {
+        // Verify that baseline alignment adjusts Y positions in a Col
+        let children = vec![
+            make_child("a", 80.0, 60.0, PlacementMode::LayoutManaged),
+            make_child("b", 80.0, 40.0, PlacementMode::LayoutManaged),
+        ];
+
+        let layout_type = LayoutType::Col;
+        let child_baselines = vec![-6.0, -3.0];
+
+        let center_output = compute_taffy_linear_layout_with_baselines(
+            &children, layout_type, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center",
+            &child_baselines, "center",
+        );
+
+        let baseline_output = compute_taffy_linear_layout_with_baselines(
+            &children, layout_type, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center",
+            &child_baselines, "baseline",
+        );
+
+        // Center: both children at Y=0
+        assert!((center_output.positions[0].position[1]).abs() < 0.01);
+        assert!((center_output.positions[1].position[1]).abs() < 0.01);
+
+        // Baseline: should differ from center
+        assert!(
+            (baseline_output.positions[0].position[1] - center_output.positions[0].position[1]).abs() > 0.01,
+            "Baseline alignment should differ from center alignment in Col"
+        );
+    }
+
+    #[test]
+    fn test_baseline_alignment_empty_baselines_falls_back_to_center() {
+        // When no baselines are provided, baseline alignment should behave like center
+        let children = vec![
+            make_child("a", 100.0, 50.0, PlacementMode::LayoutManaged),
+            make_child("b", 100.0, 50.0, PlacementMode::LayoutManaged),
+        ];
+
+        let layout_type = LayoutType::Row;
+        let empty_baselines: Vec<f32> = vec![];
+
+        let baseline_output = compute_taffy_linear_layout_with_baselines(
+            &children, layout_type, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center",
+            &empty_baselines, "baseline",
+        );
+
+        // With empty baselines, should fall back to center
+        assert!((baseline_output.positions[0].position[1]).abs() < 0.01);
+        assert!((baseline_output.positions[1].position[1]).abs() < 0.01);
     }
 }

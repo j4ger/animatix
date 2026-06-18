@@ -635,6 +635,68 @@ pub(crate) fn recompile_text_at_assignment(
         preserve_instant_delayed_value(&mut track.layout_size, t_start_ms);
     }
 
+    // Compute font metrics for baseline alignment
+    // Re-compile the text to extract metrics (separate from cached paths)
+    let typst_color_for_metrics = typst::visualize::Color::from_u8(
+        (color[0] * 255.0) as u8,
+        (color[1] * 255.0) as u8,
+        (color[2] * 255.0) as u8,
+        (color[3] * 255.0) as u8,
+    );
+    let (ascent, descent, baseline_offset) = match text_kind {
+        crate::renderer::text::TextKind::Text => {
+            match crate::renderer::text::compile_text(
+                &target_text, font_size, typst_color_for_metrics, &font_family,
+                font_ctx, font_weight, &font_style, line_height,
+                letter_spacing, word_spacing, 0.0, "left", "visible",
+            ) {
+                Ok(frame) => {
+                    let m = crate::renderer::text::extract_glyphs_with_metrics(&frame);
+                    (m.ascent, m.descent, m.baseline_offset)
+                },
+                Err(_) => (0.0, 0.0, 0.0),
+            }
+        },
+        crate::renderer::text::TextKind::Typst => {
+            match crate::renderer::text::compile_typst(
+                &target_text, font_size, typst_color_for_metrics, &font_family,
+                font_ctx, font_weight, &font_style, line_height,
+                letter_spacing, word_spacing, 0.0, "left", "visible",
+            ) {
+                Ok(frame) => {
+                    let m = crate::renderer::text::extract_glyphs_with_metrics(&frame);
+                    (m.ascent, m.descent, m.baseline_offset)
+                },
+                Err(_) => (0.0, 0.0, 0.0),
+            }
+        },
+        crate::renderer::text::TextKind::Code => {
+            match crate::renderer::text::compile_code(
+                &target_text, font_size, typst_color_for_metrics, &font_family,
+                font_ctx, font_weight, &font_style, line_height,
+                letter_spacing, word_spacing, 0.0, "left", "visible",
+            ) {
+                Ok(frame) => {
+                    let m = crate::renderer::text::extract_glyphs_with_metrics(&frame);
+                    (m.ascent, m.descent, m.baseline_offset)
+                },
+                Err(_) => (0.0, 0.0, 0.0),
+            }
+        },
+        crate::renderer::text::TextKind::Math => {
+            match crate::renderer::text::compile_math(
+                &target_text, font_size, typst_color_for_metrics, &font_family,
+                font_ctx, 0.0, "left", "visible",
+            ) {
+                Ok(frame) => {
+                    let m = crate::renderer::text::extract_glyphs_with_metrics(&frame);
+                    (m.ascent, m.descent, m.baseline_offset)
+                },
+                Err(_) => (0.0, 0.0, 0.0),
+            }
+        },
+    };
+
     track
         .text_paths
         .ensure(Vec::new())
@@ -648,6 +710,7 @@ pub(crate) fn recompile_text_at_assignment(
         new_half_size,
         easing,
     );
+    track.set_metrics(t_end_ms, ascent, descent, baseline_offset);
     Ok(())
 }
 

@@ -18,6 +18,7 @@ impl Timeline {
         align: Option<&str>,
         cols: Option<usize>,
         diagnostics: &mut Vec<Diagnostic>,
+        vertical_align: Option<&str>,
     ) {
         let child_order = self
             .tracks
@@ -32,6 +33,7 @@ impl Timeline {
             gap,
             padding,
             align: align.unwrap_or("center").to_string(),
+            vertical_align: vertical_align.unwrap_or("center").to_string(),
             cols,
             child_order: child_order.clone(),
         };

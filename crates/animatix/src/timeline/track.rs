@@ -669,6 +669,15 @@ pub struct AnimationTrack {
     pub image: Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>, 
 
 
+    // ── Font metrics (Phase 6: baseline alignment) ──
+    /// Font ascent in scene units (points), used for baseline alignment.
+    pub ascent: Option<PropertyTrack<f32>>,
+    /// Font descent in scene units (points), used for baseline alignment.
+    pub descent: Option<PropertyTrack<f32>>,
+    /// Baseline offset from text center, used for baseline alignment.
+    /// A positive value means the baseline is above the text center.
+    pub baseline: Option<PropertyTrack<f32>>,
+
     // ── Layout ──
     /// Size allocated by the layout system.
     pub layout_size: Option<PropertyTrack<[f32; 2]>>,
@@ -762,6 +771,11 @@ impl AnimationTrack {
             svg_paths: Vec::new(),
             image: None,
 
+            // Font metrics (Phase 6)
+            ascent: None,
+            descent: None,
+            baseline: None,
+
             // Layout flat fields
             layout_size: None,
 
@@ -796,6 +810,28 @@ impl AnimationTrack {
     /// Return `true` if `layout_size` has been set.
     pub fn has_layout_size(&self) -> bool {
         self.layout_size.is_some()
+    }
+
+    // ── Font metrics accessors (Phase 6) ──
+    /// Evaluate `ascent` at `time_ms`.
+    pub fn ascent_get(&self, time_ms: u64) -> f32 {
+        self.ascent.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
+    }
+    /// Evaluate `descent` at `time_ms`.
+    pub fn descent_get(&self, time_ms: u64) -> f32 {
+        self.descent.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
+    }
+    /// Evaluate `baseline` at `time_ms`.
+    /// This is the offset of the baseline from the text center (0,0) after centering paths.
+    pub fn baseline_get(&self, time_ms: u64) -> f32 {
+        self.baseline.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
+    }
+    /// Set all three font metrics on the track at the given time.
+    pub fn set_metrics(&mut self, time_ms: u64, ascent: f32, descent: f32, baseline: f32) {
+        use crate::easing::Easing;
+        self.ascent.ensure(0.0).add_keyframe(time_ms, ascent, Easing::Linear);
+        self.descent.ensure(0.0).add_keyframe(time_ms, descent, Easing::Linear);
+        self.baseline.ensure(0.0).add_keyframe(time_ms, baseline, Easing::Linear);
     }
 
     // ── Path evaluation ──

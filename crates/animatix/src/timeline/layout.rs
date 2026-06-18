@@ -33,7 +33,7 @@ use crate::renderer::text::TextKind;
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
 use tracing::warn;
 
-use super::taffy_layout::{compute_taffy_linear_layout, compute_taffy_grid_layout};
+use super::taffy_layout::{compute_taffy_linear_layout, compute_taffy_linear_layout_with_baselines, compute_taffy_grid_layout};
 
 /// Represents a child's layout-relevant size at a specific point in time.
 #[derive(Clone, Debug)]
@@ -76,6 +76,8 @@ fn compute_linear_layout(
     gap: [f32; 2],
     padding: [f32; 4],
     align: &str,
+    metadata: &ContainerMetadata,
+    child_baselines: &[f32],
 ) -> Vec<[f32; 2]> {
     let layout_type = if is_row {
         super::LayoutType::Row
@@ -83,7 +85,10 @@ fn compute_linear_layout(
         super::LayoutType::Col
     };
 
-    let output = compute_taffy_linear_layout(children, layout_type, gap, padding, align);
+    let output = compute_taffy_linear_layout_with_baselines(
+        children, layout_type, gap, padding, align,
+        child_baselines, &metadata.vertical_align,
+    );
     output.positions.into_iter().map(|r| r.position).collect()
 }
 
@@ -165,6 +170,17 @@ impl LayoutEngine {
         metadata: &ContainerMetadata,
         children: &[ChildExtent],
     ) -> Vec<[f32; 2]> {
+        Self::compute_positions_with_baselines(metadata, children, &[])
+    }
+
+    /// Like `compute_positions` but supports baseline alignment.
+    /// `child_baselines` are per-child baseline offsets from text center (f32).
+    /// Empty slice means no baseline info available.
+    pub(crate) fn compute_positions_with_baselines(
+        metadata: &ContainerMetadata,
+        children: &[ChildExtent],
+        child_baselines: &[f32],
+    ) -> Vec<[f32; 2]> {
         let is_row = metadata.layout_type == super::LayoutType::Row;
         let is_col = metadata.layout_type == super::LayoutType::Col;
         let is_stack = metadata.layout_type == super::LayoutType::Stack;
@@ -184,7 +200,7 @@ impl LayoutEngine {
                 metadata.cols.unwrap_or(1).max(1),
             )
         } else {
-            compute_linear_layout(children, is_row, metadata.gap, metadata.padding, &metadata.align)
+            compute_linear_layout(children, is_row, metadata.gap, metadata.padding, &metadata.align, metadata, child_baselines)
         }
     }
 
@@ -233,7 +249,17 @@ impl LayoutEngine {
             }
         }
 
-        let positions = Self::compute_positions(metadata, &child_extents);
+        // Sample child baselines for baseline alignment
+        let child_baselines: Vec<f32> = layout_children
+            .iter()
+            .map(|child| {
+                tracks.get(&child.label)
+                    .map(|t| t.baseline_get(time_ms))
+                    .unwrap_or(0.0)
+            })
+            .collect();
+
+        let positions = Self::compute_positions_with_baselines(metadata, &child_extents, &child_baselines);
 
         // Build result BTreeMap, only including LayoutManaged children
         let mut result = BTreeMap::new();
@@ -448,8 +474,8 @@ impl Timeline {
             }
         };
 
-        let new_paths = crate::renderer::text::extract_glyphs(&frame);
-        let new_half_size = crate::renderer::text::measure_text_paths(&new_paths);
+        let compiled = crate::renderer::text::extract_glyphs_with_metrics(&frame);
+        let new_half_size = crate::renderer::text::measure_text_paths(&compiled.glyphs);
 
         tracing::debug!(
             "Width propagation: text '{}' remeasured to half_size={:?}",
@@ -463,12 +489,13 @@ impl Timeline {
         // Update max_width track
         track.max_width.ensure(0.0).add_keyframe(time_ms, effective_max_width, Easing::Linear);
 
-        // Update text_paths, size, and layout_size tracks
-        track.text_paths.ensure(Vec::new()).add_keyframe(time_ms, new_paths, Easing::Linear);
+        // Update text_paths, size, layout_size, and metrics tracks
+        track.text_paths.ensure(Vec::new()).add_keyframe(time_ms, compiled.glyphs, Easing::Linear);
         track.size.ensure(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
             .add_keyframe(time_ms, new_half_size, Easing::Linear);
         track.ensure_layout_size(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
             .add_keyframe(time_ms, new_half_size, Easing::Linear);
+        track.set_metrics(time_ms, compiled.ascent, compiled.descent, compiled.baseline_offset);
     }
 
     /// Compute available width for a text child based on container type.
@@ -674,7 +701,17 @@ impl Timeline {
 
         let t_ms = time_ms as u64;
 
-        let positions = LayoutEngine::compute_positions(&metadata, &child_extents);
+        // Sample child baselines for baseline alignment
+        let child_baselines: Vec<f32> = children
+            .iter()
+            .map(|cl| {
+                self.tracks.get(&cl.label)
+                    .map(|t| t.baseline_get(t_ms))
+                    .unwrap_or(0.0)
+            })
+            .collect();
+
+        let positions = LayoutEngine::compute_positions_with_baselines(&metadata, &child_extents, &child_baselines);
 
         // Write positions to tracks, only for LayoutManaged children
         for (i, child) in children.iter().enumerate() {

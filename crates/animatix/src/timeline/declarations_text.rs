@@ -485,8 +485,19 @@ impl Timeline {
                 "visible",
             )?,
         };
-        let new_paths = crate::renderer::text::extract_glyphs(&frame);
+        let compiled = crate::renderer::text::extract_glyphs_with_metrics(&frame);
+        let new_paths = compiled.glyphs;
         let new_half_size = crate::renderer::text::measure_text_paths(&new_paths);
+
+        // Store font metrics on the track for baseline alignment
+        // Metrics are set at t_end_ms (when new text appears).
+        // For animated transitions, the metrics don't interpolate (text changes discretely).
+        track.set_metrics(
+            t_end_ms,
+            compiled.ascent,
+            compiled.descent,
+            compiled.baseline_offset,
+        );
 
         if duration_ms > 0.0 {
             let start_val = track.evaluate_text_paths(t_start_ms);

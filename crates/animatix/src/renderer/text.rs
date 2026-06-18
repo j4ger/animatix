@@ -8,7 +8,6 @@ use kurbo::{Affine, BezPath, Point, Shape};
 
 /// Font metrics extracted from `ttf_parser::Face`.
 /// Used by the plain-text fast path to compute line layout.
-#[allow(dead_code)] // Reserved for Phase 6 multi-line text layout
 pub struct TextMetrics {
     /// Ascent in font units (positive).
     pub ascent: f32,
@@ -18,6 +17,23 @@ pub struct TextMetrics {
     pub line_gap: f32,
     /// Units per em from the font face.
     pub units_per_em: f32,
+}
+
+/// Compiled text output containing glyph paths and font metrics.
+///
+/// The glyph paths are centered around (0, 0) for layout positioning.
+/// The metrics provide baseline information for vertical alignment.
+#[derive(Clone)]
+pub struct CompiledText {
+    /// Glyph paths, centered around the origin.
+    pub glyphs: Vec<TextPath>,
+    /// Font ascent in scene units (points), i.e. distance from baseline to top of em.
+    pub ascent: f32,
+    /// Font descent in scene units (points), i.e. distance from baseline to bottom of em (negative).
+    pub descent: f32,
+    /// Offset of the baseline from the text's center (0, 0) after centering.
+    /// A positive value means the baseline is above the center.
+    pub baseline_offset: f32,
 }
 
 use typst::World;
@@ -603,12 +619,73 @@ pub fn compile_code(
     Ok(document.pages[0].frame.clone())
 }
 
+/// Extract font ascent and descent from a Typst frame (uses the first text item found).
+/// Returns (ascent, descent) in scene units (points).
+pub fn extract_frame_metrics(frame: &Frame) -> (f32, f32) {
+    // Walk the frame to find the first text item with a usable font
+    let mut result: Option<(f32, f32)> = None;
+    let mut stack: Vec<(&Frame, Transform)> = vec![(frame, Transform::identity())];
+
+    while let Some((current, current_transform)) = stack.pop() {
+        for (_pos, item) in current.items() {
+            match item {
+                FrameItem::Group(group) => {
+                    let group_transform = current_transform.pre_concat(group.transform);
+                    stack.push((&group.frame, group_transform));
+                },
+                FrameItem::Text(text) => {
+                    let size = text.size.to_pt() as f32;
+                    let face = text.font.ttf();
+                    let units_per_em = text.font.units_per_em() as f32;
+                    let font_scale = size / units_per_em;
+                    let ascent = face.ascender() as f32 * font_scale;
+                    let descent = face.descender() as f32 * font_scale;
+                    result = Some((ascent, descent));
+                    break;
+                },
+                _ => {},
+            }
+        }
+        if result.is_some() {
+            break;
+        }
+    }
+
+    result.unwrap_or((0.0, 0.0))
+}
+
 /// Extract glyph paths from a Typst frame.
 pub fn extract_glyphs(frame: &Frame) -> Vec<TextPath> {
     let mut glyphs = Vec::new();
     walk_frame_for_glyphs(frame, Transform::identity(), &mut glyphs);
-    center_text_paths(&mut glyphs);
+    let _ = center_text_paths(&mut glyphs);
     glyphs
+}
+
+/// Extract glyph paths and font metrics from a Typst frame.
+pub fn extract_glyphs_with_metrics(frame: &Frame) -> CompiledText {
+    let mut glyphs = Vec::new();
+    walk_frame_for_glyphs(frame, Transform::identity(), &mut glyphs);
+
+    // Compute bounding box BEFORE centering
+    let mut min_y = f64::INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+    for glyph in &glyphs {
+        let bounds = glyph.path.bounding_box();
+        min_y = min_y.min(bounds.y0);
+        max_y = max_y.max(bounds.y1);
+    }
+
+    let baseline_offset = center_text_paths(&mut glyphs);
+
+    let (ascent, descent) = extract_frame_metrics(frame);
+
+    CompiledText {
+        glyphs,
+        ascent,
+        descent,
+        baseline_offset,
+    }
 }
 
 /// Extract glyphs from a Typst frame, grouped by top-level `FrameItem::Group`.
@@ -705,7 +782,11 @@ fn walk_frame_for_glyphs_text_item(
 /// Centers text paths around the origin so that layout positioning works correctly.
 /// The layout system positions children by their center point, so text needs to be
 /// centered around (0, 0) for layout alignment to work properly.
-pub fn center_text_paths(paths: &mut [TextPath]) {
+///
+/// Returns the Y offset of the baseline relative to the new center (0, 0).
+/// The baseline was at Y=0 in the pre-centering coordinate system (Typst/fast-path convention).
+/// After centering, the baseline is at Y = `-(min_y + max_y) / 2.0`.
+pub fn center_text_paths(paths: &mut [TextPath]) -> f32 {
     let mut min_x = f64::INFINITY;
     let mut max_x = f64::NEG_INFINITY;
     let mut min_y = f64::INFINITY;
@@ -727,6 +808,11 @@ pub fn center_text_paths(paths: &mut [TextPath]) {
         for path in paths.iter_mut() {
             path.path.apply_affine(offset);
         }
+
+        // Baseline was at Y=0 before centering; after shifting by -center_y, it is at -center_y.
+        -(center_y as f32)
+    } else {
+        0.0
     }
 }
 
@@ -884,8 +970,7 @@ pub fn is_latin_text(content: &str) -> bool {
 /// bypassing Typst entirely. This is the fast path.
 ///
 /// The returned paths use the same coordinate convention as `extract_glyphs`
-/// (centered around origin), so `center_text_paths` and `measure_text_paths`
-/// work unchanged.
+/// (centered around origin), so `measure_text_paths` works unchanged.
 pub fn compile_text_fast(
     content: &str,
     family: &str,
@@ -896,7 +981,7 @@ pub fn compile_text_fast(
     letter_spacing: f32,
     word_spacing: f32,
     font_ctx: &FontContext,
-) -> Result<(Vec<TextPath>, TextMetrics), RenderError> {
+) -> Result<CompiledText, RenderError> {
     let resolved_family = resolve_font_family(family, font_ctx);
     let face = font_ctx.load_face(&resolved_family, weight, style).ok_or_else(|| {
         RenderError::TextCompilation(format!(
@@ -993,9 +1078,18 @@ pub fn compile_text_fast(
     }
 
     // Center paths around origin (same as center_text_paths)
-    center_text_paths(&mut glyphs);
+    // capture baseline offset: was at Y=0 before centering
+    let baseline_offset = center_text_paths(&mut glyphs);
 
-    Ok((glyphs, metrics))
+    let ascent_scaled = ascent * font_scale;
+    let descent_scaled = descent * font_scale;
+
+    Ok(CompiledText {
+        glyphs,
+        ascent: ascent_scaled,
+        descent: descent_scaled,
+        baseline_offset,
+    })
 }
 
 
@@ -1016,7 +1110,7 @@ pub fn compile_text_fast_wrapped(
     max_width: f32,
     text_align: &str,
     overflow: &str,
-) -> Result<(Vec<TextPath>, TextMetrics), RenderError> {
+) -> Result<CompiledText, RenderError> {
     let resolved_family = resolve_font_family(family, font_ctx);
     let face = font_ctx.load_face(&resolved_family, weight, style).ok_or_else(|| {
         RenderError::TextCompilation(format!(
@@ -1053,7 +1147,12 @@ pub fn compile_text_fast_wrapped(
     // Split content into words (preserve spaces as word boundaries)
     let words: Vec<&str> = content.split(' ').collect();
     if words.is_empty() {
-        return Ok((Vec::new(), metrics));
+        return Ok(CompiledText {
+            glyphs: Vec::new(),
+            ascent: ascent * font_scale,
+            descent: descent * font_scale,
+            baseline_offset: 0.0,
+        });
     }
 
     // Pre-compute advance widths for each word
@@ -1110,7 +1209,12 @@ pub fn compile_text_fast_wrapped(
     }
 
     if word_infos.is_empty() {
-        return Ok((Vec::new(), metrics));
+        return Ok(CompiledText {
+            glyphs: Vec::new(),
+            ascent: ascent * font_scale,
+            descent: descent * font_scale,
+            baseline_offset: 0.0,
+        });
     }
 
     // Greedy word-wrap: pack words into lines
@@ -1252,9 +1356,17 @@ pub fn compile_text_fast_wrapped(
     }
 
     // Center all paths around origin
-    center_text_paths(&mut glyphs);
+    let baseline_offset = center_text_paths(&mut glyphs);
 
-    Ok((glyphs, metrics))
+    let ascent_scaled = ascent * font_scale;
+    let descent_scaled = descent * font_scale;
+
+    Ok(CompiledText {
+        glyphs,
+        ascent: ascent_scaled,
+        descent: descent_scaled,
+        baseline_offset,
+    })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1385,7 +1497,7 @@ impl TextCompiler {
                 "TextCompiler: using fast path for '{}' (family={}, size={}, max_width={}, text_align={}, overflow={})",
                 content, font_family, font_size, max_width, text_align, overflow
             );
-            let (paths_vec, _metrics) = if max_width > 0.0 {
+            let compiled = if max_width > 0.0 {
                 tracing::debug!("TextCompiler: wrapping at {}pt", max_width);
                 compile_text_fast_wrapped(
                     content,
@@ -1414,6 +1526,7 @@ impl TextCompiler {
                     font_ctx,
                 )?
             };
+            let paths_vec = compiled.glyphs;
             let paths: std::sync::Arc<[TextPath]> = paths_vec.into();
             self.cache.insert(key, std::sync::Arc::clone(&paths));
             return Ok(paths);
@@ -1543,7 +1656,7 @@ mod tests {
         assert!(font_ctx.load_face(family, 400.0, "normal").is_some(),
             "Open Sans font should be loadable");
 
-        let (paths, metrics) = compile_text_fast(
+        let compiled = compile_text_fast(
             "Hello",
             family,
             400.0,  // weight
@@ -1556,11 +1669,11 @@ mod tests {
             ).expect("fast path should succeed");
 
         // Should produce at least one glyph path per character
-        assert!(!paths.is_empty(), "Should produce glyph paths");
+        assert!(!compiled.glyphs.is_empty(), "Should produce glyph paths");
 
         // Metrics should be populated
-        assert!(metrics.units_per_em > 0.0);
-        assert!(metrics.ascent > 0.0);
+        assert!(compiled.ascent > 0.0);
+        assert!(compiled.descent < 0.0);
     }
 
     #[test]
@@ -1572,7 +1685,7 @@ mod tests {
         assert!(font_ctx.load_face(family, 700.0, "normal").is_some(),
             "Open Sans bold should be loadable");
 
-        let (paths, _metrics) = compile_text_fast(
+        let compiled = compile_text_fast(
             "Bold Text",
             family,
             700.0,  // bold
@@ -1584,7 +1697,7 @@ mod tests {
             &font_ctx,
             ).expect("bold fast path should succeed");
 
-        assert!(!paths.is_empty(), "Bold text should produce glyph paths");
+        assert!(!compiled.glyphs.is_empty(), "Bold text should produce glyph paths");
     }
 
     #[test]
@@ -1598,9 +1711,10 @@ mod tests {
         let color = [1.0, 1.0, 1.0, 1.0];
 
         // Fast path
-        let (fast_paths, _metrics) = compile_text_fast(
+        let fast_compiled = compile_text_fast(
             text, family, 400.0, "normal", size, color, 0.0, 0.0, &font_ctx,
             ).expect("fast path should succeed");
+        let fast_paths = fast_compiled.glyphs;
 
         // Typst path
         let typst_color = typst::visualize::Color::from_u8(255, 255, 255, 255);
@@ -1763,15 +1877,17 @@ mod tests {
         // Verify that letter_spacing affects the total width.
         let font_ctx = test_font_ctx();
 
-        let (paths_no_spacing, _) = compile_text_fast(
+        let compiled_no_spacing = compile_text_fast(
             "AB", "Open Sans", 400.0, "normal", 48.0,
             [1.0; 4], 0.0, 0.0, &font_ctx,
         ).unwrap();
+        let paths_no_spacing = compiled_no_spacing.glyphs;
 
-        let (paths_with_spacing, _) = compile_text_fast(
+        let compiled_with_spacing = compile_text_fast(
             "AB", "Open Sans", 400.0, "normal", 48.0,
             [1.0; 4], 10.0, 0.0, &font_ctx,  // 10pt letter spacing
         ).unwrap();
+        let paths_with_spacing = compiled_with_spacing.glyphs;
 
         let bbox_no = measure_text_paths(&paths_no_spacing);
         let bbox_with = measure_text_paths(&paths_with_spacing);
@@ -1800,13 +1916,13 @@ mod tests {
     #[test]
     fn compile_text_fast_empty_string() {
         let font_ctx = test_font_ctx();
-        let (paths, metrics) = compile_text_fast(
+        let compiled = compile_text_fast(
             "", "Open Sans", 400.0, "normal", 48.0,
             [1.0; 4], 0.0, 0.0, &font_ctx,
         ).unwrap();
 
-        assert!(paths.is_empty(), "Empty string should produce no paths");
-        assert!(metrics.units_per_em > 0.0);
+        assert!(compiled.glyphs.is_empty(), "Empty string should produce no paths");
+        assert!(compiled.ascent == 0.0, "Empty string should have zero ascent");
     }
 
     #[test]
@@ -1814,17 +1930,19 @@ mod tests {
         // A long string wrapped at narrow width should produce multiple lines
         let font_ctx = test_font_ctx();
         let text = "Hello world this is a long string that should wrap";
-        let (paths_single, _) = compile_text_fast(
+        let compiled_single = compile_text_fast(
             text, "Open Sans", 400.0, "normal", 24.0,
             [1.0; 4], 0.0, 0.0, &font_ctx,
         ).unwrap();
+        let paths_single = compiled_single.glyphs;
 
         // With a narrow max_width, wrapping should produce more glyphs due to vertical layout
-        let (paths_wrapped, _) = compile_text_fast_wrapped(
+        let compiled_wrapped = compile_text_fast_wrapped(
             text, "Open Sans", 400.0, "normal", 24.0,
             [1.0; 4], 0.0, 0.0, &font_ctx,
             50.0, "left", "visible",
         ).unwrap();
+        let paths_wrapped = compiled_wrapped.glyphs;
 
         // Wrapped text should produce glyphs
         assert!(!paths_wrapped.is_empty(), "Wrapped text should produce glyphs");
@@ -1847,25 +1965,28 @@ mod tests {
         let text = "left center right";
 
         // Left-aligned: first glyph starts near x = -max_width/2
-        let (paths_left, _) = compile_text_fast_wrapped(
+        let compiled_left = compile_text_fast_wrapped(
             text, "Open Sans", 400.0, "normal", 24.0,
             [1.0; 4], 0.0, 0.0, &font_ctx,
             200.0, "left", "visible",
         ).unwrap();
+        let paths_left = compiled_left.glyphs;
 
         // Center-aligned
-        let (paths_center, _) = compile_text_fast_wrapped(
+        let compiled_center = compile_text_fast_wrapped(
             text, "Open Sans", 400.0, "normal", 24.0,
             [1.0; 4], 0.0, 0.0, &font_ctx,
             200.0, "center", "visible",
         ).unwrap();
+        let paths_center = compiled_center.glyphs;
 
         // Right-aligned
-        let (paths_right, _) = compile_text_fast_wrapped(
+        let compiled_right = compile_text_fast_wrapped(
             text, "Open Sans", 400.0, "normal", 24.0,
             [1.0; 4], 0.0, 0.0, &font_ctx,
             200.0, "right", "visible",
         ).unwrap();
+        let paths_right = compiled_right.glyphs;
 
         assert!(!paths_left.is_empty());
         assert!(!paths_center.is_empty());
@@ -1890,17 +2011,19 @@ mod tests {
         let font_ctx = test_font_ctx();
         let text = "NoWrapTest";
 
-        let (paths_normal, _) = compile_text_fast(
+        let compiled_normal = compile_text_fast(
             text, "Open Sans", 400.0, "normal", 24.0,
             [1.0; 4], 0.0, 0.0, &font_ctx,
         ).unwrap();
+        let paths_normal = compiled_normal.glyphs;
 
         // Wrapping with very large max_width (effectively no wrap) should match single-line
-        let (paths_wide, _) = compile_text_fast_wrapped(
+        let compiled_wide = compile_text_fast_wrapped(
             text, "Open Sans", 400.0, "normal", 24.0,
             [1.0; 4], 0.0, 0.0, &font_ctx,
             10000.0, "left", "visible",
         ).unwrap();
+        let paths_wide = compiled_wide.glyphs;
 
         // Both should produce the same number of glyphs
         assert_eq!(

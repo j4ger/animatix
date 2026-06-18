@@ -133,6 +133,7 @@ impl Primitive for StackPrimitive {
             align.as_deref(),
             None,
             ctx.diagnostics,
+            None, // vertical_align not applicable for Stack
         );
 
         Ok(())

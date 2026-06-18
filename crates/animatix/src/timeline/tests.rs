@@ -1367,3 +1367,57 @@ fn test_stack_align_start_and_end() {
     assert_eq!(positions_end[0], [50.0, 30.0]);
     assert_eq!(positions_end[1], [40.0, 20.0]);
 }
+
+#[test]
+fn test_baseline_alignment_via_layout_engine() {
+    // Integration test: LayoutEngine::compute_positions_with_baselines
+    use crate::timeline::layout::{ChildExtent, LayoutEngine};
+    use crate::timeline::{ContainerMetadata, LayoutType, PlacementMode};
+
+    let children = vec![
+        ChildExtent { label: "a".to_string(), half_size: [50.0, 30.0], placement_mode: PlacementMode::LayoutManaged },
+        ChildExtent { label: "b".to_string(), half_size: [40.0, 20.0], placement_mode: PlacementMode::LayoutManaged },
+    ];
+
+    let metadata = ContainerMetadata {
+        layout_type: LayoutType::Row,
+        gap: [0.0, 0.0],
+        padding: [0.0, 0.0, 0.0, 0.0],
+        align: "center".to_string(),
+        vertical_align: "baseline".to_string(),
+        cols: None,
+        child_order: vec!["a".to_string(), "b".to_string()],
+    };
+
+    // Baseline alignment
+    let child_baselines = vec![-8.0, -4.0];
+    let positions = LayoutEngine::compute_positions_with_baselines(
+        &metadata, &children, &child_baselines,
+    );
+
+    assert_eq!(positions.len(), 2);
+    // Baselines should differ from center-aligned positions
+    // The child with baseline=-8 (larger offset from center) should adjust more
+    assert!(
+        (positions[0][1]).abs() > 0.01 || (positions[1][1]).abs() > 0.01,
+        "Baseline alignment should produce non-zero Y adjustments"
+    );
+
+    // With empty baselines, should behave like center
+    let positions_no_baselines = LayoutEngine::compute_positions_with_baselines(
+        &metadata, &children, &[],
+    );
+    assert!((positions_no_baselines[0][1]).abs() < 0.01);
+    assert!((positions_no_baselines[1][1]).abs() < 0.01);
+
+    // Center vertical_align should not adjust Y
+    let metadata_center = ContainerMetadata {
+        vertical_align: "center".to_string(),
+        ..metadata.clone()
+    };
+    let positions_center = LayoutEngine::compute_positions_with_baselines(
+        &metadata_center, &children, &child_baselines,
+    );
+    assert!((positions_center[0][1]).abs() < 0.01);
+    assert!((positions_center[1][1]).abs() < 0.01);
+}

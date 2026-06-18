@@ -117,6 +117,18 @@ impl Primitive for ColPrimitive {
             }
         }
 
+        // Parse vertical_align property
+        let mut vertical_align: Option<String> = None;
+        for prop in props {
+            if prop.name == "vertical_align" {
+                if let Expr::Str(s) = &prop.value {
+                    vertical_align = Some(s.clone());
+                } else if let Expr::Ident(s) = &prop.value {
+                    vertical_align = Some(s.clone());
+                }
+            }
+        }
+
         ctx.timeline.register_container_metadata_and_apply_layout(
             label,
             self.type_name(),
@@ -126,6 +138,7 @@ impl Primitive for ColPrimitive {
             align.as_deref(),
             None,
             ctx.diagnostics,
+            vertical_align.as_deref(),
         );
 
         Ok(())

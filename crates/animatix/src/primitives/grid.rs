@@ -134,6 +134,7 @@ impl Primitive for GridPrimitive {
             align.as_deref(),
             cols,
             ctx.diagnostics,
+            None, // vertical_align not applicable for Grid
         );
 
         Ok(())
