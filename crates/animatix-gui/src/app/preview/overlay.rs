@@ -281,7 +281,7 @@ pub fn render_layout_debug(
                 })
                 .collect();
 
-            if children_ordered.len() >= 2 && gap > 0.0 {
+            if children_ordered.len() >= 2 && gap.iter().any(|&g| g > 0.0) {
                 for pair in children_ordered.windows(2) {
                     let (pos_a, size_a) = pair[0];
                     let (pos_b, size_b) = pair[1];

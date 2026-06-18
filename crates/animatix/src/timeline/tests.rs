@@ -1472,7 +1472,6 @@ fn test_percentage_child_sizing_row() {
 #[test]
 fn test_min_max_constraints() {
     use crate::timeline::layout::ChildExtent;
-    use crate::timeline::taffy_layout::SizeConstraints;
     // Child with min_width: 100, max_width: 200
     let children = vec![
         ChildExtent { label: "a".into(), half_size: [150.0, 25.0], placement_mode: PlacementMode::LayoutManaged },
@@ -1513,7 +1512,7 @@ fn test_min_max_constraints() {
 
 #[test]
 fn test_parse_size_spec_from_property() {
-    use crate::timeline::taffy_layout::{parse_size_spec, SizeSpec, ChildSizeSpec};
+    use crate::timeline::taffy_layout::{parse_size_spec, SizeSpec};
     use crate::ast::Expr;
 
     // size: (50%, 40)

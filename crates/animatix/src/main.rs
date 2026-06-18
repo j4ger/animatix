@@ -1,12 +1,14 @@
 use animatix::composition::BuildTarget;
-use animatix_syntax::diagnostics::{format_diagnostic, format_diagnostic_with_source, Diagnostic, DiagnosticCode, DiagnosticPhase};
+use animatix_syntax::diagnostics::{format_diagnostic_with_source, Diagnostic, DiagnosticCode, DiagnosticPhase};
 use animatix_syntax::module::ModuleGraph;
+#[cfg(feature = "video")]
 use animatix::renderer;
+#[cfg(feature = "video")]
 use animatix::timeline::DebugRenderOptions;
 use clap::{Parser as ClapParser, Subcommand, ValueEnum};
 use std::path::Path;
 use std::path::PathBuf;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
 #[derive(ClapParser, Debug)]
@@ -50,6 +52,7 @@ enum Commands {
     },
 
     /// Render a specific frame to an image file (PNG)
+    #[cfg(feature = "video")]
     Image {
         /// The input Animatix scene file (.amx)
         input: PathBuf,
@@ -75,6 +78,7 @@ enum Commands {
         debug_bounds: bool,
     },
     /// Render a scene to a video file
+    #[cfg(feature = "video")]
     Video {
         /// The input Animatix scene file (.amx)
         input: PathBuf,
@@ -120,6 +124,7 @@ enum Commands {
         preset: renderer::H264Preset,
     },
     /// Render a scene to an animated GIF file
+    #[cfg(feature = "video")]
     Gif {
         /// The input Animatix scene file (.amx)
         input: PathBuf,
@@ -210,6 +215,7 @@ enum Commands {
 /// Loads an Animatix program from disk, expands components, and builds the
 /// appropriate target (single-scene `Timeline` or multi-scene `Composition`).
 /// Prints build diagnostics and exits on load failure.
+#[cfg(feature = "video")]
 fn load_and_build(input: &Path) -> (BuildTarget, Vec<animatix_syntax::diagnostics::Diagnostic>) {
     let (ast, namespaces, type_diagnostics) = match ModuleGraph::new().load_program(input) {
         Ok(mut program) => {
@@ -230,6 +236,7 @@ fn load_and_build(input: &Path) -> (BuildTarget, Vec<animatix_syntax::diagnostic
 }
 
 /// Resolves export duration for a `BuildTarget` (single or multi-scene).
+#[cfg(feature = "video")]
 fn resolve_duration(duration: Option<f32>, target: &BuildTarget, hold: f32, min_duration: f32) -> f32 {
     duration.unwrap_or_else(|| {
         let d = target.duration_s() as f32 + hold.max(0.0);
@@ -238,6 +245,7 @@ fn resolve_duration(duration: Option<f32>, target: &BuildTarget, hold: f32, min_
 }
 
 /// Generates a timestamped default filename when `--output` is omitted.
+#[cfg(feature = "video")]
 fn default_output_file(ext: &str) -> PathBuf {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -333,6 +341,7 @@ fn main() {
         .init();
 
     match args.command {
+        #[cfg(feature = "video")]
         Commands::Gif {
             input,
             width,
@@ -386,6 +395,7 @@ fn main() {
             }
         }
 
+        #[cfg(feature = "video")]
         Commands::Video {
             input,
             width,
@@ -469,6 +479,7 @@ fn main() {
 
 
 
+        #[cfg(feature = "video")]
         Commands::Image {
             input,
             width,
@@ -786,6 +797,7 @@ fn diagnostic_to_json(d: &Diagnostic) -> String {
     )
 }
 
+#[cfg(feature = "video")]
 fn print_build_diagnostics(diagnostics: &[Diagnostic]) {
     for diagnostic in diagnostics {
         let formatted = format_diagnostic(diagnostic);

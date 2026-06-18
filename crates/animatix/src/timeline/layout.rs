@@ -33,7 +33,7 @@ use crate::renderer::text::TextKind;
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
 use tracing::warn;
 
-use super::taffy_layout::{compute_taffy_linear_layout, compute_taffy_linear_layout_with_baselines, compute_taffy_grid_layout, ChildSizeSpec, SizeConstraints};
+use super::taffy_layout::{compute_taffy_linear_layout, compute_taffy_linear_layout_with_baselines, compute_taffy_linear_layout_with_specs, compute_taffy_grid_layout, compute_taffy_grid_layout_with_specs, ChildSizeSpec, SizeConstraints};
 
 /// Represents a child's layout-relevant size at a specific point in time.
 #[derive(Clone, Debug)]
@@ -598,7 +598,7 @@ impl Timeline {
         &self,
         container_size: [f32; 2],
         metadata: &ContainerMetadata,
-        child_index: usize,
+        _child_index: usize,
     ) -> f32 {
         let padding_h = metadata.padding[0] + metadata.padding[2]; // left + right
 

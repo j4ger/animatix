@@ -25,7 +25,7 @@ pub mod text;
 #[cfg(feature = "video")]
 /// Video/GIF export rendering.
 pub mod video;
-#[cfg(feature = "render")]
+#[cfg(feature = "video")]
 /// High-level render pipeline orchestration.
 pub mod render_pipeline;
 #[cfg(feature = "video")]

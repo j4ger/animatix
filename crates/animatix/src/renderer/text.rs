@@ -342,7 +342,7 @@ impl World for TypstWorld {
 }
 
 /// Compile Typst math markup into a frame.
-
+///
 /// Build a Typst `#set text(...)` rule string from the given typography parameters.
 fn typst_text_set_rules(
     font_weight: f32,
@@ -460,6 +460,10 @@ pub fn parse_font_weight(value: &str) -> f32 {
     }
 }
 
+/// Compile a math expression string (Typst math syntax) into a rendered frame.
+///
+/// Uses Typst's layout engine to parse and render the math expression, returning
+/// a [`Frame`] containing the positioned glyphs ready for Vello scene assembly.
 pub fn compile_math(
     math: &str,
     font_size: f32,
@@ -1125,7 +1129,7 @@ pub fn compile_text_fast_wrapped(
     let ascent = face.ascender() as f32;
     let descent = face.descender() as f32;
     let line_gap = face.line_gap() as f32;
-    let metrics = TextMetrics {
+    let _metrics = TextMetrics {
         ascent,
         descent,
         line_gap,
@@ -1157,6 +1161,7 @@ pub fn compile_text_fast_wrapped(
 
     // Pre-compute advance widths for each word
     struct WordInfo {
+        #[allow(dead_code)] // Reserved for debug/annotation use
         text: String,
         width: f64, // total advance in scene coords
         glyphs: Vec<(ttf_parser::GlyphId, f64, f64)>, // (glyph_id, advance, x_offset at build time)
@@ -1180,7 +1185,7 @@ pub fn compile_text_fast_wrapped(
         for c in w.chars() {
             if let Some(gid) = face.glyph_index(c) {
                 let raw_adv = face.glyph_hor_advance(gid).unwrap_or(0) as f32;
-                let mut adv = raw_adv * font_scale + letter_spacing;
+                let adv = raw_adv * font_scale + letter_spacing;
 
                 // Kerning
                 if let Some(prev) = prev_gid {
@@ -1333,7 +1338,7 @@ pub fn compile_text_fast_wrapped(
                 let ellipsis_gid = Some(ellipsis_gid).or_else(|| face.glyph_index('.'));
                 if let Some(gid) = ellipsis_gid {
                     let raw_adv = face.glyph_hor_advance(gid).unwrap_or(0) as f32;
-                    let adv = raw_adv * font_scale;
+                    let _adv = raw_adv * font_scale;
                     let mut builder = PathBuilder(BezPath::new());
                     if face.outline_glyph(gid, &mut builder).is_some() {
                         let path = builder.0;
@@ -1995,7 +2000,7 @@ mod tests {
         // All should produce glyphs (sanity check)
         let bbox_left = measure_text_paths(&paths_left);
         let bbox_center = measure_text_paths(&paths_center);
-        let bbox_right = measure_text_paths(&paths_right);
+        let _bbox_right = measure_text_paths(&paths_right);
 
         // Widths should be roughly equal
         assert!(

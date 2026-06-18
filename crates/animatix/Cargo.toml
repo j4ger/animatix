@@ -6,7 +6,7 @@ rust-version = "1.85"
 
 [features]
 default = ["render", "video", "text", "svg"]
-render = ["dep:wgpu", "dep:vello", "dep:bytemuck", "dep:pollster"]
+render = ["dep:wgpu", "dep:vello", "dep:bytemuck", "dep:pollster", "dep:image"]
 video = ["dep:rsmpeg", "dep:image"]
 text = ["dep:typst", "dep:typst-layout", "dep:fontdb", "dep:ttf-parser"]
 svg = ["dep:usvg", "dep:roxmltree"]
@@ -24,7 +24,7 @@ image = { version = "0.25.10", default-features = false, features = ["png", "gif
 kurbo = "0.13.0"
 pollster = { version = "0.4.0", optional = true }
 roxmltree = { version = "0.20.0", optional = true }
-rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg7_1", "link_system_ffmpeg"], optional = true }
+rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg8", "link_system_ffmpeg"], optional = true }
 ttf-parser = { version = "0.25.1", optional = true }
 typst = { version = "0.14.2", optional = true }
 typst-layout = { version = "0.14.2", optional = true }

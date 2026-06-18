@@ -26,6 +26,9 @@ use taffy::prelude::*;
 use crate::timeline::layout::ChildExtent;
 use crate::timeline::LayoutType;
 
+#[cfg(test)]
+use crate::timeline::layout::compute_container_size;
+
 /// Describes how a single dimension (width or height) of a child should be sized.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SizeSpec {
@@ -43,11 +46,11 @@ pub enum SizeSpec {
 
 impl SizeSpec {
     /// Resolve this SizeSpec against a parent dimension (content box size).
-    pub fn resolve(&self, parent_dim: f32) -> Dimension {
+    pub fn resolve(&self, _parent_dim: f32) -> Dimension {
         match self {
             SizeSpec::Fixed(v) => Dimension::length(*v),
             SizeSpec::Percent(pct) => Dimension::percent(*pct),
-            SizeSpec::Auto | SizeSpec::Fit => Dimension::Auto,
+            SizeSpec::Auto | SizeSpec::Fit => Dimension::auto(),
             SizeSpec::Fill => Dimension::percent(1.0),
         }
     }
@@ -180,19 +183,19 @@ fn build_child_style(
             height: spec.height.resolve(parent_content_size[1]),
         },
         min_size: Size {
-            width: constraints.min_width.map_or(Dimension::Auto, |v| {
-                if v == 0.0 { Dimension::Auto } else { Dimension::length(v) }
+            width: constraints.min_width.map_or(Dimension::auto(), |v| {
+                if v == 0.0 { Dimension::auto() } else { Dimension::length(v) }
             }),
-            height: constraints.min_height.map_or(Dimension::Auto, |v| {
-                if v == 0.0 { Dimension::Auto } else { Dimension::length(v) }
+            height: constraints.min_height.map_or(Dimension::auto(), |v| {
+                if v == 0.0 { Dimension::auto() } else { Dimension::length(v) }
             }),
         },
         max_size: Size {
-            width: constraints.max_width.map_or(Dimension::Auto, |v| {
-                if v.is_infinite() || v.is_nan() { Dimension::Auto } else { Dimension::length(v) }
+            width: constraints.max_width.map_or(Dimension::auto(), |v| {
+                if v.is_infinite() || v.is_nan() { Dimension::auto() } else { Dimension::length(v) }
             }),
-            height: constraints.max_height.map_or(Dimension::Auto, |v| {
-                if v.is_infinite() || v.is_nan() { Dimension::Auto } else { Dimension::length(v) }
+            height: constraints.max_height.map_or(Dimension::auto(), |v| {
+                if v.is_infinite() || v.is_nan() { Dimension::auto() } else { Dimension::length(v) }
             }),
         },
         ..Default::default()
@@ -568,14 +571,6 @@ pub fn compute_taffy_grid_layout_with_specs(
     // Compute column widths and row heights
     let (col_widths, row_heights) = compute_grid_tracks(children, cols, rows);
 
-    // Use Auto for container sizing to allow shrink-wrap
-    let col_template: Vec<GridTemplateComponent<String>> = (0..cols)
-        .map(|_| GridTemplateComponent::from_length(
-            col_widths.get(cols.min(cols.max(1)) - 1).copied().unwrap_or(0.0).max(1.0)
-        ))
-        .collect::<Vec<_>>();
-    
-    // Actually build proper col templates from computed widths
     let col_template: Vec<GridTemplateComponent<String>> = col_widths
         .iter()
         .map(|&w| GridTemplateComponent::from_length(w.max(1.0)))
@@ -1031,8 +1026,8 @@ mod tests {
     fn test_size_spec_percent() {
         let spec = ChildSizeSpec::from_parts(SizeSpec::Percent(0.5), SizeSpec::Percent(0.75));
         assert!(!spec.is_fixed());
-        assert_eq!(spec.width.resolve(200.0), Dimension::Percent(0.5));
-        assert_eq!(spec.height.resolve(200.0), Dimension::Percent(0.75));
+        assert_eq!(spec.width.resolve(200.0), Dimension::percent(0.5));
+        assert_eq!(spec.height.resolve(200.0), Dimension::percent(0.75));
         // Resolve absolute
         assert!((spec.width.resolve_absolute(200.0) - 100.0).abs() < 0.001);
         assert!((spec.height.resolve_absolute(200.0) - 150.0).abs() < 0.001);
@@ -1043,8 +1038,8 @@ mod tests {
         let spec = ChildSizeSpec::from_parts(SizeSpec::Fill, SizeSpec::Auto);
         assert_eq!(spec.width, SizeSpec::Fill);
         assert_eq!(spec.height, SizeSpec::Auto);
-        assert_eq!(spec.width.resolve(200.0), Dimension::Percent(1.0));
-        assert_eq!(spec.height.resolve(200.0), Dimension::Auto);
+        assert_eq!(spec.width.resolve(200.0), Dimension::percent(1.0));
+        assert_eq!(spec.height.resolve(200.0), Dimension::auto());
     }
 
     #[test]

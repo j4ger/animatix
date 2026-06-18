@@ -35,6 +35,7 @@ mod shape;
 /// Extracted actor properties parsed from an actor declaration's props.
 /// Used internally by the build pipeline for graph/plot/container dispatch.
 #[derive(Clone, Debug)]
+#[allow(dead_code)] // Reserved for layout-extraction hooks
 struct ExtractedActorProperties {
     initial_size: [f32; 2],
     x_domain: [f64; 2],

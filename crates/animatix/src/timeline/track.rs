@@ -418,6 +418,7 @@ impl Interpolate for Vec<VelloPath> {
     }
 }
 
+#[cfg(feature = "render")]
 impl Interpolate for Option<crate::timeline::image::SceneImage> {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
         if t < 0.5 { self.clone() } else { other.clone() }
@@ -1175,7 +1176,7 @@ impl AnimationTrack {
             Points => TrackFieldRef::PointList(&self.points),
             Commands => TrackFieldRef::CommandList(&self.commands),
             TextContent => TrackFieldRef::String(&self.text_content),
-            MaxWidth => TrackFieldRef::F32(&self.max_width),
+            TextMaxWidth => TrackFieldRef::F32(&self.max_width),
             TextAlign => TrackFieldRef::String(&self.text_align),
             Overflow => TrackFieldRef::String(&self.overflow),
             FontFamily => TrackFieldRef::String(&self.font_family),
@@ -1219,7 +1220,7 @@ impl AnimationTrack {
             Points => TrackFieldMut::PointList(&mut self.points),
             Commands => TrackFieldMut::CommandList(&mut self.commands),
             TextContent => TrackFieldMut::String(&mut self.text_content),
-            MaxWidth => TrackFieldMut::F32(&mut self.max_width),
+            TextMaxWidth => TrackFieldMut::F32(&mut self.max_width),
             TextAlign => TrackFieldMut::String(&mut self.text_align),
             Overflow => TrackFieldMut::String(&mut self.overflow),
             FontFamily => TrackFieldMut::String(&mut self.font_family),

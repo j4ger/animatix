@@ -34,6 +34,7 @@
 /// Timeline action processing (hover, click, etc.).
 pub mod actions;
 /// Asset loading and caching.
+#[cfg(feature = "render")]
 pub mod assets;
 mod actor_kind;
 mod assignments;
@@ -44,11 +45,14 @@ mod declarations_text;
 /// Evaluation environment for expressions.
 pub mod env;
 /// Filter backend and CPU image processing.
+#[cfg(feature = "render")]
 pub mod filter;
 /// Image loading utilities.
+#[cfg(feature = "render")]
 pub mod image;
 pub mod kurbo_shapes;
 mod layout;
+#[cfg(feature = "render")]
 mod media;
 pub(crate) mod taffy_layout;
 pub(crate) mod modifier_runtime;
@@ -85,12 +89,15 @@ pub(crate) mod property_lookup;
 /// that drives both rendering and modifier evaluation.
 mod frame_env;
 mod index;
+#[cfg(feature = "render")]
 mod scene_eval;
 mod sequence;
 /// Vector shape definitions and rendering.
 pub mod shapes;
 /// SVG parsing and manipulation utilities.
+#[cfg(feature = "svg")]
 pub mod svg;
+#[cfg(feature = "svg")]
 pub mod svg_import;
 mod timing;
 pub use timing::parse_easing_name;
@@ -107,6 +114,7 @@ use colorscheme::{BuiltInColorscheme, ResolvedColorscheme};
 pub use env::{Environment, EvalError, Value};
 pub use builtins::load_standard_library;
 pub use index::TimelineIndex;
+#[cfg(feature = "render")]
 pub use image::load_image;
 pub use kurbo_shapes::{KurboShape, morph_kurbo_shapes, morph_kurbo_shapes_default};
 pub use morph::{MorphOptions, MorphStrategy};
@@ -139,7 +147,9 @@ pub use shapes::{
     extract_shape_state_values, finalize_vector_shape_state, parse_path_commands_expr, shape_type_for_actor,
     vector_shape_uses_custom_path, ShapeType,
 };
+#[cfg(feature = "svg")]
 pub use svg::parse_svg;
+#[cfg(feature = "svg")]
 pub use svg_import::{import_svg, SvgImportError};
 pub(crate) use timing::{ModifierHost, ParsedTimingModifiers, parse_timing_modifiers, config_string_value, parse_duration_literal};
 

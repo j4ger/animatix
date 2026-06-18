@@ -225,9 +225,13 @@ mod text;
 pub use text::TEXT;
 mod code;
 pub use code::CODE;
+#[cfg(feature = "render")]
 mod image;
+#[cfg(feature = "render")]
 pub use image::IMAGE;
+#[cfg(feature = "svg")]
 mod svg;
+#[cfg(feature = "svg")]
 pub use svg::SVG;
 mod bar_chart;
 pub use bar_chart::BAR_CHART;
@@ -349,6 +353,7 @@ pub enum RenderCommand {
         paths: std::sync::Arc<[TextPath]>,
     },
     /// Draw an image.
+    #[cfg(feature = "render")]
     Image {
         /// The image data.
         image: crate::timeline::image::SceneImage,
@@ -712,7 +717,8 @@ pub static PRIMITIVES: &[&dyn Primitive] = &[
     &TYPST,
     // Media
     &IMAGE,
-    &SVG,
+    #[cfg(feature = "svg")]
+        &SVG,
     &AUDIO,
     // Plots
     &GRAPH,
