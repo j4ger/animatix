@@ -253,7 +253,7 @@ pub(crate) fn ensure_vector_reveal_target(
         .tracks
         .get(target)
         .is_some_and(|track| !track.children.is_empty())
-        && track.vector_paths.as_ref().map(|t| t.default_value.is_empty() && t.keyframes.is_empty()).unwrap_or(true)
+        && track.shape.vector_paths.as_ref().map(|t| t.default_value.is_empty() && t.keyframes.is_empty()).unwrap_or(true)
         && track.svg_paths.is_empty()
     {
         push_unsupported_action_target_diagnostic(

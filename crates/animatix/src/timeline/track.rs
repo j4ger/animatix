@@ -655,6 +655,31 @@ impl Default for HighlightTracks {
 }
 
 // ─────────────────────────────────────────────────────────────
+// ShapeTracks sub-struct
+// ─────────────────────────────────────────────────────────────
+
+/// Sub-struct holding all shape-related property tracks.
+#[derive(Clone, Debug, Default)]
+pub struct ShapeTracks {
+    /// Specific shape geometry type.
+    pub shape_type: Option<PropertyTrack<ShapeType>>,
+    /// Line start point.
+    pub line_from: Option<PropertyTrack<[f32; 2]>>,
+    /// Line end point.
+    pub line_to: Option<PropertyTrack<[f32; 2]>>,
+    /// Arrow head size.
+    pub head_size: Option<PropertyTrack<f32>>,
+    /// Arc start and end angles.
+    pub arc_angles: Option<PropertyTrack<[f32; 2]>>,
+    /// Polygon vertex list.
+    pub points: Option<PropertyTrack<Vec<[f32; 2]>>>,
+    /// Path command string (e.g. SVG path data).
+    pub commands: Option<PropertyTrack<String>>,
+    /// Pre-built vector paths for shape rendering.
+    pub vector_paths: Option<PropertyTrack<Vec<VelloPath>>>,
+}
+
+// ─────────────────────────────────────────────────────────────
 // AnimationTrack
 // ─────────────────────────────────────────────────────────────
 
@@ -717,23 +742,9 @@ pub struct AnimationTrack {
     /// Filter property tracks (blur, brightness, contrast, etc.).
     pub filter: FilterTracks,
 
-    // ── Shape payload (flat compat fields) ──
-    /// Specific shape geometry type.
-    pub shape_type: Option<PropertyTrack<ShapeType>>,
-    /// Line start point.
-    pub line_from: Option<PropertyTrack<[f32; 2]>>,
-    /// Line end point.
-    pub line_to: Option<PropertyTrack<[f32; 2]>>,
-    /// Arrow head size.
-    pub head_size: Option<PropertyTrack<f32>>,
-    /// Arc start and end angles.
-    pub arc_angles: Option<PropertyTrack<[f32; 2]>>,
-    /// Polygon vertex list.
-    pub points: Option<PropertyTrack<Vec<[f32; 2]>>>,
-    /// Path command string (e.g. SVG path data).
-    pub commands: Option<PropertyTrack<String>>,
-    /// Pre-built vector paths for shape rendering.
-    pub vector_paths: Option<PropertyTrack<Vec<VelloPath>>>,
+    // ── Shape tier (sub-struct) ──
+    /// Shape property tracks (shape_type, line_from, line_to, etc.).
+    pub shape: ShapeTracks,
 
     // ── Text / media payload (flat compat fields) ──
     /// Raw text content.
@@ -841,15 +852,8 @@ impl AnimationTrack {
             // Filter tier (sub-struct)
             filter: FilterTracks::default(),
 
-            // Shape flat fields
-            shape_type: None,
-            line_from: None,
-            line_to: None,
-            head_size: None,
-            arc_angles: None,
-            points: None,
-            commands: None,
-            vector_paths: None,
+            // Shape tier (sub-struct)
+            shape: ShapeTracks::default(),
 
             // Text / media flat fields
             text_content: None,
@@ -953,7 +957,7 @@ impl AnimationTrack {
     /// Evaluate vector paths at `time_ms`, applying morphing if configured.
     pub fn evaluate_vector_paths(&self, time_ms: u64) -> Vec<VelloPath> {
         let default_paths = PropertyTrack::new(Vec::new());
-        let paths_track = self.vector_paths.as_ref().unwrap_or(&default_paths);
+        let paths_track = self.shape.vector_paths.as_ref().unwrap_or(&default_paths);
         let default_morph = PropertyTrack::new(MorphOptions::default());
         let morph_track = self.morph_options.as_ref().unwrap_or(&default_morph);
         evaluate_paths_with_options(paths_track, morph_track, time_ms, interpolate_vello_paths)
@@ -1355,15 +1359,15 @@ impl AnimationTrack {
             FilterSaturate => TrackFieldRef::F32(&self.filter.filter_saturate),
             FilterHueRotate => TrackFieldRef::F32(&self.filter.filter_hue_rotate),
             FilterSepia => TrackFieldRef::F32(&self.filter.filter_sepia),
-            ShapeType => TrackFieldRef::ShapeType(&self.shape_type),
-            LineFrom => TrackFieldRef::Vec2(&self.line_from),
-            LineTo => TrackFieldRef::Vec2(&self.line_to),
-            HeadSize => TrackFieldRef::F32(&self.head_size),
+            ShapeType => TrackFieldRef::ShapeType(&self.shape.shape_type),
+            LineFrom => TrackFieldRef::Vec2(&self.shape.line_from),
+            LineTo => TrackFieldRef::Vec2(&self.shape.line_to),
+            HeadSize => TrackFieldRef::F32(&self.shape.head_size),
             LineCap => TrackFieldRef::U32(&self.line_cap),
             LineJoin => TrackFieldRef::U32(&self.line_join),
-            ArcAngles => TrackFieldRef::Vec2(&self.arc_angles),
-            Points => TrackFieldRef::PointList(&self.points),
-            Commands => TrackFieldRef::CommandList(&self.commands),
+            ArcAngles => TrackFieldRef::Vec2(&self.shape.arc_angles),
+            Points => TrackFieldRef::PointList(&self.shape.points),
+            Commands => TrackFieldRef::CommandList(&self.shape.commands),
             TextContent => TrackFieldRef::String(&self.text_content),
             TextMaxWidth => TrackFieldRef::F32(&self.text_max_width),
             TextAlign => TrackFieldRef::String(&self.text_align),
@@ -1387,7 +1391,7 @@ impl AnimationTrack {
             MinWidth => TrackFieldRef::F32(&self.min_width),
             MinHeight => TrackFieldRef::F32(&self.min_height),
             MaxHeight => TrackFieldRef::F32(&self.max_height),
-            VectorPaths => TrackFieldRef::VectorPaths(&self.vector_paths),
+            VectorPaths => TrackFieldRef::VectorPaths(&self.shape.vector_paths),
             TextPaths => TrackFieldRef::TextPaths(&self.text_paths),
             #[cfg(feature = "render")]
             ImageData => TrackFieldRef::Image(&self.image),
@@ -1424,15 +1428,15 @@ impl AnimationTrack {
             FilterSaturate => TrackFieldMut::F32(&mut self.filter.filter_saturate),
             FilterHueRotate => TrackFieldMut::F32(&mut self.filter.filter_hue_rotate),
             FilterSepia => TrackFieldMut::F32(&mut self.filter.filter_sepia),
-            ShapeType => TrackFieldMut::ShapeType(&mut self.shape_type),
-            LineFrom => TrackFieldMut::Vec2(&mut self.line_from),
-            LineTo => TrackFieldMut::Vec2(&mut self.line_to),
-            HeadSize => TrackFieldMut::F32(&mut self.head_size),
+            ShapeType => TrackFieldMut::ShapeType(&mut self.shape.shape_type),
+            LineFrom => TrackFieldMut::Vec2(&mut self.shape.line_from),
+            LineTo => TrackFieldMut::Vec2(&mut self.shape.line_to),
+            HeadSize => TrackFieldMut::F32(&mut self.shape.head_size),
             LineCap => TrackFieldMut::U32(&mut self.line_cap),
             LineJoin => TrackFieldMut::U32(&mut self.line_join),
-            ArcAngles => TrackFieldMut::Vec2(&mut self.arc_angles),
-            Points => TrackFieldMut::PointList(&mut self.points),
-            Commands => TrackFieldMut::CommandList(&mut self.commands),
+            ArcAngles => TrackFieldMut::Vec2(&mut self.shape.arc_angles),
+            Points => TrackFieldMut::PointList(&mut self.shape.points),
+            Commands => TrackFieldMut::CommandList(&mut self.shape.commands),
             TextContent => TrackFieldMut::String(&mut self.text_content),
             TextMaxWidth => TrackFieldMut::F32(&mut self.text_max_width),
             TextAlign => TrackFieldMut::String(&mut self.text_align),
@@ -1456,7 +1460,7 @@ impl AnimationTrack {
             MinWidth => TrackFieldMut::F32(&mut self.min_width),
             MinHeight => TrackFieldMut::F32(&mut self.min_height),
             MaxHeight => TrackFieldMut::F32(&mut self.max_height),
-            VectorPaths => TrackFieldMut::VectorPaths(&mut self.vector_paths),
+            VectorPaths => TrackFieldMut::VectorPaths(&mut self.shape.vector_paths),
             TextPaths => TrackFieldMut::TextPaths(&mut self.text_paths),
             #[cfg(feature = "render")]
             ImageData => TrackFieldMut::Image(&mut self.image),
@@ -2648,11 +2652,11 @@ mod tests {
             PositionBinding::Absolute
         );
         assert_eq!(track.size.get(0, [50.0, 50.0]), [50.0, 50.0]);
-        assert_eq!(track.line_from.get(0, [-50.0, 0.0]), [-50.0, 0.0]);
-        assert_eq!(track.line_to.get(0, [50.0, 0.0]), [50.0, 0.0]);
-        assert_eq!(track.arc_angles.get(0, [0.0, std::f32::consts::PI]), [0.0, std::f32::consts::PI]);
+        assert_eq!(track.shape.line_from.get(0, [-50.0, 0.0]), [-50.0, 0.0]);
+        assert_eq!(track.shape.line_to.get(0, [50.0, 0.0]), [50.0, 0.0]);
+        assert_eq!(track.shape.arc_angles.get(0, [0.0, std::f32::consts::PI]), [0.0, std::f32::consts::PI]);
         assert_eq!(track.color.get(0, [1.0, 1.0, 1.0, 1.0]), [1.0, 1.0, 1.0, 1.0]);
-        assert_eq!(track.shape_type.get(0, ShapeType::Rect), ShapeType::Rect);
+        assert_eq!(track.shape.shape_type.get(0, ShapeType::Rect), ShapeType::Rect);
         assert_eq!(track.opacity.get(0, 1.0), 1.0);
     }
 }

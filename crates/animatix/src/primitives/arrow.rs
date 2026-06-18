@@ -188,9 +188,9 @@ impl Primitive for ArrowPrimitive {
         use crate::timeline::Value;
         use crate::timeline::shapes::ArrowState;
 
-        let mut line_from = ctx.track.line_from.get(ctx.time_ms, [-50.0, 0.0]);
-        let mut line_to = ctx.track.line_to.get(ctx.time_ms, [50.0, 0.0]);
-        let head_size = ctx.track.head_size.get(ctx.time_ms, 10.0);
+        let mut line_from = ctx.track.shape.line_from.get(ctx.time_ms, [-50.0, 0.0]);
+        let mut line_to = ctx.track.shape.line_to.get(ctx.time_ms, [50.0, 0.0]);
+        let head_size = ctx.track.shape.head_size.get(ctx.time_ms, 10.0);
 
         if let Some(overrides) = ctx.overrides {
             if let Some(Value::Vec2(from)) = overrides.get("from") {

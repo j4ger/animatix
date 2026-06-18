@@ -1084,7 +1084,7 @@ mod tests {
         // Set first_seen_ms to 0 so the actor is visible from time 0
         track.first_seen_ms = 0;
         // Give it a shape type
-        track.shape_type = Some({
+        track.shape.shape_type = Some({
             let mut t = PropertyTrack::new(ShapeType::Rect);
             t.add_keyframe(0, ShapeType::Rect, Easing::Linear);
             t
@@ -1265,7 +1265,7 @@ mod tests {
         // Create child actor
         let mut child_track = AnimationTrack::new("child".to_string());
         child_track.first_seen_ms = 0;
-        child_track.shape_type = Some({
+        child_track.shape.shape_type = Some({
             let mut t = PropertyTrack::new(ShapeType::Rect);
             t.add_keyframe(0, ShapeType::Rect, Easing::Linear);
             t

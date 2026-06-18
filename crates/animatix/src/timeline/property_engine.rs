@@ -129,7 +129,7 @@ pub(crate) fn write_property_field(
             if let PropertyValue::U32(v) = value {
                 let st = ShapeType::from(v);
                 write_shape_type(
-                    &mut track.shape_type, st, t_start_ms, t_end_ms, easing,
+                    &mut track.shape.shape_type, st, t_start_ms, t_end_ms, easing,
                     ShapeType::Rect, has_duration, has_delay,
                 );
             }

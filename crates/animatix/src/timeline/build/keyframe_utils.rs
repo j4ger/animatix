@@ -9,11 +9,11 @@ pub(crate) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64
     let start_vector_paths = track.evaluate_vector_paths(t_start_ms);
     let start_position = track.position.get(t_start_ms, [0.0, 0.0]);
     let start_size = track.size.get(t_start_ms, default_size);
-    let start_line_from = track.line_from.get(t_start_ms, [-50.0, 0.0]);
-    let start_line_to = track.line_to.get(t_start_ms, [50.0, 0.0]);
-    let start_arc_angles = track.arc_angles.get(t_start_ms, default_arc);
+    let start_line_from = track.shape.line_from.get(t_start_ms, [-50.0, 0.0]);
+    let start_line_to = track.shape.line_to.get(t_start_ms, [50.0, 0.0]);
+    let start_arc_angles = track.shape.arc_angles.get(t_start_ms, default_arc);
     let start_color = track.color.get(t_start_ms, DEFAULT_WHITE);
-    let start_shape_type = track.shape_type.get(t_start_ms, ShapeType::Rect);
+    let start_shape_type = track.shape.shape_type.get(t_start_ms, ShapeType::Rect);
     let start_opacity = track.opacity.get(t_start_ms, 1.0);
     let start_stroke_width = track.stroke_width.get(t_start_ms, 2.0);
     let start_stroke_color = track.stroke_color.get(t_start_ms, DEFAULT_WHITE);
@@ -21,6 +21,7 @@ pub(crate) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64
     let start_fill_opacity = track.fill_opacity.get(t_start_ms, 1.0);
 
     track
+        .shape
         .vector_paths
         .ensure(Vec::new())
         .add_keyframe(t_start_ms, start_vector_paths, Easing::Linear);
@@ -36,14 +37,17 @@ pub(crate) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64
         .ensure_layout_size(default_size)
         .add_keyframe(t_start_ms, start_size, Easing::Linear);
     track
+        .shape
         .line_from
         .ensure([-50.0, 0.0])
         .add_keyframe(t_start_ms, start_line_from, Easing::Linear);
     track
+        .shape
         .line_to
         .ensure([50.0, 0.0])
         .add_keyframe(t_start_ms, start_line_to, Easing::Linear);
     track
+        .shape
         .arc_angles
         .ensure(default_arc)
         .add_keyframe(t_start_ms, start_arc_angles, Easing::Linear);
@@ -52,6 +56,7 @@ pub(crate) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64
         .ensure(DEFAULT_WHITE)
         .add_keyframe(t_start_ms, start_color, Easing::Linear);
     track
+        .shape
         .shape_type
         .ensure(ShapeType::Rect)
         .add_keyframe(t_start_ms, start_shape_type, Easing::Linear);
@@ -80,15 +85,15 @@ pub(crate) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64
 /// Preserve current track values at `t_start_ms` for delayed animations.
 /// Used when an actor declaration has a delay but no duration.
 pub(crate) fn preserve_delayed_values(track: &mut AnimationTrack, t_start_ms: u64) {
-    preserve_instant_delayed_value(&mut track.vector_paths, t_start_ms);
+    preserve_instant_delayed_value(&mut track.shape.vector_paths, t_start_ms);
     preserve_instant_delayed_value(&mut track.position, t_start_ms);
     preserve_instant_delayed_value(&mut track.size, t_start_ms);
     preserve_instant_delayed_value(&mut track.layout_size, t_start_ms);
-    preserve_instant_delayed_value(&mut track.line_from, t_start_ms);
-    preserve_instant_delayed_value(&mut track.line_to, t_start_ms);
-    preserve_instant_delayed_value(&mut track.arc_angles, t_start_ms);
+    preserve_instant_delayed_value(&mut track.shape.line_from, t_start_ms);
+    preserve_instant_delayed_value(&mut track.shape.line_to, t_start_ms);
+    preserve_instant_delayed_value(&mut track.shape.arc_angles, t_start_ms);
     preserve_instant_delayed_value(&mut track.color, t_start_ms);
-    preserve_instant_delayed_value(&mut track.shape_type, t_start_ms);
+    preserve_instant_delayed_value(&mut track.shape.shape_type, t_start_ms);
     preserve_instant_delayed_value(&mut track.opacity, t_start_ms);
     preserve_instant_delayed_value(&mut track.stroke_width, t_start_ms);
     preserve_instant_delayed_value(&mut track.stroke_color, t_start_ms);
@@ -120,6 +125,7 @@ pub(crate) fn insert_end_keyframes(
     let default_arc = [0.0, std::f32::consts::PI];
 
     track
+        .shape
         .vector_paths
         .ensure(Vec::new())
         .add_keyframe(t_end_ms, vello_paths, easing);
@@ -135,14 +141,17 @@ pub(crate) fn insert_end_keyframes(
         .ensure_layout_size(default_size)
         .add_keyframe(t_end_ms, size, easing);
     track
+        .shape
         .line_from
         .ensure([-50.0, 0.0])
         .add_keyframe(t_end_ms, line_from, easing);
     track
+        .shape
         .line_to
         .ensure([50.0, 0.0])
         .add_keyframe(t_end_ms, line_to, easing);
     track
+        .shape
         .arc_angles
         .ensure(default_arc)
         .add_keyframe(t_end_ms, arc_angles, easing);
@@ -151,6 +160,7 @@ pub(crate) fn insert_end_keyframes(
         .ensure(DEFAULT_WHITE)
         .add_keyframe(t_end_ms, color, easing);
     track
+        .shape
         .shape_type
         .ensure(ShapeType::Rect)
         .add_keyframe(t_end_ms, shape_type, easing);

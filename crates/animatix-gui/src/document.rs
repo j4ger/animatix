@@ -751,11 +751,11 @@ fn track_max_ms(track: &AnimationTrack) -> u64 {
         latest_keyframe_ms(&track.placement_mode),
         latest_keyframe_ms(&track.position_binding),
         latest_keyframe_ms(&track.size),
-        latest_keyframe_ms(&track.line_from),
-        latest_keyframe_ms(&track.line_to),
-        latest_keyframe_ms(&track.arc_angles),
+        latest_keyframe_ms(&track.shape.line_from),
+        latest_keyframe_ms(&track.shape.line_to),
+        latest_keyframe_ms(&track.shape.arc_angles),
         latest_keyframe_ms(&track.color),
-        latest_keyframe_ms(&track.shape_type),
+        latest_keyframe_ms(&track.shape.shape_type),
         latest_keyframe_ms(&track.opacity),
         latest_keyframe_ms(&track.stroke_width),
         latest_keyframe_ms(&track.stroke_color),
@@ -764,9 +764,9 @@ fn track_max_ms(track: &AnimationTrack) -> u64 {
         latest_keyframe_ms(&track.morph_options),
         latest_keyframe_ms(&track.text_content),
         latest_keyframe_ms(&track.text_paths),
-        latest_keyframe_ms(&track.vector_paths),
+        latest_keyframe_ms(&track.shape.vector_paths),
         latest_keyframe_ms(&track.image),
-        latest_keyframe_ms(&track.points),
+        latest_keyframe_ms(&track.shape.points),
     ]
     .into_iter()
     .flatten()

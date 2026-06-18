@@ -282,9 +282,9 @@ impl Timeline {
         let default_arc = [0.0, 0.0];
         let mut position = existing_track.position.last([0.0, 0.0]);
         let mut size = existing_track.size.last(default_size);
-        let mut line_from = existing_track.line_from.last([-50.0, 0.0]);
-        let mut line_to = existing_track.line_to.last([50.0, 0.0]);
-        let mut arc_angles = existing_track.arc_angles.last(default_arc);
+        let mut line_from = existing_track.shape.line_from.last([-50.0, 0.0]);
+        let mut line_to = existing_track.shape.line_to.last([50.0, 0.0]);
+        let mut arc_angles = existing_track.shape.arc_angles.last(default_arc);
         let mut color = existing_track.color.last(DEFAULT_WHITE);
         let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
         let is_first_decl = !self.tracks.contains_key(label);
@@ -326,6 +326,7 @@ impl Timeline {
         let t_start_ms = (time_ms + delay_ms) as u64;
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
         let supports_morph_options = existing_track
+            .shape
             .vector_paths
             .as_ref()
             .map(|t| !t.keyframes.is_empty())

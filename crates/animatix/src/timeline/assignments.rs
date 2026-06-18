@@ -298,7 +298,7 @@ impl Timeline {
                 // For Graph actors, also rebuild PlotCurve children whose
                 // paths depend on the parent's size (p_size), and scale
                 // tick label positions to match the new axis positions.
-                let shape_type = track.shape_type.last(ShapeType::Rect);
+                let shape_type = track.shape.shape_type.last(ShapeType::Rect);
                 if shape_type == ShapeType::Graph && old_half_size != new_half_size {
                     let scale_x = new_half_size[0] / old_half_size[0];
                     let scale_y = new_half_size[1] / old_half_size[1];
@@ -730,7 +730,7 @@ fn rebuild_vector_paths(
     let default_arc = [0.0, 0.0];
     let has_duration = t_end_ms > t_start_ms;
     let size = track.size.last(default_size);
-    let shape_type = track.shape_type.last(ShapeType::Rect);
+    let shape_type = track.shape.shape_type.last(ShapeType::Rect);
 
     // ── Special case: Graph actors rebuild axis/grid/tick paths ──
     if shape_type == ShapeType::Graph {
@@ -803,22 +803,22 @@ fn rebuild_vector_paths(
 
             if has_duration {
                 let start_paths = track.evaluate_vector_paths(t_start_ms);
-                track.vector_paths.ensure(Vec::new()).add_keyframe(
+                track.shape.vector_paths.ensure(Vec::new()).add_keyframe(
                     t_start_ms,
                     start_paths,
                     Easing::Linear,
                 );
             } else if t_end_ms > 0 {
-                preserve_instant_delayed_value(&mut track.vector_paths, t_end_ms);
+                preserve_instant_delayed_value(&mut track.shape.vector_paths, t_end_ms);
             }
-            track.vector_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths, easing);
+            track.shape.vector_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths, easing);
             return;
         }
     }
 
-    let line_from = track.line_from.last([-50.0, 0.0]);
-    let line_to = track.line_to.last([50.0, 0.0]);
-    let arc_angles = track.arc_angles.last(default_arc);
+    let line_from = track.shape.line_from.last([-50.0, 0.0]);
+    let line_to = track.shape.line_to.last([50.0, 0.0]);
+    let arc_angles = track.shape.arc_angles.last(default_arc);
     let color = track.color.last(DEFAULT_WHITE);
     let stroke_width = track.stroke_width.last(2.0);
     let stroke_color = track.stroke_color.last(DEFAULT_WHITE);
@@ -829,17 +829,17 @@ fn rebuild_vector_paths(
     // Restore shape-specific fields from track data
     match &mut vector_shape_state {
         VectorShapeState::Line(line) => {
-            line.line_from = track.line_from.last([-50.0, 0.0]);
-            line.line_to = track.line_to.last([50.0, 0.0]);
+            line.line_from = track.shape.line_from.last([-50.0, 0.0]);
+            line.line_to = track.shape.line_to.last([50.0, 0.0]);
         },
         VectorShapeState::Arrow(arrow) => {
-            arrow.from = track.line_from.last([-50.0, 0.0]);
-            arrow.to = track.line_to.last([50.0, 0.0]);
-            arrow.head_size = track.head_size.last(10.0);
+            arrow.from = track.shape.line_from.last([-50.0, 0.0]);
+            arrow.to = track.shape.line_to.last([50.0, 0.0]);
+            arrow.head_size = track.shape.head_size.last(10.0);
         },
         VectorShapeState::Polygon(poly) => {
             // Restore points for Polygon actors
-            poly.points = track.points.last(Vec::new());
+            poly.points = track.shape.points.last(Vec::new());
             if !poly.points.is_empty() {
                 use crate::timeline::KurboShape;
                 let pts: Vec<kurbo::Point> = poly
@@ -852,7 +852,7 @@ fn rebuild_vector_paths(
         },
         VectorShapeState::Path(path_state) => {
             // Restore commands for Path actors
-            let commands_svg = track.commands.last(String::new());
+            let commands_svg = track.shape.commands.last(String::new());
             if !commands_svg.is_empty() {
                 if let Ok(path) = kurbo::BezPath::from_svg(&commands_svg) {
                     path_state.custom_path = Some(path);
@@ -890,13 +890,15 @@ fn rebuild_vector_paths(
     if has_duration {
         let start_paths = track.evaluate_vector_paths(t_start_ms);
         track
+            .shape
             .vector_paths
             .ensure(Vec::new())
             .add_keyframe(t_start_ms, start_paths, Easing::Linear);
     } else if t_end_ms > 0 {
-        preserve_instant_delayed_value(&mut track.vector_paths, t_end_ms);
+        preserve_instant_delayed_value(&mut track.shape.vector_paths, t_end_ms);
     }
     track
+        .shape
         .vector_paths
         .ensure(Vec::new())
         .add_keyframe(t_end_ms, vec![target_vello_path], easing);
@@ -937,13 +939,15 @@ fn scale_plot_curve_paths(
     if has_duration {
         let start_paths = track.evaluate_vector_paths(t_start_ms);
         track
+            .shape
             .vector_paths
             .ensure(Vec::new())
             .add_keyframe(t_start_ms, start_paths, Easing::Linear);
     } else if t_end_ms > 0 {
-        preserve_instant_delayed_value(&mut track.vector_paths, t_end_ms);
+        preserve_instant_delayed_value(&mut track.shape.vector_paths, t_end_ms);
     }
     track
+        .shape
         .vector_paths
         .ensure(Vec::new())
         .add_keyframe(t_end_ms, scaled_paths, easing);

@@ -144,14 +144,14 @@ pub fn rebuild_cache(
                     push_kf_props(&mut result, &track.text_content, "text_content");
                     push_kf_props(&mut result, &track.font_family, "font_family");
                     push_kf_props(&mut result, &track.font_size, "font_size");
-                    push_kf_props(&mut result, &track.shape_type, "shape_type");
-                    push_kf_props(&mut result, &track.line_from, "line_from");
-                    push_kf_props(&mut result, &track.line_to, "line_to");
-                    push_kf_props(&mut result, &track.arc_angles, "arc_angles");
-                    push_kf_props(&mut result, &track.points, "points");
-                    push_kf_props(&mut result, &track.commands, "commands");
+                    push_kf_props(&mut result, &track.shape.shape_type, "shape_type");
+                    push_kf_props(&mut result, &track.shape.line_from, "line_from");
+                    push_kf_props(&mut result, &track.shape.line_to, "line_to");
+                    push_kf_props(&mut result, &track.shape.arc_angles, "arc_angles");
+                    push_kf_props(&mut result, &track.shape.points, "points");
+                    push_kf_props(&mut result, &track.shape.commands, "commands");
                     push_kf_props(&mut result, &track.layout_size, "layout_size");
-                    push_kf_props(&mut result, &track.vector_paths, "vector_paths");
+                    push_kf_props(&mut result, &track.shape.vector_paths, "vector_paths");
                     result.sort_by_key(|(ms, _)| *ms);
                     result.dedup_by(|a, b| a.0 == b.0);
                     result
