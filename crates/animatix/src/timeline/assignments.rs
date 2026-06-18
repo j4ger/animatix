@@ -16,7 +16,7 @@ use crate::timeline::VelloPath;
 use crate::timeline::build::build_graph_axis_paths;
 use crate::timeline::property_engine::{parse_property_value, write_property_field};
 use crate::timeline::property_registry::{PropertyFlags, lookup_property};
-use crate::timeline::track::TrackAccessor;
+use crate::timeline::property_track::TrackAccessor;
 
 impl Timeline {
     /// Resolve an assignment target path that may traverse the scene hierarchy.

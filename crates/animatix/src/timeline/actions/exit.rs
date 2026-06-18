@@ -2,7 +2,7 @@ use super::registry::{ActionSignature, BuiltinAction, base_timing_params};
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
-use crate::timeline::track::TrackAccessor;
+use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
 /// Fades out the target by animating its overall opacity to 0.

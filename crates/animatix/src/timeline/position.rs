@@ -6,7 +6,7 @@ use super::{
 use crate::ast::Expr;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
-use crate::timeline::track::TrackAccessor;
+use crate::timeline::property_track::TrackAccessor;
 
 pub(crate) fn parse_scene_anchor(expr: &Expr) -> Option<SceneAnchor> {
     match expr {

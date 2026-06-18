@@ -2,7 +2,7 @@ use super::registry::{ActionSignature, BuiltinAction, base_timing_params};
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
-use crate::timeline::track::TrackAccessor;
+use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
 /// Wipes in vector targets by animating stroke progress and fill opacity together.

@@ -62,6 +62,7 @@ pub mod modifier_exec;
 pub mod morph;
 mod plot;
 pub mod path_progress;
+pub mod property_track;
 mod position;
 pub(crate) mod property_engine;
 pub mod property_registry;
@@ -203,10 +204,11 @@ use timing::{
     push_modifier_diagnostic, push_unknown_target_path_diagnostic,
     push_unsupported_stagger_statement_diagnostic, sequence_stmt_kind,
 };
+pub use property_track::{Interpolate, PropertyTrack, TrackAccessor, Easing};
 pub use track::{
     ActionCategory, ActionEvent, ActorCategory, ActorKindId, ActorKindMeta, ShapeKind, ResizeMode,
-    AnimationTrack, Interpolate, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor,
-    TrackAccessor, TrackFieldMut, TrackFieldRef, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
+    AnimationTrack, PlacementMode, PositionBinding, SceneAnchor,
+    TrackFieldMut, TrackFieldRef, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
     actor_kind_registry, actor_kind_meta, actor_kind_meta_by_name,
 };
 /// Collect all keyframe times (in seconds) across all property tracks of an

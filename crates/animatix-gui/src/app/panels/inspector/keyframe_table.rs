@@ -446,7 +446,7 @@ fn format_value(value: &PropertyValue, name: &str) -> String {
 mod tests {
     use super::*;
     use animatix::timeline::ActorKindId;
-    use animatix::timeline::track::PropertyTrack;
+    use animatix::timeline::property_track::PropertyTrack;
     use animatix_syntax::easing::Easing;
 
     fn make_track(kind: ActorKindId) -> AnimationTrack {

@@ -902,7 +902,7 @@ mod tests {
     use super::*;
     use crate::ast::BinaryOp;
     use crate::timeline::load_standard_library;
-    use crate::timeline::track::TrackAccessor;
+    use crate::timeline::property_track::TrackAccessor;
     use chumsky::Parser;
     use std::collections::HashMap;
 

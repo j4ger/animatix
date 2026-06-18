@@ -2,7 +2,7 @@ use super::registry::{ActionParam, ActionSignature, BuiltinAction, base_timing_p
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
-use crate::timeline::track::TrackAccessor;
+use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
 fn effect_timing_params() -> Vec<ActionParam> {

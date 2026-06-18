@@ -7,7 +7,7 @@ use crate::primitives::{ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, Pri
 use crate::timeline::image::load_image;
 use crate::timeline::preserve_instant_delayed_value;
 use crate::timeline::property_lookup::evaluate_expr_with_lookup_diagnostic;
-use crate::timeline::track::TrackAccessor;
+use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
 
 /// The `Image` primitive.
