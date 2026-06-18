@@ -1,5 +1,5 @@
 use animatix::composition::BuildTarget;
-use animatix_syntax::diagnostics::{format_diagnostic_with_source, Diagnostic, DiagnosticCode, DiagnosticPhase};
+use animatix_syntax::diagnostics::{format_diagnostic, format_diagnostic_with_source, Diagnostic, DiagnosticCode, DiagnosticPhase};
 use animatix_syntax::module::ModuleGraph;
 #[cfg(feature = "video")]
 use animatix::renderer;
@@ -8,7 +8,7 @@ use animatix::timeline::DebugRenderOptions;
 use clap::{Parser as ClapParser, Subcommand, ValueEnum};
 use std::path::Path;
 use std::path::PathBuf;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
 #[derive(ClapParser, Debug)]

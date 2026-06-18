@@ -18,7 +18,7 @@
       {
         devShells.default = with pkgs; mkShell rec {
           buildInputs = [
-            ffmpeg_7
+            ffmpeg
             pkg-config
             rustPlatform.bindgenHook
             alsa-lib
