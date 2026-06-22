@@ -8,8 +8,7 @@ Keep track of what is yet to be done here, when a segment is fully done, remove 
 
 | # | Task | Notes |
 |---|------|-------|
-| 1 | **Scheme tokens as constant literals** | Audit all properties accepting literal values (colors, numbers, strings). Ensure `accent.danger`, `text.muted`, etc. are accepted wherever the equivalent literal is. Fix `bar_colors` parser as first instance — currently silently drops scheme tokens, only accepting bare RGBA number tuples. |
-| 2 | **Plot function transitions** | Animate `PlotCurve.func` between two functions over time (keyframe-driven). Limited to plots. Design needed: interpolation strategy (linear blend of sampled points? parametric morph? domain warping?). |
+| 1 | **Plot function transitions** | Animate `PlotCurve.func` between two functions over time (keyframe-driven). Limited to plots. Design needed: interpolation strategy (linear blend of sampled points? parametric morph? domain warping?). |
 | 3 | **Scene persistence (`persist` / `remove`)** | Carry actors across `play` transitions. Opt-in `persist actor` at a keyframe; explicit `remove actor` to drop. Persist-until-removed model — survives multiple transitions until explicitly removed. Design needed: interaction with morphing, re-declaration in new scene, and scene-level config inheritance. |
 | 4 | **`at:` + `anchor:` conflict diagnostic** | Emit a clear warning when both `at:` and `anchor:` are specified on the same actor. Currently anchor silently wins and `at:` is dropped, causing visual bugs with no obvious cause. Consider unifying `at:` and `offset:` semantics to prevent the mistake entirely. |
 | 5 | **Graph coordinate mapping** | `graph.map(math_x, math_y) → screen_coords` method on `Graph` for use in `always` blocks. Eliminates manual magic-number coordinate conversion (`400 + mx * 70`). Needs further design — may get complicated to implement (interaction with padding, insets, axis transforms). |
