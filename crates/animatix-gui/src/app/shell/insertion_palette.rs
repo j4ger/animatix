@@ -248,6 +248,7 @@ fn category_color(category: animatix::timeline::ActorCategory) -> Color32 {
         animatix::timeline::ActorCategory::Text => status::WARNING,
         animatix::timeline::ActorCategory::Media => category::ACTION,
         animatix::timeline::ActorCategory::Plot => accent::CYAN,
+        animatix::timeline::ActorCategory::Annotation => accent::CYAN,
     }
 }
 

@@ -506,6 +506,7 @@ impl AnimationTrack {
             MinWidth => TrackFieldRef::F32(&self.geometry.min_width),
             MinHeight => TrackFieldRef::F32(&self.geometry.min_height),
             MaxHeight => TrackFieldRef::F32(&self.geometry.max_height),
+            LabelAt => TrackFieldRef::Vec2(&self.geometry.label_at),
             VectorPaths => TrackFieldRef::VectorPaths(&self.shape.vector_paths),
             TextPaths => TrackFieldRef::TextPaths(&self.text.text_paths),
             #[cfg(feature = "render")]
@@ -575,6 +576,7 @@ impl AnimationTrack {
             MinWidth => TrackFieldMut::F32(&mut self.geometry.min_width),
             MinHeight => TrackFieldMut::F32(&mut self.geometry.min_height),
             MaxHeight => TrackFieldMut::F32(&mut self.geometry.max_height),
+            LabelAt => TrackFieldMut::Vec2(&mut self.geometry.label_at),
             VectorPaths => TrackFieldMut::VectorPaths(&mut self.shape.vector_paths),
             TextPaths => TrackFieldMut::TextPaths(&mut self.text.text_paths),
             #[cfg(feature = "render")]

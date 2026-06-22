@@ -114,6 +114,14 @@ impl PrimitiveDescriptor {
                             ..PrimitiveCapabilities::default()
                         },
                     },
+                    ActorCategory::Annotation => Self {
+                        actor_type: primitive.type_name(),
+                        family: PrimitiveFamily::VectorShape,
+                        capabilities: PrimitiveCapabilities {
+                            vector_paths: true,
+                            ..PrimitiveCapabilities::default()
+                        },
+                    },
                 },
             };
         }

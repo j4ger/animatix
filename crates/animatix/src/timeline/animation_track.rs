@@ -339,6 +339,8 @@ pub struct GeometryTracks {
     pub min_height: Option<PropertyTrack<f32>>,
     /// Maximum height constraint.
     pub max_height: Option<PropertyTrack<f32>>,
+    /// Label position offset for callout annotations.
+    pub label_at: Option<PropertyTrack<[f32; 2]>>,
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -395,6 +397,7 @@ mod tests {
             ActorKindId::ContourSet,
             ActorKindId::NumberPlane,
             ActorKindId::BarChart,
+            ActorKindId::Callout,
             ActorKindId::Row,
             ActorKindId::Col,
             ActorKindId::Grid,

@@ -262,6 +262,8 @@ mod equation;
 pub use equation::EQUATION;
 mod fragment;
 pub use fragment::FRAGMENT;
+mod callout;
+pub use callout::CALLOUT;
 
 // ── Primitive trait ─────────────────────────────────────────────────────
 
@@ -618,6 +620,7 @@ pub trait Primitive: Send + Sync {
                 ActorCategory::Shape | ActorCategory::Plot => Some("surface.primary"),
                 ActorCategory::Media => Some("text.primary"),
                 ActorCategory::Container => None,
+                ActorCategory::Annotation => None,
             },
             "stroke" | "stroke_color" => match self.category() {
                 ActorCategory::Shape => Some("stroke.default"),
@@ -739,6 +742,8 @@ pub static PRIMITIVES: &[&dyn Primitive] = &[
     // Equation / Fragment
     &EQUATION,
     &FRAGMENT,
+    // Annotations
+    &CALLOUT,
 ];
 
 // ── Auto-generated registry ─────────────────────────────────────────────
@@ -880,6 +885,7 @@ mod tests {
             ActorKindId::Audio,
             ActorKindId::Equation,
             ActorKindId::Fragment,
+            ActorKindId::Callout,
         ] {
             assert!(kinds.contains(&id), "Missing ActorKindMeta for {:?}", id);
         }

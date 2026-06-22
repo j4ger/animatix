@@ -283,6 +283,10 @@ pub enum ActorField {
     /// Audio volume multiplier.
     AudioVolume,
 
+    // ── Callout / annotation ──
+    /// Label position offset for callouts.
+    LabelAt,
+
     // ── Font metrics (baseline alignment) ──
     /// Font ascent in scene units.
     Ascent,
@@ -410,6 +414,9 @@ impl ActorField {
             ActorField::Ascent => PropertyValue::F32(0.0),
             ActorField::Descent => PropertyValue::F32(0.0),
             ActorField::Baseline => PropertyValue::F32(0.0),
+
+            // ── Callout ──
+            ActorField::LabelAt => PropertyValue::Vec2([0.0, 0.0]),
 
             // ── Highlight ──
             ActorField::HighlightColor => PropertyValue::Vec4([0.3, 0.5, 1.0, 1.0]),
@@ -634,6 +641,8 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("highlight_radius",ValueType::F32,        F::ANIMATED,                  ActorField::HighlightRadius,     None,                             Applicable::ActorKinds(&[A::Equation, A::Fragment]), |_| super::property_engine::PropertyValue::F32(3.0)),
     schema!("hue_rotate",    ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::FilterHueRotate,     None,                             Applicable::ActorKinds(&[A::Filter]), |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("kind",          ValueType::String,      F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve]), |_| super::property_engine::PropertyValue::String("cartesian".to_string())),
+    schema!("label",         ValueType::String,      F::ASSIGNABLE_A,              ActorField::TextContent,       None,                             Applicable::ActorKinds(&[A::Callout]), |_| super::property_engine::PropertyValue::String(String::new())),
+    schema!("label_at",      ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::LabelAt,           None,                             Applicable::ActorKinds(&[A::Callout]), |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])),
     schema!("latex",         ValueType::String,      F::ANIMATED,                  ActorField::TextContent,         None,                             Applicable::Never, |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("letter_spacing",ValueType::F32,         F::ASSIGNABLE,                ActorField::LetterSpacing,       None,                             Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]), |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("levels",        ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::ContourSet]), |_| super::property_engine::PropertyValue::Vec2([0.0, 1.0])),

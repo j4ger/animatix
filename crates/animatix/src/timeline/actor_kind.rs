@@ -112,6 +112,8 @@ pub enum ActorKindId {
     Equation,
     /// Fragment sub-item within an Equation.
     Fragment,
+    /// Callout / annotation bubble.
+    Callout,
 }
 
 impl ActorKindId {
@@ -170,6 +172,8 @@ pub enum ActorCategory {
     Plot,
     /// Layout containers (row, column, grid, etc.).
     Container,
+    /// Annotations and callouts.
+    Annotation,
 }
 
 impl ActorCategory {
@@ -181,6 +185,7 @@ impl ActorCategory {
             Self::Media => "Media",
             Self::Plot => "Plots",
             Self::Container => "Containers",
+            Self::Annotation => "Annotations",
         }
     }
 }
