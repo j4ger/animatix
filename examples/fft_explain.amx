@@ -1,12 +1,6 @@
 // FFT Explanation Animation
 // A visual walkthrough of the Fast Fourier Transform:
-// time-domain signal → sine decomposition → frequency spectrum
-//
-// MISSING: No step-by-step user control; animation is purely time-driven.
-// MISSING: No bar chart primitive; spectrum bars are manual Rect actors.
-// MISSING: No programmatic iteration over frequency data.
-//
-// Design: 3 acts revealed via multi-scene composition (or sequential fade groups)
+// time-domain signal → sine decomposition → frequency spectrum → reconstruction.
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
@@ -14,41 +8,49 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 // Scene 1: Title card
 // =============================================================================
 # TitleCard
-
-bg: Rect, size: fill, color: scene.background, anchor: scene.center
+config { colorscheme: "editorial-dark" }
 
 title: Text, text: "Understanding the FFT", font_size: 64,
-  color: text.primary, anchor: scene.center, at: (0, -40)
+  color: text.primary, anchor: scene.center, offset: (0, -40)
 
 subtitle: Text, text: "From time domain to frequency domain", font_size: 28,
-  color: text.secondary, anchor: scene.center, at: (0, 40)
+  color: text.secondary, anchor: scene.center, offset: (0, 40)
 
-// MISSING: draw-in or type-on effect for text would be nice
 #0.5s
 fade-in title [800ms, ease: ease-out]
 
 #1.5s
 fade-in subtitle [600ms, ease: ease-out]
 
+play TimeDomain [fade, 400ms]
+
 // =============================================================================
 // Scene 2: Show the composite time-domain signal
 // =============================================================================
 # TimeDomain
-
-bg2: Rect, size: fill, color: scene.background, anchor: scene.center
+config { colorscheme: "editorial-dark" }
 
 step_title: Text, text: "1. A Complex Waveform", font_size: 40,
-  color: text.primary, at: (0, -300)
+  color: text.primary, anchor: scene.top, offset: (0, 60)
 
-signal_graph: Graph, at: (640, 380), size: (900, 300), x_domain: (0, 4), y_domain: (-3, 3) {
-  composite: PlotCurve, kind: "cartesian", func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t), color: accent.primary, stroke_width: 3
+signal_graph: Graph, at: (640, 380), size: (900, 300),
+  x_domain: (0, 4), y_domain: (-3, 3) {
+  composite: PlotCurve, kind: "cartesian",
+    func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t),
+    color: accent.primary, stroke_width: 3
 }
 
 signal_label: Text, text: "x(t) = sin(2π·2t) + 0.55·sin(2π·5t) + 0.3·sin(2π·9t)",
-  font_size: 16, color: text.muted, at: (0, 260)
+  font_size: 16, color: text.muted, anchor: scene.center, offset: (0, 250)
 
-// MISSING: draw-in on PlotCurve doesn't exist for curve primitives.
-// Workaround: fade-in the whole graph.
+// Sampling playhead: sweeps one full window (x_domain 0..4) every 4s, looping.
+playhead: Rect, size: (2, 300), color: accent.warning, opacity: 0.7, at: (190, 380)
+
+always {
+  let x = 190 + (t % 4.0) / 4.0 * 900
+  playhead.at = (x, 380)
+}
+
 #0.5s
 fade-in step_title [500ms, ease: ease-out]
 
@@ -57,35 +59,34 @@ fade-in signal_graph [1s, ease: ease-out]
 
 #2.5s
 fade-in signal_label [400ms]
+fade-in playhead [400ms]
+
+play Decomposition [fade, 400ms]
 
 // =============================================================================
 // Scene 3: Decompose into individual sine waves
 // =============================================================================
-// MISSING: Morphing a single PlotCurve into multiple sub-curves would be ideal.
-// Workaround: separate curves for each frequency, revealed sequentially.
-
 # Decomposition
-
-bg3: Rect, size: fill, color: scene.background, anchor: scene.center
+config { colorscheme: "editorial-dark" }
 
 step2_title: Text, text: "2. Decompose Into Sine Waves", font_size: 40,
-  color: text.primary, at: (0, -300)
+  color: text.primary, anchor: scene.top, offset: (0, 60)
 
-// Graph showing all curves overlaid with offset for clarity
-// MISSING: Cannot stack multiple graphs vertically with shared x-axis easily.
-// Workaround: single large graph, vertically offset curves via opacity reveal.
-
-decomp_graph: Graph, at: (640, 380), size: (900, 320), x_domain: (0, 4), y_domain: (-4, 4) {
-  ref_signal: PlotCurve, kind: "cartesian", func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t), color: accent.primary, opacity: 0.3, stroke_width: 2
-  f1_label: Text, text: "2 Hz", color: accent.danger, at: (3.5, -3.2), font_size: 14
-  sine_2hz: PlotCurve, kind: "cartesian", func: (t) => sin(2 * pi * 2 * t), color: accent.danger, stroke_width: 3
-  f2_label: Text, text: "5 Hz", color: accent.success, at: (3.5, -0.5), font_size: 14
-  sine_5hz: PlotCurve, kind: "cartesian", func: (t) => 0.55 * sin(2 * pi * 5 * t), color: accent.success, stroke_width: 3
-  f3_label: Text, text: "9 Hz", color: accent.warning, at: (3.5, 2.2), font_size: 14
-  sine_9hz: PlotCurve, kind: "cartesian", func: (t) => 0.3 * sin(2 * pi * 9 * t), color: accent.warning, stroke_width: 3
+decomp_graph: Graph, at: (640, 400), size: (900, 320),
+  x_domain: (0, 4), y_domain: (-4, 4) {
+  ref_signal: PlotCurve, kind: "cartesian",
+    func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t),
+    color: accent.primary, opacity: 0.3, stroke_width: 2
+  sine_2hz: PlotCurve, kind: "cartesian", func: (t) => sin(2 * pi * 2 * t),
+    color: accent.danger, stroke_width: 3
+  sine_5hz: PlotCurve, kind: "cartesian", func: (t) => 0.55 * sin(2 * pi * 5 * t),
+    color: accent.success, stroke_width: 3
+  sine_9hz: PlotCurve, kind: "cartesian", func: (t) => 0.3 * sin(2 * pi * 9 * t),
+    color: accent.warning, stroke_width: 3
 }
 
-decomp_eq: Equation, font_size: 22, color: text.muted, at: (0, -230) {
+decomp_eq: Equation, font_size: 22, color: text.muted,
+  anchor: scene.center, offset: (0, -200) {
   pre: Fragment, content: "x(t) = "
   f1: Fragment, content: "sin(2 pi dot 2t)"
   mid1: Fragment, content: " + 0.55 dot "
@@ -94,7 +95,6 @@ decomp_eq: Equation, font_size: 22, color: text.muted, at: (0, -230) {
   f3: Fragment, content: "sin(2 pi dot 9t)"
 }
 
-// Animate: reveal each component sequentially, highlight equation fragment in sync
 #0.5s
 fade-in step2_title [500ms, ease: ease-out]
 
@@ -109,52 +109,37 @@ fade-in ref_signal [300ms]
 highlight decomp_eq.f1 [color: white, blend: difference, 800ms]
 fade-in sine_2hz [800ms]
 
-#4s
-fade-in f1_label [300ms]
-
 #5s
+unhighlight decomp_eq.f1 [400ms]
 highlight decomp_eq.f2 [color: white, blend: difference, 800ms]
 fade-in sine_5hz [800ms]
 
-#5.5s
-fade-in f2_label [300ms]
-
-#6.5s
+#7s
+unhighlight decomp_eq.f2 [400ms]
 highlight decomp_eq.f3 [color: white, blend: difference, 800ms]
 fade-in sine_9hz [800ms]
 
-#7s
-fade-in f3_label [300ms]
+play Spectrum [wipe-left, 400ms]
 
 // =============================================================================
 // Scene 4: Frequency spectrum (bar chart)
 // =============================================================================
-// G1 resolved: BarChart primitive replaces manual Rect spectrum.
-
 # Spectrum
-
-bg4: Rect, size: fill, color: scene.background, anchor: scene.center
+config { colorscheme: "editorial-dark" }
 
 step3_title: Text, text: "3. Frequency Spectrum", font_size: 40,
-  color: text.primary, at: (0, -300)
+  color: text.primary, anchor: scene.top, offset: (0, 60)
 
-// Typst equation showing the decomposition
 equation: Typst, content: "$x(t) = sum_(k) A_k sin(2 pi f_k t)$",
-  font_size: 24, color: accent.primary, at: (0, -230)
+  font_size: 24, color: accent.primary, anchor: scene.center, offset: (0, -200)
 
-// BarChart replaces ~30 lines of manual Rect + Text actors
 spectrum: BarChart,
   data: {("2 Hz", 1.0), ("5 Hz", 0.55), ("9 Hz", 0.3)},
   size: (600, 260),
-  bar_colors: {accent.danger, accent.success, accent.warning},
+  bar_colors: {(1.0, 0.46, 0.54, 1.0), (0.35, 0.86, 0.63, 1.0), (0.98, 0.83, 0.44, 1.0)},
   show_axis: true,
   show_labels: true,
   at: (640, 420)
-
-// Frequency labels (since BarChart labels use numeric keys; manual for now)
-bar_label_2: Text, text: "2 Hz", font_size: 14, color: text.secondary, at: (-180, 495)
-bar_label_5: Text, text: "5 Hz", font_size: 14, color: text.secondary, at: (0, 495)
-bar_label_9: Text, text: "9 Hz", font_size: 14, color: text.secondary, at: (180, 495)
 
 #0.5s
 fade-in step3_title [500ms, ease: ease-out]
@@ -165,36 +150,38 @@ fade-in equation [500ms]
 #2s
 fade-in spectrum [800ms, ease: ease-out]
 
-#2.8s
-fade-in bar_label_2 [300ms]
-fade-in bar_label_5 [300ms]
-fade-in bar_label_9 [300ms]
+play Reconstruction [fade, 400ms]
 
 // =============================================================================
-// Scene 5: Reconstruction — show sum = original signal
+// Scene 5: Reconstruction — build sum harmonic by harmonic
 // =============================================================================
-// MISSING: No way to overlay reconstructed signal on top of original for comparison.
-
 # Reconstruction
-
-bg5: Rect, size: fill, color: scene.background, anchor: scene.center
+config { colorscheme: "editorial-dark" }
 
 step4_title: Text, text: "4. Reconstruction: Sum = Original", font_size: 40,
-  color: text.primary, at: (0, -300)
+  color: text.primary, anchor: scene.top, offset: (0, 60)
 
-// Typst equation: FFT is invertible
 eqn2: Typst, content: "$hat(x)(t) = sum_(k=0)^(N-1) X_k e^((2 pi i k t) / N)$",
-  font_size: 22, color: accent.primary, at: (0, -230)
+  font_size: 22, color: accent.primary, anchor: scene.center, offset: (0, -200)
 
-// Overlaid signals — original faint, reconstructed solid
-// MISSING: No way to animate a curve gradually matching another.
-reconstruct_graph: Graph, at: (640, 380), size: (900, 300), x_domain: (0, 4), y_domain: (-3, 3) {
-  original: PlotCurve, kind: "cartesian", func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t), color: text.muted, opacity: 0.5, stroke_width: 2
-  reconstructed: PlotCurve, kind: "cartesian", func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t), color: accent.success, stroke_width: 3
+reconstruct_graph: Graph, at: (640, 400), size: (900, 300),
+  x_domain: (0, 4), y_domain: (-3, 3) {
+  original: PlotCurve, kind: "cartesian",
+    func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t),
+    color: text.muted, opacity: 0.5, stroke_width: 2
+  sum_1: PlotCurve, kind: "cartesian", func: (t) => sin(2 * pi * 2 * t),
+    color: accent.danger, stroke_width: 3, opacity: 0.0
+  sum_2: PlotCurve, kind: "cartesian",
+    func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t),
+    color: accent.warning, stroke_width: 3, opacity: 0.0
+  sum_3: PlotCurve, kind: "cartesian",
+    func: (t) => sin(2 * pi * 2 * t) + 0.55 * sin(2 * pi * 5 * t) + 0.3 * sin(2 * pi * 9 * t),
+    color: accent.success, stroke_width: 3, opacity: 0.0
 }
 
-reconstruct_label: Text, text: "The sum of components exactly reconstructs the original signal.",
-  font_size: 18, color: text.secondary, at: (0, 260)
+reconstruct_label: Text,
+  text: "Adding harmonics one by one recovers the original signal exactly.",
+  font_size: 18, color: text.secondary, anchor: scene.center, offset: (0, 250)
 
 #0.5s
 fade-in step4_title [500ms, ease: ease-out]
@@ -205,12 +192,16 @@ fade-in eqn2 [500ms]
 #2s
 fade-in reconstruct_graph [800ms, ease: ease-out]
 
-#3.5s
-fade-in reconstruct_label [500ms]
+#3.2s
+sum_1.opacity = 1.0 [600ms, ease: ease-out]
 
-// =============================================================================
-// Summary annotations
-// =============================================================================
-// MISSING: No callout/annotation primitive for educational diagrams.
-// Would be nice to have: Callout { target: sine_2hz, text: "2 Hz component", ... }
-// Would be nice to have: Highlight { target: bar_2, color: yellow, pulse: true }
+#4.6s
+sum_1.opacity = 0.0 [300ms]
+sum_2.opacity = 1.0 [600ms, ease: ease-out]
+
+#6.0s
+sum_2.opacity = 0.0 [300ms]
+sum_3.opacity = 1.0 [600ms, ease: ease-out]
+
+#7.4s
+fade-in reconstruct_label [500ms]
