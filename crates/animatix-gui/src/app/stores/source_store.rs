@@ -130,30 +130,7 @@ pub fn rebuild_cache(
                 .and_then(|tl| tl.get_track(label))
                 .map(|track| {
                     let mut result = Vec::new();
-                    push_kf_props(&mut result, &track.geometry.position, "position");
-                    push_kf_props(&mut result, &track.geometry.motion_offset, "motion_offset");
-                    push_kf_props(&mut result, &track.geometry.rotation, "rotation");
-                    push_kf_props(&mut result, &track.geometry.scale, "scale");
-                    push_kf_props(&mut result, &track.geometry.size, "size");
-                    push_kf_props(&mut result, &track.style.color, "color");
-                    push_kf_props(&mut result, &track.style.opacity, "opacity");
-                    push_kf_props(&mut result, &track.style.stroke_width, "stroke_width");
-                    push_kf_props(&mut result, &track.style.stroke_color, "stroke_color");
-                    push_kf_props(&mut result, &track.style.stroke_progress, "stroke_progress");
-                    push_kf_props(&mut result, &track.style.fill_opacity, "fill_opacity");
-                    push_kf_props(&mut result, &track.text.text_content, "text_content");
-                    push_kf_props(&mut result, &track.text.font_family, "font_family");
-                    push_kf_props(&mut result, &track.text.font_size, "font_size");
-                    push_kf_props(&mut result, &track.shape.shape_type, "shape_type");
-                    push_kf_props(&mut result, &track.shape.line_from, "line_from");
-                    push_kf_props(&mut result, &track.shape.line_to, "line_to");
-                    push_kf_props(&mut result, &track.shape.arc_angles, "arc_angles");
-                    push_kf_props(&mut result, &track.shape.points, "points");
-                    push_kf_props(&mut result, &track.shape.commands, "commands");
-                    push_kf_props(&mut result, &track.geometry.layout_size, "layout_size");
-                    push_kf_props(&mut result, &track.shape.vector_paths, "vector_paths");
-                    result.sort_by_key(|(ms, _)| *ms);
-                    result.dedup_by(|a, b| a.0 == b.0);
+                    push_kf_props(track, &mut result);
                     result
                 })
                 .unwrap_or_default();
@@ -174,23 +151,15 @@ pub fn rebuild_cache(
     *cache_valid = true;
 }
 
-// ── Helper: push keyframe times for a property track ──
-fn push_kf_props(
-    result: &mut Vec<(u64, &'static str)>,
-    opt: &Option<impl KeyframeSource>,
-    name: &'static str,
-) {
-    if let Some(pt) = opt {
-        result.extend(pt.keyframe_times().into_iter().map(|ms| (ms, name)));
+// ── Helper: push keyframe times for all animated properties on a track ──
+fn push_kf_props(track: &animatix::timeline::AnimationTrack, result: &mut Vec<(u64, &'static str)>) {
+    let indices = animatix::timeline::allowed_property_indices(track.kind);
+    for idx in indices {
+        let schema = &animatix::timeline::PROPERTY_REGISTRY[idx];
+        for ms in animatix::timeline::property_keyframe_times(track, schema.field) {
+            result.push((ms, schema.name));
+        }
     }
-}
-
-trait KeyframeSource {
-    fn keyframe_times(&self) -> Vec<u64>;
-}
-
-impl<T> KeyframeSource for animatix::timeline::PropertyTrack<T> {
-    fn keyframe_times(&self) -> Vec<u64> {
-        self.keyframes.keys().copied().collect()
-    }
+    result.sort_by_key(|(ms, _)| *ms);
+    result.dedup_by(|a, b| a.0 == b.0);
 }

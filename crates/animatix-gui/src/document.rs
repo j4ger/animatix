@@ -4,7 +4,7 @@ use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use animatix::composition::{BuildTarget, Composition};
 use animatix_syntax::module::{ActionTemplate, ComponentEntry, ModuleError, ModuleGraph, Namespace};
 use animatix_syntax::source_index::SourceIndex;
-use animatix::timeline::{AnimationTrack, PropertyTrack, SceneDimensions, Timeline, TimelineIndex};
+use animatix::timeline::{AnimationTrack, SceneDimensions, Timeline, TimelineIndex};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::fs;
@@ -736,45 +736,8 @@ fn document_scene_dimensions(ast: &[Stmt]) -> SceneDimensions {
         .unwrap_or_default()
 }
 
-fn latest_keyframe_ms<T>(track: &Option<PropertyTrack<T>>) -> Option<u64> {
-    track.as_ref().and_then(|t| t.keyframes().keys().next_back().copied())
-}
-
 fn track_max_ms(track: &AnimationTrack) -> u64 {
-    let mut max_ms = 0u64;
-
-    for time in [
-        latest_keyframe_ms(&track.geometry.position),
-        latest_keyframe_ms(&track.geometry.motion_offset),
-        latest_keyframe_ms(&track.geometry.rotation),
-        latest_keyframe_ms(&track.geometry.scale),
-        latest_keyframe_ms(&track.geometry.placement_mode),
-        latest_keyframe_ms(&track.geometry.position_binding),
-        latest_keyframe_ms(&track.geometry.size),
-        latest_keyframe_ms(&track.shape.line_from),
-        latest_keyframe_ms(&track.shape.line_to),
-        latest_keyframe_ms(&track.shape.arc_angles),
-        latest_keyframe_ms(&track.style.color),
-        latest_keyframe_ms(&track.shape.shape_type),
-        latest_keyframe_ms(&track.style.opacity),
-        latest_keyframe_ms(&track.style.stroke_width),
-        latest_keyframe_ms(&track.style.stroke_color),
-        latest_keyframe_ms(&track.style.stroke_progress),
-        latest_keyframe_ms(&track.style.fill_opacity),
-        latest_keyframe_ms(&track.style.morph_options),
-        latest_keyframe_ms(&track.text.text_content),
-        latest_keyframe_ms(&track.text.text_paths),
-        latest_keyframe_ms(&track.shape.vector_paths),
-        latest_keyframe_ms(&track.image),
-        latest_keyframe_ms(&track.shape.points),
-    ]
-    .into_iter()
-    .flatten()
-    {
-        max_ms = max_ms.max(time);
-    }
-
-    max_ms
+    track.max_keyframe_time().unwrap_or(0)
 }
 
 pub fn timeline_duration_seconds(
