@@ -844,6 +844,11 @@ fn rebuild_vector_paths(
             arrow.to = track.shape.line_to.last([50.0, 0.0]);
             arrow.head_size = track.shape.head_size.last(10.0);
         },
+        VectorShapeState::Callout(callout) => {
+            callout.from = track.shape.line_from.last([-100.0, 0.0]);
+            callout.to = track.shape.line_to.last([100.0, 0.0]);
+            callout.head_size = track.shape.head_size.last(10.0);
+        },
         VectorShapeState::Polygon(poly) => {
             // Restore points for Polygon actors
             poly.points = track.shape.points.last(Vec::new());

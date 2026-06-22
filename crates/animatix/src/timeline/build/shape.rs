@@ -30,6 +30,10 @@ impl Timeline {
                 arrow.from = line_from;
                 arrow.to = line_to;
             }
+            VectorShapeState::Callout(callout) => {
+                callout.from = line_from;
+                callout.to = line_to;
+            }
             VectorShapeState::Ellipse(ellipse) => {
                 ellipse.arc_angles = arc_angles;
             }

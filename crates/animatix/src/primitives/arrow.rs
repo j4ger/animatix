@@ -3,11 +3,68 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
-use crate::timeline::shapes::build_vello_path;
 use crate::timeline::{
     Environment, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath, evaluate_expr,
     lookup_parse_numeric_vec2_with_lookup_diagnostic as parse_numeric_vec2_with_lookup_diagnostic,
 };
+
+/// Build a BezPath for an arrow from `from` to `to` with given `head_size`.
+///
+/// The shaft runs from `from` to the base of the arrowhead;
+/// the arrowhead is a filled triangle at `to`.
+pub(crate) fn build_arrow_path(from: [f32; 2], to: [f32; 2], head_size: f32) -> kurbo::BezPath {
+    let from_x = from[0] as f64;
+    let from_y = from[1] as f64;
+    let to_x = to[0] as f64;
+    let to_y = to[1] as f64;
+    let head_size = head_size.max(1.0) as f64;
+
+    let dx = to_x - from_x;
+    let dy = to_y - from_y;
+    let length = (dx * dx + dy * dy).sqrt();
+
+    let mut path = kurbo::BezPath::new();
+
+    if length <= f64::EPSILON {
+        // Zero-length arrow: just a dot
+        path.move_to(kurbo::Point::new(to_x, to_y));
+        path.close_path();
+        return path;
+    }
+
+    // Direction vector
+    let dir_x = dx / length;
+    let dir_y = dy / length;
+    // Perpendicular vector (for arrowhead width)
+    let perp_x = -dir_y;
+    let perp_y = dir_x;
+
+    // Arrowhead dimensions
+    let tip_length = head_size;
+    let half_tip_width = head_size * 0.4;
+
+    // Base of arrowhead (where it meets the shaft)
+    let base_x = to_x - dir_x * tip_length;
+    let base_y = to_y - dir_y * tip_length;
+
+    // Left and right points of arrowhead triangle
+    let left_x = base_x + perp_x * half_tip_width;
+    let left_y = base_y + perp_y * half_tip_width;
+    let right_x = base_x - perp_x * half_tip_width;
+    let right_y = base_y - perp_y * half_tip_width;
+
+    // Draw shaft (line from `from` to the base of the arrowhead)
+    path.move_to(kurbo::Point::new(from_x, from_y));
+    path.line_to(kurbo::Point::new(base_x, base_y));
+
+    // Draw the arrowhead as a filled triangle
+    path.move_to(kurbo::Point::new(to_x, to_y));
+    path.line_to(kurbo::Point::new(left_x, left_y));
+    path.line_to(kurbo::Point::new(right_x, right_y));
+    path.close_path();
+
+    path
+}
 
 /// The `Arrow` primitive.
 pub struct ArrowPrimitive;
@@ -51,62 +108,7 @@ impl Primitive for ArrowPrimitive {
             return None;
         };
 
-        let from_x = state.from[0] as f64;
-        let from_y = state.from[1] as f64;
-        let to_x = state.to[0] as f64;
-        let to_y = state.to[1] as f64;
-        let head_size = state.head_size.max(1.0) as f64;
-
-        let dx = to_x - from_x;
-        let dy = to_y - from_y;
-        let length = (dx * dx + dy * dy).sqrt();
-
-        let mut path = kurbo::BezPath::new();
-
-        if length <= f64::EPSILON {
-            // Zero-length arrow: just render a dot-sized line
-            path.move_to(kurbo::Point::new(to_x, to_y));
-            path.close_path();
-            return Some(vec![build_vello_path(
-                path,
-                ctx.style.color,
-                ctx.style.stroke_color,
-                ctx.style.stroke_width,
-                0.0,
-                true,
-            )]);
-        }
-
-        // Direction vector
-        let dir_x = dx / length;
-        let dir_y = dy / length;
-        // Perpendicular vector (for arrowhead width)
-        let perp_x = -dir_y;
-        let perp_y = dir_x;
-
-        // Arrowhead dimensions
-        let tip_length = head_size;
-        let half_tip_width = head_size * 0.4;
-
-        // Base of arrowhead (where it meets the shaft)
-        let base_x = to_x - dir_x * tip_length;
-        let base_y = to_y - dir_y * tip_length;
-
-        // Left and right points of arrowhead triangle
-        let left_x = base_x + perp_x * half_tip_width;
-        let left_y = base_y + perp_y * half_tip_width;
-        let right_x = base_x - perp_x * half_tip_width;
-        let right_y = base_y - perp_y * half_tip_width;
-
-        // Draw shaft (line from `from` to the base of the arrowhead)
-        path.move_to(kurbo::Point::new(from_x, from_y));
-        path.line_to(kurbo::Point::new(base_x, base_y));
-
-        // Draw the arrowhead as a filled triangle
-        path.move_to(kurbo::Point::new(to_x, to_y));
-        path.line_to(kurbo::Point::new(left_x, left_y));
-        path.line_to(kurbo::Point::new(right_x, right_y));
-        path.close_path();
+        let path = build_arrow_path(state.from, state.to, state.head_size);
 
         // Arrow is stroke-only (shaft) with a filled arrowhead.
         // The shaft uses stroke_color, the arrowhead triangle is filled with stroke_color.

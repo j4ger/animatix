@@ -202,6 +202,17 @@ pub struct ArrowState {
     pub head_size: f32,
 }
 
+/// State for a callout annotation (arrow geometry).
+#[derive(Clone, Debug)]
+pub struct CalloutState {
+    /// Start point of the callout arrow.
+    pub from: [f32; 2],
+    /// End point of the callout arrow (arrowhead points here).
+    pub to: [f32; 2],
+    /// Size of the arrowhead triangle.
+    pub head_size: f32,
+}
+
 impl Default for ArrowState {
     fn default() -> Self {
         Self {
@@ -231,6 +242,8 @@ pub enum VectorShapeState {
     Path(PathState),
     /// Arrow shape state with a dedicated arrowhead.
     Arrow(ArrowState),
+    /// Callout annotation state (arrow geometry).
+    Callout(CalloutState),
 }
 
 impl VectorShapeState {
@@ -282,6 +295,7 @@ impl VectorShapeState {
             Self::Polygon(s) => s.size,
             Self::Path(s) => s.size,
             Self::Arrow(_a) => [0.0, 0.0],
+            Self::Callout(_c) => [0.0, 0.0],
         }
     }
 
@@ -294,6 +308,7 @@ impl VectorShapeState {
             Self::Polygon(s) => &mut s.size,
             Self::Path(s) => &mut s.size,
             Self::Arrow(_) => panic!("Arrow has no size field"),
+            Self::Callout(_) => panic!("Callout has no size field"),
         }
     }
 }
@@ -397,6 +412,7 @@ pub fn extract_shape_state_values(state: &VectorShapeState) -> ([f32; 2], [f32; 
     let (line_from, line_to, arc_angles) = match state {
         VectorShapeState::Line(line) => (line.line_from, line.line_to, [0.0, 0.0]),
         VectorShapeState::Arrow(arrow) => (arrow.from, arrow.to, [0.0, 0.0]),
+        VectorShapeState::Callout(callout) => (callout.from, callout.to, [0.0, 0.0]),
         VectorShapeState::Ellipse(ellipse) => ([-50.0, 0.0], [50.0, 0.0], ellipse.arc_angles),
         _ => ([-50.0, 0.0], [50.0, 0.0], [0.0, 0.0]),
     };
