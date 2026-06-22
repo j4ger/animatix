@@ -1,4 +1,5 @@
 use super::*;
+use crate::ast::BinaryOp;
 
 #[test]
 fn test_apply_modifier_stmt_supports_conditionals_statelessly() {

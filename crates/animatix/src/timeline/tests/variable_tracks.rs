@@ -1,4 +1,5 @@
 use super::*;
+use crate::ast::BinaryOp;
 
 #[test]
 fn test_keyframe_scoped_variables_create_tracks() {
