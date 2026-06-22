@@ -6,10 +6,6 @@ Keep track of what is yet to be done here, when a segment is fully done, remove 
 
 ## Planned
 
-### Primitives & Syntax
-
-- [ ] **Text property easing** — Smooth per-character morphing for `text` content changes (`Text.text`, `Typst.content`). Currently text path arrays support `Fade` morph strategy (cross-fade via opacity), but the `text_content` string itself snaps instantly. True per-character morphing (e.g., "Hello" → "World" letter-by-letter) would require character-level diffing and staggered interpolation. Workaround: multiple overlapping actors with staggered fade-in/out.
-
 ---
 
 ## Icebox
