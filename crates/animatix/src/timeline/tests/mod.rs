@@ -1657,6 +1657,7 @@ fn test_keyframe_times_s_empty_when_no_keyframes() {
     assert!(times.is_empty());
 }
 
+#[test]
 fn test_fixed_size_layout_still_works() {
     use crate::timeline::layout::ChildExtent;
     // Backward compatibility: fixed-size layout should work unchanged
