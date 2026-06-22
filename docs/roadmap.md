@@ -18,6 +18,22 @@ All 7 phases of the layout/typography improvement roadmap are complete:
 - **Phase 6:** Baseline alignment (`vertical_align: "baseline"` on Row/Col)
 - **Phase 7:** Percentage and intrinsic sizing (`"50%"`, `fill`, `auto`/`fit`, `min_width`, `max_height`)
 
+### Track System Refactoring
+
+Complete overhaul of the animation track system for correctness, maintainability, and performance:
+
+- **Registry-driven field enumeration** — Single source of truth via `PROPERTY_REGISTRY` + `ActorField` enum; eliminated 5 hand-maintained field lists that caused silent data loss bugs
+- **Correctness fixes** — Fixed `max_keyframe_time`, `has_any_keyframes`, `keyframe_times_s` to include all fields (transform, highlight, filter, metrics); fixed `TextMaxWidth` dispatch collision; completed `field_ref`/`field_mut` coverage for all 22 `ActorField` variants; fixed `is_currently_animating` semantics
+- **Tier-based sub-structs** — Decomposed flat 56-field `AnimationTrack` into 6 focused sub-structs: `FilterTracks`, `HighlightTracks`, `ShapeTracks`, `TextTracks`, `StyleTracks`, `GeometryTracks`
+- **Module split** — Split monolithic `track.rs` (~2500 lines) into 5 focused modules: `property_track.rs`, `animation_track.rs`, `dispatch.rs`, `actor_kind.rs`, `morph.rs`
+- **Maintainability** — Collapsed 5×11-arm duplicated matches into `TrackFieldRef` inherent methods; unified evaluate logic via `interpolation_segment` helper; simplified `read_property_value_or_default` signature
+- **Idioms** — Added `Debug` derives, manual `Clone` (drops memo cache), `Interpolate: Clone` supertrait, `pub(crate)` field visibility with accessor methods, cached beyond-last-keyframe results
+- **Test coverage** — Added 90 regression tests (472 total): field_ref coverage, write/read round-trips, registry iteration, cache invalidation, interpolation semantics
+
+### Auto Color Cycling Per Instance
+
+`color: auto` now assigns distinct colors per instance (unique label), not per primitive type. Each actor gets its own slot in the deterministic palette cycle.
+
 ---
 
 ## Planned
@@ -28,8 +44,7 @@ All 7 phases of the layout/typography improvement roadmap are complete:
 
 - [ ] **Callout / annotation primitive** — An `Annotation` or `Callout` primitive that draws a labeled arrow/line from a text label to a target actor or coordinate. Currently requires manual `Arrow` + `Text` with hardcoded `from`/`to`. Useful for educational diagrams (e.g., "this is the 2 Hz component").
 - [ ] **Legend primitive** — A `Legend` container that auto-generates color swatches + labels from child actors or an explicit data list. Currently requires manual `Rect` swatches + `Text` rows.
-- [ ] **Auto color cycling per instance** — `color: auto` should cycle through a deterministic palette across multiple instances of the same kind (e.g., 3 `PlotCurve` actors get distinct colors). Currently `auto` assigns one color per primitive type, not per instance.
-- [ ] **Text property easing** — Smooth interpolation for `text` content changes (`Text.text`, `Typst.content`). Currently text content changes are instantaneous; color/size changes already support easing. Workaround: multiple overlapping actors with staggered fade-in/out.
+- [ ] **Text property easing** — Smooth per-character morphing for `text` content changes (`Text.text`, `Typst.content`). Currently text path arrays support `Fade` morph strategy (cross-fade via opacity), but the `text_content` string itself snaps instantly. True per-character morphing (e.g., "Hello" → "World" letter-by-letter) would require character-level diffing and staggered interpolation. Workaround: multiple overlapping actors with staggered fade-in/out.
 
 ---
 
