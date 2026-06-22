@@ -1677,11 +1677,43 @@ pub(crate) fn build_bar_chart_paths(
                     }
                 } else {
                     // Single color (no list) → uniform color
-                    if let Some(col) = parse_color_in_env_with_lookup_diagnostic(
-                        label, "bar_colors", &prop.value, env, diagnostics, &subject,
-                    ) {
-                        bar_colors = vec![col];
-                        bar_colors_auto = false;
+                    match resolve_color_in_env(&prop.value, env) {
+                        Ok(Some(col)) => {
+                            bar_colors = vec![col];
+                            bar_colors_auto = false;
+                        }
+                        Ok(None) => {
+                            // expression didn't resolve to a color — fall back to auto
+                            diagnostics.push(Diagnostic::warning(
+                                DiagnosticCode::InvalidPropertyValue,
+                                DiagnosticPhase::Build,
+                                format!("BarChart '{label}' bar_colors value is not a color; falling back to auto"),
+                            ).with_subject(&subject));
+                        }
+                        Err(EvalError::UndefinedVariable(key)) => {
+                            let candidate_keys = env.all_keys();
+                            let suggestion = best_path_suggestion(
+                                &key,
+                                candidate_keys.iter().map(String::as_str),
+                            );
+                            let hint = suggestion
+                                .map(|candidate| format!(" Did you mean '{candidate}'?"))
+                                .unwrap_or_default();
+                            diagnostics.push(
+                                Diagnostic::warning(
+                                    DiagnosticCode::UnknownColorReference,
+                                    DiagnosticPhase::Build,
+                                    format!(
+                                        "Color value '{key}' on '{}.bar_colors' does not resolve to a known color; falling back to auto bar colors.{hint}",
+                                        label
+                                    ),
+                                ).with_subject(&subject),
+                            );
+                            // fall back to auto (bar_colors_auto stays true, bar_colors stays empty)
+                        }
+                        Err(_) => {
+                            // other eval error — fall back to auto
+                        }
                     }
                 }
             }

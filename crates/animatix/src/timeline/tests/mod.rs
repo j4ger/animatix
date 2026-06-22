@@ -14,6 +14,7 @@ use crate::ast::Property;
 #[cfg(test)] mod keyframe_times;
 #[cfg(test)] mod callout;
 #[cfg(test)] mod legend;
+#[cfg(test)] mod bar_chart;
 
 #[test]
 fn test_animated_scene_has_keyframes() {
