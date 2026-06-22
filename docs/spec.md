@@ -536,6 +536,7 @@ img: Image, url: "examples/assets/checker.png", at: (100, 100), size: (200, 150)
 | Shapes | `stroke`, `stroke_width`, `fill_opacity`, `stroke_progress` |
 | `Line` | `from`, `to` |
 | `Arrow` | `from`, `to`, `head_size` |
+| `Callout` | `from`, `to`, `head_size`, `label`, `label_at` |
 | `Polygon` | `points: {(x, y), ...}` |
 | `Path` | `commands: {move_to(...), line_to(...), curve_to(...), close()}` |
 | `Text` / `Typst` / `Code` | `text` / `content` / `code`, `font_size`, `font_family`, `font_weight`, `font_style`, `line_height`, `letter_spacing`, `word_spacing`, `text_max_width`, `text_align`, `overflow` |
@@ -717,6 +718,8 @@ During video export, all `Audio` actors from the current scene (or all scenes in
 **Plotting:** `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`
 
 **Containers:** `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`
+
+**Annotations:** `Callout`
 
 **Other:** `Audio`
 

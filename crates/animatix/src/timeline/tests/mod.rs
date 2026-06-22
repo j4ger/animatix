@@ -12,6 +12,7 @@ use crate::ast::Property;
 #[cfg(test)] mod taffy_layout;
 #[cfg(test)] mod container_helpers;
 #[cfg(test)] mod keyframe_times;
+#[cfg(test)] mod callout;
 
 #[test]
 fn test_animated_scene_has_keyframes() {

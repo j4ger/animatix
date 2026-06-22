@@ -42,7 +42,7 @@ Complete overhaul of the animation track system for correctness, maintainability
 
 ### Primitives & Syntax
 
-- [ ] **Callout / annotation primitive** — An `Annotation` or `Callout` primitive that draws a labeled arrow/line from a text label to a target actor or coordinate. Currently requires manual `Arrow` + `Text` with hardcoded `from`/`to`. Useful for educational diagrams (e.g., "this is the 2 Hz component").
+- [x] **Callout / annotation primitive** — A `Callout` primitive that draws a labeled arrow from a text label to a target coordinate. Implemented with `from`, `to`, `head_size`, `label`, and `label_at` properties. See `examples/callout_example.amx`.
 - [ ] **Legend primitive** — A `Legend` container that auto-generates color swatches + labels from child actors or an explicit data list. Currently requires manual `Rect` swatches + `Text` rows.
 - [ ] **Text property easing** — Smooth per-character morphing for `text` content changes (`Text.text`, `Typst.content`). Currently text path arrays support `Fade` morph strategy (cross-fade via opacity), but the `text_content` string itself snaps instantly. True per-character morphing (e.g., "Hello" → "World" letter-by-letter) would require character-level diffing and staggered interpolation. Workaround: multiple overlapping actors with staggered fade-in/out.
 

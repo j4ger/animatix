@@ -1,0 +1,38 @@
+// Example demonstrating the Callout primitive
+//
+// A Callout draws a labeled arrow from `from` to `to`, placing
+// the label text at `to + label_at`.
+
+config {
+    colorscheme: "editorial-dark",
+    resolution: (1280, 720),
+}
+
+// Static callout — points from (100, 100) to (300, 200)
+// with label "Important Point" offset by (10, -10) from the arrow tip
+callout1: Callout {
+    from: (100, 100),
+    to: (300, 200),
+    label: "Important Point",
+    label_at: (10, -10),
+    color: (1.0, 0.0, 0.0, 1.0),
+}
+
+// Animated callout — the target moves across the scene
+callout2: Callout {
+    from: (50, 300),
+    to: (200, 300),
+    label: "Moving Target",
+    label_at: (0, 15),
+    color: (0.0, 0.0, 1.0, 1.0),
+}
+
+// Animate the target position of callout2
+#0s
+callout2.to = (200, 300)
+
+#2s
+callout2.to = (400, 300) [2s, ease: ease-in-out]
+
+#4s
+callout2.to = (200, 300) [2s, ease: ease-in-out]
