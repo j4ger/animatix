@@ -12,7 +12,9 @@ use std::collections::HashSet;
 
 use egui::{Color32, Pos2, RichText, Vec2};
 
-use animatix::timeline::{AnimationTrack, SceneDimensions, Timeline, lookup_property};
+use animatix::timeline::{
+    lookup_property, AnimationTrack, PropertyValue, SceneDimensions, Timeline, TrackFieldRef,
+};
 
 use super::PropertyViewMode;
 use crate::app::commands::{
@@ -436,71 +438,37 @@ fn get_property_value_display(track: &AnimationTrack, prop_name: &str, time_ms: 
 }
 
 /// Get a `GuiPropertyValue` for the property at the given time, for emitting edits.
-fn get_property_gui_value(
+pub fn get_property_gui_value(
     track: &AnimationTrack,
-    prop_name: &str,
+    property_name: &str,
     time_ms: u64,
 ) -> Option<GuiPropertyValue> {
-    match prop_name {
-        "position" => track.geometry.position.as_ref().map(|t| {
-            let v = t.evaluate_copy(time_ms);
-            GuiPropertyValue::Vec2(v)
-        }),
-        "size" => track.geometry.size.as_ref().map(|t| {
-            let v = t.evaluate_copy(time_ms);
-            GuiPropertyValue::Vec2([v[0] * 2.0, v[1] * 2.0])
-        }),
-        "rotation" => track.geometry.rotation.as_ref().map(|t| {
-            let v = t.evaluate_copy(time_ms);
-            GuiPropertyValue::Float(v)
-        }),
-        "scale" => track.geometry.scale.as_ref().map(|t| {
-            let v = t.evaluate_copy(time_ms);
-            GuiPropertyValue::Float(v)
-        }),
-        "opacity" => track.style.opacity.as_ref().map(|t| {
-            let v = t.evaluate_copy(time_ms);
-            GuiPropertyValue::Float(v)
-        }),
-        "color" => track.style.color.as_ref().map(|t| {
-            let v = t.evaluate_copy(time_ms);
-            GuiPropertyValue::Color(v)
-        }),
-        "stroke_width" => track.style.stroke_width.as_ref().map(|t| {
-            let v = t.evaluate_copy(time_ms);
-            GuiPropertyValue::Float(v)
-        }),
-        "stroke_color" => track.style.stroke_color.as_ref().map(|t| {
-            let v = t.evaluate_copy(time_ms);
-            GuiPropertyValue::Color(v)
-        }),
-        "stroke_progress" => track.style.stroke_progress.as_ref().map(|t| {
-            let v = t.evaluate_copy(time_ms);
-            GuiPropertyValue::Float(v)
-        }),
-        "fill_opacity" => track.style.fill_opacity.as_ref().map(|t| {
-            let v = t.evaluate_copy(time_ms);
-            GuiPropertyValue::Float(v)
-        }),
+    let schema = lookup_property(property_name)?;
+    let field_ref = track.field_ref(schema.field)?;
+    let value = field_ref.evaluate_value(time_ms)?;
+
+    // Convert PropertyValue to GuiPropertyValue
+    // Special cases: color/stroke_color are Vec4 tracks evaluated as PropertyValue::Color
+    match (property_name, value) {
+        ("position", PropertyValue::Vec2(v)) => Some(GuiPropertyValue::Vec2(v)),
+        ("size", PropertyValue::Vec2(v)) => Some(GuiPropertyValue::Vec2(v)),
+        ("rotation", PropertyValue::F32(v)) => Some(GuiPropertyValue::Float(v)),
+        ("scale", PropertyValue::F32(v)) => Some(GuiPropertyValue::Float(v)),
+        ("opacity", PropertyValue::F32(v)) => Some(GuiPropertyValue::Float(v)),
+        ("color", PropertyValue::Color(v)) => Some(GuiPropertyValue::Color(v)),
+        ("stroke_width", PropertyValue::F32(v)) => Some(GuiPropertyValue::Float(v)),
+        ("stroke_color", PropertyValue::Color(v)) => Some(GuiPropertyValue::Color(v)),
+        ("stroke_progress", PropertyValue::F32(v)) => Some(GuiPropertyValue::Float(v)),
+        ("fill_opacity", PropertyValue::F32(v)) => Some(GuiPropertyValue::Float(v)),
         _ => None,
     }
 }
 
 /// Check whether an actor has an actual property track for the given property name.
-fn has_property_track(track: &AnimationTrack, prop_name: &str) -> bool {
-    match prop_name {
-        "position" => track.geometry.position.is_some(),
-        "size" => track.geometry.size.is_some(),
-        "rotation" => track.geometry.rotation.is_some(),
-        "scale" => track.geometry.scale.is_some(),
-        "opacity" => track.style.opacity.is_some(),
-        "color" => track.style.color.is_some(),
-        "stroke_width" => track.style.stroke_width.is_some(),
-        "stroke_color" => track.style.stroke_color.is_some(),
-        "stroke_progress" => track.style.stroke_progress.is_some(),
-        "fill_opacity" => track.style.fill_opacity.is_some(),
-        _ => false,
-    }
+pub fn has_property_track(track: &AnimationTrack, property_name: &str) -> bool {
+    lookup_property(property_name)
+        .and_then(|schema| track.field_ref(schema.field))
+        .is_some()
 }
 
 /// Format an RGBA color array as a hex string.
