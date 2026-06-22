@@ -398,6 +398,7 @@ mod tests {
             ActorKindId::NumberPlane,
             ActorKindId::BarChart,
             ActorKindId::Callout,
+            ActorKindId::Legend,
             ActorKindId::Row,
             ActorKindId::Col,
             ActorKindId::Grid,

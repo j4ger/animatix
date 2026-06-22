@@ -114,6 +114,8 @@ pub enum ActorKindId {
     Fragment,
     /// Callout / annotation bubble.
     Callout,
+    /// Legend with auto-generated color swatches and labels.
+    Legend,
 }
 
 impl ActorKindId {

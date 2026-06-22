@@ -100,6 +100,10 @@ pub struct AnimationTrack {
     // ── Highlight tier (sub-struct) ──
     /// Highlight property tracks (color, opacity, padding, radius, blend).
     pub highlight: HighlightTracks,
+
+    // ── Legend tier ──
+    /// Legend entries (auto-generated from scene content).
+    pub legend: super::legend::LegendTracks,
 }
 
 impl AnimationTrack {
@@ -142,6 +146,9 @@ impl AnimationTrack {
 
             // Highlight tier (sub-struct)
             highlight: HighlightTracks::default(),
+
+            // Legend tier
+            legend: super::legend::LegendTracks::default(),
         }
     }
 

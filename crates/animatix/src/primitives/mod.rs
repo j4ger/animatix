@@ -264,6 +264,8 @@ mod fragment;
 pub use fragment::FRAGMENT;
 mod callout;
 pub use callout::CALLOUT;
+mod legend;
+pub use legend::LEGEND;
 
 // ── Primitive trait ─────────────────────────────────────────────────────
 
@@ -744,6 +746,7 @@ pub static PRIMITIVES: &[&dyn Primitive] = &[
     &FRAGMENT,
     // Annotations
     &CALLOUT,
+    &LEGEND,
 ];
 
 // ── Auto-generated registry ─────────────────────────────────────────────
@@ -886,6 +889,7 @@ mod tests {
             ActorKindId::Equation,
             ActorKindId::Fragment,
             ActorKindId::Callout,
+            ActorKindId::Legend,
         ] {
             assert!(kinds.contains(&id), "Missing ActorKindMeta for {:?}", id);
         }

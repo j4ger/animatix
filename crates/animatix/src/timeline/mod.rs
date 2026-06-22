@@ -94,6 +94,10 @@ mod index;
 #[cfg(feature = "render")]
 mod scene_eval;
 mod sequence;
+/// Legend track storage.
+pub mod legend;
+pub use legend::LegendTracks;
+
 /// Vector shape definitions and rendering.
 pub mod shapes;
 /// SVG parsing and manipulation utilities.
