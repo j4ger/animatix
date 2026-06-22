@@ -13,6 +13,7 @@ use crate::ast::Property;
 #[cfg(test)] mod container_helpers;
 #[cfg(test)] mod keyframe_times;
 #[cfg(test)] mod callout;
+#[cfg(test)] mod legend;
 
 #[test]
 fn test_animated_scene_has_keyframes() {

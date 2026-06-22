@@ -10,7 +10,7 @@ Use these rules when generating `.amx` files:
 
 - Start with `config { colorscheme: "editorial-dark", resolution: (1280, 720) }` unless the user asks otherwise.
 - Declare actors as `label: Type, prop: value`; animate later with keyframes (`#1s`) and assignments (`label.prop = value [800ms, ease: ease-out]`).
-- Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Typst`, `Code`, `Svg`, `Image`, `Audio`, `Equation`, `Fragment`, `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`.
+- Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Typst`, `Code`, `Svg`, `Image`, `Audio`, `Equation`, `Fragment`, `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`, `Legend`.
 - Avoid common hallucinations: `Circle` (use `Ellipse`), `Triangle` (use `Polygon`), `Chart`/`Diagram` (use `Graph`/`PlotCurve`), and any 3D primitives.
 - Colors are RGBA tuples `(r, g, b, a)`, scheme tokens (`accent.primary`, `text.primary`, etc.), `auto`, or named colors (`RED`/`red`, `GREEN`/`green`, `BLUE`/`blue`, `BLACK`/`black`, `WHITE`/`white`, `YELLOW`/`yellow`, `ORANGE`/`orange`). Do not use hex strings.
 - Timing modifiers use positional duration: `[1s]`, `[800ms, ease: ease-in-out]`, `[delay: 250ms, 0s]`. Do not write `duration: 1s`.
@@ -537,6 +537,7 @@ img: Image, url: "examples/assets/checker.png", at: (100, 100), size: (200, 150)
 | `Line` | `from`, `to` |
 | `Arrow` | `from`, `to`, `head_size` |
 | `Callout` | `from`, `to`, `head_size`, `label`, `label_at` |
+| `Legend` | `at` |
 | `Polygon` | `points: {(x, y), ...}` |
 | `Path` | `commands: {move_to(...), line_to(...), curve_to(...), close()}` |
 | `Text` / `Typst` / `Code` | `text` / `content` / `code`, `font_size`, `font_family`, `font_weight`, `font_style`, `line_height`, `letter_spacing`, `word_spacing`, `text_max_width`, `text_align`, `overflow` |
@@ -651,6 +652,25 @@ Shorthand forms are accepted:
 - `transform: (a, b, c, d)` → `[a, b, c, d, 0, 0]` (linear map only)
 - `transform: (a, b, c, d, tx, ty)` → full affine matrix
 
+### Legend
+
+`Legend` is an **annotation primitive** that auto-generates a color-coded legend from scene content.
+It renders color swatches with labels, positioned at a configurable location.
+
+```animatix
+legend: Legend, at: (100, 100)
+```
+
+**Legend properties:**
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `at` | Vec2 | `(100, 100)` | Position of the top-left corner of the legend |
+
+**Legend entries** are auto-generated — not manually specified. Currently uses placeholders entries
+("Series A", "Series B", "Series C") with hardcoded colors as a stand-in; scene scanning for automatic
+entry extraction from actors with color properties will be implemented in a future update.
+
 ### Graph Coordinate Mapping
 
 Actors declared inside a `Graph` block have their `at`/`position`/`from`/`to` properties automatically mapped from math coordinates to screen pixels.
@@ -719,7 +739,7 @@ During video export, all `Audio` actors from the current scene (or all scenes in
 
 **Containers:** `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`
 
-**Annotations:** `Callout`
+**Annotations:** `Callout`, `Legend`
 
 **Other:** `Audio`
 
