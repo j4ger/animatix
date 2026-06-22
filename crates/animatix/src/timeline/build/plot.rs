@@ -942,6 +942,7 @@ impl Timeline {
                 p_x_domain,
                 p_y_domain,
                 parent_size,
+                &initial_eval_env,
                 diagnostics,
                 label,
             );
@@ -1614,6 +1615,7 @@ pub(crate) fn build_bar_chart_paths(
     x_domain: [f64; 2],
     y_domain: [f64; 2],
     parent_size: Option<[f64; 2]>,  // Some() when inside a Graph
+    env: &Environment,
     diagnostics: &mut Vec<Diagnostic>,
     label: &str,
 ) -> Vec<VelloPath> {
@@ -1635,63 +1637,82 @@ pub(crate) fn build_bar_chart_paths(
     let mut max_value_val = 0.0f32;
 
     for prop in props {
-        let _subject = format!("{}.{}", label, prop.name);
+        let subject = format!("{}.{}", label, prop.name);
         match prop.name.as_str() {
             "bar_width" => {
-                if let Expr::Num(n) = &prop.value {
-                    bar_width_val = *n as f32;
+                if let Some(v) = evaluate_expr_with_lookup_diagnostic(
+                    &prop.value, env, diagnostics, &subject,
+                ) {
+                    bar_width_val = v.as_num() as f32;
                     bar_width_auto = false;
                 }
             }
             "gap" => {
-                if let Expr::Num(n) = &prop.value {
-                    gap_val = *n as f32;
+                if let Some(v) = evaluate_expr_with_lookup_diagnostic(
+                    &prop.value, env, diagnostics, &subject,
+                ) {
+                    gap_val = v.as_num() as f32;
                     gap_auto = false;
                 }
             }
             "bar_colors" => {
-                if let Expr::List(colors) = &prop.value {
-                    let mut parsed = Vec::new();
+                let is_auto = match &prop.value {
+                    Expr::Ident(s) | Expr::Str(s) => s == "auto",
+                    _ => false,
+                };
+                if is_auto {
+                    // keep defaults (bar_colors_auto stays true)
+                } else if let Expr::List(colors) = &prop.value {
+                    let mut parsed = Vec::with_capacity(colors.len());
                     for c in colors {
-                        // Try to parse as RGBA tuple
-                        if let Expr::Tuple(rgba) = c {
-                            if rgba.len() == 4 {
-                                let mut comps = [0.0f32; 4];
-                                let mut ok = true;
-                                for (i, v) in rgba.iter().enumerate() {
-                                    if let Expr::Num(n) = v {
-                                        comps[i] = *n as f32;
-                                    } else {
-                                        ok = false;
-                                        break;
-                                    }
-                                }
-                                if ok {
-                                    parsed.push(comps);
-                                }
-                            }
+                        if let Some(col) = parse_color_in_env_with_lookup_diagnostic(
+                            label, "bar_colors", c, env, diagnostics, &subject,
+                        ) {
+                            parsed.push(col);
                         }
                     }
                     if !parsed.is_empty() {
                         bar_colors = parsed;
                         bar_colors_auto = false;
                     }
+                } else {
+                    // Single color (no list) → uniform color
+                    if let Some(col) = parse_color_in_env_with_lookup_diagnostic(
+                        label, "bar_colors", &prop.value, env, diagnostics, &subject,
+                    ) {
+                        bar_colors = vec![col];
+                        bar_colors_auto = false;
+                    }
                 }
             }
             "show_axis" => {
-                if let Expr::Str(s) = &prop.value {
-                    show_axis = s == "true" || s == "1";
+                if let Some(v) = evaluate_expr_with_lookup_diagnostic(
+                    &prop.value, env, diagnostics, &subject,
+                ) {
+                    show_axis = match v {
+                        Value::Bool(b) => b,
+                        Value::Str(s) => s == "true" || s == "1",
+                        _ => {
+                            diagnostics.push(Diagnostic::warning(
+                                DiagnosticCode::InvalidPropertyValue,
+                                DiagnosticPhase::Build,
+                                format!("BarChart '{label}' show_axis expects a boolean"),
+                            ).with_subject(&subject));
+                            true
+                        }
+                    };
                 }
             }
             "direction" => {
                 // Parsed but not yet used; reserved for horizontal bar support
             }
             "max_value" => {
-                if let Expr::Num(n) = &prop.value {
-                    max_value_val = *n as f32;
-                    if max_value_val > 0.0 {
-                        max_value_auto = false;
-                    }
+                if let Some(v) = evaluate_expr_with_lookup_diagnostic(
+                    &prop.value, env, diagnostics, &subject,
+                ) {
+                    let n = v.as_num() as f32;
+                    max_value_val = n;
+                    if n > 0.0 { max_value_auto = false; }
                 }
             }
             _ => {}
