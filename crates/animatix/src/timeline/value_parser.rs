@@ -25,7 +25,7 @@
 //! - `BuildTimeOnly` — side-effect properties (func, grid, ticks, etc.)
 
 use crate::ast::Expr;
-use crate::diagnostics::Diagnostic;
+use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::timeline::env::{Environment, Value};
 use crate::timeline::property_registry::ValueType;
 
@@ -83,28 +83,65 @@ pub(crate) fn parse_value(
             Some(PropertyValue::String(v.as_str()))
         }
         ValueType::PointList => {
-            // Expect an Expr::List of Expr::Tuple[Expr::Num, Expr::Num]
-            if let Expr::List(items) = expr {
-                let mut points = Vec::with_capacity(items.len());
-                for item in items {
-                    if let Expr::Tuple(pair) = item {
-                        if pair.len() == 2 {
-                            if let (Expr::Num(x), Expr::Num(y)) = (&pair[0], &pair[1]) {
-                                points.push([*x as f32, *y as f32]);
-                            } else {
-                                return None;
+            let items = match expr {
+                Expr::List(items) => items,
+                _ => {
+                    // Allow a variable/expression that evaluates to List(Vec2)
+                    match evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject) {
+                        Some(Value::List(items)) => {
+                            let mut points = Vec::with_capacity(items.len());
+                            for item in items {
+                                if let Value::Vec2([x, y]) = item {
+                                    points.push([x as f32, y as f32]);
+                                } else {
+                                    diagnostics.push(Diagnostic::warning(
+                                        DiagnosticCode::InvalidPropertyValue,
+                                        DiagnosticPhase::Build,
+                                        format!("PointList expected Vec2, got {:?}", item),
+                                    ).with_subject(subject));
+                                }
                             }
-                        } else {
-                            return None;
+                            return if points.is_empty() { None } else { Some(PropertyValue::PointList(points)) };
                         }
-                    } else {
-                        return None;
+                        _ => return None,
                     }
                 }
-                Some(PropertyValue::PointList(points))
-            } else {
-                None
+            };
+            let mut points = Vec::with_capacity(items.len());
+            for item in items {
+                let pair = match item {
+                    Expr::Tuple(t) if t.len() == 2 => {
+                        let x = evaluate_expr_with_lookup_diagnostic(&t[0], env, diagnostics, subject);
+                        let y = evaluate_expr_with_lookup_diagnostic(&t[1], env, diagnostics, subject);
+                        match (x, y) {
+                            (Some(Value::Num(xv)), Some(Value::Num(yv))) => [xv as f32, yv as f32],
+                            _ => {
+                                diagnostics.push(Diagnostic::warning(
+                                    DiagnosticCode::InvalidPropertyValue,
+                                    DiagnosticPhase::Build,
+                                    "PointList point coordinates must be numbers".to_string(),
+                                ).with_subject(subject));
+                                continue;
+                            }
+                        }
+                    }
+                    _ => {
+                        match evaluate_expr_with_lookup_diagnostic(item, env, diagnostics, subject) {
+                            Some(Value::Vec2([x, y])) => [x as f32, y as f32],
+                            _ => {
+                                diagnostics.push(Diagnostic::warning(
+                                    DiagnosticCode::InvalidPropertyValue,
+                                    DiagnosticPhase::Build,
+                                    "PointList expected Vec2 point".to_string(),
+                                ).with_subject(subject));
+                                continue;
+                            }
+                        }
+                    }
+                };
+                points.push(pair);
             }
+            if points.is_empty() { None } else { Some(PropertyValue::PointList(points)) }
         }
         ValueType::CommandList => {
             crate::timeline::parse_path_commands_expr(expr, env)
