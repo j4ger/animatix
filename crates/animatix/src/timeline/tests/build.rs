@@ -298,3 +298,34 @@ fn equation_fragment_dot_path_assignment() {
         f2_content_at_1s
     );
 }
+
+#[test]
+fn pointlist_literal_tuples() {
+    let source = r#"
+        poly: Polygon {
+            points: {(0, 0), (100, 0), (100, 100)},
+        }
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(report.diagnostics.is_empty(), "Expected no diagnostics, got: {:?}", report.diagnostics);
+    assert!(report.output.tracks.get("poly").is_some(), "poly track should exist");
+}
+
+#[test]
+fn pointlist_with_variable() {
+    let source = r#"
+        let p1 = (10, 20)
+        poly: Polygon {
+            points: {p1, (50, 60)},
+        }
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(report.diagnostics.is_empty(), "Expected no diagnostics, got: {:?}", report.diagnostics);
+}
+
