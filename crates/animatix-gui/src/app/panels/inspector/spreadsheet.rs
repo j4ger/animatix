@@ -13,7 +13,7 @@ use std::collections::HashSet;
 use egui::{Color32, Pos2, RichText, Vec2};
 
 use animatix::timeline::{
-    lookup_property, AnimationTrack, PropertyValue, SceneDimensions, Timeline, TrackFieldRef,
+    lookup_property, AnimationTrack, PropertyValue, SceneDimensions, Timeline,
 };
 
 use super::PropertyViewMode;

@@ -127,6 +127,7 @@ impl FuncTransition {
 
 /// Evaluate a [`FuncSource`] at a single scalar argument, returning the scalar
 /// result. Clones `env` locally to avoid mutating the caller's environment.
+#[allow(dead_code)] // Reserved for future VectorField/Heatmap/ContourSet transition support
 pub fn resolve_func_source(
     source: &FuncSource,
     env: &Environment,
@@ -150,6 +151,7 @@ pub fn resolve_func_source(
 
 /// Evaluate a [`FuncSource`] at scalar `t`, returning a 2-element array
 /// (for parametric plots). Non-Vec2 results become `[NaN, NaN]`.
+#[allow(dead_code)] // Reserved for future parametric plot transition support
 pub fn resolve_func_source_vec2(
     source: &FuncSource,
     env: &Environment,
