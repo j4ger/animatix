@@ -167,7 +167,7 @@ always {
   let th = 0.676 + 2.6 * s
   let mx = r * cos(th)
   let my = r * sin(th)
-  ball.at = (400 + mx * 70, 380 - my * 70)
+  ball.at = descent_graph.map(mx, my)
   let loss = r * r
   live_loss.text = format("loss = {}", loss)
 }

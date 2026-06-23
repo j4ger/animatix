@@ -680,6 +680,15 @@ fn evaluate_method(
     args: &[Expr],
     env: &Environment,
 ) -> Result<Value, EvalError> {
+    // Dispatch to NativeFn if receiver is a NativeFn (e.g. graph.map).
+    if let Value::NativeFn(f) = &receiver {
+        let mut arg_values = Vec::with_capacity(args.len());
+        for a in args {
+            arg_values.push(evaluate_expr(a, env)?);
+        }
+        return f(&arg_values, env);
+    }
+
     match (receiver, name) {
         (Value::Str(s), "length") => {
             if !args.is_empty() {
