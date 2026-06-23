@@ -21,6 +21,50 @@ Keep track of what is yet to be done here, when a segment is fully done, remove 
 
 ---
 
+## Technical Debt
+
+Architectural issues, code quality problems, and infrastructure gaps that should be addressed but aren't blocking feature work. Organized by priority within each category.
+
+### Parser & DSL Bugs
+
+User-facing bugs that cause silent failures or confusion.
+
+| # | Task | Notes |
+|---|------|-------|
+| 14 | **Brace-style property diagnostic** | `Actor { prop: val }` silently drops properties (braces are for children only). Add parser warning: `"property 'X' has no preceding actor to attach to; did you mean 'Type, X: val'?"`. Also warn when props attach to `SlotMarker`, `ForLoop`, or `SlotFill` (currently silent drop in `inline.rs:138-148`). Add parser test documenting this behavior. |
+| 15 | **BarChart `data` format diagnostic** | `data: {10, 20, 30}` silently produces empty chart (parser expects `{("A", 10), ("B", 20)}` tuples). Add diagnostic when flat number list is detected: `"BarChart data expects (label, value) tuples, got flat numbers"`. Consider supporting auto-labeling for flat lists as a convenience feature. |
+
+### Code Quality
+
+Systemic issues that make the codebase fragile or error-prone.
+
+| # | Task | Notes |
+|---|------|-------|
+| 16 | **Audit silent property dropping** | Multiple properties (`bar_colors`, `bar_width`, `gap`, `show_axis`, `max_value`, `points`) silently drop unrecognized values instead of evaluating through the environment. This is a recurring anti-pattern. Audit all property parsers, replace direct `Expr` matching with evaluation helpers (`evaluate_expr_with_lookup_diagnostic`), and establish a codebase convention: "always evaluate, never silently drop." Consider adding a lint or code review checklist item. |
+| 17 | **`PropertyTrack::keyframes()` trait bounds** | The `keyframes()` method requires `T: Interpolate` even though reading keys from a `BTreeMap` doesn't need interpolation. This forced unnecessary trait bounds on GUI helper functions that only read keyframe timestamps. Add a `keyframes_raw()` method without the `Interpolate` bound for read-only access. |
+
+### Architectural Debt
+
+Design issues that create long-term maintenance burden.
+
+| # | Task | Notes |
+|---|------|-------|
+| 18 | **Consolidate evaluation paths** | Two complete evaluation engines exist: tree-walker (`utils.rs`) and IR/VM (`ir/eval.rs`). Both need identical updates for every new feature (e.g., `NativeFn` dispatch had to be added to both `eval_method` implementations). This is a divergence risk. Long-term: consolidate into a single evaluation engine, or extract shared logic into a common module. |
+| 19 | **Unify coordinate system conventions** | `math_to_screen` in `plot.rs:1266` returns centered offsets (for plot-curve geometry), while `build/property.rs:240` returns absolute screen coords (offset + `at`). Same mathematical concept, different conventions. This causes confusion and is a footgun for plot rendering work. Document the two conventions clearly, or unify them into a single API with explicit `relative: bool` parameter. |
+| 20 | **`func` transitions as side-channel** | `func` is `BuildTimeOnly` in the property registry, but transitions use a parallel `func_transitions` field on `AnimationTrack`. The reason (closures can't implement `Interpolate`) is sound, but the result is that `func` behaves differently from every other animatable property. Future plot types (VectorField, Heatmap, ContourSet) will each need their own parallel transition system. Consider a more general "non-interpolatable property transition" framework, or accept the side-channel pattern and document it clearly. |
+
+### Infrastructure & Tooling
+
+Build system, CI, and tooling gaps.
+
+| # | Task | Notes |
+|---|------|-------|
+| 21 | **Workspace-wide CI coverage** | The GUI crate had 134 compilation errors that went unnoticed because CI only runs `cargo check` (not `cargo check --workspace`). Update CI config and `AGENTS.md` pre-commit gates to include `--workspace` flag. This prevents GUI drift from recurring. |
+| 22 | **Align tree-sitter grammar with PEG parser** | The tree-sitter `children_block` rule expects `repeat($._statement)` (full statements), but the PEG parser uses `inline_items` (flat comma-separated actor+property sequences). This causes syntax highlighting/LSP to diverge from actual accepted syntax. Update `grammar.js` to use an `inline_item` rule matching the PEG parser's behavior. |
+| 23 | **`rusty_ffmpeg` as opt-in feature** | The default feature set includes `rusty_ffmpeg`, which requires system FFmpeg libraries and causes `cargo build` to fail without them. Most development doesn't need video export. Make `video` an opt-in feature (`--features video`) rather than default. Update `Cargo.toml` default features and document the change. |
+
+---
+
 ## Icebox
 
 Not strictly needed, ones that require more design, or simply weird thoughts that came to mind. Should be ignored when planning for implementation, in most cases.
