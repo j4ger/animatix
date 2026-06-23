@@ -752,6 +752,54 @@ Core concepts:
 
 ---
 
+## 16.1 Scene Persistence Architecture
+
+Scene persistence uses a **build-time carry bag** mechanism to transport actors across scene transitions.
+
+### Carry Bag
+
+A `CarryBag` (`timeline/persistence.rs`) is a collection of `CarryEntry` objects, each containing:
+- A snapshot of the actor's `AnimationTrack` at the scene's end time (all keyframes collapsed to t=0)
+- Recursive snapshots of child actors (for containers)
+- The persistence flag (sticky — propagates automatically until `remove`)
+- Optional auto-color slot index (for `color: auto` actors)
+
+### Build Process
+
+1. **Parse scenes**: Extract scene declarations and play edges.
+2. **Compute walk order**: Topological sort of scenes via play edges (with cycle detection).
+3. **First-pass build**: Each scene is compiled without carry injection.
+4. **Walk-order carry loop** (`Composition::build`, step 3.5): For each scene (index ≥ 1):
+   - Compute carry bag from predecessor timeline at its exit time.
+   - If bag is non-empty, rebuild the scene's timeline with `build_with_carry`, which calls `inject_carry_bag` before processing statements.
+5. **Carry injection** (`inject_carry_bag`): Inserts carried tracks into `timeline.tracks`, adds to `root_nodes`, seeds `persistence_flags`, propagates `container_metadata`, and restores `auto_color_assignments`.
+
+### Snapshot Semantics
+
+`snapshot_track_at(track, time_ms)` collapses all keyframes of each property track to a single t=0 keyframe holding the sampled value at `time_ms`. Non-animated metadata (`kind`, `procedural_plot`, `svg_paths`, `text_paths`, `image`) is preserved by clone. `func_transitions` are cleared (they represent live animation transitions, not static state).
+
+### Layout Re-rooting
+
+When a layout-managed child is carried, its position binding is rewritten to `Absolute` using the world-space position computed from the source scene's layout engine via `actor_world_affine`. This decouples the carried actor from the source container so it renders correctly in the destination scene without an active layout pass.
+
+### Auto-Color Preservation
+
+Actors declared with `color: auto` receive an integer slot in `timeline.auto_color_assignments`. When carried, the slot is stored in `CarryEntry.auto_color_slot` and re-injected into `dest.auto_color_assignments`, ensuring the actor keeps the same auto-cycle color across scenes. The `next_auto_color_index` is bumped to `max(existing, slot + 1)` to prevent slot collisions with newly declared actors in the destination scene.
+
+### Transition Rendering
+
+No changes to the GPU compositor. During a fade transition, the carried actor is present in both the outgoing and incoming scene textures at identical world positions; the blend produces no visual artifact for that actor.
+
+### Diagnostics
+
+- `PersistIgnoresDuration` — `persist` given a duration modifier (ignored)
+- `PersistLayoutManagedChild` — persisting a layout-managed leaf directly
+- `PersistTargetNotCarried` — persist in last scene or single-scene file
+- `CarryAmbiguousPredecessor` — scene has multiple predecessors (diamond topology)
+- `PersistAfterRemove` — `persist` follows `remove` for the same actor in the same scene
+
+---
+
 ## 17. File Structure
 
 ```

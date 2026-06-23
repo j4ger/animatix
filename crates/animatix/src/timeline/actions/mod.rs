@@ -10,6 +10,8 @@ pub mod highlight;
 pub mod motion;
 /// Action registry types: signatures, parameters, and the [`BuiltinAction`] trait.
 pub mod registry;
+/// Persistence actions (persist, remove) for multi-scene carry-forward.
+pub mod persistence;
 /// Reorder actions that change container child order (swap, reorder).
 pub mod reorder;
 /// Reveal actions that animate vector stroke and fill visibility
@@ -27,6 +29,7 @@ use effects::{Bounce, Pulse, Shake};
 use entrance::{FadeIn, WipeIn};
 use exit::FadeOut;
 use highlight::{Highlight, Unhighlight};
+use persistence::{Persist, Remove};
 use motion::{Move, Rotate, Scale, Shift};
 use registry::{ActionSignature, BuiltinAction};
 use reorder::{Reorder, Swap};
@@ -147,8 +150,9 @@ pub(crate) fn expand_group_targets(
     targets: &[String],
     verb: &str,
 ) -> Vec<String> {
-    // These actions operate on containers, not leaves
-    let container_actions = ["reorder", "swap"];
+    // These actions operate on containers, not leaves (or need the root label
+    // for metadata/flag purposes — expand would lose the container identity).
+    let container_actions = ["reorder", "swap", "persist", "remove"];
     if container_actions.contains(&verb) {
         return targets.to_vec();
     }
@@ -283,6 +287,8 @@ fn get_builtin_actions() -> Vec<Box<dyn BuiltinAction>> {
         Box::new(RevealIn),
         Box::new(DrawOut),
         Box::new(FadeOut),
+        Box::new(Persist),
+        Box::new(Remove),
         Box::new(WipeOut),
         Box::new(RevealOut),
         Box::new(Shake),

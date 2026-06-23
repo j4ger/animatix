@@ -106,6 +106,16 @@ pub enum DiagnosticCode {
     MultiplePlayTargets,
     /// Multi-scene composition: a scene is unreachable (no `play` edge leads to it).
     OrphanScene,
+    /// Scene persistence: `persist` was given a duration argument, which is ignored.
+    PersistIgnoresDuration,
+    /// Scene persistence: `persist` targets a layout-managed leaf child directly.
+    PersistLayoutManagedChild,
+    /// Scene persistence: `persist` is used in a single-scene file or the last scene (no successor).
+    PersistTargetNotCarried,
+    /// Scene persistence: a scene has multiple predecessors in the play graph.
+    CarryAmbiguousPredecessor,
+    /// Scene persistence: `persist` follows `remove` in the same scene.
+    PersistAfterRemove,
     /// The plot function is invalid.
     InvalidPlotFunc,
     /// The actor type is unknown.
@@ -174,6 +184,11 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::PlayCycleDetected => write!(f, "play-cycle-detected"),
             DiagnosticCode::MultiplePlayTargets => write!(f, "multiple-play-targets"),
             DiagnosticCode::OrphanScene => write!(f, "orphan-scene"),
+            DiagnosticCode::PersistIgnoresDuration => write!(f, "persist-ignores-duration"),
+            DiagnosticCode::PersistLayoutManagedChild => write!(f, "persist-layout-managed-child"),
+            DiagnosticCode::PersistTargetNotCarried => write!(f, "persist-target-not-carried"),
+            DiagnosticCode::CarryAmbiguousPredecessor => write!(f, "carry-ambiguous-predecessor"),
+            DiagnosticCode::PersistAfterRemove => write!(f, "persist-after-remove"),
             DiagnosticCode::InvalidPlotFunc => write!(f, "invalid-plot-func"),
             DiagnosticCode::UnknownActorType => write!(f, "unknown-actor-type"),
             DiagnosticCode::TypeMismatch => write!(f, "type-mismatch"),
@@ -675,5 +690,98 @@ mod tests {
 
         let report: BuildReport<()> = BuildReport::new((), diagnostics);
         assert_eq!(report.diagnostics.len(), 2);
+    }
+
+    #[test]
+    fn persist_ignores_duration_code_formats_honestly() {
+        assert_eq!(
+            DiagnosticCode::PersistIgnoresDuration.to_string(),
+            "persist-ignores-duration"
+        );
+    }
+
+    #[test]
+    fn persist_layout_managed_child_code_formats_honestly() {
+        assert_eq!(
+            DiagnosticCode::PersistLayoutManagedChild.to_string(),
+            "persist-layout-managed-child"
+        );
+    }
+
+    #[test]
+    fn persist_target_not_carried_code_formats_honestly() {
+        assert_eq!(
+            DiagnosticCode::PersistTargetNotCarried.to_string(),
+            "persist-target-not-carried"
+        );
+    }
+
+    #[test]
+    fn carry_ambiguous_predecessor_code_formats_honestly() {
+        assert_eq!(
+            DiagnosticCode::CarryAmbiguousPredecessor.to_string(),
+            "carry-ambiguous-predecessor"
+        );
+    }
+
+    #[test]
+    fn persist_after_remove_code_formats_honestly() {
+        assert_eq!(
+            DiagnosticCode::PersistAfterRemove.to_string(),
+            "persist-after-remove"
+        );
+    }
+
+    #[test]
+    fn persist_ignores_duration_diagnostic_is_warning() {
+        let diagnostic = Diagnostic::warning(
+            DiagnosticCode::PersistIgnoresDuration,
+            DiagnosticPhase::Build,
+            "Persist ignores duration; duration value will be ignored",
+        );
+        assert!(diagnostic.severity == DiagnosticSeverity::Warning);
+    }
+
+    #[test]
+    fn persist_layout_managed_child_diagnostic_is_warning() {
+        let diagnostic = Diagnostic::warning(
+            DiagnosticCode::PersistLayoutManagedChild,
+            DiagnosticPhase::Build,
+            "Persist layout-managed leaf child",
+        );
+        assert!(diagnostic.severity == DiagnosticSeverity::Warning);
+    }
+
+    #[test]
+    fn persist_target_not_carried_diagnostic_is_warning() {
+        let diagnostic = Diagnostic::warning(
+            DiagnosticCode::PersistTargetNotCarried,
+            DiagnosticPhase::Build,
+            "Persist target not carried to any scene",
+        );
+        assert!(diagnostic.severity == DiagnosticSeverity::Warning);
+        assert!(diagnostic.code == DiagnosticCode::PersistTargetNotCarried);
+    }
+
+    #[test]
+    fn carry_ambiguous_predecessor_diagnostic_is_warning() {
+        let diagnostic = Diagnostic::warning(
+            DiagnosticCode::CarryAmbiguousPredecessor,
+            DiagnosticPhase::Build,
+            "Scene has multiple predecessors in play graph",
+        );
+        assert!(diagnostic.severity == DiagnosticSeverity::Warning);
+        assert!(diagnostic.code == DiagnosticCode::CarryAmbiguousPredecessor);
+    }
+
+    #[test]
+    fn persist_after_remove_diagnostic_is_warning() {
+        let diagnostic = Diagnostic::warning(
+            DiagnosticCode::PersistAfterRemove,
+            DiagnosticPhase::Build,
+            "Persist follows remove in the same scene",
+        );
+        assert!(diagnostic.severity == DiagnosticSeverity::Warning);
+        assert!(diagnostic.code == DiagnosticCode::PersistAfterRemove);
     }
 }

@@ -445,6 +445,8 @@ fn action_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
             "shift" => Some("Shift by offset: shift target by (dx, dy)"),
             "rotate" => Some("Rotate: rotate target by 90"),
             "scale" => Some("Scale: scale target to 2"),
+            "persist" => Some("Persist actor across scene boundary: persist actor"),
+            "remove" => Some("Fade out and stop persisting: remove actor [duration]"),
             _ => None,
         };
         CompletionItem {

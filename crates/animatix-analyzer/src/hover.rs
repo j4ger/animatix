@@ -191,6 +191,8 @@ pub fn action_documentation(name: &str) -> &'static str {
         "shift" => "Shift by offset: `shift target by (dx, dy)`",
         "rotate" => "Rotate: `rotate target by 90`",
         "scale" => "Scale: `scale target to 2`",
+        "persist" => "Mark actor(s) to carry into the next scene: `persist actor1, actor2`",
+        "remove" => "Fade out and stop persisting: `remove actor [500ms]`",
         _ => "Unknown action.",
     }
 }

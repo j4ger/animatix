@@ -152,6 +152,7 @@ const BUILTIN_ACTIONS: &[&str] = &[
     "fade-in", "draw-in", "wipe-in",
     "fade-out", "wipe-out", "reveal-out", "draw-out",
     "move", "shift", "rotate", "scale",
+    "persist", "remove",
 ];
 
 /// Known keywords.

@@ -1645,6 +1645,94 @@ Multi-scene compositions are automatically detected and routed via `BuildTarget`
 
 ---
 
+## 19. Scene Persistence
+
+> **Status:** Fully implemented. `persist` and `remove` actions are parsed, built, and carried across scene transitions via the CarryBag mechanism.
+
+Actors can persist across scene transitions using `persist` and `remove` actions.
+
+### Syntax
+
+```animatix
+persist actor1, actor2, ...
+remove actor1, actor2, ... [duration]
+```
+
+### Semantics
+
+- `persist` marks an actor to be carried into the next scene at its final state (position, size, color, opacity, etc.).
+- `remove` fades out the actor over an optional duration and clears its persistence flag, preventing further carry.
+- Persisted actors appear in the next scene at their final state; if the next scene re-declares the same label, it morphs from the carried state.
+- Persistence is **sticky**: once an actor is persisted, it propagates through every subsequent scene automatically until an explicit `remove`.
+- Persisting a container carries its entire subtree (all children) automatically.
+
+### Examples
+
+```animatix
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+# Intro
+title: Text, text: "Welcome", font_size: 48, at: (640, 200)
+badge: Circle, radius: 30, at: (100, 100), color: accent.primary
+
+#1s
+persist title, badge
+
+#2s
+play Main [fade, 500ms]
+
+# Main
+// title and badge are carried from Intro
+#0s
+title.text = "Main Scene" [800ms]
+
+#3s
+remove badge [1s]
+
+#4s
+play Outro [fade, 500ms]
+
+# Outro
+// title still here (carried from Main), badge was removed
+#0s
+title.text = "The End" [800ms]
+
+#2s
+remove title [1s]
+```
+
+### Auto-Color Carry
+
+When an actor uses `color: auto`, its auto-color slot is preserved across the carry. The actor keeps the same auto-cycle color in the destination scene even if the colorschemes differ.
+
+### Layout-Managed Children
+
+Actors managed by layout containers (e.g. children of `Row`, `Col`, `Stack`) have their world-space position resolved at the scene exit time. The carried actor is re-rooted to its absolute world position in the destination scene, decoupling it from the source layout.
+
+To carry layout-managed children, persist their **container**, not the individual children:
+
+```animatix
+row: Row, at: (640, 360), gap: 20 {
+    a: Rect, size: (80, 80)
+    b: Rect, size: (80, 80)
+}
+
+#1s
+persist row  // carries row + a + b together
+```
+
+### Warnings
+
+| Code | Meaning |
+|------|---------|
+| `PersistIgnoresDuration` | `persist` was given a duration argument (ignored) |
+| `PersistLayoutManagedChild` | `persist` targets a layout-managed leaf child directly (persist the container instead) |
+| `PersistTargetNotCarried` | `persist` used in the last scene or a single-scene file (no successor to receive the carry) |
+| `CarryAmbiguousPredecessor` | Scene has multiple predecessors in the play graph (only walk-order predecessor is used) |
+| `PersistAfterRemove` | `persist` follows `remove` for the same actor in the same scene |
+
+---
+
 ## Appendix A: Source Formatting Specification
 
 > Scope: serializer output (`animatix::to_source`) and GUI write-back.

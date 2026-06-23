@@ -196,9 +196,26 @@ impl BuildTarget {
             }
         } else {
             let report = Timeline::build_with_diagnostics_and_font_context(statements, namespaces, font_context, build_quality);
+            // Warn about persistent actors in a truly single-scene file (no successor).
+            let mut diags = report.diagnostics;
+            for (label, &flag) in &report.output.persistence_flags {
+                if flag {
+                    diags.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::PersistTargetNotCarried,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Actor '{}' is persisted but there is no successor scene to carry into.",
+                                label,
+                            ),
+                        )
+                        .with_subject(label),
+                    );
+                }
+            }
             BuildReport {
                 output: BuildTarget::SingleScene(report.output),
-                diagnostics: report.diagnostics,
+                diagnostics: diags,
             }
         };
         if let Some(path) = source_path {
@@ -253,6 +270,8 @@ impl Composition {
         let mut shared_prelude: Vec<Stmt> = Vec::new();
         // Temporary storage: scene_name → intermediate play target extracted from raw body.
         let mut play_targets: BTreeMap<String, (String, Option<Transition>)> = BTreeMap::new();
+        // Cache merged bodies for carry-injection rebuild (scene_name → merged AST).
+        let mut merged_bodies: BTreeMap<String, Vec<Stmt>> = BTreeMap::new();
 
         // 1. Separate shared prelude from scene blocks
         let mut in_scene = false;
@@ -288,6 +307,7 @@ impl Composition {
                         span: None,
                     });
                     merged_body.extend(body.clone());
+                    merged_bodies.insert(name.clone(), merged_body.clone());
 
                     let build_report = Timeline::build_with_diagnostics_and_font_context(&merged_body, namespaces, font_context.clone(), build_quality);
                     diagnostics.extend(
@@ -388,6 +408,7 @@ impl Composition {
                         span: scene_data.span,
                     });
                     merged.extend(scene_data.body.clone());
+                    merged_bodies.insert(target.clone(), merged.clone());
                     let build_report = Timeline::build_with_diagnostics_and_font_context(
                         &merged, namespaces, font_context.clone(), build_quality,
                     );
@@ -423,6 +444,163 @@ impl Composition {
             &scenes,
             &mut diagnostics,
         );
+
+        // 3.5: Walk-order carry injection
+        //
+        // For each scene (starting from the second) in walk order, compute the
+        // predecessor's carry bag and rebuild the scene timeline with carry
+        // injection.  Scenes without any persistent predecessor actors are
+        // rebuilt identically to the first pass (carry bag is empty → fast path).
+        {
+            // Reverse-edge map: to_scene → list of from_scenes (for multi-
+            // predecessor detection).
+            let mut reverse_edges: BTreeMap<String, Vec<String>> = BTreeMap::new();
+            for (from, edge) in &edges {
+                reverse_edges
+                    .entry(edge.to_scene.clone())
+                    .or_default()
+                    .push(from.clone());
+            }
+
+            // Default scene dimensions used for Phase 3 layout re-rooting.
+            let default_dims = [
+                crate::timeline::SceneDimensions::default().width as f64,
+                crate::timeline::SceneDimensions::default().height as f64,
+            ];
+
+            for i in 1..walk_order.len() {
+                let scene_name = walk_order[i].clone();
+                let pred_name = walk_order[i - 1].clone();
+
+                // Determine if this scene has a successor in walk order.
+                let has_successor = i + 1 < walk_order.len();
+
+                // Warn when a scene has more than one predecessor (diamond topology).
+                if let Some(preds) = reverse_edges.get(&scene_name) {
+                    if preds.len() > 1 {
+                        diagnostics.push(
+                            Diagnostic::warning(
+                                DiagnosticCode::CarryAmbiguousPredecessor,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "Scene '{}' is targeted by {} predecessor scenes; \
+                                     carry bag uses walk-order predecessor '{}' only.",
+                                    scene_name,
+                                    preds.len(),
+                                    pred_name,
+                                ),
+                            )
+                            .with_subject(&scene_name),
+                        );
+                    }
+                }
+
+                // Emit PersistTargetNotCarried for the predecessor if it's the last scene.
+                if !has_successor {
+                    if let Some(pred) = scenes.get(&pred_name) {
+                        for (label, &flag) in &pred.timeline.persistence_flags {
+                            if flag {
+                                diagnostics.push(
+                                    Diagnostic::warning(
+                                        DiagnosticCode::PersistTargetNotCarried,
+                                        DiagnosticPhase::Build,
+                                        format!(
+                                            "Actor '{}' is persisted in scene '{}' but has no \
+                                             successor scene to carry into.",
+                                            label, pred_name,
+                                        ),
+                                    )
+                                    .with_subject(&pred_name),
+                                );
+                            }
+                        }
+                    }
+                }
+
+                // Compute carry bag from predecessor timeline.
+                let (carry_bag, pred_duration_ms, pred_timeline_clone) = {
+                    let pred = match scenes.get(&pred_name) {
+                        Some(s) => s,
+                        None => continue,
+                    };
+                    let ms = (pred.duration_s * 1000.0) as u64;
+                    let bag = pred.timeline.compute_carry_bag(ms, has_successor);
+                    // Clone only when there are entries to carry.
+                    if bag.entries.is_empty() {
+                        continue; // nothing to carry — keep existing timeline
+                    }
+                    (bag, ms, pred.timeline.clone())
+                };
+
+                // Retrieve the merged AST body for this scene.
+                let merged_body = match merged_bodies.get(&scene_name) {
+                    Some(b) => b.clone(),
+                    None => continue,
+                };
+
+                // Discard first-pass diagnostics for this scene; the carry-
+                // aware rebuild will produce the authoritative diagnostics.
+                let scene_subject = format!("scene '{}'", scene_name);
+                diagnostics.retain(|d| {
+                    d.location.subject.as_deref() != Some(scene_subject.as_str())
+                });
+
+                // Rebuild with carry injection.
+                let build_report = crate::timeline::Timeline::build_with_carry(
+                    &merged_body,
+                    namespaces,
+                    font_context.clone(),
+                    build_quality,
+                    Some(&carry_bag),
+                    Some(&pred_timeline_clone),
+                    pred_duration_ms,
+                    default_dims,
+                );
+
+                diagnostics.extend(
+                    build_report
+                        .diagnostics
+                        .into_iter()
+                        .map(|d| d.with_subject(format!("scene '{}'", scene_name))),
+                );
+
+                let new_timeline = build_report.output;
+                let inferred = new_timeline.duration_seconds();
+
+                if let Some(scene) = scenes.get_mut(&scene_name) {
+                    let duration_s = scene.explicit_duration_s.unwrap_or(inferred);
+                    scene.timeline = new_timeline;
+                    scene.duration_s = duration_s;
+                }
+            }
+        }
+
+        // 3.6: Warn when the last scene in the walk order itself has persistent actors
+        // (persistence flags set but no successor to carry them into).
+        if let Some(last_scene_name) = walk_order.last() {
+            if let Some(last_scene) = scenes.get(last_scene_name) {
+                for (label, &flag) in &last_scene.timeline.persistence_flags {
+                    if flag {
+                        // Only warn if this scene really has no outgoing edge.
+                        let has_outgoing = edges.contains_key(last_scene_name);
+                        if !has_outgoing {
+                            diagnostics.push(
+                                Diagnostic::warning(
+                                    DiagnosticCode::PersistTargetNotCarried,
+                                    DiagnosticPhase::Build,
+                                    format!(
+                                        "Actor '{}' is persisted in scene '{}' but has no \
+                                         successor scene to carry into.",
+                                        label, last_scene_name,
+                                    ),
+                                )
+                                .with_subject(last_scene_name),
+                            );
+                        }
+                    }
+                }
+            }
+        }
 
         // 4. Compute global timeline
         let mut scene_start_times: BTreeMap<String, f64> = BTreeMap::new();
@@ -1256,5 +1434,539 @@ mod tests {
         assert_eq!(timed_scene.duration_s, 5.0);
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // -----------------------------------------------------------------------
+    // Phase 2 + 3: Scene persistence carry tests
+    // -----------------------------------------------------------------------
+
+    /// Basic carry: `title` persisted from SceneA → SceneB.
+    /// SceneB should have `title` in its tracks and root_nodes.
+    #[test]
+    fn test_persist_basic_carry() {
+        let source = concat!(
+            "# SceneA\n",
+            "#0s\n",
+            "title: Text, text: \"Hello\", at: (100, 100)\n",
+            "#1s\n",
+            "persist title\n",
+            "\n",
+            "# SceneB\n",
+            "#0s\n",
+        );
+        let parsed = parser_simple().parse(source).unwrap();
+        let report = Composition::build(&parsed, &std::collections::HashMap::new());
+
+        let non_carry_diags: Vec<_> = report
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::diagnostics::DiagnosticSeverity::Error)
+            .collect();
+        assert!(non_carry_diags.is_empty(), "errors: {:?}", non_carry_diags);
+
+        let comp = &report.output;
+
+        // SceneA: persistence flag set
+        let scene_a = comp.scenes.get("SceneA").expect("SceneA must exist");
+        assert_eq!(
+            scene_a.timeline.persistence_flags.get("title"),
+            Some(&true),
+            "SceneA persistence_flags[title] must be true"
+        );
+
+        // SceneB: carried actor present
+        let scene_b = comp.scenes.get("SceneB").expect("SceneB must exist");
+        assert!(
+            scene_b.timeline.tracks.contains_key("title"),
+            "SceneB must have carried `title` track"
+        );
+        assert!(
+            scene_b.timeline.root_nodes.contains(&"title".to_string()),
+            "SceneB: `title` must be in root_nodes (re-rooted)"
+        );
+    }
+
+    /// Carry with assignment: SceneB modifies the carried actor's property.
+    #[test]
+    fn test_persist_carry_then_assign() {
+        let source = concat!(
+            "# SceneA\n",
+            "#0s\n",
+            "title: Text, text: \"Hello\", at: (100, 100)\n",
+            "#1s\n",
+            "persist title\n",
+            "\n",
+            "# SceneB\n",
+            "#0s\n",
+            "title.opacity = 1\n",
+        );
+        let parsed = parser_simple().parse(source).unwrap();
+        let report = Composition::build(&parsed, &std::collections::HashMap::new());
+
+        let errors: Vec<_> = report
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::diagnostics::DiagnosticSeverity::Error)
+            .collect();
+        assert!(errors.is_empty(), "errors: {:?}", errors);
+
+        let scene_b = report.output.scenes.get("SceneB").expect("SceneB must exist");
+        assert!(
+            scene_b.timeline.tracks.contains_key("title"),
+            "SceneB must have carried `title`"
+        );
+        // Opacity assignment on a carried actor must succeed (no UnsupportedActionTarget)
+        let has_target_error = report
+            .diagnostics
+            .iter()
+            .any(|d| matches!(d.code, DiagnosticCode::UnsupportedActionTarget));
+        assert!(!has_target_error, "carry assignment must not emit UnsupportedActionTarget");
+    }
+
+    /// Chain persistence: badge carried A → B → C without re-persist in B or C.
+    #[test]
+    fn test_persist_chain() {
+        let source = concat!(
+            "# SceneA\n",
+            "#0s\n",
+            "badge: Ellipse, at: (50, 50), size: (30, 30)\n",
+            "#1s\n",
+            "persist badge\n",
+            "\n",
+            "# SceneB\n",
+            "#0s\n",
+            "\n",
+            "# SceneC\n",
+            "#0s\n",
+        );
+        let parsed = parser_simple().parse(source).unwrap();
+        let report = Composition::build(&parsed, &std::collections::HashMap::new());
+
+        let errors: Vec<_> = report
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::diagnostics::DiagnosticSeverity::Error)
+            .collect();
+        assert!(errors.is_empty(), "errors: {:?}", errors);
+
+        let comp = &report.output;
+
+        let scene_b = comp.scenes.get("SceneB").expect("SceneB must exist");
+        assert!(
+            scene_b.timeline.tracks.contains_key("badge"),
+            "SceneB must have badge from chain carry"
+        );
+        assert_eq!(
+            scene_b.timeline.persistence_flags.get("badge"),
+            Some(&true),
+            "chain: SceneB persistence_flags[badge] must remain true"
+        );
+
+        let scene_c = comp.scenes.get("SceneC").expect("SceneC must exist");
+        assert!(
+            scene_c.timeline.tracks.contains_key("badge"),
+            "SceneC must have badge via chain carry"
+        );
+    }
+
+    /// Remove breaks chain: badge removed in B must not appear in C.
+    #[test]
+    fn test_remove_breaks_chain() {
+        let source = concat!(
+            "# SceneA\n",
+            "#0s\n",
+            "badge: Ellipse, at: (50, 50), size: (30, 30)\n",
+            "#1s\n",
+            "persist badge\n",
+            "\n",
+            "# SceneB\n",
+            "#0s\n",
+            "remove badge\n",
+            "\n",
+            "# SceneC\n",
+            "#0s\n",
+        );
+        let parsed = parser_simple().parse(source).unwrap();
+        let report = Composition::build(&parsed, &std::collections::HashMap::new());
+
+        let errors: Vec<_> = report
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::diagnostics::DiagnosticSeverity::Error)
+            .collect();
+        assert!(errors.is_empty(), "errors: {:?}", errors);
+
+        let comp = &report.output;
+
+        // badge must be present in SceneB (it was carried)
+        let scene_b = comp.scenes.get("SceneB").expect("SceneB");
+        assert!(
+            scene_b.timeline.tracks.contains_key("badge"),
+            "SceneB must have badge (carried then removed)"
+        );
+        assert_eq!(
+            scene_b.timeline.persistence_flags.get("badge"),
+            Some(&false),
+            "SceneB persistence_flags[badge] must be false after remove"
+        );
+
+        // badge must NOT be in SceneC (chain broken by remove in B)
+        let scene_c = comp.scenes.get("SceneC").expect("SceneC");
+        assert!(
+            !scene_c.timeline.tracks.contains_key("badge"),
+            "SceneC must NOT have badge (chain broken by remove in SceneB)"
+        );
+    }
+
+    /// Container + subtree carry: persisting `row` carries both the container
+    /// and its `child` into SceneB.  The child must stay as a child of `row`
+    /// (not re-rooted), and `row`'s container metadata must be seeded.
+    #[test]
+    fn test_persist_container_subtree() {
+        let source = concat!(
+            "# SceneA\n",
+            "#0s\n",
+            "row: Row, anchor: scene.center {\n",
+            "    child: Text, text: \"Hi\"\n",
+            "}\n",
+            "#1s\n",
+            "persist row\n",
+            "\n",
+            "# SceneB\n",
+            "#0s\n",
+        );
+        let parsed = parser_simple().parse(source).unwrap();
+        let report = Composition::build(&parsed, &std::collections::HashMap::new());
+
+        let errors: Vec<_> = report
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::diagnostics::DiagnosticSeverity::Error)
+            .collect();
+        assert!(errors.is_empty(), "errors: {:?}", errors);
+
+        let comp = &report.output;
+        let scene_b = comp.scenes.get("SceneB").expect("SceneB");
+
+        // row is the re-rooted container
+        assert!(
+            scene_b.timeline.tracks.contains_key("row"),
+            "SceneB must have carried `row` track"
+        );
+        assert!(
+            scene_b.timeline.root_nodes.contains(&"row".to_string()),
+            "SceneB: `row` must be in root_nodes"
+        );
+
+        // child carried as subtree member, not re-rooted to root_nodes
+        assert!(
+            scene_b.timeline.tracks.contains_key("child"),
+            "SceneB must have carried `child` track"
+        );
+        assert!(
+            !scene_b.timeline.root_nodes.contains(&"child".to_string()),
+            "child must NOT be in root_nodes (it stays under row)"
+        );
+
+        // container metadata must be seeded so layout still resolves in B
+        assert!(
+            scene_b.timeline.container_metadata.contains_key("row"),
+            "SceneB: container_metadata must contain `row`"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Phase 4: Edge case tests
+    // -----------------------------------------------------------------------
+
+    /// Persist in a truly single-scene file (no `# SceneName` markers) must emit
+    /// `PersistTargetNotCarried` because there is no successor scene.
+    #[test]
+    fn test_persist_in_single_scene_file_warns() {
+        let source = concat!(
+            "#0s\n",
+            "title: Text, text: \"Hello\", at: (320, 180)\n",
+            "#1s\n",
+            "persist title\n",
+        );
+        let parsed = parser_simple().parse(source).unwrap();
+        let report = BuildTarget::from_ast(&parsed, &std::collections::HashMap::new(), None);
+
+        let has_not_carried = report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagnosticCode::PersistTargetNotCarried);
+        assert!(
+            has_not_carried,
+            "persist in a single-scene file should emit PersistTargetNotCarried. Diagnostics: {:?}",
+            report.diagnostics
+        );
+    }
+
+    /// Persist in a single-scene composition (one `# SceneName`, no successor)
+    /// must emit `PersistTargetNotCarried`.
+    #[test]
+    fn test_persist_in_single_scene_composition_warns() {
+        let source = concat!(
+            "# OnlyScene\n",
+            "#0s\n",
+            "badge: Ellipse, at: (50, 50), size: (30, 30)\n",
+            "#1s\n",
+            "persist badge\n",
+        );
+        let parsed = parser_simple().parse(source).unwrap();
+        let report = Composition::build(&parsed, &std::collections::HashMap::new());
+
+        let has_not_carried = report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagnosticCode::PersistTargetNotCarried);
+        assert!(
+            has_not_carried,
+            "persist in single-scene composition should emit PersistTargetNotCarried. Diagnostics: {:?}",
+            report.diagnostics
+        );
+    }
+
+    /// Persist in the last scene of a multi-scene composition must emit
+    /// `PersistTargetNotCarried` — the actor has nowhere to go.
+    #[test]
+    fn test_persist_last_scene_warns() {
+        // SceneA persists title. SceneB receives it via carry (inject_entry seeds the
+        // persistence flag). Since SceneB has no successor, PersistTargetNotCarried fires.
+        let source = concat!(
+            "# SceneA\n",
+            "#0s\n",
+            "title: Text, text: \"Hello\", at: (100, 100)\n",
+            "#1s\n",
+            "persist title\n",
+            "play SceneB\n",
+            "\n",
+            "# SceneB\n",
+            "#0s\n",
+            "#1s\n",
+        );
+        let parsed = parser_simple().parse(source).unwrap();
+        let report = Composition::build(&parsed, &std::collections::HashMap::new());
+
+        // SceneB receives 'title' via carry with persistent=true; SceneB has no outgoing
+        // edge, so PersistTargetNotCarried must be emitted.
+        let not_carried: Vec<_> = report
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagnosticCode::PersistTargetNotCarried)
+            .collect();
+        assert!(
+            !not_carried.is_empty(),
+            "carried actor in last scene should emit PersistTargetNotCarried. Diagnostics: {:?}",
+            report.diagnostics
+        );
+    }
+
+    /// `remove actor` followed by `persist actor` in the same scene must emit
+    /// `PersistAfterRemove` warning.
+    #[test]
+    fn test_persist_after_remove_warns_via_build() {
+        // remove and persist are placed in separate keyframe blocks to avoid
+        // any parser ambiguity around consecutive action lines.
+        let source = concat!(
+            "# SceneA\n",
+            "#0s\n",
+            "badge: Ellipse, at: (50, 50), size: (30, 30)\n",
+            "#1s\n",
+            "remove badge\n",
+            "#2s\n",
+            "persist badge\n",
+            "\n",
+            "# SceneB\n",
+            "#0s\n",
+        );
+        let parsed = parser_simple().parse(source).unwrap();
+        let report = Composition::build(&parsed, &std::collections::HashMap::new());
+
+        let has_after_remove_warn = report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagnosticCode::PersistAfterRemove);
+        assert!(
+            has_after_remove_warn,
+            "remove then persist in same scene should emit PersistAfterRemove. Diagnostics: {:?}",
+            report.diagnostics
+        );
+    }
+
+    /// Auto-color slot must be preserved when an actor is carried across scenes.
+    ///
+    /// Actor declared with `color: auto` in SceneA gets an auto_color slot.
+    /// When carried to SceneB, that slot must appear in SceneB's
+    /// `auto_color_assignments` so the actor keeps its color.
+    #[test]
+    fn test_auto_color_slot_preserved_across_carry() {
+        let source = concat!(
+            "config { colorscheme: \"default-dark\" }\n",
+            "\n",
+            "# SceneA\n",
+            "#0s\n",
+            "circle: Ellipse, at: (200, 200), size: (60, 60), color: auto\n",
+            "#1s\n",
+            "persist circle\n",
+            "\n",
+            "# SceneB\n",
+            "#0s\n",
+        );
+        let parsed = parser_simple().parse(source).unwrap();
+        let report = Composition::build(&parsed, &std::collections::HashMap::new());
+
+        let errors: Vec<_> = report
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::diagnostics::DiagnosticSeverity::Error)
+            .collect();
+        assert!(errors.is_empty(), "errors: {:?}", errors);
+
+        let comp = &report.output;
+
+        // SceneA should have auto_color_assignments for 'circle'
+        let scene_a = comp.scenes.get("SceneA").expect("SceneA");
+        assert!(
+            scene_a.timeline.auto_color_assignments.contains_key("circle"),
+            "SceneA: circle should have an auto_color slot"
+        );
+        let slot_a = scene_a.timeline.auto_color_assignments["circle"];
+
+        // SceneB should have the same auto_color slot for 'circle'
+        let scene_b = comp.scenes.get("SceneB").expect("SceneB");
+        assert!(
+            scene_b.timeline.tracks.contains_key("circle"),
+            "SceneB: carried circle track must exist"
+        );
+        assert!(
+            scene_b.timeline.auto_color_assignments.contains_key("circle"),
+            "SceneB: circle auto_color slot must be carried"
+        );
+        let slot_b = scene_b.timeline.auto_color_assignments["circle"];
+        assert_eq!(
+            slot_a, slot_b,
+            "auto_color slot must be the same in both scenes"
+        );
+    }
+
+    /// `PlotCurve` actor must carry its `ActorKindId::PlotCurve` kind and
+    /// `procedural_plot` to the next scene intact.
+    #[test]
+    fn test_plot_curve_carry() {
+        let source = concat!(
+            "# SceneA\n",
+            "#0s\n",
+            // PlotCurve inside a Graph container
+            "g: Graph, at: (640, 360), size: (400, 300) {\n",
+            "    curve: PlotCurve, kind: \"cartesian\", func: (x) => x * x\n",
+            "}\n",
+            "#1s\n",
+            "persist g\n",
+            "\n",
+            "# SceneB\n",
+            "#0s\n",
+        );
+        let parsed = parser_simple().parse(source).unwrap();
+        let report = Composition::build(&parsed, &std::collections::HashMap::new());
+
+        let errors: Vec<_> = report
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::diagnostics::DiagnosticSeverity::Error)
+            .collect();
+        assert!(errors.is_empty(), "errors: {:?}", errors);
+
+        let comp = &report.output;
+        let scene_b = comp.scenes.get("SceneB").expect("SceneB");
+
+        // Container 'g' must be carried
+        assert!(
+            scene_b.timeline.tracks.contains_key("g"),
+            "SceneB: carried Graph track 'g' must exist"
+        );
+        // PlotCurve child 'curve' must be carried as part of container subtree
+        assert!(
+            scene_b.timeline.tracks.contains_key("curve"),
+            "SceneB: PlotCurve child 'curve' must be carried"
+        );
+
+        let curve_track = scene_b.timeline.tracks.get("curve").unwrap();
+        assert_eq!(
+            curve_track.kind,
+            crate::timeline::ActorKindId::PlotCurve,
+            "carried PlotCurve track must retain PlotCurve kind"
+        );
+        assert!(
+            curve_track.procedural_plot.is_some(),
+            "carried PlotCurve track must retain procedural_plot"
+        );
+    }
+
+    /// `Svg` actor must carry its `ActorKindId::Svg` kind to the next scene.
+    #[test]
+    fn test_svg_actor_carry() {
+        // Svg actor declaration with an inline path (no file loading needed for kind carry test)
+        let source = concat!(
+            "# SceneA\n",
+            "#0s\n",
+            "icon: Svg, at: (200, 200), size: (100, 100), src: \"M10 10 L20 20\"\n",
+            "#1s\n",
+            "persist icon\n",
+            "\n",
+            "# SceneB\n",
+            "#0s\n",
+        );
+        let parsed = parser_simple().parse(source).unwrap();
+        let report = Composition::build(&parsed, &std::collections::HashMap::new());
+
+        // Any diagnostics from missing file are OK; we only check that the carry happened.
+        let comp = &report.output;
+        let scene_b = comp.scenes.get("SceneB").expect("SceneB");
+
+        assert!(
+            scene_b.timeline.tracks.contains_key("icon"),
+            "SceneB: carried Svg 'icon' track must exist"
+        );
+        let icon_track = scene_b.timeline.tracks.get("icon").unwrap();
+        assert_eq!(
+            icon_track.kind,
+            crate::timeline::ActorKindId::Svg,
+            "carried Svg track must retain Svg kind"
+        );
+    }
+
+    /// `Image` actor must carry its `ActorKindId::Image` kind to the next scene.
+    #[test]
+    fn test_image_actor_carry() {
+        // Image actor declaration with a placeholder path
+        let source = concat!(
+            "# SceneA\n",
+            "#0s\n",
+            "pic: Image, at: (300, 200), size: (200, 150), src: \"placeholder.png\"\n",
+            "#1s\n",
+            "persist pic\n",
+            "\n",
+            "# SceneB\n",
+            "#0s\n",
+        );
+        let parsed = parser_simple().parse(source).unwrap();
+        let report = Composition::build(&parsed, &std::collections::HashMap::new());
+
+        // File loading failure diagnostics are expected; focus on the carry.
+        let comp = &report.output;
+        let scene_b = comp.scenes.get("SceneB").expect("SceneB");
+
+        assert!(
+            scene_b.timeline.tracks.contains_key("pic"),
+            "SceneB: carried Image 'pic' track must exist"
+        );
+        let pic_track = scene_b.timeline.tracks.get("pic").unwrap();
+        assert_eq!(
+            pic_track.kind,
+            crate::timeline::ActorKindId::Image,
+            "carried Image track must retain Image kind"
+        );
     }
 }

@@ -1,0 +1,74 @@
+// 25 — Scene Persistence: carry actors across scene transitions with persist / remove
+//
+// Demonstrates:
+//   - persist: mark actors to survive scene changes
+//   - remove: fade out and stop persisting
+//   - Chain persistence: actors carry automatically through multiple scenes
+//   - Container carry: persisting a Row carries its children too
+//   - Auto-color carry: color: auto slots are preserved across scenes
+
+config {
+    colorscheme: "editorial-dark",
+    resolution: (1280, 720),
+}
+
+// ── Scene 1: Intro ────────────────────────────────────────────────────────────
+
+# Intro
+
+title: Text, text: "Scene Persistence Demo", font_size: 48, at: (640, 200)
+badge: Ellipse, at: (100, 100), size: (60, 60), color: auto
+
+#0s
+fade-in title [800ms]
+fade-in badge [600ms]
+
+#1s
+persist title, badge
+
+#2s
+play Main [fade, 500ms]
+
+// ── Scene 2: Main ─────────────────────────────────────────────────────────────
+
+# Main
+
+// title and badge are carried from Intro — they appear without redeclaration.
+// title.text can be animated on the carried actor.
+
+#0s
+title.text = "Main Scene" [800ms]
+
+#1s
+subtitle: Text, text: "Actors persist across scenes", font_size: 28, at: (640, 400)
+fade-in subtitle [600ms]
+
+#2s
+container: Row, at: (640, 520), gap: 24 {
+    box1: Rect, size: (80, 80), color: auto
+    box2: Rect, size: (80, 80), color: auto
+    box3: Rect, size: (80, 80), color: auto
+}
+fade-in container [500ms]
+
+#3s
+persist container  // persists the whole Row + children
+
+#4s
+remove subtitle [800ms]  // fade out and stop persisting
+
+#5s
+play Outro [fade, 500ms]
+
+// ── Scene 3: Outro ────────────────────────────────────────────────────────────
+
+# Outro
+
+// title and container are carried from Main (sticky persistence).
+// subtitle was removed in Main, so it is absent here.
+
+#0s
+title.text = "The End" [800ms]
+
+#2s
+remove title, container [1s]

@@ -181,6 +181,43 @@ impl Timeline {
 }
 
 impl Timeline {
+    /// Resolve the world-space affine transform of an actor at a given time.
+    ///
+    /// Delegates to [`Timeline::actor_world_affine`] which walks the scene
+    /// graph from root to `label` accumulating transforms.
+    pub fn resolve_actor_world_transform(
+        &self,
+        label: &str,
+        time_ms: u64,
+        dims: [f64; 2],
+    ) -> Option<kurbo::Affine> {
+        self.actor_world_affine(
+            label,
+            time_ms,
+            SceneDimensions {
+                width: dims[0] as u32,
+                height: dims[1] as u32,
+            },
+        )
+    }
+
+    /// Resolve the world-space position `[x, y]` of an actor at a given time.
+    ///
+    /// Extracts the translation component of the world-space affine transform
+    /// returned by [`resolve_actor_world_transform`].
+    ///
+    /// Returns `None` if the actor is not present in this timeline.
+    pub fn resolve_actor_world_position(
+        &self,
+        label: &str,
+        time_ms: u64,
+        dims: [f64; 2],
+    ) -> Option<[f32; 2]> {
+        let affine = self.resolve_actor_world_transform(label, time_ms, dims)?;
+        let t = affine.translation();
+        Some([t.x as f32, t.y as f32])
+    }
+
     /// Extract all text glyph paths from every track in the timeline.
     pub fn extract_all_glyphs(&self) -> Vec<TextPath> {
         let mut glyphs = Vec::new();

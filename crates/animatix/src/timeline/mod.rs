@@ -114,6 +114,8 @@ pub mod animation_track;
 pub mod utils;
 /// Vello path wrapper with fill/stroke.
 pub mod vello_path;
+/// Scene persistence: CarryBag, CarryEntry, snapshot helpers.
+pub mod persistence;
 
 use crate::diagnostics::{BuildReport, Diagnostic, DiagnosticCode, DiagnosticPhase};
 pub use actor_kind::ActorKind;
@@ -476,8 +478,8 @@ pub struct Timeline {
     pub modifier_bytecode_programs: Vec<modifier_runtime::vm::ModifierBytecodeProgram>,
     colorscheme: ResolvedColorscheme,
     external_colorschemes: std::collections::HashMap<String, ResolvedColorscheme>,
-    auto_color_assignments: BTreeMap<String, usize>,
-    next_auto_color_index: usize,
+    pub(crate) auto_color_assignments: BTreeMap<String, usize>,
+    pub(crate) next_auto_color_index: usize,
     pub(crate) container_metadata: BTreeMap<String, ContainerMetadata>,
     pub(crate) layout_engine: LayoutEngine,
     pub(crate) dynamic_layout: bool,
@@ -493,6 +495,9 @@ pub struct Timeline {
     /// Per-container child order animations.
     /// Key: container label. Value: track of child label orderings.
     pub(crate) child_orders: BTreeMap<String, PropertyTrack<Vec<String>>>,
+    /// Persistence flags set by `persist`/`remove` actions.
+    /// `true` = actor should be carried into the next scene; `false` = not carried.
+    pub(crate) persistence_flags: BTreeMap<String, bool>,
     /// Runtime text compiler with cache. Enables `always` blocks to change
     /// text content / font_family / font_size and have glyphs recompiled on-demand.
     text_compiler: std::cell::RefCell<crate::renderer::text::TextCompiler>,
@@ -568,6 +573,7 @@ impl Clone for Timeline {
             build_quality: self.build_quality,
             default_opacity: self.default_opacity,
             child_orders: self.child_orders.clone(),
+            persistence_flags: self.persistence_flags.clone(),
             text_compiler: std::cell::RefCell::new(self.text_compiler.borrow().clone()),
             frame_cache: std::cell::RefCell::new(None), // cache is not cloned
             transform_cache: std::cell::RefCell::new(std::collections::HashMap::new()), // cache is not cloned
@@ -615,6 +621,7 @@ impl Timeline {
             build_quality: BuildQuality::Production,
             default_opacity: 1.0,
             child_orders: BTreeMap::new(),
+            persistence_flags: BTreeMap::new(),
             text_compiler: std::cell::RefCell::new(crate::renderer::text::TextCompiler::new()),
             frame_cache: std::cell::RefCell::new(None),
             transform_cache: std::cell::RefCell::new(std::collections::HashMap::new()),

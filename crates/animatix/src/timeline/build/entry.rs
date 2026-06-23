@@ -119,6 +119,46 @@ impl Timeline {
         font_context: std::sync::Arc<crate::renderer::text::FontContext>,
         build_quality: super::BuildQuality,
     ) -> BuildReport<Self> {
+        Self::build_impl(ast, namespaces, font_context, build_quality, None)
+    }
+
+    /// Build a `Timeline` with a pre-seeded carry bag injected before
+    /// statement processing.
+    ///
+    /// Used by the multi-scene composition engine to thread actor state
+    /// from a predecessor scene into the current scene.
+    ///
+    /// `carry` — optional carry bag from the predecessor scene.  When `None`
+    /// this is identical to [`build_with_diagnostics_and_font_context`].
+    ///
+    /// `source_timeline` — the predecessor timeline, used to resolve
+    /// layout-managed world positions (Phase 3 re-rooting).
+    ///
+    /// `source_duration_ms` — duration of the predecessor scene in ms.
+    ///
+    /// `dims` — scene pixel dimensions `[width, height]`.
+    pub fn build_with_carry(
+        ast: &[Stmt],
+        namespaces: &std::collections::HashMap<String, crate::module::Namespace>,
+        font_context: std::sync::Arc<crate::renderer::text::FontContext>,
+        build_quality: super::BuildQuality,
+        carry: Option<&crate::timeline::persistence::CarryBag>,
+        source_timeline: Option<&Timeline>,
+        source_duration_ms: u64,
+        dims: [f64; 2],
+    ) -> BuildReport<Self> {
+        let carry_params = carry.zip(source_timeline).map(|(c, s)| (c, s, source_duration_ms, dims));
+        Self::build_impl(ast, namespaces, font_context, build_quality, carry_params)
+    }
+
+    /// Internal build implementation shared by all public build entry points.
+    fn build_impl(
+        ast: &[Stmt],
+        namespaces: &std::collections::HashMap<String, crate::module::Namespace>,
+        font_context: std::sync::Arc<crate::renderer::text::FontContext>,
+        build_quality: super::BuildQuality,
+        carry: Option<(&crate::timeline::persistence::CarryBag, &Timeline, u64, [f64; 2])>,
+    ) -> BuildReport<Self> {
         // Clear expression evaluation cache at the start of each build.
         crate::timeline::utils::clear_eval_cache();
 
@@ -166,6 +206,12 @@ impl Timeline {
             if let Stmt::Config { settings, .. } = stmt {
                 timeline.apply_config_settings(settings, &mut diagnostics);
             }
+        }
+
+        // Inject carry bag (if any) BEFORE statement processing so that
+        // carried actors are visible to re-declarations and assignments.
+        if let Some((carry, source_tl, source_dur_ms, dims)) = carry {
+            timeline.inject_carry_bag(carry, source_tl, source_dur_ms, dims, &mut diagnostics);
         }
 
         let mut has_seen_keyframe = false;
