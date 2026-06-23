@@ -270,6 +270,8 @@ pub struct TextTracks {
     pub overflow: Option<PropertyTrack<String>>,
     /// Pre-built text paths for rendering.
     pub text_paths: Option<PropertyTrack<Vec<TextPath>>>,
+    /// Character reveal progress (0-1) for typewriter effect.
+    pub char_progress: Option<PropertyTrack<f32>>,
     /// Font ascent in scene units (points), used for baseline alignment.
     pub ascent: Option<PropertyTrack<f32>>,
     /// Font descent in scene units (points), used for baseline alignment.

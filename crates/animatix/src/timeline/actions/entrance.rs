@@ -291,7 +291,8 @@ mod tests {
     }
 
     #[test]
-    fn wipe_in_reports_unsupported_text_targets() {
+    fn wipe_in_on_text_proceeds_without_diagnostics() {
+        // Text targets are now allowed through vector reveal actions.
         let ast = vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
             body: vec![
@@ -304,10 +305,11 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
         assert!(
-            report
+            !report
                 .diagnostics
                 .iter()
-                .any(|diagnostic| diagnostic.code == DiagnosticCode::UnsupportedActionTarget)
+                .any(|diagnostic| diagnostic.code == DiagnosticCode::UnsupportedActionTarget),
+            "wipe-in on text should not report unsupported target"
         );
     }
 }

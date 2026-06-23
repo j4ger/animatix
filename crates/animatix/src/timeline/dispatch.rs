@@ -250,7 +250,7 @@ impl AnimationTrack {
     }
 
     // ── Path evaluation ──
-    /// Evaluate text paths at `time_ms`, applying morphing if configured.
+    /// Evaluate text paths at `time_ms`, applying morphing and char_progress truncation.
     pub fn evaluate_text_paths(&self, time_ms: u64) -> Vec<TextPath> {
         if let Some(content_track) = &self.text.text_content {
             if !content_track.keyframes.is_empty() {
@@ -262,7 +262,18 @@ impl AnimationTrack {
         let paths_track = self.text.text_paths.as_ref().unwrap_or(&default_paths);
         let default_morph = PropertyTrack::new(MorphOptions::default());
         let morph_track = self.style.morph_options.as_ref().unwrap_or(&default_morph);
-        morph::evaluate_paths_with_options(paths_track, morph_track, time_ms, morph::interpolate_text_paths)
+        let mut paths = morph::evaluate_paths_with_options(paths_track, morph_track, time_ms, morph::interpolate_text_paths);
+
+        // Apply char_progress typewriter truncation
+        if let Some(cp_track) = &self.text.char_progress {
+            let progress = cp_track.evaluate(time_ms).clamp(0.0, 1.0) as f64;
+            if progress < 1.0 {
+                let n = (progress * paths.len() as f64).ceil() as usize;
+                paths.truncate(n);
+            }
+        }
+
+        paths
     }
 
     /// Evaluate vector paths at `time_ms`, applying morphing if configured.
@@ -558,6 +569,7 @@ impl AnimationTrack {
             Overflow => TrackFieldRef::String(&self.text.overflow),
             FontFamily => TrackFieldRef::String(&self.text.font_family),
             FontSize => TrackFieldRef::F32(&self.text.font_size),
+            CharProgress => TrackFieldRef::F32(&self.text.char_progress),
             PlacementMode => TrackFieldRef::PlacementMode(&self.geometry.placement_mode),
             MorphOptions => TrackFieldRef::MorphOptions(&self.style.morph_options),
             Ascent => TrackFieldRef::F32(&self.text.ascent),
@@ -628,6 +640,7 @@ impl AnimationTrack {
             Overflow => TrackFieldMut::String(&mut self.text.overflow),
             FontFamily => TrackFieldMut::String(&mut self.text.font_family),
             FontSize => TrackFieldMut::F32(&mut self.text.font_size),
+            CharProgress => TrackFieldMut::F32(&mut self.text.char_progress),
             PlacementMode => TrackFieldMut::PlacementMode(&mut self.geometry.placement_mode),
             MorphOptions => TrackFieldMut::MorphOptions(&mut self.style.morph_options),
             Ascent => TrackFieldMut::F32(&mut self.text.ascent),

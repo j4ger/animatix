@@ -2,6 +2,7 @@ use super::registry::{ActionSignature, BuiltinAction, base_timing_params};
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
+use crate::timeline::actor_kind::ActorKindId;
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
@@ -51,33 +52,52 @@ impl BuiltinAction for DrawIn {
                 None => continue,
             };
 
-            if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
-                let guard_time = t_start_ms.saturating_sub(1);
-                super::ensure_guard_keyframe(&mut track.style.stroke_progress, guard_time, 1.0);
-                super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
-            }
+            let is_text = matches!(track.kind, ActorKindId::Text | ActorKindId::Code | ActorKindId::Typst);
 
-            track.style
-                .stroke_progress
-                .ensure(1.0)
-                .add_keyframe(t_start_ms, 0.0, Easing::Linear);
-            track.style
-                .fill_opacity
-                .ensure(1.0)
-                .add_keyframe(t_start_ms, 0.0, Easing::Linear);
+            if is_text {
+                // Typewriter effect: animate char_progress 0→1
+                if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
+                    let guard_time = t_start_ms.saturating_sub(1);
+                    super::ensure_guard_keyframe(&mut track.text.char_progress, guard_time, 1.0);
+                }
 
-            if duration_ms > 0.0 && t_end_ms > t_start_ms {
+                track.text
+                    .char_progress
+                    .ensure(1.0)
+                    .add_keyframe(t_start_ms, 0.0, Easing::Linear);
+                track.text
+                    .char_progress
+                    .ensure(1.0)
+                    .add_keyframe(t_end_ms, 1.0, easing);
+            } else {
+                if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
+                    let guard_time = t_start_ms.saturating_sub(1);
+                    super::ensure_guard_keyframe(&mut track.style.stroke_progress, guard_time, 1.0);
+                    super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
+                }
+
+                track.style
+                    .stroke_progress
+                    .ensure(1.0)
+                    .add_keyframe(t_start_ms, 0.0, Easing::Linear);
                 track.style
                     .fill_opacity
                     .ensure(1.0)
-                    .add_keyframe(t_end_ms.saturating_sub(1), 0.0, Easing::Linear);
-            }
+                    .add_keyframe(t_start_ms, 0.0, Easing::Linear);
 
-            track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
-            track.style
-                .fill_opacity
-                .ensure(1.0)
-                .add_keyframe(t_end_ms, 1.0, easing);
+                if duration_ms > 0.0 && t_end_ms > t_start_ms {
+                    track.style
+                        .fill_opacity
+                        .ensure(1.0)
+                        .add_keyframe(t_end_ms.saturating_sub(1), 0.0, Easing::Linear);
+                }
+
+                track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+                track.style
+                    .fill_opacity
+                    .ensure(1.0)
+                    .add_keyframe(t_end_ms, 1.0, easing);
+            }
         }
     }
 }
@@ -382,6 +402,7 @@ mod tests {
     use super::*;
     use crate::ast::{Expr, Modifier, Property, Stmt, Time};
     use crate::diagnostics::DiagnosticCode;
+use crate::timeline::AnimationTrack;
 
     fn circle_decl(label: &str) -> Stmt {
         Stmt::ActorDecl {
@@ -590,7 +611,9 @@ mod tests {
     }
 
     #[test]
-    fn reveal_out_reports_unsupported_text_targets() {
+    fn reveal_out_on_text_proceeds_without_diagnostics() {
+        // Text targets are now allowed through vector reveal actions.
+        // They will animate fill_opacity even though stroke_progress has no visual effect.
         let ast = vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
             body: vec![
@@ -603,11 +626,17 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
         assert!(
-            report
+            !report
                 .diagnostics
                 .iter()
-                .any(|diagnostic| diagnostic.code == DiagnosticCode::UnsupportedActionTarget)
+                .any(|diagnostic| diagnostic.code == DiagnosticCode::UnsupportedActionTarget),
+            "reveal-out on text should not report unsupported target"
         );
+
+        let track = report.output.tracks.get("headline").expect("headline track");
+        // reveal-out hides fill at start (0.0) and keeps it hidden while stroke animates out
+        assert_eq!(track.style.fill_opacity.get(0, 1.0), 0.0);
+        assert_eq!(track.style.fill_opacity.get(1000, 1.0), 0.0);
     }
 
     #[test]
@@ -632,7 +661,8 @@ mod tests {
     }
 
     #[test]
-    fn draw_out_reports_unsupported_text_targets() {
+    fn draw_out_on_text_proceeds_without_diagnostics() {
+        // Text targets are now allowed through vector reveal actions.
         let ast = vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
             body: vec![
@@ -645,11 +675,81 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
         assert!(
-            report
+            !report
                 .diagnostics
                 .iter()
-                .any(|diagnostic| diagnostic.code == DiagnosticCode::UnsupportedActionTarget)
+                .any(|diagnostic| diagnostic.code == DiagnosticCode::UnsupportedActionTarget),
+            "draw-out on text should not report unsupported target"
         );
+
+        let track = report.output.tracks.get("headline").expect("headline track");
+        // fill_opacity should still be animated (fade-out behavior)
+        assert_eq!(track.style.fill_opacity.get(0, 1.0), 1.0);
+        assert_eq!(track.style.fill_opacity.get(1000, 1.0), 0.0);
+    }
+
+    #[test]
+    fn draw_in_on_text_animates_char_progress() {
+        // draw-in on Text should animate char_progress 0→1 instead of stroke_progress.
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![text_decl("headline"), action_stmt("draw-in", "headline", 2.0)],
+            span: None,
+        }];
+
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+        let track = report.output.tracks.get("headline").expect("headline track");
+
+        // char_progress should be 0 at start, 1 at end
+        assert_eq!(track.text.char_progress.get(0, 1.0), 0.0);
+        assert_eq!(track.text.char_progress.get(2000, 1.0), 1.0);
+        // Midpoint should be ~0.5
+        let mid = track.text.char_progress.get(1000, 1.0);
+        assert!(mid > 0.0 && mid < 1.0, "char_progress at midpoint should be between 0 and 1, got {}", mid);
+        // No diagnostics should be emitted
+        assert!(report.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn draw_in_on_text_does_not_set_stroke_progress() {
+        // draw-in on Text should NOT modify stroke_progress or fill_opacity.
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![text_decl("msg"), action_stmt("draw-in", "msg", 1.0)],
+            span: None,
+        }];
+
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+        let track = report.output.tracks.get("msg").expect("msg track");
+
+        // stroke_progress and fill_opacity should not have been set
+        assert!(track.style.stroke_progress.is_none() || track.style.stroke_progress.as_ref().map(|t| t.keyframes.is_empty()).unwrap_or(true));
+        assert!(track.style.fill_opacity.is_none() || track.style.fill_opacity.as_ref().map(|t| t.keyframes.is_empty()).unwrap_or(true));
+        // Only char_progress should be tracked
+        assert!(track.text.char_progress.is_some());
+        assert!(!track.text.char_progress.as_ref().unwrap().keyframes.is_empty());
+        assert!(report.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn draw_in_on_regular_shape_still_animates_stroke_progress() {
+        // Verify that draw-in on regular shapes still uses stroke_progress.
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![circle_decl("shape"), action_stmt("draw-in", "shape", 1.0)],
+            span: None,
+        }];
+
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+        let track = report.output.tracks.get("shape").expect("shape track");
+
+        assert_eq!(track.style.stroke_progress.get(0, 1.0), 0.0);
+        assert_eq!(track.style.stroke_progress.get(1000, 1.0), 1.0);
+        assert_eq!(track.style.fill_opacity.get(500, 1.0), 0.0);
+        assert_eq!(track.style.fill_opacity.get(1000, 1.0), 1.0);
+        // char_progress should NOT be set for non-text targets
+        assert!(track.text.char_progress.is_none());
+        assert!(report.diagnostics.is_empty());
     }
 
     #[test]

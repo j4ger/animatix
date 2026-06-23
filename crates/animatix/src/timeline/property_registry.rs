@@ -273,6 +273,9 @@ pub enum ActorField {
     /// Overflow behavior ("visible", "clip", "ellipsis").
     Overflow,
 
+    /// Character reveal progress (0-1) for typewriter effect.
+    CharProgress,
+
     // ── Media payload ──
     /// Loaded image or video data.
     ImageData,
@@ -399,6 +402,7 @@ impl ActorField {
             // ── Text payload ──
             ActorField::TextContent => PropertyValue::String(String::new()),
             ActorField::TextPaths => return None,
+            ActorField::CharProgress => PropertyValue::F32(1.0),
             ActorField::FontFamily => PropertyValue::String(String::new()),
             ActorField::FontSize => PropertyValue::F32(48.0),
             ActorField::FontWeight => PropertyValue::F32(400.0),
@@ -615,6 +619,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("baseline",      ValueType::F32,         F::ANIMATED,                  ActorField::Baseline,            None,                             Applicable::Never, |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("blur",            ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::FilterBlur,          None,                             Applicable::ActorKinds(&[A::Filter]), |_| super::property_engine::PropertyValue::F32(0.0)),
     schema!("brightness",      ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::FilterBrightness,    None,                             Applicable::ActorKinds(&[A::Filter]), |_| super::property_engine::PropertyValue::F32(1.0)),
+    schema!("char_progress",  ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::CharProgress,        None,                             Applicable::ActorKinds(&[A::Text, A::Code, A::Typst]), |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("code",          ValueType::String,      F::ANIMATED,                  ActorField::TextContent,         None,                             Applicable::ActorKinds(&[A::Code]), |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("color",         ValueType::Color,       F::ASSIGNABLE_AI,             ActorField::Color,               None,                             Applicable::AllDrawables, |_| super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])),
     schema!("cols",          ValueType::U32,         F::empty(),                   ActorField::ContainerLayoutGroup, Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }), Applicable::ActorKinds(&[A::Grid]), |_| super::property_engine::PropertyValue::U32(2)),
