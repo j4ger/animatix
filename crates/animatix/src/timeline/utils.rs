@@ -674,19 +674,18 @@ fn evaluate_call(func: &str, args: &[Expr], env: &Environment) -> Result<Value, 
 }
 
 /// Evaluate a method call on a receiver value.
-fn evaluate_method(
+/// Shared method dispatch logic that operates on already-evaluated argument values.
+/// This is called by both the tree-walker (evaluate_method) and IR/VM (eval_method)
+/// to avoid code duplication.
+pub(crate) fn eval_method_dispatch(
     receiver: Value,
     name: &str,
-    args: &[Expr],
-    env: &Environment,
+    args: &[Value],
+    _env: &Environment,
 ) -> Result<Value, EvalError> {
-    // Dispatch to NativeFn if receiver is a NativeFn (e.g. graph.map).
+    // Dispatch to NativeFn if receiver is a NativeFn (e.g. graph.map)
     if let Value::NativeFn(f) = &receiver {
-        let mut arg_values = Vec::with_capacity(args.len());
-        for a in args {
-            arg_values.push(evaluate_expr(a, env)?);
-        }
-        return f(&arg_values, env);
+        return f(args, _env);
     }
 
     match (receiver, name) {
@@ -704,7 +703,7 @@ fn evaluate_method(
                     "String.split(delim) takes exactly 1 argument".to_string(),
                 ));
             }
-            let delim = evaluate_expr(&args[0], env)?.as_str();
+            let delim = args[0].as_str();
             let parts: Vec<Value> = s
                 .split(&delim)
                 .map(|part| Value::Str(part.to_string()))
@@ -717,7 +716,7 @@ fn evaluate_method(
                     "String.contains(substr) takes exactly 1 argument".to_string(),
                 ));
             }
-            let substr = evaluate_expr(&args[0], env)?.as_str();
+            let substr = args[0].as_str();
             Ok(Value::Num(if s.contains(&substr) { 1.0 } else { 0.0 }))
         }
         (Value::Str(s), "trim") => {
@@ -734,7 +733,7 @@ fn evaluate_method(
                     "String.starts_with(prefix) takes exactly 1 argument".to_string(),
                 ));
             }
-            let prefix = evaluate_expr(&args[0], env)?.as_str();
+            let prefix = args[0].as_str();
             Ok(Value::Num(if s.starts_with(&prefix) { 1.0 } else { 0.0 }))
         }
         (Value::Str(s), "ends_with") => {
@@ -743,7 +742,7 @@ fn evaluate_method(
                     "String.ends_with(suffix) takes exactly 1 argument".to_string(),
                 ));
             }
-            let suffix = evaluate_expr(&args[0], env)?.as_str();
+            let suffix = args[0].as_str();
             Ok(Value::Num(if s.ends_with(&suffix) { 1.0 } else { 0.0 }))
         }
         (Value::List(items), "length") => {
@@ -760,7 +759,7 @@ fn evaluate_method(
                     "List.get(index) takes exactly 1 argument".to_string(),
                 ));
             }
-            let idx = evaluate_expr(&args[0], env)?.as_num() as usize;
+            let idx = args[0].as_num() as usize;
             items
                 .get(idx)
                 .cloned()
@@ -778,7 +777,7 @@ fn evaluate_method(
                     "List.contains(item) takes exactly 1 argument".to_string(),
                 ));
             }
-            let item = evaluate_expr(&args[0], env)?;
+            let item = args[0].clone();
             Ok(Value::Num(if items.contains(&item) { 1.0 } else { 0.0 }))
         }
         (Value::Num(n), "abs") => {
@@ -813,19 +812,44 @@ fn evaluate_method(
             }
             Ok(Value::Num(n.round()))
         }
-        (Value::Object(type_name, fields), name) if args.is_empty() => {
-            fields.get(name).cloned().ok_or_else(|| {
-                EvalError::TypeMismatch(format!(
-                    "Field '{}' does not exist on {} object",
-                    name, type_name
-                ))
-            })
-        }
         (receiver, name) => Err(EvalError::UnsupportedMethod(format!(
             "{}.{}()",
             format_value(&receiver),
             name
         ))),
+    }
+}
+
+/// Evaluate a method call on a receiver value (tree-walker version).
+/// Evaluates Expr arguments to Values, then delegates to eval_method_dispatch.
+fn evaluate_method(
+    receiver: Value,
+    name: &str,
+    args: &[Expr],
+    env: &Environment,
+) -> Result<Value, EvalError> {
+    // Evaluate arguments first
+    let arg_values: Vec<Value> = args
+        .iter()
+        .map(|arg| evaluate_expr(arg, env))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // Call shared dispatch
+    match eval_method_dispatch(receiver.clone(), name, &arg_values, env) {
+        Ok(value) => Ok(value),
+        Err(EvalError::UnsupportedMethod(msg)) => {
+            // Tree-walker has additional Object field access support
+            if let Value::Object(_type_name, fields) = &receiver {
+                if arg_values.is_empty() {
+                    if let Some(field_value) = fields.get(name) {
+                        return Ok(field_value.clone());
+                    }
+                }
+            }
+            // Not an Object field access, return the original error
+            Err(EvalError::UnsupportedMethod(msg))
+        }
+        Err(e) => Err(e),
     }
 }
 

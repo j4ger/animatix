@@ -919,7 +919,8 @@ mod tests {
         let ast: Vec<Stmt> = vec![];
         let timeline = Timeline::build(&ast);
         let times = timeline_keyframe_times_s(Some(&timeline), None, None);
-        assert!(times.is_empty(), "expected empty vec, got {times:?}");
+        // Empty AST still produces a default background_color keyframe at t=0
+        assert_eq!(times, vec![0.0], "expected [0.0] (default bg keyframe), got {times:?}");
     }
 
     #[test]
