@@ -173,6 +173,29 @@ impl Timeline {
             offset_expr,
             gap: 0.0,
             padding: 0.0,
+            graph_padding: {
+                // Parse graph padding directly from props so it's available before
+                // process_plot_actor runs (which stores it in env).
+                let mut gp = [0.0f64; 4];
+                for prop in props {
+                    if prop.name == "padding" {
+                        if let Some(v) = evaluate_expr_with_lookup_diagnostic(
+                            &prop.value,
+                            &initial_eval_env,
+                            diagnostics,
+                            &format!("{}.padding", label),
+                        ) {
+                            gp = match v {
+                                Value::Vec4([l, r, t, b]) => [l, r, t, b],
+                                Value::Num(n) => [n, n, n, n],
+                                _ => [0.0; 4],
+                            };
+                        }
+                        break;
+                    }
+                }
+                gp
+            },
             align: None,
             cols: None,
         }
@@ -219,6 +242,11 @@ impl Timeline {
             .get(parent_label)
             .map(|t| t.geometry.position.last([0.0, 0.0]))
             .unwrap_or([0.0, 0.0]);
+        let p_padding = self
+            .env
+            .get(&format!("{}_padding", parent_label))
+            .and_then(|v| if let Value::Vec4(p) = v { Some(p) } else { None })
+            .unwrap_or([0.0; 4]);
 
         props
             .iter()
@@ -249,6 +277,7 @@ impl Timeline {
                     y_domain,
                     p_size,
                     [parent_pos[0] as f64, parent_pos[1] as f64],
+                    p_padding,
                     false, // absolute coordinates for actor properties
                 );
 

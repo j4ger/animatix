@@ -52,6 +52,8 @@ struct ExtractedActorProperties {
     offset_expr: Option<Expr>,
     gap: f32,
     padding: f32,
+    /// Graph plot-area padding [left, right, top, bottom] in pixels.
+    graph_padding: [f64; 4],
     align: Option<String>,
     cols: Option<usize>,
 }

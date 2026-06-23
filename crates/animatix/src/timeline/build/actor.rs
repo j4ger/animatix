@@ -36,6 +36,7 @@ impl Timeline {
                 false,
                 false,
                 false,
+                extracted.graph_padding,
             );
         }
 
@@ -60,6 +61,12 @@ impl Timeline {
                 p_size = sz;
             }
 
+            let p_padding = self
+                .env
+                .get(&format!("{}_padding", p_label))
+                .and_then(|v| if let Value::Vec4(p) = v { Some(p) } else { None })
+                .unwrap_or([0.0; 4]);
+
             let kind = extracted.kind.unwrap_or(PlotCurveKind::Cartesian);
             let curve_params = PlotCurveParams {
                 kind,
@@ -67,6 +74,7 @@ impl Timeline {
                 p_x_domain,
                 p_y_domain,
                 p_size,
+                p_padding,
                 t_domain: extracted.t_domain,
                 tolerance: extracted.tolerance,
                 max_depth: extracted.max_depth,

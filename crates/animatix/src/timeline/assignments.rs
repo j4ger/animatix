@@ -952,6 +952,11 @@ fn rebuild_vector_paths(
                 .unwrap_or_else(|| "auto".to_string());
             let has_labels = matches!(tick_labels_str.as_str(), "auto" | "true" | "both");
 
+            let padding = env
+                .get(&format!("{}_padding", label))
+                .and_then(|v| if let Value::Vec4(p) = v { Some(p) } else { None })
+                .unwrap_or([0.0; 4]);
+
             let new_paths = build_graph_axis_paths(
                 size,
                 x_domain,
@@ -960,6 +965,7 @@ fn rebuild_vector_paths(
                 grid,
                 ticks,
                 has_labels,
+                padding,
             );
 
             if has_duration {

@@ -57,6 +57,8 @@ pub(crate) struct PlotCurveParams<'a> {
     pub(super) p_x_domain: [f64; 2],
     pub(super) p_y_domain: [f64; 2],
     pub(super) p_size: [f64; 2],
+    /// Parent graph padding [left, right, top, bottom] in pixels.
+    pub(super) p_padding: [f64; 4],
     pub(super) t_domain: [f64; 2],
     pub(super) tolerance: f64,
     pub(super) max_depth: f64,
@@ -107,6 +109,7 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                 &params.p_y_domain,
                 &params.p_size,
                 resolution.max(8),
+                &params.p_padding,
             );
             vello_paths.push(VelloPath {
                 path,
@@ -143,14 +146,11 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                 let start_val = start_eval.as_num();
                 (start_val * min_t.cos(), start_val * min_t.sin())
             };
-            let start_screen_x = -(params.p_size[0] / 2.0)
-                + params.p_size[0]
-                    * ((start_math_x - params.p_x_domain[0])
-                        / (params.p_x_domain[1] - params.p_x_domain[0]));
-            let start_screen_y = (params.p_size[1] / 2.0)
-                - params.p_size[1]
-                    * ((start_math_y - params.p_y_domain[0])
-                        / (params.p_y_domain[1] - params.p_y_domain[0]));
+            let (start_screen_x, start_screen_y) = crate::timeline::plot::math_to_screen_padded(
+                start_math_x, start_math_y,
+                &params.p_x_domain, &params.p_y_domain,
+                &params.p_size, &params.p_padding,
+            );
 
             env_copy.set_binding(&arg_name, Value::Num(max_t));
             let end_eval = evaluate_expr(body, &env_copy)
@@ -167,14 +167,11 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                 let end_val = end_eval.as_num();
                 (end_val * max_t.cos(), end_val * max_t.sin())
             };
-            let end_screen_x = -(params.p_size[0] / 2.0)
-                + params.p_size[0]
-                    * ((end_math_x - params.p_x_domain[0])
-                        / (params.p_x_domain[1] - params.p_x_domain[0]));
-            let end_screen_y = (params.p_size[1] / 2.0)
-                - params.p_size[1]
-                    * ((end_math_y - params.p_y_domain[0])
-                        / (params.p_y_domain[1] - params.p_y_domain[0]));
+            let (end_screen_x, end_screen_y) = crate::timeline::plot::math_to_screen_padded(
+                end_math_x, end_math_y,
+                &params.p_x_domain, &params.p_y_domain,
+                &params.p_size, &params.p_padding,
+            );
 
             let p0 = kurbo::Point::new(start_screen_x, start_screen_y);
             let p1 = kurbo::Point::new(end_screen_x, end_screen_y);
@@ -192,6 +189,7 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                     min_t, max_t, p0, p1, 0, max_depth, tolerance,
                     &mut env_copy, &arg_name, &plot_func,
                     &params.p_x_domain, &params.p_y_domain, &params.p_size,
+                    &params.p_padding,
                     &mut from_cache, &mut to_cache, &mut pts,
                 );
             } else if params.kind == PlotCurveKind::Polar {
@@ -199,6 +197,7 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                     min_t, max_t, p0, p1, 0, max_depth, tolerance,
                     &mut env_copy, &arg_name, &plot_func,
                     &params.p_x_domain, &params.p_y_domain, &params.p_size,
+                    &params.p_padding,
                     &mut from_cache, &mut to_cache, &mut pts,
                 );
             } else {
@@ -206,6 +205,7 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                     min_t, max_t, p0, p1, 0, max_depth, tolerance,
                     &mut env_copy, &arg_name, &plot_func,
                     &params.p_x_domain, &params.p_y_domain, &params.p_size,
+                    &params.p_padding,
                     &mut from_cache, &mut to_cache, &mut pts,
                 );
             }
@@ -257,15 +257,45 @@ pub(crate) fn build_graph_axis_paths(
     grid: bool,
     ticks: bool,
     _tick_labels: bool,
+    padding: [f64; 4],
 ) -> Vec<VelloPath> {
     let mut paths = Vec::new();
     let mut axis_path = kurbo::BezPath::new();
 
+    // Padding components and derived plot-area extents.
+    let (pad_left, pad_right, pad_top, pad_bottom) =
+        (padding[0], padding[1], padding[2], padding[3]);
+    let hw = size[0] as f64; // graph half-width
+    let hh = size[1] as f64; // graph half-height
+    // Full-width/height of the padded plot area.
+    let plot_fw = 2.0 * hw - pad_left - pad_right;
+    let plot_fh = 2.0 * hh - pad_top - pad_bottom;
+    // Screen-space shift of the padded plot center from the graph center.
+    let shift_x = (pad_left - pad_right) / 2.0;
+    let shift_y = (pad_top - pad_bottom) / 2.0;
+    // Padded edge positions in local screen space.
+    let left_edge  = -hw + pad_left;
+    let right_edge =  hw - pad_right;
+    let top_edge   = -hh + pad_top;
+    let bot_edge   =  hh - pad_bottom;
+
+    // Helper: map a normalised coordinate to a padded screen position.
+    let norm_to_screen_x = |norm: f64| shift_x + (norm - 0.5) * plot_fw;
+    let norm_to_screen_y = |norm: f64| shift_y + (0.5 - norm) * plot_fh;
+    let math_x_to_screen = |mx: f64| {
+        let norm = (mx - x_domain[0]) / (x_domain[1] - x_domain[0]);
+        norm_to_screen_x(norm)
+    };
+    let math_y_to_screen = |my: f64| {
+        let norm = (my - y_domain[0]) / (y_domain[1] - y_domain[0]);
+        norm_to_screen_y(norm)
+    };
+
     // X-axis: drawn only when y=0 is inside the y_domain
     let x_axis_y = if y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
-        let y = size[1] as f64 * (1.0 - 2.0 * (0.0 - y_domain[0]) / (y_domain[1] - y_domain[0]));
-        axis_path.move_to((-(size[0] as f64), y));
-        axis_path.line_to((size[0] as f64, y));
+        let y = math_y_to_screen(0.0);
+        axis_path.move_to((left_edge, y));
+        axis_path.line_to((right_edge, y));
         Some(y)
     } else {
         None
@@ -273,9 +303,9 @@ pub(crate) fn build_graph_axis_paths(
 
     // Y-axis: drawn only when x=0 is inside the x_domain
     let y_axis_x = if x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
-        let x = size[0] as f64 * (-1.0 + 2.0 * (0.0 - x_domain[0]) / (x_domain[1] - x_domain[0]));
-        axis_path.move_to((x, -(size[1] as f64)));
-        axis_path.line_to((x, size[1] as f64));
+        let x = math_x_to_screen(0.0);
+        axis_path.move_to((x, top_edge));
+        axis_path.line_to((x, bot_edge));
         Some(x)
     } else {
         None
@@ -302,24 +332,24 @@ pub(crate) fn build_graph_axis_paths(
         let x_step = ((x_domain[1] - x_domain[0]).abs() / 10.0).max(0.5);
         let y_step = ((y_domain[1] - y_domain[0]).abs() / 10.0).max(0.5);
 
-        // Vertical grid lines
+        // Vertical grid lines (constant x)
         let mut x = (x_domain[0] / x_step).ceil() * x_step;
         while x <= x_domain[1] {
             if x != 0.0 {
-                let screen_x = size[0] as f64 * (-1.0 + 2.0 * (x - x_domain[0]) / (x_domain[1] - x_domain[0]));
-                grid_path.move_to((screen_x, -(size[1] as f64)));
-                grid_path.line_to((screen_x, size[1] as f64));
+                let screen_x = math_x_to_screen(x);
+                grid_path.move_to((screen_x, top_edge));
+                grid_path.line_to((screen_x, bot_edge));
             }
             x += x_step;
         }
 
-        // Horizontal grid lines
+        // Horizontal grid lines (constant y)
         let mut y = (y_domain[0] / y_step).ceil() * y_step;
         while y <= y_domain[1] {
             if y != 0.0 {
-                let screen_y = size[1] as f64 * (1.0 - 2.0 * (y - y_domain[0]) / (y_domain[1] - y_domain[0]));
-                grid_path.move_to((-(size[0] as f64), screen_y));
-                grid_path.line_to((size[0] as f64, screen_y));
+                let screen_y = math_y_to_screen(y);
+                grid_path.move_to((left_edge, screen_y));
+                grid_path.line_to((right_edge, screen_y));
             }
             y += y_step;
         }
@@ -351,7 +381,7 @@ pub(crate) fn build_graph_axis_paths(
             let mut x = (x_domain[0] / x_step).ceil() * x_step;
             while x <= x_domain[1] {
                 if x != 0.0 {
-                    let screen_x = size[0] as f64 * (-1.0 + 2.0 * (x - x_domain[0]) / (x_domain[1] - x_domain[0]));
+                    let screen_x = math_x_to_screen(x);
                     tick_path.move_to((screen_x, y - tick_len));
                     tick_path.line_to((screen_x, y + tick_len));
                 }
@@ -363,7 +393,7 @@ pub(crate) fn build_graph_axis_paths(
             let mut y = (y_domain[0] / y_step).ceil() * y_step;
             while y <= y_domain[1] {
                 if y != 0.0 {
-                    let screen_y = size[1] as f64 * (1.0 - 2.0 * (y - y_domain[0]) / (y_domain[1] - y_domain[0]));
+                    let screen_y = math_y_to_screen(y);
                     tick_path.move_to((x - tick_len, screen_y));
                     tick_path.line_to((x + tick_len, screen_y));
                 }
@@ -426,6 +456,20 @@ impl Timeline {
         let mut y_range = [-10.0, 10.0, 2.0];
         let is_number_plane = ty == "NumberPlane";
         let initial_eval_env = self.build_eval_env(time_ms as u64);
+
+        // Graph plot-area padding [left, right, top, bottom] in pixels.
+        // Pre-scan props for padding so it's available before the main match loop.
+        let graph_padding: [f64; 4] = if primitive.is_graph_host() {
+            props.iter().find(|p| p.name == "padding").and_then(|p| {
+                match crate::timeline::utils::evaluate_expr(&p.value, &initial_eval_env) {
+                    Ok(Value::Vec4([l, r, t, b])) => Some([l, r, t, b]),
+                    Ok(Value::Num(n)) => Some([n, n, n, n]),
+                    _ => None,
+                }
+            }).unwrap_or([0.0; 4])
+        } else {
+            [0.0; 4]
+        };
 
         // Start with track defaults, override from props.
         let mut color = existing_track.style.color.last(DEFAULT_WHITE);
@@ -679,6 +723,10 @@ impl Timeline {
                         y_range = [min, max, step];
                     }
                 }
+                "padding" if primitive.is_graph_host() => {
+                    // Graph padding is pre-computed above; skip here to prevent
+                    // falling through to the custom plot-param collector.
+                }
                 _ => {}
             }
         }
@@ -765,11 +813,15 @@ impl Timeline {
             self.env.set(&format!("{}_grid", label), Value::Bool(grid));
             self.env.set(&format!("{}_ticks", label), Value::Bool(ticks));
             self.env.set(&format!("{}_tick_labels", label), Value::Str(tick_labels.clone()));
+            self.env.set(
+                &format!("{}_padding", label),
+                Value::Vec4(graph_padding),
+            );
 
             // Inject {label}.map as a NativeFn that converts math coords to screen coords.
-            // Captures x_domain/y_domain (static), reads size/at from runtime env (supports animation).
+            // Captures x_domain/y_domain/graph_padding (static), reads size/at from runtime env.
             let map_label = label.to_string();
-            let nf = make_graph_map_fn(map_label, x_domain, y_domain);
+            let nf = make_graph_map_fn(map_label, x_domain, y_domain, graph_padding);
             self.env.set(&format!("{}.map", label), nf);
         }
 
@@ -794,21 +846,39 @@ impl Timeline {
 
             // Use initial_size for axis paths so they match the parsed size
             let axis_size = if size != default_size { size } else { initial_size };
-            vello_paths = build_graph_axis_paths(axis_size, x_domain, y_domain, stroke_color, grid, ticks, label_x || label_y);
+            vello_paths = build_graph_axis_paths(
+                axis_size, x_domain, y_domain, stroke_color, grid, ticks,
+                label_x || label_y, graph_padding,
+            );
 
-            // Compute tick label positions (same logic as build_graph_axis_paths ticks section)
+            // Compute tick label positions (same logic as build_graph_axis_paths ticks section).
+            // Uses padded coordinate mapping so labels align with padded axes.
             let x_step = ((x_domain[1] - x_domain[0]).abs() / 10.0).max(0.5);
             let y_step = ((y_domain[1] - y_domain[0]).abs() / 10.0).max(0.5);
             let tick_label_offset = 14.0;
+            let hw = axis_size[0] as f64;
+            let hh = axis_size[1] as f64;
+            let plot_fw = 2.0 * hw - graph_padding[0] - graph_padding[1];
+            let plot_fh = 2.0 * hh - graph_padding[2] - graph_padding[3];
+            let shift_x = (graph_padding[0] - graph_padding[1]) / 2.0;
+            let shift_y = (graph_padding[2] - graph_padding[3]) / 2.0;
+            let tick_math_x_to_screen = |mx: f64| {
+                let norm = (mx - x_domain[0]) / (x_domain[1] - x_domain[0]);
+                shift_x + (norm - 0.5) * plot_fw
+            };
+            let tick_math_y_to_screen = |my: f64| {
+                let norm = (my - y_domain[0]) / (y_domain[1] - y_domain[0]);
+                shift_y + (0.5 - norm) * plot_fh
+            };
 
             // X-axis at y=0 screen position
             if y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
-                let axis_y = axis_size[1] as f64 * (1.0 - 2.0 * (0.0 - y_domain[0]) / (y_domain[1] - y_domain[0]));
+                let axis_y = tick_math_y_to_screen(0.0);
                 if label_x {
                     let mut x = (x_domain[0] / x_step).ceil() * x_step;
                     while x <= x_domain[1] {
                         if x != 0.0 {
-                            let screen_x = axis_size[0] as f64 * (-1.0 + 2.0 * (x - x_domain[0]) / (x_domain[1] - x_domain[0]));
+                            let screen_x = tick_math_x_to_screen(x);
                             tick_label_data.x_labels.push((screen_x, axis_y + tick_label_offset, x));
                         }
                         x += x_step;
@@ -818,12 +888,12 @@ impl Timeline {
 
             // Y-axis at x=0 screen position
             if x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
-                let axis_x = axis_size[0] as f64 * (-1.0 + 2.0 * (0.0 - x_domain[0]) / (x_domain[1] - x_domain[0]));
+                let axis_x = tick_math_x_to_screen(0.0);
                 if label_y {
                     let mut y = (y_domain[0] / y_step).ceil() * y_step;
                     while y <= y_domain[1] {
                         if y != 0.0 {
-                            let screen_y = axis_size[1] as f64 * (1.0 - 2.0 * (y - y_domain[0]) / (y_domain[1] - y_domain[0]));
+                            let screen_y = tick_math_y_to_screen(y);
                             tick_label_data.y_labels.push((axis_x - tick_label_offset, screen_y, y));
                         }
                         y += y_step;
@@ -967,6 +1037,12 @@ impl Timeline {
                 None
             };
 
+            let p_padding = self
+                .env
+                .get(&format!("{}_padding", p_label))
+                .and_then(|v| if let Value::Vec4(p) = v { Some(p) } else { None })
+                .unwrap_or([0.0; 4]);
+
             if let Some(key) = cache_key {
                 if let Some(cached) = self.plot_path_cache.get(&key) {
                     vello_paths = cached.clone();
@@ -977,6 +1053,7 @@ impl Timeline {
                         p_x_domain,
                         p_y_domain,
                         p_size,
+                        p_padding,
                         t_domain,
                         tolerance,
                         max_depth,
@@ -996,6 +1073,7 @@ impl Timeline {
                     p_x_domain,
                     p_y_domain,
                     p_size,
+                    p_padding,
                     t_domain,
                     tolerance,
                     max_depth,
@@ -1059,6 +1137,7 @@ impl Timeline {
                     p_x_domain,
                     p_y_domain,
                     p_size,
+                    padding: p_padding,
                     t_domain,
                     tolerance,
                     max_depth: max_depth as usize,
@@ -1480,6 +1559,7 @@ fn build_contour_set_paths(
             &y_domain,
             &full_size,
             resolution,
+            &[0.0; 4],
         );
 
         if !bez_path.elements().is_empty() {
@@ -1918,12 +1998,13 @@ pub(crate) fn build_bar_chart_paths(
 
 /// Create a `Value::NativeFn` for `{label}.map(math_x, math_y)` → screen coords.
 ///
-/// Captures `x_domain`/`y_domain` (static), reads `size` and `at` from the runtime
-/// environment to support animation of graph size/position.
+/// Captures `x_domain`/`y_domain`/`padding` (static), reads `size` and `at` from the
+/// runtime environment to support animation of graph size/position.
 fn make_graph_map_fn(
     label: String,
     x_domain: [f64; 2],
     y_domain: [f64; 2],
+    padding: [f64; 4],
 ) -> Value {
     Value::NativeFn(std::sync::Arc::new(
         move |args: &[Value], env: &crate::timeline::Environment| -> Result<Value, crate::timeline::EvalError> {
@@ -1962,7 +2043,7 @@ fn make_graph_map_fn(
                 .unwrap_or([0.0, 0.0]);
 
             let [sx, sy] = super::utils::graph_math_to_screen(
-                mx, my, x_domain, y_domain, size, at, false,
+                mx, my, x_domain, y_domain, size, at, padding, false,
             );
             Ok(Value::Vec2([sx, sy]))
         },

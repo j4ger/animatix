@@ -372,6 +372,7 @@ pub(crate) fn sample_recursive_cartesian(
     p_x_domain: &[f64; 2],
     p_y_domain: &[f64; 2],
     p_size: &[f64; 2],
+    padding: &[f64; 4],
     from_cache: &mut HashMap<u64, Value>,
     to_cache: &mut HashMap<u64, Value>,
     pts: &mut Vec<kurbo::Point>,
@@ -413,10 +414,9 @@ pub(crate) fn sample_recursive_cartesian(
     let math_y = eval_scalar(func, env, arg_name, mid_t, from_cache, to_cache);
     let math_x = mid_t;
 
-    let screen_x = -(p_size[0] / 2.0)
-        + p_size[0] * ((math_x - p_x_domain[0]) / (p_x_domain[1] - p_x_domain[0]));
-    let screen_y = (p_size[1] / 2.0)
-        - p_size[1] * ((math_y - p_y_domain[0]) / (p_y_domain[1] - p_y_domain[0]));
+    let (screen_x, screen_y) = math_to_screen_padded(
+        math_x, math_y, p_x_domain, p_y_domain, p_size, padding,
+    );
 
     let p_mid = kurbo::Point::new(screen_x, screen_y);
 
@@ -427,12 +427,12 @@ pub(crate) fn sample_recursive_cartesian(
     if dist_sq > tolerance || depth < 3 {
         sample_recursive_cartesian(
             min_t, mid_t, p0, p_mid, depth + 1, max_depth, tolerance,
-            env, arg_name, func, p_x_domain, p_y_domain, p_size,
+            env, arg_name, func, p_x_domain, p_y_domain, p_size, padding,
             from_cache, to_cache, pts,
         );
         sample_recursive_cartesian(
             mid_t, max_t, p_mid, p1, depth + 1, max_depth, tolerance,
-            env, arg_name, func, p_x_domain, p_y_domain, p_size,
+            env, arg_name, func, p_x_domain, p_y_domain, p_size, padding,
             from_cache, to_cache, pts,
         );
     } else {
@@ -454,6 +454,7 @@ pub(crate) fn sample_recursive_polar(
     p_x_domain: &[f64; 2],
     p_y_domain: &[f64; 2],
     p_size: &[f64; 2],
+    padding: &[f64; 4],
     from_cache: &mut HashMap<u64, Value>,
     to_cache: &mut HashMap<u64, Value>,
     pts: &mut Vec<kurbo::Point>,
@@ -492,10 +493,9 @@ pub(crate) fn sample_recursive_polar(
     let math_x = math_r * mid_t.cos();
     let math_y = math_r * mid_t.sin();
 
-    let screen_x = -(p_size[0] / 2.0)
-        + p_size[0] * ((math_x - p_x_domain[0]) / (p_x_domain[1] - p_x_domain[0]));
-    let screen_y = (p_size[1] / 2.0)
-        - p_size[1] * ((math_y - p_y_domain[0]) / (p_y_domain[1] - p_y_domain[0]));
+    let (screen_x, screen_y) = math_to_screen_padded(
+        math_x, math_y, p_x_domain, p_y_domain, p_size, padding,
+    );
 
     let p_mid = kurbo::Point::new(screen_x, screen_y);
 
@@ -506,12 +506,12 @@ pub(crate) fn sample_recursive_polar(
     if dist_sq > tolerance || depth < 3 {
         sample_recursive_polar(
             min_t, mid_t, p0, p_mid, depth + 1, max_depth, tolerance,
-            env, arg_name, func, p_x_domain, p_y_domain, p_size,
+            env, arg_name, func, p_x_domain, p_y_domain, p_size, padding,
             from_cache, to_cache, pts,
         );
         sample_recursive_polar(
             mid_t, max_t, p_mid, p1, depth + 1, max_depth, tolerance,
-            env, arg_name, func, p_x_domain, p_y_domain, p_size,
+            env, arg_name, func, p_x_domain, p_y_domain, p_size, padding,
             from_cache, to_cache, pts,
         );
     } else {
@@ -533,6 +533,7 @@ pub(crate) fn sample_recursive_parametric(
     p_x_domain: &[f64; 2],
     p_y_domain: &[f64; 2],
     p_size: &[f64; 2],
+    padding: &[f64; 4],
     from_cache: &mut HashMap<u64, Value>,
     to_cache: &mut HashMap<u64, Value>,
     pts: &mut Vec<kurbo::Point>,
@@ -574,10 +575,9 @@ pub(crate) fn sample_recursive_parametric(
         return;
     }
 
-    let screen_x = -(p_size[0] / 2.0)
-        + p_size[0] * ((math_x - p_x_domain[0]) / (p_x_domain[1] - p_x_domain[0]));
-    let screen_y = (p_size[1] / 2.0)
-        - p_size[1] * ((math_y - p_y_domain[0]) / (p_y_domain[1] - p_y_domain[0]));
+    let (screen_x, screen_y) = math_to_screen_padded(
+        math_x, math_y, p_x_domain, p_y_domain, p_size, padding,
+    );
 
     let p_mid = kurbo::Point::new(screen_x, screen_y);
 
@@ -588,17 +588,42 @@ pub(crate) fn sample_recursive_parametric(
     if dist_sq > tolerance || depth < 3 {
         sample_recursive_parametric(
             min_t, mid_t, p0, p_mid, depth + 1, max_depth, tolerance,
-            env, arg_name, func, p_x_domain, p_y_domain, p_size,
+            env, arg_name, func, p_x_domain, p_y_domain, p_size, padding,
             from_cache, to_cache, pts,
         );
         sample_recursive_parametric(
             mid_t, max_t, p_mid, p1, depth + 1, max_depth, tolerance,
-            env, arg_name, func, p_x_domain, p_y_domain, p_size,
+            env, arg_name, func, p_x_domain, p_y_domain, p_size, padding,
             from_cache, to_cache, pts,
         );
     } else {
         pts.push(p1);
     }
+}
+
+/// Convert math coordinates to screen coordinates relative to the graph actor center.
+///
+/// `p_size` is the half-extent of the graph `[hw, hh]`.  `padding` is `[left, right, top, bottom]`
+/// in the same pixel units.  Returns coordinates in the local (relative-to-center) space.
+pub(crate) fn math_to_screen_padded(
+    math_x: f64,
+    math_y: f64,
+    x_domain: &[f64; 2],
+    y_domain: &[f64; 2],
+    p_size: &[f64; 2],
+    padding: &[f64; 4],
+) -> (f64, f64) {
+    let plot_w = p_size[0] - padding[0] - padding[1];
+    let plot_h = p_size[1] - padding[2] - padding[3];
+    let shift_x = (padding[0] - padding[1]) / 2.0;
+    let shift_y = (padding[2] - padding[3]) / 2.0;
+    let x_range = x_domain[1] - x_domain[0];
+    let y_range = y_domain[1] - y_domain[0];
+    let norm_x = if x_range.abs() > f64::EPSILON { (math_x - x_domain[0]) / x_range } else { 0.5 };
+    let norm_y = if y_range.abs() > f64::EPSILON { (math_y - y_domain[0]) / y_range } else { 0.5 };
+    let screen_x = shift_x + (norm_x - 0.5) * plot_w;
+    let screen_y = shift_y + (0.5 - norm_y) * plot_h;
+    (screen_x, screen_y)
 }
 
 pub(crate) fn implicit_intersection(
@@ -607,6 +632,7 @@ pub(crate) fn implicit_intersection(
     p_x_domain: &[f64; 2],
     p_y_domain: &[f64; 2],
     p_size: &[f64; 2],
+    padding: &[f64; 4],
 ) -> kurbo::Point {
     let (x0, y0, v0) = p0;
     let (x1, y1, v1) = p1;
@@ -617,10 +643,7 @@ pub(crate) fn implicit_intersection(
     };
     let x = x0 + (x1 - x0) * t;
     let y = y0 + (y1 - y0) * t;
-    let screen_x =
-        -(p_size[0] / 2.0) + p_size[0] * ((x - p_x_domain[0]) / (p_x_domain[1] - p_x_domain[0]));
-    let screen_y =
-        (p_size[1] / 2.0) - p_size[1] * ((y - p_y_domain[0]) / (p_y_domain[1] - p_y_domain[0]));
+    let (screen_x, screen_y) = math_to_screen_padded(x, y, p_x_domain, p_y_domain, p_size, padding);
     kurbo::Point::new(screen_x, screen_y)
 }
 
@@ -648,6 +671,7 @@ pub(crate) fn build_implicit_plot_path(
     p_y_domain: &[f64; 2],
     p_size: &[f64; 2],
     resolution: usize,
+    padding: &[f64; 4],
 ) -> kurbo::BezPath {
     let mut path = kurbo::BezPath::new();
     let x_cells = resolution.max(8);
@@ -697,25 +721,25 @@ pub(crate) fn build_implicit_plot_path(
             if bl_in != br_in {
                 intersections.push((
                     0,
-                    implicit_intersection(bl, br, p_x_domain, p_y_domain, p_size),
+                    implicit_intersection(bl, br, p_x_domain, p_y_domain, p_size, padding),
                 ));
             }
             if br_in != tr_in {
                 intersections.push((
                     1,
-                    implicit_intersection(br, tr, p_x_domain, p_y_domain, p_size),
+                    implicit_intersection(br, tr, p_x_domain, p_y_domain, p_size, padding),
                 ));
             }
             if tr_in != tl_in {
                 intersections.push((
                     2,
-                    implicit_intersection(tr, tl, p_x_domain, p_y_domain, p_size),
+                    implicit_intersection(tr, tl, p_x_domain, p_y_domain, p_size, padding),
                 ));
             }
             if tl_in != bl_in {
                 intersections.push((
                     3,
-                    implicit_intersection(tl, bl, p_x_domain, p_y_domain, p_size),
+                    implicit_intersection(tl, bl, p_x_domain, p_y_domain, p_size, padding),
                 ));
             }
 
@@ -807,6 +831,8 @@ pub struct ProceduralPlot {
     pub p_x_domain: [f64; 2],
     pub p_y_domain: [f64; 2],
     pub p_size: [f64; 2],
+    /// Parent graph padding `[left, right, top, bottom]` in pixels.
+    pub padding: [f64; 4],
     pub t_domain: [f64; 2],
     pub tolerance: f64,
     pub max_depth: usize,
@@ -909,6 +935,7 @@ pub fn sample_procedural_plot_at(
             &plot.p_y_domain,
             &plot.p_size,
             plot.resolution.max(8),
+            &plot.padding,
         );
         vello_paths.push(VelloPath {
             path,
@@ -944,14 +971,11 @@ pub fn sample_procedural_plot_at(
             let r = eval_scalar(&func_ref, env, &arg_name, min_t, &mut from_cache, &mut to_cache);
             (r * min_t.cos(), r * min_t.sin())
         };
-        let start_screen_x = -(plot.p_size[0] / 2.0)
-            + plot.p_size[0]
-                * ((start_math_x - plot.p_x_domain[0])
-                    / (plot.p_x_domain[1] - plot.p_x_domain[0]));
-        let start_screen_y = (plot.p_size[1] / 2.0)
-            - plot.p_size[1]
-                * ((start_math_y - plot.p_y_domain[0])
-                    / (plot.p_y_domain[1] - plot.p_y_domain[0]));
+        let (start_screen_x, start_screen_y) = math_to_screen_padded(
+            start_math_x, start_math_y,
+            &plot.p_x_domain, &plot.p_y_domain,
+            &plot.p_size, &plot.padding,
+        );
 
         let (end_math_x, end_math_y) = if plot.kind == PlotCurveKind::Cartesian {
             let y = eval_scalar(&func_ref, env, &arg_name, max_t, &mut from_cache, &mut to_cache);
@@ -963,14 +987,11 @@ pub fn sample_procedural_plot_at(
             let r = eval_scalar(&func_ref, env, &arg_name, max_t, &mut from_cache, &mut to_cache);
             (r * max_t.cos(), r * max_t.sin())
         };
-        let end_screen_x = -(plot.p_size[0] / 2.0)
-            + plot.p_size[0]
-                * ((end_math_x - plot.p_x_domain[0])
-                    / (plot.p_x_domain[1] - plot.p_x_domain[0]));
-        let end_screen_y = (plot.p_size[1] / 2.0)
-            - plot.p_size[1]
-                * ((end_math_y - plot.p_y_domain[0])
-                    / (plot.p_y_domain[1] - plot.p_y_domain[0]));
+        let (end_screen_x, end_screen_y) = math_to_screen_padded(
+            end_math_x, end_math_y,
+            &plot.p_x_domain, &plot.p_y_domain,
+            &plot.p_size, &plot.padding,
+        );
 
         let p0 = kurbo::Point::new(start_screen_x, start_screen_y);
         let p1 = kurbo::Point::new(end_screen_x, end_screen_y);
@@ -982,6 +1003,7 @@ pub fn sample_procedural_plot_at(
                 min_t, max_t, p0, p1, 0, plot.max_depth, plot.tolerance,
                 env, &arg_name, &func_ref,
                 &plot.p_x_domain, &plot.p_y_domain, &plot.p_size,
+                &plot.padding,
                 &mut from_cache, &mut to_cache, &mut pts,
             );
         } else if plot.kind == PlotCurveKind::Polar {
@@ -989,6 +1011,7 @@ pub fn sample_procedural_plot_at(
                 min_t, max_t, p0, p1, 0, plot.max_depth, plot.tolerance,
                 env, &arg_name, &func_ref,
                 &plot.p_x_domain, &plot.p_y_domain, &plot.p_size,
+                &plot.padding,
                 &mut from_cache, &mut to_cache, &mut pts,
             );
         } else {
@@ -996,6 +1019,7 @@ pub fn sample_procedural_plot_at(
                 min_t, max_t, p0, p1, 0, plot.max_depth, plot.tolerance,
                 env, &arg_name, &func_ref,
                 &plot.p_x_domain, &plot.p_y_domain, &plot.p_size,
+                &plot.padding,
                 &mut from_cache, &mut to_cache, &mut pts,
             );
         }
@@ -1034,4 +1058,69 @@ pub fn sample_procedural_plot_at(
     }
 
     vello_paths
+}
+
+#[cfg(test)]
+mod tests {
+    use super::math_to_screen_padded;
+
+    /// With zero padding the formula degenerates to the original:
+    /// `screen = (norm - 0.5) * size`
+    #[test]
+    fn math_to_screen_padded_zero_padding_matches_original() {
+        let x_domain = [-1.0_f64, 1.0];
+        let y_domain = [-1.0_f64, 1.0];
+        let p_size = [200.0_f64, 200.0];
+        let padding = [0.0_f64; 4];
+
+        // domain center → screen (0, 0)
+        let (sx, sy) = math_to_screen_padded(0.0, 0.0, &x_domain, &y_domain, &p_size, &padding);
+        assert!((sx).abs() < 1e-10, "expected sx=0, got {sx}");
+        assert!((sy).abs() < 1e-10, "expected sy=0, got {sy}");
+
+        // domain max-x → screen x = +100  (half of 200)
+        let (sx, _) = math_to_screen_padded(1.0, 0.0, &x_domain, &y_domain, &p_size, &padding);
+        assert!((sx - 100.0).abs() < 1e-10, "expected sx=100, got {sx}");
+
+        // domain min-y → screen y = +100  (screen Y increases downward)
+        let (_, sy) = math_to_screen_padded(0.0, -1.0, &x_domain, &y_domain, &p_size, &padding);
+        assert!((sy - 100.0).abs() < 1e-10, "expected sy=100, got {sy}");
+    }
+
+    /// Symmetric padding shrinks the plot area proportionally.
+    /// With [p, p, p, p] padding the centre remains at screen (0, 0) and
+    /// the domain boundary maps to (half_size - p) instead of half_size.
+    #[test]
+    fn math_to_screen_padded_symmetric_padding_shrinks_area() {
+        let x_domain = [-1.0_f64, 1.0];
+        let y_domain = [-1.0_f64, 1.0];
+        let p_size = [200.0_f64, 200.0];
+        let padding = [10.0_f64; 4]; // 10 px on every side
+
+        // domain centre still maps to screen centre
+        let (sx, sy) = math_to_screen_padded(0.0, 0.0, &x_domain, &y_domain, &p_size, &padding);
+        assert!((sx).abs() < 1e-10, "centre sx should be 0, got {sx}");
+        assert!((sy).abs() < 1e-10, "centre sy should be 0, got {sy}");
+
+        // domain max-x maps to (plot_w / 2) = (200 - 10 - 10) / 2 = 90
+        let (sx, _) = math_to_screen_padded(1.0, 0.0, &x_domain, &y_domain, &p_size, &padding);
+        assert!((sx - 90.0).abs() < 1e-10, "expected sx=90, got {sx}");
+    }
+
+    /// Asymmetric left/right padding shifts the plot center in x.
+    #[test]
+    fn math_to_screen_padded_asymmetric_padding_shifts_center() {
+        let x_domain = [-1.0_f64, 1.0];
+        let y_domain = [-1.0_f64, 1.0];
+        let p_size = [200.0_f64, 200.0];
+        // 20 px on the left, 0 on the right → center shifts right by 10
+        let padding = [20.0, 0.0, 0.0, 0.0];
+
+        // domain centre maps to x = (20 - 0) / 2 = 10
+        let (sx, _) = math_to_screen_padded(0.0, 0.0, &x_domain, &y_domain, &p_size, &padding);
+        assert!(
+            (sx - 10.0).abs() < 1e-10,
+            "expected sx=10 with left-only padding, got {sx}"
+        );
+    }
 }

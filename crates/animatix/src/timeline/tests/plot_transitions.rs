@@ -152,6 +152,7 @@ fn blend_at_half_progress() {
         p_x_domain: [-1.0, 1.0],
         p_y_domain: [-2.0, 2.0],
         p_size: [200.0, 200.0],
+        padding: [0.0; 4],
         t_domain: [0.0, std::f64::consts::TAU],
         tolerance: 4.0,
         max_depth: 5,
