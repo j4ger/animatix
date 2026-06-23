@@ -32,13 +32,13 @@ Parser and evaluation environment improvements.
 |---|------|--------|
 | 6 | **`for` loop: tuple destructuring + closure capture** | ✅ Complete - Parser supports `for (a, b) in items`, closures capture loop variables for dynamic plots |
 
-### Batch 4: Plot System Extensions
-Extend the plot transition system. Do #7 first, then #8 after profiling.
+### Batch 4: Plot System Extensions ✅
+Extend the plot transition system with implicit plots and performance optimizations.
 
-| # | Task | Notes |
-|---|------|-------|
-| 7 | **Plot function transitions: implicit plots** | Extend func transitions to implicit plots (`f(x,y) = 0`). Scalar-field blend is conceptually clean but marching-squares interaction with moving zero-contour needs visual validation. |
-| 8 | **Plot transitions: adaptive quality** | During func transitions (especially cascading), lower `max_depth` / raise `tolerance` to reduce per-frame eval cost. Nested blends cause 2^N evaluations per sample point. Measure first; add only if profiling demands. Depends on having transitions to measure (#7). |
+| # | Task | Status |
+|---|------|--------|
+| 7 | **Plot function transitions: implicit plots** | ✅ Complete - Implicit plots (f(x,y)=0) support function transitions with scalar field blending |
+| 8 | **Plot transitions: adaptive quality** | ✅ Complete - Adaptive quality reduction prevents frame drops during cascading transitions |
 
 ### Batch 5: Educational Primitives
 New primitive types for educational content.
