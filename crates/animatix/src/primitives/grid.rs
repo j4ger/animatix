@@ -3,6 +3,7 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive};
+use crate::timeline::property_lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::{SceneDimensions, Value};
 
 /// The `Grid` primitive.
@@ -108,10 +109,8 @@ impl Primitive for GridPrimitive {
                     }
                 },
                 "align" => {
-                    if let Expr::Str(s) = &prop.value {
-                        align = Some(s.clone());
-                    } else if let Expr::Ident(s) = &prop.value {
-                        align = Some(s.clone());
+                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(&prop.value, env, ctx.diagnostics, label) {
+                        align = Some(v.as_str().to_string());
                     }
                 },
                 "cols" => {

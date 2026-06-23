@@ -126,6 +126,8 @@ pub enum DiagnosticCode {
     InvalidPropertyValue,
     /// Actor label uses reserved `__` prefix.
     ReservedLabelPrefix,
+    /// A property was placed inside braces without a preceding actor, so it was dropped.
+    BracedPropertySilentDrop,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -186,6 +188,9 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::DeprecatedPrimitive => write!(f, "deprecated-primitive"),
             DiagnosticCode::InvalidPropertyValue => write!(f, "invalid-property-value"),
             DiagnosticCode::ReservedLabelPrefix => write!(f, "reserved-label-prefix"),
+            DiagnosticCode::BracedPropertySilentDrop => {
+                write!(f, "braced-property-silent-drop")
+            }
         }
     }
 }

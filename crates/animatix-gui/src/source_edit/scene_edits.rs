@@ -522,12 +522,12 @@ fn scene_body_has_any_label(stmts: &[Stmt], labels: &[String]) -> bool {
 mod tests {
     use super::super::apply::{SourceEdit, apply_edit};
     use animatix_syntax::ast::{Stmt, Transition};
-    use animatix_syntax::parser::parser;
+    use animatix_syntax::parser::parser_simple;
     use animatix_syntax::to_source::stmts_to_source;
     use chumsky::Parser;
 
     fn parse(source: &str) -> Vec<Stmt> {
-        parser().parse(source).into_result().expect("failed to parse test source")
+        parser_simple().parse(source).into_result().expect("failed to parse test source")
     }
 
     #[test]

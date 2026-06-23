@@ -59,7 +59,7 @@ fn roundtrip_all_example_files() {
 
         // Phase 1: parse the original source using chumsky's into_output_errors
         let (parsed_opt, parse_errors) =
-            animatix_syntax::parser::parser()
+            animatix_syntax::parser::parser_simple()
                 .parse(&source)
                 .into_output_errors();
         let parsed: Vec<Stmt> = match parsed_opt {
@@ -86,7 +86,7 @@ fn roundtrip_all_example_files() {
 
         // Phase 3: re-parse the serialized output
         let (reparsed_opt, reparse_errors) =
-            animatix_syntax::parser::parser()
+            animatix_syntax::parser::parser_simple()
                 .parse(&serialized)
                 .into_output_errors();
         let reparsed: Vec<Stmt> = match reparsed_opt {

@@ -274,12 +274,53 @@ impl<T: Interpolate> PropertyTrack<T> {
 
     /// Returns a reference to the keyframes map.
     pub fn keyframes(&self) -> &BTreeMap<u64, (T, Easing)> {
-        &self.keyframes
+        self.keyframes_raw()
     }
 
     /// Returns a mutable reference to the keyframes map and invalidates the cache.
     pub fn keyframes_mut(&mut self) -> &mut BTreeMap<u64, (T, Easing)> {
         *self.last_evaluated.borrow_mut() = None;
         &mut self.keyframes
+    }
+}
+
+impl<T> PropertyTrack<T> {
+    /// Returns raw keyframe data without requiring `T: Interpolate`.
+    ///
+    /// Use this for read-only access to keyframe timestamps and values
+    /// when you don't need interpolation (e.g., displaying keyframe times
+    /// in a GUI). Prefer [`keyframes`](Self::keyframes) when `T` implements
+    /// [`Interpolate`], as it makes the trait bound explicit at the call site.
+    pub fn keyframes_raw(&self) -> &BTreeMap<u64, (T, Easing)> {
+        &self.keyframes
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A type that does not implement `Interpolate`.
+    /// Verifies that `keyframes_raw()` works without the trait bound.
+    #[derive(Debug)]
+    struct NonInterpolatable(u64);
+
+    #[test]
+    fn keyframes_raw_works_without_interpolate() {
+        let track: PropertyTrack<NonInterpolatable> = PropertyTrack {
+            keyframes: BTreeMap::from([
+                (100, (NonInterpolatable(10), Easing::Linear)),
+                (200, (NonInterpolatable(20), Easing::EaseInOut)),
+            ]),
+            default_value: NonInterpolatable(0),
+            last_evaluated: std::cell::RefCell::new(None),
+        };
+
+        let raw = track.keyframes_raw();
+        assert_eq!(raw.len(), 2);
+        assert!(raw.contains_key(&100));
+        assert!(raw.contains_key(&200));
+        assert_eq!(raw.get(&100).unwrap().0.0, 10);
+        assert_eq!(raw.get(&200).unwrap().0.0, 20);
     }
 }

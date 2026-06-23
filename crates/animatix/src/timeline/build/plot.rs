@@ -643,13 +643,15 @@ impl Timeline {
                     tick_labels = v.as_str().to_lowercase();
                 }
                 "kind" => {
-                    if let Expr::Str(s) = &prop.value {
-                        if let Some(k) = PlotCurveKind::from_str(s) {
+                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(&prop.value, &initial_eval_env, diagnostics, &prop_subject) {
+                        if let Some(k) = PlotCurveKind::from_str(&v.as_str().to_lowercase()) {
                             kind = k;
-                        }
-                    } else if let Expr::Ident(s) = &prop.value {
-                        if let Some(k) = PlotCurveKind::from_str(s) {
-                            kind = k;
+                        } else {
+                            diagnostics.push(Diagnostic::warning(
+                                DiagnosticCode::InvalidPropertyValue,
+                                DiagnosticPhase::Build,
+                                format!("Invalid plot kind: '{}'", v.as_str()),
+                            ).with_subject(&prop_subject));
                         }
                     }
                 }
@@ -1518,40 +1520,58 @@ pub(crate) fn parse_bar_chart_data(
         let expr = &prop.value;
         // Expect a list (outer list of bars)
         if let Expr::List(items) = expr {
-            for item in items {
-                match item {
-                    Expr::Tuple(bar) if bar.len() == 2 => {
-                        let key_str = match &bar[0] {
-                            Expr::Num(n) => format_float(*n),
-                            Expr::Str(s) => s.clone(),
-                            _ => {
-                                diagnostics.push(Diagnostic::warning(
-                                    DiagnosticCode::InvalidPropertyValue,
-                                    DiagnosticPhase::Build,
-                                    format!("BarChart '{}' data key must be a number or string", label),
-                                ));
-                                continue;
-                            }
-                        };
-                        let val = match &bar[1] {
-                            Expr::Num(n) => *n as f32,
-                            _ => {
-                                diagnostics.push(Diagnostic::warning(
-                                    DiagnosticCode::InvalidPropertyValue,
-                                    DiagnosticPhase::Build,
-                                    format!("BarChart '{}' data value must be a number", label),
-                                ));
-                                continue;
-                            }
-                        };
-                        data.push((key_str, val));
+            // Flat number list? E.g. {10, 20, 30} — auto-label with 1-based indices.
+            if !items.is_empty() && items.iter().all(|item| matches!(item, Expr::Num(_))) {
+                for (i, item) in items.iter().enumerate() {
+                    if let Expr::Num(n) = item {
+                        data.push(((i + 1).to_string(), *n as f32));
                     }
-                    _ => {
-                        diagnostics.push(Diagnostic::warning(
-                            DiagnosticCode::InvalidPropertyValue,
-                            DiagnosticPhase::Build,
-                            format!("BarChart '{}' data entry must be a (key, value) tuple", label),
-                        ));
+                }
+                diagnostics.push(Diagnostic::warning(
+                    DiagnosticCode::InvalidPropertyValue,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "BarChart '{}' data: flat number list detected — auto-labeling with 1-based indices. \
+                         To specify custom labels, use (label, value) tuples like ('A', 10), ('B', 20)",
+                        label
+                    ),
+                ));
+            } else {
+                for item in items {
+                    match item {
+                        Expr::Tuple(bar) if bar.len() == 2 => {
+                            let key_str = match &bar[0] {
+                                Expr::Num(n) => format_float(*n),
+                                Expr::Str(s) => s.clone(),
+                                _ => {
+                                    diagnostics.push(Diagnostic::warning(
+                                        DiagnosticCode::InvalidPropertyValue,
+                                        DiagnosticPhase::Build,
+                                        format!("BarChart '{}' data key must be a number or string", label),
+                                    ));
+                                    continue;
+                                }
+                            };
+                            let val = match &bar[1] {
+                                Expr::Num(n) => *n as f32,
+                                _ => {
+                                    diagnostics.push(Diagnostic::warning(
+                                        DiagnosticCode::InvalidPropertyValue,
+                                        DiagnosticPhase::Build,
+                                        format!("BarChart '{}' data value must be a number", label),
+                                    ));
+                                    continue;
+                                }
+                            };
+                            data.push((key_str, val));
+                        }
+                        _ => {
+                            diagnostics.push(Diagnostic::warning(
+                                DiagnosticCode::InvalidPropertyValue,
+                                DiagnosticPhase::Build,
+                                format!("BarChart '{}' data entry must be a (key, value) tuple", label),
+                            ));
+                        }
                     }
                 }
             }

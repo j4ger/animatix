@@ -83,7 +83,7 @@ fn full_pipeline_file(path: &Path) {
 /// Parse-only cost (no module load, no typecheck).
 fn parse_only(source: &str) {
     use chumsky::Parser;
-    let (_stmts, _errors) = animatix_syntax::parser::parser()
+    let (_stmts, _errors) = animatix_syntax::parser::parser_simple()
         .parse(source)
         .into_output_errors();
 }
@@ -91,7 +91,7 @@ fn parse_only(source: &str) {
 /// Build-only cost (already parsed statements).
 fn build_only(source: &str) {
     use chumsky::Parser;
-    let (stmts, _) = animatix_syntax::parser::parser()
+    let (stmts, _) = animatix_syntax::parser::parser_simple()
         .parse(source)
         .into_output_errors();
     let stmts = stmts.expect("parse error");

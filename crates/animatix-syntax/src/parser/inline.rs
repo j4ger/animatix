@@ -7,7 +7,11 @@
 //! parse the children of actor declarations.
 
 use crate::ast::*;
+use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use chumsky::input::MapExtra;
 use chumsky::prelude::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 use super::common::{self, ExprParser, InlineItemsParser, ParserExtra, StrInput};
 
 /// Internal flat representation of items parsed inside an actor block.
@@ -21,7 +25,7 @@ pub(crate) enum FlatItem {
     /// `Type [modifiers] [{ children }]`
     Anonymous(String, Vec<Modifier>, Vec<InlineItem>),
     /// `name: value`
-    Prop(Property),
+    Prop(Property, ByteSpan),
     /// `{ children }` — attaches to preceding item
     Children(Vec<InlineItem>),
     /// `@slot` in component definition blocks
@@ -42,6 +46,7 @@ pub(crate) fn parser<'src>(
     expr: ExprParser<'src>,
     property: impl Parser<'src, StrInput<'src>, Property, ParserExtra<'src>> + Clone + 'src,
     modifiers: impl Parser<'src, StrInput<'src>, Vec<Modifier>, ParserExtra<'src>> + Clone + 'src,
+    warnings: Rc<RefCell<Vec<Diagnostic>>>,
 ) -> InlineItemsParser<'src> {
     let type_ident = common::type_ident();
     let label_expr = common::label_expr(expr.clone());
@@ -99,7 +104,10 @@ pub(crate) fn parser<'src>(
                 .then(modifiers.clone())
                 .then(children_block.clone())
                 .map(|((ty, mods), children)| FlatItem::Anonymous(ty, mods, children)),
-            property.clone().map(FlatItem::Prop),
+            property.clone().map_with(|p, extra: &mut MapExtra<'src, '_, &'src str, extra::Err<Rich<'src, char>>>| {
+                let span = extra.span();
+                FlatItem::Prop(p, ByteSpan { start: span.start, end: span.end })
+            }),
             // Standalone children block: attaches to the preceding item
             inline_items
                 .clone()
@@ -108,11 +116,12 @@ pub(crate) fn parser<'src>(
         ))
         .padded();
 
+        let w = warnings.clone();
         flat_item
             .separated_by(just(',').padded().or_not())
             .allow_trailing()
             .collect::<Vec<_>>()
-            .map(|items| {
+            .map(move |items| {
                 let mut result = Vec::new();
                 for item in items {
                     match item {
@@ -134,13 +143,47 @@ pub(crate) fn parser<'src>(
                                 children,
                             });
                         }
-                        FlatItem::Prop(p) => {
+                        FlatItem::Prop(p, span) => {
                             if let Some(last) = result.last_mut() {
                                 match last {
                                     InlineItem::Labeled { props, .. } => props.push(p),
                                     InlineItem::Anonymous { props, .. } => props.push(p),
-                                    _ => {}
+                                    _ => {
+                                        // Property dropped: attached to SlotMarker, ForLoop, or SlotFill
+                                        let prop_name = p.name.clone();
+                                        let location_span = p.value_span.unwrap_or(span);
+                                        w.borrow_mut().push(
+                                            Diagnostic::warning(
+                                                DiagnosticCode::BracedPropertySilentDrop,
+                                                DiagnosticPhase::Parse,
+                                                format!(
+                                                    "property '{prop_name}' inside braces has no \
+                                                     preceding actor to attach to; properties must \
+                                                     be declared before the children block, e.g. \
+                                                     'Type, {prop_name}: value'"
+                                                ),
+                                            )
+                                            .with_location(0, 0, location_span.start..location_span.end),
+                                        );
+                                    }
                                 }
+                            } else {
+                                // Property dropped: no preceding actor at all
+                                let prop_name = p.name.clone();
+                                let location_span = p.value_span.unwrap_or(span);
+                                w.borrow_mut().push(
+                                    Diagnostic::warning(
+                                        DiagnosticCode::BracedPropertySilentDrop,
+                                        DiagnosticPhase::Parse,
+                                        format!(
+                                            "property '{prop_name}' inside braces has no \
+                                             preceding actor to attach to; properties must \
+                                             be declared before the children block, e.g. \
+                                             'Type, {prop_name}: value'"
+                                        ),
+                                    )
+                                    .with_location(0, 0, location_span.start..location_span.end),
+                                );
                             }
                         }
                         FlatItem::Children(children) => {

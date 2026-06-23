@@ -43,7 +43,9 @@ pub(crate) mod common;
 use crate::ast::*;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use chumsky::prelude::*;
+use std::cell::RefCell;
 use std::ops::Range;
+use std::rc::Rc;
 
 /// Replace `//` line comments with spaces while preserving newlines.
 ///
@@ -90,12 +92,33 @@ pub fn strip_comments(input: &str) -> String {
 /// Parse source after replacing line comments with spaces.
 ///
 /// Use this for all production parsing so that `//` comments work everywhere,
-/// including inside delimiters. Test code may call `parser().parse()` directly.
-pub fn parse_source(source: &str) -> (Option<Vec<Stmt>>, Vec<ParseError>) {
+/// including inside delimiters. Test code may call `parser_simple().parse()` directly.
+/// Parse source and return AST, parse errors, and diagnostics (warnings).
+///
+/// This is the full-diagnostics entry point that includes both syntax errors
+/// and semantic warnings (e.g. silently dropped brace-style properties).
+pub fn parse_source_diagnostics(
+    source: &str,
+) -> (Option<Vec<Stmt>>, Vec<ParseError>, Vec<Diagnostic>) {
+    let warnings = Rc::new(RefCell::new(Vec::new()));
     let stripped = strip_comments(source);
-    let (ast, errors) = parser().parse(&stripped).into_output_errors();
-    let owned_errors = errors.iter().map(|e| ParseError::from_rich(source, e)).collect();
-    (ast, owned_errors)
+    let (ast, errors) = parser(Rc::clone(&warnings)).parse(&stripped).into_output_errors();
+    let owned_errors: Vec<ParseError> =
+        errors.iter().map(|e| ParseError::from_rich(source, e)).collect();
+    let owned_warnings = match Rc::try_unwrap(warnings) {
+        Ok(cell) => cell.into_inner(),
+        Err(_) => Vec::new(),
+    };
+    (ast, owned_errors, owned_warnings)
+}
+
+/// Parse source after replacing line comments with spaces.
+///
+/// Use this for all production parsing so that `//` comments work everywhere,
+/// including inside delimiters. Test code may call `parser_simple().parse()` directly.
+pub fn parse_source(source: &str) -> (Option<Vec<Stmt>>, Vec<ParseError>) {
+    let (ast, errors, _warnings) = parse_source_diagnostics(source);
+    (ast, errors)
 }
 
 /// Parse source using tree-sitter and return the same format as [`parse_source`].
@@ -290,16 +313,27 @@ fn byte_offset_to_line_col(source: &str, offset: usize) -> (usize, usize) {
     (line, col)
 }
 
+/// Build the top-level `.amx` file parser that discards warnings.
+///
+/// Convenience wrapper for tests and contexts where diagnostics are not needed.
+pub fn parser_simple<'src>(
+) -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich<'src, char>>> {
+    parser(Rc::new(RefCell::new(Vec::new())))
+}
+
 /// Build the top-level `.amx` file parser.
 ///
 /// Parses a full source file into a `Vec<Stmt>`, grouping statements into scenes
-/// via [`group_scenes`].
-pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich<'src, char>>> {
+/// via [`group_scenes`]. Accepts a shared warnings collector for emitting semantic
+/// diagnostics during parsing.
+pub fn parser<'src>(
+    warnings: Rc<RefCell<Vec<Diagnostic>>>,
+) -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich<'src, char>>> {
     let expr = expr::parser();
     let property = common::property(expr.clone());
     let modifier = common::modifier(expr.clone(), common::time());
     let modifiers = common::modifiers(modifier);
-    let inline_items = inline::parser(expr.clone(), property.clone(), modifiers.clone());
+    let inline_items = inline::parser(expr.clone(), property.clone(), modifiers.clone(), warnings);
     let stmt = stmt::parser(expr.clone(), property.clone(), modifiers.clone(), inline_items);
     top_level::parser(stmt, property, modifiers)
 }
@@ -312,7 +346,7 @@ mod tests {
     #[test]
     fn test_closure_parser() {
         let input = "let f = (x) => x ^ 2";
-        let res = parser().parse(input).unwrap();
+        let res = parser_simple().parse(input).unwrap();
 
         // Find the LetDecl stmt
         if let Stmt::LetDecl { is_pub, name, value, .. } = &res[0] {
@@ -337,7 +371,7 @@ mod tests {
     #[test]
     fn test_text_shorthand_parser() {
         let input = r#"a: "hello world""#;
-        let res = parser().parse(input).unwrap();
+        let res = parser_simple().parse(input).unwrap();
 
         if let Stmt::ActorDecl {
             is_pub,
@@ -365,7 +399,7 @@ mod tests {
     #[test]
     fn test_text_shorthand_with_modifiers() {
         let input = r#"title: "Slide 1" [2s, ease: ease-in-out]"#;
-        let res = parser().parse(input).unwrap();
+        let res = parser_simple().parse(input).unwrap();
 
         if let Stmt::ActorDecl {
             label,
@@ -389,7 +423,7 @@ mod tests {
     #[test]
     fn test_typst_shorthand_parser() {
         let input = "eq: $$ x^2 + y^2 $$";
-        let res = parser().parse(input).unwrap();
+        let res = parser_simple().parse(input).unwrap();
 
         if let Stmt::ActorDecl {
             is_pub,
@@ -417,7 +451,7 @@ mod tests {
     #[test]
     fn test_typst_shorthand_with_modifiers() {
         let input = "eq: $$ x^2 $$ [2s]";
-        let res = parser().parse(input).unwrap();
+        let res = parser_simple().parse(input).unwrap();
 
         if let Stmt::ActorDecl {
             label,
@@ -442,7 +476,7 @@ mod tests {
     fn test_vec2_value_span_accuracy() {
         // Reproduce the bug: size: (2494.552, 1377.7778) should have correct span
         let input = r#"backdrop: Rect, size: (2494.552, 1377.7778), color: scene.background"#;
-        let res = parser().parse(input).unwrap();
+        let res = parser_simple().parse(input).unwrap();
 
         if let Stmt::ActorDecl { props, .. } = &res[0] {
             let size_prop = props.iter().find(|p| p.name == "size").unwrap();
@@ -468,7 +502,7 @@ mod tests {
     fn test_vec2_value_span_with_trailing_comma() {
         // Test with trailing comma in tuple: (2494.552, 1377.7778,)
         let input = r#"backdrop: Rect, size: (2494.552, 1377.7778,), color: scene.background"#;
-        let res = parser().parse(input).unwrap();
+        let res = parser_simple().parse(input).unwrap();
 
         if let Stmt::ActorDecl { props, .. } = &res[0] {
             let size_prop = props.iter().find(|p| p.name == "size").unwrap();
@@ -492,7 +526,7 @@ mod tests {
     fn test_multiple_properties_span_independence() {
         // Test that spans for multiple properties don't overlap
         let input = r#"backdrop: Rect, size: (100, 200), color: red, anchor: center"#;
-        let res = parser().parse(input).unwrap();
+        let res = parser_simple().parse(input).unwrap();
 
         if let Stmt::ActorDecl { props, .. } = &res[0] {
             let size_prop = props.iter().find(|p| p.name == "size").unwrap();
@@ -524,7 +558,7 @@ mod tests {
     #[test]
     fn test_reactive_binding_parser() {
         let input = r#"orbiter.at := tracker.at + (200 * cos(3 * t), 200 * sin(3 * t))"#;
-        let res = parser().parse(input).unwrap();
+        let res = parser_simple().parse(input).unwrap();
         assert_eq!(res.len(), 1);
         // Reactive bindings are not wrapped in a default keyframe
         if let Stmt::ReactiveBinding { target, property, value, .. } = &res[0] {
@@ -548,7 +582,7 @@ mod tests {
     #[test]
     fn test_reactive_binding_rejects_single_segment() {
         let input = r#"at := (100, 200)"#;
-        let res = parser().parse(input);
+        let res = parser_simple().parse(input);
         assert!(res.has_errors(), "Expected parse error for single-segment reactive binding");
     }
 

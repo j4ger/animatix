@@ -12,7 +12,9 @@ use crate::easing::Easing;
 use crate::primitives::{
     ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, Primitive, RenderCommand,
 };
-use crate::timeline::property_lookup::evaluate_expr_with_lookup_diagnostic;
+use crate::timeline::property_lookup::{
+    evaluate_expr_with_lookup_diagnostic, parse_color_in_env_with_lookup_diagnostic,
+};
 use crate::timeline::{AnimationTrack, Environment, TrackAccessor};
 
 /// The `Fragment` primitive.
@@ -46,6 +48,9 @@ impl Primitive for FragmentPrimitive {
         _modifiers: &[Modifier],
         _children: &[InlineItem],
     ) -> Result<(), Vec<Diagnostic>> {
+        // Clone env before mutable borrow of ctx.timeline.tracks
+        let env = ctx.timeline.env().clone();
+
         // Ensure the track exists.
         let track = ctx
             .timeline
@@ -85,7 +90,23 @@ impl Primitive for FragmentPrimitive {
                                 [0.3, 0.5, 1.0, 1.0],
                                 Easing::Linear,
                             );
+                            continue;
                         }
+                    }
+                    // Fall through to color parsing for non-auto values
+                    if let Some(color) = parse_color_in_env_with_lookup_diagnostic(
+                        label,
+                        "highlight_color",
+                        &prop.value,
+                        &env,
+                        ctx.diagnostics,
+                        label,
+                    ) {
+                        track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(
+                            ctx.time_ms as u64,
+                            color,
+                            Easing::Linear,
+                        );
                     }
                 },
                 _ => {},

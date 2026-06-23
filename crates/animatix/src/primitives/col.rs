@@ -3,6 +3,7 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive};
+use crate::timeline::property_lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::{SceneDimensions, Value};
 
 /// The `Col` primitive.
@@ -107,10 +108,8 @@ impl Primitive for ColPrimitive {
                     }
                 },
                 "align" => {
-                    if let Expr::Str(s) = &prop.value {
-                        align = Some(s.clone());
-                    } else if let Expr::Ident(s) = &prop.value {
-                        align = Some(s.clone());
+                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(&prop.value, env, ctx.diagnostics, label) {
+                        align = Some(v.as_str().to_string());
                     }
                 },
                 _ => {},
@@ -121,10 +120,8 @@ impl Primitive for ColPrimitive {
         let mut vertical_align: Option<String> = None;
         for prop in props {
             if prop.name == "vertical_align" {
-                if let Expr::Str(s) = &prop.value {
-                    vertical_align = Some(s.clone());
-                } else if let Expr::Ident(s) = &prop.value {
-                    vertical_align = Some(s.clone());
+                if let Some(v) = evaluate_expr_with_lookup_diagnostic(&prop.value, env, ctx.diagnostics, label) {
+                    vertical_align = Some(v.as_str().to_string());
                 }
             }
         }

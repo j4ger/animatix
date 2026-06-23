@@ -18,7 +18,7 @@ pub const DEFAULT_DIMS: SceneDimensions = SceneDimensions {
 // Reserved for use by individual benchmarks
 #[allow(dead_code)]
 pub fn parse_timeline(source: &str) -> Timeline {
-    let (stmts, _) = animatix_syntax::parser::parser()
+    let (stmts, _) = animatix_syntax::parser::parser_simple()
         .parse(source)
         .into_output_errors();
     Timeline::build(&stmts.expect("parse error in bench fixture"))

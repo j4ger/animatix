@@ -735,7 +735,7 @@ fn format_file(path: &Path, formatter: &animatix_syntax::formatter::Formatter, c
     let source = std::fs::read_to_string(path)
         .map_err(|e| format!("Failed to read: {}", e))?;
 
-    let stmts = animatix_syntax::parser::parser()
+    let stmts = animatix_syntax::parser::parser_simple()
         .parse(&source)
         .into_result()
         .map_err(|e| format!("Parse error: {:?}", e))?;

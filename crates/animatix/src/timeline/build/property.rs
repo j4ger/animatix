@@ -139,10 +139,16 @@ impl Timeline {
                     resolution = v.as_num();
                 }
                 "kind" => {
-                    if let Expr::Str(s) = &prop.value {
-                        kind = PlotCurveKind::from_str(s);
-                    } else if let Expr::Ident(s) = &prop.value {
-                        kind = PlotCurveKind::from_str(s);
+                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(&prop.value, &initial_eval_env, diagnostics, &prop_subject) {
+                        if let Some(k) = PlotCurveKind::from_str(&v.as_str().to_lowercase()) {
+                            kind = Some(k);
+                        } else {
+                            diagnostics.push(Diagnostic::warning(
+                                DiagnosticCode::InvalidPropertyValue,
+                                DiagnosticPhase::Build,
+                                format!("Invalid plot kind: '{}'", v.as_str()),
+                            ).with_subject(&prop_subject));
+                        }
                     }
                 }
                 "at" => at_expr = Some(prop.value.clone()),

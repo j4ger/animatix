@@ -300,9 +300,9 @@ fade-in done [400ms, ease: ease-out]
     #[test]
     fn roundtrip_simple_actor_decl() {
         let source = r#"backdrop: Rect, size: (1280, 720), color: scene.background"#;
-        let parsed = crate::parser::parser().parse(source).unwrap();
+        let parsed = crate::parser::parser_simple().parse(source).unwrap();
         let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parser().parse(&serialized).unwrap();
+        let reparsed = crate::parser::parser_simple().parse(&serialized).unwrap();
         assert_eq!(parsed.len(), reparsed.len());
     }
 
@@ -310,9 +310,9 @@ fade-in done [400ms, ease: ease-out]
     fn roundtrip_keyframe_block() {
         let source = r#"#2s
 fade-in title [600ms, ease: ease-out]"#;
-        let parsed = crate::parser::parser().parse(source).unwrap();
+        let parsed = crate::parser::parser_simple().parse(source).unwrap();
         let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parser().parse(&serialized).unwrap();
+        let reparsed = crate::parser::parser_simple().parse(&serialized).unwrap();
         assert_eq!(parsed.len(), reparsed.len());
         if let Stmt::Keyframe { time, .. } = &reparsed[0] {
             assert_eq!(*time, Time::Seconds(2.0));
@@ -327,18 +327,18 @@ fade-in title [600ms, ease: ease-out]"#;
 features: Col, anchor: scene.left {
     label: Text, text: "Features", font_size: 28
 }"#;
-        let parsed = crate::parser::parser().parse(source).unwrap();
+        let parsed = crate::parser::parser_simple().parse(source).unwrap();
         let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parser().parse(&serialized).unwrap();
+        let reparsed = crate::parser::parser_simple().parse(&serialized).unwrap();
         assert_eq!(parsed.len(), reparsed.len());
     }
 
     #[test]
     fn roundtrip_assignment() {
         let source = r#"orb.color = accent.success [600ms, ease: ease-in-out]"#;
-        let parsed = crate::parser::parser().parse(source).unwrap();
+        let parsed = crate::parser::parser_simple().parse(source).unwrap();
         let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parser().parse(&serialized).unwrap();
+        let reparsed = crate::parser::parser_simple().parse(&serialized).unwrap();
         assert_eq!(parsed.len(), reparsed.len());
     }
 
@@ -348,27 +348,27 @@ features: Col, anchor: scene.left {
     fade-in a [400ms]
     fade-in b [400ms]
 }"#;
-        let parsed = crate::parser::parser().parse(source).unwrap();
+        let parsed = crate::parser::parser_simple().parse(source).unwrap();
         let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parser().parse(&serialized).unwrap();
+        let reparsed = crate::parser::parser_simple().parse(&serialized).unwrap();
         assert_eq!(parsed.len(), reparsed.len());
     }
 
     #[test]
     fn roundtrip_config() {
         let source = r#"config { resolution: (1280, 720), dynamic_layout: true }"#;
-        let parsed = crate::parser::parser().parse(source).unwrap();
+        let parsed = crate::parser::parser_simple().parse(source).unwrap();
         let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parser().parse(&serialized).unwrap();
+        let reparsed = crate::parser::parser_simple().parse(&serialized).unwrap();
         assert_eq!(parsed.len(), reparsed.len());
     }
 
     #[test]
     fn roundtrip_complex_expressions() {
         let source = r#"let x = (a + b) * c"#;
-        let parsed = crate::parser::parser().parse(source).unwrap();
+        let parsed = crate::parser::parser_simple().parse(source).unwrap();
         let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parser().parse(&serialized).unwrap();
+        let reparsed = crate::parser::parser_simple().parse(&serialized).unwrap();
         assert_eq!(parsed.len(), reparsed.len());
     }
 
@@ -396,9 +396,9 @@ features: Col, anchor: scene.left {
     #[test]
     fn roundtrip_comment() {
         let source = r#"// This is a comment"#;
-        let parsed = crate::parser::parser().parse(source).unwrap();
+        let parsed = crate::parser::parser_simple().parse(source).unwrap();
         let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parser().parse(&serialized).unwrap();
+        let reparsed = crate::parser::parser_simple().parse(&serialized).unwrap();
         assert_eq!(parsed.len(), reparsed.len());
     }
 
@@ -416,9 +416,9 @@ features: Col, anchor: scene.left {
     #[test]
     fn roundtrip_full_showcase_file() {
         let source = SHOWCASE_FIXTURE;
-        let parsed = crate::parser::parser().parse(source).unwrap();
+        let parsed = crate::parser::parser_simple().parse(source).unwrap();
         let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parser().parse(&serialized).unwrap();
+        let reparsed = crate::parser::parser_simple().parse(&serialized).unwrap();
         assert_eq!(parsed.len(), reparsed.len());
     }
 
@@ -426,7 +426,7 @@ features: Col, anchor: scene.left {
     fn trailing_comment_preserved_on_property() {
         let source = r#"#0s
 btn: Rect, size: (100, 200) // half-extents, in scene space"#;
-        let parsed = crate::parser::parser().parse(source).unwrap();
+        let parsed = crate::parser::parser_simple().parse(source).unwrap();
         let serialized = stmts_to_source(&parsed);
         assert!(
             serialized.contains("// half-extents, in scene space"),
@@ -439,9 +439,9 @@ btn: Rect, size: (100, 200) // half-extents, in scene space"#;
     fn trailing_comment_roundtrips() {
         let source = r#"#0s
 btn: Rect, size: (100, 200) // half-extents"#;
-        let parsed = crate::parser::parser().parse(source).unwrap();
+        let parsed = crate::parser::parser_simple().parse(source).unwrap();
         let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parser().parse(&serialized).unwrap();
+        let reparsed = crate::parser::parser_simple().parse(&serialized).unwrap();
 
         if let Stmt::Keyframe { body, .. } = &reparsed[0] {
             if let Stmt::ActorDecl { props, .. } = &body[0] {
@@ -461,7 +461,7 @@ btn: Rect, size: (100, 200) // half-extents"#;
     #[test]
     fn block_comment_rejected() {
         let source = r#"/* block comment */ btn: Rect"#;
-        let result = crate::parser::parser().parse(source);
+        let result = crate::parser::parser_simple().parse(source);
         let (_, errors) = result.into_output_errors();
         assert!(!errors.is_empty(), "block comment should be rejected");
     }
@@ -480,16 +480,16 @@ btn: Rect, size: (100, 200) // half-extents"#;
     #[test]
     fn parse_reorder_demo() {
         let source = REORDER_FIXTURE;
-        let parsed = crate::parser::parser().parse(source).unwrap();
+        let parsed = crate::parser::parser_simple().parse(source).unwrap();
         let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parser().parse(&serialized).unwrap();
+        let reparsed = crate::parser::parser_simple().parse(&serialized).unwrap();
         assert_eq!(parsed.len(), reparsed.len());
     }
 
     #[test]
     fn roundtrip_reactive_binding() {
         let source = r#"orbiter.at := tracker.at + (200 * cos(3 * t), 200 * sin(3 * t))"#;
-        let parsed = crate::parser::parser().parse(source).unwrap();
+        let parsed = crate::parser::parser_simple().parse(source).unwrap();
         assert_eq!(parsed.len(), 1);
         if let Stmt::ReactiveBinding { target, property, .. } = &parsed[0] {
             assert_eq!(target, &["orbiter"]);
@@ -498,7 +498,7 @@ btn: Rect, size: (100, 200) // half-extents"#;
             panic!("Expected ReactiveBinding");
         }
         let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parser().parse(&serialized).unwrap();
+        let reparsed = crate::parser::parser_simple().parse(&serialized).unwrap();
         assert_eq!(parsed.len(), reparsed.len());
     }
 }

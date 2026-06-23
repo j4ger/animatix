@@ -772,13 +772,13 @@ impl Composition {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use animatix_syntax::parser::parser;
+    use animatix_syntax::parser::parser_simple;
     use chumsky::Parser;
 
     #[test]
     fn test_no_scenes_returns_empty_composition() {
         let source = "#0s\ntitle: Text, text: \"Hello\"\n";
-        let parsed = parser().parse(source).unwrap();
+        let parsed = parser_simple().parse(source).unwrap();
         let report = Composition::build(&parsed, &std::collections::HashMap::new());
         assert!(!report.output.has_scenes());
         assert_eq!(report.output.global_duration_s, 0.0);
@@ -799,7 +799,7 @@ mod tests {
             "#2s\n",
             "graph.opacity = 1\n",
         );
-        let parsed = parser().parse(source).unwrap();
+        let parsed = parser_simple().parse(source).unwrap();
         let report = Composition::build(&parsed, &std::collections::HashMap::new());
         assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
         let comp = &report.output;
@@ -817,7 +817,7 @@ mod tests {
             "#0s\n",
             "title: Text, text: \"Welcome\"\n",
         );
-        let parsed = parser().parse(source).unwrap();
+        let parsed = parser_simple().parse(source).unwrap();
         let report = Composition::build(&parsed, &std::collections::HashMap::new());
         assert!(report.diagnostics.is_empty());
         let comp = &report.output;
@@ -842,7 +842,7 @@ mod tests {
             "#2s\n",
             "graph.opacity = 1\n",
         );
-        let parsed = parser().parse(source).unwrap();
+        let parsed = parser_simple().parse(source).unwrap();
         let report = Composition::build(&parsed, &std::collections::HashMap::new());
         let comp = &report.output;
         assert!(comp.edges.contains_key("Intro"));
@@ -865,7 +865,7 @@ mod tests {
             "title: Text, text: \"Welcome\"\n",
             "play MissingScene\n",
         );
-        let parsed = parser().parse(source).unwrap();
+        let parsed = parser_simple().parse(source).unwrap();
         let report = Composition::build(&parsed, &std::collections::HashMap::new());
         let has_play_error = report
             .diagnostics
@@ -882,7 +882,7 @@ mod tests {
             "title: Text, text: \"Welcome\"\n",
             "play module.SceneName [fade, 300ms]\n",
         );
-        let parsed = parser().parse(source).unwrap();
+        let parsed = parser_simple().parse(source).unwrap();
         let mut namespaces = std::collections::HashMap::new();
         namespaces.insert("module".to_string(), Namespace::default());
 
@@ -906,7 +906,7 @@ mod tests {
             "title: Text, text: \"Welcome\"\n",
             "play module.SceneName\n",
         );
-        let parsed = parser().parse(source).unwrap();
+        let parsed = parser_simple().parse(source).unwrap();
         let report = Composition::build(&parsed, &std::collections::HashMap::new());
         assert!(
             report
@@ -926,7 +926,7 @@ mod tests {
             "#0s\n",
             "title: Text, text: \"Again\"\n",
         );
-        let parsed = parser().parse(source).unwrap();
+        let parsed = parser_simple().parse(source).unwrap();
         let report = Composition::build(&parsed, &std::collections::HashMap::new());
         let has_duplicate = report
             .diagnostics
@@ -951,7 +951,7 @@ mod tests {
             "#2s\n",
             "graph.opacity = 1\n",
         );
-        let parsed = parser().parse(source).unwrap();
+        let parsed = parser_simple().parse(source).unwrap();
         let report = Composition::build(&parsed, &std::collections::HashMap::new());
         let comp = &report.output;
 
@@ -980,7 +980,7 @@ mod tests {
             "#0s\n",
             "graph: Text, text: \"Graph\"\n",
         );
-        let parsed = parser().parse(source).unwrap();
+        let parsed = parser_simple().parse(source).unwrap();
         let report = Composition::build(&parsed, &std::collections::HashMap::new());
         let comp = &report.output;
 
@@ -1003,7 +1003,7 @@ mod tests {
             "#1s\n",
             "fade-in title [500ms]\n",
         );
-        let parsed = parser().parse(source).unwrap();
+        let parsed = parser_simple().parse(source).unwrap();
         // Verify no Stmt::Scene in output
         let has_scenes = parsed.iter().any(|s| matches!(s, Stmt::Scene { .. }));
         assert!(!has_scenes, "Single-scene file should not produce Stmt::Scene");
@@ -1026,7 +1026,7 @@ mod tests {
             "#0s\n",
             "bye: Text, text: \"Bye\"\n",
         );
-        let parsed = parser().parse(source).unwrap();
+        let parsed = parser_simple().parse(source).unwrap();
         let report = Composition::build(&parsed, &std::collections::HashMap::new());
         let has_multi = report
             .diagnostics
@@ -1055,7 +1055,7 @@ mod tests {
             "#0s\n",
             "solo: Text, text: \"Alone\"\n",
         );
-        let parsed = parser().parse(source).unwrap();
+        let parsed = parser_simple().parse(source).unwrap();
         let report = Composition::build(&parsed, &std::collections::HashMap::new());
         let has_orphan = report
             .diagnostics
@@ -1080,7 +1080,7 @@ mod tests {
             "#0s\n",
             "graph: Text, text: \"Graph\"\n",
         );
-        let parsed = parser().parse(source).unwrap();
+        let parsed = parser_simple().parse(source).unwrap();
         let report = Composition::build(&parsed, &std::collections::HashMap::new());
         let comp = &report.output;
 
@@ -1111,7 +1111,7 @@ mod tests {
             "#0s\n",
             "graph: Rect, size: (400, 400)\n",
         );
-        let parsed = parser().parse(source).unwrap();
+        let parsed = parser_simple().parse(source).unwrap();
         let report = Composition::build(&parsed, &std::collections::HashMap::new());
         let has_resolution_warning = report
             .diagnostics
@@ -1136,7 +1136,7 @@ mod tests {
             "#0s\n",
             "title: Text, text: \"Welcome\"\n",
         );
-        let parsed = parser().parse(source).unwrap();
+        let parsed = parser_simple().parse(source).unwrap();
         let report = Composition::build(&parsed, &std::collections::HashMap::new());
         // colorscheme is scene-scoped — no warning expected
         let has_config_warning = report

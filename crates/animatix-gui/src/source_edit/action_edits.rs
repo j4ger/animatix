@@ -186,11 +186,11 @@ fn time_to_seconds(time: &Time) -> f64 {
 mod tests {
     use super::super::apply::{apply_edit, SourceEdit};
     use animatix_syntax::ast::{Expr, Modifier, Stmt, Time};
-    use animatix_syntax::parser::parser;
+    use animatix_syntax::parser::parser_simple;
     use chumsky::Parser;
 
     fn parse(source: &str) -> Vec<Stmt> {
-        parser()
+        parser_simple()
             .parse(source)
             .into_result()
             .expect("failed to parse test source")
