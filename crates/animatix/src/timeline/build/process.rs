@@ -2,7 +2,7 @@
 //! sequence, stagger, always, for-loop, and let-decl handlers.
 
 use super::*;
-use crate::ast::InlineItem;
+use crate::ast::{InlineItem, LoopPattern};
 use tracing::instrument;
 
 impl Timeline {
@@ -173,11 +173,46 @@ impl Timeline {
     // For-loop lowering helpers
     // ─────────────────────────────────────────────────────────────
 
+    /// Bind a loop iteration value according to the loop variable pattern.
+    fn bind_loop_var(&mut self, var: &LoopPattern, value: Value, index: usize, diagnostics: &mut Vec<Diagnostic>) {
+        match var {
+            LoopPattern::Single(name) => {
+                self.env.set(name, value);
+            }
+            LoopPattern::Tuple(names) => {
+                let components: Vec<Value> = match &value {
+                    Value::List(items) => items.clone(),
+                    Value::Vec2(v) => v.iter().map(|&x| Value::Num(x)).collect(),
+                    Value::Vec3(v) => v.iter().map(|&x| Value::Num(x)).collect(),
+                    Value::Vec4(v) => v.iter().map(|&x| Value::Num(x)).collect(),
+                    Value::Color(v) => v.iter().map(|&x| Value::Num(x)).collect(),
+                    other => vec![other.clone()],
+                };
+                let min_len = names.len().min(components.len());
+                for (i, name) in names.iter().enumerate().take(min_len) {
+                    self.env.set(name, components[i].clone());
+                }
+                if names.len() != components.len() {
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "For loop tuple destructuring: expected {} variables but got {} components in value at index {}",
+                                names.len(), components.len(), index
+                            ),
+                        )
+                    );
+                }
+            }
+        }
+    }
+
     /// Lower a for-loop by iterating values, binding the loop variable (and optional index),
     /// and calling the body processor for each iteration.
     pub(super) fn process_for_loop_stmts(
         &mut self,
-        var: &str,
+        var: &LoopPattern,
         index_var: &Option<String>,
         iterable: &Expr,
         body: &[Stmt],
@@ -186,7 +221,7 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         for (idx, value) in for_iter_values(iterable, &self.env).into_iter().enumerate() {
-            self.env.set(var, value);
+            self.bind_loop_var(var, value, idx, diagnostics);
             if let Some(iv) = index_var {
                 self.env.set(iv, Value::Num(idx as f64));
             }
@@ -197,7 +232,7 @@ impl Timeline {
     /// Same as process_for_loop_stmts but for InlineItem bodies.
     pub(super) fn process_for_loop_inline_items(
         &mut self,
-        var: &str,
+        var: &LoopPattern,
         index_var: &Option<String>,
         iterable: &Expr,
         body: &[InlineItem],
@@ -206,7 +241,7 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         for (idx, value) in for_iter_values(iterable, &self.env).into_iter().enumerate() {
-            self.env.set(var, value);
+            self.bind_loop_var(var, value, idx, diagnostics);
             if let Some(iv) = index_var {
                 self.env.set(iv, Value::Num(idx as f64));
             }

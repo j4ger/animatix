@@ -53,7 +53,7 @@ pub(crate) struct ProcessedPlotActor {
 /// Parameters for building plot curve paths.
 pub(crate) struct PlotCurveParams<'a> {
     pub(super) kind: PlotCurveKind,
-    pub(super) func: &'a Option<(Vec<String>, Box<Expr>)>,
+    pub(super) func: &'a Option<(Vec<String>, Box<Expr>, HashMap<String, Value>)>,
     pub(super) p_x_domain: [f64; 2],
     pub(super) p_y_domain: [f64; 2],
     pub(super) p_size: [f64; 2],
@@ -84,7 +84,7 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
         &mut resolution,
     );
 
-    if let Some((args, body)) = params.func {
+    if let Some((args, body, _captures)) = params.func {
         let mut env_copy = params.eval_env.clone();
         let arg_name = if !args.is_empty() {
             args[0].clone()
@@ -179,7 +179,7 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
             let mut pts = vec![p0];
             // Wrap the declaration body in a PlotFuncRef::Single for the
             // refactored sampling functions. Build time always uses Single.
-            let func_source = FuncSource::Raw(args.clone(), (**body).clone());
+            let func_source = FuncSource::Raw(args.clone(), (**body).clone(), HashMap::new());
             let plot_func = PlotFuncRef::Single(&func_source);
             let mut from_cache = HashMap::<u64, Value>::new();
             let mut to_cache = HashMap::<u64, Value>::new();
@@ -588,7 +588,11 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(0.0));
                     if let Value::Closure(args, body) = v {
-                        func = Some((args, body));
+                        // Capture the current loop-variable overrides so render-time
+                        // sampling can resolve names like `freq` from a for-loop.
+                        let captures: HashMap<String, Value> =
+                            initial_eval_env.overrides.clone();
+                        func = Some((args, body, captures));
                     }
                 }
                 "color" => {
@@ -789,7 +793,7 @@ impl Timeline {
         let is_heatmap = ty == "Heatmap";
         let is_contour_set = ty == "ContourSet";
         let is_bar_chart = ty == "BarChart";
-        if let Some((ref args, ref body)) = func {
+        if let Some((ref args, ref body, _)) = func {
             if !is_vector_field && !is_heatmap && !is_contour_set && !is_bar_chart {
             let (expected_arity, expected_ty) = match kind {
                 PlotCurveKind::Cartesian | PlotCurveKind::Polar => (1, "number"),
@@ -959,7 +963,7 @@ impl Timeline {
             }
         } else if is_vector_field {
             let mut eval_env = self.build_eval_env(time_ms as u64);
-            if let Some((args, body)) = func.as_ref() {
+            if let Some((args, body, _captures)) = func.as_ref() {
                 let full_size = [size[0] as f64 * 2.0, size[1] as f64 * 2.0];
                 let mut scaled_density = density as usize;
                 let mut _max_depth = 0usize;
@@ -979,7 +983,7 @@ impl Timeline {
             }
         } else if is_heatmap {
             let mut eval_env = self.build_eval_env(time_ms as u64);
-            if let Some((args, body)) = func.as_ref() {
+            if let Some((args, body, _captures)) = func.as_ref() {
                 let full_size = [size[0] as f64 * 2.0, size[1] as f64 * 2.0];
                 let mut scaled_res = resolution.max(2.0).round() as usize;
                 let mut _max_depth = 0usize;
@@ -998,7 +1002,7 @@ impl Timeline {
             }
         } else if is_contour_set {
             let mut eval_env = self.build_eval_env(time_ms as u64);
-            if let Some((args, body)) = func.as_ref() {
+            if let Some((args, body, _captures)) = func.as_ref() {
                 let full_size = [size[0] as f64 * 2.0, size[1] as f64 * 2.0];
                 let mut scaled_res = resolution.max(8.0) as usize;
                 let mut _max_depth = 0usize;
@@ -1072,7 +1076,7 @@ impl Timeline {
             let eval_env = self.build_eval_env(time_ms as u64);
 
             // Phase 6.4: Check cache for static plot paths before rebuilding.
-            let is_static = func.as_ref().is_none_or(|(_, body)| !body.references_ident("t"));
+            let is_static = func.as_ref().is_none_or(|(_, body, _)| !body.references_ident("t"));
             let cache_key = if is_static {
                 use std::collections::hash_map::DefaultHasher;
                 use std::hash::{Hash, Hasher};
@@ -1147,7 +1151,7 @@ impl Timeline {
             // Done unconditionally so that plots with keyframeable params
             // (even without `t` in the func body) get a procedural_plot.
             let mut plot_params: Vec<(String, f64)> = Vec::new();
-            if let Some((_, _)) = func.as_ref() {
+            if let Some((_, _, _)) = func.as_ref() {
                 for prop in props {
                     // Skip known plot properties
                     match prop.name.as_str() {
@@ -1182,7 +1186,7 @@ impl Timeline {
             // (no `t`, no params, no transitions) are still guarded at frame
             // time by `is_dynamic()` in scene_eval.rs, so they keep using the
             // cached build-time paths with zero per-frame overhead.
-            if let Some((args, body)) = func.as_ref() {
+            if let Some((args, body, captures)) = func.as_ref() {
                 let param_names: Vec<String> = plot_params.iter().map(|(n, _)| n.clone()).collect();
 
                 procedural_plot = Some(ProceduralPlot {
@@ -1202,6 +1206,7 @@ impl Timeline {
                     stroke_width,
                     stroke_color,
                     params: plot_params,
+                    extra_captures: captures.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
                 });
             }
         }

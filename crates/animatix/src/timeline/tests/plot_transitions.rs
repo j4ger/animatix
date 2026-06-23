@@ -122,8 +122,8 @@ fn blend_at_half_progress() {
 
     // Manually construct a Blend node with frozen_progress = 0.5.
     let blend = FuncSource::Blend {
-        from: Box::new(FuncSource::Raw(vec!["x".to_string()], sin_x_expr())),
-        to: Box::new(FuncSource::Raw(vec!["x".to_string()], cos_x_expr())),
+        from: Box::new(FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), std::collections::HashMap::new())),
+        to: Box::new(FuncSource::Raw(vec!["x".to_string()], cos_x_expr(), std::collections::HashMap::new())),
         frozen_progress: 0.5,
     };
 
@@ -160,14 +160,15 @@ fn blend_at_half_progress() {
         stroke_width: 2.0,
         stroke_color: [1.0, 1.0, 1.0, 1.0],
         params: vec![],
+        extra_captures: vec![],
     };
 
     let transition = FuncTransition {
         start_ms: 2000,
         end_ms: 3000,
         easing: Easing::Linear,
-        from: FuncSource::Raw(vec!["x".to_string()], sin_x_expr()),
-        to: FuncSource::Raw(vec!["x".to_string()], cos_x_expr()),
+        from: FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), std::collections::HashMap::new()),
+        to: FuncSource::Raw(vec!["x".to_string()], cos_x_expr(), std::collections::HashMap::new()),
     };
 
     // At time_ms = 2500, progress is 0.5, so output ≈ 0.5*sin(x) + 0.5*cos(x).
@@ -533,4 +534,81 @@ fn static_plot_no_transitions() {
         track.procedural_plot.is_some(),
         "Static plot should have a procedural_plot for potential future transitions"
     );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Test 9: for_loop_closure_captures_loop_variable
+// ─────────────────────────────────────────────────────────────
+
+/// Regression test for Batch 3 Task 6: closures inside `for` loops must
+/// capture the loop variable so that render-time sampling can resolve it.
+///
+/// Three `PlotCurve` actors are created inside a `for freq in [1, 2, 3]` loop.
+/// Each curve's `func: (x) => x * freq` should evaluate to different multiples
+/// of `x` at render time, not all produce the same value.
+#[test]
+fn for_loop_closure_captures_loop_variable() {
+    let source = r#"
+        config { colorscheme: "editorial-dark" }
+
+        #0s
+        for freq, i in {1, 2, 3} {
+            g[i]: Graph, x_domain: (-5, 5), y_domain: (-10, 10), size: (400, 400), at: (640, 360) {
+              curve[i]: PlotCurve, kind: "cartesian", func: (x) => x * freq
+            }
+        }
+    "#;
+
+    let report = build_from_source(source);
+    let errors: Vec<_> = report
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error)
+        .collect();
+    assert!(errors.is_empty(), "Unexpected build errors: {:?}", errors);
+
+    let mut env = stdlib_env();
+
+    // Check each generated curve track captures a distinct `freq` and samples correctly.
+    // For func=(x)=>x*freq, at x=2.0, expected output = 2.0 * freq.
+    for (suffix, expected_output) in [("__0", 2.0_f64), ("__1", 4.0_f64), ("__2", 6.0_f64)] {
+        let track_name = format!("curve{}", suffix);
+        let track = report
+            .output
+            .get_track(&track_name)
+            .unwrap_or_else(|| panic!("{} track should exist", track_name));
+
+        let plot = track
+            .procedural_plot
+            .as_ref()
+            .unwrap_or_else(|| panic!("{} should have procedural_plot", track_name));
+
+        // Verify that `freq` was captured in extra_captures.
+        assert!(
+            plot.extra_captures.iter().any(|(k, _)| k == "freq"),
+            "{}: `freq` must be in extra_captures (got {:?})",
+            track_name,
+            plot.extra_captures.iter().map(|(k, _)| k.as_str()).collect::<Vec<_>>(),
+        );
+
+        // Sample the plot and verify output matches the captured `freq` value.
+        let paths = sample_procedural_plot_at(plot, &mut env, 0, &[]);
+        assert!(!paths.is_empty(), "{}: sampled paths should be non-empty", track_name);
+
+        // Directly evaluate the function via FuncSource to confirm the captured value.
+        let func_source = crate::timeline::plot::FuncSource::Raw(
+            plot.func_args.clone(),
+            plot.func_body.clone(),
+            plot.extra_captures.iter().cloned().collect(),
+        );
+        let result = crate::timeline::plot::resolve_func_source(&func_source, &env, "x", 2.0)
+            .expect("evaluation should succeed");
+        assert!(
+            (result - expected_output).abs() < 1e-9,
+            "{}: expected f(2.0) = {}, got {}",
+            track_name,
+            expected_output,
+            result,
+        );
+    }
 }

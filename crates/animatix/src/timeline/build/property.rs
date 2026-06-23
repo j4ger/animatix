@@ -105,7 +105,10 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(0.0));
                     if let Value::Closure(args, body) = v {
-                        func = Some((args, body));
+                        // Capture loop variables from the build-time environment.
+                        let captures: std::collections::HashMap<String, Value> =
+                            initial_eval_env.overrides.clone();
+                        func = Some((args, body, captures));
                     }
                 }
                 "tolerance" => {

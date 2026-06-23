@@ -108,8 +108,9 @@ impl PlotCurveKind {
 ///   function transitions without visual discontinuities.
 #[derive(Clone, Debug)]
 pub enum FuncSource {
-    /// A closure defined by argument names and an expression body.
-    Raw(Vec<String>, Expr),
+    /// A closure defined by argument names, expression body, and captured environment variables.
+    /// The captures are build-time loop variable values needed at render time.
+    Raw(Vec<String>, Expr, HashMap<String, Value>),
     /// A mid-transition snap: blends `from` and `to` at a frozen progress value.
     Blend {
         from: Box<FuncSource>,
@@ -123,7 +124,7 @@ impl FuncSource {
     /// For `Blend`, delegates to the inner `to` source (which has the target arity).
     pub fn arity(&self) -> usize {
         match self {
-            FuncSource::Raw(args, _) => args.len(),
+            FuncSource::Raw(args, _, _) => args.len(),
             FuncSource::Blend { to, .. } => to.arity(),
         }
     }
@@ -191,9 +192,13 @@ pub fn resolve_func_source(
     arg_val: f64,
 ) -> Result<f64, EvalError> {
     match source {
-        FuncSource::Raw(args, body) => {
+        FuncSource::Raw(args, body, captures) => {
             let name = args.first().map(String::as_str).unwrap_or(arg_name);
             let mut local_env = env.clone();
+            // Inject captured loop variables into the local environment
+            for (k, v) in captures {
+                local_env.set(k, v.clone());
+            }
             local_env.set_binding(name, Value::Num(arg_val));
             evaluate_expr(body, &local_env).map(|v| v.as_num())
         }
@@ -215,9 +220,13 @@ pub fn resolve_func_source_vec2(
     arg_val: f64,
 ) -> Result<[f64; 2], EvalError> {
     match source {
-        FuncSource::Raw(args, body) => {
+        FuncSource::Raw(args, body, captures) => {
             let name = args.first().map(String::as_str).unwrap_or(arg_name);
             let mut local_env = env.clone();
+            // Inject captured loop variables into the local environment
+            for (k, v) in captures {
+                local_env.set(k, v.clone());
+            }
             local_env.set_binding(name, Value::Num(arg_val));
             evaluate_expr(body, &local_env).map(|v| match v {
                 Value::Vec2(arr) => arr,
@@ -263,10 +272,14 @@ fn eval_source_scalar(
     cache: &mut HashMap<u64, Value>,
 ) -> f64 {
     match source {
-        FuncSource::Raw(args, body) => {
+        FuncSource::Raw(args, body, captures) => {
             let name = args.first().map(String::as_str).unwrap_or(arg_name);
             let key = x.to_bits();
             let val = cache.get(&key).cloned().unwrap_or_else(|| {
+                // Inject captured loop variables on first evaluation for this x
+                for (k, v) in captures {
+                    env.set(k, v.clone());
+                }
                 env.set_binding(name, Value::Num(x));
                 let result = evaluate_expr(body, env).unwrap_or(Value::Num(f64::NAN));
                 env.clear_bindings();
@@ -294,10 +307,14 @@ fn eval_source_vec2(
     cache: &mut HashMap<u64, Value>,
 ) -> [f64; 2] {
     match source {
-        FuncSource::Raw(args, body) => {
+        FuncSource::Raw(args, body, captures) => {
             let name = args.first().map(String::as_str).unwrap_or(arg_name);
             let key = t.to_bits();
             let val = cache.get(&key).cloned().unwrap_or_else(|| {
+                // Inject captured loop variables on first evaluation for this t
+                for (k, v) in captures {
+                    env.set(k, v.clone());
+                }
                 env.set_binding(name, Value::Num(t));
                 let result = evaluate_expr(body, env)
                     .unwrap_or(Value::Vec2([f64::NAN, f64::NAN]));
@@ -842,6 +859,9 @@ pub struct ProceduralPlot {
     /// Custom numeric parameters that can be referenced by the func closure.
     /// Populated from declaration props like `freq: 2`, `amplitude: 1.5`.
     pub params: Vec<(String, f64)>,
+    /// Captured environment variables (e.g., loop variables) needed at render time.
+    /// Populated during build when the func closure is created inside a for loop.
+    pub extra_captures: Vec<(String, Value)>,
 }
 
 impl ProceduralPlot {
@@ -891,7 +911,11 @@ pub fn sample_procedural_plot_at(
     };
 
     // Resolve the active function reference for this frame.
-    let decl_source = FuncSource::Raw(plot.func_args.clone(), plot.func_body.clone());
+    let decl_source = FuncSource::Raw(
+        plot.func_args.clone(),
+        plot.func_body.clone(),
+        plot.extra_captures.iter().cloned().collect::<HashMap<_, _>>(),
+    );
     let active = transitions.iter().find_map(|t| t.active_at(time_ms));
     let func_ref: PlotFuncRef<'_> = if let Some((progress, from, to, _)) = active {
         if plot.kind == PlotCurveKind::Implicit {

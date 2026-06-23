@@ -493,7 +493,7 @@ impl<'a> TsConverter<'a> {
             .unwrap_or(Expr::Null);
         let body = self.convert_block_body(node);
         Stmt::ForLoop {
-            var,
+            var: LoopPattern::Single(var),
             index_var: None,
             iterable,
             body,
@@ -1249,7 +1249,7 @@ impl<'a> TsConverter<'a> {
                     .unwrap_or(Expr::Null);
                 let body = self.convert_children_block_items(node);
                 Some(RawItem::Item(InlineItem::ForLoop {
-                    var,
+                    var: LoopPattern::Single(var),
                     index_var: None,
                     iterable,
                     body,

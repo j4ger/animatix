@@ -1,4 +1,4 @@
-use crate::ast::{BinaryOp, Expr, UnaryOp};
+use crate::ast::{BinaryOp, Expr, LoopPattern, UnaryOp};
 use crate::timeline::Value;
 use std::collections::HashMap;
 use std::fmt;
@@ -104,8 +104,8 @@ pub enum ModifierIrStmt {
     },
     /// Loop over an iterable.
     For {
-        /// Loop variable name.
-        var: String,
+        /// Loop variable pattern (single or tuple destructuring).
+        var: LoopPattern,
         /// Iterable expression.
         iterable: CompiledExpr,
         /// Loop body statements.

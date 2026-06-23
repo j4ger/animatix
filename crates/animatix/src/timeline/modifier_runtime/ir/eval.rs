@@ -1,4 +1,4 @@
-use crate::ast::{BinaryOp, UnaryOp};
+use crate::ast::{BinaryOp, LoopPattern, UnaryOp};
 use crate::timeline::{Environment, EvalError, Value};
 use crate::timeline::utils::{safe_div, safe_rem};
 
@@ -86,7 +86,7 @@ fn execute_modifier_stmt(
                 other => vec![other],
             };
             for item in items {
-                frame_env.set(var, item);
+                bind_loop_var_ir(frame_env, var, item);
                 for stmt in body {
                     execute_modifier_stmt(stmt, frame_env, overrides)?;
                 }
@@ -684,5 +684,29 @@ pub(crate) fn make_vec_value(values: Vec<Value>) -> Value {
             values[3].as_num(),
         ]),
         _ => Value::List(values),
+    }
+}
+
+/// Bind loop variables according to the pattern in the IR evaluator.
+fn bind_loop_var_ir(frame_env: &mut Environment, var: &LoopPattern, value: Value) {
+    match var {
+        LoopPattern::Single(name) => {
+            frame_env.set(name, value);
+        }
+        LoopPattern::Tuple(names) => {
+            let components: Vec<Value> = match &value {
+                Value::List(items) => items.clone(),
+                Value::Vec2(v) => v.iter().map(|&x| Value::Num(x)).collect(),
+                Value::Vec3(v) => v.iter().map(|&x| Value::Num(x)).collect(),
+                Value::Vec4(v) => v.iter().map(|&x| Value::Num(x)).collect(),
+                Value::Color(v) => v.iter().map(|&x| Value::Num(x)).collect(),
+                other => vec![other.clone()],
+            };
+            for (i, name) in names.iter().enumerate().take(components.len().min(names.len())) {
+                if i < components.len() {
+                    frame_env.set(name, components[i].clone());
+                }
+            }
+        }
     }
 }

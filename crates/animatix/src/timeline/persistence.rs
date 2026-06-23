@@ -519,8 +519,8 @@ mod tests {
             start_ms: 0,
             end_ms: 1000,
             easing: Easing::Linear,
-            from: crate::timeline::plot::FuncSource::Raw(vec![], crate::ast::Expr::Num(0.0)),
-            to: crate::timeline::plot::FuncSource::Raw(vec![], crate::ast::Expr::Num(1.0)),
+            from: crate::timeline::plot::FuncSource::Raw(vec![], crate::ast::Expr::Num(0.0), std::collections::HashMap::new()),
+            to: crate::timeline::plot::FuncSource::Raw(vec![], crate::ast::Expr::Num(1.0), std::collections::HashMap::new()),
         });
         let snapshot = snapshot_track_at(&track, 0);
         assert!(snapshot.func_transitions.is_empty());
@@ -547,6 +547,7 @@ mod tests {
             stroke_width: 2.0,
             stroke_color: [1.0, 1.0, 1.0, 1.0],
             params: vec![],
+            extra_captures: vec![],
         });
         let snapshot = snapshot_track_at(&track, 0);
         assert!(snapshot.procedural_plot.is_some());
@@ -752,6 +753,7 @@ mod tests {
             stroke_width: 2.0,
             stroke_color: [1.0, 1.0, 1.0, 1.0],
             params: vec![],
+            extra_captures: vec![],
         });
         source.tracks.insert("curve".to_string(), actor);
         source.persistence_flags.insert("curve".to_string(), true);

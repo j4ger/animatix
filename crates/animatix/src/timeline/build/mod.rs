@@ -42,7 +42,7 @@ struct ExtractedActorProperties {
     x_domain: [f64; 2],
     y_domain: [f64; 2],
     t_domain: [f64; 2],
-    func: Option<(Vec<String>, Box<Expr>)>,
+    func: Option<(Vec<String>, Box<Expr>, std::collections::HashMap<String, Value>)>,
     tolerance: f64,
     max_depth: f64,
     resolution: f64,

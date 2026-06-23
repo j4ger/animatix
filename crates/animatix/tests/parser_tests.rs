@@ -1,7 +1,7 @@
 #![allow(clippy::approx_constant)]
 
 use animatix_syntax::ast::{
-    Action, ByteSpan, Expr, InlineItem, Modifier, Property, Stmt, Time,
+    Action, ByteSpan, Expr, InlineItem, LoopPattern, Modifier, Property, Stmt, Time,
     UnaryOp,
 };
 use animatix_syntax::parser::parse_source;
@@ -1350,7 +1350,7 @@ fn test_for_loop() {
     assert_eq!(
         result,
         Stmt::ForLoop {
-            var: "item".to_string(),
+            var: LoopPattern::Single("item".to_string()),
             index_var: None,
             iterable: Expr::Ident("buttons".to_string()),
             body: vec![Stmt::Action(Action {
@@ -1371,7 +1371,7 @@ fn test_for_loop_with_range() {
     assert_eq!(
         result,
         Stmt::ForLoop {
-            var: "i".to_string(),
+            var: LoopPattern::Single("i".to_string()),
             index_var: None,
             iterable: Expr::List(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0),]),
             body: vec![Stmt::Action(Action {
@@ -1387,6 +1387,128 @@ fn test_for_loop_with_range() {
             span: None,
         }
     );
+}
+
+#[test]
+fn test_for_loop_tuple_destructuring_basic() {
+    let result = parse_single_stmt("for (x, y) in points { appear dot }");
+    assert_eq!(
+        result,
+        Stmt::ForLoop {
+            var: LoopPattern::Tuple(vec!["x".to_string(), "y".to_string()]),
+            index_var: None,
+            iterable: Expr::Ident("points".to_string()),
+            body: vec![Stmt::Action(Action {
+                verb: "appear".to_string(),
+                targets: vec!["dot".to_string()],
+                args: vec![],
+                modifiers: vec![],
+                byte_span: Some(ByteSpan { start: 23, end: 34 }),
+            }, None)],
+            span: None,
+        }
+    );
+}
+
+#[test]
+fn test_for_loop_tuple_three_elements() {
+    let result = parse_single_stmt("for (r, g, b) in colors { fade-out fade }");
+    assert_eq!(
+        result,
+        Stmt::ForLoop {
+            var: LoopPattern::Tuple(vec![
+                "r".to_string(),
+                "g".to_string(),
+                "b".to_string()
+            ]),
+            index_var: None,
+            iterable: Expr::Ident("colors".to_string()),
+            body: vec![Stmt::Action(Action {
+                verb: "fade-out".to_string(),
+                targets: vec!["fade".to_string()],
+                args: vec![],
+                modifiers: vec![],
+                byte_span: Some(ByteSpan { start: 26, end: 40 }),
+            }, None)],
+            span: None,
+        }
+    );
+}
+
+#[test]
+fn test_for_loop_tuple_with_index() {
+    let result = parse_single_stmt("for (a, b), i in items { appear dot }");
+    assert_eq!(
+        result,
+        Stmt::ForLoop {
+            var: LoopPattern::Tuple(vec!["a".to_string(), "b".to_string()]),
+            index_var: Some("i".to_string()),
+            iterable: Expr::Ident("items".to_string()),
+            body: vec![Stmt::Action(Action {
+                verb: "appear".to_string(),
+                targets: vec!["dot".to_string()],
+                args: vec![],
+                modifiers: vec![],
+                byte_span: Some(ByteSpan { start: 25, end: 36 }),
+            }, None)],
+            span: None,
+        }
+    );
+}
+
+#[test]
+fn test_for_loop_tuple_destructuring_in_inline() {
+    let result = parse_single_stmt(
+        "group: Group { for (x, y) in pts { dot: Rect, at: (x, y) } }"
+    );
+    if let Stmt::ActorDecl { label, ty, children, .. } = result {
+        assert_eq!(label, "group");
+        assert_eq!(ty, "Group");
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            InlineItem::ForLoop { var, index_var, iterable, body } => {
+                assert_eq!(var, &LoopPattern::Tuple(vec!["x".to_string(), "y".to_string()]));
+                assert_eq!(index_var, &None);
+                assert_eq!(iterable, &Expr::Ident("pts".to_string()));
+                assert_eq!(body.len(), 1);
+                match &body[0] {
+                    InlineItem::Labeled { label, ty, props, .. } => {
+                        assert_eq!(label, "dot");
+                        assert_eq!(ty, "Rect");
+                        assert_eq!(props.len(), 1);
+                        assert_eq!(props[0].name, "at");
+                    }
+                    other => panic!("Expected Labeled inline item, got {:?}", other),
+                }
+            }
+            other => panic!("Expected InlineItem::ForLoop, got {:?}", other),
+        }
+    } else {
+        panic!("Expected ActorDecl, got {:?}", result);
+    }
+}
+
+#[test]
+fn test_for_loop_tuple_inline_with_index() {
+    let result = parse_single_stmt(
+        "group: Group { for (x, y), i in pts { dot[i]: Rect, at: (x, y) } }"
+    );
+    if let Stmt::ActorDecl { label, ty, children, .. } = result {
+        assert_eq!(label, "group");
+        assert_eq!(ty, "Group");
+        assert_eq!(children.len(), 1);
+        match &children[0] {
+            InlineItem::ForLoop { var, index_var, iterable, body } => {
+                assert_eq!(var, &LoopPattern::Tuple(vec!["x".to_string(), "y".to_string()]));
+                assert_eq!(index_var, &Some("i".to_string()));
+                assert_eq!(iterable, &Expr::Ident("pts".to_string()));
+                assert_eq!(body.len(), 1);
+            }
+            other => panic!("Expected InlineItem::ForLoop, got {:?}", other),
+        }
+    } else {
+        panic!("Expected ActorDecl, got {:?}", result);
+    }
 }
 
 #[test]

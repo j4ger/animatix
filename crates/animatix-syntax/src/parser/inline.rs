@@ -32,8 +32,8 @@ pub(crate) enum FlatItem {
     SlotMarker,
     /// `@slotname { items }` in component instantiation blocks
     SlotFill(String, Vec<InlineItem>),
-    /// `for item, i in list { ... }` inside container children
-    ForLoop(String, Option<String>, Expr, Vec<InlineItem>),
+    /// `for item, i in list { ... }` or `for (a, b) in list { ... }` inside container children
+    ForLoop(LoopPattern, Option<String>, Expr, Vec<InlineItem>),
 }
 
 /// Build the inline items parser.
@@ -75,20 +75,29 @@ pub(crate) fn parser<'src>(
                 .map(|(name, items)| FlatItem::SlotFill(name, items)),
             // @slot marker in component definition blocks
             just("@slot").padded().to(FlatItem::SlotMarker),
-            // For loop inside container children: `for item in list { ... }` or `for item, i in list { ... }`
-            text::keyword("for")
-                .ignore_then(common::ident())
-                .then(for_inline_index)
-                .then_ignore(text::keyword("in").padded())
-                .then(expr.clone())
-                .then(
-                    inline_items
-                        .clone()
-                        .delimited_by(just('{').padded(), just('}').padded()),
-                )
-                .map(|(((var, index_var), iterable), body)| {
-                    FlatItem::ForLoop(var, index_var, iterable, body)
-                }),
+            // For loop inside container children: `for item in list { ... }` or `for item, i in list { ... }` or `for (a, b) in list { ... }`
+            {
+                let loop_var_pat = common::ident()
+                    .map(LoopPattern::Single)
+                    .or(common::ident()
+                        .separated_by(just(',').padded())
+                        .collect::<Vec<_>>()
+                        .delimited_by(just('(').padded(), just(')').padded())
+                        .map(LoopPattern::Tuple));
+                text::keyword("for")
+                    .ignore_then(loop_var_pat)
+                    .then(for_inline_index)
+                    .then_ignore(text::keyword("in").padded())
+                    .then(expr.clone())
+                    .then(
+                        inline_items
+                            .clone()
+                            .delimited_by(just('{').padded(), just('}').padded()),
+                    )
+                    .map(|(((var, index_var), iterable), body)| {
+                        FlatItem::ForLoop(var, index_var, iterable, body)
+                    })
+            },
             // Labeled inline item: label: Type [mods] [{ children }] or label[idx]: Type
             label_expr
                 .clone()

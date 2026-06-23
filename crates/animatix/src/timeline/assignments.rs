@@ -363,7 +363,11 @@ impl Timeline {
                 }
             } else if let Some(plot) = track.procedural_plot.as_ref() {
                 // No prior transitions, use declaration func
-                FuncSource::Raw(plot.func_args.clone(), plot.func_body.clone())
+                FuncSource::Raw(
+                    plot.func_args.clone(),
+                    plot.func_body.clone(),
+                    plot.extra_captures.iter().cloned().collect(),
+                )
             } else {
                 diagnostics.push(
                     Diagnostic::error(
@@ -402,7 +406,7 @@ impl Timeline {
                     end_ms: t_end_ms,
                     easing,
                     from: from_source,
-                    to: FuncSource::Raw(to_args, to_body),
+                    to: FuncSource::Raw(to_args, to_body, std::collections::HashMap::new()),
                 },
             );
                 return; // func is not a registry property; do not fall through

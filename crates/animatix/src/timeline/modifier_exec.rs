@@ -7,6 +7,7 @@
 //! statement types and optimization tiers (IR, bytecode) — while frame
 //! environment construction is relatively stable.
 
+use crate::ast::LoopPattern;
 use super::modifier_runtime::{ir, vm};
 use super::{EvalError, SceneDimensions, Stmt, Timeline, Value, assignment_target_key, evaluate_expr};
 use tracing::warn;
@@ -66,7 +67,7 @@ impl Timeline {
                     }
                 }
             }
-            Stmt::ForLoop { var, iterable, body, .. } => {
+            Stmt::ForLoop { var, index_var, iterable, body, .. } => {
                 if let Ok(values) = evaluate_expr(iterable, frame_env) {
                     let items: Vec<Value> = match values {
                         Value::List(list) => list,
@@ -75,8 +76,11 @@ impl Timeline {
                         Value::Vec4(v) => v.into_iter().map(Value::Num).collect(),
                         other => vec![other],
                     };
-                    for item in items {
-                        frame_env.set(var, item);
+                    for (idx, item) in items.into_iter().enumerate() {
+                        bind_loop_var_modifier(frame_env, var, item);
+                        if let Some(iv) = index_var {
+                            frame_env.set(iv, Value::Num(idx as f64));
+                        }
                         for stmt in body {
                             self.apply_modifier_stmt(stmt, frame_env, overrides);
                         }
@@ -109,5 +113,29 @@ impl Timeline {
         overrides: &mut std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> Result<(), EvalError> {
         vm::execute_modifier_bytecode(program, frame_env, overrides)
+    }
+}
+
+/// Bind loop variables according to the pattern.
+fn bind_loop_var_modifier(frame_env: &mut super::Environment, var: &LoopPattern, value: Value) {
+    match var {
+        LoopPattern::Single(name) => {
+            frame_env.set(name, value);
+        }
+        LoopPattern::Tuple(names) => {
+            let components: Vec<Value> = match &value {
+                Value::List(items) => items.clone(),
+                Value::Vec2(v) => v.iter().map(|&x| Value::Num(x)).collect(),
+                Value::Vec3(v) => v.iter().map(|&x| Value::Num(x)).collect(),
+                Value::Vec4(v) => v.iter().map(|&x| Value::Num(x)).collect(),
+                Value::Color(v) => v.iter().map(|&x| Value::Num(x)).collect(),
+                other => vec![other.clone()],
+            };
+            for (i, name) in names.iter().enumerate().take(components.len().min(names.len())) {
+                if i < components.len() {
+                    frame_env.set(name, components[i].clone());
+                }
+            }
+        }
     }
 }

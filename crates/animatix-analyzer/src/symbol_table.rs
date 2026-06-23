@@ -439,14 +439,20 @@ impl SymbolTable {
             }
 
             Stmt::ForLoop { var, index_var, body, span, .. } => {
-                self.labels.insert(var.clone(), LabelInfo {
-                    name: var.clone(),
-                    kind: LabelKind::For,
-                    line: 0, // populated by Analyzer::enrich_positions from tree-sitter
-                    col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
-                    span: *span,
-                    ty: None,
-                });
+                let var_names: Vec<String> = match var {
+                    LoopPattern::Single(name) => vec![name.clone()],
+                    LoopPattern::Tuple(names) => names.clone(),
+                };
+                for name in &var_names {
+                    self.labels.insert(name.clone(), LabelInfo {
+                        name: name.clone(),
+                        kind: LabelKind::For,
+                        line: 0, // populated by Analyzer::enrich_positions from tree-sitter
+                        col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
+                        span: *span,
+                        ty: None,
+                    });
+                }
 
                 if let Some(iv) = index_var {
                     self.labels.insert(iv.clone(), LabelInfo {

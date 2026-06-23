@@ -412,6 +412,27 @@ pub struct ComponentDef {
     pub body: Vec<Stmt>,
 }
 
+/// Loop variable binding pattern for `for` loops.
+/// Supports single variable or tuple destructuring.
+#[derive(Debug, Clone, PartialEq)]
+pub enum LoopPattern {
+    /// Single variable: `for x in items { ... }`
+    Single(String),
+    /// Tuple destructuring: `for (x, y) in items { ... }`
+    Tuple(Vec<String>),
+}
+
+impl std::fmt::Display for LoopPattern {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LoopPattern::Single(name) => write!(f, "{}", name),
+            LoopPattern::Tuple(names) => {
+                write!(f, "({})", names.join(", "))
+            }
+        }
+    }
+}
+
 // ----------------------------------------------------------------------------
 // 4. Container Items (Inline Children)
 // ----------------------------------------------------------------------------
@@ -455,8 +476,8 @@ pub enum InlineItem {
     /// For loop inside a container's children block (e.g. `for item, i in items { ... }`).
     /// Body items are generated inline during build.
     ForLoop {
-        /// Loop variable name.
-        var: String,
+        /// Loop variable pattern (single or tuple destructuring).
+        var: LoopPattern,
         /// Optional index variable name.
         index_var: Option<String>,
         /// Iterable expression.
@@ -644,8 +665,8 @@ pub enum Stmt {
 
     /// For loop: `for item in items { ... }` or `for item, i in items { ... }`
     ForLoop {
-        /// Loop variable name.
-        var: String,
+        /// Loop variable pattern (single or tuple destructuring).
+        var: LoopPattern,
         /// Optional index variable name (e.g. `i` in `for item, i in items`).
         index_var: Option<String>,
         /// Iterable expression.

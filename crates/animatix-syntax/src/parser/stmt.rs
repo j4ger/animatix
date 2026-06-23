@@ -455,10 +455,22 @@ pub(crate) fn parser<'src>(
             .as_context()
             .padded();
 
-        // For loop: for i in items { }
+        // Loop variable pattern: single ident or tuple (a, b, c)
+        let loop_var_pat = ident
+            .clone()
+            .map(LoopPattern::Single)
+            .or(ident
+                .clone()
+                .separated_by(just(',').padded())
+                .collect::<Vec<_>>()
+                .delimited_by(just('(').padded(), just(')').padded())
+                .map(LoopPattern::Tuple));
+
+        // For loop: for i in items { } or for (a, b) in items { }
         let for_stmt = text::keyword("for")
-            .ignore_then(ident.clone())
+            .ignore_then(loop_var_pat.clone())
             .then(
+                // Index variable only valid after single ident, not after tuple pattern
                 just(',')
                     .padded()
                     .ignore_then(ident.clone())

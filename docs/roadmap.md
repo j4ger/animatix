@@ -25,12 +25,12 @@ Extend Graph's coordinate transformation system.
 | 4 | **Graph inverse mapping** | ✅ Complete - `graph.map_inverse(sx, sy)` converts screen coords back to math coords |
 | 5 | **Graph log scaling** | ✅ Complete - `x_scale: "log"` and `y_scale: "log"` properties for logarithmic axes |
 
-### Batch 3: Language & Parser
-Isolated parser and evaluation environment work.
+### Batch 3: Language & Parser ✅
+Parser and evaluation environment improvements.
 
-| # | Task | Notes |
-|---|------|-------|
-| 6 | **`for` loop: tuple destructuring + closure capture** | Two verified gaps: (a) tuple destructuring `for (a, b) in ...` not supported — parser (`parser/inline.rs`) only accepts simple identifiers via `ident()`; (b) closures in dynamic `PlotCurve`s (referencing `t`) don't capture loop variables — `Value::Closure` stores only args + AST body without an environment snapshot, and the render-time frame environment (`frame_env.rs`) doesn't include build-time loop vars. Static plots (no `t`) work fine since sampling happens at build time. Fix both: add destructuring to parser, and either snapshot the environment into closures or inject loop vars into plot params. |
+| # | Task | Status |
+|---|------|--------|
+| 6 | **`for` loop: tuple destructuring + closure capture** | ✅ Complete - Parser supports `for (a, b) in items`, closures capture loop variables for dynamic plots |
 
 ### Batch 4: Plot System Extensions
 Extend the plot transition system. Do #7 first, then #8 after profiling.

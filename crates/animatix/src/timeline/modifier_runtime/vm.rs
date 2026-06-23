@@ -4,9 +4,61 @@ use super::ir::{
     eval_format, eval_lerp, eval_log, eval_max, eval_min, eval_rad, eval_sin, eval_sqrt, eval_tan,
     make_vec_value,
 };
-use crate::ast::BinaryOp;
+use crate::ast::{BinaryOp, LoopPattern};
 use crate::timeline::{Environment, EvalError, Value};
 use std::fmt;
+
+/// Generate a unique environment key for a loop pattern.
+fn loop_pat_key(pat: &LoopPattern) -> String {
+    match pat {
+        LoopPattern::Single(name) => name.clone(),
+        LoopPattern::Tuple(names) => names.join(","),
+    }
+}
+
+/// Bind a loop pattern to a value in the frame environment.
+/// Handles both single variables and tuple destructuring.
+fn bind_loop_var_vm(
+    frame_env: &mut Environment,
+    pat: &LoopPattern,
+    value: Value,
+) {
+    match pat {
+        LoopPattern::Single(name) => {
+            frame_env.set(name, value);
+        }
+        LoopPattern::Tuple(names) => {
+            match value {
+                Value::List(items) => {
+                    for (name, item) in names.iter().zip(items.into_iter()) {
+                        frame_env.set(name, item);
+                    }
+                }
+                Value::Vec2([x, y]) if names.len() == 2 => {
+                    frame_env.set(&names[0], Value::Num(x as f64));
+                    frame_env.set(&names[1], Value::Num(y as f64));
+                }
+                Value::Vec3([x, y, z]) if names.len() == 3 => {
+                    frame_env.set(&names[0], Value::Num(x as f64));
+                    frame_env.set(&names[1], Value::Num(y as f64));
+                    frame_env.set(&names[2], Value::Num(z as f64));
+                }
+                Value::Vec4([x, y, z, w]) if names.len() == 4 => {
+                    frame_env.set(&names[0], Value::Num(x as f64));
+                    frame_env.set(&names[1], Value::Num(y as f64));
+                    frame_env.set(&names[2], Value::Num(z as f64));
+                    frame_env.set(&names[3], Value::Num(w as f64));
+                }
+                _ => {
+                    // If we can't destructure, bind the whole value to the first variable
+                    if let Some(name) = names.first() {
+                        frame_env.set(name, value);
+                    }
+                }
+            }
+        }
+    }
+}
 
 /// Bytecode instruction for the modifier VM.
 #[derive(Clone, Debug, PartialEq)]
@@ -36,9 +88,9 @@ pub enum Instruction {
     /// Unconditional jump to the target instruction.
     Jump(usize),
     /// Begin a for-loop: pop iterable and set up iterator state.
-    BeginFor(String),
+    BeginFor(LoopPattern),
     /// Advance iterator; if exhausted, jump to the end of the loop.
-    CheckFor(String, usize),
+    CheckFor(LoopPattern, usize),
     /// Pop a value and write it as an override for the target property.
     WriteOverride {
         /// Actor label to write the override to.
@@ -447,8 +499,9 @@ impl ModifierVm {
                         Value::Vec4(v) => v.into_iter().map(Value::Num).collect(),
                         other => vec![other],
                     };
-                    frame_env.set(&format!("__for_iter_{var}"), Value::List(items));
-                    frame_env.set(&format!("__for_idx_{var}"), Value::Num(0.0));
+                    let pat_key = loop_pat_key(var);
+                    frame_env.set(&format!("__for_iter_{pat_key}"), Value::List(items));
+                    frame_env.set(&format!("__for_idx_{pat_key}"), Value::Num(0.0));
                     self.ip += 1;
                 }
                 Instruction::CheckFor(var, end) => {
@@ -458,8 +511,9 @@ impl ModifierVm {
                             "for-loop exceeded 100,000 iterations — possible infinite loop".to_string()
                         ));
                     }
-                    let iter_key = format!("__for_iter_{var}");
-                    let idx_key = format!("__for_idx_{var}");
+                    let pat_key = loop_pat_key(var);
+                    let iter_key = format!("__for_iter_{pat_key}");
+                    let idx_key = format!("__for_idx_{pat_key}");
                     let items = frame_env
                         .get(&iter_key)
                         .and_then(|v| match v { Value::List(l) => Some(l.clone()), _ => None })
@@ -469,7 +523,7 @@ impl ModifierVm {
                         .map(|v| v.as_num() as usize)
                         .unwrap_or(0);
                     if idx < items.len() {
-                        frame_env.set(var, items[idx].clone());
+                        bind_loop_var_vm(frame_env, var, items[idx].clone());
                         frame_env.set(&idx_key, Value::Num((idx + 1) as f64));
                         self.ip += 1;
                     } else {
