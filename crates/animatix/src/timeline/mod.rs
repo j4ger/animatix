@@ -930,9 +930,15 @@ impl Timeline {
         &mut self.env
     }
 
-    /// Returns true if any actor has a procedural plot that requires frame environment.
+    /// Returns true if any actor has a procedural plot that requires per-frame
+    /// evaluation.  Static plots (no `t` reference, no animated params, no func
+    /// transitions) always use their cached build-time paths and do not force a
+    /// frame environment to be constructed.
     pub(crate) fn has_procedural_plots(&self) -> bool {
-        self.tracks.values().any(|t| t.procedural_plot.is_some())
+        self.tracks.values().any(|t| {
+            t.procedural_plot.as_ref().is_some_and(|pp| pp.is_dynamic())
+                || !t.func_transitions.is_empty()
+        })
     }
 
     /// Returns true if frame environment is needed for evaluation.

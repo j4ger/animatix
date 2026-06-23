@@ -1275,6 +1275,34 @@ parabola: PlotCurve, kind: "cartesian", func: (x) => x^2 + 3, color: red
 spiral: PlotCurve, kind: "polar", func: (t) => t, color: blue
 ```
 
+**Function transitions:** PlotCurve supports animated transitions between functions using output blending. The curve smoothly morphs from one function to another by interpolating their output values:
+
+```animatix
+#0s
+curve: PlotCurve, kind: "cartesian", func: (x) => sin(x),
+  stroke: accent.primary, stroke_width: 3
+
+#2s
+curve.func = (x) => cos(x) [1s, ease: ease-in-out]
+```
+
+At any point during the transition, the rendered curve is `y = lerp(from_func(x), to_func(x), progress)`. This works for cartesian, polar, and parametric plots. Implicit plots, VectorField, Heatmap, and ContourSet do not support transitions.
+
+**Overlapping transitions:** If a new transition starts before the previous one completes, the system uses record-and-chain: it freezes the current blend state and uses it as the starting point for the new transition.
+
+```animatix
+#0s
+curve: PlotCurve, kind: "cartesian", func: (x) => sin(x), stroke: accent.primary
+
+#1s
+curve.func = (x) => cos(x) [2s]  // starts at 1s, would end at 3s
+
+#2s
+curve.func = (x) => x^2 [1s]  // overlaps: freezes sin→cos at 50%, chains to x^2
+```
+
+See `examples/24_plot_transitions.amx` for complete demonstrations.
+
 
 
 **`VectorField`**: Grid-sampled arrows from `(x, y) => (dx, dy)`.

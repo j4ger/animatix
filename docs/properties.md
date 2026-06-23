@@ -103,7 +103,7 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 
 | Property | Type | Animated | Assignable | Applies to |
 |----------|------|----------|------------|------------|
-| `func` | BuildTimeOnly | — | — | PlotCurve, VectorField, Heatmap, ContourSet |
+| `func` | BuildTimeOnly | — | Transitions | PlotCurve, VectorField, Heatmap, ContourSet |
 | `data` | BuildTimeOnly | — | — | BarChart |
 | `bar_width` | F32 | — | — | BarChart |
 | `bar_colors` | String | — | — | BarChart |

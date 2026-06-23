@@ -397,33 +397,52 @@ impl Timeline {
         // Use the shared frame_env if available; fall back to creating one on-demand
         // (should only happen when frame_env was created at top level).
         if let Some(procedural_plot) = track.procedural_plot.as_ref() {
-            let mut local_env = if let Some(env) = frame_env {
-                env.clone()
-            } else {
-                self.build_frame_env_internal(time_ms, scene_dimensions, overrides)
-            };
+            // Guard: only resample per-frame when the plot is dynamic (references `t`
+            // or has animated params) or a func transition is currently active.
+            // Static, non-transitioning plots keep the cached build-time vector_paths.
+            let transitioning = track.func_transitions.iter().any(|t| {
+                time_ms >= t.start_ms && time_ms <= t.end_ms
+            });
+            // Also use per-frame sampling once all transitions are complete so that
+            // the final `to` function (not the original declaration) is rendered.
+            let has_completed_transitions = track.func_transitions.iter().any(|t| {
+                t.is_complete_at(time_ms)
+            });
 
-            // Inject plot parameter values from keyframe tracks into the
-            // evaluation environment so that `sample_procedural_plot` sees
-            // the animated value rather than the build-time static default.
-            for name in &procedural_plot.param_names {
-                if let Some(param_track) = track.plot_param_tracks.get(name) {
-                    let val = param_track.evaluate(time_ms);
-                    let num_val = crate::timeline::Value::Num(val);
-                    // Set the dotted key (e.g. "curve.freq") for explicit references
-                    local_env.set(
-                        &format!("{}.{}", procedural_plot.actor_label, name),
-                        num_val.clone(),
-                    );
-                    // Set the bare name (e.g. "freq") for closure captures,
-                    // but don't shadow closure sample arguments.
-                    if !procedural_plot.func_args.contains(name) {
-                        local_env.set(name, num_val);
+            if procedural_plot.is_dynamic() || transitioning || has_completed_transitions {
+                let mut local_env = if let Some(env) = frame_env {
+                    env.clone()
+                } else {
+                    self.build_frame_env_internal(time_ms, scene_dimensions, overrides)
+                };
+
+                // Inject plot parameter values from keyframe tracks into the
+                // evaluation environment so that `sample_procedural_plot_at` sees
+                // the animated value rather than the build-time static default.
+                for name in &procedural_plot.param_names {
+                    if let Some(param_track) = track.plot_param_tracks.get(name) {
+                        let val = param_track.evaluate(time_ms);
+                        let num_val = crate::timeline::Value::Num(val);
+                        // Set the dotted key (e.g. "curve.freq") for explicit references
+                        local_env.set(
+                            &format!("{}.{}", procedural_plot.actor_label, name),
+                            num_val.clone(),
+                        );
+                        // Set the bare name (e.g. "freq") for closure captures,
+                        // but don't shadow closure sample arguments.
+                        if !procedural_plot.func_args.contains(name) {
+                            local_env.set(name, num_val);
+                        }
                     }
                 }
-            }
 
-            vector_paths = crate::timeline::plot::sample_procedural_plot(procedural_plot, &mut local_env);
+                vector_paths = crate::timeline::plot::sample_procedural_plot_at(
+                    procedural_plot,
+                    &mut local_env,
+                    time_ms,
+                    &track.func_transitions,
+                );
+            }
         }
 
         let node_overrides = overrides.get(node_label);

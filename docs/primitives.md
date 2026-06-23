@@ -254,6 +254,35 @@ Single-stroke curve plot. The `kind` property selects the sampling strategy.
 - `max_depth`: Number — max recursion depth for adaptive sampling
 - `resolution`: Number — sampling grid resolution for `"implicit"`
 
+**Function Transitions**
+
+PlotCurve supports animated transitions between functions for cartesian, polar, and parametric kinds. Use assignment syntax with duration:
+
+```animatix
+curve: PlotCurve, kind: "cartesian", func: (x) => sin(x), stroke: accent.primary
+
+#2s
+curve.func = (x) => cos(x) [1s, ease: ease-in-out]
+```
+
+The curve morphs smoothly by blending output values: `y = lerp(from(x), to(x), progress)`.
+
+**Supported kinds:** `cartesian`, `polar`, `parametric`
+
+**Unsupported:** `implicit` plots, VectorField, Heatmap, ContourSet (these have different evaluation models)
+
+**Overlapping transitions:** If a new transition starts before the previous completes, the system freezes the current blend state and chains to the new target:
+
+```animatix
+#1s
+curve.func = (x) => cos(x) [2s]  // 1s to 3s
+
+#2s
+curve.func = (x) => x^2 [1s]  // freezes at 50%, chains to x^2
+```
+
+See `examples/24_plot_transitions.amx` for demonstrations.
+
 ## VectorField
 
 Grid-sampled vector field rendered as arrows.

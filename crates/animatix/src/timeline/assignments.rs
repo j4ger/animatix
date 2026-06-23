@@ -13,7 +13,9 @@ use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
 use crate::primitives::{AssignmentCtx, find_primitive};
 use crate::renderer::error::RenderError;
 use crate::timeline::VelloPath;
+use crate::timeline::actor_kind::ActorKindId;
 use crate::timeline::build::build_graph_axis_paths;
+use crate::timeline::plot::{FuncSource, PlotCurveKind};
 use crate::timeline::property_engine::{parse_property_value, write_property_field};
 use crate::timeline::property_registry::{PropertyFlags, lookup_property};
 use crate::timeline::property_track::TrackAccessor;
@@ -254,6 +256,158 @@ impl Timeline {
                 &assignment_subject,
             ) {
                 return;
+            }
+        }
+
+        // ── Func assignment on PlotCurve (special case) ──
+        // `func` is a build-time-only AST node, not a registry property.
+        // We handle it here so `curve.func = (x) => cos(x) [1s]` creates a
+        // FuncTransition that blends function outputs at frame time.
+        if property == "func" {
+            // Reject unsupported plot types before processing.
+            match track.kind {
+                ActorKindId::VectorField | ActorKindId::Heatmap | ActorKindId::ContourSet => {
+                    let type_name = match track.kind {
+                        ActorKindId::VectorField => "VectorField",
+                        ActorKindId::Heatmap => "Heatmap",
+                        ActorKindId::ContourSet => "ContourSet",
+                        _ => unreachable!(),
+                    };
+                    diagnostics.push(
+                        Diagnostic::error(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "func transitions are not yet supported for {} (only PlotCurve is supported)",
+                                type_name,
+                            ),
+                        )
+                        .with_subject(&assignment_subject),
+                    );
+                    return;
+                }
+                ActorKindId::PlotCurve => {
+                    // Implicit plots use a completely separate build-time code path
+                    // and do not support func transitions.
+                    if let Some(ref plot) = track.procedural_plot {
+                        if plot.kind == PlotCurveKind::Implicit {
+                            diagnostics.push(
+                                Diagnostic::error(
+                                    DiagnosticCode::InvalidPropertyValue,
+                                    DiagnosticPhase::Build,
+                                    "func transitions are not yet supported for implicit plots (only cartesian, polar, and parametric modes are supported)".to_string(),
+                                )
+                                .with_subject(&assignment_subject),
+                            );
+                            return;
+                        }
+                    }
+                    // Evaluate RHS to a closure.
+            let closure_val = match evaluate_expr(value, &eval_env) {
+                Ok(v) => v,
+                Err(e) => {
+                    diagnostics.push(
+                        Diagnostic::error(
+                            DiagnosticCode::InvalidPlotFunc,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Failed to evaluate func assignment on '{}': {}",
+                                target_key, e
+                            ),
+                        )
+                        .with_subject(&assignment_subject),
+                    );
+                    return;
+                }
+            };
+            let (to_args, to_body) = match closure_val {
+                Value::Closure(args, body) => (args, *body),
+                _ => {
+                    diagnostics.push(
+                        Diagnostic::error(
+                            DiagnosticCode::InvalidPlotFunc,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "func assignment on '{}' must be a closure (e.g. `(x) => expr`)",
+                                target_key
+                            ),
+                        )
+                        .with_subject(&assignment_subject),
+                    );
+                    return;
+                }
+            };
+
+            // Determine "from" source:
+            //   - If there's an active transition, record-and-chain: freeze current blend
+            //   - Else use last completed transition's `to`, or the declaration func
+            let from_source = if let Some(active) = track.func_transitions.last() {
+                if time_ms as u64 >= active.start_ms && time_ms as u64 <= active.end_ms {
+                    // Record-and-chain: freeze current blend state
+                    let progress =
+                        if active.end_ms > active.start_ms {
+                            ((time_ms as u64 - active.start_ms) as f64
+                                / (active.end_ms - active.start_ms) as f64)
+                                .clamp(0.0, 1.0)
+                        } else {
+                            1.0
+                        };
+                    FuncSource::Blend {
+                        from: Box::new(active.from.clone()),
+                        to: Box::new(active.to.clone()),
+                        frozen_progress: progress,
+                    }
+                } else {
+                    // Last transition completed, use its `to`
+                    active.to.clone()
+                }
+            } else if let Some(plot) = track.procedural_plot.as_ref() {
+                // No prior transitions, use declaration func
+                FuncSource::Raw(plot.func_args.clone(), plot.func_body.clone())
+            } else {
+                diagnostics.push(
+                    Diagnostic::error(
+                        DiagnosticCode::InvalidPlotFunc,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "Cannot assign func on '{}': no func declared on this PlotCurve",
+                            target_key
+                        ),
+                    )
+                    .with_subject(&assignment_subject),
+                );
+                return;
+            };
+
+            // Validate same arity
+            if from_source.arity() != to_args.len() {
+                diagnostics.push(
+                    Diagnostic::error(
+                        DiagnosticCode::InvalidPlotFunc,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "func transition on '{}' must keep the same arity ",
+                            target_key
+                        ),
+                    )
+                    .with_subject(&assignment_subject),
+                );
+                return;
+            }
+
+            // Push FuncTransition
+            track.func_transitions.push(
+                crate::timeline::plot::FuncTransition {
+                    start_ms: t_start_ms,
+                    end_ms: t_end_ms,
+                    easing,
+                    from: from_source,
+                    to: FuncSource::Raw(to_args, to_body),
+                },
+            );
+                return; // func is not a registry property; do not fall through
+                }
+                _ => {}
             }
         }
 

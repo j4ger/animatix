@@ -1040,32 +1040,31 @@ impl Timeline {
                 }
             }
 
-            // Create a procedural_plot for dynamic plots (funcs that reference `t`)
-            // OR plots with custom numeric params that can be keyframed.
-            // Pure-static plots (no `t`, no params) use the build-time sampled
-            // paths directly, avoiding redundant per-frame re-sampling.
+            // Always create a procedural_plot for PlotCurve actors so that
+            // func transitions can be added later via assignment. Static plots
+            // (no `t`, no params, no transitions) are still guarded at frame
+            // time by `is_dynamic()` in scene_eval.rs, so they keep using the
+            // cached build-time paths with zero per-frame overhead.
             if let Some((args, body)) = func.as_ref() {
-                if body.references_ident("t") || !plot_params.is_empty() {
-                    let param_names: Vec<String> = plot_params.iter().map(|(n, _)| n.clone()).collect();
+                let param_names: Vec<String> = plot_params.iter().map(|(n, _)| n.clone()).collect();
 
-                    procedural_plot = Some(ProceduralPlot {
-                        kind,
-                        func_args: args.clone(),
-                        func_body: (**body).clone(),
-                        actor_label: label.to_string(),
-                        param_names,
-                        p_x_domain,
-                        p_y_domain,
-                        p_size,
-                        t_domain,
-                        tolerance,
-                        max_depth: max_depth as usize,
-                        resolution: resolution as usize,
-                        stroke_width,
-                        stroke_color,
-                        params: plot_params,
-                    });
-                }
+                procedural_plot = Some(ProceduralPlot {
+                    kind,
+                    func_args: args.clone(),
+                    func_body: (**body).clone(),
+                    actor_label: label.to_string(),
+                    param_names,
+                    p_x_domain,
+                    p_y_domain,
+                    p_size,
+                    t_domain,
+                    tolerance,
+                    max_depth: max_depth as usize,
+                    resolution: resolution as usize,
+                    stroke_width,
+                    stroke_color,
+                    params: plot_params,
+                });
             }
         }
 

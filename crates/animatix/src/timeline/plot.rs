@@ -81,6 +81,17 @@ pub enum FuncSource {
     },
 }
 
+impl FuncSource {
+    /// Return the number of arguments this function source expects.
+    /// For `Blend`, delegates to the inner `to` source (which has the target arity).
+    pub fn arity(&self) -> usize {
+        match self {
+            FuncSource::Raw(args, _) => args.len(),
+            FuncSource::Blend { to, .. } => to.arity(),
+        }
+    }
+}
+
 /// One keyframe-driven transition between two function sources.
 #[derive(Clone, Debug)]
 pub struct FuncTransition {

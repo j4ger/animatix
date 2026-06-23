@@ -8,7 +8,6 @@ Keep track of what is yet to be done here, when a segment is fully done, remove 
 
 | # | Task | Notes |
 |---|------|-------|
-| 1 | **Plot function transitions** | Animate `PlotCurve.func` between two functions over time (keyframe-driven). Limited to plots. Design needed: interpolation strategy (linear blend of sampled points? parametric morph? domain warping?). |
 | 2 | **Scene persistence (`persist` / `remove`)** | Carry actors across `play` transitions. Opt-in `persist actor` at a keyframe; explicit `remove actor` to drop. Persist-until-removed model — survives multiple transitions until explicitly removed. Design needed: interaction with morphing, re-declaration in new scene, and scene-level config inheritance. |
 | 4 | **`draw-in` for PlotCurve and Text** | PlotCurve: entrance action as a documented alias for `stroke_progress = 1.0 [duration]` animation. Text: typewriter/type-on effect revealing characters progressively. |
 | 5 | **`for` loop: tuple destructuring + closure capture** | Two verified gaps: (a) tuple destructuring `for (a, b) in ...` not supported — parser (`parser/inline.rs`) only accepts simple identifiers via `ident()`; (b) closures in dynamic `PlotCurve`s (referencing `t`) don't capture loop variables — `Value::Closure` stores only args + AST body without an environment snapshot, and the render-time frame environment (`frame_env.rs`) doesn't include build-time loop vars. Static plots (no `t`) work fine since sampling happens at build time. Fix both: add destructuring to parser, and either snapshot the environment into closures or inject loop vars into plot params. |
@@ -17,6 +16,8 @@ Keep track of what is yet to be done here, when a segment is fully done, remove 
 | 9 | **Graph padding/insets** | Support configurable padding and insets within `Graph` containers. `graph.map()` should respect these when computing coordinate transforms. Deferred from #3 — Manim doesn't have this either, low priority. |
 | 10 | **Graph log scaling** | Support logarithmic axis scaling in `Graph` via `scale: "log"` property. `graph.map()` should apply log transforms when computing coordinates. Deferred from #3 — separate feature, requires extending the mapping formula. |
 | 11 | **Callout/annotation primitive** | `Callout { target: actor, text: "...", arrow: true }` for educational diagrams — labeled arrow pointing at a specific actor or plot element. Not yet designed or implemented. |
+| 12 | **Plot function transitions: implicit plots** | Extend func transitions to implicit plots (`f(x,y) = 0`). Scalar-field blend is conceptually clean but marching-squares interaction with moving zero-contour needs visual validation. Deferred from #1. |
+| 13 | **Plot transitions: adaptive quality** | During func transitions (especially cascading), lower `max_depth` / raise `tolerance` to reduce per-frame eval cost. Nested blends cause 2^N evaluations per sample point. Measure first; add only if profiling demands. Deferred from #1. |
 
 ---
 

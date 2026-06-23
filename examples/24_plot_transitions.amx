@@ -1,0 +1,102 @@
+// 24 — PlotCurve func transitions
+// Demonstrates animated transitions between curve functions across three kinds
+// (cartesian, polar, parametric) and cascading multi-step transitions.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+# Cartesian
+// sin(x) → cos(x) using ease-in-out over 2 seconds.
+
+title: Text, text: "Cartesian: sin(x) → cos(x)", font_size: 28, color: text.primary, anchor: scene.top, offset: (0, 55)
+
+axes: Graph, x_domain: (-6, 6), y_domain: (-1.8, 1.8), size: (820, 520), anchor: scene.center {
+  curve: PlotCurve, kind: "cartesian", func: (x) => sin(x), stroke_width: 3, color: accent.primary
+}
+
+#0.5s
+fade-in title [500ms, ease: ease-out]
+fade-in axes [600ms, ease: ease-out]
+
+// Wait 1 second, then transition func to cos(x)
+#1.5s
+curve.func = (x) => cos(x) [2s, ease: ease-in-out]
+
+#4s
+fade-out title [400ms]
+fade-out axes [400ms]
+
+play Polar [fade, 400ms]
+
+# Polar
+// Constant radius (circle) → 3-petal rose via (t) => 1 + 0.5*cos(3*t).
+
+title: Text, text: "Polar: circle → 3-petal rose", font_size: 28, color: text.primary, anchor: scene.top, offset: (0, 55)
+
+axes: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (540, 540), anchor: scene.center {
+  curve: PlotCurve, kind: "polar", func: (t) => 1.0, t_domain: (0, tau), stroke_width: 3, color: accent.secondary
+}
+
+#0.5s
+fade-in title [500ms, ease: ease-out]
+fade-in axes [600ms, ease: ease-out]
+
+#1.5s
+curve.func = (t) => 1.0 + 0.5 * cos(3 * t) [2s, ease: ease-in-out]
+
+#4s
+fade-out title [400ms]
+fade-out axes [400ms]
+
+play Parametric [fade, 400ms]
+
+# Parametric
+// Circle (cos t, sin t) → Lissajous figure (cos 2t, sin 3t).
+
+title: Text, text: "Parametric: circle → Lissajous", font_size: 28, color: text.primary, anchor: scene.top, offset: (0, 55)
+
+axes: Graph, x_domain: (-1.5, 1.5), y_domain: (-1.5, 1.5), size: (540, 540), anchor: scene.center {
+  curve: PlotCurve, kind: "parametric", func: (t) => (cos(t), sin(t)), t_domain: (0, tau), stroke_width: 3, color: accent.success
+}
+
+#0.5s
+fade-in title [500ms, ease: ease-out]
+fade-in axes [600ms, ease: ease-out]
+
+#1.5s
+curve.func = (t) => (cos(2 * t), sin(3 * t)) [2s, ease: ease-in-out]
+
+#4s
+fade-out title [400ms]
+fade-out axes [400ms]
+
+play Cascading [fade, 400ms]
+
+# Cascading
+// Three back-to-back transitions that overlap in time, forming a cascade:
+//   sin(x) → cos(x) → x^2/10 → sin(2*x)
+
+title: Text, text: "Cascading transitions", font_size: 28, color: text.primary, anchor: scene.top, offset: (0, 55)
+
+axes: Graph, x_domain: (-6, 6), y_domain: (-2, 2), size: (820, 520), anchor: scene.center {
+  curve: PlotCurve, kind: "cartesian", func: (x) => sin(x), stroke_width: 3, color: accent.warning
+}
+
+#0.5s
+fade-in title [500ms, ease: ease-out]
+fade-in axes [600ms, ease: ease-out]
+
+// First transition: sin → cos
+#1.5s
+curve.func = (x) => cos(x) [1.5s, ease: ease-in-out]
+
+// Second transition starts while first is still in progress (chained)
+#2.5s
+curve.func = (x) => x^2 / 10 [1s, ease: ease-out]
+
+// Third transition starts while second is still running
+#3s
+curve.func = (x) => sin(2 * x) [1s, ease: ease-in]
+
+#5s
+fade-out title [400ms]
+fade-out axes [400ms]

@@ -15,6 +15,7 @@ use crate::ast::Property;
 #[cfg(test)] mod callout;
 #[cfg(test)] mod legend;
 #[cfg(test)] mod bar_chart;
+#[cfg(test)] mod plot_transitions;
 
 #[test]
 fn test_animated_scene_has_keyframes() {
