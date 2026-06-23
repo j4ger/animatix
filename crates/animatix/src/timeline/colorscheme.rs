@@ -47,6 +47,7 @@ impl BuiltInColorscheme {
                 colors.insert("scene.background".to_string(), [0.0, 0.0, 0.0, 1.0]);
                 colors.insert("text.primary".to_string(), [1.0, 1.0, 1.0, 1.0]);
                 colors.insert("text.secondary".to_string(), [0.75, 0.8, 0.88, 1.0]);
+                colors.insert("text.muted".to_string(), [0.5, 0.55, 0.6, 1.0]);
                 colors.insert("surface.primary".to_string(), [0.11, 0.16, 0.24, 1.0]);
                 colors.insert("surface.secondary".to_string(), [0.18, 0.21, 0.27, 1.0]);
                 colors.insert("accent.primary".to_string(), [0.38, 0.78, 1.0, 1.0]);
@@ -69,6 +70,7 @@ impl BuiltInColorscheme {
                 colors.insert("scene.background".to_string(), [0.97, 0.98, 1.0, 1.0]);
                 colors.insert("text.primary".to_string(), [0.08, 0.1, 0.14, 1.0]);
                 colors.insert("text.secondary".to_string(), [0.27, 0.33, 0.4, 1.0]);
+                colors.insert("text.muted".to_string(), [0.58, 0.62, 0.68, 1.0]);
                 colors.insert("surface.primary".to_string(), [0.9, 0.93, 0.97, 1.0]);
                 colors.insert("surface.secondary".to_string(), [0.84, 0.88, 0.93, 1.0]);
                 colors.insert("accent.primary".to_string(), [0.16, 0.48, 0.88, 1.0]);
@@ -91,6 +93,7 @@ impl BuiltInColorscheme {
                 colors.insert("scene.background".to_string(), [0.04, 0.06, 0.09, 1.0]);
                 colors.insert("text.primary".to_string(), [0.97, 0.98, 1.0, 1.0]);
                 colors.insert("text.secondary".to_string(), [0.73, 0.8, 0.89, 1.0]);
+                colors.insert("text.muted".to_string(), [0.5, 0.56, 0.65, 1.0]);
                 colors.insert("surface.primary".to_string(), [0.11, 0.16, 0.24, 1.0]);
                 colors.insert("surface.secondary".to_string(), [0.17, 0.22, 0.3, 1.0]);
                 colors.insert("accent.primary".to_string(), [0.38, 0.78, 1.0, 1.0]);

@@ -196,7 +196,8 @@ red: Rect, color: (1.0, 0.0, 0.0, 1.0)
 ```
 
 **Colorscheme tokens** (available when a colorscheme is active):
-- `accent.primary`, `accent.success`, `accent.warning`, `accent.danger`
+- `scene.background`
+- `accent.primary`, `accent.secondary`, `accent.info`, `accent.success`, `accent.warning`, `accent.danger`
 - `text.primary`, `text.secondary`, `text.muted`
 - `stroke.default`
 - `surface.primary`, `surface.secondary`
