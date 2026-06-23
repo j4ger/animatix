@@ -8,13 +8,13 @@ Keep track of what is yet to be done here, when a segment is fully done, remove 
 
 Items are grouped into implementation batches based on dependencies and shared systems.
 
-### Batch 1: Animation & Visual Effects
+### Batch 1: Animation & Visual Effects ✅
 Enhance visual storytelling through actions and entrance animations.
 
-| # | Task | Notes |
-|---|------|-------|
-| 1 | **`draw-in` for PlotCurve and Text** | PlotCurve: entrance action as a documented alias for `stroke_progress = 0 → 1.0 [duration]` animation. Text: typewriter/type-on effect revealing characters progressively. |
-| 2 | **Exclusive highlight groups** | `Equation` containers auto-unhighlight previous `Fragment` when a new one is highlighted — only one (or one group) highlighted at a time. Multi-target syntax: `highlight {f1, f2} [color: white, 800ms]`. Manual `unhighlight` preserved for clearing without activating a new target. |
+| # | Task | Status |
+|---|------|--------|
+| 1 | **`draw-in` for PlotCurve and Text** | ✅ Complete - PlotCurve uses stroke_progress, Text uses char_progress for typewriter effect |
+| 2 | **Exclusive highlight groups** | ✅ Complete - Equation containers auto-unhighlight siblings when a new Fragment is highlighted |
 
 ### Batch 2: Graph Coordinate System
 Extend Graph's coordinate transformation system. Do #4 (padding) first as it affects the coordinate space.

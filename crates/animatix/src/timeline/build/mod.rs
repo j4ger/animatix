@@ -54,6 +54,10 @@ struct ExtractedActorProperties {
     padding: f32,
     /// Graph plot-area padding [left, right, top, bottom] in pixels.
     graph_padding: [f64; 4],
+    /// X-axis scale: "linear" (default) or "log".
+    x_scale: String,
+    /// Y-axis scale: "linear" (default) or "log".
+    y_scale: String,
     align: Option<String>,
     cols: Option<usize>,
 }

@@ -247,6 +247,51 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
     vello_paths
 }
 
+/// Normalize `v` in `[min, max]` to `[0, 1]` using the given scale.
+/// Returns `0.5` for invalid log domains (any input ≤ 0).
+#[inline]
+fn normalize_axis(v: f64, min: f64, max: f64, scale: &str) -> f64 {
+    if scale == "log" {
+        if v <= 0.0 || min <= 0.0 || max <= 0.0 { return 0.5; }
+        (v.ln() - min.ln()) / (max.ln() - min.ln())
+    } else {
+        let range = max - min;
+        if range != 0.0 { (v - min) / range } else { 0.5 }
+    }
+}
+
+/// Generate tick positions for an axis.
+///
+/// For `"log"` scale, returns powers-of-10 and their multiples (1–9).
+/// For linear, returns ~10 evenly spaced values.
+fn generate_axis_ticks(min: f64, max: f64, scale: &str) -> Vec<f64> {
+    if scale == "log" {
+        if min <= 0.0 || max <= 0.0 { return vec![]; }
+        let mut ticks = vec![];
+        let min_exp = min.log10().floor() as i32;
+        let max_exp = max.log10().ceil() as i32;
+        for exp in min_exp..=max_exp {
+            let base = 10.0_f64.powi(exp);
+            for i in 1..10u32 {
+                let tick = base * i as f64;
+                if tick >= min && tick <= max {
+                    ticks.push(tick);
+                }
+            }
+        }
+        ticks
+    } else {
+        let step = ((max - min).abs() / 10.0).max(0.5);
+        let mut ticks = vec![];
+        let mut v = (min / step).ceil() * step;
+        while v <= max {
+            ticks.push(v);
+            v += step;
+        }
+        ticks
+    }
+}
+
 /// Build graph axis VelloPaths (X and Y axes, optional grid and ticks).
 /// Omits an axis entirely when zero is not in its domain.
 pub(crate) fn build_graph_axis_paths(
@@ -258,6 +303,8 @@ pub(crate) fn build_graph_axis_paths(
     ticks: bool,
     _tick_labels: bool,
     padding: [f64; 4],
+    x_scale: &str,
+    y_scale: &str,
 ) -> Vec<VelloPath> {
     let mut paths = Vec::new();
     let mut axis_path = kurbo::BezPath::new();
@@ -283,16 +330,14 @@ pub(crate) fn build_graph_axis_paths(
     let norm_to_screen_x = |norm: f64| shift_x + (norm - 0.5) * plot_fw;
     let norm_to_screen_y = |norm: f64| shift_y + (0.5 - norm) * plot_fh;
     let math_x_to_screen = |mx: f64| {
-        let norm = (mx - x_domain[0]) / (x_domain[1] - x_domain[0]);
-        norm_to_screen_x(norm)
+        norm_to_screen_x(normalize_axis(mx, x_domain[0], x_domain[1], x_scale))
     };
     let math_y_to_screen = |my: f64| {
-        let norm = (my - y_domain[0]) / (y_domain[1] - y_domain[0]);
-        norm_to_screen_y(norm)
+        norm_to_screen_y(normalize_axis(my, y_domain[0], y_domain[1], y_scale))
     };
 
-    // X-axis: drawn only when y=0 is inside the y_domain
-    let x_axis_y = if y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
+    // X-axis: drawn only when y=0 is inside the y_domain (only valid for linear scale)
+    let x_axis_y = if y_scale != "log" && y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
         let y = math_y_to_screen(0.0);
         axis_path.move_to((left_edge, y));
         axis_path.line_to((right_edge, y));
@@ -301,8 +346,8 @@ pub(crate) fn build_graph_axis_paths(
         None
     };
 
-    // Y-axis: drawn only when x=0 is inside the x_domain
-    let y_axis_x = if x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
+    // Y-axis: drawn only when x=0 is inside the x_domain (only valid for linear scale)
+    let y_axis_x = if x_scale != "log" && x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
         let x = math_x_to_screen(0.0);
         axis_path.move_to((x, top_edge));
         axis_path.line_to((x, bot_edge));
@@ -329,29 +374,25 @@ pub(crate) fn build_graph_axis_paths(
     // Grid lines
     if grid {
         let mut grid_path = kurbo::BezPath::new();
-        let x_step = ((x_domain[1] - x_domain[0]).abs() / 10.0).max(0.5);
-        let y_step = ((y_domain[1] - y_domain[0]).abs() / 10.0).max(0.5);
+        let x_grid_ticks = generate_axis_ticks(x_domain[0], x_domain[1], x_scale);
+        let y_grid_ticks = generate_axis_ticks(y_domain[0], y_domain[1], y_scale);
 
         // Vertical grid lines (constant x)
-        let mut x = (x_domain[0] / x_step).ceil() * x_step;
-        while x <= x_domain[1] {
-            if x != 0.0 {
-                let screen_x = math_x_to_screen(x);
+        for x in &x_grid_ticks {
+            if *x != 0.0 {
+                let screen_x = math_x_to_screen(*x);
                 grid_path.move_to((screen_x, top_edge));
                 grid_path.line_to((screen_x, bot_edge));
             }
-            x += x_step;
         }
 
         // Horizontal grid lines (constant y)
-        let mut y = (y_domain[0] / y_step).ceil() * y_step;
-        while y <= y_domain[1] {
-            if y != 0.0 {
-                let screen_y = math_y_to_screen(y);
+        for y in &y_grid_ticks {
+            if *y != 0.0 {
+                let screen_y = math_y_to_screen(*y);
                 grid_path.move_to((left_edge, screen_y));
                 grid_path.line_to((right_edge, screen_y));
             }
-            y += y_step;
         }
 
         if !grid_path.elements().is_empty() {
@@ -373,31 +414,27 @@ pub(crate) fn build_graph_axis_paths(
     // Tick marks
     if ticks {
         let mut tick_path = kurbo::BezPath::new();
-        let x_step = ((x_domain[1] - x_domain[0]).abs() / 10.0).max(0.5);
-        let y_step = ((y_domain[1] - y_domain[0]).abs() / 10.0).max(0.5);
         let tick_len = 4.0;
+        let x_tick_vals = generate_axis_ticks(x_domain[0], x_domain[1], x_scale);
+        let y_tick_vals = generate_axis_ticks(y_domain[0], y_domain[1], y_scale);
 
         if let Some(y) = x_axis_y {
-            let mut x = (x_domain[0] / x_step).ceil() * x_step;
-            while x <= x_domain[1] {
-                if x != 0.0 {
-                    let screen_x = math_x_to_screen(x);
+            for x in &x_tick_vals {
+                if *x != 0.0 {
+                    let screen_x = math_x_to_screen(*x);
                     tick_path.move_to((screen_x, y - tick_len));
                     tick_path.line_to((screen_x, y + tick_len));
                 }
-                x += x_step;
             }
         }
 
         if let Some(x) = y_axis_x {
-            let mut y = (y_domain[0] / y_step).ceil() * y_step;
-            while y <= y_domain[1] {
-                if y != 0.0 {
-                    let screen_y = math_y_to_screen(y);
+            for y in &y_tick_vals {
+                if *y != 0.0 {
+                    let screen_y = math_y_to_screen(*y);
                     tick_path.move_to((x - tick_len, screen_y));
                     tick_path.line_to((x + tick_len, screen_y));
                 }
-                y += y_step;
             }
         }
 
@@ -452,6 +489,8 @@ impl Timeline {
         let mut grid = false;
         let mut ticks = false;
         let mut tick_labels = String::from("auto");
+        let mut x_scale = String::from("linear");
+        let mut y_scale = String::from("linear");
         let mut x_range = [-10.0, 10.0, 2.0];
         let mut y_range = [-10.0, 10.0, 2.0];
         let is_number_plane = ty == "NumberPlane";
@@ -727,6 +766,20 @@ impl Timeline {
                     // Graph padding is pre-computed above; skip here to prevent
                     // falling through to the custom plot-param collector.
                 }
+                "x_scale" if primitive.is_graph_host() => {
+                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value, &initial_eval_env, diagnostics, &prop_subject,
+                    ) {
+                        x_scale = v.as_str().to_lowercase();
+                    }
+                }
+                "y_scale" if primitive.is_graph_host() => {
+                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value, &initial_eval_env, diagnostics, &prop_subject,
+                    ) {
+                        y_scale = v.as_str().to_lowercase();
+                    }
+                }
                 _ => {}
             }
         }
@@ -817,12 +870,18 @@ impl Timeline {
                 &format!("{}_padding", label),
                 Value::Vec4(graph_padding),
             );
+            self.env.set(&format!("{}_x_scale", label), Value::Str(x_scale.clone()));
+            self.env.set(&format!("{}_y_scale", label), Value::Str(y_scale.clone()));
 
             // Inject {label}.map as a NativeFn that converts math coords to screen coords.
-            // Captures x_domain/y_domain/graph_padding (static), reads size/at from runtime env.
+            // Captures x_domain/y_domain/graph_padding/scales (static), reads size/at from runtime env.
             let map_label = label.to_string();
-            let nf = make_graph_map_fn(map_label, x_domain, y_domain, graph_padding);
+            let nf = make_graph_map_fn(map_label.clone(), x_domain, y_domain, graph_padding, x_scale.clone(), y_scale.clone());
             self.env.set(&format!("{}.map", label), nf);
+
+            // Inject {label}.map_inverse as a NativeFn that converts screen coords to math coords.
+            let nf_inv = make_graph_map_inverse_fn(map_label, x_domain, y_domain, x_scale.clone(), y_scale.clone());
+            self.env.set(&format!("{}.map_inverse", label), nf_inv);
         }
 
         self.process_inline_items(time_ms, children, label, diagnostics);
@@ -848,13 +907,11 @@ impl Timeline {
             let axis_size = if size != default_size { size } else { initial_size };
             vello_paths = build_graph_axis_paths(
                 axis_size, x_domain, y_domain, stroke_color, grid, ticks,
-                label_x || label_y, graph_padding,
+                label_x || label_y, graph_padding, &x_scale, &y_scale,
             );
 
             // Compute tick label positions (same logic as build_graph_axis_paths ticks section).
             // Uses padded coordinate mapping so labels align with padded axes.
-            let x_step = ((x_domain[1] - x_domain[0]).abs() / 10.0).max(0.5);
-            let y_step = ((y_domain[1] - y_domain[0]).abs() / 10.0).max(0.5);
             let tick_label_offset = 14.0;
             let hw = axis_size[0] as f64;
             let hh = axis_size[1] as f64;
@@ -862,41 +919,41 @@ impl Timeline {
             let plot_fh = 2.0 * hh - graph_padding[2] - graph_padding[3];
             let shift_x = (graph_padding[0] - graph_padding[1]) / 2.0;
             let shift_y = (graph_padding[2] - graph_padding[3]) / 2.0;
+            let x_scale_ref = x_scale.as_str();
+            let y_scale_ref = y_scale.as_str();
             let tick_math_x_to_screen = |mx: f64| {
-                let norm = (mx - x_domain[0]) / (x_domain[1] - x_domain[0]);
+                let norm = normalize_axis(mx, x_domain[0], x_domain[1], x_scale_ref);
                 shift_x + (norm - 0.5) * plot_fw
             };
             let tick_math_y_to_screen = |my: f64| {
-                let norm = (my - y_domain[0]) / (y_domain[1] - y_domain[0]);
+                let norm = normalize_axis(my, y_domain[0], y_domain[1], y_scale_ref);
                 shift_y + (0.5 - norm) * plot_fh
             };
 
             // X-axis at y=0 screen position
+            let x_ticks = generate_axis_ticks(x_domain[0], x_domain[1], x_scale_ref);
             if y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
                 let axis_y = tick_math_y_to_screen(0.0);
                 if label_x {
-                    let mut x = (x_domain[0] / x_step).ceil() * x_step;
-                    while x <= x_domain[1] {
+                    for &x in &x_ticks {
                         if x != 0.0 {
                             let screen_x = tick_math_x_to_screen(x);
                             tick_label_data.x_labels.push((screen_x, axis_y + tick_label_offset, x));
                         }
-                        x += x_step;
                     }
                 }
             }
 
             // Y-axis at x=0 screen position
+            let y_ticks = generate_axis_ticks(y_domain[0], y_domain[1], y_scale_ref);
             if x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
                 let axis_x = tick_math_x_to_screen(0.0);
                 if label_y {
-                    let mut y = (y_domain[0] / y_step).ceil() * y_step;
-                    while y <= y_domain[1] {
+                    for &y in &y_ticks {
                         if y != 0.0 {
                             let screen_y = tick_math_y_to_screen(y);
                             tick_label_data.y_labels.push((axis_x - tick_label_offset, screen_y, y));
                         }
-                        y += y_step;
                     }
                 }
             }
@@ -1996,15 +2053,80 @@ pub(crate) fn build_bar_chart_paths(
     paths
 }
 
+/// Create a `Value::NativeFn` for `{label}.map_inverse(screen_x, screen_y)` → math coords.
+///
+/// Captures `x_domain`/`y_domain`/`x_scale`/`y_scale` (static), reads `size`, `at`, and
+/// `padding` from the runtime environment to support animation of graph size/position.
+fn make_graph_map_inverse_fn(
+    label: String,
+    x_domain: [f64; 2],
+    y_domain: [f64; 2],
+    x_scale: String,
+    y_scale: String,
+) -> Value {
+    Value::NativeFn(std::sync::Arc::new(
+        move |args: &[Value], env: &crate::timeline::Environment| -> Result<Value, crate::timeline::EvalError> {
+            if args.len() != 2 {
+                return Err(crate::timeline::EvalError::TypeMismatch(
+                    "graph.map_inverse expects 2 arguments: (screen_x, screen_y)".to_string(),
+                ));
+            }
+            let sx = match &args[0] {
+                Value::Num(n) => *n,
+                _ => return Err(crate::timeline::EvalError::TypeMismatch(
+                    "graph.map_inverse: first argument 'screen_x' must be a number".to_string(),
+                )),
+            };
+            let sy = match &args[1] {
+                Value::Num(n) => *n,
+                _ => return Err(crate::timeline::EvalError::TypeMismatch(
+                    "graph.map_inverse: second argument 'screen_y' must be a number".to_string(),
+                )),
+            };
+
+            // Read size, at, padding from runtime env for animation support.
+            // These are set during build with underscore-prefixed keys.
+            let size = env
+                .get(&format!("{}_size", label))
+                .and_then(|v| match v {
+                    Value::Vec2(s) => Some(s),
+                    _ => None,
+                })
+                .unwrap_or([500.0, 500.0]);
+            let at = env
+                .get(&format!("{}_at", label))
+                .and_then(|v| match v {
+                    Value::Vec2(a) => Some(a),
+                    _ => None,
+                })
+                .unwrap_or([0.0, 0.0]);
+            let padding = env
+                .get(&format!("{}_padding", label))
+                .and_then(|v| match v {
+                    Value::Vec4(p) => Some(p),
+                    _ => None,
+                })
+                .unwrap_or([0.0; 4]);
+
+            let [mx, my] = super::utils::graph_screen_to_math(
+                sx, sy, x_domain, y_domain, size, at, padding, &x_scale, &y_scale,
+            );
+            Ok(Value::Vec2([mx, my]))
+        },
+    ))
+}
+
 /// Create a `Value::NativeFn` for `{label}.map(math_x, math_y)` → screen coords.
 ///
-/// Captures `x_domain`/`y_domain`/`padding` (static), reads `size` and `at` from the
-/// runtime environment to support animation of graph size/position.
+/// Captures `x_domain`/`y_domain`/`padding`/`x_scale`/`y_scale` (static), reads `size` and
+/// `at` from the runtime environment to support animation of graph size/position.
 fn make_graph_map_fn(
     label: String,
     x_domain: [f64; 2],
     y_domain: [f64; 2],
     padding: [f64; 4],
+    x_scale: String,
+    y_scale: String,
 ) -> Value {
     Value::NativeFn(std::sync::Arc::new(
         move |args: &[Value], env: &crate::timeline::Environment| -> Result<Value, crate::timeline::EvalError> {
@@ -2043,7 +2165,7 @@ fn make_graph_map_fn(
                 .unwrap_or([0.0, 0.0]);
 
             let [sx, sy] = super::utils::graph_math_to_screen(
-                mx, my, x_domain, y_domain, size, at, padding, false,
+                mx, my, x_domain, y_domain, size, at, padding, false, &x_scale, &y_scale,
             );
             Ok(Value::Vec2([sx, sy]))
         },

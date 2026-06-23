@@ -196,6 +196,24 @@ impl Timeline {
                 }
                 gp
             },
+            x_scale: props
+                .iter()
+                .find(|p| p.name == "x_scale")
+                .and_then(|p| evaluate_expr_with_lookup_diagnostic(
+                    &p.value, &initial_eval_env, diagnostics,
+                    &format!("{}.x_scale", label),
+                ))
+                .map(|v| v.as_str().to_lowercase())
+                .unwrap_or_else(|| "linear".to_string()),
+            y_scale: props
+                .iter()
+                .find(|p| p.name == "y_scale")
+                .and_then(|p| evaluate_expr_with_lookup_diagnostic(
+                    &p.value, &initial_eval_env, diagnostics,
+                    &format!("{}.y_scale", label),
+                ))
+                .map(|v| v.as_str().to_lowercase())
+                .unwrap_or_else(|| "linear".to_string()),
             align: None,
             cols: None,
         }
@@ -247,6 +265,16 @@ impl Timeline {
             .get(&format!("{}_padding", parent_label))
             .and_then(|v| if let Value::Vec4(p) = v { Some(p) } else { None })
             .unwrap_or([0.0; 4]);
+        let p_x_scale = self
+            .env
+            .get(&format!("{}_x_scale", parent_label))
+            .and_then(|v| if let Value::Str(s) = v { Some(s) } else { None })
+            .unwrap_or_else(|| "linear".to_string());
+        let p_y_scale = self
+            .env
+            .get(&format!("{}_y_scale", parent_label))
+            .and_then(|v| if let Value::Str(s) = v { Some(s) } else { None })
+            .unwrap_or_else(|| "linear".to_string());
 
         props
             .iter()
@@ -279,6 +307,8 @@ impl Timeline {
                     [parent_pos[0] as f64, parent_pos[1] as f64],
                     p_padding,
                     false, // absolute coordinates for actor properties
+                    &p_x_scale,
+                    &p_y_scale,
                 );
 
                 Property::new(

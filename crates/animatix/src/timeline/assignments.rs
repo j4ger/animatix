@@ -956,6 +956,14 @@ fn rebuild_vector_paths(
                 .get(&format!("{}_padding", label))
                 .and_then(|v| if let Value::Vec4(p) = v { Some(p) } else { None })
                 .unwrap_or([0.0; 4]);
+            let x_scale = env
+                .get(&format!("{}_x_scale", label))
+                .and_then(|v| if let Value::Str(s) = v { Some(s) } else { None })
+                .unwrap_or_else(|| "linear".to_string());
+            let y_scale = env
+                .get(&format!("{}_y_scale", label))
+                .and_then(|v| if let Value::Str(s) = v { Some(s) } else { None })
+                .unwrap_or_else(|| "linear".to_string());
 
             let new_paths = build_graph_axis_paths(
                 size,
@@ -966,6 +974,8 @@ fn rebuild_vector_paths(
                 ticks,
                 has_labels,
                 padding,
+                &x_scale,
+                &y_scale,
             );
 
             if has_duration {
