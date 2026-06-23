@@ -214,9 +214,6 @@ impl Timeline {
             .map(|t| t.geometry.position.last([0.0, 0.0]))
             .unwrap_or([0.0, 0.0]);
 
-        let half_w = p_size[0] / 2.0;
-        let half_h = p_size[1] / 2.0;
-
         props
             .iter()
             .map(|prop| {
@@ -239,24 +236,14 @@ impl Timeline {
                     _ => return prop.clone(),
                 };
 
-                // Math-to-screen mapping (same formula as plot curves):
-                // offset_x = half_w * (-1.0 + 2.0 * (mx - x_min) / (x_max - x_min))
-                // offset_y = half_h * (1.0 - 2.0 * (my - y_min) / (y_max - y_min))
-                let x_range = x_domain[1] - x_domain[0];
-                let y_range = y_domain[1] - y_domain[0];
-                let offset_x = if x_range != 0.0 {
-                    half_w * (-1.0 + 2.0 * (mx - x_domain[0]) / x_range)
-                } else {
-                    0.0
-                };
-                let offset_y = if y_range != 0.0 {
-                    half_h * (1.0 - 2.0 * (my - y_domain[0]) / y_range)
-                } else {
-                    0.0
-                };
-
-                let screen_x = parent_pos[0] as f64 + offset_x;
-                let screen_y = parent_pos[1] as f64 + offset_y;
+                let [screen_x, screen_y] = super::utils::graph_math_to_screen(
+                    mx,
+                    my,
+                    x_domain,
+                    y_domain,
+                    p_size,
+                    [parent_pos[0] as f64, parent_pos[1] as f64],
+                );
 
                 Property::new(
                     &prop.name,

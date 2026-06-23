@@ -791,6 +791,12 @@ impl Timeline {
             self.env.set(&format!("{}_grid", label), Value::Bool(grid));
             self.env.set(&format!("{}_ticks", label), Value::Bool(ticks));
             self.env.set(&format!("{}_tick_labels", label), Value::Str(tick_labels.clone()));
+
+            // Inject {label}.map as a NativeFn that converts math coords to screen coords.
+            // Captures x_domain/y_domain (static), reads size/at from runtime env (supports animation).
+            let map_label = label.to_string();
+            let nf = make_graph_map_fn(map_label, x_domain, y_domain);
+            self.env.set(&format!("{}.map", label), nf);
         }
 
         self.process_inline_items(time_ms, children, label, diagnostics);
@@ -1917,4 +1923,57 @@ pub(crate) fn build_bar_chart_paths(
     }
 
     paths
+}
+
+/// Create a `Value::NativeFn` for `{label}.map(math_x, math_y)` → screen coords.
+///
+/// Captures `x_domain`/`y_domain` (static), reads `size` and `at` from the runtime
+/// environment to support animation of graph size/position.
+fn make_graph_map_fn(
+    label: String,
+    x_domain: [f64; 2],
+    y_domain: [f64; 2],
+) -> Value {
+    Value::NativeFn(std::sync::Arc::new(
+        move |args: &[Value], env: &crate::timeline::Environment| -> Result<Value, crate::timeline::EvalError> {
+            if args.len() != 2 {
+                return Err(crate::timeline::EvalError::TypeMismatch(
+                    "graph.map expects 2 arguments: (math_x, math_y)".to_string(),
+                ));
+            }
+            let mx = match &args[0] {
+                Value::Num(n) => *n,
+                _ => return Err(crate::timeline::EvalError::TypeMismatch(
+                    "graph.map: first argument 'math_x' must be a number".to_string(),
+                )),
+            };
+            let my = match &args[1] {
+                Value::Num(n) => *n,
+                _ => return Err(crate::timeline::EvalError::TypeMismatch(
+                    "graph.map: second argument 'math_y' must be a number".to_string(),
+                )),
+            };
+
+            // Read size and at from runtime env for animation support.
+            let size = env
+                .get(&format!("{}.size", label))
+                .and_then(|v| match v {
+                    Value::Vec2(s) => Some(s),
+                    _ => None,
+                })
+                .unwrap_or([500.0, 500.0]);
+            let at = env
+                .get(&format!("{}.at", label))
+                .and_then(|v| match v {
+                    Value::Vec2(a) => Some(a),
+                    _ => None,
+                })
+                .unwrap_or([0.0, 0.0]);
+
+            let [sx, sy] = super::utils::graph_math_to_screen(
+                mx, my, x_domain, y_domain, size, at,
+            );
+            Ok(Value::Vec2([sx, sy]))
+        },
+    ))
 }

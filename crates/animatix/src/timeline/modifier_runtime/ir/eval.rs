@@ -231,7 +231,7 @@ pub fn evaluate_compiled_expr(
                 .iter()
                 .map(|arg| evaluate_compiled_expr(arg, env))
                 .collect::<Result<Vec<_>, _>>()?;
-            eval_method(receiver_val, name, &arg_values)
+            eval_method(receiver_val, name, &arg_values, env)
         }
     }
 }
@@ -422,7 +422,13 @@ pub(crate) fn eval_method(
     receiver: Value,
     name: &str,
     args: &[Value],
+    env: &Environment,
 ) -> Result<Value, EvalError> {
+    // Dispatch to NativeFn if receiver is a NativeFn (e.g. graph.map)
+    if let Value::NativeFn(f) = &receiver {
+        return f(args, env);
+    }
+
     match (receiver, name) {
         (Value::Str(s), "length") => {
             if !args.is_empty() {

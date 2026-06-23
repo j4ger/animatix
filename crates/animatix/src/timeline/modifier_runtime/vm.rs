@@ -412,7 +412,7 @@ impl ModifierVm {
                     }
                     args.reverse();
                     let receiver = self.pop()?;
-                    let result = super::ir::eval_method(receiver, name, &args)?;
+                    let result = super::ir::eval_method(receiver, name, &args, frame_env)?;
                     self.stack.push(result);
                     self.ip += 1;
                 }

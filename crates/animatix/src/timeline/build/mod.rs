@@ -31,6 +31,7 @@ mod plot;
 mod process;
 mod property;
 mod shape;
+mod utils;
 
 /// Extracted actor properties parsed from an actor declaration's props.
 /// Used internally by the build pipeline for graph/plot/container dispatch.

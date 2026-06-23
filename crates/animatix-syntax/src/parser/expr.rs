@@ -132,37 +132,36 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
 
         let access = atom
             .clone()
-            .then(
+            .foldl(
                 just('.')
                     .padded()
                     .ignore_then(ident.clone())
-                    .repeated()
-                    .collect::<Vec<_>>(),
-            )
-            .map(|(base, segments)| {
-                if segments.is_empty() {
-                    base
-                } else {
-                    match base {
-                        Expr::Ident(name) => {
-                            let mut parts = Vec::with_capacity(segments.len() + 1);
-                            parts.push(name);
-                            parts.extend(segments);
-                            Expr::Path(parts)
-                        }
-                        Expr::Path(mut parts) => {
-                            parts.extend(segments);
-                            Expr::Path(parts)
-                        }
-                        other => {
-                            // Field access on non-ident/path base: build Method chain
-                            segments.into_iter().fold(other, |acc, segment| {
-                                Expr::Method(Box::new(acc), segment, Vec::new())
-                            })
+                    .then(
+                        atom.clone()
+                            .separated_by(just(',').padded())
+                            .allow_trailing()
+                            .collect::<Vec<_>>()
+                            .delimited_by(just('(').padded(), just(')').padded())
+                            .or_not(),
+                    )
+                    .repeated(),
+                |base, (segment, args)| {
+                    if let Some(args) = args {
+                        // Method call with arguments
+                        Expr::Method(Box::new(base), segment, args)
+                    } else {
+                        // Field access or path extension (no args)
+                        match base {
+                            Expr::Ident(name) => Expr::Path(vec![name, segment]),
+                            Expr::Path(mut parts) => {
+                                parts.push(segment);
+                                Expr::Path(parts)
+                            }
+                            other => Expr::Method(Box::new(other), segment, Vec::new()),
                         }
                     }
-                }
-            });
+                },
+            );
 
         // Mathematical and logical operators precedence
         let pow = recursive(|pow| {

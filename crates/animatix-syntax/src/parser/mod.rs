@@ -745,6 +745,84 @@ mod tests {
     }
 
     #[test]
+    fn test_method_call_with_args() {
+        // Parse an always block with a method call: graph.map(mx, my)
+        let input = "always { ball.at = descent_graph.map(mx, my) }";
+        let (stmts, errs) = parse_source(input);
+        assert!(errs.is_empty(), "Method call parse failed: {:?}", errs);
+        let stmts = stmts.unwrap();
+        assert_eq!(stmts.len(), 1);
+        if let Stmt::Always { body, .. } = &stmts[0] {
+            // Body should have one assignment statement
+            if let Stmt::Assignment { value, .. } = &body[0] {
+                // The value should be a Method call: graph.map(mx, my)
+                assert!(
+                    matches!(
+                        &value,
+                        Expr::Method(receiver, name, args)
+                            if matches!(receiver.as_ref(), Expr::Ident(n) if n == "descent_graph")
+                            && name == "map"
+                            && args.len() == 2
+                    ),
+                    "Expected Method(Ident(descent_graph), 'map', [mx, my]), got {:?}",
+                    value
+                );
+            } else {
+                panic!("Expected Assignment, got {:?}", body[0]);
+            }
+        } else {
+            panic!("Expected Always, got {:?}", stmts[0]);
+        }
+    }
+
+    #[test]
+    fn test_method_call_on_dot_path() {
+        // Parse chained method: a.b.c(d)
+        let input = "always { x = a.b.c(d) }";
+        let (stmts, errs) = parse_source(input);
+        assert!(errs.is_empty(), "Chained method parse failed: {:?}", errs);
+        let stmts = stmts.unwrap();
+        assert_eq!(stmts.len(), 1);
+        if let Stmt::Always { body, .. } = &stmts[0] {
+            if let Stmt::Assignment { value, .. } = &body[0] {
+                assert!(
+                    matches!(
+                        &value,
+                        Expr::Method(receiver, name, args)
+                            if matches!(receiver.as_ref(), Expr::Path(parts) if parts == &["a", "b"])
+                            && name == "c"
+                            && args.len() == 1
+                    ),
+                    "Expected Method(Path([a,b]), 'c', [d]), got {:?}",
+                    value
+                );
+            } else {
+                panic!("Expected Assignment, got {:?}", body[0]);
+            }
+        } else {
+            panic!("Expected Always, got {:?}", stmts[0]);
+        }
+    }
+
+    #[test]
+    fn test_field_access_still_works() {
+        // Ensure bare field access (no parens) still produces Path
+        let input = "always { x = descent_graph.at }";
+        let (stmts, errs) = parse_source(input);
+        assert!(errs.is_empty(), "Field access parse failed: {:?}", errs);
+        let stmts = stmts.unwrap();
+        if let Stmt::Always { body, .. } = &stmts[0] {
+            if let Stmt::Assignment { value, .. } = &body[0] {
+                assert!(
+                    matches!(&value, Expr::Path(parts) if parts == &["descent_graph", "at"]),
+                    "Expected Path([descent_graph, at]), got {:?}",
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
     fn parse_action_with_multiple_dotted_targets() {
         // Comma-separated dotted targets: `highlight eq.f1, eq.f2 [500ms]`
         let result = parse_snippet("highlight eq.f1, eq.f2 [500ms]");
