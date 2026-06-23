@@ -349,6 +349,7 @@ pub(crate) fn render_property_spreadsheet(
 fn get_property_value_display(track: &AnimationTrack, prop_name: &str, time_ms: u64) -> String {
     match prop_name {
         "position" => track
+            .geometry
             .position
             .as_ref()
             .map(|t| {
@@ -358,6 +359,7 @@ fn get_property_value_display(track: &AnimationTrack, prop_name: &str, time_ms: 
             .unwrap_or_else(|| "—".into()),
         "size" => {
             track
+                .geometry
                 .size
                 .as_ref()
                 .map(|t| {
@@ -370,6 +372,7 @@ fn get_property_value_display(track: &AnimationTrack, prop_name: &str, time_ms: 
                 .unwrap_or_else(|| "—".into())
         },
         "rotation" => track
+            .geometry
             .rotation
             .as_ref()
             .map(|t| {
@@ -378,6 +381,7 @@ fn get_property_value_display(track: &AnimationTrack, prop_name: &str, time_ms: 
             })
             .unwrap_or_else(|| "—".into()),
         "scale" => track
+            .geometry
             .scale
             .as_ref()
             .map(|t| {
@@ -386,6 +390,7 @@ fn get_property_value_display(track: &AnimationTrack, prop_name: &str, time_ms: 
             })
             .unwrap_or_else(|| "—".into()),
         "opacity" => track
+            .style
             .opacity
             .as_ref()
             .map(|t| {
@@ -394,6 +399,7 @@ fn get_property_value_display(track: &AnimationTrack, prop_name: &str, time_ms: 
             })
             .unwrap_or_else(|| "—".into()),
         "color" => track
+            .style
             .color
             .as_ref()
             .map(|t| {
@@ -402,6 +408,7 @@ fn get_property_value_display(track: &AnimationTrack, prop_name: &str, time_ms: 
             })
             .unwrap_or_else(|| "—".into()),
         "stroke_width" => track
+            .style
             .stroke_width
             .as_ref()
             .map(|t| {
@@ -410,6 +417,7 @@ fn get_property_value_display(track: &AnimationTrack, prop_name: &str, time_ms: 
             })
             .unwrap_or_else(|| "—".into()),
         "stroke_color" => track
+            .style
             .stroke_color
             .as_ref()
             .map(|t| {
@@ -418,6 +426,7 @@ fn get_property_value_display(track: &AnimationTrack, prop_name: &str, time_ms: 
             })
             .unwrap_or_else(|| "—".into()),
         "stroke_progress" => track
+            .style
             .stroke_progress
             .as_ref()
             .map(|t| {
@@ -426,6 +435,7 @@ fn get_property_value_display(track: &AnimationTrack, prop_name: &str, time_ms: 
             })
             .unwrap_or_else(|| "—".into()),
         "fill_opacity" => track
+            .style
             .fill_opacity
             .as_ref()
             .map(|t| {

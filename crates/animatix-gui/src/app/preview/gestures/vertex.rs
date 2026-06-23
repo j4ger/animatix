@@ -62,7 +62,7 @@ impl GestureHandler for VertexGesture {
                 let points = match ctx
                     .timeline
                     .and_then(|t| t.get_track(&actor))
-                    .and_then(|tr| tr.points.as_ref().map(|pt| pt.evaluate(time_ms)))
+                    .and_then(|tr| tr.shape.points.as_ref().map(|pt| pt.evaluate(time_ms)))
                 {
                     Some(pts) if !pts.is_empty() => pts,
                     _ => return GestureResult::Ignored,

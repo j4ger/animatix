@@ -153,28 +153,21 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                                 .flat_map(|track| {
                                     let mut track_times = Vec::new();
                                     macro_rules! push_kf_times {
-                                        ($($field:ident),* $(,)?) => {
-                                            $(
-                                                if let Some(pt) = &track.$field {
-                                                    track_times.extend(
-                                                        pt.keyframes().keys().map(|ms| *ms as f64 / 1000.0)
-                                                    );
-                                                }
-                                            )*
-                                        };
-                                    }
-                                    push_kf_times! {
-                                        position, motion_offset, rotation, scale, size,
-                                        color, opacity, stroke_width, stroke_color,
-                                        stroke_progress, fill_opacity,
-                                        text_content, font_family, font_size,
-                                        shape_type, line_from, line_to, head_size,
-                                        arc_angles, points, commands, vector_paths,
-                                        layout_size, placement_mode, position_binding,
-                                        filter_blur, filter_brightness, filter_contrast,
-                                        filter_saturate, filter_hue_rotate, filter_sepia,
-                                        line_cap, line_join, morph_options,
-                                    }
+                        ($container:expr; $($field:ident),* $(,)?) => {
+                            $(
+                                if let Some(pt) = &$container.$field {
+                                    track_times.extend(
+                                        pt.keyframes().keys().map(|ms| *ms as f64 / 1000.0)
+                                    );
+                                }
+                            )*
+                        };
+                    }
+                    push_kf_times!(track.geometry; position, motion_offset, rotation, scale, size, layout_size, placement_mode, position_binding);
+                    push_kf_times!(track.style; color, opacity, stroke_width, stroke_color, stroke_progress, fill_opacity, line_cap, line_join, morph_options);
+                    push_kf_times!(track.shape; shape_type, line_from, line_to, head_size, arc_angles, points, commands, vector_paths);
+                    push_kf_times!(track.text; text_content, font_family, font_size);
+                    push_kf_times!(track.filter; filter_blur, filter_brightness, filter_contrast, filter_saturate, filter_hue_rotate, filter_sepia);
                                     track_times
                                 })
                                 .collect();

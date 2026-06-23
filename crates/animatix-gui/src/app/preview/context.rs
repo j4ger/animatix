@@ -1039,7 +1039,7 @@ impl PreviewContext<'_> {
             let points = self
                 .timeline
                 .and_then(|t| t.get_track(actor))
-                .and_then(|tr| tr.points.as_ref().map(|pt| pt.evaluate(time_ms)))
+                .and_then(|tr| tr.shape.points.as_ref().map(|pt| pt.evaluate(time_ms)))
                 .filter(|pts| !pts.is_empty());
             if let (Some(ref p), Some(pts)) = (props, points) {
                 let active_vertex = match &self.drag_state {

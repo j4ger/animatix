@@ -276,7 +276,7 @@ pub(crate) fn emit_position_edit(actor: String, nx: f32, ny: f32, ctx: &mut Prev
     let binding = ctx
         .timeline
         .and_then(|t| t.get_track(&actor))
-        .map(|tr| tr.position_binding.get(time_ms, PositionBinding::Absolute))
+        .map(|tr| tr.geometry.position_binding.get(time_ms, PositionBinding::Absolute))
         .unwrap_or(PositionBinding::Absolute);
 
     match binding {

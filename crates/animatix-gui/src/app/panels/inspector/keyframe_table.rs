@@ -138,7 +138,7 @@ fn render_compact_track_row(
     );
 
     // Keyframe count badge (right-aligned)
-    let count = track.keyframes().len();
+    let count = track.keyframes.len();
     let count_label = format!("{} {}", egui_phosphor::regular::DIAMOND, count);
     ui.painter().text(
         egui::pos2(row_rect.max.x - SPACE_2, baseline_y),
@@ -159,7 +159,7 @@ fn render_compact_track_row(
         ui.painter().rect_filled(strip_rect, RADIUS_S, surface::WIDGET);
 
         // Keyframe dots on the strip
-        for (time_ms, value, easing) in track.keyframes() {
+        for (time_ms, value, easing) in &track.keyframes {
             let fraction = ((*time_ms as f64 / 1000.0) / duration_s).clamp(0.0, 1.0);
             let x = egui::lerp(strip_rect.left()..=strip_rect.right(), fraction as f32);
             let is_current = *time_ms == current_time_ms;
@@ -248,13 +248,13 @@ fn render_compact_track_row(
         ui.horizontal(|ui| {
             ui.strong(track.name);
             ui.label(
-                egui::RichText::new(format!("{} keyframes", track.keyframes().len()))
+                egui::RichText::new(format!("{} keyframes", track.keyframes.len()))
                     .size(TextRole::Micro.size())
                     .color(text::MUTED),
             );
         });
         ui.add_space(SPACE_1);
-        for (time_ms, value, easing) in track.keyframes() {
+        for (time_ms, value, easing) in &track.keyframes {
             let is_current = *time_ms == current_time_ms;
             let color = if is_current {
                 status::WARNING

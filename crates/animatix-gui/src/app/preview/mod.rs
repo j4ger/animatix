@@ -279,7 +279,7 @@ pub(super) fn is_layout_managed(actor: &str, timeline: &Timeline, time_ms: u64) 
     timeline
         .get_track(actor)
         .map(|t| {
-            t.placement_mode.get(time_ms, PlacementMode::LayoutManaged)
+            t.geometry.placement_mode.get(time_ms, PlacementMode::LayoutManaged)
                 == PlacementMode::LayoutManaged
         })
         .unwrap_or(false)

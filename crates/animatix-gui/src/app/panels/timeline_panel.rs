@@ -211,8 +211,8 @@ fn add_actor_and_children(
 /// Collect keyframe times for all properties of an actor.
 fn collect_actor_keyframes(track: &animatix::timeline::AnimationTrack) -> Vec<(u64, &'static str)> {
     let mut result = Vec::new();
-    use animatix::timeline::PropertyTrack;
-    fn push<T>(
+    use animatix::timeline::{Interpolate, PropertyTrack};
+    fn push<T: Interpolate>(
         result: &mut Vec<(u64, &'static str)>,
         opt: &Option<PropertyTrack<T>>,
         name: &'static str,
@@ -221,44 +221,42 @@ fn collect_actor_keyframes(track: &animatix::timeline::AnimationTrack) -> Vec<(u
             result.extend(pt.keyframes().keys().copied().map(|ms| (ms, name)));
         }
     }
-    macro_rules! push_all {
-        ($($field:ident => $name:literal),* $(,)?) => { $(
-            push(&mut result, &track.$field, $name);
-        )* };
-    }
-    push_all! {
-        position => "position",
-        motion_offset => "motion_offset",
-        rotation => "rotation",
-        scale => "scale",
-        size => "size",
-        color => "color",
-        opacity => "opacity",
-        stroke_width => "stroke_width",
-        stroke_color => "stroke_color",
-        stroke_progress => "stroke_progress",
-        fill_opacity => "fill_opacity",
-        text_content => "text_content",
-        font_family => "font_family",
-        font_size => "font_size",
-        shape_type => "shape_type",
-        line_from => "line_from",
-        line_to => "line_to",
-        arc_angles => "arc_angles",
-        points => "points",
-        commands => "commands",
-        layout_size => "layout_size",
-        vector_paths => "vector_paths",
-        filter_blur => "filter_blur",
-        filter_brightness => "filter_brightness",
-        filter_contrast => "filter_contrast",
-        filter_saturate => "filter_saturate",
-        filter_hue_rotate => "filter_hue_rotate",
-        filter_sepia => "filter_sepia",
-        head_size => "head_size",
-        line_cap => "line_cap",
-        line_join => "line_join",
-    }
+    // Geometry
+    push(&mut result, &track.geometry.position, "position");
+    push(&mut result, &track.geometry.motion_offset, "motion_offset");
+    push(&mut result, &track.geometry.rotation, "rotation");
+    push(&mut result, &track.geometry.scale, "scale");
+    push(&mut result, &track.geometry.size, "size");
+    push(&mut result, &track.geometry.layout_size, "layout_size");
+    // Style
+    push(&mut result, &track.style.color, "color");
+    push(&mut result, &track.style.opacity, "opacity");
+    push(&mut result, &track.style.stroke_width, "stroke_width");
+    push(&mut result, &track.style.stroke_color, "stroke_color");
+    push(&mut result, &track.style.stroke_progress, "stroke_progress");
+    push(&mut result, &track.style.fill_opacity, "fill_opacity");
+    push(&mut result, &track.style.line_cap, "line_cap");
+    push(&mut result, &track.style.line_join, "line_join");
+    // Text
+    push(&mut result, &track.text.text_content, "text_content");
+    push(&mut result, &track.text.font_family, "font_family");
+    push(&mut result, &track.text.font_size, "font_size");
+    // Shape
+    push(&mut result, &track.shape.shape_type, "shape_type");
+    push(&mut result, &track.shape.line_from, "line_from");
+    push(&mut result, &track.shape.line_to, "line_to");
+    push(&mut result, &track.shape.arc_angles, "arc_angles");
+    push(&mut result, &track.shape.points, "points");
+    push(&mut result, &track.shape.commands, "commands");
+    push(&mut result, &track.shape.vector_paths, "vector_paths");
+    push(&mut result, &track.shape.head_size, "head_size");
+    // Filter
+    push(&mut result, &track.filter.filter_blur, "filter_blur");
+    push(&mut result, &track.filter.filter_brightness, "filter_brightness");
+    push(&mut result, &track.filter.filter_contrast, "filter_contrast");
+    push(&mut result, &track.filter.filter_saturate, "filter_saturate");
+    push(&mut result, &track.filter.filter_hue_rotate, "filter_hue_rotate");
+    push(&mut result, &track.filter.filter_sepia, "filter_sepia");
     result.sort_by_key(|(ms, _)| *ms);
     result.dedup_by(|a, b| a.0 == b.0);
     result
@@ -269,8 +267,8 @@ fn collect_per_property_keyframes(
     track: &animatix::timeline::AnimationTrack,
 ) -> Vec<(&'static str, Vec<u64>)> {
     let mut result = Vec::new();
-    use animatix::timeline::PropertyTrack;
-    fn push<T>(
+    use animatix::timeline::{Interpolate, PropertyTrack};
+    fn push<T: Interpolate>(
         result: &mut Vec<(&'static str, Vec<u64>)>,
         opt: &Option<PropertyTrack<T>>,
         name: &'static str,
@@ -281,44 +279,42 @@ fn collect_per_property_keyframes(
             }
         }
     }
-    macro_rules! push_all {
-        ($($field:ident => $name:literal),* $(,)?) => { $(
-            push(&mut result, &track.$field, $name);
-        )* };
-    }
-    push_all! {
-        position => "position",
-        motion_offset => "motion_offset",
-        rotation => "rotation",
-        scale => "scale",
-        size => "size",
-        color => "color",
-        opacity => "opacity",
-        stroke_width => "stroke_width",
-        stroke_color => "stroke_color",
-        stroke_progress => "stroke_progress",
-        fill_opacity => "fill_opacity",
-        text_content => "text_content",
-        font_family => "font_family",
-        font_size => "font_size",
-        shape_type => "shape_type",
-        line_from => "line_from",
-        line_to => "line_to",
-        arc_angles => "arc_angles",
-        points => "points",
-        commands => "commands",
-        layout_size => "layout_size",
-        vector_paths => "vector_paths",
-        filter_blur => "filter_blur",
-        filter_brightness => "filter_brightness",
-        filter_contrast => "filter_contrast",
-        filter_saturate => "filter_saturate",
-        filter_hue_rotate => "filter_hue_rotate",
-        filter_sepia => "filter_sepia",
-        head_size => "head_size",
-        line_cap => "line_cap",
-        line_join => "line_join",
-    }
+    // Geometry
+    push(&mut result, &track.geometry.position, "position");
+    push(&mut result, &track.geometry.motion_offset, "motion_offset");
+    push(&mut result, &track.geometry.rotation, "rotation");
+    push(&mut result, &track.geometry.scale, "scale");
+    push(&mut result, &track.geometry.size, "size");
+    push(&mut result, &track.geometry.layout_size, "layout_size");
+    // Style
+    push(&mut result, &track.style.color, "color");
+    push(&mut result, &track.style.opacity, "opacity");
+    push(&mut result, &track.style.stroke_width, "stroke_width");
+    push(&mut result, &track.style.stroke_color, "stroke_color");
+    push(&mut result, &track.style.stroke_progress, "stroke_progress");
+    push(&mut result, &track.style.fill_opacity, "fill_opacity");
+    push(&mut result, &track.style.line_cap, "line_cap");
+    push(&mut result, &track.style.line_join, "line_join");
+    // Text
+    push(&mut result, &track.text.text_content, "text_content");
+    push(&mut result, &track.text.font_family, "font_family");
+    push(&mut result, &track.text.font_size, "font_size");
+    // Shape
+    push(&mut result, &track.shape.shape_type, "shape_type");
+    push(&mut result, &track.shape.line_from, "line_from");
+    push(&mut result, &track.shape.line_to, "line_to");
+    push(&mut result, &track.shape.arc_angles, "arc_angles");
+    push(&mut result, &track.shape.points, "points");
+    push(&mut result, &track.shape.commands, "commands");
+    push(&mut result, &track.shape.vector_paths, "vector_paths");
+    push(&mut result, &track.shape.head_size, "head_size");
+    // Filter
+    push(&mut result, &track.filter.filter_blur, "filter_blur");
+    push(&mut result, &track.filter.filter_brightness, "filter_brightness");
+    push(&mut result, &track.filter.filter_contrast, "filter_contrast");
+    push(&mut result, &track.filter.filter_saturate, "filter_saturate");
+    push(&mut result, &track.filter.filter_hue_rotate, "filter_hue_rotate");
+    push(&mut result, &track.filter.filter_sepia, "filter_sepia");
     result
 }
 

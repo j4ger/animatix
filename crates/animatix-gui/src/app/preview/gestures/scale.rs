@@ -93,7 +93,7 @@ impl GestureHandler for ScaleGesture {
                         } else {
                             preview::ResizeMode::Size
                         };
-                        (mode, tr.scale.get(time_ms, 1.0))
+                        (mode, tr.geometry.scale.get(time_ms, 1.0))
                     })
                     .unwrap_or((preview::ResizeMode::Size, 1.0));
 
