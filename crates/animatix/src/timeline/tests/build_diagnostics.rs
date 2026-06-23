@@ -236,3 +236,18 @@ fn absolute_position_on_layout_managed_child_no_warning_without_at() {
         "Should NOT emit AbsolutePositionOnLayoutManagedChild warning when child has no 'at'"
     );
 }
+
+#[test]
+fn conflicting_at_and_anchor_warning() {
+    let source = r#"
+        box0: Rect, size: (50, 50), at: (100, 100), anchor: scene.center
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let has_warning = report.diagnostics.iter().any(|d| {
+        d.code == animatix_syntax::diagnostics::DiagnosticCode::ConflictingPositionBinding
+    });
+    assert!(has_warning, "Expected ConflictingPositionBinding warning, got: {:?}", report.diagnostics);
+}
