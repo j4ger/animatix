@@ -33,8 +33,9 @@
 //! algorithm but differ in how they map mathematical coordinates to screen space.
 
 use std::collections::HashMap;
-use super::{Environment, Value, evaluate_expr};
+use super::{Environment, EvalError, Value, evaluate_expr};
 use crate::ast::Expr;
+use crate::easing::{Easing, apply_easing};
 
 // ─────────────────────────────────────────────────────────────
 // Plot curve kind
@@ -62,6 +63,232 @@ impl PlotCurveKind {
     }
 }
 
+// ─────────────────────────────────────────────────────────────
+// Func transition data model
+// ─────────────────────────────────────────────────────────────
+
+/// Source of a function for plot transitions — either a raw closure or a
+/// frozen blend used when a transition is snapped mid-flight.
+#[derive(Clone, Debug)]
+pub enum FuncSource {
+    /// A closure defined by argument names and an expression body.
+    Raw(Vec<String>, Expr),
+    /// A mid-transition snap: blends `from` and `to` at a frozen progress value.
+    Blend {
+        from: Box<FuncSource>,
+        to: Box<FuncSource>,
+        frozen_progress: f64,
+    },
+}
+
+/// One keyframe-driven transition between two function sources.
+#[derive(Clone, Debug)]
+pub struct FuncTransition {
+    pub start_ms: u64,
+    pub end_ms: u64,
+    pub easing: Easing,
+    pub from: FuncSource,
+    pub to: FuncSource,
+}
+
+impl FuncTransition {
+    /// Returns `(eased_progress, from, to, easing)` if this transition is active
+    /// at `time_ms` (i.e., `start_ms <= time_ms <= end_ms`).
+    pub fn active_at(&self, time_ms: u64) -> Option<(f64, &FuncSource, &FuncSource, &Easing)> {
+        if time_ms < self.start_ms || time_ms > self.end_ms {
+            return None;
+        }
+        let duration = (self.end_ms - self.start_ms) as f64;
+        let raw_progress = if duration <= 0.0 {
+            1.0_f64
+        } else {
+            (time_ms - self.start_ms) as f64 / duration
+        };
+        let eased = apply_easing(raw_progress as f32, self.easing) as f64;
+        Some((eased, &self.from, &self.to, &self.easing))
+    }
+
+    /// Returns `true` if this transition completed before `time_ms`.
+    pub fn is_complete_at(&self, time_ms: u64) -> bool {
+        time_ms > self.end_ms
+    }
+}
+
+/// Evaluate a [`FuncSource`] at a single scalar argument, returning the scalar
+/// result. Clones `env` locally to avoid mutating the caller's environment.
+pub fn resolve_func_source(
+    source: &FuncSource,
+    env: &Environment,
+    arg_name: &str,
+    arg_val: f64,
+) -> Result<f64, EvalError> {
+    match source {
+        FuncSource::Raw(args, body) => {
+            let name = args.first().map(String::as_str).unwrap_or(arg_name);
+            let mut local_env = env.clone();
+            local_env.set_binding(name, Value::Num(arg_val));
+            evaluate_expr(body, &local_env).map(|v| v.as_num())
+        }
+        FuncSource::Blend { from, to, frozen_progress } => {
+            let from_val = resolve_func_source(from, env, arg_name, arg_val)?;
+            let to_val = resolve_func_source(to, env, arg_name, arg_val)?;
+            Ok(from_val + (to_val - from_val) * frozen_progress)
+        }
+    }
+}
+
+/// Evaluate a [`FuncSource`] at scalar `t`, returning a 2-element array
+/// (for parametric plots). Non-Vec2 results become `[NaN, NaN]`.
+pub fn resolve_func_source_vec2(
+    source: &FuncSource,
+    env: &Environment,
+    arg_name: &str,
+    arg_val: f64,
+) -> Result<[f64; 2], EvalError> {
+    match source {
+        FuncSource::Raw(args, body) => {
+            let name = args.first().map(String::as_str).unwrap_or(arg_name);
+            let mut local_env = env.clone();
+            local_env.set_binding(name, Value::Num(arg_val));
+            evaluate_expr(body, &local_env).map(|v| match v {
+                Value::Vec2(arr) => arr,
+                other => [other.as_num(), f64::NAN],
+            })
+        }
+        FuncSource::Blend { from, to, frozen_progress } => {
+            let [fx, fy] = resolve_func_source_vec2(from, env, arg_name, arg_val)?;
+            let [tx, ty] = resolve_func_source_vec2(to, env, arg_name, arg_val)?;
+            Ok([
+                fx + (tx - fx) * frozen_progress,
+                fy + (ty - fy) * frozen_progress,
+            ])
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Adaptive sampling: blended function reference
+// ─────────────────────────────────────────────────────────────
+
+/// Function reference used during per-frame adaptive sampling.
+///
+/// `Single` re-uses the existing one-function path unchanged.
+/// `Blended` evaluates both sources and lerps the outputs at `progress`.
+pub(crate) enum PlotFuncRef<'a> {
+    /// Evaluate a single function source.
+    Single(&'a FuncSource),
+    /// Lerp between two function sources at `progress` ∈ \[0, 1\].
+    Blended {
+        from: &'a FuncSource,
+        to: &'a FuncSource,
+        progress: f64,
+    },
+}
+
+/// Evaluate `source` at scalar `x`, using `cache` to avoid redundant evaluations.
+fn eval_source_scalar(
+    source: &FuncSource,
+    env: &mut Environment,
+    arg_name: &str,
+    x: f64,
+    cache: &mut HashMap<u64, Value>,
+) -> f64 {
+    match source {
+        FuncSource::Raw(args, body) => {
+            let name = args.first().map(String::as_str).unwrap_or(arg_name);
+            let key = x.to_bits();
+            let val = cache.get(&key).cloned().unwrap_or_else(|| {
+                env.set_binding(name, Value::Num(x));
+                let result = evaluate_expr(body, env).unwrap_or(Value::Num(f64::NAN));
+                env.clear_bindings();
+                cache.insert(key, result.clone());
+                result
+            });
+            val.as_num()
+        }
+        FuncSource::Blend { from, to, frozen_progress } => {
+            let mut fc = HashMap::new();
+            let mut tc = HashMap::new();
+            let fv = eval_source_scalar(from, env, arg_name, x, &mut fc);
+            let tv = eval_source_scalar(to, env, arg_name, x, &mut tc);
+            fv + (tv - fv) * frozen_progress
+        }
+    }
+}
+
+/// Evaluate `source` at `t` returning a Vec2, using `cache` to avoid redundant evaluations.
+fn eval_source_vec2(
+    source: &FuncSource,
+    env: &mut Environment,
+    arg_name: &str,
+    t: f64,
+    cache: &mut HashMap<u64, Value>,
+) -> [f64; 2] {
+    match source {
+        FuncSource::Raw(args, body) => {
+            let name = args.first().map(String::as_str).unwrap_or(arg_name);
+            let key = t.to_bits();
+            let val = cache.get(&key).cloned().unwrap_or_else(|| {
+                env.set_binding(name, Value::Num(t));
+                let result = evaluate_expr(body, env)
+                    .unwrap_or(Value::Vec2([f64::NAN, f64::NAN]));
+                env.clear_bindings();
+                cache.insert(key, result.clone());
+                result
+            });
+            match val {
+                Value::Vec2(arr) => arr,
+                _ => [f64::NAN, f64::NAN],
+            }
+        }
+        FuncSource::Blend { from, to, frozen_progress } => {
+            let mut fc = HashMap::new();
+            let mut tc = HashMap::new();
+            let [fx, fy] = eval_source_vec2(from, env, arg_name, t, &mut fc);
+            let [tx, ty] = eval_source_vec2(to, env, arg_name, t, &mut tc);
+            [fx + (tx - fx) * frozen_progress, fy + (ty - fy) * frozen_progress]
+        }
+    }
+}
+
+/// Evaluate a [`PlotFuncRef`] at scalar `x`, lerping if blended.
+fn eval_scalar(
+    func: &PlotFuncRef<'_>,
+    env: &mut Environment,
+    arg_name: &str,
+    x: f64,
+    from_cache: &mut HashMap<u64, Value>,
+    to_cache: &mut HashMap<u64, Value>,
+) -> f64 {
+    match func {
+        PlotFuncRef::Single(src) => eval_source_scalar(src, env, arg_name, x, from_cache),
+        PlotFuncRef::Blended { from, to, progress } => {
+            let fv = eval_source_scalar(from, env, arg_name, x, from_cache);
+            let tv = eval_source_scalar(to, env, arg_name, x, to_cache);
+            fv + (tv - fv) * progress
+        }
+    }
+}
+
+/// Evaluate a [`PlotFuncRef`] at `t` returning a Vec2, lerping if blended.
+fn eval_vec2(
+    func: &PlotFuncRef<'_>,
+    env: &mut Environment,
+    arg_name: &str,
+    t: f64,
+    from_cache: &mut HashMap<u64, Value>,
+    to_cache: &mut HashMap<u64, Value>,
+) -> [f64; 2] {
+    match func {
+        PlotFuncRef::Single(src) => eval_source_vec2(src, env, arg_name, t, from_cache),
+        PlotFuncRef::Blended { from, to, progress } => {
+            let [fx, fy] = eval_source_vec2(from, env, arg_name, t, from_cache);
+            let [tx, ty] = eval_source_vec2(to, env, arg_name, t, to_cache);
+            [fx + (tx - fx) * progress, fy + (ty - fy) * progress]
+        }
+    }
+}
+
 pub(crate) fn sample_recursive_cartesian(
     min_t: f64,
     max_t: f64,
@@ -72,11 +299,12 @@ pub(crate) fn sample_recursive_cartesian(
     tolerance: f64,
     env: &mut Environment,
     arg_name: &str,
-    body: &Expr,
+    func: &PlotFuncRef<'_>,
     p_x_domain: &[f64; 2],
     p_y_domain: &[f64; 2],
     p_size: &[f64; 2],
-    cache: &mut HashMap<u64, Value>,
+    from_cache: &mut HashMap<u64, Value>,
+    to_cache: &mut HashMap<u64, Value>,
     pts: &mut Vec<kurbo::Point>,
 ) {
     let screen_height = p_size[1];
@@ -113,16 +341,7 @@ pub(crate) fn sample_recursive_cartesian(
     }
 
     let mid_t = (min_t + max_t) / 2.0;
-    let mid_key = mid_t.to_bits();
-    let val = cache.get(&mid_key).cloned().unwrap_or_else(|| {
-        env.set_binding(arg_name, Value::Num(mid_t));
-        let result = evaluate_expr(body, env).unwrap_or(Value::Num(f64::NAN));
-        env.clear_bindings();
-        cache.insert(mid_key, result.clone());
-        result
-    });
-    let math_y = val.as_num();
-
+    let math_y = eval_scalar(func, env, arg_name, mid_t, from_cache, to_cache);
     let math_x = mid_t;
 
     let screen_x = -(p_size[0] / 2.0)
@@ -138,38 +357,14 @@ pub(crate) fn sample_recursive_cartesian(
 
     if dist_sq > tolerance || depth < 3 {
         sample_recursive_cartesian(
-            min_t,
-            mid_t,
-            p0,
-            p_mid,
-            depth + 1,
-            max_depth,
-            tolerance,
-            env,
-            arg_name,
-            body,
-            p_x_domain,
-            p_y_domain,
-            p_size,
-            cache,
-            pts,
+            min_t, mid_t, p0, p_mid, depth + 1, max_depth, tolerance,
+            env, arg_name, func, p_x_domain, p_y_domain, p_size,
+            from_cache, to_cache, pts,
         );
         sample_recursive_cartesian(
-            mid_t,
-            max_t,
-            p_mid,
-            p1,
-            depth + 1,
-            max_depth,
-            tolerance,
-            env,
-            arg_name,
-            body,
-            p_x_domain,
-            p_y_domain,
-            p_size,
-            cache,
-            pts,
+            mid_t, max_t, p_mid, p1, depth + 1, max_depth, tolerance,
+            env, arg_name, func, p_x_domain, p_y_domain, p_size,
+            from_cache, to_cache, pts,
         );
     } else {
         pts.push(p1);
@@ -186,11 +381,12 @@ pub(crate) fn sample_recursive_polar(
     tolerance: f64,
     env: &mut Environment,
     arg_name: &str,
-    body: &Expr,
+    func: &PlotFuncRef<'_>,
     p_x_domain: &[f64; 2],
     p_y_domain: &[f64; 2],
     p_size: &[f64; 2],
-    cache: &mut HashMap<u64, Value>,
+    from_cache: &mut HashMap<u64, Value>,
+    to_cache: &mut HashMap<u64, Value>,
     pts: &mut Vec<kurbo::Point>,
 ) {
     let margin_y = p_size[1] * 2.0;
@@ -223,16 +419,7 @@ pub(crate) fn sample_recursive_polar(
     }
 
     let mid_t = (min_t + max_t) / 2.0;
-    let mid_key = mid_t.to_bits();
-    let val = cache.get(&mid_key).cloned().unwrap_or_else(|| {
-        env.set_binding(arg_name, Value::Num(mid_t));
-        let result = evaluate_expr(body, env).unwrap_or(Value::Num(f64::NAN));
-        env.clear_bindings();
-        cache.insert(mid_key, result.clone());
-        result
-    });
-    let math_r = val.as_num();
-
+    let math_r = eval_scalar(func, env, arg_name, mid_t, from_cache, to_cache);
     let math_x = math_r * mid_t.cos();
     let math_y = math_r * mid_t.sin();
 
@@ -249,38 +436,14 @@ pub(crate) fn sample_recursive_polar(
 
     if dist_sq > tolerance || depth < 3 {
         sample_recursive_polar(
-            min_t,
-            mid_t,
-            p0,
-            p_mid,
-            depth + 1,
-            max_depth,
-            tolerance,
-            env,
-            arg_name,
-            body,
-            p_x_domain,
-            p_y_domain,
-            p_size,
-            cache,
-            pts,
+            min_t, mid_t, p0, p_mid, depth + 1, max_depth, tolerance,
+            env, arg_name, func, p_x_domain, p_y_domain, p_size,
+            from_cache, to_cache, pts,
         );
         sample_recursive_polar(
-            mid_t,
-            max_t,
-            p_mid,
-            p1,
-            depth + 1,
-            max_depth,
-            tolerance,
-            env,
-            arg_name,
-            body,
-            p_x_domain,
-            p_y_domain,
-            p_size,
-            cache,
-            pts,
+            mid_t, max_t, p_mid, p1, depth + 1, max_depth, tolerance,
+            env, arg_name, func, p_x_domain, p_y_domain, p_size,
+            from_cache, to_cache, pts,
         );
     } else {
         pts.push(p1);
@@ -297,11 +460,12 @@ pub(crate) fn sample_recursive_parametric(
     tolerance: f64,
     env: &mut Environment,
     arg_name: &str,
-    body: &Expr,
+    func: &PlotFuncRef<'_>,
     p_x_domain: &[f64; 2],
     p_y_domain: &[f64; 2],
     p_size: &[f64; 2],
-    cache: &mut HashMap<u64, Value>,
+    from_cache: &mut HashMap<u64, Value>,
+    to_cache: &mut HashMap<u64, Value>,
     pts: &mut Vec<kurbo::Point>,
 ) {
     let margin_y = p_size[1] * 2.0;
@@ -334,19 +498,12 @@ pub(crate) fn sample_recursive_parametric(
     }
 
     let mid_t = (min_t + max_t) / 2.0;
-    let mid_key = mid_t.to_bits();
-    let val = cache.get(&mid_key).cloned().unwrap_or_else(|| {
-        env.set_binding(arg_name, Value::Num(mid_t));
-        let result = evaluate_expr(body, env).unwrap_or(Value::Vec2([f64::NAN, f64::NAN]));
-        env.clear_bindings();
-        cache.insert(mid_key, result.clone());
-        result
-    });
-    let Value::Vec2([math_x, math_y]) = val else {
+    let [math_x, math_y] = eval_vec2(func, env, arg_name, mid_t, from_cache, to_cache);
+    if math_x.is_nan() || math_y.is_nan() {
         pts.push(kurbo::Point::new(f64::NAN, f64::NAN));
         pts.push(p1);
         return;
-    };
+    }
 
     let screen_x = -(p_size[0] / 2.0)
         + p_size[0] * ((math_x - p_x_domain[0]) / (p_x_domain[1] - p_x_domain[0]));
@@ -361,38 +518,14 @@ pub(crate) fn sample_recursive_parametric(
 
     if dist_sq > tolerance || depth < 3 {
         sample_recursive_parametric(
-            min_t,
-            mid_t,
-            p0,
-            p_mid,
-            depth + 1,
-            max_depth,
-            tolerance,
-            env,
-            arg_name,
-            body,
-            p_x_domain,
-            p_y_domain,
-            p_size,
-            cache,
-            pts,
+            min_t, mid_t, p0, p_mid, depth + 1, max_depth, tolerance,
+            env, arg_name, func, p_x_domain, p_y_domain, p_size,
+            from_cache, to_cache, pts,
         );
         sample_recursive_parametric(
-            mid_t,
-            max_t,
-            p_mid,
-            p1,
-            depth + 1,
-            max_depth,
-            tolerance,
-            env,
-            arg_name,
-            body,
-            p_x_domain,
-            p_y_domain,
-            p_size,
-            cache,
-            pts,
+            mid_t, max_t, p_mid, p1, depth + 1, max_depth, tolerance,
+            env, arg_name, func, p_x_domain, p_y_domain, p_size,
+            from_cache, to_cache, pts,
         );
     } else {
         pts.push(p1);
@@ -588,6 +721,10 @@ pub(crate) fn build_implicit_plot_path(
 
 use crate::renderer::types::VelloPath;
 
+// ─────────────────────────────────────────────────────────────
+// ProceduralPlot struct + helpers
+// ─────────────────────────────────────────────────────────────
+
 /// All parameters needed to re-sample a plot curve at frame time.
 #[derive(Clone, Debug)]
 pub struct ProceduralPlot {
@@ -612,9 +749,34 @@ pub struct ProceduralPlot {
     pub params: Vec<(String, f64)>,
 }
 
+impl ProceduralPlot {
+    /// Returns `true` if the function references the timeline variable `t`, or
+    /// if the plot has custom parameters that require per-frame environment
+    /// injection.  Used to decide whether to resample on every frame.
+    pub fn is_dynamic(&self) -> bool {
+        self.func_body.references_ident("t") || !self.param_names.is_empty()
+    }
+}
+
 /// Re-sample a procedural plot at frame time using the given environment.
-/// This allows plot functions to reference timeline variables like `t`.
+/// Compatibility shim for `scene_eval.rs` (pre-Task-4). Delegates to
+/// [`sample_procedural_plot_at`] with no active transitions.
 pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &mut Environment) -> Vec<VelloPath> {
+    sample_procedural_plot_at(plot, env, 0, &[])
+}
+
+/// Re-sample a procedural plot at frame time, blending between function sources
+/// driven by `transitions` at `time_ms`.
+///
+/// - If a transition is active at `time_ms`, evaluates both endpoints and lerps.
+/// - If all transitions are complete, uses the last completed transition's `to`.
+/// - Otherwise uses the declaration function from `plot.func_body`.
+pub fn sample_procedural_plot_at(
+    plot: &ProceduralPlot,
+    env: &mut Environment,
+    time_ms: u64,
+    transitions: &[FuncTransition],
+) -> Vec<VelloPath> {
     let mut vello_paths = vec![];
 
     // Inject custom plot parameters as fallback defaults: only set the build-time
@@ -632,6 +794,32 @@ pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &mut Environment) -> V
         "x".to_string()
     };
 
+    // Resolve the active function reference for this frame.
+    let decl_source = FuncSource::Raw(plot.func_args.clone(), plot.func_body.clone());
+    let active = transitions.iter().find_map(|t| t.active_at(time_ms));
+    let func_ref: PlotFuncRef<'_> = if let Some((progress, from, to, _)) = active {
+        if plot.kind == PlotCurveKind::Implicit {
+            tracing::warn!(
+                "func transitions on implicit plots are not yet supported; \
+                 falling back to declaration func for actor '{}'",
+                plot.actor_label
+            );
+            PlotFuncRef::Single(&decl_source)
+        } else {
+            PlotFuncRef::Blended { from, to, progress }
+        }
+    } else {
+        // Use the last completed transition's target, or the declaration func.
+        let last_complete = transitions
+            .iter()
+            .filter(|t| t.is_complete_at(time_ms))
+            .last();
+        match last_complete {
+            Some(t) => PlotFuncRef::Single(&t.to),
+            None => PlotFuncRef::Single(&decl_source),
+        }
+    };
+
     let (min_t, max_t) = if plot.kind == PlotCurveKind::Cartesian {
         (plot.p_x_domain[0], plot.p_x_domain[1])
     } else if plot.kind == PlotCurveKind::Implicit {
@@ -641,6 +829,8 @@ pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &mut Environment) -> V
     };
 
     if plot.kind == PlotCurveKind::Implicit {
+        // For implicit plots, fall back to the declaration body (transitions
+        // are not yet supported and were warned about above).
         let path = build_implicit_plot_path(
             env,
             &plot.func_args,
@@ -670,20 +860,19 @@ pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &mut Environment) -> V
             line_join: 0,
         });
     } else {
-        env.set_binding(&arg_name, Value::Num(min_t));
-        let start_eval = evaluate_expr(&plot.func_body, env)
-            .unwrap_or(Value::Num(f64::NAN));
-        env.clear_bindings();
+        // Shared caches for from/to sources across start, end, and recursive evals.
+        let mut from_cache = HashMap::<u64, Value>::new();
+        let mut to_cache = HashMap::<u64, Value>::new();
+
         let (start_math_x, start_math_y) = if plot.kind == PlotCurveKind::Cartesian {
-            (min_t, start_eval.as_num())
+            let y = eval_scalar(&func_ref, env, &arg_name, min_t, &mut from_cache, &mut to_cache);
+            (min_t, y)
         } else if plot.kind == PlotCurveKind::Parametric {
-            match start_eval {
-                Value::Vec2([x, y]) => (x, y),
-                _ => (f64::NAN, f64::NAN),
-            }
+            let [x, y] = eval_vec2(&func_ref, env, &arg_name, min_t, &mut from_cache, &mut to_cache);
+            (x, y)
         } else {
-            let start_val = start_eval.as_num();
-            (start_val * min_t.cos(), start_val * min_t.sin())
+            let r = eval_scalar(&func_ref, env, &arg_name, min_t, &mut from_cache, &mut to_cache);
+            (r * min_t.cos(), r * min_t.sin())
         };
         let start_screen_x = -(plot.p_size[0] / 2.0)
             + plot.p_size[0]
@@ -694,20 +883,15 @@ pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &mut Environment) -> V
                 * ((start_math_y - plot.p_y_domain[0])
                     / (plot.p_y_domain[1] - plot.p_y_domain[0]));
 
-        env.set_binding(&arg_name, Value::Num(max_t));
-        let end_eval = evaluate_expr(&plot.func_body, env)
-            .unwrap_or(Value::Num(f64::NAN));
-        env.clear_bindings();
         let (end_math_x, end_math_y) = if plot.kind == PlotCurveKind::Cartesian {
-            (max_t, end_eval.as_num())
+            let y = eval_scalar(&func_ref, env, &arg_name, max_t, &mut from_cache, &mut to_cache);
+            (max_t, y)
         } else if plot.kind == PlotCurveKind::Parametric {
-            match end_eval {
-                Value::Vec2([x, y]) => (x, y),
-                _ => (f64::NAN, f64::NAN),
-            }
+            let [x, y] = eval_vec2(&func_ref, env, &arg_name, max_t, &mut from_cache, &mut to_cache);
+            (x, y)
         } else {
-            let end_val = end_eval.as_num();
-            (end_val * max_t.cos(), end_val * max_t.sin())
+            let r = eval_scalar(&func_ref, env, &arg_name, max_t, &mut from_cache, &mut to_cache);
+            (r * max_t.cos(), r * max_t.sin())
         };
         let end_screen_x = -(plot.p_size[0] / 2.0)
             + plot.p_size[0]
@@ -722,61 +906,27 @@ pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &mut Environment) -> V
         let p1 = kurbo::Point::new(end_screen_x, end_screen_y);
 
         let mut pts = vec![p0];
-        let mut cache = HashMap::<u64, Value>::new();
 
         if plot.kind == PlotCurveKind::Cartesian {
             sample_recursive_cartesian(
-                min_t,
-                max_t,
-                p0,
-                p1,
-                0,
-                plot.max_depth,
-                plot.tolerance,
-                env,
-                &arg_name,
-                &plot.func_body,
-                &plot.p_x_domain,
-                &plot.p_y_domain,
-                &plot.p_size,
-                &mut cache,
-                &mut pts,
+                min_t, max_t, p0, p1, 0, plot.max_depth, plot.tolerance,
+                env, &arg_name, &func_ref,
+                &plot.p_x_domain, &plot.p_y_domain, &plot.p_size,
+                &mut from_cache, &mut to_cache, &mut pts,
             );
         } else if plot.kind == PlotCurveKind::Polar {
             sample_recursive_polar(
-                min_t,
-                max_t,
-                p0,
-                p1,
-                0,
-                plot.max_depth,
-                plot.tolerance,
-                env,
-                &arg_name,
-                &plot.func_body,
-                &plot.p_x_domain,
-                &plot.p_y_domain,
-                &plot.p_size,
-                &mut cache,
-                &mut pts,
+                min_t, max_t, p0, p1, 0, plot.max_depth, plot.tolerance,
+                env, &arg_name, &func_ref,
+                &plot.p_x_domain, &plot.p_y_domain, &plot.p_size,
+                &mut from_cache, &mut to_cache, &mut pts,
             );
         } else {
             sample_recursive_parametric(
-                min_t,
-                max_t,
-                p0,
-                p1,
-                0,
-                plot.max_depth,
-                plot.tolerance,
-                env,
-                &arg_name,
-                &plot.func_body,
-                &plot.p_x_domain,
-                &plot.p_y_domain,
-                &plot.p_size,
-                &mut cache,
-                &mut pts,
+                min_t, max_t, p0, p1, 0, plot.max_depth, plot.tolerance,
+                env, &arg_name, &func_ref,
+                &plot.p_x_domain, &plot.p_y_domain, &plot.p_size,
+                &mut from_cache, &mut to_cache, &mut pts,
             );
         }
 

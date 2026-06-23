@@ -23,7 +23,7 @@ use crate::easing::Easing;
 use super::property_track::{PropertyTrack, TrackAccessor};
 use crate::renderer::types::{TextPath, VelloPath};
 use crate::timeline::morph::MorphOptions;
-use crate::timeline::plot::ProceduralPlot;
+use crate::timeline::plot::{FuncTransition, ProceduralPlot};
 use crate::timeline::shapes::ShapeType;
 use crate::timeline::property_registry::{ActorField, PropertySchema};
 pub use crate::timeline::property_engine::PropertyValue;
@@ -97,6 +97,10 @@ pub struct AnimationTrack {
     /// Maps parameter name (e.g. "freq") to an f64 property track.
     pub plot_param_tracks: HashMap<String, PropertyTrack<f64>>,
 
+    // ── Func transition tracks ──
+    /// Keyframe-driven transitions between two function sources on a PlotCurve.
+    pub func_transitions: Vec<FuncTransition>,
+
     // ── Highlight tier (sub-struct) ──
     /// Highlight property tracks (color, opacity, padding, radius, blend).
     pub highlight: HighlightTracks,
@@ -143,6 +147,9 @@ impl AnimationTrack {
 
             // Plot parameter tracks
             plot_param_tracks: HashMap::new(),
+
+            // Func transition tracks
+            func_transitions: Vec::new(),
 
             // Highlight tier (sub-struct)
             highlight: HighlightTracks::default(),
@@ -232,6 +239,10 @@ impl AnimationTrack {
                 max = Some(max.map_or(t, |m| m.max(t)));
             }
         }
+        // Func transitions: include the end time of each transition.
+        for ft in &self.func_transitions {
+            max = Some(max.map_or(ft.end_ms, |m| m.max(ft.end_ms)));
+        }
         max
     }
 
@@ -246,6 +257,7 @@ impl AnimationTrack {
             }
         }
         self.plot_param_tracks.values().any(|t| !t.is_effectively_static())
+            || !self.func_transitions.is_empty()
     }
 }
 

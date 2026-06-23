@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 use super::*;
 use crate::ast::{InlineItem, Property};
-use crate::timeline::plot::{PlotCurveKind, ProceduralPlot};
+use crate::timeline::plot::{FuncSource, PlotCurveKind, PlotFuncRef, ProceduralPlot};
 use crate::timeline::vello_path::VelloPath;
 
 /// Data for tick labels: screen positions and math values.
@@ -180,61 +180,33 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
             let p1 = kurbo::Point::new(end_screen_x, end_screen_y);
 
             let mut pts = vec![p0];
-            let mut cache = HashMap::<u64, Value>::new();
+            // Wrap the declaration body in a PlotFuncRef::Single for the
+            // refactored sampling functions. Build time always uses Single.
+            let func_source = FuncSource::Raw(args.clone(), (**body).clone());
+            let plot_func = PlotFuncRef::Single(&func_source);
+            let mut from_cache = HashMap::<u64, Value>::new();
+            let mut to_cache = HashMap::<u64, Value>::new();
 
             if params.kind == PlotCurveKind::Cartesian {
                 sample_recursive_cartesian(
-                    min_t,
-                    max_t,
-                    p0,
-                    p1,
-                    0,
-                    max_depth,
-                    tolerance,
-                    &mut env_copy,
-                    &arg_name,
-                    body,
-                    &params.p_x_domain,
-                    &params.p_y_domain,
-                    &params.p_size,
-                    &mut cache,
-                    &mut pts,
+                    min_t, max_t, p0, p1, 0, max_depth, tolerance,
+                    &mut env_copy, &arg_name, &plot_func,
+                    &params.p_x_domain, &params.p_y_domain, &params.p_size,
+                    &mut from_cache, &mut to_cache, &mut pts,
                 );
             } else if params.kind == PlotCurveKind::Polar {
                 sample_recursive_polar(
-                    min_t,
-                    max_t,
-                    p0,
-                    p1,
-                    0,
-                    max_depth,
-                    tolerance,
-                    &mut env_copy,
-                    &arg_name,
-                    body,
-                    &params.p_x_domain,
-                    &params.p_y_domain,
-                    &params.p_size,
-                    &mut cache,
-                    &mut pts,
+                    min_t, max_t, p0, p1, 0, max_depth, tolerance,
+                    &mut env_copy, &arg_name, &plot_func,
+                    &params.p_x_domain, &params.p_y_domain, &params.p_size,
+                    &mut from_cache, &mut to_cache, &mut pts,
                 );
             } else {
                 sample_recursive_parametric(
-                    min_t,
-                    max_t,
-                    p0,
-                    p1,
-                    0,
-                    max_depth,
-                    tolerance,
-                    &mut env_copy,
-                    &arg_name,
-                    body,
-                    &params.p_x_domain,
-                    &params.p_y_domain,
-                    &params.p_size,
-                    &mut cache,
-                    &mut pts,
+                    min_t, max_t, p0, p1, 0, max_depth, tolerance,
+                    &mut env_copy, &arg_name, &plot_func,
+                    &params.p_x_domain, &params.p_y_domain, &params.p_size,
+                    &mut from_cache, &mut to_cache, &mut pts,
                 );
             }
 
