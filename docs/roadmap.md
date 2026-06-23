@@ -31,14 +31,12 @@ User-facing bugs that cause silent failures or confusion.
 
 | # | Task | Notes |
 |---|------|-------|
-| 14 | **Brace-style property diagnostic** | `Actor { prop: val }` silently drops properties (braces are for children only). Add parser warning: `"property 'X' has no preceding actor to attach to; did you mean 'Type, X: val'?"`. Also warn when props attach to `SlotMarker`, `ForLoop`, or `SlotFill` (currently silent drop in `inline.rs:138-148`). Add parser test documenting this behavior. |
 ### Code Quality
 
 Systemic issues that make the codebase fragile or error-prone.
 
 | # | Task | Notes |
 |---|------|-------|
-| 17 | **`PropertyTrack::keyframes()` trait bounds** | The `keyframes()` method requires `T: Interpolate` even though reading keys from a `BTreeMap` doesn't need interpolation. This forced unnecessary trait bounds on GUI helper functions that only read keyframe timestamps. Add a `keyframes_raw()` method without the `Interpolate` bound for read-only access. |
 
 ### Architectural Debt
 
