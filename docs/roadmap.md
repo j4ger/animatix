@@ -16,14 +16,14 @@ Enhance visual storytelling through actions and entrance animations.
 | 1 | **`draw-in` for PlotCurve and Text** | ✅ Complete - PlotCurve uses stroke_progress, Text uses char_progress for typewriter effect |
 | 2 | **Exclusive highlight groups** | ✅ Complete - Equation containers auto-unhighlight siblings when a new Fragment is highlighted |
 
-### Batch 2: Graph Coordinate System
-Extend Graph's coordinate transformation system. Do #4 (padding) first as it affects the coordinate space.
+### Batch 2: Graph Coordinate System ✅
+Extend Graph's coordinate transformation system.
 
-| # | Task | Notes |
-|---|------|-------|
-| 3 | **Graph padding/insets** | Support configurable padding and insets within `Graph` containers. `graph.map()` should respect these when computing coordinate transforms. |
-| 4 | **Graph inverse mapping** | `graph.map_inverse(screen_x, screen_y) → math_coords` — convert screen coordinates back to graph coordinates. Useful for interactive elements and hit-testing. Depends on padding (#3). |
-| 5 | **Graph log scaling** | Support logarithmic axis scaling in `Graph` via `scale: "log"` property. `graph.map()` should apply log transforms when computing coordinates. Depends on padding (#3). |
+| # | Task | Status |
+|---|------|--------|
+| 3 | **Graph padding/insets** | ✅ Complete - Configurable padding via Vec4 property, affects all coordinate transforms |
+| 4 | **Graph inverse mapping** | ✅ Complete - `graph.map_inverse(sx, sy)` converts screen coords back to math coords |
+| 5 | **Graph log scaling** | ✅ Complete - `x_scale: "log"` and `y_scale: "log"` properties for logarithmic axes |
 
 ### Batch 3: Language & Parser
 Isolated parser and evaluation environment work.
