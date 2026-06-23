@@ -389,4 +389,135 @@ fn graph_padding_scalar_broadcasts_to_all_sides() {
     // If not stored as Vec4 the default is fine; just ensure no crash.
 }
 
+/// `g.map_inverse` is registered as a NativeFn in the build env.
+#[test]
+fn graph_map_inverse_registered_as_native_fn() {
+    let source = "g: Graph, size: (800, 600), x_domain: (-10, 10), y_domain: (-5, 5)";
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+    let ast = ast.expect("AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
+    match report.output.env().get("g.map_inverse") {
+        Some(Value::NativeFn(_)) => {}
+        other => panic!("expected NativeFn for g.map_inverse, got {other:?}"),
+    }
+}
+
+/// Round-trip: `map_inverse(map(mx, my))` returns the original math coordinates.
+#[test]
+fn graph_map_inverse_round_trip() {
+    let source = "g: Graph, size: (800, 600), x_domain: (-10, 10), y_domain: (-5, 5)";
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+    let ast = ast.expect("AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+
+    let env = report.output.env();
+    let map_fn = match env.get("g.map") {
+        Some(Value::NativeFn(f)) => f,
+        other => panic!("g.map not a NativeFn: {other:?}"),
+    };
+    let map_inv_fn = match env.get("g.map_inverse") {
+        Some(Value::NativeFn(f)) => f,
+        other => panic!("g.map_inverse not a NativeFn: {other:?}"),
+    };
+
+    // Build a call environment with the keys each NativeFn expects.
+    // `map` reads `{label}.size` / `{label}.at`.
+    // `map_inverse` reads `{label}_size` / `{label}_at` / `{label}_padding`.
+    let mut call_env = Environment::new();
+    call_env.set("g.size", Value::Vec2([800.0, 600.0]));
+    call_env.set("g.at", Value::Vec2([0.0, 0.0]));
+    call_env.set("g_size", Value::Vec2([800.0, 600.0]));
+    call_env.set("g_at", Value::Vec2([0.0, 0.0]));
+    call_env.set("g_padding", Value::Vec4([0.0; 4]));
+
+    for (mx, my) in [(-5.0_f64, 3.0_f64), (0.0, 0.0), (7.5, -4.0)] {
+        let screen = map_fn(&[Value::Num(mx), Value::Num(my)], &call_env)
+            .expect("map call");
+        let (sx, sy) = match screen {
+            Value::Vec2([sx, sy]) => (sx, sy),
+            other => panic!("map returned {other:?}"),
+        };
+        let math = map_inv_fn(&[Value::Num(sx), Value::Num(sy)], &call_env)
+            .expect("map_inverse call");
+        match math {
+            Value::Vec2([rx, ry]) => {
+                assert!((rx - mx).abs() < 1e-9, "x round-trip: {mx} -> {sx} -> {rx}");
+                assert!((ry - my).abs() < 1e-9, "y round-trip: {my} -> {sy} -> {ry}");
+            }
+            other => panic!("map_inverse returned {other:?}"),
+        }
+    }
+}
+
+/// `map_inverse` respects padding: screen center (shifted by padding) maps to math (0, 0).
+/// With padding [left=20, right=10, top=15, bottom=5], the padded plot center is at
+/// screen offset (5, 5), which corresponds to math origin (0, 0).
+#[test]
+fn graph_map_inverse_respects_padding() {
+    let source =
+        "g: Graph, size: (800, 600), x_domain: (-10, 10), y_domain: (-5, 5), padding: (20, 10, 15, 5)";
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+    let ast = ast.expect("AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+
+    let map_inv_fn = match report.output.env().get("g.map_inverse") {
+        Some(Value::NativeFn(f)) => f,
+        other => panic!("g.map_inverse not a NativeFn: {other:?}"),
+    };
+
+    let mut call_env = Environment::new();
+    call_env.set("g_size", Value::Vec2([800.0, 600.0]));
+    call_env.set("g_at", Value::Vec2([0.0, 0.0]));
+    call_env.set("g_padding", Value::Vec4([20.0, 10.0, 15.0, 5.0]));
+
+    // shift_x = (left - right)/2 = (20 - 10)/2 = 5
+    // shift_y = (top - bottom)/2 = (15 - 5)/2 = 5
+    // => screen (5, 5) should map to math (0, 0)
+    let result = map_inv_fn(&[Value::Num(5.0), Value::Num(5.0)], &call_env)
+        .expect("map_inverse call");
+    match result {
+        Value::Vec2([mx, my]) => {
+            assert!((mx - 0.0).abs() < 1e-9, "expected mx=0, got {mx}");
+            assert!((my - 0.0).abs() < 1e-9, "expected my=0, got {my}");
+        }
+        other => panic!("map_inverse returned {other:?}"),
+    }
+}
+
+/// Coordinates outside the plot area are extrapolated without error or panic.
+#[test]
+fn graph_map_inverse_outside_plot_no_panic() {
+    let source = "g: Graph, size: (400, 300), x_domain: (-5, 5), y_domain: (-3, 3)";
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+    let ast = ast.expect("AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+
+    let map_inv_fn = match report.output.env().get("g.map_inverse") {
+        Some(Value::NativeFn(f)) => f,
+        other => panic!("g.map_inverse not a NativeFn: {other:?}"),
+    };
+
+    let mut call_env = Environment::new();
+    call_env.set("g_size", Value::Vec2([400.0, 300.0]));
+    call_env.set("g_at", Value::Vec2([0.0, 0.0]));
+    call_env.set("g_padding", Value::Vec4([0.0; 4]));
+
+    // Far outside the plot area — finite, extrapolated beyond the domain.
+    let result = map_inv_fn(&[Value::Num(9999.0), Value::Num(9999.0)], &call_env)
+        .expect("no error for out-of-bounds coords");
+    match result {
+        Value::Vec2([mx, my]) => {
+            assert!(mx.is_finite(), "mx should be finite: {mx}");
+            assert!(my.is_finite(), "my should be finite: {my}");
+            assert!(mx > 5.0, "expected extrapolated mx > 5.0, got {mx}");
+        }
+        other => panic!("expected Vec2, got {other:?}"),
+    }
+}
+
 
