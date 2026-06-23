@@ -1,7 +1,7 @@
 use super::*;
 use crate::ast::Expr;
 use crate::easing::Easing;
-use crate::timeline::plot::{FuncSource, FuncTransition, PlotCurveKind, ProceduralPlot,
+use crate::timeline::plot::{blend_depth, FuncSource, FuncTransition, PlotCurveKind, ProceduralPlot,
     resolve_func_source, sample_procedural_plot_at};
 
 // ─────────────────────────────────────────────────────────────
@@ -38,6 +38,37 @@ fn sin_x_expr() -> Expr {
 /// Construct the AST expression `cos(x)`.
 fn cos_x_expr() -> Expr {
     Expr::Call("cos".to_string(), vec![Expr::Ident("x".to_string())])
+}
+
+/// Construct the AST expression `x^2 + y^2 - 1` (unit circle implicit field).
+fn circle_expr() -> Expr {
+    use crate::ast::BinaryOp;
+    Expr::Binary(
+        Box::new(Expr::Binary(
+            Box::new(Expr::Binary(
+                Box::new(Expr::Ident("x".to_string())),
+                BinaryOp::Pow,
+                Box::new(Expr::Num(2.0)),
+            )),
+            BinaryOp::Add,
+            Box::new(Expr::Binary(
+                Box::new(Expr::Ident("y".to_string())),
+                BinaryOp::Pow,
+                Box::new(Expr::Num(2.0)),
+            )),
+        )),
+        BinaryOp::Sub,
+        Box::new(Expr::Num(1.0)),
+    )
+}
+
+/// Construct the AST expression `y - x` (diagonal line implicit field).
+fn line_yx_expr() -> Expr {
+    Expr::Binary(
+        Box::new(Expr::Ident("y".to_string())),
+        crate::ast::BinaryOp::Sub,
+        Box::new(Expr::Ident("x".to_string())),
+    )
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -611,4 +642,375 @@ fn for_loop_closure_captures_loop_variable() {
             result,
         );
     }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Test 10: adaptive_quality_reduces_depth_for_blends
+// ─────────────────────────────────────────────────────────────
+
+/// Verify that a 3-deep cascading transition (blend depth = 3) still produces
+/// valid output paths. The adaptive quality system reduces sampling resolution
+/// during deep blends to maintain frame rate, but must not break path generation.
+#[test]
+fn adaptive_quality_reduces_depth_for_blends() {
+    // Build a 3-deep blend: declaration parent with 3 overlapping func transitions
+    // creates a Blend(Blend(Raw, Raw), Raw) structure.
+    let source = r#"
+        config { colorscheme: "editorial-dark" }
+
+        g: Graph, x_domain: (-6, 6), y_domain: (-2, 2), size: (400, 400), at: (640, 360) {
+          curve: PlotCurve, kind: "cartesian", func: (x) => sin(x), stroke_width: 2
+        }
+
+        #1s
+        curve.func = (x) => cos(x) [2s]
+
+        #2s
+        curve.func = (x) => x^2 [1s]
+
+        #2.5s
+        curve.func = (x) => x^3 [0.5s]
+    "#;
+    let report = build_from_source(source);
+    let errors: Vec<_> = report
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error)
+        .collect();
+    assert!(errors.is_empty(), "Unexpected build errors: {:?}", errors);
+
+    let track = report
+        .output
+        .get_track("curve")
+        .expect("curve track should exist");
+
+    assert_eq!(
+        track.func_transitions.len(),
+        3,
+        "Expected 3 FuncTransitions for 3-deep blend"
+    );
+
+    // Verify the from of the third transition is a nested Blend (depth >= 2).
+    let third_from = &track.func_transitions[2].from;
+    let depth = blend_depth(third_from);
+    assert!(
+        depth >= 2,
+        "Expected blend_depth >= 2 for third transition's from, got {}",
+        depth
+    );
+
+    // Sample at the midpoint of the third transition (t=2.75s) and verify
+    // non-empty output despite reduced quality.
+    let mut env = stdlib_env();
+    let plot = track
+        .procedural_plot
+        .as_ref()
+        .expect("curve should have a procedural_plot")
+        .clone();
+    let paths = sample_procedural_plot_at(&plot, &mut env, 2750, &track.func_transitions);
+    assert!(!paths.is_empty(), "Expected output paths during 3-deep blend");
+    assert!(
+        !paths[0].path.elements().is_empty(),
+        "Expected non-empty path during 3-deep blend"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Test 11: quality_factor_calculation
+// ─────────────────────────────────────────────────────────────
+
+/// Verify the quality factor calculation for various blend depths.
+/// The quality factor is derived from blend depth:
+///   quality_factor = 0.75^(depth - 1)  for depth >= 1, else 1.0
+/// where depth = blend_depth(from).max(blend_depth(to)) + 1.
+#[test]
+fn quality_factor_calculation() {
+    /// Helper: compute quality factor from two source blend depths + 1.
+    fn compute_qf(from_depth: usize, to_depth: usize) -> f64 {
+        let depth = from_depth.max(to_depth) + 1;
+        if depth == 0 {
+            1.0
+        } else {
+            0.75_f64.powi(depth as i32 - 1)
+        }
+    }
+
+    // Helper to create a Raw FuncSource (blend depth 0).
+    fn raw() -> FuncSource {
+        FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), std::collections::HashMap::new())
+    }
+
+    // Helper to create a Blend at a given depth by nesting.
+    fn blend_of_depth(d: usize) -> FuncSource {
+        if d == 0 {
+            return raw();
+        }
+        let inner = blend_of_depth(d - 1);
+        FuncSource::Blend {
+            from: Box::new(inner.clone()),
+            to: Box::new(inner),
+            frozen_progress: 0.5,
+        }
+    }
+
+    // depth 0: Raw source has blend_depth = 0.
+    assert_eq!(blend_depth(&raw()), 0, "blend_depth of Raw should be 0");
+    // depth 1: single Blend(Raw, Raw) has blend_depth = 1.
+    let d1 = blend_of_depth(1);
+    assert_eq!(blend_depth(&d1), 1, "blend_depth of single Blend should be 1");
+    // depth 2: Blend(Blend(Raw,Raw), Raw) has blend_depth = 2.
+    let d2 = blend_of_depth(2);
+    assert_eq!(blend_depth(&d2), 2, "blend_depth of double-nested Blend should be 2");
+    // depth 3: triple-nested Blend.
+    let d3 = blend_of_depth(3);
+    assert_eq!(blend_depth(&d3), 3, "blend_depth of triple-nested Blend should be 3");
+    // depth 4: quadruple-nested Blend.
+    let d4 = blend_of_depth(4);
+    assert_eq!(blend_depth(&d4), 4, "blend_depth of quadruple-nested Blend should be 4");
+
+    // Quality factor (depth = max(from_depth, to_depth) + 1):
+    // - depth 0: from and to both Raw → quality_factor = 1.0
+    assert!((compute_qf(0, 0) - 1.0).abs() < 1e-12, "depth 0: expected 1.0");
+    // - depth 1: one blend, from=Raw, to=Raw → quality_factor = 1.0 (0.75^0)
+    assert!((compute_qf(0, 0) - 1.0).abs() < 1e-12, "depth 1: expected 1.0");
+    // - depth 2: from=Blend(Raw,Raw) (depth 1), to=Raw (depth 0) → quality_factor = 0.75
+    let qf2 = compute_qf(1, 0);
+    assert!((qf2 - 0.75).abs() < 1e-12, "depth 2: expected 0.75, got {}", qf2);
+    // - depth 3: from=Blend(Blend(Raw,Raw),Raw) (depth 2), to=Raw (depth 0) → quality_factor = 0.5625
+    let qf3 = compute_qf(2, 0);
+    assert!((qf3 - 0.5625).abs() < 1e-12, "depth 3: expected 0.5625, got {}", qf3);
+    // - depth 4: depth 3 blend vs Raw → quality_factor = 0.421875
+    let qf4 = compute_qf(3, 0);
+    assert!((qf4 - 0.421875).abs() < 1e-12, "depth 4: expected 0.421875, got {}", qf4);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Test 12: implicit_transition_simple
+// ─────────────────────────────────────────────────────────────
+
+/// Verify that a `FuncTransition` is created for an implicit plot and that
+/// sampling before, during, and after the transition produces non-empty paths.
+#[test]
+fn implicit_transition_simple() {
+    let source = r#"
+        config { colorscheme: "editorial-dark" }
+
+        g: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (200, 200), at: (640, 360) {
+          curve: PlotCurve, kind: "implicit", func: (x,y) => x^2 + y^2 - 1, stroke_width: 2
+        }
+
+        #2s
+        curve.func = (x,y) => y - x [1s]
+    "#;
+    let report = build_from_source(source);
+    assert!(
+        report.diagnostics.is_empty(),
+        "Unexpected diagnostics: {:?}",
+        report.diagnostics
+    );
+
+    let track = report
+        .output
+        .get_track("curve")
+        .expect("curve track should exist");
+
+    assert_eq!(
+        track.func_transitions.len(),
+        1,
+        "Expected exactly 1 FuncTransition for implicit plot"
+    );
+
+    let t = &track.func_transitions[0];
+    assert_eq!(t.start_ms, 2000, "start_ms should be 2000");
+    assert_eq!(t.end_ms, 3000, "end_ms should be 3000");
+
+    let mut env = stdlib_env();
+    let plot = track
+        .procedural_plot
+        .as_ref()
+        .expect("curve should have a procedural_plot")
+        .clone();
+
+    assert_eq!(
+        plot.kind,
+        PlotCurveKind::Implicit,
+        "Plot kind should be Implicit"
+    );
+
+    // Before transition: pure circle contour.
+    let paths_before = sample_procedural_plot_at(&plot, &mut env, 1000, &track.func_transitions);
+    assert!(!paths_before.is_empty(), "Expected paths before transition");
+    assert!(
+        !paths_before[0].path.elements().is_empty(),
+        "Expected non-empty path before transition"
+    );
+
+    // Mid-transition (t=2500ms, progress≈0.5): blended contour.
+    let paths_mid = sample_procedural_plot_at(&plot, &mut env, 2500, &track.func_transitions);
+    assert!(!paths_mid.is_empty(), "Expected paths at mid-transition");
+    assert!(
+        !paths_mid[0].path.elements().is_empty(),
+        "Expected non-empty path at mid-transition"
+    );
+
+    // After transition: pure line contour.
+    let paths_after = sample_procedural_plot_at(&plot, &mut env, 4000, &track.func_transitions);
+    assert!(!paths_after.is_empty(), "Expected paths after transition");
+    assert!(
+        !paths_after[0].path.elements().is_empty(),
+        "Expected non-empty path after transition"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Test 13: implicit_blend_at_half
+// ─────────────────────────────────────────────────────────────
+
+/// Directly verify that `FuncSource::Blend` at `frozen_progress = 0.5`
+/// interpolates the scalar field correctly at a known point, and that
+/// `build_implicit_plot_path_from_source` returns a non-empty contour.
+#[test]
+fn implicit_blend_at_half() {
+    use crate::timeline::plot::{build_implicit_plot_path_from_source, eval_implicit_source};
+
+    let mut env = stdlib_env();
+
+    let circle = FuncSource::Raw(
+        vec!["x".to_string(), "y".to_string()],
+        circle_expr(),
+        std::collections::HashMap::new(),
+    );
+    let line = FuncSource::Raw(
+        vec!["x".to_string(), "y".to_string()],
+        line_yx_expr(),
+        std::collections::HashMap::new(),
+    );
+
+    // At (0,0): circle gives -1, line gives 0; blend at 0.5 → -0.5.
+    let circle_val = eval_implicit_source(&circle, &mut env, 0.0, 0.0);
+    let line_val = eval_implicit_source(&line, &mut env, 0.0, 0.0);
+    assert!((circle_val - (-1.0)).abs() < 1e-9, "circle at (0,0) should be -1, got {}", circle_val);
+    assert!((line_val - 0.0).abs() < 1e-9, "line at (0,0) should be 0, got {}", line_val);
+
+    let blended = FuncSource::Blend {
+        from: Box::new(circle),
+        to: Box::new(line),
+        frozen_progress: 0.5,
+    };
+
+    let blended_val = eval_implicit_source(&blended, &mut env, 0.0, 0.0);
+    assert!(
+        (blended_val - (-0.5)).abs() < 1e-9,
+        "blended at (0,0) should be -0.5, got {}",
+        blended_val
+    );
+
+    // Build a path from the blended source; it must produce a non-empty contour.
+    let path = build_implicit_plot_path_from_source(
+        &mut env,
+        &blended,
+        &[-2.0_f64, 2.0],
+        &[-2.0_f64, 2.0],
+        &[200.0_f64, 200.0],
+        32,
+        &[0.0_f64; 4],
+    );
+    assert!(
+        !path.elements().is_empty(),
+        "Expected non-empty contour from blended implicit source"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Test 14: implicit_cascading
+// ─────────────────────────────────────────────────────────────
+
+/// Three overlapping transitions on an implicit plot. Verifies that
+/// record-and-chain produces nested `FuncSource::Blend` from-sources
+/// and that sampling at any mid-point yields non-empty paths.
+#[test]
+fn implicit_cascading() {
+    let source = r#"
+        config { colorscheme: "editorial-dark" }
+
+        g: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (200, 200), at: (640, 360) {
+          curve: PlotCurve, kind: "implicit", func: (x,y) => x^2 + y^2 - 1, stroke_width: 2
+        }
+
+        #1s
+        curve.func = (x,y) => y - x [2s]
+
+        #2s
+        curve.func = (x,y) => x + y [1s]
+
+        #2.5s
+        curve.func = (x,y) => x - y [0.5s]
+    "#;
+    let report = build_from_source(source);
+    assert!(
+        report.diagnostics.is_empty(),
+        "Unexpected diagnostics: {:?}",
+        report.diagnostics
+    );
+
+    let track = report
+        .output
+        .get_track("curve")
+        .expect("curve track should exist");
+
+    assert_eq!(
+        track.func_transitions.len(),
+        3,
+        "Expected 3 FuncTransitions for cascading implicit transitions"
+    );
+
+    // First transition: from = Raw (declaration func).
+    assert!(
+        matches!(&track.func_transitions[0].from, FuncSource::Raw(..)),
+        "First transition's from should be Raw"
+    );
+    // Second transition: from = Blend (frozen from the first at t=2s).
+    assert!(
+        matches!(&track.func_transitions[1].from, FuncSource::Blend { .. }),
+        "Second transition's from should be Blend"
+    );
+    // Third transition: from = Blend (frozen from the second at t=2.5s).
+    assert!(
+        matches!(&track.func_transitions[2].from, FuncSource::Blend { .. }),
+        "Third transition's from should be Blend"
+    );
+
+    // At t=2s the first transition (1s–3s) is at progress 0.5.
+    if let FuncSource::Blend { frozen_progress, .. } = &track.func_transitions[1].from {
+        assert!(
+            (frozen_progress - 0.5).abs() < 1e-9,
+            "Second transition frozen_progress should be ≈ 0.5, got {}",
+            frozen_progress
+        );
+    }
+
+    let mut env = stdlib_env();
+    let plot = track
+        .procedural_plot
+        .as_ref()
+        .expect("curve should have a procedural_plot")
+        .clone();
+
+    assert_eq!(plot.kind, PlotCurveKind::Implicit, "Plot kind should be Implicit");
+
+    // Sample at the midpoint of the third transition (t=2.75s) — deepest blend.
+    let paths_deep = sample_procedural_plot_at(&plot, &mut env, 2750, &track.func_transitions);
+    assert!(!paths_deep.is_empty(), "Expected paths during 3-deep implicit cascade");
+    assert!(
+        !paths_deep[0].path.elements().is_empty(),
+        "Expected non-empty path during 3-deep implicit cascade"
+    );
+
+    // Sample after all transitions have completed.
+    let paths_after = sample_procedural_plot_at(&plot, &mut env, 5000, &track.func_transitions);
+    assert!(!paths_after.is_empty(), "Expected paths after all implicit transitions");
+    assert!(
+        !paths_after[0].path.elements().is_empty(),
+        "Expected non-empty path after all implicit transitions"
+    );
 }

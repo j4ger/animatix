@@ -375,6 +375,20 @@ fn eval_vec2(
     }
 }
 
+/// Compute the depth of nested [`FuncSource::Blend`] trees.
+///
+/// Returns 0 for [`FuncSource::Raw`], and 1 + max(blend_depth of children)
+/// for [`FuncSource::Blend`]. Used by the adaptive quality system to reduce
+/// sampling quality during cascading transitions.
+pub(crate) fn blend_depth(source: &FuncSource) -> usize {
+    match source {
+        FuncSource::Raw(..) => 0,
+        FuncSource::Blend { from, to, .. } => {
+            1 + blend_depth(from).max(blend_depth(to))
+        }
+    }
+}
+
 pub(crate) fn sample_recursive_cartesian(
     min_t: f64,
     max_t: f64,
@@ -680,10 +694,46 @@ pub(crate) fn evaluate_implicit_value(
         .as_num()
 }
 
-pub(crate) fn build_implicit_plot_path(
+/// Evaluate a [`FuncSource`] at (x, y) coordinates, returning a scalar value
+/// for implicit contour detection. Supports blended transitions via recursive
+/// evaluation of `Blend` nodes.
+pub(crate) fn eval_implicit_source(
+    source: &FuncSource,
     env: &mut Environment,
-    arg_names: &[String],
-    body: &Expr,
+    x: f64,
+    y: f64,
+) -> f64 {
+    match source {
+        FuncSource::Raw(args, body, captures) => {
+            // Set up environment with captures
+            for (name, value) in captures {
+                env.set(name, value.clone());
+            }
+            // Bind both arguments
+            if args.len() >= 2 {
+                env.set(&args[0], Value::Num(x));
+                env.set(&args[1], Value::Num(y));
+            }
+            // Evaluate and return scalar
+            match evaluate_expr(body, env) {
+                Ok(Value::Num(n)) => n,
+                _ => f64::NAN,
+            }
+        }
+        FuncSource::Blend { from, to, frozen_progress } => {
+            let from_val = eval_implicit_source(from, env, x, y);
+            let to_val = eval_implicit_source(to, env, x, y);
+            from_val + (to_val - from_val) * frozen_progress
+        }
+    }
+}
+
+/// Build an implicit plot contour path from a [`FuncSource`], evaluating
+/// the scalar field on a grid and extracting zero-contours via marching
+/// squares. Supports function transitions via blend sources.
+pub(crate) fn build_implicit_plot_path_from_source(
+    env: &mut Environment,
+    source: &FuncSource,
     p_x_domain: &[f64; 2],
     p_y_domain: &[f64; 2],
     p_size: &[f64; 2],
@@ -708,7 +758,7 @@ pub(crate) fn build_implicit_plot_path(
         let y = p_y_domain[0] + yi as f64 * dy;
         for (xi, val) in row.iter_mut().enumerate() {
             let x = p_x_domain[0] + xi as f64 * dx;
-            *val = evaluate_implicit_value(env, arg_names, body, x, y);
+            *val = eval_implicit_source(source, env, x, y);
         }
     }
     crate::timeline::utils::enable_eval_cache();
@@ -766,10 +816,9 @@ pub(crate) fn build_implicit_plot_path(
                     path.line_to(intersections[1].1);
                 }
                 4 => {
-                    let center = evaluate_implicit_value(
+                    let center = eval_implicit_source(
+                        source,
                         env,
-                        arg_names,
-                        body,
                         (x0 + x1) * 0.5,
                         (y0 + y1) * 0.5,
                     );
@@ -823,6 +872,34 @@ pub(crate) fn build_implicit_plot_path(
     }
 
     path
+}
+
+/// Legacy wrapper that builds an implicit plot path from raw args/body.
+/// Creates a `FuncSource::Raw` and delegates to [`build_implicit_plot_path_from_source`].
+pub(crate) fn build_implicit_plot_path(
+    env: &mut Environment,
+    arg_names: &[String],
+    body: &Expr,
+    p_x_domain: &[f64; 2],
+    p_y_domain: &[f64; 2],
+    p_size: &[f64; 2],
+    resolution: usize,
+    padding: &[f64; 4],
+) -> kurbo::BezPath {
+    let source = FuncSource::Raw(
+        arg_names.to_vec(),
+        body.clone(),
+        std::collections::HashMap::new(),
+    );
+    build_implicit_plot_path_from_source(
+        env,
+        &source,
+        p_x_domain,
+        p_y_domain,
+        p_size,
+        resolution,
+        padding,
+    )
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -918,16 +995,7 @@ pub fn sample_procedural_plot_at(
     );
     let active = transitions.iter().find_map(|t| t.active_at(time_ms));
     let func_ref: PlotFuncRef<'_> = if let Some((progress, from, to, _)) = active {
-        if plot.kind == PlotCurveKind::Implicit {
-            tracing::warn!(
-                "func transitions on implicit plots are not yet supported; \
-                 falling back to declaration func for actor '{}'",
-                plot.actor_label
-            );
-            PlotFuncRef::Single(&decl_source)
-        } else {
-            PlotFuncRef::Blended { from, to, progress }
-        }
+        PlotFuncRef::Blended { from, to, progress }
     } else {
         // Use the last completed transition's target, or the declaration func.
         let last_complete = transitions
@@ -940,6 +1008,20 @@ pub fn sample_procedural_plot_at(
         }
     };
 
+    // Compute quality factor for adaptive sampling during function transitions.
+    // Reduces sampling quality exponentially with nested blend depth to maintain
+    // frame rate during cascading transitions.
+    let quality_factor = if let PlotFuncRef::Blended { from, to, .. } = &func_ref {
+        let depth = blend_depth(from).max(blend_depth(to)) + 1;
+        // depth 1: 0.75, depth 2: 0.5, depth 3: 0.375, etc.
+        0.75_f64.powi(depth as i32 - 1)
+    } else {
+        1.0
+    };
+    let actual_max_depth = (plot.max_depth as f64 * quality_factor).max(2.0) as usize;
+    let actual_tolerance = plot.tolerance / quality_factor;
+    let actual_resolution = (plot.resolution as f64 * quality_factor).max(8.0) as usize;
+
     let (min_t, max_t) = if plot.kind == PlotCurveKind::Cartesian {
         (plot.p_x_domain[0], plot.p_x_domain[1])
     } else if plot.kind == PlotCurveKind::Implicit {
@@ -949,16 +1031,25 @@ pub fn sample_procedural_plot_at(
     };
 
     if plot.kind == PlotCurveKind::Implicit {
-        // For implicit plots, fall back to the declaration body (transitions
-        // are not yet supported and were warned about above).
-        let path = build_implicit_plot_path(
+        // Construct a FuncSource from the resolved func_ref, supporting
+        // blended transitions for implicit plots.
+        let implicit_source = match func_ref {
+            PlotFuncRef::Single(src) => src.clone(),
+            PlotFuncRef::Blended { from, to, progress } => {
+                FuncSource::Blend {
+                    from: Box::new(from.clone()),
+                    to: Box::new(to.clone()),
+                    frozen_progress: progress,
+                }
+            }
+        };
+        let path = build_implicit_plot_path_from_source(
             env,
-            &plot.func_args,
-            &plot.func_body,
+            &implicit_source,
             &plot.p_x_domain,
             &plot.p_y_domain,
             &plot.p_size,
-            plot.resolution.max(8),
+            actual_resolution,
             &plot.padding,
         );
         vello_paths.push(VelloPath {
@@ -1024,7 +1115,7 @@ pub fn sample_procedural_plot_at(
 
         if plot.kind == PlotCurveKind::Cartesian {
             sample_recursive_cartesian(
-                min_t, max_t, p0, p1, 0, plot.max_depth, plot.tolerance,
+                min_t, max_t, p0, p1, 0, actual_max_depth, actual_tolerance,
                 env, &arg_name, &func_ref,
                 &plot.p_x_domain, &plot.p_y_domain, &plot.p_size,
                 &plot.padding,
@@ -1032,7 +1123,7 @@ pub fn sample_procedural_plot_at(
             );
         } else if plot.kind == PlotCurveKind::Polar {
             sample_recursive_polar(
-                min_t, max_t, p0, p1, 0, plot.max_depth, plot.tolerance,
+                min_t, max_t, p0, p1, 0, actual_max_depth, actual_tolerance,
                 env, &arg_name, &func_ref,
                 &plot.p_x_domain, &plot.p_y_domain, &plot.p_size,
                 &plot.padding,
@@ -1040,7 +1131,7 @@ pub fn sample_procedural_plot_at(
             );
         } else {
             sample_recursive_parametric(
-                min_t, max_t, p0, p1, 0, plot.max_depth, plot.tolerance,
+                min_t, max_t, p0, p1, 0, actual_max_depth, actual_tolerance,
                 env, &arg_name, &func_ref,
                 &plot.p_x_domain, &plot.p_y_domain, &plot.p_size,
                 &plot.padding,

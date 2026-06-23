@@ -287,21 +287,6 @@ impl Timeline {
                     return;
                 }
                 ActorKindId::PlotCurve => {
-                    // Implicit plots use a completely separate build-time code path
-                    // and do not support func transitions.
-                    if let Some(ref plot) = track.procedural_plot {
-                        if plot.kind == PlotCurveKind::Implicit {
-                            diagnostics.push(
-                                Diagnostic::error(
-                                    DiagnosticCode::InvalidPropertyValue,
-                                    DiagnosticPhase::Build,
-                                    "func transitions are not yet supported for implicit plots (only cartesian, polar, and parametric modes are supported)".to_string(),
-                                )
-                                .with_subject(&assignment_subject),
-                            );
-                            return;
-                        }
-                    }
                     // Evaluate RHS to a closure.
             let closure_val = match evaluate_expr(value, &eval_env) {
                 Ok(v) => v,
