@@ -21,6 +21,19 @@ jobs:
       - name: Run tests
         run: cargo test --workspace
 
+  no-video:
+    name: Build without video feature
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Intentionally no FFmpeg system deps — verifies video is truly opt-in
+      - name: Build animatix crate without video
+        run: cargo build -p animatix --no-default-features --features render,text,svg
+      - name: Test animatix crate without video
+        run: cargo test -p animatix --lib --no-default-features --features render,text,svg
+
   clippy:
     name: Clippy
     runs-on: ubuntu-latest

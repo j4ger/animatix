@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.85"
 
 [features]
-default = ["render", "video", "text", "svg"]
+default = ["render", "text", "svg"]
 render = ["dep:wgpu", "dep:vello", "dep:bytemuck", "dep:pollster", "dep:image"]
 video = ["dep:rsmpeg", "dep:image"]
 text = ["dep:typst", "dep:typst-layout", "dep:fontdb", "dep:ttf-parser"]

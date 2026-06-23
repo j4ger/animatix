@@ -16,6 +16,15 @@ use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
 use tree_sitter::{Language, Node, Parser, Tree};
 
+/// Intermediate representation for items inside a children_block.
+/// Used during CST-to-AST conversion to collect inline items before
+/// merging properties into their preceding actor.
+enum RawItem {
+    Item(InlineItem),
+    Property(Property),
+    Children(Vec<InlineItem>),
+}
+
 use std::sync::LazyLock;
 
 static LANGUAGE: LazyLock<Language> = LazyLock::new(tree_sitter_animatix::language);
@@ -1104,60 +1113,97 @@ impl<'a> TsConverter<'a> {
         args
     }
 
-    /// Convert children_block items into `Vec<InlineItem>`.  
+    /// Convert children_block items into `Vec<InlineItem>`.
+    ///
+    /// With the new inline grammar, children_block contains an `inline_items`
+    /// node (if non-empty). Each `inline_items` node contains one or more
+    /// `inline_item` nodes. Each `inline_item` wraps a single variant node
+    /// (inline_actor_declaration, inline_property, etc.).
+    ///
+    /// Properties and standalone children blocks are post-hoc attached to the
+    /// preceding actor (matching the PEG parser's FlatItem merge logic).
     fn convert_children_block_items(&mut self, parent: Node) -> Vec<InlineItem> {
-        let mut items = Vec::new();
+        let mut raw: Vec<RawItem> = Vec::new();
         let mut cursor = parent.walk();
         for child in parent.named_children(&mut cursor) {
             match child.kind() {
-                "children_block" => {
-                    let mut inner_cursor = child.walk();
-                    for item_node in child.named_children(&mut inner_cursor) {
-                        if let Some(item) = self.convert_inline_item(item_node) {
-                            items.push(item);
+                "children_block" | "inline_children_block" => {
+                    // Unwrap the optional inline_items layer
+                    let mut ic = child.walk();
+                    for inline_items_node in child.named_children(&mut ic) {
+                        if inline_items_node.kind() == "inline_items" {
+                            let mut iic = inline_items_node.walk();
+                            for item_node in inline_items_node.named_children(&mut iic) {
+                                if item_node.kind() == "inline_item" {
+                                    if let Some(raw_item) = self.collect_inline_item_variant(item_node) {
+                                        raw.push(raw_item);
+                                    }
+                                }
+                            }
                         }
                     }
                 }
-                "slot_marker" => items.push(InlineItem::SlotMarker),
+                "slot_marker" => raw.push(RawItem::Item(InlineItem::SlotMarker)),
                 "slot_fill" => {
                     let slot_name = child
                         .child_by_field_name("name")
                         .map(|n| self.node_text(n).to_string())
                         .unwrap_or_default();
-                    let fill_items = self.convert_block_body_items(child);
-                    items.push(InlineItem::SlotFill {
+                    let fill_items = self.convert_children_block_items(child);
+                    raw.push(RawItem::Item(InlineItem::SlotFill {
                         slot: slot_name,
                         items: fill_items,
-                    });
+                    }));
                 }
                 _ => {}
             }
         }
-        items
-    }
 
-    fn convert_block_body_items(&mut self, parent: Node) -> Vec<InlineItem> {
-        let mut items = Vec::new();
-        let mut cursor = parent.walk();
-        for child in parent.named_children(&mut cursor) {
-            match child.kind() {
-                "block" | "children_block" => {
-                    let mut inner_cursor = child.walk();
-                    for item_node in child.named_children(&mut inner_cursor) {
-                        if let Some(item) = self.convert_inline_item(item_node) {
-                            items.push(item);
+        // Post-process: attach properties / standalone children to the preceding actor.
+        let mut result = Vec::new();
+        for item in raw {
+            match item {
+                RawItem::Item(i) => result.push(i),
+                RawItem::Property(p) => {
+                    if let Some(last) = result.last_mut() {
+                        match last {
+                            InlineItem::Labeled { props, .. }
+                            | InlineItem::Anonymous { props, .. } => {
+                                props.push(p);
+                            }
+                            _ => {}
                         }
                     }
                 }
-                _ => {}
+                RawItem::Children(c) => {
+                    if let Some(last) = result.last_mut() {
+                        match last {
+                            InlineItem::Labeled { children, .. }
+                            | InlineItem::Anonymous { children, .. } => {
+                                *children = c;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
             }
         }
-        items
+        result
     }
 
-    fn convert_inline_item(&mut self, node: Node) -> Option<InlineItem> {
+    /// Extract the single variant from an `inline_item` wrapper node.
+    fn collect_inline_item_variant(&mut self, node: Node) -> Option<RawItem> {
+        let mut cursor = node.walk();
+        for variant_node in node.named_children(&mut cursor) {
+            return self.convert_inline_item_variant_to_raw(variant_node);
+        }
+        None
+    }
+
+    /// Convert a single inline variant node to a `RawItem`.
+    fn convert_inline_item_variant_to_raw(&mut self, node: Node) -> Option<RawItem> {
         match node.kind() {
-            "actor_declaration" => {
+            "inline_actor_declaration" => {
                 let label = node
                     .child_by_field_name("label")
                     .map(|n| self.node_text(n).to_string())
@@ -1166,39 +1212,71 @@ impl<'a> TsConverter<'a> {
                     .child_by_field_name("type")
                     .map(|n| self.strip_quotes(self.node_text(n)))
                     .unwrap_or_default();
-                let props = self.convert_children_properties(node);
                 let modifiers = self.convert_modifier_block_node(node);
                 let children = self.convert_children_block_items(node);
-                Some(InlineItem::Labeled {
+                Some(RawItem::Item(InlineItem::Labeled {
                     label,
                     array_index: None,
                     ty,
-                    props,
+                    props: Vec::new(),
                     modifiers,
                     children,
-                })
+                }))
             }
-            "slot_marker" => Some(InlineItem::SlotMarker),
-            "slot_fill" => {
+            "inline_anonymous_actor" => {
+                let ty = node
+                    .child_by_field_name("type")
+                    .map(|n| self.strip_quotes(self.node_text(n)))
+                    .unwrap_or_default();
+                let modifiers = self.convert_modifier_block_node(node);
+                let children = self.convert_children_block_items(node);
+                Some(RawItem::Item(InlineItem::Anonymous {
+                    ty,
+                    props: Vec::new(),
+                    modifiers,
+                    children,
+                }))
+            }
+            "inline_property" => Some(RawItem::Property(self.convert_property(node))),
+            "inline_for_loop" => {
+                let var = node
+                    .child_by_field_name("variable")
+                    .map(|n| self.node_text(n).to_string())
+                    .unwrap_or_default();
+                let iterable = node
+                    .child_by_field_name("iterable")
+                    .and_then(|n| self.convert_expr(n))
+                    .unwrap_or(Expr::Null);
+                let body = self.convert_children_block_items(node);
+                Some(RawItem::Item(InlineItem::ForLoop {
+                    var,
+                    index_var: None,
+                    iterable,
+                    body,
+                }))
+            }
+            "inline_slot_marker" => Some(RawItem::Item(InlineItem::SlotMarker)),
+            "inline_slot_fill" => {
                 let slot_name = node
                     .child_by_field_name("name")
                     .map(|n| self.node_text(n).to_string())
                     .unwrap_or_default();
-                let fill_items = self.convert_block_body_items(node);
-                Some(InlineItem::SlotFill {
+                let fill_items = self.convert_children_block_items(node);
+                Some(RawItem::Item(InlineItem::SlotFill {
                     slot: slot_name,
                     items: fill_items,
-                })
+                }))
             }
-            "comment" => None, // Skip comments in inline items
-            _ => {
-                if node.is_error() {
-                    self.push_error(node, format!("unexpected inline item '{}'", self.node_text(node)));
-                }
-                None
+            "inline_children_block" => {
+                // Standalone children block — attach to preceding actor
+                let sub_items = self.convert_children_block_items(node);
+                Some(RawItem::Children(sub_items))
             }
+            _ => None,
         }
     }
+
+
 
     /// Check if a node has a direct anonymous child with the given text.
     fn has_child_text(&self, node: Node, text: &str) -> bool {

@@ -22,14 +22,16 @@ Slot fill
 (source_file
   (slot_fill
     name: (identifier)
-    (block
-      (actor_declaration
-        label: (identifier)
-        type: (identifier)
-        (property_list
-          (property
-            name: (identifier)
-            value: (string)))))))
+    (children_block
+      (inline_items
+        (inline_item
+          (inline_actor_declaration
+            label: (identifier)
+            type: (identifier)))
+        (inline_item
+          (inline_actor_declaration
+            label: (identifier)
+            type: (string)))))))
 
 ==================
 Action invocation single target

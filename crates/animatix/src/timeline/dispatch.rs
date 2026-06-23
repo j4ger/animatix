@@ -97,8 +97,58 @@ pub struct AnimationTrack {
     /// Maps parameter name (e.g. "freq") to an f64 property track.
     pub plot_param_tracks: HashMap<String, PropertyTrack<f64>>,
 
-    // ── Func transition tracks ──
-    /// Keyframe-driven transitions between two function sources on a PlotCurve.
+    // ── Func transition tracks (side-channel) ──
+    /// Parallel transition storage for `func` property on `PlotCurve`.
+    ///
+    /// ## Why a side-channel?
+    ///
+    /// Most animatable properties (f32, Vec2, Color, etc.) implement the
+    /// [`Interpolate`] trait, which allows the standard `PropertyTrack<T>`
+    /// keyframe system to compute in-between values automatically. Closures
+    /// (function sources like `(x) => sin(x * freq)`) **cannot** implement
+    /// [`Interpolate`] — there is no meaningful way to "lerp" two closures.
+    ///
+    /// Instead of forcing closures into the `Interpolate` model, we store
+    /// function transitions as a **parallel side-channel** alongside the
+    /// normal property tracks. Each [`FuncTransition`] records a start time,
+    /// end time, easing, and the `from` / `to` [`FuncSource`] closures. At
+    /// frame evaluation time, [`sample_procedural_plot_at`] checks for active
+    /// transitions and blends the *outputs* of the two sources by the eased
+    /// progress value.
+    ///
+    /// ## How it works
+    ///
+    /// 1. Parsing discovers `func = <expr> [easing, duration]` and appends
+    ///    a [`FuncTransition`] to this vector (not to a `PropertyTrack`).
+    /// 2. At each frame, [`sample_procedural_plot_at`] finds the active
+    ///    transition (if any), evaluates both `from` and `to` closure
+    ///    outputs at each sample point, and lerps the outputs.
+    /// 3. Completed transitions are detected via [`FuncTransition::is_complete_at`]
+    ///    and the last completed `to` source is used as the new baseline.
+    ///
+    /// ## When to use this pattern
+    ///
+    /// Any property whose type cannot implement [`Interpolate`] should use a
+    /// side-channel. Candidates include:
+    ///
+    /// - **Closures / AST function bodies** (the current case)
+    /// - **Arbitrary AST nodes** that are structural rather than numeric
+    /// - **External resource handles** (e.g., image URLs that need loading)
+    ///
+    /// If the type *can* implement [`Interpolate`], prefer the standard
+    /// `PropertyTrack<T>` approach instead.
+    ///
+    /// ## Implementation checklist for new non-interpolatable properties
+    ///
+    /// 1. Define a transition struct (like [`FuncTransition`]) with
+    ///    `start_ms`, `end_ms`, `easing`, `from`, `to`.
+    /// 2. Define the source type (like [`FuncSource`]) with variants for
+    ///    raw values and mid-transition blends.
+    /// 3. Add a `Vec<YourTransition>` field to [`AnimationTrack`].
+    /// 4. Include the transition end times in [`max_keyframe_time`].
+    /// 5. Include non-empty transitions in [`has_any_keyframes`].
+    /// 6. At frame evaluation, find the active transition and blend
+    ///    the *outputs* of `from` and `to` by eased progress.
     pub func_transitions: Vec<FuncTransition>,
 
     // ── Highlight tier (sub-struct) ──

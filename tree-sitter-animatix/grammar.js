@@ -27,6 +27,18 @@ module.exports = grammar({
     [$._expression, $.object_expression],
     // expr[index] needs conflict with index_value
     [$._expression, $.index_value],
+    // inline_item: label: Type vs property name: value
+    [$.inline_actor_declaration, $.inline_property],
+    // inline_item: label: Type vs property name: value (identifier as expression)
+    [$.inline_actor_declaration, $._expression],
+    // identifier { } in inline context: object_expression vs type + children_block
+    [$.object_expression, $.children_block],
+    [$.object_expression, $.inline_anonymous_actor],
+    // GLR conflicts for inline items inside comma-separated context
+    [$.inline_anonymous_actor, $.inline_item],
+    [$.inline_actor_declaration, $.inline_item],
+    // inline_property inside inline_items vs property inside property_list (object_expression)
+    [$.inline_property, $.property],
   ],
 
   rules: {
@@ -35,14 +47,16 @@ module.exports = grammar({
     _statement: $ => choice(
       $.config,
       $.import_statement,
-      $.use_statement,
+      // Deprecated: use_statement is not supported by the runtime PEG parser
+      // $.use_statement,
       $.let_declaration,
       $.component_definition,
       $.action_definition,
       $.scene_declaration,
       $.keyframe,
       $.actor_declaration,
-      $.display_math,
+      // Deprecated: display_math is not supported by the runtime PEG parser
+      // $.display_math,
       $.property_assignment,
       $.reactive_binding,
       $.action_invocation,
@@ -142,14 +156,15 @@ module.exports = grammar({
       optional($.children_block)
     ),
 
-    display_math: $ => seq(
-      field('label', $.identifier),
-      ':',
-      '$$',
-      field('content', token(/[^$]*/)),
-      '$$',
-      optional($.modifier_block)
-    ),
+    // Deprecated: not supported by the runtime PEG parser.
+    // display_math: $ => seq(
+    //   field('label', $.identifier),
+    //   ':',
+    //   '$$',
+    //   field('content', token(/[^$]*/)),
+    //   '$$',
+    //   optional($.modifier_block)
+    // ),
 
     property_assignment: $ => seq(
       field('target', $.path_expression),
@@ -218,12 +233,18 @@ module.exports = grammar({
       optional($.modifier_block)
     ),
 
+    // Deprecated: not supported by the runtime PEG parser.
+    // use_statement: $ => seq(
+    //   'use',
+    //   field('path', $.path_expression)
+    // ),
+
     slot_marker: $ => '@slot',
 
     slot_fill: $ => seq(
       '@',
       field('name', $.identifier),
-      $.block
+      $.children_block
     ),
 
     block: $ => seq(
@@ -232,9 +253,68 @@ module.exports = grammar({
       '}'
     ),
 
+    // ── Inline items (used inside children_block) ───────────────────────
+
+    inline_items: $ => seq(
+      $.inline_item,
+      repeat(seq(',', $.inline_item))
+    ),
+
+    inline_item: $ => choice(
+      $.inline_actor_declaration,
+      $.inline_anonymous_actor,
+      $.inline_property,
+      $.inline_for_loop,
+      $.inline_slot_marker,
+      $.inline_slot_fill,
+      $.inline_children_block,
+    ),
+
+    inline_actor_declaration: $ => seq(
+      field('label', $.identifier),
+      ':',
+      field('type', choice($.identifier, $.string)),
+      optional($.modifier_block),
+      optional($.children_block)
+    ),
+
+    inline_anonymous_actor: $ => seq(
+      field('type', choice($.identifier, $.string)),
+      optional($.modifier_block),
+      optional($.children_block)
+    ),
+
+    inline_property: $ => seq(
+      field('name', choice($.path_expression, $.identifier, $.string)),
+      ':',
+      field('value', $._expression)
+    ),
+
+    inline_for_loop: $ => seq(
+      'for',
+      field('variable', $.identifier),
+      'in',
+      field('iterable', $._expression),
+      $.children_block
+    ),
+
+    inline_slot_marker: $ => '@slot',
+
+    inline_slot_fill: $ => seq(
+      '@',
+      field('name', $.identifier),
+      $.children_block
+    ),
+
+    inline_children_block: $ => seq(
+      '{',
+      optional($.inline_items),
+      '}'
+    ),
+
     children_block: $ => seq(
       '{',
-      repeat($._statement),
+      optional($.inline_items),
       '}'
     ),
 
@@ -388,10 +468,7 @@ module.exports = grammar({
     ),
 
     // New statements
-    use_statement: $ => seq(
-      'use',
-      field('path', $.path_expression)
-    ),
+    // Note: use_statement is now deprecated and moved next to play_statement.
 
     reactive_binding: $ => seq(
       field('target', choice($.identifier, $.path_expression)),

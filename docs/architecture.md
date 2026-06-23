@@ -49,7 +49,7 @@ The `Composition` type in `composition.rs` manages multiple scenes:
 - **Cycle detection**: Reports diagnostics on `play` edge cycles
 - **Routing**: `BuildTarget` enum automatically detects single vs multi-scene and dispatches
 
-See [§15 Multi-Scene Composition](#15-multi-scene-composition) below.
+See [§16 Multi-Scene Composition](#16-multi-scene-composition) below.
 
 ---
 
@@ -477,7 +477,80 @@ Compound properties that need cross-property coordination:
 
 ---
 
-## 10. Colorscheme System
+## 10. Non-Interpolatable Property Transitions
+
+### The Problem
+
+Most animatable properties in Animatix (f32, Vec2, Color, etc.) implement the
+`Interpolate` trait, which allows `PropertyTrack<T>` to compute in-between
+values automatically between keyframes. However, some property types cannot
+meaningfully implement `Interpolate`:
+
+- **Closures / function bodies** — `(x) => sin(x * freq)` — there is no
+  meaningful way to "lerp" two AST expression trees.
+- **Arbitrary AST nodes** — structural rather than numeric values.
+- **External resource handles** — image URLs, file paths that require loading.
+
+### The Solution: Side-Channel Pattern
+
+Instead of forcing these types into the `Interpolate` model, Animatix uses a
+**parallel side-channel** for transitions. The key idea is to store transition
+metadata (time range, easing, from/to values) in a separate `Vec<YourTransition>`
+field on `AnimationTrack`, completely outside the standard `PropertyTrack<T>`
+keyframe system.
+
+At frame evaluation time, the evaluation code checks for active transitions,
+evaluates both the `from` and `to` sources independently, and blends their
+*outputs* by the eased progress value — rather than interpolating the sources
+themselves.
+
+### Example: `func` Transitions
+
+The `func` property on `PlotCurve` is the primary example of this pattern:
+
+```rust
+// On AnimationTrack (dispatch.rs):
+pub func_transitions: Vec<FuncTransition>,
+```
+
+```rust
+// FuncTransition (plot.rs):
+pub struct FuncTransition {
+    pub start_ms: u64,
+    pub end_ms: u64,
+    pub easing: Easing,
+    pub from: FuncSource,
+    pub to: FuncSource,
+}
+```
+
+At render time, [`sample_procedural_plot_at`](../crates/animatix/src/timeline/plot.rs):
+1. Finds the active transition via `active_at(time_ms)`.
+2. Constructs a `PlotFuncRef::Blended { from, to, progress }`.
+3. Evaluates both functions at each sample point and lerps: `from + (to - from) * progress`.
+
+### When to Use This Pattern
+
+| Approach | When to Use |
+|----------|-------------|
+| **Standard `PropertyTrack<T>`** | Type implements `Interpolate` (all numeric types, strings, colors, etc.) |
+| **Side-channel transitions** | Type cannot implement `Interpolate` (closures, AST nodes, resource handles) |
+
+### Implementation Checklist
+
+To add transitions for a new non-interpolatable property type:
+
+1. Define a transition struct with `start_ms`, `end_ms`, `easing`, `from`, `to`.
+2. Define a source enum with variants for raw values and mid-transition blends.
+3. Add a `Vec<YourTransition>` field to `AnimationTrack`.
+4. Include transition end times in `max_keyframe_time()`.
+5. Include non-empty transitions in `has_any_keyframes()`.
+6. At frame evaluation, find the active transition and blend the *outputs*
+   of `from` and `to` by eased progress.
+
+---
+
+## 11. Colorscheme System
 
 Colorschemes provide declarative color contracts with two pieces:
 
@@ -502,7 +575,7 @@ Colorschemes provide declarative color contracts with two pieces:
 
 ---
 
-## 11. Source Write-Back (GUI)
+## 12. Source Write-Back (GUI)
 
 The GUI inspector persists edits back to `.amx` source via **AST mutation + re-serialization**:
 
@@ -562,7 +635,7 @@ Some GUI operations bypass `SourceEdit` and directly mutate `raw_statements`. Th
 
 ---
 
-## 12. Module & Component System
+## 13. Module & Component System
 
 ### Imports
 
@@ -586,7 +659,7 @@ pub component MetricCard(title: "Metric") {
 
 ---
 
-## 13. Analyzer & LSP
+## 14. Analyzer & LSP
 
 Language intelligence is shared via `animatix-analyzer`:
 
@@ -605,7 +678,7 @@ animatix-gui (direct calls)    animatix-lsp (tower-lsp, JSON-RPC)
 
 ---
 
-## 14. Primitive Architecture
+## 15. Primitive Architecture
 
 Adding a new primitive requires **3 touch points** via the `Primitive` trait:
 
@@ -657,7 +730,7 @@ Not every visual variation needs its own primitive. The rule of thumb:
 
 ---
 
-## 15. Multi-Scene Composition
+## 16. Multi-Scene Composition
 
 Core concepts:
 - `# SceneName` declares a scene; `play SceneName [transition, duration]` declares edges.
@@ -679,7 +752,7 @@ Core concepts:
 
 ---
 
-## 16. File Structure
+## 17. File Structure
 
 ```
 crates/
@@ -732,7 +805,7 @@ incompatible:
 These sites use guardrail tests (in `format_core.rs` and `apply.rs`) to ensure
 variant coverage is reviewed when new AST variants are added.
 
-## 17. Crate Split (Completed 2026-06-02)
+## 18. Crate Split (Completed 2026-06-02)
 
 `animatix-syntax` was extracted from the core `animatix` crate. `animatix-analyzer` now depends only on `animatix-syntax`, eliminating WGPU/Vello from the LSP compile graph.
 

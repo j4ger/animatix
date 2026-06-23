@@ -249,6 +249,7 @@ impl Timeline {
                     y_domain,
                     p_size,
                     [parent_pos[0] as f64, parent_pos[1] as f64],
+                    false, // absolute coordinates for actor properties
                 );
 
                 Property::new(

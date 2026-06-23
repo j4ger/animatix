@@ -9,7 +9,7 @@ default-run = "animatix-gui"
 default = []
 
 [dependencies]
-animatix = { path = "../animatix" }
+animatix = { path = "../animatix", features = ["video"] }
 animatix-analyzer = { path = "../animatix-analyzer" }
 animatix-syntax = { path = "../animatix-syntax" }
 crossbeam-channel = "0.5"

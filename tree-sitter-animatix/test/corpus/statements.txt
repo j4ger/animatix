@@ -19,7 +19,7 @@ Actor with children
 ==================
 
 row: Row, gap: 16 {
-  a: Rect, size: (60, 60)
+  a: Rect, size: (60, 60),
   b: Rect, size: (60, 60)
 }
 
@@ -32,16 +32,23 @@ row: Row, gap: 16 {
     (property_list
       (property name: (identifier) value: (number)))
     (children_block
-      (actor_declaration
-        label: (identifier)
-        type: (identifier)
-        (property_list
-          (property name: (identifier) value: (tuple_expression (number) (number)))))
-      (actor_declaration
-        label: (identifier)
-        type: (identifier)
-        (property_list
-          (property name: (identifier) value: (tuple_expression (number) (number))))))))
+      (inline_items
+        (inline_item
+          (inline_actor_declaration
+            label: (identifier)
+            type: (identifier)))
+        (inline_item
+          (inline_property
+            name: (identifier)
+            value: (tuple_expression (number) (number))))
+        (inline_item
+          (inline_actor_declaration
+            label: (identifier)
+            type: (identifier)))
+        (inline_item
+          (inline_property
+            name: (identifier)
+            value: (tuple_expression (number) (number))))))))
 
 ==================
 Let declaration
@@ -123,19 +130,7 @@ import "./lib/utils.amx"
   (import_statement
     path: (string)))
 
-==================
-Use statement
-==================
 
-use module.path
-
----
-
-(source_file
-  (use_statement
-    path: (path_expression
-      base: (identifier)
-      name: (identifier))))
 
 ==================
 Component definition
@@ -194,5 +189,69 @@ prop := expression
   (reactive_binding
     target: (identifier)
     value: (identifier)))
+
+==================
+Anonymous actors in children block
+==================
+
+container: List {
+  Rect, size: (60, 60),
+  Circle, radius: 25
+}
+
+---
+
+(source_file
+  (actor_declaration
+    label: (identifier)
+    type: (identifier)
+    (children_block
+      (inline_items
+        (inline_item
+          (inline_anonymous_actor
+            type: (identifier)))
+        (inline_item
+          (inline_property
+            name: (identifier)
+            value: (tuple_expression (number) (number))))
+        (inline_item
+          (inline_anonymous_actor
+            type: (identifier)))
+        (inline_item
+          (inline_property
+            name: (identifier)
+            value: (number)))))))
+
+==================
+Inline for loop in children block
+==================
+
+list: List {
+  for item in items {
+    Text, text: item
+  }
+}
+
+---
+
+(source_file
+  (actor_declaration
+    label: (identifier)
+    type: (identifier)
+    (children_block
+      (inline_items
+        (inline_item
+          (inline_for_loop
+            variable: (identifier)
+            iterable: (identifier)
+            (children_block
+              (inline_items
+                (inline_item
+                  (inline_anonymous_actor
+                    type: (identifier)))
+                (inline_item
+                  (inline_actor_declaration
+                    label: (identifier)
+                    type: (identifier)))))))))))
 
 

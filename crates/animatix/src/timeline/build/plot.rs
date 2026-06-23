@@ -1962,7 +1962,7 @@ fn make_graph_map_fn(
                 .unwrap_or([0.0, 0.0]);
 
             let [sx, sy] = super::utils::graph_math_to_screen(
-                mx, my, x_domain, y_domain, size, at,
+                mx, my, x_domain, y_domain, size, at, false,
             );
             Ok(Value::Vec2([sx, sy]))
         },

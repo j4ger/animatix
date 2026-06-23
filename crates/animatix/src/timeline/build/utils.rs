@@ -2,14 +2,18 @@
 //!
 //! Provides geometry/coordinate helpers used by multiple build submodules.
 
-/// Convert math coordinates to absolute screen coordinates for a graph actor.
+/// Convert math coordinates to screen coordinates for a graph actor.
 ///
-/// Returns `[screen_x, screen_y]` — absolute scene coordinates (offset by `at`).
+/// # Arguments
+/// * `mx`, `my` - Math coordinates to convert
+/// * `x_domain`, `y_domain` - Domain ranges for the math coordinates
+/// * `size` - Size of the graph in screen coordinates
+/// * `at` - Position of the graph in screen coordinates
+/// * `relative` - If true, returns coordinates relative to the graph's position.
+///                If false, returns absolute screen coordinates.
 ///
-/// This is the single source of truth for graph coordinate mapping, shared by:
-/// - Actor property mapping (`map_props_to_graph_parent`)
-/// - The `graph.map()` method injected as a `Value::NativeFn`
-/// - Plot curve geometry (via centered offsets, later translated by actor transform)
+/// # Returns
+/// Screen coordinates as `[x, y]` array.
 pub(super) fn graph_math_to_screen(
     mx: f64,
     my: f64,
@@ -17,6 +21,7 @@ pub(super) fn graph_math_to_screen(
     y_domain: [f64; 2],
     size: [f64; 2],
     at: [f64; 2],
+    relative: bool,
 ) -> [f64; 2] {
     let half_w = size[0] / 2.0;
     let half_h = size[1] / 2.0;
@@ -38,8 +43,11 @@ pub(super) fn graph_math_to_screen(
         0.0
     };
 
-    let screen_x = at[0] + offset_x;
-    let screen_y = at[1] + offset_y;
-
-    [screen_x, screen_y]
+    if relative {
+        [offset_x, offset_y]
+    } else {
+        let screen_x = at[0] + offset_x;
+        let screen_y = at[1] + offset_y;
+        [screen_x, screen_y]
+    }
 }

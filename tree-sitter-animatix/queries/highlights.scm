@@ -5,7 +5,6 @@
 [
   "config"
   "import"
-  "use"
   "as"
   "let"
   "pub"

@@ -1,4 +1,26 @@
 //!
+//! # Non-Interpolatable Property Transitions (Side-Channel Pattern)
+//!
+//! The `func` property on `PlotCurve` cannot use standard `PropertyTrack<T>`
+//! animation because closures (function bodies like `(x) => sin(x * freq)`)
+//! cannot implement the [`Interpolate`](crate::easing::Interpolate) trait.
+//! There is no meaningful way to "lerp" two closure ASTs.
+//!
+//! Instead, `func` transitions use a **side-channel** pattern:
+//!
+//! - [`FuncTransition`] records a time range, easing, and the `from`/`to`
+//!   [`FuncSource`] closures in a parallel `Vec` on `AnimationTrack`.
+//! - At frame time, [`sample_procedural_plot_at`] checks for active
+//!   transitions and blends the *outputs* of the two sources at each
+//!   sample point, rather than interpolating the sources themselves.
+//! - [`FuncSource::Blend`] captures a mid-flight snap when the transition
+//!   is frozen mid-progress (used for combined transitions).
+//!
+//! This pattern is intentional. Future property types whose values cannot
+//! implement `Interpolate` (e.g., AST nodes, resource handles) should use
+//! the same pattern. See `AnimationTrack::func_transitions` in `dispatch.rs`
+//! for the full implementation checklist.
+//!
 //! # Adaptive Sampling Algorithm
 //!
 //! The plotting functions in this module use recursive midpoint subdivision to
@@ -67,8 +89,23 @@ impl PlotCurveKind {
 // Func transition data model
 // ─────────────────────────────────────────────────────────────
 
-/// Source of a function for plot transitions — either a raw closure or a
-/// frozen blend used when a transition is snapped mid-flight.
+/// Source of a function for a `PlotCurve` `func` transition.
+///
+/// This type is part of the **side-channel pattern** for non-interpolatable
+/// properties — see [`AnimationTrack::func_transitions`](crate::timeline::dispatch::AnimationTrack::func_transitions)
+/// in `dispatch.rs` and the module-level documentation for the full
+/// explanation of why closures cannot use `PropertyTrack<T>`.
+///
+/// A `FuncSource` is either:
+/// - [`Raw`](FuncSource::Raw): a user-authored closure `(x) => expr`, stored
+///   as argument names and an [`Expr`] body. This is the steady-state form
+///   used when no transition is in progress.
+/// - [`Blend`](FuncSource::Blend): a frozen mid-transition snapshot captured
+///   when a second `func` transition begins before the first has finished.
+///   Rather than discarding in-progress blending state, the evaluator
+///   snapshots the current `(from, to, progress)` into a `Blend` node and
+///   uses it as the `from` for the next transition. This allows cascading
+///   function transitions without visual discontinuities.
 #[derive(Clone, Debug)]
 pub enum FuncSource {
     /// A closure defined by argument names and an expression body.
@@ -92,7 +129,26 @@ impl FuncSource {
     }
 }
 
-/// One keyframe-driven transition between two function sources.
+/// One keyframe-driven transition between two [`FuncSource`] values.
+///
+/// This is the core unit of the **side-channel pattern** for the `func`
+/// property on `PlotCurve`. Because closures cannot implement
+/// [`Interpolate`](crate::easing::Interpolate), `func` transitions are stored
+/// in a parallel `Vec<FuncTransition>` on `AnimationTrack` (the
+/// `func_transitions` field in `dispatch.rs`) rather than in a standard
+/// `PropertyTrack<T>`.
+///
+/// ## Lifecycle
+///
+/// 1. The build stage appends a new `FuncTransition` whenever it encounters
+///    a `func = <expr> [easing, duration]` keyframe on a `PlotCurve`.
+/// 2. At frame evaluation time, `sample_procedural_plot_at` iterates
+///    `func_transitions` and calls [`active_at`] to find the transition
+///    covering the current time.
+/// 3. If one is active, both `from` and `to` are evaluated at each sample
+///    point and the outputs are lerped by the eased progress value.
+/// 4. [`is_complete_at`] identifies the last completed transition so its
+///    `to` source serves as the static baseline between transitions.
 #[derive(Clone, Debug)]
 pub struct FuncTransition {
     pub start_ms: u64,
