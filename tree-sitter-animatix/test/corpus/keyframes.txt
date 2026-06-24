@@ -108,6 +108,26 @@ graph: Graph, size: (500, 500)
           (number))))))
 
 ==================
+Play statement dotted scene
+==================
+
+play intro.IntroScene [fade, 400ms]
+
+---
+
+(source_file
+  (play_statement
+    scene: (path_expression
+      base: (identifier)
+      name: (identifier))
+    (modifier_block
+      (modifier_list
+        (modifier
+          (identifier))
+        (modifier
+          (time_literal))))))
+
+==================
 Play statement
 ==================
 

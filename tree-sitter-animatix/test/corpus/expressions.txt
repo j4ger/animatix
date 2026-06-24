@@ -321,6 +321,23 @@ let x = (a + b)
         (identifier)))))
 
 ==================
+Closure expression single param no parens
+==================
+
+let f = x => x + 1
+
+---
+
+(source_file
+  (let_declaration
+    name: (identifier)
+    value: (closure_expression
+      param: (identifier)
+      (binary_expression
+        (identifier)
+        (number)))))
+
+==================
 Closure expression
 ==================
 

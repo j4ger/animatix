@@ -37,6 +37,16 @@ module.exports = grammar({
     // GLR conflicts for inline items inside comma-separated context
     [$.inline_anonymous_actor, $.inline_item],
     [$.inline_actor_declaration, $.inline_item],
+    // optional comma separator: 'identifier {' is ambiguous — children_block of
+    // the preceding inline item, or a new inline_children_block item.
+    [$.inline_anonymous_actor],
+    [$.inline_actor_declaration],
+    [$.inline_actor_declaration, $._expression, $.object_expression],
+    // label[expr]: Type — array_index bracket vs modifier_block bracket
+    [$.inline_actor_declaration, $.modifier],
+    // trailing comma in property_list: ',' is ambiguous after last property
+    [$.property_list],
+
     // inline_property inside inline_items vs property inside property_list (object_expression)
     [$.inline_property, $.property],
   ],
@@ -135,6 +145,7 @@ module.exports = grammar({
     action_definition: $ => seq(
       'action',
       field('name', $.identifier),
+      optional($.parameter_list),
       $.block
     ),
 
@@ -148,7 +159,9 @@ module.exports = grammar({
     time_unit: $ => choice('s', 'ms'),
 
     actor_declaration: $ => seq(
+      optional('pub'),
       field('label', $.identifier),
+      optional(seq('[', field('array_index', $._expression), ']')),
       ':',
       field('type', choice($.identifier, $.string)),
       optional(seq(',', $.property_list)),
@@ -156,7 +169,8 @@ module.exports = grammar({
       optional($.children_block)
     ),
 
-    // Deprecated: not supported by the runtime PEG parser.
+    // Deprecated: not supported by the runtime PEG parser (display_math form).
+    // The PEG parser supports $$..$$ as typst_shorthand, which requires scanner changes.
     // display_math: $ => seq(
     //   field('label', $.identifier),
     //   ':',
@@ -180,8 +194,8 @@ module.exports = grammar({
     ),
 
     target_list: $ => seq(
-      $.identifier,
-      repeat(seq(',', $.identifier))
+      choice($.identifier, $.path_expression),
+      repeat(seq(',', choice($.identifier, $.path_expression)))
     ),
 
     sequence_block: $ => seq(
@@ -202,7 +216,11 @@ module.exports = grammar({
 
     for_block: $ => seq(
       'for',
-      field('variable', $.identifier),
+      field('variable', choice(
+        $.identifier,
+        seq('(', $.identifier, repeat(seq(',', $.identifier)), ')')
+      )),
+      optional(seq(',', field('index_variable', $.identifier))),
       'in',
       field('iterable', $._expression),
       $.block
@@ -229,7 +247,7 @@ module.exports = grammar({
 
     play_statement: $ => seq(
       'play',
-      field('scene', $.identifier),
+      field('scene', choice($.identifier, $.path_expression)),
       optional($.modifier_block)
     ),
 
@@ -257,7 +275,11 @@ module.exports = grammar({
 
     inline_items: $ => seq(
       $.inline_item,
-      repeat(seq(',', $.inline_item))
+      repeat(choice(
+        seq(',', $.inline_item),
+        $.inline_item
+      )),
+      optional(',')
     ),
 
     inline_item: $ => choice(
@@ -272,6 +294,7 @@ module.exports = grammar({
 
     inline_actor_declaration: $ => seq(
       field('label', $.identifier),
+      optional(seq('[', field('array_index', $._expression), ']')),
       ':',
       field('type', choice($.identifier, $.string)),
       optional($.modifier_block),
@@ -292,7 +315,11 @@ module.exports = grammar({
 
     inline_for_loop: $ => seq(
       'for',
-      field('variable', $.identifier),
+      field('variable', choice(
+        $.identifier,
+        seq('(', $.identifier, repeat(seq(',', $.identifier)), ')')
+      )),
+      optional(seq(',', field('index_variable', $.identifier))),
       'in',
       field('iterable', $._expression),
       $.children_block
@@ -320,7 +347,8 @@ module.exports = grammar({
 
     property_list: $ => seq(
       $.property,
-      repeat(seq(',', $.property))
+      repeat(seq(',', $.property)),
+      optional(',')
     ),
 
     property: $ => seq(
@@ -446,12 +474,20 @@ module.exports = grammar({
       '}'
     ),
 
-    closure_expression: $ => seq(
-      '(',
-      optional(seq($.identifier, repeat(seq(',', $.identifier)))),
-      ')',
-      '=>',
-      $._expression
+    closure_expression: $ => choice(
+      seq(
+        '(',
+        optional(seq($.identifier, repeat(seq(',', $.identifier)))),
+        ')',
+        '=>',
+        $._expression
+      ),
+      // Single-identifier closure: x => expr (no parens)
+      seq(
+        field('param', $.identifier),
+        '=>',
+        $._expression
+      )
     ),
 
     object_expression: $ => seq(

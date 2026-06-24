@@ -223,6 +223,76 @@ container: List {
             value: (number)))))))
 
 ==================
+Pub actor declaration
+==================
+
+pub title: Text
+
+---
+
+(source_file
+  (actor_declaration
+    label: (identifier)
+    type: (identifier)))
+
+==================
+Actor with array index
+==================
+
+btn[4]: Rect, size: (60, 60)
+
+---
+
+(source_file
+  (actor_declaration
+    label: (identifier)
+    array_index: (number)
+    type: (identifier)
+    (property_list
+      (property name: (identifier) value: (tuple_expression (number) (number))))))
+
+==================
+Action definition with parameters
+==================
+
+action pulse(scale: 1.05) {
+  self.scale = scale
+}
+
+---
+
+(source_file
+  (action_definition
+    name: (identifier)
+    (parameter_list
+      (parameter
+        name: (identifier)
+        default: (number)))
+    (block
+      (property_assignment
+        target: (path_expression
+          base: (identifier)
+          name: (identifier))
+        value: (identifier)))))
+
+==================
+Config with trailing comma
+==================
+
+config {
+  colorscheme: "editorial-dark",
+  resolution: (1280, 720),
+}
+
+---
+
+(source_file
+  (config
+    (property_list
+      (property name: (identifier) value: (string))
+      (property name: (identifier) value: (tuple_expression (number) (number))))))
+
+==================
 Inline for loop in children block
 ==================
 

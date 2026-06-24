@@ -103,6 +103,26 @@ shift features [by: (40, 0), 600ms, ease: ease-out]
           value: (identifier))))))
 
 ==================
+Action invocation dotted target
+==================
+
+fade-in parent.child [800ms]
+
+---
+
+(source_file
+  (action_invocation
+    verb: (identifier)
+    targets: (target_list
+      (path_expression
+        base: (identifier)
+        name: (identifier)))
+    (modifier_block
+      (modifier_list
+        (modifier
+          (time_literal))))))
+
+==================
 Index expression with plain number
 ==================
 

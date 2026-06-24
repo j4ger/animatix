@@ -33,7 +33,29 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 ## Common Pitfalls
 
 - **GUI drift**: The GUI crate is excluded from `cargo check` (no `-p` flag), so errors can accumulate silently. Always run `cargo check --workspace` before committing to catch GUI, analyzer, and LSP compilation issues.
-- **Tree-sitter grammar**: Changes to `.amx` syntax require updates to **both** the PEG parser (in `crates/animatix`) and the tree-sitter grammar (in `tree-sitter-animatix`). Forgetting one breaks either parsing or highlighting.
+- **Tree-sitter grammar**: Changes to `.amx` syntax require updates to **both** the PEG parser (in `crates/animatix-syntax/src/parser/`) and the tree-sitter grammar (`tree-sitter-animatix/grammar.js`). Forgetting one breaks either parsing or syntax highlighting. After editing `grammar.js`, always regenerate the parser:
+  ```bash
+  cd tree-sitter-animatix && tree-sitter generate
+  ```
+  Then run the full sync check:
+  ```bash
+  bash scripts/check-parser-sync.sh
+  ```
+  The script runs `cargo test -p animatix-syntax`, the tree-sitter corpus tests, and parses every `examples/*.amx` with tree-sitter, reporting failures.
+
+  Known constructs that must be kept in sync (verified as of this writing):
+  | PEG construct | Tree-sitter rule |
+  |---|---|
+  | `pub label: Type` | `actor_declaration` (with `optional('pub')`) |
+  | `label[n]: Type` | `actor_declaration` / `inline_actor_declaration` (with `array_index` field) |
+  | `action name(params) {}` | `action_definition` (with `optional(parameter_list)`) |
+  | `for item, i in list {}` | `for_block` / `inline_for_loop` (with `index_variable` field) |
+  | `for (a, b) in list {}` | `for_block` / `inline_for_loop` (tuple variable) |
+  | `x => expr` single-ident closure | `closure_expression` (no-parens form) |
+  | `play module.Scene` dotted path | `play_statement` (accepts `path_expression`) |
+  | `verb actor.child [mods]` | `target_list` (accepts `path_expression`) |
+  | trailing comma in `config {}` | `property_list` (with `optional(',')`) |
+  | newline-separated inline items | `inline_items` (optional comma separator) |
 - **Evaluation paths**: The engine has two evaluation paths — the tree-walker and the IR/VM. New features (expressions, operators, built-ins) must be added to both paths to stay in sync.
 
 ## Optional Features
@@ -52,7 +74,17 @@ cargo build -p animatix
 
 Without FFmpeg, the default build includes rendering, text, and SVG support, but not video export.
 
-The GUI crate (`animatix-gui`) depends on the `video` feature by default, so GUI builds still require FFmpeg.
+The GUI crate (`animatix-gui`) includes the `video` feature by default, but it can be omitted:
+
+```bash
+# Build the GUI without FFmpeg (no video/GIF export)
+cargo build -p animatix-gui --no-default-features
+
+# Build the GUI with video export (default)
+cargo build -p animatix-gui
+```
+
+Without the `video` feature, the export dialog will show an "Export requires the 'video' feature (FFmpeg)" message when attempting to export.
 
 ## Code Rules
 
