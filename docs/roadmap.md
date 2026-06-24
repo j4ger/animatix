@@ -56,18 +56,8 @@ Minor fixes and technical debt cleanup.
 | 19 | **Deprecate legacy compatibility shims** | ✅ Complete - `sample_procedural_plot` and `build_implicit_plot_path` marked `#[deprecated]`. Call sites updated to use new functions. |
 | 20 | **Make FFmpeg truly optional for GUI** | ✅ Complete - GUI `Cargo.toml` now has optional `video` feature. FFmpeg-dependent code gated behind feature flag. Documented in AGENTS.md. |
 
-### Batch 10: Correctness Triage & Hygiene
-**Impact:** Potentially Critical (if #21 is a real bug) / Low otherwise | **Effort:** Low | **Dependencies:** None
-
-Triage the only potentially-real correctness bug before bigger refactors, and clear policy violations.
-
-| # | Task | Analysis | Fix Path |
-|---|------|----------|----------|
-| 21 | **Triage & fix `test_hierarchical_assignment_target`** | Test at `timeline/tests/build.rs:108` asserts `circ.opacity=0.0 at t=0` (pre-keyframe "hidden" default) and `0.5 at t=1s` for hierarchical target `g.circ.opacity = 0.5` at `#+1s`. Currently failing, marked "pre-existing". | Run the test, read the actual failure. If real bug: fix hierarchical target resolution in `assignments.rs` / `build/process.rs`. If stale test: update assertion to match current semantics. If real bug, promote to hotfix ahead of Batch 11. |
-| 22 | **Justify or remove unjustified `#[allow(dead_code)]`** | AGENTS.md requires an inline justification comment on every `#[allow(dead_code)]`. Known sites: `renderer/text.rs:1201,1423`, `timeline/build/mod.rs:39`, `timeline/svg_import.rs:65,76,84,95`, `timeline/plot.rs:187,215`. | For each: keep + add justification comment if forward-looking; remove the item if truly dead. Verify: `grep -rn "allow(dead_code)" crates/` shows every hit has a trailing `//` justification. |
-
 ### Batch 11: Modifier VM — Closure Support & Loop-State Cleanup
-**Impact:** Moderate | **Effort:** Medium-High | **Dependencies:** None (schedule after Batch 10 so CI is green)
+**Impact:** Moderate | **Effort:** Medium-High | **Dependencies:** None
 
 Closures in modifiers work via fallback (bytecode→IR→tree-walker) but emit misleading warnings and disable bytecode for the entire modifier program. Loop state uses fragile magic strings.
 
