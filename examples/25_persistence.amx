@@ -3,7 +3,6 @@
 // Demonstrates:
 //   - persist: mark actors to survive scene changes
 //   - remove: fade out and stop persisting
-//   - Chain persistence: actors carry automatically through multiple scenes
 //   - Container carry: persisting a Row carries its children too
 //   - Auto-color carry: color: auto slots are preserved across scenes
 
@@ -34,7 +33,6 @@ play Main [fade, 500ms]
 # Main
 
 // title and badge are carried from Intro — they appear without redeclaration.
-// title.text can be animated on the carried actor.
 
 #0s
 title.text = "Main Scene" [800ms]
@@ -50,25 +48,25 @@ container: Row, at: (640, 520), gap: 24 {
     box3: Rect, size: (80, 80), color: auto
 }
 fade-in container [500ms]
-
-#3s
 persist container  // persists the whole Row + children
 
+#3s
+remove badge [600ms]    // badge has served its purpose; stop persisting
+remove subtitle [800ms] // subtitle is local to this scene
+
 #4s
-remove subtitle [800ms]  // fade out and stop persisting
+remove title, container [1s]  // clean up carried actors
 
 #5s
 play Outro [fade, 500ms]
 
-// ── Scene 3: Outro ────────────────────────────────────────────────────────────
+// ── Scene 3: Outro (terminal) ─────────────────────────────────────────────────
 
 # Outro
 
-// title and container are carried from Main (sticky persistence).
-// subtitle was removed in Main, so it is absent here.
+// All carried actors were removed in Main before this transition.
+// This scene holds the final frame with no persistent state.
 
 #0s
-title.text = "The End" [800ms]
-
-#2s
-remove title, container [1s]
+end: Text, text: "The End", font_size: 32, color: text.secondary, at: (640, 360)
+fade-in end [800ms]
