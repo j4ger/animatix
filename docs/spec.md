@@ -538,6 +538,14 @@ img: Image, url: "examples/assets/checker.png", at: (100, 100), size: (200, 150)
 | `Line` | `from`, `to` |
 | `Arrow` | `from`, `to`, `head_size` |
 | `Callout` | `from`, `to`, `head_size`, `label`, `label_at`; targeted mode: `target: actor`, `place: top/bottom/left/right/auto`, `standoff`, `to_offset` |
+
+**Callout targeted mode** places the arrow tip automatically on a named actor's edge. When `target` is set:
+
+- `place` accepts the typed `CalloutPlace` enum: `top`, `bottom`, `left`, `right`, or `auto` (default). `auto` picks the side closest to `label_at`.
+- The engine resolves the target's world-space bounds by composing its full ancestor transform chain, so nested actors inside scaled or rotated containers attach correctly.
+- `standoff` (default `40.0`) offsets the tip from the resolved edge; `to_offset` adds a fine-grained manual tweak on top.
+- A missing or unknown `target` name is reported as a build-time `CalloutTargetNotFound` diagnostic rather than a per-frame render warning.
+- **GUI affordances:** selecting a targeted `Callout` in the preview shows four edge handles around the target for clicking/dragging `place`, a standoff drag handle on the tail axis, and a label drag handle. Hold **Shift** while dragging to detach from the target — the current `from`/`to` values are baked into the source and `target` is removed, converting to manual mode without a visual jump.
 | `Legend` | `at` |
 | `Polygon` | `points: {(x, y), ...}` |
 | `Path` | `commands: {move_to(...), line_to(...), curve_to(...), close()}` |

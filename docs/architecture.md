@@ -728,6 +728,15 @@ Not every visual variation needs its own primitive. The rule of thumb:
 
 **Counter-example — `NumberPlane`:** NumberPlane is a standalone coordinate system that auto-generates axes, grid lines, and tick marks. Unlike `Graph`, it does not host child plots. `Graph` is a coordinate container for hosting child actors (`PlotCurve`, etc.) with optional grid/ticks.
 
+### Callout Geometry Helper
+
+Targeted `Callout` actors (those with a `target` property) need to compute the arrow attach point from another actor's bounds. This geometry is centralised in `timeline/callout_geometry.rs`:
+
+- `derive_callout_geometry(input, resolver)` is the single source of truth for `from`, `to`, `label_point`, attach side, and standoff. Both the renderer and the GUI (preview handles, drag gestures) call this helper so they stay in sync.
+- The `TargetResolver` trait (implemented by `SceneEval`) exposes only what primitives need: actor existence, kind, and world-space bounds/affine at a given time. Primitives no longer receive an unrestricted `&Timeline` reference.
+- Bounds are resolved via the target's accumulated world transform (`actor_world_affine`), so actors nested inside scaled or rotated parents attach correctly. Precise shape/path/text bounds are a known deferred item (see Icebox in roadmap).
+- A missing target name is diagnosed at build time (`CalloutTargetNotFound`) so the error surfaces in the editor rather than producing per-frame render log spam.
+
 ---
 
 ## 16. Multi-Scene Composition
