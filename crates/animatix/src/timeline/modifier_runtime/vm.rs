@@ -9,14 +9,6 @@ use crate::timeline::env::CapturedEnv;
 use crate::timeline::{Environment, EvalError, Value};
 use std::fmt;
 
-/// Generate a unique environment key for a loop pattern.
-fn loop_pat_key(pat: &LoopPattern) -> String {
-    match pat {
-        LoopPattern::Single(name) => name.clone(),
-        LoopPattern::Tuple(names) => names.join(","),
-    }
-}
-
 /// Bind a loop pattern to a value in the frame environment.
 /// Handles both single variables and tuple destructuring.
 fn bind_loop_var_vm(
@@ -175,7 +167,7 @@ pub fn execute_modifier_bytecode(
     let mut vm = ModifierVm {
         stack: Vec::with_capacity(16),
         ip: 0,
-        for_iteration_count: 0,
+        loop_stack: Vec::new(),
     };
     vm.run(program, frame_env, overrides)
 }
@@ -334,11 +326,17 @@ impl BytecodeCompiler {
     }
 }
 
+/// State for one active for-loop on the loop stack.
+struct LoopState {
+    items: Vec<Value>,
+    idx: usize,
+    iteration_count: usize,
+}
+
 struct ModifierVm {
     stack: Vec<Value>,
     ip: usize,
-    /// Bounded iteration guard to prevent infinite loops in for-loops.
-    for_iteration_count: usize,
+    loop_stack: Vec<LoopState>,
 }
 
 impl ModifierVm {
@@ -523,8 +521,7 @@ impl ModifierVm {
                     }
                     self.ip = *target;
                 }
-                Instruction::BeginFor(var, index_var) => {
-                    self.for_iteration_count = 0;
+                Instruction::BeginFor(_var, index_var) => {
                     let iterable = self.pop()?;
                     let items: Vec<Value> = match iterable {
                         Value::List(list) => list,
@@ -533,9 +530,7 @@ impl ModifierVm {
                         Value::Vec4(v) => v.into_iter().map(Value::Num).collect(),
                         other => vec![other],
                     };
-                    let pat_key = loop_pat_key(var);
-                    frame_env.set(&format!("__for_iter_{pat_key}"), Value::List(items));
-                    frame_env.set(&format!("__for_idx_{pat_key}"), Value::Num(0.0));
+                    self.loop_stack.push(LoopState { items, idx: 0, iteration_count: 0 });
                     // Bind the index variable to 0 at start (will be updated each iteration)
                     if let Some(iv) = index_var {
                         frame_env.set(iv, Value::Num(0.0));
@@ -543,36 +538,28 @@ impl ModifierVm {
                     self.ip += 1;
                 }
                 Instruction::CheckFor(var, index_var, end) => {
-                    self.for_iteration_count += 1;
-                    if self.for_iteration_count > 100_000 {
+                    let state = self.loop_stack.last_mut().ok_or_else(|| {
+                        EvalError::TypeMismatch("CheckFor with no active loop".to_string())
+                    })?;
+                    state.iteration_count += 1;
+                    if state.iteration_count > 100_000 {
                         return Err(EvalError::TypeMismatch(
                             "for-loop exceeded 100,000 iterations — possible infinite loop".to_string()
                         ));
                     }
-                    let pat_key = loop_pat_key(var);
-                    let iter_key = format!("__for_iter_{pat_key}");
-                    let idx_key = format!("__for_idx_{pat_key}");
-                    let items = frame_env
-                        .get(&iter_key)
-                        .and_then(|v| match v { Value::List(l) => Some(l.clone()), _ => None })
-                        .unwrap_or_default();
-                    let idx = frame_env
-                        .get(&idx_key)
-                        .map(|v| v.as_num() as usize)
-                        .unwrap_or(0);
-                    if idx < items.len() {
-                        bind_loop_var_vm(frame_env, var, items[idx].clone());
-                        // Update the internal index
-                        frame_env.set(&idx_key, Value::Num((idx + 1) as f64));
-                        // Also bind user-facing index variable if present
+                    let idx = state.idx;
+                    if idx < state.items.len() {
+                        let item = state.items[idx].clone();
+                        state.idx += 1;
+                        bind_loop_var_vm(frame_env, var, item);
+                        // Bind user-facing index variable
                         if let Some(iv) = index_var {
                             frame_env.set(iv, Value::Num(idx as f64));
                         }
                         self.ip += 1;
                     } else {
-                        // Loop exhausted — clean up internal iteration state and loop variables
-                        frame_env.overrides.remove(&iter_key);
-                        frame_env.overrides.remove(&idx_key);
+                        // Loop exhausted — pop loop state and clean up loop variables
+                        self.loop_stack.pop();
                         match var {
                             LoopPattern::Single(name) => {
                                 frame_env.overrides.remove(name);
