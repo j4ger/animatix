@@ -57,17 +57,15 @@ fn roundtrip_all_example_files() {
             }
         };
 
-        // Phase 1: parse the original source using chumsky's into_output_errors
+        // Phase 1: parse the original source via parse_source (strips comments first)
         let (parsed_opt, parse_errors) =
-            animatix_syntax::parser::parser_simple()
-                .parse(&source)
-                .into_output_errors();
+            animatix_syntax::parser::parse_source(&source);
         let parsed: Vec<Stmt> = match parsed_opt {
             Some(stmts) if parse_errors.is_empty() => stmts,
             _ => {
                 let msg: Vec<String> = parse_errors
                     .iter()
-                    .map(|e| format!("  {}", e))
+                    .map(|e| format!("  {}", e.message))
                     .collect();
                 failures.push(format!(
                     "{}: parse failed ({} error(s)):\n{}",
