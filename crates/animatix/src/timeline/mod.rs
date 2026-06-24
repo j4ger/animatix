@@ -129,7 +129,7 @@ pub use image::load_image;
 pub use kurbo_shapes::{KurboShape, morph_kurbo_shapes, morph_kurbo_shapes_default};
 pub use morph::{MorphOptions, MorphStrategy, evaluate_paths_with_options, interpolate_text_paths, interpolate_vello_paths};
 use plot::{
-    build_implicit_plot_path, sample_recursive_cartesian, sample_recursive_parametric,
+    sample_recursive_cartesian, sample_recursive_parametric,
     sample_recursive_polar,
 };
 use position::{

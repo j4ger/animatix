@@ -760,7 +760,7 @@ pub(crate) fn eval_implicit_source(
 /// Build an implicit plot contour path from a [`FuncSource`], evaluating
 /// the scalar field on a grid and extracting zero-contours via marching
 /// squares. Supports function transitions via blend sources.
-pub(crate) fn build_implicit_plot_path_from_source(
+pub fn build_implicit_plot_path_from_source(
     env: &mut Environment,
     source: &FuncSource,
     p_x_domain: &[f64; 2],
@@ -905,7 +905,8 @@ pub(crate) fn build_implicit_plot_path_from_source(
 
 /// Legacy wrapper that builds an implicit plot path from raw args/body.
 /// Creates a `FuncSource::Raw` and delegates to [`build_implicit_plot_path_from_source`].
-pub(crate) fn build_implicit_plot_path(
+#[deprecated(since = "0.5", note = "use build_implicit_plot_path_from_source instead")]
+pub fn build_implicit_plot_path(
     env: &mut Environment,
     arg_names: &[String],
     body: &Expr,
@@ -982,7 +983,7 @@ impl ProceduralPlot {
 /// Re-sample a procedural plot at frame time using the given environment.
 /// Compatibility shim for `scene_eval.rs` (pre-Task-4). Delegates to
 /// [`sample_procedural_plot_at`] with no active transitions.
-#[allow(dead_code)] // Legacy compatibility shim; prefer sample_procedural_plot_at
+#[deprecated(since = "0.5", note = "use sample_procedural_plot_at instead")]
 pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &mut Environment) -> Vec<VelloPath> {
     sample_procedural_plot_at(plot, env, 0, &[])
 }

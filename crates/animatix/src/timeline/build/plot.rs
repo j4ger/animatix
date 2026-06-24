@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 use super::*;
 use crate::ast::{InlineItem, Property};
-use crate::timeline::plot::{FuncSource, PlotCurveKind, PlotFuncRef, ProceduralPlot};
+use crate::timeline::plot::{build_implicit_plot_path_from_source, FuncSource, PlotCurveKind, PlotFuncRef, ProceduralPlot};
 use crate::timeline::vello_path::VelloPath;
 
 /// Data for tick labels: screen positions and math values.
@@ -101,10 +101,14 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
         };
 
         if params.kind == PlotCurveKind::Implicit {
-            let path = build_implicit_plot_path(
+            let source = FuncSource::Raw(
+                args.to_vec(),
+                (**body).clone(),
+                CapturedEnv::default(),
+            );
+            let path = build_implicit_plot_path_from_source(
                 &mut env_copy,
-                args,
-                body,
+                &source,
                 &params.p_x_domain,
                 &params.p_y_domain,
                 &params.p_size,
@@ -1609,10 +1613,14 @@ fn build_contour_set_paths(
             Box::new(crate::ast::Expr::Num(level)),
         );
 
-        let bez_path = build_implicit_plot_path(
+        let source = FuncSource::Raw(
+            arg_names.to_vec(),
+            modified_body.clone(),
+            CapturedEnv::default(),
+        );
+        let bez_path = build_implicit_plot_path_from_source(
             env,
-            arg_names,
-            &modified_body,
+            &source,
             &x_domain,
             &y_domain,
             &full_size,
