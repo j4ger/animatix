@@ -47,6 +47,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "typst_shorthand"
+        },
+        {
+          "type": "SYMBOL",
           "name": "property_assignment"
         },
         {
@@ -680,6 +684,54 @@
             {
               "type": "SYMBOL",
               "name": "children_block"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        }
+      ]
+    },
+    "typst_shorthand": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "FIELD",
+          "name": "label",
+          "content": {
+            "type": "SYMBOL",
+            "name": "identifier"
+          }
+        },
+        {
+          "type": "STRING",
+          "value": ":"
+        },
+        {
+          "type": "STRING",
+          "value": "$$"
+        },
+        {
+          "type": "FIELD",
+          "name": "content",
+          "content": {
+            "type": "TOKEN",
+            "content": {
+              "type": "PATTERN",
+              "value": "[^$]*"
+            }
+          }
+        },
+        {
+          "type": "STRING",
+          "value": "$$"
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "modifier_block"
             },
             {
               "type": "BLANK"

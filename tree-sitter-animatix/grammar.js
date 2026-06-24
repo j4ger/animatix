@@ -65,8 +65,7 @@ module.exports = grammar({
       $.scene_declaration,
       $.keyframe,
       $.actor_declaration,
-      // Deprecated: display_math is not supported by the runtime PEG parser
-      // $.display_math,
+      $.typst_shorthand,
       $.property_assignment,
       $.reactive_binding,
       $.action_invocation,
@@ -169,16 +168,14 @@ module.exports = grammar({
       optional($.children_block)
     ),
 
-    // Deprecated: not supported by the runtime PEG parser (display_math form).
-    // The PEG parser supports $$..$$ as typst_shorthand, which requires scanner changes.
-    // display_math: $ => seq(
-    //   field('label', $.identifier),
-    //   ':',
-    //   '$$',
-    //   field('content', token(/[^$]*/)),
-    //   '$$',
-    //   optional($.modifier_block)
-    // ),
+    typst_shorthand: $ => seq(
+      field('label', $.identifier),
+      ':',
+      '$$',
+      field('content', token(/[^$]*/)),
+      '$$',
+      optional($.modifier_block)
+    ),
 
     property_assignment: $ => seq(
       field('target', $.path_expression),

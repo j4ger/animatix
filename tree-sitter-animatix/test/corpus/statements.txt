@@ -293,6 +293,34 @@ config {
       (property name: (identifier) value: (tuple_expression (number) (number))))))
 
 ==================
+Typst shorthand
+==================
+
+equation: $$ x^2 + y^2 $$
+
+---
+
+(source_file
+  (typst_shorthand
+    label: (identifier)))
+
+==================
+Typst shorthand with modifier
+==================
+
+eq: $$ x^2 $$ [2s]
+
+---
+
+(source_file
+  (typst_shorthand
+    label: (identifier)
+    (modifier_block
+      (modifier_list
+        (modifier
+          (time_literal))))))
+
+==================
 Inline for loop in children block
 ==================
 

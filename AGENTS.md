@@ -56,6 +56,7 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
   | `verb actor.child [mods]` | `target_list` (accepts `path_expression`) |
   | trailing comma in `config {}` | `property_list` (with `optional(',')`) |
   | newline-separated inline items | `inline_items` (optional comma separator) |
+  | `label: $$ content $$` shorthand | `typst_shorthand` (with `token(/[^$]*/)` content) |
 - **Evaluation paths**: The engine has two evaluation paths — the tree-walker and the IR/VM. New features (expressions, operators, built-ins) must be added to both paths to stay in sync.
 
 ## Optional Features
