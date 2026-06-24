@@ -8,39 +8,7 @@ Keep track of what is yet to be done here, when a segment is fully done, remove 
 
 Items are grouped into implementation batches based on dependencies and shared systems.
 
-### Batch 1: Animation & Visual Effects ✅
-Enhance visual storytelling through actions and entrance animations.
-
-| # | Task | Status |
-|---|------|--------|
-| 1 | **`draw-in` for PlotCurve and Text** | ✅ Complete - PlotCurve uses stroke_progress, Text uses char_progress for typewriter effect |
-| 2 | **Exclusive highlight groups** | ✅ Complete - Equation containers auto-unhighlight siblings when a new Fragment is highlighted |
-
-### Batch 2: Graph Coordinate System ✅
-Extend Graph's coordinate transformation system.
-
-| # | Task | Status |
-|---|------|--------|
-| 3 | **Graph padding/insets** | ✅ Complete - Configurable padding via Vec4 property, affects all coordinate transforms |
-| 4 | **Graph inverse mapping** | ✅ Complete - `graph.map_inverse(sx, sy)` converts screen coords back to math coords |
-| 5 | **Graph log scaling** | ✅ Complete - `x_scale: "log"` and `y_scale: "log"` properties for logarithmic axes |
-
-### Batch 3: Language & Parser ✅
-Parser and evaluation environment improvements.
-
-| # | Task | Status |
-|---|------|--------|
-| 6 | **`for` loop: tuple destructuring + closure capture** | ✅ Complete - Parser supports `for (a, b) in items`, closures capture loop variables for dynamic plots |
-
-### Batch 4: Plot System Extensions ✅
-Extend the plot transition system with implicit plots and performance optimizations.
-
-| # | Task | Status |
-|---|------|--------|
-| 7 | **Plot function transitions: implicit plots** | ✅ Complete - Implicit plots (f(x,y)=0) support function transitions with scalar field blending |
-| 8 | **Plot transitions: adaptive quality** | ✅ Complete - Adaptive quality reduction prevents frame drops during cascading transitions |
-
-### Batch 5: Educational Primitives
+### New features
 New primitive types for educational content.
 
 | # | Task | Notes |
