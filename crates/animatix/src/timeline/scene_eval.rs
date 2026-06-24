@@ -503,6 +503,7 @@ impl Timeline {
                         scene_dimensions,
                         overrides: node_overrides,
                         vector_paths: &vector_paths,
+                        timeline: Some(self),
                     };
                     let mut text_ctx = crate::primitives::TextCompileCtx {
                         text_compiler: &mut self.text_compiler.borrow_mut(),

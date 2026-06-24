@@ -326,3 +326,208 @@ fn test_callout_no_label_does_not_set_text_content() {
     };
     let _scene = timeline.evaluate(0.0, dims);
 }
+
+#[test]
+fn test_callout_target_mode_seeds_tracks() {
+    // Verify that target/place/standoff/to_offset are seeded into tracks
+    // when a targeted Callout is declared.
+    let ast = vec![
+        make_config(),
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(0.0),
+            body: vec![
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    is_anonymous: false,
+                    label: "box".to_string(),
+                    array_index: None,
+                    ty: "Rect".to_string(),
+                    props: vec![
+                        Property {
+                            name: "position".to_string(),
+                            value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(100.0)]),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                        Property {
+                            name: "size".to_string(),
+                            value: Expr::Tuple(vec![Expr::Num(80.0), Expr::Num(40.0)]),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                    ],
+                    modifiers: vec![],
+                    children: vec![],
+                    span: None,
+                },
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    is_anonymous: false,
+                    label: "note".to_string(),
+                    array_index: None,
+                    ty: "Callout".to_string(),
+                    props: vec![
+                        Property {
+                            name: "target".to_string(),
+                            value: Expr::Ident("box".to_string()),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                        Property {
+                            name: "place".to_string(),
+                            value: Expr::Ident("right".to_string()),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                        Property {
+                            name: "standoff".to_string(),
+                            value: Expr::Num(40.0),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                        Property {
+                            name: "to_offset".to_string(),
+                            value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                        Property {
+                            name: "label".to_string(),
+                            value: Expr::Str("Look here".to_string()),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                    ],
+                    modifiers: vec![],
+                    children: vec![],
+                    span: None,
+                },
+            ],
+            span: None,
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no build diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+
+    let note = timeline.get_track("note").expect("note track should exist");
+
+    // target / place / standoff / to_offset tracks must be seeded
+    assert_eq!(
+        note.geometry.callout_target.get(0, String::new()),
+        "box",
+        "callout_target should be 'box'"
+    );
+    assert_eq!(
+        note.geometry.callout_place.get(0, String::new()),
+        "right",
+        "callout_place should be 'right'"
+    );
+    assert!(
+        (note.geometry.callout_standoff.get(0, 0.0) - 40.0).abs() < f32::EPSILON,
+        "callout_standoff should be 40.0"
+    );
+    assert_eq!(
+        note.geometry.callout_to_offset.get(0, [99.0; 2]),
+        [0.0, 0.0],
+        "callout_to_offset should be (0, 0)"
+    );
+
+    // Evaluating the scene should not panic
+    let dims = SceneDimensions { width: 1920, height: 1080 };
+    let _scene = timeline.evaluate(0.0, dims);
+}
+
+#[test]
+fn test_callout_target_mode_derives_positions() {
+    // When target mode is active, evaluate() derives `to` at the right edge
+    // of the target actor and `from` = to + [standoff, 0].
+    //
+    // Target "box": position=(200,100), size=(80,40) → right edge x = 200+40 = 240.
+    // to   = [240, 100]  (right attach point + to_offset(0,0))
+    // from = [240+40, 100] = [280, 100]
+    //
+    // We verify evaluate() runs without error. Exact arrow positions are
+    // internal to the render path, so we just check no panic occurs.
+    let ast = vec![
+        make_config(),
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(0.0),
+            body: vec![
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    is_anonymous: false,
+                    label: "box".to_string(),
+                    array_index: None,
+                    ty: "Rect".to_string(),
+                    props: vec![
+                        Property {
+                            name: "position".to_string(),
+                            value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(100.0)]),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                        Property {
+                            name: "size".to_string(),
+                            value: Expr::Tuple(vec![Expr::Num(80.0), Expr::Num(40.0)]),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                    ],
+                    modifiers: vec![],
+                    children: vec![],
+                    span: None,
+                },
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    is_anonymous: false,
+                    label: "note".to_string(),
+                    array_index: None,
+                    ty: "Callout".to_string(),
+                    props: vec![
+                        Property {
+                            name: "target".to_string(),
+                            value: Expr::Ident("box".to_string()),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                        Property {
+                            name: "place".to_string(),
+                            value: Expr::Ident("right".to_string()),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                        Property {
+                            name: "standoff".to_string(),
+                            value: Expr::Num(40.0),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                        Property {
+                            name: "label".to_string(),
+                            value: Expr::Str("Note".to_string()),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                    ],
+                    modifiers: vec![],
+                    children: vec![],
+                    span: None,
+                },
+            ],
+            span: None,
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+
+    let dims = SceneDimensions { width: 1920, height: 1080 };
+    // evaluate() must not panic when target mode is active
+    let _scene = timeline.evaluate(0.0, dims);
+}

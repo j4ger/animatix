@@ -27,9 +27,13 @@ fn parse_vec2(expr: &Expr) -> Option<[f32; 2]> {
 }
 
 /// Parse a string from an AST expression.
+/// Also accepts bare identifiers (`Ident`) and dot-path expressions (`Path`)
+/// for constructs like `target: box` or `target: group.box`.
 fn parse_string(expr: &Expr) -> Option<String> {
     match expr {
         Expr::Str(s) => Some(s.clone()),
+        Expr::Ident(s) => Some(s.clone()),
+        Expr::Path(parts) => Some(parts.join(".")),
         _ => None,
     }
 }
@@ -85,6 +89,10 @@ impl Primitive for CalloutPrimitive {
         let mut head_size = 10.0f32;
         let mut label_text = String::new();
         let mut label_at = [0.0, 50.0];
+        let mut callout_target = String::new();
+        let mut callout_place = String::new();
+        let mut callout_standoff = 40.0f32;
+        let mut callout_to_offset = [0.0f32, 0.0f32];
 
         // Parse properties (simple numeric/string parsing without env)
         for prop in props {
@@ -114,6 +122,26 @@ impl Primitive for CalloutPrimitive {
                         label_at = parsed;
                     }
                 }
+                "target" => {
+                    if let Some(s) = parse_string(&prop.value) {
+                        callout_target = s;
+                    }
+                }
+                "place" => {
+                    if let Some(s) = parse_string(&prop.value) {
+                        callout_place = s;
+                    }
+                }
+                "standoff" => {
+                    if let Some(val) = parse_f32(&prop.value) {
+                        callout_standoff = val;
+                    }
+                }
+                "to_offset" => {
+                    if let Some(parsed) = parse_vec2(&prop.value) {
+                        callout_to_offset = parsed;
+                    }
+                }
                 _ => {}
             }
         }
@@ -125,6 +153,10 @@ impl Primitive for CalloutPrimitive {
         track.shape.head_size.ensure(10.0).add_keyframe(0, head_size, crate::easing::Easing::Linear);
         track.text.text_content.ensure(String::new()).add_keyframe(0, label_text, crate::easing::Easing::Linear);
         track.geometry.label_at.ensure([0.0, 0.0]).add_keyframe(0, label_at, crate::easing::Easing::Linear);
+        track.geometry.callout_target.ensure(String::new()).add_keyframe(0, callout_target, crate::easing::Easing::Linear);
+        track.geometry.callout_place.ensure(String::new()).add_keyframe(0, callout_place, crate::easing::Easing::Linear);
+        track.geometry.callout_standoff.ensure(40.0).add_keyframe(0, callout_standoff, crate::easing::Easing::Linear);
+        track.geometry.callout_to_offset.ensure([0.0, 0.0]).add_keyframe(0, callout_to_offset, crate::easing::Easing::Linear);
 
         Ok(())
     }
@@ -141,6 +173,59 @@ impl Primitive for CalloutPrimitive {
         let mut to = ctx.track.shape.line_to.get(ctx.time_ms, [100.0, 0.0]);
         let mut head_size = ctx.track.shape.head_size.get(ctx.time_ms, 10.0);
 
+        // ── Targeted callout mode ──
+        // When a non-empty `target` is set, derive `to` and `from` from the
+        // target actor's scene-space AABB, using `place` and `standoff`.
+        //
+        // Formula:
+        //   to   = attach_point(place, target_aabb) + to_offset
+        //   from = to + direction(place) * standoff
+        //
+        // The label still renders at `to + label_at` (manual mode unchanged).
+        let target_name = ctx.track.geometry.callout_target.get(ctx.time_ms, String::new());
+        if !target_name.is_empty() {
+            if let Some(timeline) = ctx.timeline {
+                let place = ctx.track.geometry.callout_place.get(ctx.time_ms, "right".to_string());
+                let standoff = ctx.track.geometry.callout_standoff.get(ctx.time_ms, 40.0);
+                let to_offset = ctx.track.geometry.callout_to_offset.get(ctx.time_ms, [0.0, 0.0]);
+
+                if let Some(target_track) = timeline.get_track(&target_name) {
+                    // Unrotated scene-space AABB: centre ± half_size
+                    let centre = target_track.geometry.position.get(ctx.time_ms, [0.0, 0.0]);
+                    let half = target_track.geometry.size.get(ctx.time_ms, [50.0, 50.0]);
+
+                    let (attach, dir): ([f32; 2], [f32; 2]) = match place.as_str() {
+                        "above" | "top" => (
+                            [centre[0], centre[1] - half[1]],
+                            [0.0, -1.0],
+                        ),
+                        "below" | "bottom" => (
+                            [centre[0], centre[1] + half[1]],
+                            [0.0, 1.0],
+                        ),
+                        "left" => (
+                            [centre[0] - half[0], centre[1]],
+                            [-1.0, 0.0],
+                        ),
+                        // "right" and fallback
+                        _ => (
+                            [centre[0] + half[0], centre[1]],
+                            [1.0, 0.0],
+                        ),
+                    };
+
+                    to = [attach[0] + to_offset[0], attach[1] + to_offset[1]];
+                    from = [to[0] + dir[0] * standoff, to[1] + dir[1] * standoff];
+                } else {
+                    tracing::warn!(
+                        "callout '{}': target actor '{}' not found in timeline",
+                        ctx.track.label,
+                        target_name
+                    );
+                }
+            }
+        }
+
         if let Some(overrides) = ctx.overrides {
             if let Some(Value::Vec2(f)) = overrides.get("from") {
                 from = [f[0] as f32, f[1] as f32];
@@ -152,8 +237,6 @@ impl Primitive for CalloutPrimitive {
                 head_size = *n as f32;
             }
         }
-
-        // Build arrow path
         let path = build_arrow_path(from, to, head_size);
 
         // Sample style

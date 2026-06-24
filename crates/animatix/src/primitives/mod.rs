@@ -327,6 +327,8 @@ pub struct EvaluateCtx<'a> {
     pub overrides: Option<&'a std::collections::HashMap<String, Value>>,
     /// Pre-sampled vector paths (includes procedural plot sampling).
     pub vector_paths: &'a [VelloPath],
+    /// Timeline reference for target actor lookup (targeted callout mode).
+    pub timeline: Option<&'a Timeline>,
 }
 
 /// Mutable context for text recompilation.

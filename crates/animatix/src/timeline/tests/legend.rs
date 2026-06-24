@@ -97,6 +97,7 @@ fn test_legend_empty() {
         },
         overrides: None,
         vector_paths: &[],
+        timeline: None,
     };
 
     let result = LEGEND.evaluate(&ctx, None).expect("evaluate should succeed");
@@ -166,6 +167,7 @@ fn test_legend_render_commands_produced() {
         },
         overrides: None,
         vector_paths: &[],
+        timeline: None,
     };
 
     let result = LEGEND.evaluate(&ctx, None).expect("evaluate should succeed");
