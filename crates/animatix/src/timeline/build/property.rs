@@ -203,8 +203,8 @@ impl Timeline {
                     &p.value, &initial_eval_env, diagnostics,
                     &format!("{}.x_scale", label),
                 ))
-                .map(|v| v.as_str().to_lowercase())
-                .unwrap_or_else(|| "linear".to_string()),
+                .map(|v| super::utils::ScaleType::from_str(&v.as_str()))
+                .unwrap_or(super::utils::ScaleType::Linear),
             y_scale: props
                 .iter()
                 .find(|p| p.name == "y_scale")
@@ -212,8 +212,8 @@ impl Timeline {
                     &p.value, &initial_eval_env, diagnostics,
                     &format!("{}.y_scale", label),
                 ))
-                .map(|v| v.as_str().to_lowercase())
-                .unwrap_or_else(|| "linear".to_string()),
+                .map(|v| super::utils::ScaleType::from_str(&v.as_str()))
+                .unwrap_or(super::utils::ScaleType::Linear),
             align: None,
             cols: None,
         }
@@ -268,13 +268,13 @@ impl Timeline {
         let p_x_scale = self
             .env
             .get(&format!("{}_x_scale", parent_label))
-            .and_then(|v| if let Value::Str(s) = v { Some(s) } else { None })
-            .unwrap_or_else(|| "linear".to_string());
+            .and_then(|v| if let Value::Str(s) = v { Some(super::utils::ScaleType::from_str(&s)) } else { None })
+            .unwrap_or(super::utils::ScaleType::Linear);
         let p_y_scale = self
             .env
             .get(&format!("{}_y_scale", parent_label))
-            .and_then(|v| if let Value::Str(s) = v { Some(s) } else { None })
-            .unwrap_or_else(|| "linear".to_string());
+            .and_then(|v| if let Value::Str(s) = v { Some(super::utils::ScaleType::from_str(&s)) } else { None })
+            .unwrap_or(super::utils::ScaleType::Linear);
 
         props
             .iter()
@@ -298,19 +298,15 @@ impl Timeline {
                     _ => return prop.clone(),
                 };
 
-                let ctx = super::utils::GraphContext {
-                    x_domain,
-                    y_domain,
-                    size: p_size,
-                    at: [parent_pos[0] as f64, parent_pos[1] as f64],
-                    padding: p_padding,
-                    x_scale: p_x_scale.clone(),
-                    y_scale: p_y_scale.clone(),
-                };
+                let ctx = super::utils::GraphContext::new(
+                    super::utils::GraphScaleConfig::new(x_domain, y_domain, p_x_scale, p_y_scale),
+                    super::utils::GraphGeometry::new(p_size, [parent_pos[0] as f64, parent_pos[1] as f64], p_padding),
+                );
                 let [screen_x, screen_y] = super::utils::graph_math_to_screen(
                     mx,
                     my,
-                    &ctx,
+                    &ctx.scale,
+                    &ctx.geo,
                     false, // absolute coordinates for actor properties
                 );
 

@@ -37,8 +37,8 @@ impl Timeline {
                 false,
                 false,
                 extracted.graph_padding,
-                &extracted.x_scale,
-                &extracted.y_scale,
+                extracted.x_scale,
+                extracted.y_scale,
             );
         }
 

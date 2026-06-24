@@ -254,8 +254,8 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
 /// Normalize `v` in `[min, max]` to `[0, 1]` using the given scale.
 /// Returns `0.5` for invalid log domains (any input ≤ 0).
 #[inline]
-fn normalize_axis(v: f64, min: f64, max: f64, scale: &str) -> f64 {
-    if scale == "log" {
+fn normalize_axis(v: f64, min: f64, max: f64, scale: super::utils::ScaleType) -> f64 {
+    if scale.is_log() {
         if v <= 0.0 || min <= 0.0 || max <= 0.0 { return 0.5; }
         (v.ln() - min.ln()) / (max.ln() - min.ln())
     } else {
@@ -266,10 +266,10 @@ fn normalize_axis(v: f64, min: f64, max: f64, scale: &str) -> f64 {
 
 /// Generate tick positions for an axis.
 ///
-/// For `"log"` scale, returns powers-of-10 and their multiples (1–9).
+/// For `Log` scale, returns powers-of-10 and their multiples (1–9).
 /// For linear, returns ~10 evenly spaced values.
-fn generate_axis_ticks(min: f64, max: f64, scale: &str) -> Vec<f64> {
-    if scale == "log" {
+fn generate_axis_ticks(min: f64, max: f64, scale: super::utils::ScaleType) -> Vec<f64> {
+    if scale.is_log() {
         if min <= 0.0 || max <= 0.0 { return vec![]; }
         let mut ticks = vec![];
         let min_exp = min.log10().floor() as i32;
@@ -307,8 +307,8 @@ pub(crate) fn build_graph_axis_paths(
     ticks: bool,
     _tick_labels: bool,
     padding: [f64; 4],
-    x_scale: &str,
-    y_scale: &str,
+    x_scale: super::utils::ScaleType,
+    y_scale: super::utils::ScaleType,
 ) -> Vec<VelloPath> {
     let mut paths = Vec::new();
     let mut axis_path = kurbo::BezPath::new();
@@ -341,7 +341,7 @@ pub(crate) fn build_graph_axis_paths(
     };
 
     // X-axis: drawn only when y=0 is inside the y_domain (only valid for linear scale)
-    let x_axis_y = if y_scale != "log" && y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
+    let x_axis_y = if !y_scale.is_log() && y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
         let y = math_y_to_screen(0.0);
         axis_path.move_to((left_edge, y));
         axis_path.line_to((right_edge, y));
@@ -351,7 +351,7 @@ pub(crate) fn build_graph_axis_paths(
     };
 
     // Y-axis: drawn only when x=0 is inside the x_domain (only valid for linear scale)
-    let y_axis_x = if x_scale != "log" && x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
+    let y_axis_x = if !x_scale.is_log() && x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
         let x = math_x_to_screen(0.0);
         axis_path.move_to((x, top_edge));
         axis_path.line_to((x, bot_edge));
@@ -493,8 +493,8 @@ impl Timeline {
         let mut grid = false;
         let mut ticks = false;
         let mut tick_labels = String::from("auto");
-        let mut x_scale = String::from("linear");
-        let mut y_scale = String::from("linear");
+        let mut x_scale = super::utils::ScaleType::Linear;
+        let mut y_scale = super::utils::ScaleType::Linear;
         let mut x_range = [-10.0, 10.0, 2.0];
         let mut y_range = [-10.0, 10.0, 2.0];
         let is_number_plane = ty == "NumberPlane";
@@ -776,14 +776,14 @@ impl Timeline {
                     if let Some(v) = evaluate_expr_with_lookup_diagnostic(
                         &prop.value, &initial_eval_env, diagnostics, &prop_subject,
                     ) {
-                        x_scale = v.as_str().to_lowercase();
+                        x_scale = super::utils::ScaleType::from_str(&v.as_str());
                     }
                 }
                 "y_scale" if primitive.is_graph_host() => {
                     if let Some(v) = evaluate_expr_with_lookup_diagnostic(
                         &prop.value, &initial_eval_env, diagnostics, &prop_subject,
                     ) {
-                        y_scale = v.as_str().to_lowercase();
+                        y_scale = super::utils::ScaleType::from_str(&v.as_str());
                     }
                 }
                 _ => {} // Non-plot properties (color, stroke, etc.) are handled by the general actor pipeline.
@@ -876,17 +876,20 @@ impl Timeline {
                 &format!("{}_padding", label),
                 Value::Vec4(graph_padding),
             );
-            self.env.set(&format!("{}_x_scale", label), Value::Str(x_scale.clone()));
-            self.env.set(&format!("{}_y_scale", label), Value::Str(y_scale.clone()));
+            // Store scale in env as strings so assignments.rs rebuild can read them.
+            let x_scale_str = if x_scale.is_log() { "log" } else { "linear" };
+            let y_scale_str = if y_scale.is_log() { "log" } else { "linear" };
+            self.env.set(&format!("{}_x_scale", label), Value::Str(x_scale_str.to_string()));
+            self.env.set(&format!("{}_y_scale", label), Value::Str(y_scale_str.to_string()));
 
             // Inject {label}.map as a NativeFn that converts math coords to screen coords.
             // Captures x_domain/y_domain/graph_padding/scales (static), reads size/at from runtime env.
             let map_label = label.to_string();
-            let nf = make_graph_map_fn(map_label.clone(), x_domain, y_domain, graph_padding, x_scale.clone(), y_scale.clone());
+            let nf = make_graph_map_fn(map_label.clone(), x_domain, y_domain, graph_padding, x_scale, y_scale);
             self.env.set(&format!("{}.map", label), nf);
 
             // Inject {label}.map_inverse as a NativeFn that converts screen coords to math coords.
-            let nf_inv = make_graph_map_inverse_fn(map_label, x_domain, y_domain, x_scale.clone(), y_scale.clone());
+            let nf_inv = make_graph_map_inverse_fn(map_label, x_domain, y_domain, x_scale, y_scale);
             self.env.set(&format!("{}.map_inverse", label), nf_inv);
         }
 
@@ -913,7 +916,7 @@ impl Timeline {
             let axis_size = if size != default_size { size } else { initial_size };
             vello_paths = build_graph_axis_paths(
                 axis_size, x_domain, y_domain, stroke_color, grid, ticks,
-                label_x || label_y, graph_padding, &x_scale, &y_scale,
+                label_x || label_y, graph_padding, x_scale, y_scale,
             );
 
             // Compute tick label positions (same logic as build_graph_axis_paths ticks section).
@@ -925,19 +928,17 @@ impl Timeline {
             let plot_fh = 2.0 * hh - graph_padding[2] - graph_padding[3];
             let shift_x = (graph_padding[0] - graph_padding[1]) / 2.0;
             let shift_y = (graph_padding[2] - graph_padding[3]) / 2.0;
-            let x_scale_ref = x_scale.as_str();
-            let y_scale_ref = y_scale.as_str();
             let tick_math_x_to_screen = |mx: f64| {
-                let norm = normalize_axis(mx, x_domain[0], x_domain[1], x_scale_ref);
+                let norm = normalize_axis(mx, x_domain[0], x_domain[1], x_scale);
                 shift_x + (norm - 0.5) * plot_fw
             };
             let tick_math_y_to_screen = |my: f64| {
-                let norm = normalize_axis(my, y_domain[0], y_domain[1], y_scale_ref);
+                let norm = normalize_axis(my, y_domain[0], y_domain[1], y_scale);
                 shift_y + (0.5 - norm) * plot_fh
             };
 
             // X-axis at y=0 screen position
-            let x_ticks = generate_axis_ticks(x_domain[0], x_domain[1], x_scale_ref);
+            let x_ticks = generate_axis_ticks(x_domain[0], x_domain[1], x_scale);
             if y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
                 let axis_y = tick_math_y_to_screen(0.0);
                 if label_x {
@@ -951,7 +952,7 @@ impl Timeline {
             }
 
             // Y-axis at x=0 screen position
-            let y_ticks = generate_axis_ticks(y_domain[0], y_domain[1], y_scale_ref);
+            let y_ticks = generate_axis_ticks(y_domain[0], y_domain[1], y_scale);
             if x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
                 let axis_x = tick_math_x_to_screen(0.0);
                 if label_y {
@@ -2072,8 +2073,8 @@ fn make_graph_map_inverse_fn(
     label: String,
     x_domain: [f64; 2],
     y_domain: [f64; 2],
-    x_scale: String,
-    y_scale: String,
+    x_scale: super::utils::ScaleType,
+    y_scale: super::utils::ScaleType,
 ) -> Value {
     Value::NativeFn(std::sync::Arc::new(
         move |args: &[Value], env: &crate::timeline::Environment| -> Result<Value, crate::timeline::EvalError> {
@@ -2119,16 +2120,9 @@ fn make_graph_map_inverse_fn(
                 })
                 .unwrap_or([0.0; 4]);
 
-            let ctx = super::utils::GraphContext {
-                x_domain,
-                y_domain,
-                size,
-                at,
-                padding,
-                x_scale: x_scale.clone(),
-                y_scale: y_scale.clone(),
-            };
-            let [mx, my] = super::utils::graph_screen_to_math(sx, sy, &ctx);
+            let scale = super::utils::GraphScaleConfig::new(x_domain, y_domain, x_scale, y_scale);
+            let geo = super::utils::GraphGeometry::new(size, at, padding);
+            let [mx, my] = super::utils::graph_screen_to_math(sx, sy, &scale, &geo);
             Ok(Value::Vec2([mx, my]))
         },
     ))
@@ -2143,8 +2137,8 @@ fn make_graph_map_fn(
     x_domain: [f64; 2],
     y_domain: [f64; 2],
     padding: [f64; 4],
-    x_scale: String,
-    y_scale: String,
+    x_scale: super::utils::ScaleType,
+    y_scale: super::utils::ScaleType,
 ) -> Value {
     Value::NativeFn(std::sync::Arc::new(
         move |args: &[Value], env: &crate::timeline::Environment| -> Result<Value, crate::timeline::EvalError> {
@@ -2182,16 +2176,9 @@ fn make_graph_map_fn(
                 })
                 .unwrap_or([0.0, 0.0]);
 
-            let ctx = super::utils::GraphContext {
-                x_domain,
-                y_domain,
-                size,
-                at,
-                padding,
-                x_scale: x_scale.clone(),
-                y_scale: y_scale.clone(),
-            };
-            let [sx, sy] = super::utils::graph_math_to_screen(mx, my, &ctx, false);
+            let scale = super::utils::GraphScaleConfig::new(x_domain, y_domain, x_scale, y_scale);
+            let geo = super::utils::GraphGeometry::new(size, at, padding);
+            let [sx, sy] = super::utils::graph_math_to_screen(mx, my, &scale, &geo, false);
             Ok(Value::Vec2([sx, sy]))
         },
     ))

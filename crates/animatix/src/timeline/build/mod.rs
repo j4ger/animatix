@@ -31,7 +31,7 @@ mod plot;
 mod process;
 mod property;
 mod shape;
-mod utils;
+pub(crate) mod utils;
 
 /// Extracted actor properties parsed from an actor declaration's props.
 /// Used internally by the build pipeline for graph/plot/container dispatch.
@@ -54,10 +54,10 @@ struct ExtractedActorProperties {
     padding: f32,
     /// Graph plot-area padding [left, right, top, bottom] in pixels.
     graph_padding: [f64; 4],
-    /// X-axis scale: "linear" (default) or "log".
-    x_scale: String,
-    /// Y-axis scale: "linear" (default) or "log".
-    y_scale: String,
+    /// X-axis scale type.
+    x_scale: utils::ScaleType,
+    /// Y-axis scale type.
+    y_scale: utils::ScaleType,
     align: Option<String>,
     cols: Option<usize>,
 }

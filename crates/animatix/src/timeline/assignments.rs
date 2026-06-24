@@ -947,12 +947,12 @@ fn rebuild_vector_paths(
                 .unwrap_or([0.0; 4]);
             let x_scale = env
                 .get(&format!("{}_x_scale", label))
-                .and_then(|v| if let Value::Str(s) = v { Some(s) } else { None })
-                .unwrap_or_else(|| "linear".to_string());
+                .and_then(|v| if let Value::Str(s) = v { Some(crate::timeline::build::utils::ScaleType::from_str(&s)) } else { None })
+                .unwrap_or(crate::timeline::build::utils::ScaleType::Linear);
             let y_scale = env
                 .get(&format!("{}_y_scale", label))
-                .and_then(|v| if let Value::Str(s) = v { Some(s) } else { None })
-                .unwrap_or_else(|| "linear".to_string());
+                .and_then(|v| if let Value::Str(s) = v { Some(crate::timeline::build::utils::ScaleType::from_str(&s)) } else { None })
+                .unwrap_or(crate::timeline::build::utils::ScaleType::Linear);
 
             let new_paths = build_graph_axis_paths(
                 size,
@@ -963,8 +963,8 @@ fn rebuild_vector_paths(
                 ticks,
                 has_labels,
                 padding,
-                &x_scale,
-                &y_scale,
+                x_scale,
+                y_scale,
             );
 
             if has_duration {
