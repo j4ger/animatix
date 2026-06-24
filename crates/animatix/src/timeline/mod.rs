@@ -61,6 +61,7 @@ pub mod modifier_exec;
 /// Path morphing between vector shapes.
 pub mod morph;
 mod plot;
+pub mod eval_shared;
 pub mod path_progress;
 pub mod property_track;
 mod position;

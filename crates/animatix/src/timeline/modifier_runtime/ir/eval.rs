@@ -1,7 +1,5 @@
 use crate::ast::{BinaryOp, LoopPattern, UnaryOp};
 use crate::timeline::{Environment, EvalError, Value};
-use crate::timeline::utils::{safe_div, safe_rem};
-
 use super::types::{
     BuiltinFn, CompiledExpr, ModifierExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides,
 };
@@ -157,25 +155,26 @@ pub fn evaluate_compiled_expr(
                 .iter()
                 .map(|arg| evaluate_compiled_expr(arg, env))
                 .collect::<Result<Vec<_>, _>>()?;
-            match builtin {
-                BuiltinFn::Sin => eval_sin(&args),
-                BuiltinFn::Cos => eval_cos(&args),
-                BuiltinFn::Lerp => eval_lerp(&args),
-                BuiltinFn::Format => eval_format(&args),
-                BuiltinFn::Tan => eval_tan(&args),
-                BuiltinFn::Sqrt => eval_sqrt(&args),
-                BuiltinFn::Exp => eval_exp(&args),
-                BuiltinFn::Log => eval_log(&args),
-                BuiltinFn::Atan2 => eval_atan2(&args),
-                BuiltinFn::Clamp => eval_clamp(&args),
-                BuiltinFn::Abs => eval_abs(&args),
-                BuiltinFn::Min => eval_min(&args),
-                BuiltinFn::Max => eval_max(&args),
-                BuiltinFn::Floor => eval_floor(&args),
-                BuiltinFn::Ceil => eval_ceil(&args),
-                BuiltinFn::Deg => eval_deg(&args),
-                BuiltinFn::Rad => eval_rad(&args),
-            }
+            let name = match builtin {
+                BuiltinFn::Sin => "sin",
+                BuiltinFn::Cos => "cos",
+                BuiltinFn::Lerp => "lerp",
+                BuiltinFn::Format => "format",
+                BuiltinFn::Tan => "tan",
+                BuiltinFn::Sqrt => "sqrt",
+                BuiltinFn::Exp => "exp",
+                BuiltinFn::Log => "ln",
+                BuiltinFn::Atan2 => "atan2",
+                BuiltinFn::Clamp => "clamp",
+                BuiltinFn::Abs => "abs",
+                BuiltinFn::Min => "min",
+                BuiltinFn::Max => "max",
+                BuiltinFn::Floor => "floor",
+                BuiltinFn::Ceil => "ceil",
+                BuiltinFn::Deg => "deg",
+                BuiltinFn::Rad => "rad",
+            };
+            crate::timeline::eval_shared::eval_builtin_fn(name, &args)
         }
         CompiledExpr::Index(container, index) => {
             let container_val = evaluate_compiled_expr(container, env)?;
@@ -254,185 +253,77 @@ pub fn evaluate_compiled_expr(
     }
 }
 
+// All builtin eval functions (eval_sin, eval_cos, eval_lerp, eval_format, ...)
+// have been consolidated into crate::timeline::eval_shared::eval_builtin_fn.
+// The individual functions are retained as thin wrappers for backward compatibility
+// but now delegate to the shared implementation.
+
 pub(crate) fn eval_sin(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::TypeMismatch(
-            "sin expects 1 argument".to_string(),
-        ));
-    }
-    Ok(Value::Num(args[0].as_num().sin()))
+    crate::timeline::eval_shared::eval_builtin_fn("sin", args)
 }
 
 pub(crate) fn eval_cos(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::TypeMismatch(
-            "cos expects 1 argument".to_string(),
-        ));
-    }
-    Ok(Value::Num(args[0].as_num().cos()))
+    crate::timeline::eval_shared::eval_builtin_fn("cos", args)
 }
 
 pub(crate) fn eval_lerp(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 3 {
-        return Err(EvalError::TypeMismatch(
-            "lerp expects 3 arguments".to_string(),
-        ));
-    }
-    Ok(Value::Num(
-        args[0].as_num() + (args[1].as_num() - args[0].as_num()) * args[2].as_num(),
-    ))
+    crate::timeline::eval_shared::eval_builtin_fn("lerp", args)
 }
 
 pub(crate) fn eval_format(args: &[Value]) -> Result<Value, EvalError> {
-    let Some((template, rest)) = args.split_first() else {
-        return Ok(Value::Str(String::new()));
-    };
-    let mut output = template.as_str();
-    for arg in rest {
-        let replacement = match arg {
-            Value::Num(n) => {
-                if n.fract() == 0.0 {
-                    format!("{}", *n as i64)
-                } else {
-                    n.to_string()
-                }
-            }
-            Value::Str(s) => s.clone(),
-            Value::Bool(b) => b.to_string(),
-            Value::Vec2(v) => format!("({}, {})", v[0], v[1]),
-            Value::Vec3(v) => format!("({}, {}, {})", v[0], v[1], v[2]),
-            Value::Vec4(v) | Value::Color(v) => {
-                format!("({}, {}, {}, {})", v[0], v[1], v[2], v[3])
-            }
-            Value::List(items) => format!("{:?}", items),
-            Value::Object(name, fields) => format!("{}({:?})", name, fields),
-            Value::NativeFn(_) => "<NativeFn>".to_string(),
-            Value::Closure(_, _, _) => "<Closure>".to_string(),
-        };
-        output = output.replacen("{}", &replacement, 1);
-    }
-    Ok(Value::Str(output))
+    crate::timeline::eval_shared::eval_builtin_fn("format", args)
 }
 
 pub(crate) fn eval_tan(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::TypeMismatch(
-            "tan expects 1 argument".to_string(),
-        ));
-    }
-    Ok(Value::Num(args[0].as_num().tan()))
+    crate::timeline::eval_shared::eval_builtin_fn("tan", args)
 }
 
 pub(crate) fn eval_sqrt(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::TypeMismatch(
-            "sqrt expects 1 argument".to_string(),
-        ));
-    }
-    Ok(Value::Num(args[0].as_num().sqrt()))
+    crate::timeline::eval_shared::eval_builtin_fn("sqrt", args)
 }
 
 pub(crate) fn eval_exp(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::TypeMismatch(
-            "exp expects 1 argument".to_string(),
-        ));
-    }
-    Ok(Value::Num(args[0].as_num().exp()))
+    crate::timeline::eval_shared::eval_builtin_fn("exp", args)
 }
 
 pub(crate) fn eval_log(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::TypeMismatch(
-            "log expects 1 argument".to_string(),
-        ));
-    }
-    Ok(Value::Num(args[0].as_num().ln()))
+    crate::timeline::eval_shared::eval_builtin_fn("ln", args)
 }
 
 pub(crate) fn eval_atan2(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 2 {
-        return Err(EvalError::TypeMismatch(
-            "atan2 expects 2 arguments".to_string(),
-        ));
-    }
-    Ok(Value::Num(args[0].as_num().atan2(args[1].as_num())))
+    crate::timeline::eval_shared::eval_builtin_fn("atan2", args)
 }
 
 pub(crate) fn eval_clamp(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 3 {
-        return Err(EvalError::TypeMismatch(
-            "clamp expects 3 arguments".to_string(),
-        ));
-    }
-    Ok(Value::Num(
-        args[0].as_num().clamp(args[1].as_num(), args[2].as_num()),
-    ))
+    crate::timeline::eval_shared::eval_builtin_fn("clamp", args)
 }
 
 pub(crate) fn eval_abs(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::TypeMismatch(
-            "abs expects 1 argument".to_string(),
-        ));
-    }
-    Ok(Value::Num(args[0].as_num().abs()))
+    crate::timeline::eval_shared::eval_builtin_fn("abs", args)
 }
 
 pub(crate) fn eval_min(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 2 {
-        return Err(EvalError::TypeMismatch(
-            "min expects 2 arguments".to_string(),
-        ));
-    }
-    Ok(Value::Num(args[0].as_num().min(args[1].as_num())))
+    crate::timeline::eval_shared::eval_builtin_fn("min", args)
 }
 
 pub(crate) fn eval_max(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 2 {
-        return Err(EvalError::TypeMismatch(
-            "max expects 2 arguments".to_string(),
-        ));
-    }
-    Ok(Value::Num(args[0].as_num().max(args[1].as_num())))
+    crate::timeline::eval_shared::eval_builtin_fn("max", args)
 }
 
 pub(crate) fn eval_floor(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::TypeMismatch(
-            "floor expects 1 argument".to_string(),
-        ));
-    }
-    Ok(Value::Num(args[0].as_num().floor()))
+    crate::timeline::eval_shared::eval_builtin_fn("floor", args)
 }
 
 pub(crate) fn eval_ceil(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::TypeMismatch(
-            "ceil expects 1 argument".to_string(),
-        ));
-    }
-    Ok(Value::Num(args[0].as_num().ceil()))
+    crate::timeline::eval_shared::eval_builtin_fn("ceil", args)
 }
 
 pub(crate) fn eval_deg(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::TypeMismatch(
-            "deg expects 1 argument".to_string(),
-        ));
-    }
-    let x = args[0].as_num();
-    Ok(Value::Num(x * std::f64::consts::PI / 180.0))
+    crate::timeline::eval_shared::eval_builtin_fn("deg", args)
 }
 
 pub(crate) fn eval_rad(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::TypeMismatch(
-            "rad expects 1 argument".to_string(),
-        ));
-    }
-    let x = args[0].as_num();
-    Ok(Value::Num(x * 180.0 / std::f64::consts::PI))
+    crate::timeline::eval_shared::eval_builtin_fn("rad", args)
 }
 
 /// Evaluate a method call on a receiver value (modifier IR version).
@@ -451,244 +342,7 @@ pub(crate) fn apply_binary_op(
     op: &BinaryOp,
     right: Value,
 ) -> Result<Value, EvalError> {
-    match (left.clone(), right.clone()) {
-        (Value::Num(l), Value::Num(r)) => Ok(Value::Num(match op {
-            BinaryOp::Add => l + r,
-            BinaryOp::Sub => l - r,
-            BinaryOp::Mul => l * r,
-            BinaryOp::Div => safe_div(l, r),
-            BinaryOp::Mod => safe_rem(l, r),
-            BinaryOp::Pow => l.powf(r),
-            BinaryOp::Eq => {
-                if l == r {
-                    1.0
-                } else {
-                    0.0
-                }
-            }
-            BinaryOp::Neq => {
-                if l != r {
-                    1.0
-                } else {
-                    0.0
-                }
-            }
-            BinaryOp::Lt => {
-                if l < r {
-                    1.0
-                } else {
-                    0.0
-                }
-            }
-            BinaryOp::Gt => {
-                if l > r {
-                    1.0
-                } else {
-                    0.0
-                }
-            }
-            BinaryOp::Lte => {
-                if l <= r {
-                    1.0
-                } else {
-                    0.0
-                }
-            }
-            BinaryOp::Gte => {
-                if l >= r {
-                    1.0
-                } else {
-                    0.0
-                }
-            }
-            BinaryOp::And => {
-                if l != 0.0 && r != 0.0 {
-                    1.0
-                } else {
-                    0.0
-                }
-            }
-            BinaryOp::Or => {
-                if l != 0.0 || r != 0.0 {
-                    1.0
-                } else {
-                    0.0
-                }
-            }
-        })),
-        (Value::Vec2(l), Value::Vec2(r)) => match op {
-            BinaryOp::Add => Ok(Value::Vec2([l[0] + r[0], l[1] + r[1]])),
-            BinaryOp::Sub => Ok(Value::Vec2([l[0] - r[0], l[1] - r[1]])),
-            BinaryOp::Mul => Ok(Value::Vec2([l[0] * r[0], l[1] * r[1]])),
-            BinaryOp::Div => Ok(Value::Vec2([
-                safe_div(l[0], r[0]),
-                safe_div(l[1], r[1]),
-            ])),
-            BinaryOp::Mod => Ok(Value::Vec2([
-                safe_rem(l[0], r[0]),
-                safe_rem(l[1], r[1]),
-            ])),
-            _ => Err(EvalError::TypeMismatch(format!(
-                "Unsupported operation {:?} for Vec2 and Vec2",
-                op
-            ))),
-        },
-        (Value::Vec3(l), Value::Vec3(r)) => match op {
-            BinaryOp::Add => Ok(Value::Vec3([l[0] + r[0], l[1] + r[1], l[2] + r[2]])),
-            BinaryOp::Sub => Ok(Value::Vec3([l[0] - r[0], l[1] - r[1], l[2] - r[2]])),
-            BinaryOp::Mul => Ok(Value::Vec3([l[0] * r[0], l[1] * r[1], l[2] * r[2]])),
-            BinaryOp::Div => Ok(Value::Vec3([
-                safe_div(l[0], r[0]),
-                safe_div(l[1], r[1]),
-                safe_div(l[2], r[2]),
-            ])),
-            BinaryOp::Mod => Ok(Value::Vec3([
-                safe_rem(l[0], r[0]),
-                safe_rem(l[1], r[1]),
-                safe_rem(l[2], r[2]),
-            ])),
-            _ => Err(EvalError::TypeMismatch(format!(
-                "Unsupported operation {:?} for Vec3 and Vec3",
-                op
-            ))),
-        },
-        (Value::Color(l), Value::Color(r)) => match op {
-            BinaryOp::Add => Ok(Value::Color([
-                l[0] + r[0],
-                l[1] + r[1],
-                l[2] + r[2],
-                l[3] + r[3],
-            ])),
-            BinaryOp::Sub => Ok(Value::Color([
-                l[0] - r[0],
-                l[1] - r[1],
-                l[2] - r[2],
-                l[3] - r[3],
-            ])),
-            BinaryOp::Mul => Ok(Value::Color([
-                l[0] * r[0],
-                l[1] * r[1],
-                l[2] * r[2],
-                l[3] * r[3],
-            ])),
-            BinaryOp::Div => Ok(Value::Color([
-                safe_div(l[0], r[0]),
-                safe_div(l[1], r[1]),
-                safe_div(l[2], r[2]),
-                safe_div(l[3], r[3]),
-            ])),
-            _ => Err(EvalError::TypeMismatch(format!(
-                "Unsupported operation {:?} for Color and Color",
-                op
-            ))),
-        },
-        (Value::Vec2(l), Value::Num(r)) => match op {
-            BinaryOp::Add => Ok(Value::Vec2([l[0] + r, l[1] + r])),
-            BinaryOp::Sub => Ok(Value::Vec2([l[0] - r, l[1] - r])),
-            BinaryOp::Mul => Ok(Value::Vec2([l[0] * r, l[1] * r])),
-            BinaryOp::Div => Ok(Value::Vec2([
-                safe_div(l[0], r),
-                safe_div(l[1], r),
-            ])),
-            BinaryOp::Mod => Ok(Value::Vec2([
-                safe_rem(l[0], r),
-                safe_rem(l[1], r),
-            ])),
-            _ => Err(EvalError::TypeMismatch(format!(
-                "Unsupported operation {:?} for Vec2 and Num",
-                op
-            ))),
-        },
-        (Value::Num(l), Value::Vec2(r)) => match op {
-            BinaryOp::Add => Ok(Value::Vec2([l + r[0], l + r[1]])),
-            BinaryOp::Sub => Ok(Value::Vec2([l - r[0], l - r[1]])),
-            BinaryOp::Mul => Ok(Value::Vec2([l * r[0], l * r[1]])),
-            BinaryOp::Div => Ok(Value::Vec2([
-                safe_div(l, r[0]),
-                safe_div(l, r[1]),
-            ])),
-            BinaryOp::Mod => Ok(Value::Vec2([
-                safe_rem(l, r[0]),
-                safe_rem(l, r[1]),
-            ])),
-            _ => Err(EvalError::TypeMismatch(format!(
-                "Unsupported operation {:?} for Num and Vec2",
-                op
-            ))),
-        },
-        (Value::Vec3(l), Value::Num(r)) => match op {
-            BinaryOp::Add => Ok(Value::Vec3([l[0] + r, l[1] + r, l[2] + r])),
-            BinaryOp::Sub => Ok(Value::Vec3([l[0] - r, l[1] - r, l[2] - r])),
-            BinaryOp::Mul => Ok(Value::Vec3([l[0] * r, l[1] * r, l[2] * r])),
-            BinaryOp::Div => Ok(Value::Vec3([
-                safe_div(l[0], r),
-                safe_div(l[1], r),
-                safe_div(l[2], r),
-            ])),
-            BinaryOp::Mod => Ok(Value::Vec3([
-                safe_rem(l[0], r),
-                safe_rem(l[1], r),
-                safe_rem(l[2], r),
-            ])),
-            _ => Err(EvalError::TypeMismatch(format!(
-                "Unsupported operation {:?} for Vec3 and Num",
-                op
-            ))),
-        },
-        (Value::Num(l), Value::Vec3(r)) => match op {
-            BinaryOp::Add => Ok(Value::Vec3([l + r[0], l + r[1], l + r[2]])),
-            BinaryOp::Sub => Ok(Value::Vec3([l - r[0], l - r[1], l - r[2]])),
-            BinaryOp::Mul => Ok(Value::Vec3([l * r[0], l * r[1], l * r[2]])),
-            BinaryOp::Div => Ok(Value::Vec3([
-                safe_div(l, r[0]),
-                safe_div(l, r[1]),
-                safe_div(l, r[2]),
-            ])),
-            BinaryOp::Mod => Ok(Value::Vec3([
-                safe_rem(l, r[0]),
-                safe_rem(l, r[1]),
-                safe_rem(l, r[2]),
-            ])),
-            _ => Err(EvalError::TypeMismatch(format!(
-                "Unsupported operation {:?} for Num and Vec3",
-                op
-            ))),
-        },
-        (Value::Color(l), Value::Num(r)) => match op {
-            BinaryOp::Add => Ok(Value::Color([l[0] + r, l[1] + r, l[2] + r, l[3] + r])),
-            BinaryOp::Sub => Ok(Value::Color([l[0] - r, l[1] - r, l[2] - r, l[3] - r])),
-            BinaryOp::Mul => Ok(Value::Color([l[0] * r, l[1] * r, l[2] * r, l[3] * r])),
-            BinaryOp::Div => Ok(Value::Color([
-                safe_div(l[0], r),
-                safe_div(l[1], r),
-                safe_div(l[2], r),
-                safe_div(l[3], r),
-            ])),
-            _ => Err(EvalError::TypeMismatch(format!(
-                "Unsupported operation {:?} for Color and Num",
-                op
-            ))),
-        },
-        (Value::Num(l), Value::Color(r)) => match op {
-            BinaryOp::Add => Ok(Value::Color([l + r[0], l + r[1], l + r[2], l + r[3]])),
-            BinaryOp::Sub => Ok(Value::Color([l - r[0], l - r[1], l - r[2], l - r[3]])),
-            BinaryOp::Mul => Ok(Value::Color([l * r[0], l * r[1], l * r[2], l * r[3]])),
-            BinaryOp::Div => Ok(Value::Color([
-                safe_div(l, r[0]),
-                safe_div(l, r[1]),
-                safe_div(l, r[2]),
-                safe_div(l, r[3]),
-            ])),
-            _ => Err(EvalError::TypeMismatch(format!(
-                "Unsupported operation {:?} for Num and Color",
-                op
-            ))),
-        },
-        _ => Err(EvalError::TypeMismatch(format!(
-            "Unsupported operation {:?} for {:?} and {:?}",
-            op, left, right
-        ))),
-    }
+    crate::timeline::eval_shared::eval_binary_op(left, op, right)
 }
 
 pub(crate) fn make_vec_value(values: Vec<Value>) -> Value {
