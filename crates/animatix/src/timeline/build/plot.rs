@@ -548,51 +548,51 @@ impl Timeline {
                     initial_size = [r, r];
                 }
                 "x_domain" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
+                    match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
                         &initial_eval_env,
                         diagnostics,
                         &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    if let Value::Vec2([min, max]) = v {
-                        x_domain = [min, max];
+                    ) {
+                        Some(Value::Vec2([min, max])) => x_domain = [min, max],
+                        Some(v) => tracing::warn!("{}: 'x_domain' expects a (min, max) tuple, got {:?}", prop_subject, v),
+                        None => {} // eval error already reported as a diagnostic
                     }
                 }
                 "y_domain" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
+                    match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
                         &initial_eval_env,
                         diagnostics,
                         &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    if let Value::Vec2([min, max]) = v {
-                        y_domain = [min, max];
+                    ) {
+                        Some(Value::Vec2([min, max])) => y_domain = [min, max],
+                        Some(v) => tracing::warn!("{}: 'y_domain' expects a (min, max) tuple, got {:?}", prop_subject, v),
+                        None => {} // eval error already reported as a diagnostic
                     }
                 }
                 "t_domain" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
+                    match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
                         &initial_eval_env,
                         diagnostics,
                         &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    if let Value::Vec2([min, max]) = v {
-                        t_domain = [min, max];
+                    ) {
+                        Some(Value::Vec2([min, max])) => t_domain = [min, max],
+                        Some(v) => tracing::warn!("{}: 't_domain' expects a (min, max) tuple, got {:?}", prop_subject, v),
+                        None => {} // eval error already reported as a diagnostic
                     }
                 }
                 "func" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
+                    match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
                         &initial_eval_env,
                         diagnostics,
                         &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    if let Value::Closure(args, body, captures) = v {
-                        func = Some((args, body, captures));
+                    ) {
+                        Some(Value::Closure(args, body, captures)) => func = Some((args, body, captures)),
+                        Some(v) => tracing::warn!("{}: 'func' expects a closure, got {:?}", prop_subject, v),
+                        None => {} // eval error already reported as a diagnostic
                     }
                 }
                 "color" => {
@@ -696,7 +696,9 @@ impl Timeline {
                         Value::Num(n) => {
                             levels.push(n);
                         }
-                        _ => {}
+                        _ => {
+                            tracing::warn!("{}: 'levels' expects a number or list of numbers, got {:?}", prop_subject, v);
+                        }
                     }
                 }
                 "grid" => {
@@ -743,27 +745,27 @@ impl Timeline {
                     }
                 }
                 "x_range" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
+                    match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
                         &initial_eval_env,
                         diagnostics,
                         &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    if let Value::Vec3([min, max, step]) = v {
-                        x_range = [min, max, step];
+                    ) {
+                        Some(Value::Vec3([min, max, step])) => x_range = [min, max, step],
+                        Some(v) => tracing::warn!("{}: 'x_range' expects a (min, max, step) triple, got {:?}", prop_subject, v),
+                        None => {} // eval error already reported as a diagnostic
                     }
                 }
                 "y_range" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
+                    match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
                         &initial_eval_env,
                         diagnostics,
                         &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    if let Value::Vec3([min, max, step]) = v {
-                        y_range = [min, max, step];
+                    ) {
+                        Some(Value::Vec3([min, max, step])) => y_range = [min, max, step],
+                        Some(v) => tracing::warn!("{}: 'y_range' expects a (min, max, step) triple, got {:?}", prop_subject, v),
+                        None => {} // eval error already reported as a diagnostic
                     }
                 }
                 "padding" if primitive.is_graph_host() => {
@@ -784,7 +786,7 @@ impl Timeline {
                         y_scale = v.as_str().to_lowercase();
                     }
                 }
-                _ => {}
+                _ => {} // Non-plot properties (color, stroke, etc.) are handled by the general actor pipeline.
             }
         }
 
@@ -1890,7 +1892,7 @@ pub(crate) fn build_bar_chart_paths(
                     if n > 0.0 { max_value_auto = false; }
                 }
             }
-            _ => {}
+            _ => {} // Non-bar-chart properties are handled by the general actor pipeline.
         }
     }
 

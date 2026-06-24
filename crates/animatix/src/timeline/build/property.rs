@@ -61,51 +61,51 @@ impl Timeline {
                     initial_size = [r, r];
                 }
                 "x_domain" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
+                    match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
                         &initial_eval_env,
                         diagnostics,
                         &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    if let Value::Vec2([min, max]) = v {
-                        x_domain = [min, max];
+                    ) {
+                        Some(Value::Vec2([min, max])) => x_domain = [min, max],
+                        Some(v) => tracing::warn!("{}: 'x_domain' expects a (min, max) tuple, got {:?}", prop_subject, v),
+                        None => {} // eval error already reported as a diagnostic
                     }
                 }
                 "y_domain" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
+                    match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
                         &initial_eval_env,
                         diagnostics,
                         &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    if let Value::Vec2([min, max]) = v {
-                        y_domain = [min, max];
+                    ) {
+                        Some(Value::Vec2([min, max])) => y_domain = [min, max],
+                        Some(v) => tracing::warn!("{}: 'y_domain' expects a (min, max) tuple, got {:?}", prop_subject, v),
+                        None => {} // eval error already reported as a diagnostic
                     }
                 }
                 "t_domain" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
+                    match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
                         &initial_eval_env,
                         diagnostics,
                         &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    if let Value::Vec2([min, max]) = v {
-                        t_domain = [min, max];
+                    ) {
+                        Some(Value::Vec2([min, max])) => t_domain = [min, max],
+                        Some(v) => tracing::warn!("{}: 't_domain' expects a (min, max) tuple, got {:?}", prop_subject, v),
+                        None => {} // eval error already reported as a diagnostic
                     }
                 }
                 "func" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
+                    match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
                         &initial_eval_env,
                         diagnostics,
                         &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    if let Value::Closure(args, body, captures) = v {
-                        func = Some((args, body, captures));
+                    ) {
+                        Some(Value::Closure(args, body, captures)) => func = Some((args, body, captures)),
+                        Some(v) => tracing::warn!("{}: 'func' expects a closure, got {:?}", prop_subject, v),
+                        None => {} // eval error already reported as a diagnostic
                     }
                 }
                 "tolerance" => {
@@ -154,7 +154,7 @@ impl Timeline {
                 "at" => at_expr = Some(prop.value.clone()),
                 "anchor" => anchor_expr = Some(prop.value.clone()),
                 "offset" => offset_expr = Some(prop.value.clone()),
-                _ => {}
+                _ => {} // Non-plot properties (color, opacity, etc.) are handled by the general actor pipeline.
             }
         }
 

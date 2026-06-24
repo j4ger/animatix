@@ -92,6 +92,21 @@ Without the `video` feature, the export dialog will show an "Export requires the
 - Remove truly dead code instead of marking it dead, unless there is a concrete forward-looking reason to keep it.
 - Never commit with `cargo check --workspace` errors. If a crate has pre-existing errors unrelated to your changes, document them in a comment in your commit message.
 
+### Never Silently Drop Values
+- All property value drops must be logged with `tracing::warn!` or documented with a comment explaining why the drop is intentional.
+- All expression drops must be logged with `tracing::debug!` or documented.
+- Use evaluation helpers (`evaluate_expr`, `evaluate_expr_with_lookup_diagnostic`) instead of direct `Expr` matching where possible.
+- When a property receives an unrecognized or wrong-type value, log it before skipping:
+  ```rust
+  match evaluate_expr_with_lookup_diagnostic(&prop.value, env, diagnostics, &subject) {
+      Some(Value::Vec2([min, max])) => x_domain = [min, max],
+      Some(v) => tracing::warn!("{}: 'x_domain' expects a (min, max) tuple, got {:?}", subject, v),
+      None => {} // eval error already reported as a diagnostic
+  }
+  ```
+- Intentional catch-all arms (`_ => {}`) must carry a comment, e.g.
+  `_ => {} // Non-plot properties are handled by the general actor pipeline.`
+
 ## Code Style
 
 - Runtime paths return `Result`; `RenderError` lives in `renderer/error.rs`.
