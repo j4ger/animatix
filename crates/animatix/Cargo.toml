@@ -10,12 +10,14 @@ render = ["dep:wgpu", "dep:vello", "dep:bytemuck", "dep:pollster", "dep:image"]
 video = ["dep:rsmpeg", "dep:image"]
 text = ["dep:typst", "dep:typst-layout", "dep:fontdb", "dep:ttf-parser"]
 svg = ["dep:usvg", "dep:roxmltree"]
+serde = ["dep:serde", "animatix-syntax/serde"]
 
 [dependencies]
 animatix-syntax = { path = "../animatix-syntax" }
 bytemuck = { version = "1.25.0", features = ["derive"], optional = true }
 clap = { version = "4.5.0", features = ["derive"] }
 walkdir = "2.5"
+serde = { version = "1", features = ["derive"], optional = true }
 serde_json = "1"
 animatix-analyzer = { path = "../animatix-analyzer" }
 fastrand = "2.4"

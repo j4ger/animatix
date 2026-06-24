@@ -2,6 +2,9 @@
 
 use std::fmt::Debug;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 // ----------------------------------------------------------------------------
 // 0. Source Spans (for editor-timeline sync)
 // ----------------------------------------------------------------------------
@@ -9,6 +12,7 @@ use std::fmt::Debug;
 /// Source location span for AST nodes.
 /// Used for editor navigation, diagnostics, and bidirectional sync.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Span {
     /// Start line number (1-indexed).
     pub start_line: usize,
@@ -26,6 +30,7 @@ pub struct Span {
 /// spans). Convert to [`Span`] via [`Span::from_byte_span`] for editor-facing
 /// positions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ByteSpan {
     /// Start byte offset into the source text.
     pub start: usize,
@@ -102,6 +107,7 @@ impl Span {
 /// Represents any value-computing element: literals, math, logic, function
 /// calls, and more. Used in property values, conditions, and reactive blocks.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Expr {
     /// Numeric literal (e.g. `42`, `3.14`).
     Num(f64),
@@ -189,6 +195,7 @@ impl Expr {
 
 /// Binary operators supported by the Animatix language.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum BinaryOp {
     /// Addition (`+`).
     Add,
@@ -222,6 +229,7 @@ pub enum BinaryOp {
 
 /// Unary operators supported by the Animatix language.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum UnaryOp {
     /// Negation (`-`).
     Neg,
@@ -241,6 +249,7 @@ pub enum UnaryOp {
 /// The parser handles dot-separated paths; dots are preserved as-is in the name
 /// string.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Property {
     /// Property name (may contain dots for nested keys).
     pub name: String,

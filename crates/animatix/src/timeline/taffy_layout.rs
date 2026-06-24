@@ -29,8 +29,12 @@ use crate::timeline::LayoutType;
 #[cfg(test)]
 use crate::timeline::layout::compute_container_size;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// Describes how a single dimension (width or height) of a child should be sized.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum SizeSpec {
     /// Fixed absolute size in logical pixels.
     Fixed(f32),
@@ -68,6 +72,7 @@ impl SizeSpec {
 
 /// Full size specification for a child node (width and height).
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ChildSizeSpec {
     /// Width specification.
     pub width: SizeSpec,

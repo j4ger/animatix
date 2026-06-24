@@ -35,6 +35,9 @@ use super::animation_track::{
 };
 use std::collections::HashMap;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 // ─────────────────────────────────────────────────────────────
 // AnimationTrack
 // ─────────────────────────────────────────────────────────────
@@ -46,6 +49,7 @@ use std::collections::HashMap;
 /// highlight tiers), along with metadata such as `kind` (`ActorKindId`),
 /// `children` (scene-graph hierarchy), and `visible`.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct AnimationTrack {
     // ── Identity / metadata ──
     /// Human-readable identifier for the actor.
@@ -84,9 +88,11 @@ pub struct AnimationTrack {
     /// Text property tracks (text_content, font_family, font_size, etc.).
     pub text: TextTracks,
     /// Static SVG paths.
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub svg_paths: Vec<crate::timeline::VelloPath>,
     /// Raster image data.
     #[cfg(feature = "render")]
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub image: Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>,
 
 

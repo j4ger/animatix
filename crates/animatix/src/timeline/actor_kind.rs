@@ -3,6 +3,9 @@ use crate::diagnostics::Diagnostic;
 use crate::timeline::shapes::ShapeType;
 use crate::timeline::Timeline;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// Trait for actor type dispatch. Each primitive type implements this trait
 /// to provide its build logic.
 pub trait ActorKind {
@@ -65,6 +68,7 @@ impl ActorKind for PrimitiveActorKind {
 /// Stable, compile-time constant identifying an actor's type.
 /// Set once at first declaration and never changes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ActorKindId {
     /// Geometric shape (rect, ellipse, line, polygon, path).
     Shape(ShapeKind),
@@ -127,6 +131,7 @@ impl ActorKindId {
 
 /// Specific shape geometry variant.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ShapeKind {
     /// Axis-aligned rectangle.
     Rect,

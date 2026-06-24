@@ -6,6 +6,9 @@ use crate::timeline::shapes::ShapeType;
 
 pub use super::dispatch::{AnimationTrack, TrackFieldRef, TrackFieldMut};
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// Default half-size for layout bounds (`[50.0, 50.0]`).
 pub const DEFAULT_LAYOUT_HALF_SIZE: [f32; 2] = [50.0, 50.0];
 /// Default white color in RGBA (`[1.0, 1.0, 1.0, 1.0]`).
@@ -37,6 +40,7 @@ pub struct ActionEvent {
 
 /// Category of an action for UI color coding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ActionCategory {
     /// Entrance actions (fade-in, wipe-in, etc.) - green.
     Entrance,
@@ -54,6 +58,7 @@ pub enum ActionCategory {
 
 /// Controls whether an actor's position is managed by a layout container.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum PlacementMode {
     /// Position is computed by the parent layout container.
     LayoutManaged,
@@ -78,6 +83,7 @@ impl Interpolate for PlacementMode {
 
 /// Anchor point on a 3×3 scene grid.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum SceneAnchor {
     /// Top-left corner.
     TopLeft,
@@ -107,6 +113,7 @@ impl Interpolate for SceneAnchor {
 
 /// Strategy for binding an actor's position to a reference frame.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum PositionBinding {
     /// Absolute coordinates in the scene.
     Absolute,
@@ -168,6 +175,7 @@ impl Interpolate for Option<crate::timeline::image::SceneImage> {
 
 /// Sub-struct holding all filter-related property tracks.
 #[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct FilterTracks {
     /// Gaussian blur radius.
     pub filter_blur: Option<PropertyTrack<f32>>,
@@ -189,6 +197,7 @@ pub struct FilterTracks {
 
 /// Per-actor highlight property tracks (for equation fragment highlights).
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct HighlightTracks {
     /// Highlight background color (RGBA) for equation fragments.
     pub highlight_color: Option<PropertyTrack<[f32; 4]>>,
@@ -199,6 +208,7 @@ pub struct HighlightTracks {
     /// Highlight corner radius for equation fragments.
     pub highlight_radius: Option<PropertyTrack<f32>>,
     /// Highlight blend mode for equation fragments (non-animated configuration).
+    #[cfg_attr(feature = "serde", serde(skip, default = "HighlightTracks::default_blend"))]
     pub highlight_blend: vello::peniko::Mix,
 }
 
@@ -214,12 +224,19 @@ impl Default for HighlightTracks {
     }
 }
 
+impl HighlightTracks {
+    fn default_blend() -> vello::peniko::Mix {
+        vello::peniko::Mix::Difference
+    }
+}
+
 // ─────────────────────────────────────────────────────────────
 // ShapeTracks sub-struct
 // ─────────────────────────────────────────────────────────────
 
 /// Sub-struct holding all shape-related property tracks.
 #[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ShapeTracks {
     /// Specific shape geometry type.
     pub shape_type: Option<PropertyTrack<ShapeType>>,
@@ -236,6 +253,7 @@ pub struct ShapeTracks {
     /// Path command string (e.g. SVG path data).
     pub commands: Option<PropertyTrack<String>>,
     /// Pre-built vector paths for shape rendering.
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub vector_paths: Option<PropertyTrack<Vec<VelloPath>>>,
 }
 
@@ -245,6 +263,7 @@ pub struct ShapeTracks {
 
 /// Sub-struct holding all text-related property tracks.
 #[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TextTracks {
     /// Raw text content.
     pub text_content: Option<PropertyTrack<String>>,
@@ -269,6 +288,7 @@ pub struct TextTracks {
     /// Overflow behavior ("visible", "clip", "ellipsis").
     pub overflow: Option<PropertyTrack<String>>,
     /// Pre-built text paths for rendering.
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub text_paths: Option<PropertyTrack<Vec<TextPath>>>,
     /// Character reveal progress (0-1) for typewriter effect.
     pub char_progress: Option<PropertyTrack<f32>>,
@@ -287,6 +307,7 @@ pub struct TextTracks {
 
 /// Sub-struct holding all style-related property tracks.
 #[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct StyleTracks {
     /// Fill color in RGBA.
     pub color: Option<PropertyTrack<[f32; 4]>>,
@@ -314,6 +335,7 @@ pub struct StyleTracks {
 
 /// Sub-struct holding all geometry-related property tracks.
 #[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct GeometryTracks {
     /// Position track (x, y).
     pub position: Option<PropertyTrack<[f32; 2]>>,

@@ -59,12 +59,16 @@ use super::{CapturedEnv, Environment, EvalError, Value, evaluate_expr};
 use crate::ast::Expr;
 use crate::easing::{Easing, apply_easing};
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 // ─────────────────────────────────────────────────────────────
 // Plot curve kind
 // ─────────────────────────────────────────────────────────────
 
 /// Discriminant for the four sampling strategies of `PlotCurve`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum PlotCurveKind {
     Cartesian,
     Polar,
@@ -107,6 +111,7 @@ impl PlotCurveKind {
 ///   uses it as the `from` for the next transition. This allows cascading
 ///   function transitions without visual discontinuities.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum FuncSource {
     /// A closure defined by argument names, expression body, and captured environment variables.
     /// The captures are build-time loop variable values needed at render time.
@@ -151,6 +156,7 @@ impl FuncSource {
 /// 4. [`is_complete_at`] identifies the last completed transition so its
 ///    `to` source serves as the static baseline between transitions.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct FuncTransition {
     pub start_ms: u64,
     pub end_ms: u64,
@@ -944,6 +950,7 @@ use crate::renderer::types::VelloPath;
 
 /// All parameters needed to re-sample a plot curve at frame time.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ProceduralPlot {
     pub kind: PlotCurveKind,
     pub func_args: Vec<String>,

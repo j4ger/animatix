@@ -4,8 +4,12 @@ use super::{
 };
 use crate::ast::Expr;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// Discriminant for the kind of geometric shape an actor represents.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ShapeType {
     /// Rectangle.
     #[default]

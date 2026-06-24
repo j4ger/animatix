@@ -4,8 +4,12 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 
+[features]
+serde = ["dep:serde"]
+
 [dependencies]
 chumsky = "0.12.0"
 tree-sitter = "0.26"
 tree-sitter-animatix = { path = "../tree-sitter-animatix" }
 tracing = "0.1"
+serde = { version = "1", features = ["derive"], optional = true }

@@ -12,6 +12,9 @@ use std::collections::BTreeMap;
 // Re-export easing types so track.rs and other modules can get them from here.
 pub use crate::easing::{Easing, apply_easing};
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// Extension trait for lazy property track access.
 pub trait TrackAccessor<T: Interpolate> {
     /// Evaluate the track at `time_ms`, falling back to `default` if empty.
@@ -136,12 +139,14 @@ impl Interpolate for Vec<[f32; 2]> {
 
 /// A keyed animation track holding values of type `T` over time.
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = "T: Serialize + for<'de2> Deserialize<'de2>"))]
 pub struct PropertyTrack<T> {
     /// Map from timestamp (ms) to `(value, easing)` pairs.
     pub(crate) keyframes: BTreeMap<u64, (T, Easing)>,
     /// Value used when no keyframes are defined.
     pub(crate) default_value: T,
     /// P2.20: Memoization cache for repeated time queries.
+    #[cfg_attr(feature = "serde", serde(skip))]
     last_evaluated: std::cell::RefCell<Option<(u64, T)>>,
 }
 

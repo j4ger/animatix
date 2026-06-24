@@ -27,6 +27,9 @@ use crate::timeline::{
     property_track::{PropertyTrack, TrackAccessor},
 };
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 // ---------------------------------------------------------------------------
 // CarryBag
 // ---------------------------------------------------------------------------
@@ -35,12 +38,14 @@ use crate::timeline::{
 ///
 /// Created by [`Timeline::compute_carry_bag`] and consumed by the composition
 /// engine when injecting into the next scene.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CarryBag {
     /// Persistent actor entries, keyed by actor label.
     pub entries: BTreeMap<String, CarryEntry>,
 }
 
 /// A single actor to carry, with its snapshot and recursive subtree.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CarryEntry {
     /// Single-keyframe snapshot of the actor at t=0.
     pub track: AnimationTrack,
@@ -798,5 +803,55 @@ mod tests {
         // Child should have persistent = false (not directly flagged)
         let child_entry = entry.children.get("child").expect("child should be in carry bag");
         assert!(!child_entry.persistent);
+    }
+
+    // -----------------------------------------------------------------------
+    // Serde round-trip tests (feature-gated)
+    // -----------------------------------------------------------------------
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn carry_bag_serde_round_trip() {
+        let timeline = make_timeline_with_persistent_actors();
+        let bag = timeline.compute_carry_bag(500, true);
+
+        // Serialize to JSON and back.
+        let json = serde_json::to_string(&bag).expect("CarryBag should serialize");
+        let bag2: CarryBag = serde_json::from_str(&json).expect("CarryBag should deserialize");
+
+        // Verify the round-tripped bag has the same structure.
+        assert_eq!(bag2.entries.len(), bag.entries.len());
+        let entry = bag2.entries.get("rect1").expect("rect1 must survive round-trip");
+        assert!(entry.persistent);
+        assert_eq!(entry.children.len(), 1);
+
+        // Opacity should be ≈ 0.75 (interpolated at 500ms).
+        let opacity = entry.track.style.opacity.as_ref()
+            .expect("opacity track must survive round-trip");
+        let (_, (val, _)) = opacity.keyframes.iter().next().unwrap();
+        assert!((*val - 0.75).abs() < 1e-4, "opacity expected ≈0.75, got {}", val);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn value_serde_round_trip() {
+        use crate::timeline::env::Value;
+
+        let cases: &[Value] = &[
+            Value::Num(3.14),
+            Value::Str("hello".into()),
+            Value::Bool(true),
+            Value::Vec2([1.0, 2.0]),
+            Value::Vec4([0.1, 0.2, 0.3, 1.0]),
+            Value::Color([0.5, 0.6, 0.7, 1.0]),
+            Value::List(vec![Value::Num(1.0), Value::Bool(false)]),
+        ];
+        for v in cases {
+            let json = serde_json::to_string(v)
+                .unwrap_or_else(|e| panic!("serialize failed for {:?}: {}", v, e));
+            let v2: Value = serde_json::from_str(&json)
+                .unwrap_or_else(|e| panic!("deserialize failed for {:?}: {}", json, e));
+            assert_eq!(*v, v2, "round-trip mismatch for {:?}", v);
+        }
     }
 }

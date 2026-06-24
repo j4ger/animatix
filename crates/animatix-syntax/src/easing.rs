@@ -3,8 +3,12 @@
 //! Provides the [`Easing`] enum, a canonical easing name registry, and
 //! functions to apply easing to a progress value and to parse easing names.
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// Available easing curves for animation interpolation.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Easing {
     /// No easing; progress is linear.
     Linear,

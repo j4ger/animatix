@@ -4,7 +4,11 @@ use crate::easing::apply_easing;
 use super::property_track::{Interpolate, PropertyTrack};
 use crate::renderer::types::{TextPath, VelloPath};
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// Strategy for aligning paths before morphing.
 pub enum MorphStrategy {
     /// Automatic alignment (index-based pairing).
@@ -18,6 +22,7 @@ pub enum MorphStrategy {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// Options controlling path morphing behavior.
 pub struct MorphOptions {
     /// Alignment strategy to use.
