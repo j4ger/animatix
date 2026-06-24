@@ -2113,9 +2113,16 @@ fn make_graph_map_inverse_fn(
                 })
                 .unwrap_or([0.0; 4]);
 
-            let [mx, my] = super::utils::graph_screen_to_math(
-                sx, sy, x_domain, y_domain, size, at, padding, &x_scale, &y_scale,
-            );
+            let ctx = super::utils::GraphContext {
+                x_domain,
+                y_domain,
+                size,
+                at,
+                padding,
+                x_scale: x_scale.clone(),
+                y_scale: y_scale.clone(),
+            };
+            let [mx, my] = super::utils::graph_screen_to_math(sx, sy, &ctx);
             Ok(Value::Vec2([mx, my]))
         },
     ))
@@ -2169,9 +2176,16 @@ fn make_graph_map_fn(
                 })
                 .unwrap_or([0.0, 0.0]);
 
-            let [sx, sy] = super::utils::graph_math_to_screen(
-                mx, my, x_domain, y_domain, size, at, padding, false, &x_scale, &y_scale,
-            );
+            let ctx = super::utils::GraphContext {
+                x_domain,
+                y_domain,
+                size,
+                at,
+                padding,
+                x_scale: x_scale.clone(),
+                y_scale: y_scale.clone(),
+            };
+            let [sx, sy] = super::utils::graph_math_to_screen(mx, my, &ctx, false);
             Ok(Value::Vec2([sx, sy]))
         },
     ))

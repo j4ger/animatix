@@ -301,17 +301,20 @@ impl Timeline {
                     _ => return prop.clone(),
                 };
 
+                let ctx = super::utils::GraphContext {
+                    x_domain,
+                    y_domain,
+                    size: p_size,
+                    at: [parent_pos[0] as f64, parent_pos[1] as f64],
+                    padding: p_padding,
+                    x_scale: p_x_scale.clone(),
+                    y_scale: p_y_scale.clone(),
+                };
                 let [screen_x, screen_y] = super::utils::graph_math_to_screen(
                     mx,
                     my,
-                    x_domain,
-                    y_domain,
-                    p_size,
-                    [parent_pos[0] as f64, parent_pos[1] as f64],
-                    p_padding,
+                    &ctx,
                     false, // absolute coordinates for actor properties
-                    &p_x_scale,
-                    &p_y_scale,
                 );
 
                 Property::new(
