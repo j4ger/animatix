@@ -56,44 +56,6 @@ Minor fixes and technical debt cleanup.
 | 19 | **Deprecate legacy compatibility shims** | ✅ Complete - `sample_procedural_plot` and `build_implicit_plot_path` marked `#[deprecated]`. Call sites updated to use new functions. |
 | 20 | **Make FFmpeg truly optional for GUI** | ✅ Complete - GUI `Cargo.toml` now has optional `video` feature. FFmpeg-dependent code gated behind feature flag. Documented in AGENTS.md. |
 
-### Batch 11: Modifier VM — Closure Support & Loop-State Cleanup
-**Impact:** Moderate | **Effort:** Medium-High | **Dependencies:** None
-
-Closures in modifiers work via fallback (bytecode→IR→tree-walker) but emit misleading warnings and disable bytecode for the entire modifier program. Loop state uses fragile magic strings.
-
-| # | Task | Analysis | Fix Path |
-|---|------|----------|----------|
-| 23 | **First-class closure and `Construct` support in IR/VM** | Closures work via graceful fallback chain (lower→Unsupported→bytecode error→IR→tree-walker per-expression), but emit "Bytecode compilation failed" warning and disable bytecode for the whole modifier program. `Expr::Construct` shares the same gap. | Add `CompiledExpr::Closure` and `Construct` arms to `ir/lower.rs`. Add VM instructions to push/invoke closures. Handle new arms in `ir/eval.rs`. Goal: bytecode compiles cleanly, no warning, no perf cliff. |
-| 24 | **Remove magic loop-variable strings from VM** | `vm.rs:505–555` tracks loop state via `frame_env.set("__for_iter_{pat_key}")` / `"__for_idx_{pat_key}"`. Fragile; collides if a user names a variable `__for_iter_*`. | Add `loop_stack: Vec<LoopState>` to VM struct. BeginFor pushes, CheckFor reads/pops from stack. Keep user-facing loop-var binding (legitimate env entries). |
-
-### Batch 12: Graph Subsystem Type Safety
-**Impact:** Moderate | **Effort:** Medium | **Dependencies:** None
-
-Pure refactors for type safety and clarity in the graph coordinate system.
-
-| # | Task | Analysis | Fix Path |
-|---|------|----------|----------|
-| 25 | **Replace string scale types with `ScaleType` enum** | `"linear"`/`"log"` strings compared across `build/utils.rs`, `build/plot.rs`, `build/property.rs`, `assignments.rs`. Allows typos, no compile-time safety. | Define `pub enum ScaleType { Linear, Log }`. Change `GraphContext.x_scale/y_scale: String` → `ScaleType`. Replace `== "log"` with `matches!(scale, ScaleType::Log)`. User-facing parse input stays a string, converted at build boundary. |
-| 26 | **Split `GraphContext` static vs dynamic fields** | `GraphContext` mixes static config (`x_domain, y_domain, x_scale, y_scale`) with per-frame geometry (`size, at, padding, relative`). | Split into `GraphScaleConfig` (immutable per actor) and `GraphGeometry` (per-frame). `graph_math_to_screen` takes `(&GraphScaleConfig, &GraphGeometry)`. Pure refactor, no behavior change. |
-
-### Batch 13: Persistence & Serialization
-**Impact:** Moderate | **Effort:** Medium-High | **Dependencies:** **Batch 11** (Value/CapturedEnv/closure shape must be stable)
-
-Replace wholesale `clone()` persistence with proper serde. Cross-crate AST serde decision is the long pole.
-
-| # | Task | Analysis | Fix Path |
-|---|------|----------|----------|
-| 27 | **Add serde to `AnimationTrack`/`Value`; replace `clone()` persistence** | `AnimationTrack` has no serde derives; `persistence.rs:305` does `track.clone()` for frame snapshots. `ast::Expr` has no serde. `Value` carries `NativeFn` (Rust fn pointer) which is not serializable. | (a) Add serde to `animatix-syntax` AST types (cross-crate, gate behind `serde` feature). (b) Custom serde for `Value`: serialize `FuncSource::Raw`; error/skip on `NativeFn`. (c) Derive serde on `AnimationTrack`. (d) Keep `clone()` for frame snapshots, use serde for disk save/load. |
-
-### Batch 14: Env Capture Invariant
-**Impact:** Low-Moderate | **Effort:** Low-Medium | **Dependencies:** None if "harden invariant" chosen
-
-`CapturedEnv` only captures overrides, relying on the implicit invariant that stdlib `base` is re-provided at render time.
-
-| # | Task | Analysis | Fix Path |
-|---|------|----------|----------|
-| 28 | **CapturedEnv capture semantics** | `CapturedEnv::snapshot` clones only `env.overrides`; relies on stdlib `base` being re-provided at render time via `build_frame_env`. Works today but the invariant is implicit. | **Recommended (B):** Harden the invariant — add `debug_assert!` at render time that `base` is present, document the guarantee. **Alternative (A):** Capture full env (correct but clones stdlib into every closure; perf cost). Adopt (A) only if a concrete render-time-only variable breaks the invariant. |
-
 ---
 
 ## Icebox
