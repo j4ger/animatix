@@ -73,6 +73,16 @@ pub struct CalloutGeometry {
     pub from: [f32; 2],
     /// Scene-space label origin (absolute, i.e. `to + label_at`).
     pub label_point: [f32; 2],
+    /// Whether the callout has a non-empty target (targeted mode).
+    pub is_targeted: bool,
+    /// Target AABB centre in scene space (only valid when `is_targeted`).
+    pub target_centre: [f32; 2],
+    /// Target AABB half-extents in scene space (only valid when `is_targeted`).
+    pub target_half: [f32; 2],
+    /// Current standoff value (distance from attach point to `from`).
+    pub standoff: f32,
+    /// Current place value.
+    pub place: CalloutPlace,
 }
 
 // -- Public helpers --
@@ -104,25 +114,34 @@ pub fn derive_callout_geometry(
     let standoff = track.geometry.callout_standoff.get(time_ms, 40.0);
     let to_offset = track.geometry.callout_to_offset.get(time_ms, [0.0, 0.0]);
 
-    let (to, from) = if !target_name.is_empty() {
+    let (to, from, is_targeted, target_centre, target_half) = if !target_name.is_empty() {
         if let Some(res) = resolver {
             if let Some((centre, half)) = res.target_bounds(&target_name, time_ms, scene_dimensions) {
                 let attach = attach_point(place, centre, half);
                 let to = [attach[0] + to_offset[0], attach[1] + to_offset[1]];
                 let dir = place_direction(place);
                 let from = [to[0] + dir[0] * standoff, to[1] + dir[1] * standoff];
-                (to, from)
+                (to, from, true, centre, half)
             } else {
-                (manual_to, manual_from)
+                (manual_to, manual_from, false, [0.0f32; 2], [0.0f32; 2])
             }
         } else {
-            (manual_to, manual_from)
+            (manual_to, manual_from, false, [0.0f32; 2], [0.0f32; 2])
         }
     } else {
-        (manual_to, manual_from)
+        (manual_to, manual_from, false, [0.0f32; 2], [0.0f32; 2])
     };
 
-    CalloutGeometry { to, from, label_point: [to[0] + label_at[0], to[1] + label_at[1]] }
+    CalloutGeometry {
+        to,
+        from,
+        label_point: [to[0] + label_at[0], to[1] + label_at[1]],
+        is_targeted,
+        target_centre,
+        target_half,
+        standoff,
+        place,
+    }
 }
 
 // -- Private helpers --

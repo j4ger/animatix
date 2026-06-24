@@ -16,6 +16,7 @@ use crate::app::design_tokens::semantic::accent::hover as accent_hover;
 use crate::app::design_tokens::semantic::overlay::{badge_bg, tooltip_bg};
 use crate::app::design_tokens::semantic::status;
 use crate::app::design_tokens::semantic::status::warning_subtle as amber_subtle;
+use crate::app::design_tokens::semantic::surface;
 use crate::app::design_tokens::semantic::text;
 use crate::app::design_tokens::semantic::text::faint as text_faint;
 use crate::app::design_tokens::spatial::STROKE_WIDTH;
@@ -237,6 +238,26 @@ pub enum DragState {
         start_label_at: [f32; 2],
         /// Mouse position in scene space at drag start.
         start_scene: kurbo::Point,
+    },
+    /// Dragging a callout standoff handle — updates `standoff` scalar.
+    CalloutStandoff {
+        actor: String,
+        /// Tip position (`to`) in scene space, used to compute new standoff distance.
+        tip_scene: [f32; 2],
+        /// `standoff` value at drag start.
+        start_standoff: f32,
+        /// Mouse position in scene space at drag start.
+        start_scene: kurbo::Point,
+    },
+    /// Shift-detach initiated: bake and remove target on DragEnd.
+    CalloutDetach {
+        actor: String,
+        /// Baked `from` (scene space).
+        from: [f32; 2],
+        /// Baked `to` (scene space).
+        to: [f32; 2],
+        /// Current `label_at`.
+        label_at: [f32; 2],
     },
     /// Dragging a callout tip handle — updates `to` (manual) or `to_offset` (targeted).
     CalloutTip {
@@ -1128,7 +1149,62 @@ pub(super) fn callout_handle_screens(
     Some((tip_screen, label_screen))
 }
 
-// ─── Preview Helpers ────────────────────────────────────────────────────────
+/// Draw four side handles around a targeted callout's target bounds.
+///
+/// `active_place` is the currently-active `CalloutPlace` (highlights the active side).
+pub(super) fn draw_callout_place_handles(
+    painter: &egui::Painter,
+    place_screens: [Pos2; 4],
+    active_place: Option<animatix::timeline::animation_track::CalloutPlace>,
+    pixels_per_point: f32,
+) {
+    use animatix::timeline::animation_track::CalloutPlace;
+    let places = [CalloutPlace::Top, CalloutPlace::Bottom, CalloutPlace::Left, CalloutPlace::Right];
+    let r = PREVIEW_HANDLE_SIZE * 0.55 * pixels_per_point;
+    for (i, screen) in place_screens.iter().enumerate() {
+        let active = active_place.map(|p| p == places[i]).unwrap_or(false);
+        let fill = if active { accent_hover() } else { surface::WIDGET };
+        let stroke_color = if active { accent_hover() } else { SELECTION_COLOR };
+        painter.circle_filled(*screen, r, fill);
+        painter.circle_stroke(*screen, r, Stroke::new(STROKE_WIDTH, stroke_color));
+    }
+}
+
+/// Compute screen-space positions of the four side handles for a targeted callout's target bounds.
+/// Order: [Top, Bottom, Left, Right].
+pub(super) fn callout_place_handle_screens(
+    geo: &animatix::timeline::callout_geometry::CalloutGeometry,
+    preview_rect: egui::Rect,
+    scene_dimensions: SceneDimensions,
+    desired: Vec2,
+    zoom: f32,
+    pan: Vec2,
+) -> [Pos2; 4] {
+    let c = geo.target_centre;
+    let h = geo.target_half;
+    let points = [
+        [c[0], c[1] - h[1]], // Top
+        [c[0], c[1] + h[1]], // Bottom
+        [c[0] - h[0], c[1]], // Left
+        [c[0] + h[0], c[1]], // Right
+    ];
+    points.map(|p| scene_to_screen(kurbo::Point::new(p[0] as f64, p[1] as f64), preview_rect, scene_dimensions, desired, zoom, pan))
+}
+
+/// Draw the standoff drag handle on the callout tail (at `from` scene position).
+pub(super) fn draw_callout_standoff_handle(
+    painter: &egui::Painter,
+    standoff_screen: Pos2,
+    active: bool,
+    pixels_per_point: f32,
+) {
+    let r = PREVIEW_HANDLE_SIZE * 0.6 * pixels_per_point;
+    let fill = if active { accent_hover() } else { surface::WIDGET };
+    painter.circle_filled(standoff_screen, r, fill);
+    painter.circle_stroke(standoff_screen, r, Stroke::new(STROKE_WIDTH, SELECTION_COLOR));
+}
+
+// ─── Preview Helpers ────────────────────────────────────────────────────────────
 
 pub(super) fn fit_preview(dimensions: SceneDimensions, available: Vec2) -> Vec2 {
     let aspect = if dimensions.width == 0 || dimensions.height == 0 {

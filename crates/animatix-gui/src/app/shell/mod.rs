@@ -305,6 +305,10 @@ impl GuiShell {
                 self.handle_property_edit(edit);
                 vec![]
             },
+            Command::DetachCallout { actor, from, to, label_at } => {
+                self.handle_detach_callout(actor, from, to, label_at);
+                vec![]
+            },
             Command::Undo => ui::handle_undo(
                 &mut self.document_store,
                 &mut self.preview_store,

@@ -1,16 +1,29 @@
 //! Gesture handler for Callout actor handle interactions.
 //!
-//! Two handles per selected Callout:
+//! Handles per selected Callout:
 //! - **Tip handle** (diamond, at scene `to`): dragging updates `to` (manual) or `to_offset` (targeted).
 //! - **Label handle** (circle, at `to + label_at`): dragging updates `label_at`.
+//! - **Place handles** (4 side circles around target bounds, targeted only): click sets `place`.
+//! - **Standoff handle** (circle at `from`, targeted only): dragging updates `standoff` scalar.
+//! - **Shift+drag** on targeted callout: converts to manual mode (detach).
 
-use crate::app::commands::{DocumentCommand, DragEvent, PropertyEdit, PropertyValue, ShellAction};
+use crate::app::commands::{Command, DocumentCommand, DragEvent, PropertyEdit, PropertyValue, ShellAction};
 use crate::app::design_tokens::spatial::preview::HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS;
 use crate::app::preview::DragState;
 use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
+use animatix::timeline::animation_track::CalloutPlace;
 use animatix::timeline::{ActorKindId, TrackAccessor};
+use animatix::timeline::callout_geometry::derive_callout_geometry;
 
 pub(crate) struct CalloutGesture;
+
+/// The four `CalloutPlace` variants in the same order as place-handle arrays.
+const PLACE_ORDER: [CalloutPlace; 4] = [
+    CalloutPlace::Top,
+    CalloutPlace::Bottom,
+    CalloutPlace::Left,
+    CalloutPlace::Right,
+];
 
 impl GestureHandler for CalloutGesture {
     fn handle(
@@ -20,78 +33,71 @@ impl GestureHandler for CalloutGesture {
         preview_rect: egui::Rect,
     ) -> GestureResult {
         match gesture {
-            Gesture::DragStart { pos, .. } => {
+            Gesture::DragStart { pos, modifiers, .. } => {
                 let actor = match ctx.selected_actors.iter().next().cloned() {
                     Some(a) => a,
                     None => return GestureResult::Ignored,
                 };
 
-                // Only handle Callout actors
-                let is_callout = ctx
-                    .timeline
-                    .and_then(|t| t.get_track(&actor))
-                    .map(|tr| tr.kind == ActorKindId::Callout)
-                    .unwrap_or(false);
-                if !is_callout {
-                    return GestureResult::Ignored;
-                }
-
-                let is_locked = ctx
-                    .timeline
-                    .and_then(|t| t.get_track(&actor))
-                    .map(|tr| tr.locked)
-                    .unwrap_or(false);
-                if is_locked {
-                    return GestureResult::Ignored;
-                }
-
-                let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
                 let timeline = match ctx.timeline {
                     Some(t) => t,
                     None => return GestureResult::Ignored,
                 };
+
                 let track = match timeline.get_track(&actor) {
                     Some(t) => t,
                     None => return GestureResult::Ignored,
                 };
 
-                let to = crate::app::preview::callout_effective_to(track, timeline, time_ms, ctx.scene_dimensions);
-                let label_at = track.geometry.label_at.get(time_ms, [0.0, 50.0]);
-                let is_targeted = !track.geometry.callout_target.get(time_ms, String::new()).is_empty();
-                let to_offset = track.geometry.callout_to_offset.get(time_ms, [0.0, 0.0]);
+                if track.kind != ActorKindId::Callout || track.locked {
+                    return GestureResult::Ignored;
+                }
+
+                let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
+                let geo = derive_callout_geometry(track, time_ms, Some(timeline), ctx.scene_dimensions);
 
                 let zoom = ctx.preview.viewport.preview_zoom;
                 let pan = ctx.preview.viewport.preview_pan;
+                let desired = preview_rect.size();
 
-                let tip_world = kurbo::Point::new(to[0] as f64, to[1] as f64);
-                let label_world = kurbo::Point::new(
-                    (to[0] + label_at[0]) as f64,
-                    (to[1] + label_at[1]) as f64,
-                );
                 let tx = crate::app::preview::PreviewTransform::new(
                     ctx.scene_dimensions,
                     preview_rect,
                     zoom,
                     pan,
                 );
-                let tip_screen = tx.scene_to_screen(tip_world);
+                let tip_screen = tx.scene_to_screen(kurbo::Point::new(geo.to[0] as f64, geo.to[1] as f64));
+                let label_world = kurbo::Point::new(geo.label_point[0] as f64, geo.label_point[1] as f64);
                 let label_screen = tx.scene_to_screen(label_world);
 
                 let hit_r = PREVIEW_HANDLE_HIT_RADIUS;
                 let scene_start = ctx.preview_screen_to_scene(preview_rect, *pos);
+                let to_offset = track.geometry.callout_to_offset.get(time_ms, [0.0, 0.0]);
+                let label_at = track.geometry.label_at.get(time_ms, [0.0, 50.0]);
 
-                // Priority: tip first, then label
+                // Priority 1: tip handle
                 if pos.distance(tip_screen) <= hit_r {
-                    let start_value = if is_targeted { to_offset } else { to };
+                    // Shift+drag on targeted callout: initiate detach
+                    if geo.is_targeted && modifiers.shift {
+                        *ctx.drag_state = DragState::CalloutDetach {
+                            actor,
+                            from: geo.from,
+                            to: geo.to,
+                            label_at,
+                        };
+                        return GestureResult::Claimed;
+                    }
+                    let start_value = if geo.is_targeted { to_offset } else { geo.to };
                     *ctx.drag_state = DragState::CalloutTip {
                         actor,
-                        is_targeted,
+                        is_targeted: geo.is_targeted,
                         start_value,
                         start_scene: scene_start,
                     };
                     return GestureResult::Claimed;
                 }
 
+                // Priority 2: label handle
                 if pos.distance(label_screen) <= hit_r {
                     *ctx.drag_state = DragState::CalloutLabel {
                         actor,
@@ -99,6 +105,46 @@ impl GestureHandler for CalloutGesture {
                         start_scene: scene_start,
                     };
                     return GestureResult::Claimed;
+                }
+
+                // Targeted-only handles
+                if geo.is_targeted {
+                    // Priority 3: standoff handle (at `from`)
+                    let from_screen = crate::app::preview::scene_to_screen(
+                        kurbo::Point::new(geo.from[0] as f64, geo.from[1] as f64),
+                        preview_rect, ctx.scene_dimensions, desired, zoom, pan,
+                    );
+                    if pos.distance(from_screen) <= hit_r {
+                        *ctx.drag_state = DragState::CalloutStandoff {
+                            actor,
+                            tip_scene: geo.to,
+                            start_standoff: geo.standoff,
+                            start_scene: scene_start,
+                        };
+                        return GestureResult::Claimed;
+                    }
+
+                    // Priority 4: place handles (click only — claim on tap too)
+                    let place_screens = crate::app::preview::callout_place_handle_screens(
+                        &geo, preview_rect, ctx.scene_dimensions, desired, zoom, pan,
+                    );
+                    for (i, screen) in place_screens.iter().enumerate() {
+                        if pos.distance(*screen) <= hit_r {
+                            // Clicking a place handle: emit PropertyEdit immediately and don't enter drag.
+                            let place_str = PLACE_ORDER[i].as_str();
+                            ctx.commands.push_back(
+                                DocumentCommand::PropertyEdit(PropertyEdit {
+                                    time_s: None,
+                                    actor,
+                                    property: "place".into(),
+                                    value: PropertyValue::Text(place_str.to_string()),
+                                    create_keyframe: ctx.keyframe_mode,
+                                })
+                                .into(),
+                            );
+                            return GestureResult::Claimed;
+                        }
+                    }
                 }
 
                 GestureResult::Ignored
@@ -141,13 +187,55 @@ impl GestureHandler for CalloutGesture {
                         );
                         GestureResult::Claimed
                     },
+                    DragState::CalloutStandoff { actor, tip_scene, start_standoff, start_scene } => {
+                        // Compute new standoff: distance from tip to current pointer in scene space.
+                        // We project the drag delta onto the direction vector, then add to start_standoff.
+                        let dx = (scene.x - start_scene.x) as f32;
+                        let dy = (scene.y - start_scene.y) as f32;
+                        // Direction of drag away from tip: normalise start-scene - tip_scene.
+                        let dir_x = start_scene.x as f32 - tip_scene[0];
+                        let dir_y = start_scene.y as f32 - tip_scene[1];
+                        let dir_len = (dir_x * dir_x + dir_y * dir_y).sqrt().max(1.0);
+                        let delta = (dx * dir_x + dy * dir_y) / dir_len;
+                        let new_standoff = (start_standoff + delta).max(0.0);
+                        ctx.commands.push_back(
+                            DocumentCommand::PropertyEdit(PropertyEdit {
+                                time_s: None,
+                                actor,
+                                property: "standoff".into(),
+                                value: PropertyValue::Float(new_standoff),
+                                create_keyframe: ctx.keyframe_mode,
+                            })
+                            .into(),
+                        );
+                        GestureResult::Claimed
+                    },
+                    DragState::CalloutDetach { .. } => {
+                        // No live preview during detach drag; finalise on DragEnd.
+                        GestureResult::Claimed
+                    },
                     _ => GestureResult::Ignored,
                 }
             },
 
             Gesture::DragEnd { .. } => {
-                match &*ctx.drag_state {
-                    DragState::CalloutLabel { .. } | DragState::CalloutTip { .. } => {},
+                let state = ctx.drag_state.clone();
+                match &state {
+                    DragState::CalloutLabel { .. }
+                    | DragState::CalloutTip { .. }
+                    | DragState::CalloutStandoff { .. } => {},
+                    DragState::CalloutDetach { actor, from, to, label_at } => {
+                        // Emit atomic detach command: bakes from/to/label_at and removes target.
+                        ctx.commands.push_back(ShellAction::Command(Command::DetachCallout {
+                            actor: actor.clone(),
+                            from: *from,
+                            to: *to,
+                            label_at: *label_at,
+                        }));
+                        ctx.commands.push_back(ShellAction::Drag(DragEvent::DragEnded));
+                        *ctx.drag_state = DragState::None;
+                        return GestureResult::Claimed;
+                    },
                     _ => return GestureResult::Ignored,
                 }
                 ctx.commands.push_back(ShellAction::Drag(DragEvent::DragEnded));

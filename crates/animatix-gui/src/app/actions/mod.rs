@@ -86,6 +86,86 @@ impl GuiShell {
         self.preview_store.preview_dirty = true;
     }
 
+    /// Detach a targeted callout: bake `from`, `to`, `label_at` as manual properties
+    /// and remove `target` from the actor declaration.
+    pub(crate) fn handle_detach_callout(
+        &mut self,
+        actor: String,
+        from: [f32; 2],
+        to: [f32; 2],
+        label_at: [f32; 2],
+    ) {
+        use crate::source_edit::SourceEdit;
+        use animatix_syntax::ast::Expr;
+
+        let result = if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
+            let actor_c = actor.clone();
+            try_apply_source_edit(stmts, |trial| {
+                // Set from
+                let from_expr = Expr::Tuple(vec![
+                    Expr::Num(from[0] as f64),
+                    Expr::Num(from[1] as f64),
+                ]);
+                let _ = crate::source_edit::apply_edit(trial, SourceEdit::SetProperty {
+                    actor: actor_c.clone(),
+                    property: "from".into(),
+                    value: from_expr.clone(),
+                }).or_else(|_| crate::source_edit::apply_edit(trial, SourceEdit::InsertProperty {
+                    actor: actor_c.clone(),
+                    property: "from".into(),
+                    value: from_expr,
+                }));
+                // Set to
+                let to_expr = Expr::Tuple(vec![
+                    Expr::Num(to[0] as f64),
+                    Expr::Num(to[1] as f64),
+                ]);
+                let _ = crate::source_edit::apply_edit(trial, SourceEdit::SetProperty {
+                    actor: actor_c.clone(),
+                    property: "to".into(),
+                    value: to_expr.clone(),
+                }).or_else(|_| crate::source_edit::apply_edit(trial, SourceEdit::InsertProperty {
+                    actor: actor_c.clone(),
+                    property: "to".into(),
+                    value: to_expr,
+                }));
+                // Set label_at
+                let label_expr = Expr::Tuple(vec![
+                    Expr::Num(label_at[0] as f64),
+                    Expr::Num(label_at[1] as f64),
+                ]);
+                let _ = crate::source_edit::apply_edit(trial, SourceEdit::SetProperty {
+                    actor: actor_c.clone(),
+                    property: "label_at".into(),
+                    value: label_expr.clone(),
+                }).or_else(|_| crate::source_edit::apply_edit(trial, SourceEdit::InsertProperty {
+                    actor: actor_c.clone(),
+                    property: "label_at".into(),
+                    value: label_expr,
+                }));
+                // Remove target
+                let _ = crate::source_edit::apply_edit(trial, SourceEdit::RemoveProperty {
+                    actor: actor_c.clone(),
+                    property: "target".into(),
+                });
+                Ok(())
+            })
+        } else {
+            Err(crate::source_edit::SourceEditError::Generic("No AST available".to_string()))
+        };
+
+        match result {
+            Ok((new_source, source_index, flashes)) => {
+                self.commit_source(new_source, source_index, flashes);
+                self.preview_store.preview.status = format!("Detached callout '{}'", actor);
+            },
+            Err(err) => {
+                tracing::error!("detach callout '{}' failed: {}", actor, err);
+            },
+        }
+        self.preview_store.preview_dirty = true;
+    }
+
     fn apply_child_order_edit(&mut self, edit: panels::PropertyEdit, is_drag: bool) {
         use crate::app::panels::PropertyValue as PV;
 

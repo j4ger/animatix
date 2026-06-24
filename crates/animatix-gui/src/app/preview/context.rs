@@ -1070,7 +1070,7 @@ impl PreviewContext<'_> {
                 );
             }
 
-            // Callout handles: tip + label
+            // Callout handles: tip + label + place (targeted) + standoff (targeted)
             let is_callout = self
                 .timeline
                 .and_then(|t| t.get_track(actor))
@@ -1079,16 +1079,17 @@ impl PreviewContext<'_> {
             if is_callout {
                 if let Some(timeline) = self.timeline {
                     let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
-                    if let Some((tip_screen, label_screen)) = preview::callout_handle_screens(
-                        actor,
-                        timeline,
-                        time_ms,
-                        preview_rect,
-                        self.scene_dimensions,
-                        preview_rect.size(),
-                        self.preview.viewport.preview_zoom,
-                        self.preview.viewport.preview_pan,
-                    ) {
+                    if let Some(track) = timeline.get_track(actor) {
+                        let geo = animatix::timeline::callout_geometry::derive_callout_geometry(
+                            track, time_ms, Some(timeline), self.scene_dimensions,
+                        );
+                        let zoom = self.preview.viewport.preview_zoom;
+                        let pan = self.preview.viewport.preview_pan;
+                        let desired = preview_rect.size();
+                        let tip_world = kurbo::Point::new(geo.to[0] as f64, geo.to[1] as f64);
+                        let label_world = kurbo::Point::new(geo.label_point[0] as f64, geo.label_point[1] as f64);
+                        let tip_screen = preview::scene_to_screen(tip_world, preview_rect, self.scene_dimensions, desired, zoom, pan);
+                        let label_screen = preview::scene_to_screen(label_world, preview_rect, self.scene_dimensions, desired, zoom, pan);
                         let active_tip = matches!(&self.drag_state, DragState::CalloutTip { actor: a, .. } if a == actor);
                         let active_label = matches!(&self.drag_state, DragState::CalloutLabel { actor: a, .. } if a == actor);
                         preview::draw_callout_handles(
@@ -1099,6 +1100,33 @@ impl PreviewContext<'_> {
                             active_label,
                             ui.ctx().pixels_per_point(),
                         );
+                        // Place handles and standoff handle for targeted callouts
+                        if geo.is_targeted {
+                            let place_screens = preview::callout_place_handle_screens(
+                                &geo, preview_rect, self.scene_dimensions, desired, zoom, pan,
+                            );
+                            let active_place = if matches!(&self.drag_state, DragState::CalloutStandoff { actor: a, .. } | DragState::CalloutDetach { actor: a, .. } if a == actor) {
+                                None
+                            } else {
+                                None // highlights individual place on tap, not during drag
+                            };
+                            preview::draw_callout_place_handles(
+                                ui.painter(),
+                                place_screens,
+                                active_place,
+                                ui.ctx().pixels_per_point(),
+                            );
+                            // Standoff handle at `from`
+                            let from_world = kurbo::Point::new(geo.from[0] as f64, geo.from[1] as f64);
+                            let standoff_screen = preview::scene_to_screen(from_world, preview_rect, self.scene_dimensions, desired, zoom, pan);
+                            let active_standoff = matches!(&self.drag_state, DragState::CalloutStandoff { actor: a, .. } if a == actor);
+                            preview::draw_callout_standoff_handle(
+                                ui.painter(),
+                                standoff_screen,
+                                active_standoff,
+                                ui.ctx().pixels_per_point(),
+                            );
+                        }
                     }
                 }
             }
