@@ -45,9 +45,23 @@ impl std::error::Error for EvalError {}
 
 /// Captured variable environment snapshot taken at closure creation time.
 ///
-/// Only stores the `overrides` layer (the mutable portion of the
-/// [`Environment`]). The stdlib `base` is re-provided at render time via
-/// [`Timeline::build_frame_env`], so `CapturedEnv` only captures overrides.
+/// # Capture semantics
+///
+/// `CapturedEnv` stores **only** the `overrides` layer of the surrounding
+/// [`Environment`] at the point of closure creation.  The `base` layer
+/// (stdlib / colorscheme `NativeFn`s, ~90 entries) is intentionally excluded:
+///
+/// - Built-in math functions (`sin`, `cos`, `abs`, …) are resolved by
+///   `eval_shared::eval_builtin_fn` *before* any environment lookup, so they
+///   are always available inside closures regardless of `base`.
+/// - `NativeFn` values from the base (e.g. colorscheme samplers) are
+///   re-provided at render time through `build_frame_env`; call sites that
+///   invoke closures must propagate `env.base` themselves (see
+///   [`CapturedEnv::merge_into`]).
+///
+/// **Guarantee**: every `merge_into` call site passes an [`Environment`]
+/// whose `base` Arc is already set to the timeline stdlib.  Debug assertions
+/// verify this invariant at runtime (non-release builds).
 #[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CapturedEnv(pub HashMap<String, Value>);
@@ -61,6 +75,14 @@ impl CapturedEnv {
 
     /// Merge this captured environment into a mutable environment at render
     /// time, so that captured variables are available during closure evaluation.
+    ///
+    /// # Precondition
+    /// `env` should already carry the stdlib `base` Arc so that `NativeFn`
+    /// values (e.g. colorscheme samplers) remain reachable inside the closure.
+    /// Built-in math functions are exempt (they bypass the env lookup), but
+    /// other runtime-provided `NativeFn`s depend on the base being present.
+    /// In debug builds, call sites that evaluate closures assert this invariant
+    /// (see `evaluate_call` in `utils.rs`).
     pub fn merge_into(&self, env: &mut Environment) {
         for (k, v) in &self.0 {
             env.set(k, v.clone());

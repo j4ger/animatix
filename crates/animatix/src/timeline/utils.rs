@@ -384,7 +384,24 @@ fn evaluate_call(func: &str, args: &[Expr], env: &Environment) -> Result<Value, 
                     )));
                 }
 
-                let mut child_env = Environment::new();
+                // Invariant: the calling env must carry a stdlib base so that
+                // NativeFn values (colorscheme samplers, etc.) are accessible
+                // inside the closure body.  Built-in math functions are exempt
+                // (they are resolved by eval_builtin_fn before env lookup).
+                debug_assert!(
+                    env.base.is_some(),
+                    "evaluate_call: calling env has no stdlib base; NativeFn values will be unreachable inside closure '{}'",
+                    func
+                );
+
+                // Propagate the caller's stdlib base so NativeFn values
+                // (e.g. colorscheme samplers) remain reachable inside the
+                // closure body.  Captured overrides are merged on top.
+                let mut child_env = if let Some(base) = env.base.as_ref() {
+                    Environment::with_base(std::sync::Arc::clone(base))
+                } else {
+                    Environment::new()
+                };
                 captures.merge_into(&mut child_env);
                 for (param, val) in params.iter().zip(arg_values) {
                     child_env.set(param, val);
@@ -667,7 +684,9 @@ mod tests {
 
     #[test]
     fn test_evaluate_closure() {
-        let mut env = Environment::new();
+        // Use an env with a (empty) base to satisfy the stdlib-base invariant
+        // checked by the debug_assert in evaluate_call.
+        let mut env = Environment::with_base(std::sync::Arc::new(std::collections::HashMap::new()));
         let closure = Value::Closure(
             vec!["x".to_string()],
             Box::new(Expr::Binary(
@@ -893,7 +912,9 @@ mod tests {
 
     #[test]
     fn test_evaluate_closure_captures_variable_at_creation_time() {
-        let mut env = Environment::new();
+        // Use an env with a (empty) base to satisfy the stdlib-base invariant
+        // checked by the debug_assert in evaluate_call.
+        let mut env = Environment::with_base(std::sync::Arc::new(std::collections::HashMap::new()));
         env.set("y", Value::Num(3.0));
         let closure = Value::Closure(
             vec!["x".to_string()],
