@@ -53,7 +53,7 @@ pub(crate) struct ProcessedPlotActor {
 /// Parameters for building plot curve paths.
 pub(crate) struct PlotCurveParams<'a> {
     pub(super) kind: PlotCurveKind,
-    pub(super) func: &'a Option<(Vec<String>, Box<Expr>, HashMap<String, Value>)>,
+    pub(super) func: &'a Option<(Vec<String>, Box<Expr>, CapturedEnv)>,
     pub(super) p_x_domain: [f64; 2],
     pub(super) p_y_domain: [f64; 2],
     pub(super) p_size: [f64; 2],
@@ -179,7 +179,7 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
             let mut pts = vec![p0];
             // Wrap the declaration body in a PlotFuncRef::Single for the
             // refactored sampling functions. Build time always uses Single.
-            let func_source = FuncSource::Raw(args.clone(), (**body).clone(), HashMap::new());
+            let func_source = FuncSource::Raw(args.clone(), (**body).clone(), CapturedEnv::default());
             let plot_func = PlotFuncRef::Single(&func_source);
             let mut from_cache = HashMap::<u64, Value>::new();
             let mut to_cache = HashMap::<u64, Value>::new();
@@ -1202,7 +1202,7 @@ impl Timeline {
                     stroke_width,
                     stroke_color,
                     params: plot_params,
-                    extra_captures: captures.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+                    extra_captures: captures.clone(),
                 });
             }
         }

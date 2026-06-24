@@ -153,8 +153,8 @@ fn blend_at_half_progress() {
 
     // Manually construct a Blend node with frozen_progress = 0.5.
     let blend = FuncSource::Blend {
-        from: Box::new(FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), std::collections::HashMap::new())),
-        to: Box::new(FuncSource::Raw(vec!["x".to_string()], cos_x_expr(), std::collections::HashMap::new())),
+        from: Box::new(FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default())),
+        to: Box::new(FuncSource::Raw(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default())),
         frozen_progress: 0.5,
     };
 
@@ -191,15 +191,15 @@ fn blend_at_half_progress() {
         stroke_width: 2.0,
         stroke_color: [1.0, 1.0, 1.0, 1.0],
         params: vec![],
-        extra_captures: vec![],
+        extra_captures: CapturedEnv::default(),
     };
 
     let transition = FuncTransition {
         start_ms: 2000,
         end_ms: 3000,
         easing: Easing::Linear,
-        from: FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), std::collections::HashMap::new()),
-        to: FuncSource::Raw(vec!["x".to_string()], cos_x_expr(), std::collections::HashMap::new()),
+        from: FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default()),
+        to: FuncSource::Raw(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default()),
     };
 
     // At time_ms = 2500, progress is 0.5, so output ≈ 0.5*sin(x) + 0.5*cos(x).
@@ -616,10 +616,10 @@ fn for_loop_closure_captures_loop_variable() {
 
         // Verify that `freq` was captured in extra_captures.
         assert!(
-            plot.extra_captures.iter().any(|(k, _)| k == "freq"),
+            plot.extra_captures.0.contains_key("freq"),
             "{}: `freq` must be in extra_captures (got {:?})",
             track_name,
-            plot.extra_captures.iter().map(|(k, _)| k.as_str()).collect::<Vec<_>>(),
+            plot.extra_captures.0.keys().map(|k| k.as_str()).collect::<Vec<_>>(),
         );
 
         // Sample the plot and verify output matches the captured `freq` value.
@@ -630,7 +630,7 @@ fn for_loop_closure_captures_loop_variable() {
         let func_source = crate::timeline::plot::FuncSource::Raw(
             plot.func_args.clone(),
             plot.func_body.clone(),
-            plot.extra_captures.iter().cloned().collect(),
+            plot.extra_captures.clone(),
         );
         let result = crate::timeline::plot::resolve_func_source(&func_source, &env, "x", 2.0)
             .expect("evaluation should succeed");
@@ -737,7 +737,7 @@ fn quality_factor_calculation() {
 
     // Helper to create a Raw FuncSource (blend depth 0).
     fn raw() -> FuncSource {
-        FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), std::collections::HashMap::new())
+        FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default())
     }
 
     // Helper to create a Blend at a given depth by nesting.
@@ -878,12 +878,12 @@ fn implicit_blend_at_half() {
     let circle = FuncSource::Raw(
         vec!["x".to_string(), "y".to_string()],
         circle_expr(),
-        std::collections::HashMap::new(),
+        CapturedEnv::default(),
     );
     let line = FuncSource::Raw(
         vec!["x".to_string(), "y".to_string()],
         line_yx_expr(),
-        std::collections::HashMap::new(),
+        CapturedEnv::default(),
     );
 
     // At (0,0): circle gives -1, line gives 0; blend at 0.5 → -0.5.

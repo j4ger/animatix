@@ -1,6 +1,6 @@
 use super::{
-    AnimationTrack, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, Diagnostic, Easing, Environment,
-    ModifierHost, ParsedTimingModifiers, PositionBinding, ShapeType, Timeline, Value,
+    AnimationTrack, CapturedEnv, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, Diagnostic, Easing,
+    Environment, ModifierHost, ParsedTimingModifiers, PositionBinding, ShapeType, Timeline, Value,
     VectorShapeState, VectorShapeStyle, assignment_target_key, best_path_suggestion,
     build_shape_vello_path, build_vector_shape_vello_path, evaluate_expr,
     evaluate_expr_with_lookup_diagnostic, mark_track_manual_position,
@@ -351,7 +351,7 @@ impl Timeline {
                 FuncSource::Raw(
                     plot.func_args.clone(),
                     plot.func_body.clone(),
-                    plot.extra_captures.iter().cloned().collect(),
+                    plot.extra_captures.clone(),
                 )
             } else {
                 diagnostics.push(
@@ -391,7 +391,7 @@ impl Timeline {
                     end_ms: t_end_ms,
                     easing,
                     from: from_source,
-                    to: FuncSource::Raw(to_args, to_body, std::collections::HashMap::new()),
+                    to: FuncSource::Raw(to_args, to_body, CapturedEnv::default()),
                 },
             );
                 return; // func is not a registry property; do not fall through

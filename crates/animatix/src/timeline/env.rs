@@ -40,6 +40,42 @@ impl fmt::Display for EvalError {
 
 impl std::error::Error for EvalError {}
 
+/// Captured variable environment snapshot taken at closure creation time.
+///
+/// Only stores the `overrides` layer (the mutable portion of the
+/// [`Environment`]). The stdlib `base` is re-provided at render time via
+/// [`Timeline::build_frame_env`], so `CapturedEnv` only captures overrides.
+#[derive(Clone)]
+pub struct CapturedEnv(pub HashMap<String, Value>);
+
+impl CapturedEnv {
+    /// Create a `CapturedEnv` from the environment's override layer.
+    /// Captures the lexical scope at the point of closure creation.
+    pub fn snapshot(env: &Environment) -> Self {
+        CapturedEnv(env.overrides.clone())
+    }
+
+    /// Merge this captured environment into a mutable environment at render
+    /// time, so that captured variables are available during closure evaluation.
+    pub fn merge_into(&self, env: &mut Environment) {
+        for (k, v) in &self.0 {
+            env.set(k, v.clone());
+        }
+    }
+}
+
+impl std::fmt::Debug for CapturedEnv {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CapturedEnv({:?})", self.0)
+    }
+}
+
+impl Default for CapturedEnv {
+    fn default() -> Self {
+        CapturedEnv(HashMap::new())
+    }
+}
+
 /// Runtime value type used in the timeline evaluation environment.
 #[derive(Clone)]
 pub enum Value {
@@ -65,7 +101,7 @@ pub enum Value {
     #[allow(clippy::type_complexity)]
     NativeFn(Arc<dyn Fn(&[Value], &Environment) -> Result<Value, EvalError> + Send + Sync>),
     /// User-defined closure (parameter names, body expression, captured environment).
-    Closure(Vec<String>, Box<crate::ast::Expr>, HashMap<String, Value>),
+    Closure(Vec<String>, Box<crate::ast::Expr>, CapturedEnv),
 }
 
 impl fmt::Debug for Value {

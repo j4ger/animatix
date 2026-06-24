@@ -121,7 +121,7 @@ use crate::diagnostics::{BuildReport, Diagnostic, DiagnosticCode, DiagnosticPhas
 pub use actor_kind::ActorKind;
 use actions::process_action;
 use colorscheme::{BuiltInColorscheme, ResolvedColorscheme};
-pub use env::{Environment, EvalError, Value};
+pub use env::{CapturedEnv, Environment, EvalError, Value};
 pub use builtins::load_standard_library;
 pub use index::TimelineIndex;
 #[cfg(feature = "render")]

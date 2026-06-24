@@ -5,7 +5,7 @@
 //! Closures evaluate against a clone of the caller environment with parameter bindings added.
 
 use crate::ast::{BinaryOp, Expr, Time};
-use crate::timeline::env::{Environment, EvalError, Value};
+use crate::timeline::env::{CapturedEnv, Environment, EvalError, Value};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -486,8 +486,7 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
 
         // Closures capture the current override environment at creation time (lexical scope).
         Expr::Closure(args, body) => {
-            let captures: HashMap<String, Value> = env.overrides.clone();
-            Ok(Value::Closure(args.clone(), body.clone(), captures))
+            Ok(Value::Closure(args.clone(), body.clone(), CapturedEnv::snapshot(env)))
         }
 
         Expr::Path(parts) => {
@@ -663,9 +662,7 @@ fn evaluate_call(func: &str, args: &[Expr], env: &Environment) -> Result<Value, 
                 }
 
                 let mut child_env = Environment::new();
-                for (k, v) in captures {
-                    child_env.set(k, v.clone());
-                }
+                captures.merge_into(&mut child_env);
                 for (param, val) in params.iter().zip(arg_values) {
                     child_env.set(param, val);
                 }
@@ -955,7 +952,7 @@ mod tests {
                 BinaryOp::Mul,
                 Box::new(Expr::Num(2.0)),
             )),
-            HashMap::new(),
+            CapturedEnv::default(),
         );
         env.set("f", closure);
 
@@ -1182,7 +1179,7 @@ mod tests {
                 BinaryOp::Add,
                 Box::new(Expr::Ident("y".to_string())),
             )),
-            HashMap::from([("y".to_string(), Value::Num(3.0))]),
+            CapturedEnv(HashMap::from([("y".to_string(), Value::Num(3.0))])),
         );
         env.set("f", closure);
         // y is changed in the environment after closure creation,
