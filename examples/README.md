@@ -30,6 +30,7 @@ A progressive suite of 24 numbered `.amx` demos (00–23). Each builds on the pr
 | 21 | `21_actions.amx` | **Actions** — move, draw-in, wipe-in, reveal-in, draw-out, wipe-out, reveal-out |
 | 22 | `22_expressions.amx` | **Expressions** — index access, method calls, rgb/rgba, lerp, clamp, rand |
 | 23 | `23_plot_kinds.amx` | **Plot kinds** — polar, parametric, implicit PlotCurve in a standalone demo |
+| 26 | `26_data_math.amx` | **BarChart & Equation** — standalone BarChart, BarChart inside Graph, Equation with Fragment highlight/unhighlight animations |
 
 ## Running Examples
 

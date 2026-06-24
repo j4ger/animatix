@@ -1,0 +1,142 @@
+// 26_data_math.amx — BarChart and Equation/Fragment demo
+
+// Top-level config: resolution is composition-scoped
+config { resolution: (1280, 720) }
+
+// =============================================================================
+// Scene 1: Standalone BarChart with animated data and per-bar colors
+// =============================================================================
+# BarChartDemo
+config { colorscheme: "editorial-dark" }
+
+title: Text, text: "BarChart: Monthly Revenue", font_size: 36,
+  color: text.primary, anchor: scene.top, offset: (0, 60)
+
+// Standalone BarChart — coordinates are pixel-space
+// data: list of (label, value) pairs; bar_colors: per-bar RGBA
+chart: BarChart,
+  data: {("Jan", 42), ("Feb", 65), ("Mar", 58), ("Apr", 80), ("May", 91), ("Jun", 74)},
+  bar_colors: {
+    (0.35, 0.60, 1.0, 1.0),
+    (0.35, 0.86, 0.63, 1.0),
+    (0.98, 0.83, 0.44, 1.0),
+    (1.0, 0.46, 0.54, 1.0),
+    (0.65, 0.45, 0.95, 1.0),
+    (0.35, 0.86, 0.63, 1.0)
+  },
+  show_axis: true,
+  show_labels: true,
+  size: (800, 380),
+  at: (640, 400)
+
+#0.5s
+fade-in title [500ms, ease: ease-out]
+
+#1s
+fade-in chart [800ms, ease: ease-out]
+
+#3s
+pulse chart [intensity: 1.05, 600ms]
+
+play BarChartInGraph [fade, 400ms]
+
+// =============================================================================
+// Scene 2: BarChart inside a Graph (math coordinates)
+// =============================================================================
+# BarChartInGraph
+config { colorscheme: "editorial-dark" }
+
+title2: Text, text: "BarChart inside a Graph (math coords)", font_size: 32,
+  color: text.primary, anchor: scene.top, offset: (0, 60)
+
+// Graph maps math coordinates to screen; BarChart respects those coordinates
+graph: Graph, at: (640, 400), size: (800, 360),
+  x_domain: (0, 5), y_domain: (0, 10) {
+  bars: BarChart,
+    data: {("A", 3.5), ("B", 7.2), ("C", 5.0), ("D", 8.8)},
+    bar_colors: {
+      (1.0, 0.46, 0.54, 1.0),
+      (0.35, 0.86, 0.63, 1.0),
+      (0.98, 0.83, 0.44, 1.0),
+      (0.35, 0.60, 1.0, 1.0)
+    },
+    show_axis: true,
+    show_labels: true
+}
+
+#0.5s
+fade-in title2 [500ms, ease: ease-out]
+
+#1s
+fade-in graph [800ms, ease: ease-out]
+
+play EquationDemo [wipe-left, 400ms]
+
+// =============================================================================
+// Scene 3: Equation with Fragment highlighting
+// =============================================================================
+# EquationDemo
+config { colorscheme: "editorial-dark" }
+
+title3: Text, text: "Equation + Fragment highlighting", font_size: 32,
+  color: text.primary, anchor: scene.top, offset: (0, 60)
+
+// Equation is a container; each Fragment is an independently addressable segment
+// Use highlight/unhighlight actions to animate the overlay per segment
+eq: Equation, font_size: 48, color: text.primary,
+  anchor: scene.center, offset: (0, -20) {
+  lhs: Fragment, content: "E"
+  eq_sign: Fragment, content: " = "
+  mass: Fragment, content: "m"
+  c2: Fragment, content: "c^2"
+}
+
+hint: Text, text: "← each Fragment highlighted independently",
+  font_size: 18, color: text.muted, anchor: scene.center, offset: (0, 80)
+
+#0.5s
+fade-in title3 [400ms]
+
+// Reveal fragment by fragment
+#1s
+fade-in eq.lhs [400ms]
+
+#1.5s
+fade-in eq.eq_sign [300ms]
+
+#2s
+fade-in eq.mass [400ms]
+
+#2.5s
+fade-in eq.c2 [400ms]
+
+#3.5s
+fade-in hint [400ms]
+
+// Highlight each segment to explain the equation — uses color name + blend mode
+#4s
+highlight eq.lhs [color: accent.warning, blend: normal, 600ms]
+
+#5s
+unhighlight eq.lhs [400ms]
+highlight eq.mass [color: accent.success, blend: normal, 600ms]
+
+#6.5s
+unhighlight eq.mass [400ms]
+highlight eq.c2 [color: accent.danger, blend: normal, 600ms]
+
+#8s
+unhighlight eq.c2 [400ms]
+
+// Highlight all fragments simultaneously
+#8.5s
+highlight eq.lhs [color: accent.primary, blend: difference, 400ms]
+highlight eq.eq_sign [color: accent.primary, blend: difference, 400ms]
+highlight eq.mass [color: accent.primary, blend: difference, 400ms]
+highlight eq.c2 [color: accent.primary, blend: difference, 400ms]
+
+#9.5s
+unhighlight eq.lhs [300ms]
+unhighlight eq.eq_sign [300ms]
+unhighlight eq.mass [300ms]
+unhighlight eq.c2 [300ms]
