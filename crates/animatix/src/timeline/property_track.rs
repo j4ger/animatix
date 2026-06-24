@@ -115,6 +115,12 @@ impl Interpolate for MorphOptions {
     }
 }
 
+impl Interpolate for super::animation_track::CalloutPlace {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        if t < 0.5 { *self } else { *other }
+    }
+}
+
 impl Interpolate for String {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
         if t < 0.5 { self.clone() } else { other.clone() }

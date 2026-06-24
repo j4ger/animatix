@@ -56,6 +56,56 @@ pub enum ActionCategory {
     Reveal,
 }
 
+/// Placement side for a targeted callout annotation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum CalloutPlace {
+    /// Place on the right side of the target (default).
+    #[default]
+    Right,
+    /// Place on the left side of the target.
+    Left,
+    /// Place above the target.
+    Top,
+    /// Place below the target.
+    Bottom,
+    /// Automatically pick the best side.
+    Auto,
+}
+
+impl CalloutPlace {
+    /// Parse from a string identifier or quoted string.
+    /// Accepts `right`, `left`, `top`, `above`, `bottom`, `below`, `auto`.
+    /// Returns `None` for unrecognised values.
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "right"  => Some(Self::Right),
+            "left"   => Some(Self::Left),
+            "top" | "above"  => Some(Self::Top),
+            "bottom" | "below" => Some(Self::Bottom),
+            "auto"   => Some(Self::Auto),
+            _        => None,
+        }
+    }
+
+    /// Canonical string representation (lowercase, matches source syntax).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Right  => "right",
+            Self::Left   => "left",
+            Self::Top    => "top",
+            Self::Bottom => "bottom",
+            Self::Auto   => "auto",
+        }
+    }
+}
+
+impl std::fmt::Display for CalloutPlace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Controls whether an actor's position is managed by a layout container.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -367,8 +417,8 @@ pub struct GeometryTracks {
     pub label_at: Option<PropertyTrack<[f32; 2]>>,
     /// Target actor path for targeted callout mode.
     pub callout_target: Option<PropertyTrack<String>>,
-    /// Placement hint for targeted callout (e.g. "above", "below", "left", "right").
-    pub callout_place: Option<PropertyTrack<String>>,
+    /// Placement hint for targeted callout.
+    pub callout_place: Option<PropertyTrack<CalloutPlace>>,
     /// Standoff distance between callout tip and target.
     pub callout_standoff: Option<PropertyTrack<f32>>,
     /// Offset applied to the callout anchor on the target side.

@@ -5,6 +5,7 @@
 //! tip position is computed by exactly one formula.
 
 use crate::timeline::{AnimationTrack, Timeline, TrackAccessor};
+use crate::timeline::animation_track::CalloutPlace;
 
 // -- Resolver trait --
 
@@ -60,16 +61,16 @@ pub fn derive_callout_geometry(
     let manual_to = track.shape.line_to.get(time_ms, [100.0, 0.0]);
     let manual_from = track.shape.line_from.get(time_ms, [-100.0, 0.0]);
     let label_at = track.geometry.label_at.get(time_ms, [0.0, 50.0]);
-    let place = track.geometry.callout_place.get(time_ms, "right".to_string());
+    let place = track.geometry.callout_place.get(time_ms, CalloutPlace::Right);
     let standoff = track.geometry.callout_standoff.get(time_ms, 40.0);
     let to_offset = track.geometry.callout_to_offset.get(time_ms, [0.0, 0.0]);
 
     let (to, from) = if !target_name.is_empty() {
         if let Some(res) = resolver {
             if let Some((centre, half)) = res.target_bounds(&target_name, time_ms) {
-                let attach = attach_point(&place, centre, half);
+                let attach = attach_point(place, centre, half);
                 let to = [attach[0] + to_offset[0], attach[1] + to_offset[1]];
-                let dir = place_direction(&place);
+                let dir = place_direction(place);
                 let from = [to[0] + dir[0] * standoff, to[1] + dir[1] * standoff];
                 (to, from)
             } else {
@@ -87,20 +88,20 @@ pub fn derive_callout_geometry(
 
 // -- Private helpers --
 
-fn attach_point(place: &str, centre: [f32; 2], half: [f32; 2]) -> [f32; 2] {
+fn attach_point(place: CalloutPlace, centre: [f32; 2], half: [f32; 2]) -> [f32; 2] {
     match place {
-        "above" | "top" => [centre[0], centre[1] - half[1]],
-        "below" | "bottom" => [centre[0], centre[1] + half[1]],
-        "left" => [centre[0] - half[0], centre[1]],
-        _ => [centre[0] + half[0], centre[1]], // "right" and fallback
+        CalloutPlace::Top  => [centre[0], centre[1] - half[1]],
+        CalloutPlace::Bottom => [centre[0], centre[1] + half[1]],
+        CalloutPlace::Left => [centre[0] - half[0], centre[1]],
+        CalloutPlace::Right | CalloutPlace::Auto => [centre[0] + half[0], centre[1]],
     }
 }
 
-fn place_direction(place: &str) -> [f32; 2] {
+fn place_direction(place: CalloutPlace) -> [f32; 2] {
     match place {
-        "above" | "top" => [0.0, -1.0],
-        "below" | "bottom" => [0.0, 1.0],
-        "left" => [-1.0, 0.0],
-        _ => [1.0, 0.0],
+        CalloutPlace::Top  => [0.0, -1.0],
+        CalloutPlace::Bottom => [0.0, 1.0],
+        CalloutPlace::Left => [-1.0, 0.0],
+        CalloutPlace::Right | CalloutPlace::Auto => [1.0, 0.0],
     }
 }

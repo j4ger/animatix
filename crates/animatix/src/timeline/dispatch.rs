@@ -31,7 +31,7 @@ use super::actor_kind::{ActorKindId, ShapeKind};
 use super::morph;
 use super::animation_track::{
     GeometryTracks, StyleTracks, FilterTracks, ShapeTracks, TextTracks, HighlightTracks,
-    PlacementMode, PositionBinding,
+    PlacementMode, PositionBinding, CalloutPlace,
 };
 use std::collections::HashMap;
 
@@ -372,6 +372,8 @@ pub enum TrackFieldRef<'a> {
     ShapeType(&'a Option<PropertyTrack<super::shapes::ShapeType>>),
     /// Placement mode property track.
     PlacementMode(&'a Option<PropertyTrack<PlacementMode>>),
+    /// Callout place property track.
+    CalloutPlace(&'a Option<PropertyTrack<CalloutPlace>>),
     /// Morph options property track.
     MorphOptions(&'a Option<PropertyTrack<MorphOptions>>),
     /// Vector paths property track.
@@ -407,6 +409,8 @@ pub enum TrackFieldMut<'a> {
     ShapeType(&'a mut Option<PropertyTrack<super::shapes::ShapeType>>),
     /// Placement mode property track.
     PlacementMode(&'a mut Option<PropertyTrack<PlacementMode>>),
+    /// Callout place property track.
+    CalloutPlace(&'a mut Option<PropertyTrack<CalloutPlace>>),
     /// Morph options property track.
     MorphOptions(&'a mut Option<PropertyTrack<MorphOptions>>),
     /// Vector paths property track.
@@ -436,6 +440,7 @@ impl<'a> TrackFieldRef<'a> {
             Self::U32(opt) => opt.as_ref().map(|pt| PropertyValue::U32(pt.evaluate_copy(time_ms))),
             Self::ShapeType(opt) => opt.as_ref().map(|pt| PropertyValue::U32(shape_type_to_u32(pt.evaluate_copy(time_ms)))),
             Self::PlacementMode(opt) => opt.as_ref().map(|pt| PropertyValue::PlacementMode(pt.evaluate_copy(time_ms))),
+            Self::CalloutPlace(opt) => opt.as_ref().map(|pt| PropertyValue::CalloutPlace(pt.evaluate_copy(time_ms))),
             Self::MorphOptions(opt) => opt.as_ref().map(|pt| PropertyValue::MorphOptions(pt.evaluate_copy(time_ms))),
             Self::String(opt) => opt.as_ref().map(|pt| PropertyValue::String(pt.evaluate(time_ms))),
             Self::PointList(opt) => opt.as_ref().map(|pt| PropertyValue::PointList(pt.evaluate(time_ms))),
@@ -460,6 +465,7 @@ impl<'a> TrackFieldRef<'a> {
             Self::CommandList(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
             Self::ShapeType(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
             Self::PlacementMode(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::CalloutPlace(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
             Self::MorphOptions(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
             Self::VectorPaths(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
             Self::TextPaths(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
@@ -482,6 +488,7 @@ impl<'a> TrackFieldRef<'a> {
             Self::CommandList(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
             Self::ShapeType(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
             Self::PlacementMode(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::CalloutPlace(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
             Self::MorphOptions(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
             Self::VectorPaths(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
             Self::TextPaths(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
@@ -504,6 +511,7 @@ impl<'a> TrackFieldRef<'a> {
             Self::CommandList(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
             Self::ShapeType(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
             Self::PlacementMode(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::CalloutPlace(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
             Self::MorphOptions(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
             Self::VectorPaths(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
             Self::TextPaths(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
@@ -526,6 +534,7 @@ impl<'a> TrackFieldRef<'a> {
             Self::CommandList(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
             Self::ShapeType(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
             Self::PlacementMode(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::CalloutPlace(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
             Self::MorphOptions(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
             Self::VectorPaths(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
             Self::TextPaths(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
@@ -609,7 +618,7 @@ impl AnimationTrack {
             MaxHeight => TrackFieldRef::F32(&self.geometry.max_height),
             LabelAt => TrackFieldRef::Vec2(&self.geometry.label_at),
             CalloutTarget => TrackFieldRef::String(&self.geometry.callout_target),
-            CalloutPlace => TrackFieldRef::String(&self.geometry.callout_place),
+            CalloutPlace => TrackFieldRef::CalloutPlace(&self.geometry.callout_place),
             CalloutStandoff => TrackFieldRef::F32(&self.geometry.callout_standoff),
             CalloutToOffset => TrackFieldRef::Vec2(&self.geometry.callout_to_offset),
             VectorPaths => TrackFieldRef::VectorPaths(&self.shape.vector_paths),
@@ -684,7 +693,7 @@ impl AnimationTrack {
             MaxHeight => TrackFieldMut::F32(&mut self.geometry.max_height),
             LabelAt => TrackFieldMut::Vec2(&mut self.geometry.label_at),
             CalloutTarget => TrackFieldMut::String(&mut self.geometry.callout_target),
-            CalloutPlace => TrackFieldMut::String(&mut self.geometry.callout_place),
+            CalloutPlace => TrackFieldMut::CalloutPlace(&mut self.geometry.callout_place),
             CalloutStandoff => TrackFieldMut::F32(&mut self.geometry.callout_standoff),
             CalloutToOffset => TrackFieldMut::Vec2(&mut self.geometry.callout_to_offset),
             VectorPaths => TrackFieldMut::VectorPaths(&mut self.shape.vector_paths),
@@ -717,6 +726,7 @@ impl AnimationTrack {
             TrackFieldRef::CommandList(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
             TrackFieldRef::ShapeType(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
             TrackFieldRef::PlacementMode(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::CalloutPlace(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
             TrackFieldRef::MorphOptions(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
             TrackFieldRef::VectorPaths(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
             TrackFieldRef::TextPaths(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),

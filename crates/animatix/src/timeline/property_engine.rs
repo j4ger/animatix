@@ -73,6 +73,8 @@ pub enum PropertyValue {
     String(String),
     /// Placement mode for layout.
     PlacementMode(super::PlacementMode),
+    /// Callout placement side.
+    CalloutPlace(super::animation_track::CalloutPlace),
     /// Options controlling path morphing.
     MorphOptions(super::MorphOptions),
     /// 2D affine transform matrix (6 components).
@@ -256,6 +258,13 @@ pub(crate) fn write_property_field(
             // PlacementMode and MorphOptions are handled in tier 1 (no-ops),
             // but field_mut returns them, so this arm is here for exhaustiveness.
             TrackFieldMut::PlacementMode(_) | TrackFieldMut::MorphOptions(_) => {}
+            // CalloutPlace is written via write_callout_place below.
+            TrackFieldMut::CalloutPlace(f) => {
+                if let PropertyValue::CalloutPlace(v) = value {
+                    f.ensure(super::animation_track::CalloutPlace::Right)
+                        .add_keyframe(t_end_ms, v, easing);
+                }
+            }
             // ShapeType is handled in tier 1 above
             TrackFieldMut::ShapeType(_) => {}
             // VectorPaths, TextPaths, PositionBinding — generated/cached at build time, no keyframing.

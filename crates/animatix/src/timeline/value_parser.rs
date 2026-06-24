@@ -170,5 +170,40 @@ pub(crate) fn parse_value(
         | ValueType::PositionBinding
         | ValueType::MorphOptions
         | ValueType::BuildTimeOnly => None,
+        ValueType::CalloutPlace => {
+            use crate::timeline::animation_track::CalloutPlace;
+            // Accept bare identifier or quoted string: `right`, `"right"`, etc.
+            let s = match expr {
+                Expr::Ident(s) | Expr::Str(s) => s.as_str(),
+                _ => {
+                    match evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject) {
+                        Some(v) => {
+                            let owned = v.as_str();
+                            return if let Some(p) = CalloutPlace::from_str(&owned) {
+                                Some(PropertyValue::CalloutPlace(p))
+                            } else {
+                                diagnostics.push(crate::diagnostics::Diagnostic::warning(
+                                    crate::diagnostics::DiagnosticCode::InvalidPropertyValue,
+                                    crate::diagnostics::DiagnosticPhase::Build,
+                                    format!("'place' expects right|left|top|bottom|auto, got '{owned}'"),
+                                ).with_subject(subject));
+                                None
+                            };
+                        }
+                        None => return None,
+                    }
+                }
+            };
+            if let Some(p) = CalloutPlace::from_str(s) {
+                Some(PropertyValue::CalloutPlace(p))
+            } else {
+                diagnostics.push(crate::diagnostics::Diagnostic::warning(
+                    crate::diagnostics::DiagnosticCode::InvalidPropertyValue,
+                    crate::diagnostics::DiagnosticPhase::Build,
+                    format!("'place' expects right|left|top|bottom|auto, got '{s}'"),
+                ).with_subject(subject));
+                None
+            }
+        }
     }
 }

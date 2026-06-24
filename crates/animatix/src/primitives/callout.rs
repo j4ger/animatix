@@ -1,10 +1,11 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
-use crate::diagnostics::Diagnostic;
+use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::primitives::arrow::build_arrow_path;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx, evaluate_text_paths, sample_shape_style};
 use crate::renderer::error::RenderError;
 use crate::renderer::text::TextKind;
 use crate::timeline::{AnimationTrack, Environment, SceneDimensions, TrackAccessor, Value, VectorShapeState, VelloPath};
+use crate::timeline::animation_track::CalloutPlace;
 use crate::timeline::callout_geometry::derive_callout_geometry;
 
 /// Parse a numeric value from an AST expression.
@@ -91,7 +92,8 @@ impl Primitive for CalloutPrimitive {
         let mut label_text = String::new();
         let mut label_at = [0.0, 50.0];
         let mut callout_target = String::new();
-        let mut callout_place = String::new();
+        let mut callout_place = CalloutPlace::Right;
+        let mut callout_place_invalid = false;
         let mut callout_standoff = 40.0f32;
         let mut callout_to_offset = [0.0f32, 0.0f32];
 
@@ -130,7 +132,10 @@ impl Primitive for CalloutPrimitive {
                 }
                 "place" => {
                     if let Some(s) = parse_string(&prop.value) {
-                        callout_place = s;
+                        match CalloutPlace::from_str(&s) {
+                            Some(p) => callout_place = p,
+                            None => callout_place_invalid = true,
+                        }
                     }
                 }
                 "standoff" => {
@@ -155,7 +160,15 @@ impl Primitive for CalloutPrimitive {
         track.text.text_content.ensure(String::new()).add_keyframe(0, label_text, crate::easing::Easing::Linear);
         track.geometry.label_at.ensure([0.0, 0.0]).add_keyframe(0, label_at, crate::easing::Easing::Linear);
         track.geometry.callout_target.ensure(String::new()).add_keyframe(0, callout_target, crate::easing::Easing::Linear);
-        track.geometry.callout_place.ensure(String::new()).add_keyframe(0, callout_place, crate::easing::Easing::Linear);
+        track.geometry.callout_place.ensure(CalloutPlace::Right).add_keyframe(0, callout_place, crate::easing::Easing::Linear);
+
+        if callout_place_invalid {
+            return Err(vec![Diagnostic::warning(
+                DiagnosticCode::InvalidPropertyValue,
+                DiagnosticPhase::Build,
+                format!("callout '{}': 'place' must be right|left|top|bottom|auto", label),
+            )]);
+        }
         track.geometry.callout_standoff.ensure(40.0).add_keyframe(0, callout_standoff, crate::easing::Easing::Linear);
         track.geometry.callout_to_offset.ensure([0.0, 0.0]).add_keyframe(0, callout_to_offset, crate::easing::Easing::Linear);
 

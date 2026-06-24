@@ -434,6 +434,7 @@ fn format_value(value: &PropertyValue, name: &str) -> String {
             }
         },
         PropertyValue::PlacementMode(v) => format!("{:?}", v),
+        PropertyValue::CalloutPlace(v) => v.as_str().to_string(),
         PropertyValue::MorphOptions(v) => format!("{:?}", v),
         PropertyValue::Transform(v) => format!(
             "[{:.2}, {:.2}, {:.2}, {:.2}, {:.2}, {:.2}]",

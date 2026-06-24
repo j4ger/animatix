@@ -549,6 +549,13 @@ fn apply_property_edit_to_track(
                         pt.add_keyframe(time_ms, mode, linear);
                     }
                 },
+                (TrackFieldMut::CalloutPlace(f), PV::Text(v)) => {
+                    if let Some(place) = animatix::timeline::animation_track::CalloutPlace::from_str(v.as_str()) {
+                        let pt = f.get_or_insert_with(|| PropertyTrack::new(place));
+                        pt.set_default_value(place);
+                        pt.add_keyframe(time_ms, place, linear);
+                    }
+                },
                 _ => {},
             }
         }

@@ -64,6 +64,8 @@ pub enum ValueType {
     PositionBinding,
     /// Morphing animation options.
     MorphOptions,
+    /// Callout placement side.
+    CalloutPlace,
     /// List of 2D points.
     PointList,
     /// List of drawing commands.
@@ -430,8 +432,8 @@ impl ActorField {
             // ── Callout ──
             ActorField::LabelAt => PropertyValue::Vec2([0.0, 0.0]),
             ActorField::CalloutTarget => PropertyValue::String(String::new()),
-            ActorField::CalloutPlace => PropertyValue::String(String::new()),
-            ActorField::CalloutStandoff => PropertyValue::F32(20.0),
+            ActorField::CalloutPlace => PropertyValue::CalloutPlace(crate::timeline::animation_track::CalloutPlace::Right),
+            ActorField::CalloutStandoff => PropertyValue::F32(40.0),
             ActorField::CalloutToOffset => PropertyValue::Vec2([0.0, 0.0]),
 
             // ── Highlight ──
@@ -677,7 +679,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("opacity",       ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::Opacity,             None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("overflow",       ValueType::String,      F::ASSIGNABLE,                ActorField::Overflow,            None,                             Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]), |_| super::property_engine::PropertyValue::String("visible".to_string())),
     schema!("padding",       ValueType::F32,         F::empty(),                   ActorField::ContainerLayoutGroup, Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }), Applicable::ActorKinds(&[A::Graph, A::Row, A::Col, A::Grid, A::Stack]), |_| super::property_engine::PropertyValue::F32(0.0)),
-    schema!("place",         ValueType::String,      F::ASSIGNABLE,                ActorField::CalloutPlace,      None,                             Applicable::ActorKinds(&[A::Callout]), |_| super::property_engine::PropertyValue::String(String::new())),
+    schema!("place",         ValueType::CalloutPlace, F::ASSIGNABLE,                ActorField::CalloutPlace,      None,                             Applicable::ActorKinds(&[A::Callout]), |_| super::property_engine::PropertyValue::CalloutPlace(crate::timeline::animation_track::CalloutPlace::Right)),
     schema!("points",        ValueType::PointList,   F::ASSIGNABLE_A,              ActorField::Points,              Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Polygon]), |_| super::property_engine::PropertyValue::PointList(Vec::new())),
     schema!("position",      ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::Position,            None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])),
     schema!("radius_x",      ValueType::F32,         F::ASSIGNABLE_AI,                ActorField::Size,                Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Ellipse]), |_| super::property_engine::PropertyValue::F32(50.0), ReadSource::Component { field: ActorField::Size, index: 0, scale: 1.0 }),
@@ -692,7 +694,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("show_labels",    ValueType::String,      F::empty(),                   ActorField::NoStorage,              None,                             Applicable::ActorKinds(&[A::BarChart]), |_| super::property_engine::PropertyValue::String("true".to_string())),
     schema!("size",          ValueType::Vec2,        F::ALL,                       ActorField::Size,                None,                             Applicable::SizedActors, |_| super::property_engine::PropertyValue::Vec2([50.0, 50.0])),
     schema!("source",        ValueType::String,      F::ASSIGNABLE,                ActorField::AudioSource,         None,                             Applicable::ActorKinds(&[A::Audio]), |_| super::property_engine::PropertyValue::String(String::new())),
-    schema!("standoff",      ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::CalloutStandoff,   None,                             Applicable::ActorKinds(&[A::Callout]), |_| super::property_engine::PropertyValue::F32(20.0)),
+    schema!("standoff",      ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::CalloutStandoff,   None,                             Applicable::ActorKinds(&[A::Callout]), |_| super::property_engine::PropertyValue::F32(40.0)),
     schema!("stroke",        ValueType::Color,       F::ASSIGNABLE_AI,             ActorField::StrokeColor,         None,                             Applicable::AllStrokePaths, |_| super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])),
     schema!("stroke_progress",ValueType::F32,        F::ASSIGNABLE_AI,             ActorField::StrokeProgress,      None,                             Applicable::AllStrokePaths, |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("stroke_width",  ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::StrokeWidth,         None,                             Applicable::AllStrokePaths, |_| super::property_engine::PropertyValue::F32(1.0)),

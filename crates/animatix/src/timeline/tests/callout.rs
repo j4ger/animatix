@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::ast::Property;
+use crate::timeline::animation_track::CalloutPlace;
 
 fn make_config() -> Stmt {
     Stmt::Config {
@@ -424,9 +425,9 @@ fn test_callout_target_mode_seeds_tracks() {
         "callout_target should be 'box'"
     );
     assert_eq!(
-        note.geometry.callout_place.get(0, String::new()),
-        "right",
-        "callout_place should be 'right'"
+        note.geometry.callout_place.get(0, CalloutPlace::Right),
+        CalloutPlace::Right,
+        "callout_place should be Right"
     );
     assert!(
         (note.geometry.callout_standoff.get(0, 0.0) - 40.0).abs() < f32::EPSILON,
@@ -530,4 +531,115 @@ fn test_callout_target_mode_derives_positions() {
     let dims = SceneDimensions { width: 1920, height: 1080 };
     // evaluate() must not panic when target mode is active
     let _scene = timeline.evaluate(0.0, dims);
+}
+
+#[test]
+fn test_callout_place_variants_accepted() {
+    // Verify that all valid place identifiers parse to the correct enum variant.
+    for (ident, expected) in &[
+        ("right",  CalloutPlace::Right),
+        ("left",   CalloutPlace::Left),
+        ("top",    CalloutPlace::Top),
+        ("above",  CalloutPlace::Top),
+        ("bottom", CalloutPlace::Bottom),
+        ("below",  CalloutPlace::Bottom),
+        ("auto",   CalloutPlace::Auto),
+    ] {
+        let ast = vec![
+            make_config(),
+            Stmt::Keyframe {
+                time: crate::ast::Time::Seconds(0.0),
+                body: vec![Stmt::ActorDecl {
+                    is_pub: false,
+                    is_anonymous: false,
+                    label: "note".to_string(),
+                    array_index: None,
+                    ty: "Callout".to_string(),
+                    props: vec![
+                        Property {
+                            name: "place".to_string(),
+                            value: Expr::Ident(ident.to_string()),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                    ],
+                    modifiers: vec![],
+                    children: vec![],
+                    span: None,
+                }],
+                span: None,
+            },
+        ];
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+        assert!(report.diagnostics.is_empty(), "place={ident} produced unexpected diagnostics: {:?}", report.diagnostics);
+        let track = report.output.get_track("note").unwrap();
+        assert_eq!(
+            track.geometry.callout_place.get(0, CalloutPlace::Right),
+            *expected,
+            "place={ident} should map to {expected:?}"
+        );
+    }
+}
+
+#[test]
+fn test_callout_place_invalid_produces_diagnostic() {
+    // An unrecognised place value should emit a build diagnostic.
+    let ast = vec![
+        make_config(),
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "note".to_string(),
+                array_index: None,
+                ty: "Callout".to_string(),
+                props: vec![Property {
+                    name: "place".to_string(),
+                    value: Expr::Ident("sideways".to_string()),
+                    value_span: None,
+                    trailing_comment: None,
+                }],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            }],
+            span: None,
+        },
+    ];
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        !report.diagnostics.is_empty(),
+        "invalid place 'sideways' should produce a diagnostic"
+    );
+}
+
+#[test]
+fn test_callout_place_default_is_right() {
+    // A Callout without a place prop should default to Right.
+    let ast = vec![
+        make_config(),
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "note".to_string(),
+                array_index: None,
+                ty: "Callout".to_string(),
+                props: vec![],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            }],
+            span: None,
+        },
+    ];
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let track = report.output.get_track("note").unwrap();
+    assert_eq!(
+        track.geometry.callout_place.get(0, CalloutPlace::Auto),
+        CalloutPlace::Right,
+        "default callout_place should be Right"
+    );
 }
