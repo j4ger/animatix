@@ -1,0 +1,127 @@
+// 27_layout_text.amx — Percentage sizing, constraints, typography, and text wrapping
+
+config { resolution: (1280, 720) }
+
+// =============================================================================
+// Scene 1: Percentage-based sizing and min/max constraints
+// =============================================================================
+# PercentSizing
+config { colorscheme: "editorial-dark" }
+
+title: Text, text: "Percentage Sizing & Constraints", font_size: 36,
+  color: text.primary, anchor: scene.top, offset: (0, 60)
+
+// Row where children are sized as percentages of the parent width
+row: Row, gap: 16, padding: 20,
+  at: (640, 380), size: (900, 120) {
+  // 25% of 900px = 225px wide; min_width prevents it shrinking below 80px
+  a: Rect, size: (25%, 80), color: accent.primary, min_width: 80
+  // 50% of parent width; max_width caps at 400px
+  b: Rect, size: (50%, 80), color: accent.success, max_width: 400
+  // fill = remaining space
+  c: Rect, size: (fill, 80), color: accent.warning
+}
+
+hint: Text, text: "25% · 50% (max 400px) · fill — min/max constraints apply",
+  font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -60)
+
+#0.5s
+fade-in title [500ms, ease: ease-out]
+
+#1s
+fade-in row [600ms, ease: ease-out]
+
+#2s
+fade-in hint [400ms]
+
+// Animate max_width constraint to show it clamping
+#3s
+row.b.max_width = 200 [800ms, ease: ease-in-out]
+
+#4.5s
+row.b.max_width = 400 [800ms, ease: ease-in-out]
+
+play Typography [fade, 400ms]
+
+// =============================================================================
+// Scene 2: Typography — font_weight, letter_spacing, line_height
+// =============================================================================
+# Typography
+config { colorscheme: "editorial-dark" }
+
+col: Col, gap: 24, padding: 40,
+  anchor: scene.center {
+  // font_weight and letter_spacing
+  heading: Text, text: "Bold & Spaced", font_size: 56,
+    font_weight: "bold", letter_spacing: 6.0, color: text.primary
+
+  // italic + line_height with multi-line text
+  body: Text, text: "Italic body with generous\nline height for readability",
+    font_size: 22, font_style: "italic", line_height: 1.8, color: text.secondary
+
+  // text_align center inside a fixed-width Col
+  centered: Text, text: "Centered at normal weight",
+    font_size: 20, text_align: "center", color: text.muted
+}
+
+#0.5s
+fade-in col.heading [500ms, ease: ease-out]
+
+#1.2s
+fade-in col.body [500ms]
+
+#1.8s
+fade-in col.centered [400ms]
+
+// Animate letter_spacing to demonstrate it is animatable
+#2.5s
+col.heading.letter_spacing = 0.0 [1s, ease: ease-in-out]
+
+#4s
+col.heading.letter_spacing = 6.0 [1s, ease: ease-in-out]
+
+play TextWrapping [fade, 400ms]
+
+// =============================================================================
+// Scene 3: Text wrapping and overflow
+// =============================================================================
+# TextWrapping
+config { colorscheme: "editorial-dark" }
+
+title3: Text, text: "Text Wrapping & Overflow", font_size: 36,
+  color: text.primary, anchor: scene.top, offset: (0, 60)
+
+// Col auto-propagates text_max_width to children
+col3: Col, gap: 20, padding: 30,
+  at: (640, 400), size: (640, auto) {
+  // Wrapped paragraph — text_max_width auto-set by Col
+  para: Text,
+    text: "Automatic wrapping: when a Text lives inside a Col, its text_max_width is set to the column's content width — no manual configuration needed.",
+    font_size: 18, line_height: 1.6, color: text.secondary
+
+  // Explicit text_max_width with center alignment
+  wrapped: Text,
+    text: "Explicit max-width wrapping with centered alignment across multiple lines.",
+    font_size: 20, text_max_width: 500, text_align: "center", color: text.primary
+
+  // Ellipsis overflow on a narrow budget
+  trunc: Text,
+    text: "This very long single-line title gets truncated with an ellipsis symbol",
+    font_size: 18, text_max_width: 400, overflow: "ellipsis", color: accent.warning
+}
+
+#0.5s
+fade-in title3 [400ms]
+
+#1s
+fade-in col3.para [600ms, ease: ease-out]
+
+#2s
+fade-in col3.wrapped [500ms]
+
+#3s
+fade-in col3.trunc [500ms]
+
+// Animate trunc overflow width to show clamping
+#4s
+pulse col3.trunc [intensity: 1.05, 500ms]
