@@ -13,7 +13,7 @@ New primitive types for educational content.
 
 | # | Task | Notes |
 |---|------|-------|
-| 9 | **Callout/annotation primitive** | `Callout { target: actor, text: "...", arrow: true }` for educational diagrams — labeled arrow pointing at a specific actor or plot element. Not yet designed or implemented. |
+| 9 | **Callout/annotation primitive** | ✅ Shipped. Coordinate-based: `Callout { from: (x,y), to: (x,y), label: "...", label_at: (0, 50), head_size: 8, color: white }`. Draws a labeled arrow between two points. See `examples/callout_example.amx`. |
 
 ---
 
