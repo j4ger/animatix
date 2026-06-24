@@ -1,6 +1,6 @@
-use animatix_syntax::ast::{BinaryOp, Expr, Stmt, Time};
+use animatix_syntax::ast::{BinaryOp, Expr, LoopPattern, Stmt, Time};
 use animatix::ir::{
-    ModifierExpr, compile_modifier_expr, evaluate_modifier_expr, lower_modifier_ir,
+    ModifierExpr, ModifierOverrides, compile_modifier_expr, evaluate_modifier_expr, execute_modifier_ir, lower_modifier_ir,
 };
 use animatix_syntax::module::ModuleGraph;
 use animatix::timeline::{
@@ -534,6 +534,145 @@ fn vm_parity_nested_modifier_targets_match_ir() {
         .expect("VM execution should succeed");
 
     assert_eq!(ir_overrides, vm_overrides);
+}
+
+#[test]
+fn ir_for_loop_binds_index_var() {
+    // Test that for-loops in the IR path correctly bind and clean up the index variable.
+    // Use a simple list literal iterable (not nested tuples) to avoid
+    // make_vec_value collapsing Vec2/3/4 items into typed vectors.
+    let stmt = Stmt::ForLoop {
+        var: LoopPattern::Single("v".to_string()),
+        index_var: Some("i".to_string()),
+        iterable: Expr::List(vec![
+            Expr::Num(10.0),
+            Expr::Num(20.0),
+            Expr::Num(30.0),
+        ]),
+        body: vec![Stmt::LetDecl {
+            name: "z".to_string(),
+            // z = v * (i + 1) — verifies both loop var and index var are bound
+            value: Expr::Binary(
+                Box::new(Expr::Ident("v".to_string())),
+                BinaryOp::Mul,
+                Box::new(Expr::Binary(
+                    Box::new(Expr::Ident("i".to_string())),
+                    BinaryOp::Add,
+                    Box::new(Expr::Num(1.0)),
+                )),
+            ),
+            is_pub: false,
+            span: None,
+        }],
+        span: None,
+    };
+
+    // ForLoop must be inside an Always block for IR lowering to process it
+    let program = vec![Stmt::Always {
+        body: vec![stmt],
+        span: None,
+    }];
+
+    let ir = lower_modifier_ir(&program).expect("IR lowering should succeed");
+
+    // Execute via the IR tree-walker
+    let mut env = Environment::new();
+    let mut overrides: ModifierOverrides = HashMap::new();
+    execute_modifier_ir(&ir, &mut env, &mut overrides)
+        .expect("IR execution should succeed");
+
+    // After the loop, loop variable and index variable should be cleaned up
+    assert!(
+        env.get("v").is_none(),
+        "Loop variable 'v' should be cleaned up after loop exit"
+    );
+    assert!(
+        env.get("i").is_none(),
+        "Index variable 'i' should be cleaned up after loop exit"
+    );
+    // The let-decl 'z' should survive (it's not a loop variable)
+    assert!(
+        env.get("z").is_some(),
+        "Let-decl 'z' should survive after loop exit"
+    );
+    // Last iteration: v=30, i=2 (0-indexed, last iter), z = 30 * (2+1) = 90
+    if let Some(Value::Num(n)) = env.get("z") {
+        assert!(
+            (n - 90.0).abs() < 0.01,
+            "Expected z=90 (last iter: v=30, i=2), got {}",
+            n
+        );
+    } else {
+        panic!("Expected Num value for z");
+    }
+}
+
+#[test]
+fn vm_for_loop_binds_index_var() {
+    // Same test via the bytecode VM path.
+    let stmt = Stmt::ForLoop {
+        var: LoopPattern::Single("v".to_string()),
+        index_var: Some("i".to_string()),
+        iterable: Expr::List(vec![
+            Expr::Num(10.0),
+            Expr::Num(20.0),
+            Expr::Num(30.0),
+        ]),
+        body: vec![Stmt::LetDecl {
+            name: "z".to_string(),
+            value: Expr::Binary(
+                Box::new(Expr::Ident("v".to_string())),
+                BinaryOp::Mul,
+                Box::new(Expr::Binary(
+                    Box::new(Expr::Ident("i".to_string())),
+                    BinaryOp::Add,
+                    Box::new(Expr::Num(1.0)),
+                )),
+            ),
+            is_pub: false,
+            span: None,
+        }],
+        span: None,
+    };
+
+    let program = vec![Stmt::Always {
+        body: vec![stmt],
+        span: None,
+    }];
+
+    let ir = lower_modifier_ir(&program).expect("IR lowering should succeed");
+    let bytecode = compile_modifier_bytecode(&ir).expect("Bytecode compilation should succeed");
+
+    // Execute via the bytecode VM
+    let mut env = Environment::new();
+    let mut overrides: ModifierOverrides = HashMap::new();
+    animatix::vm::execute_modifier_bytecode(&bytecode, &mut env, &mut overrides)
+        .expect("VM execution should succeed");
+
+    // After the loop, all loop variables should be cleaned up
+    assert!(
+        env.get("v").is_none(),
+        "Loop variable 'v' should be cleaned up after loop exit (VM path)"
+    );
+    assert!(
+        env.get("i").is_none(),
+        "Index variable 'i' should be cleaned up after loop exit (VM path)"
+    );
+    // The let-decl 'z' should survive
+    assert!(
+        env.get("z").is_some(),
+        "Let-decl 'z' should survive after loop exit (VM path)"
+    );
+    // Last iteration: v=30, i=2, z = 30 * (2+1) = 90
+    if let Some(Value::Num(n)) = env.get("z") {
+        assert!(
+            (n - 90.0).abs() < 0.01,
+            "Expected z=90 (last iter: v=30, i=2), got {} (VM path)",
+            n
+        );
+    } else {
+        panic!("Expected Num value for z (VM path)");
+    }
 }
 
 fn load_fixture_program(source: &str) -> Vec<Stmt> {

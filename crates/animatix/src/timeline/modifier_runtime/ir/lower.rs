@@ -85,6 +85,7 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
         Stmt::Comment(..) => Err(IrLowerError::UnsupportedStatement("comment")),
         Stmt::ForLoop {
             var,
+            index_var,
             iterable,
             body,
             ..
@@ -96,6 +97,7 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
             )?;
             Ok(ModifierIrStmt::For {
                 var: var.clone(),
+                index_var: index_var.clone(),
                 iterable: compiled_iterable,
                 body: lower_modifier_block(body)?,
             })

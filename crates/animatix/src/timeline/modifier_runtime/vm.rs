@@ -88,9 +88,11 @@ pub enum Instruction {
     /// Unconditional jump to the target instruction.
     Jump(usize),
     /// Begin a for-loop: pop iterable and set up iterator state.
-    BeginFor(LoopPattern),
+    /// Carries the loop pattern and optional index variable name.
+    BeginFor(LoopPattern, Option<String>),
     /// Advance iterator; if exhausted, jump to the end of the loop.
-    CheckFor(LoopPattern, usize),
+    /// Carries the loop pattern, optional index variable name, and end jump target.
+    CheckFor(LoopPattern, Option<String>, usize),
     /// Pop a value and write it as an override for the target property.
     WriteOverride {
         /// Actor label to write the override to.
@@ -212,17 +214,17 @@ impl BytecodeCompiler {
                 self.instructions[jump_if_false_idx] = Instruction::JumpIfFalse(else_start);
                 self.instructions[jump_idx] = Instruction::Jump(end);
             }
-            ModifierIrStmt::For { var, iterable, body } => {
+            ModifierIrStmt::For { var, index_var, iterable, body } => {
                 self.compile_expr(iterable)?;
-                self.instructions.push(Instruction::BeginFor(var.clone()));
+                self.instructions.push(Instruction::BeginFor(var.clone(), index_var.clone()));
                 let check_idx = self.instructions.len();
-                self.instructions.push(Instruction::CheckFor(var.clone(), usize::MAX));
+                self.instructions.push(Instruction::CheckFor(var.clone(), index_var.clone(), usize::MAX));
                 for stmt in body {
                     self.compile_stmt(stmt)?;
                 }
                 self.instructions.push(Instruction::Jump(check_idx));
                 let end = self.instructions.len();
-                self.instructions[check_idx] = Instruction::CheckFor(var.clone(), end);
+                self.instructions[check_idx] = Instruction::CheckFor(var.clone(), index_var.clone(), end);
             }
         }
         Ok(())
@@ -489,7 +491,7 @@ impl ModifierVm {
                     }
                     self.ip = *target;
                 }
-                Instruction::BeginFor(var) => {
+                Instruction::BeginFor(var, index_var) => {
                     self.for_iteration_count = 0;
                     let iterable = self.pop()?;
                     let items: Vec<Value> = match iterable {
@@ -502,9 +504,13 @@ impl ModifierVm {
                     let pat_key = loop_pat_key(var);
                     frame_env.set(&format!("__for_iter_{pat_key}"), Value::List(items));
                     frame_env.set(&format!("__for_idx_{pat_key}"), Value::Num(0.0));
+                    // Bind the index variable to 0 at start (will be updated each iteration)
+                    if let Some(iv) = index_var {
+                        frame_env.set(iv, Value::Num(0.0));
+                    }
                     self.ip += 1;
                 }
-                Instruction::CheckFor(var, end) => {
+                Instruction::CheckFor(var, index_var, end) => {
                     self.for_iteration_count += 1;
                     if self.for_iteration_count > 100_000 {
                         return Err(EvalError::TypeMismatch(
@@ -524,9 +530,30 @@ impl ModifierVm {
                         .unwrap_or(0);
                     if idx < items.len() {
                         bind_loop_var_vm(frame_env, var, items[idx].clone());
+                        // Update the internal index
                         frame_env.set(&idx_key, Value::Num((idx + 1) as f64));
+                        // Also bind user-facing index variable if present
+                        if let Some(iv) = index_var {
+                            frame_env.set(iv, Value::Num(idx as f64));
+                        }
                         self.ip += 1;
                     } else {
+                        // Loop exhausted — clean up internal iteration state and loop variables
+                        frame_env.overrides.remove(&iter_key);
+                        frame_env.overrides.remove(&idx_key);
+                        match var {
+                            LoopPattern::Single(name) => {
+                                frame_env.overrides.remove(name);
+                            }
+                            LoopPattern::Tuple(names) => {
+                                for name in names {
+                                    frame_env.overrides.remove(name);
+                                }
+                            }
+                        }
+                        if let Some(iv) = index_var {
+                            frame_env.overrides.remove(iv);
+                        }
                         self.ip = *end;
                     }
                 }
@@ -576,8 +603,20 @@ impl fmt::Display for ModifierBytecodeProgram {
                 }
                 Instruction::JumpIfFalse(target) => writeln!(f, "{idx}: JumpIfFalse {target}")?,
                 Instruction::Jump(target) => writeln!(f, "{idx}: Jump {target}")?,
-                Instruction::BeginFor(var) => writeln!(f, "{idx}: BeginFor {var}")?,
-                Instruction::CheckFor(var, end) => writeln!(f, "{idx}: CheckFor {var} {end}")?,
+                Instruction::BeginFor(var, index_var) => {
+                    if let Some(iv) = index_var {
+                        writeln!(f, "{idx}: BeginFor {var} idx={iv}")?;
+                    } else {
+                        writeln!(f, "{idx}: BeginFor {var}")?;
+                    }
+                }
+                Instruction::CheckFor(var, index_var, end) => {
+                    if let Some(iv) = index_var {
+                        writeln!(f, "{idx}: CheckFor {var} idx={iv} {end}")?;
+                    } else {
+                        writeln!(f, "{idx}: CheckFor {var} {end}")?;
+                    }
+                },
                 Instruction::WriteOverride { target, property } => {
                     writeln!(f, "{idx}: WriteOverride {target} {property}")?
                 }

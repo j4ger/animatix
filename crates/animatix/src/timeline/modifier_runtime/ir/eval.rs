@@ -74,6 +74,7 @@ fn execute_modifier_stmt(
         }
         ModifierIrStmt::For {
             var,
+            index_var,
             iterable,
             body,
         } => {
@@ -85,11 +86,28 @@ fn execute_modifier_stmt(
                 Value::Vec4(v) => v.into_iter().map(Value::Num).collect(),
                 other => vec![other],
             };
-            for item in items {
+            for (idx, item) in items.into_iter().enumerate() {
                 bind_loop_var_ir(frame_env, var, item);
+                if let Some(iv) = index_var {
+                    frame_env.set(iv, Value::Num(idx as f64));
+                }
                 for stmt in body {
                     execute_modifier_stmt(stmt, frame_env, overrides)?;
                 }
+            }
+            // Clean up loop variables after the loop exits
+            match var {
+                LoopPattern::Single(name) => {
+                    frame_env.overrides.remove(name);
+                }
+                LoopPattern::Tuple(names) => {
+                    for name in names {
+                        frame_env.overrides.remove(name);
+                    }
+                }
+            }
+            if let Some(iv) = index_var {
+                frame_env.overrides.remove(iv);
             }
             Ok(())
         }

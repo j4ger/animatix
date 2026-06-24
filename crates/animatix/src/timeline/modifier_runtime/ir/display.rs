@@ -57,10 +57,15 @@ impl fmt::Display for DisplayStmt<'_> {
             }
             ModifierIrStmt::For {
                 var,
+                index_var,
                 iterable,
                 body,
             } => {
-                write!(f, "for {} in {} {{ ", var, DisplayCompiledExpr(iterable))?;
+                if let Some(iv) = index_var {
+                    write!(f, "for {}, {} in {} {{ ", var, iv, DisplayCompiledExpr(iterable))?;
+                } else {
+                    write!(f, "for {} in {} {{ ", var, DisplayCompiledExpr(iterable))?;
+                }
                 for (idx, stmt) in body.iter().enumerate() {
                     if idx > 0 {
                         write!(f, "; ")?;

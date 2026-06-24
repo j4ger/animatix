@@ -715,4 +715,82 @@ fn test_for_loop_tuple_destructuring_with_let_decl() {
     }
 }
 
+#[test]
+fn test_for_loop_variable_cleaned_after_exit() {
+    // After a for-loop, the loop variable and index variable should not
+    // persist in the environment (closures already captured them).
+    let source = r#"
+        #0s
+        for i, idx in {1, 2, 3} {
+            let x = i * 2
+        }
+    "#;
+
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let errors: Vec<_> = report
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "Expected no build errors, got: {:?}",
+        errors
+    );
+
+    let timeline = report.output;
+    // Loop variable 'i' should NOT be in the environment after the loop
+    assert!(
+        timeline.env.get("i").is_none(),
+        "Loop variable 'i' should be undefined after loop exit"
+    );
+    // Index variable 'idx' should NOT be in the environment after the loop
+    assert!(
+        timeline.env.get("idx").is_none(),
+        "Index variable 'idx' should be undefined after loop exit"
+    );
+}
+
+#[test]
+fn test_for_loop_tuple_vars_cleaned_after_exit() {
+    // Tuple destructuring variables should also be cleaned up after the loop.
+    let source = r#"
+        #0s
+        for (a, b) in {(1, 2), (3, 4)} {
+            let z = a + b
+        }
+    "#;
+
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let errors: Vec<_> = report
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "Expected no build errors, got: {:?}",
+        errors
+    );
+
+    let timeline = report.output;
+    // Tuple destructuring variables should be cleaned up
+    assert!(
+        timeline.env.get("a").is_none(),
+        "Tuple var 'a' should be undefined after loop exit"
+    );
+    assert!(
+        timeline.env.get("b").is_none(),
+        "Tuple var 'b' should be undefined after loop exit"
+    );
+}
+
 

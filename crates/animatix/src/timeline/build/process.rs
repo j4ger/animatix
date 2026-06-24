@@ -210,6 +210,8 @@ impl Timeline {
 
     /// Lower a for-loop by iterating values, binding the loop variable (and optional index),
     /// and calling the body processor for each iteration.
+    /// After the loop, loop variables are cleaned up from the environment
+    /// to prevent leaks (closures already captured them at creation time).
     pub(super) fn process_for_loop_stmts(
         &mut self,
         var: &LoopPattern,
@@ -227,6 +229,8 @@ impl Timeline {
             }
             self.process_body(time_ms, body, parent_label, diagnostics);
         }
+        // Clean up loop variables after the loop exits
+        remove_loop_vars(&mut self.env, var, index_var);
     }
 
     /// Same as process_for_loop_stmts but for InlineItem bodies.
@@ -247,6 +251,30 @@ impl Timeline {
             }
             self.process_inline_items(time_ms, body, parent_label, diagnostics);
         }
+        // Clean up loop variables after the loop exits
+        remove_loop_vars(&mut self.env, var, index_var);
+    }
+}
+
+/// Remove loop variables from the environment after the loop exits.
+/// Closures captured them at creation time (#11/#10), so it's safe to clean up.
+pub(super) fn remove_loop_vars(
+    env: &mut Environment,
+    var: &LoopPattern,
+    index_var: &Option<String>,
+) {
+    match var {
+        LoopPattern::Single(name) => {
+            env.overrides.remove(name);
+        }
+        LoopPattern::Tuple(names) => {
+            for name in names {
+                env.overrides.remove(name);
+            }
+        }
+    }
+    if let Some(iv) = index_var {
+        env.overrides.remove(iv);
     }
 }
 

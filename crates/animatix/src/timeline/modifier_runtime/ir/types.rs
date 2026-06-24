@@ -106,6 +106,8 @@ pub enum ModifierIrStmt {
     For {
         /// Loop variable pattern (single or tuple destructuring).
         var: LoopPattern,
+        /// Optional index variable name (e.g. `i` in `for item, i in items`).
+        index_var: Option<String>,
         /// Iterable expression.
         iterable: CompiledExpr,
         /// Loop body statements.
