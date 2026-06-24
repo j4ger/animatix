@@ -551,6 +551,9 @@ impl Timeline {
         if track.first_seen_ms == u64::MAX {
             track.first_seen_ms = t_start_ms;
         }
+        if let Some(pl) = parent_label {
+            track.parent = Some(pl.to_string());
+        }
 
         // Phase 7: Parse size spec from `size` property for percentage/auto/fill/fit sizing
         {
@@ -777,6 +780,9 @@ impl Timeline {
                 .or_insert_with(|| AnimationTrack::new(label.to_string()));
             track.kind = kind_id;
             track.procedural_plot = procedural_plot;
+            if let Some(pl) = parent_label {
+                track.parent = Some(pl.to_string());
+            }
 
             // Seed plot_param_tracks with initial declaration values.
             // Only create tracks that don't already exist so re-declarations

@@ -15,6 +15,14 @@ impl Timeline {
             if !parent_track.children.contains(&label) {
                 parent_track.children.push(label.clone());
             }
+
+            // If the child track already exists (re-declaration), update its
+            // parent back-reference immediately.  For first declarations the
+            // track does not exist yet; actor.rs sets `parent` when it creates
+            // the entry.
+            if let Some(child_track) = self.tracks.get_mut(&label) {
+                child_track.parent = Some(parent.to_string());
+            }
         } else {
             let already_nested = self
                 .tracks

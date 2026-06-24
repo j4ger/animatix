@@ -912,59 +912,82 @@ impl GuiShell {
             },
         };
 
-        let result_path = output_path.clone();
-        let progress = Arc::clone(&self.export_store.export_progress);
-        let cancel = Arc::clone(&self.export_store.export_cancelled);
-        let handle = std::thread::spawn(move || {
-            let progress_ref = Some(progress.as_ref());
-            let cancel_ref = Some(cancel.as_ref());
-            let result = match state.format {
-                ExportFormat::Image | ExportFormat::WebP => {
-                    if has_composition {
-                        match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Composition(
-                                comp,
-                            ) => animatix::renderer::render_image_composition(
-                                comp,
+        #[cfg(feature = "video")]
+        {
+            let result_path = output_path.clone();
+            let progress = Arc::clone(&self.export_store.export_progress);
+            let cancel = Arc::clone(&self.export_store.export_cancelled);
+            let handle = std::thread::spawn(move || {
+                let progress_ref = Some(progress.as_ref());
+                let cancel_ref = Some(cancel.as_ref());
+                let result = match state.format {
+                    ExportFormat::Image | ExportFormat::WebP => {
+                        if has_composition {
+                            match &cloned_target {
+                                crate::app::document::export_target::ExportTargetOwned::Composition(
+                                    comp,
+                                ) => animatix::renderer::render_image_composition(
+                                    comp,
+                                    state.width,
+                                    state.height,
+                                    state.time_s,
+                                    &output_path,
+                                ),
+                                _ => unreachable!(),
+                            }
+                        } else {
+                            let timeline = match &cloned_target {
+                                crate::app::document::export_target::ExportTargetOwned::Timeline(t) => {
+                                    t.clone()
+                                },
+                                _ => unreachable!(),
+                            };
+                            animatix::renderer::render_image_timeline_with_progress(
+                                timeline,
                                 state.width,
                                 state.height,
                                 state.time_s,
                                 &output_path,
-                            ),
-                            _ => unreachable!(),
+                                debug,
+                                progress_ref,
+                                cancel_ref,
+                            )
                         }
-                    } else {
-                        let timeline = match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => {
-                                t.clone()
-                            },
-                            _ => unreachable!(),
+                    },
+                    ExportFormat::Video => {
+                        let duration = if state.auto_duration {
+                            let d = effective_duration_s as f32 + state.hold_s.max(0.0);
+                            d.max(0.5)
+                        } else {
+                            state.duration_s
                         };
-                        animatix::renderer::render_image_timeline_with_progress(
-                            timeline,
-                            state.width,
-                            state.height,
-                            state.time_s,
-                            &output_path,
-                            debug,
-                            progress_ref,
-                            cancel_ref,
-                        )
-                    }
-                },
-                ExportFormat::Video => {
-                    let duration = if state.auto_duration {
-                        let d = effective_duration_s as f32 + state.hold_s.max(0.0);
-                        d.max(0.5)
-                    } else {
-                        state.duration_s
-                    };
-                    if has_composition {
-                        match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Composition(
-                                comp,
-                            ) => animatix::renderer::render_video_composition_with_progress(
-                                comp,
+                        if has_composition {
+                            match &cloned_target {
+                                crate::app::document::export_target::ExportTargetOwned::Composition(
+                                    comp,
+                                ) => animatix::renderer::render_video_composition_with_progress(
+                                    comp,
+                                    state.width,
+                                    state.height,
+                                    state.fps,
+                                    duration,
+                                    &output_path,
+                                    debug,
+                                    animatix::renderer::ExportSettings::default(),
+                                    progress_ref,
+                                    cancel_ref,
+                                ),
+                                _ => unreachable!(),
+                            }
+                        } else {
+                            let timeline = match &cloned_target {
+                                crate::app::document::export_target::ExportTargetOwned::Timeline(t) => {
+                                    t.clone()
+                                },
+                                _ => unreachable!(),
+                            };
+                            animatix::renderer::render_video_timeline_with_progress(
+                                timeline,
                                 state.width,
                                 state.height,
                                 state.fps,
@@ -974,43 +997,46 @@ impl GuiShell {
                                 animatix::renderer::ExportSettings::default(),
                                 progress_ref,
                                 cancel_ref,
-                            ),
-                            _ => unreachable!(),
+                            )
                         }
-                    } else {
-                        let timeline = match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => {
-                                t.clone()
-                            },
-                            _ => unreachable!(),
+                    },
+                    ExportFormat::WebM => {
+                        let duration = if state.auto_duration {
+                            let d = effective_duration_s as f32 + state.hold_s.max(0.0);
+                            d.max(0.5)
+                        } else {
+                            state.duration_s
                         };
-                        animatix::renderer::render_video_timeline_with_progress(
-                            timeline,
-                            state.width,
-                            state.height,
-                            state.fps,
-                            duration,
-                            &output_path,
-                            debug,
-                            animatix::renderer::ExportSettings::default(),
-                            progress_ref,
-                            cancel_ref,
-                        )
-                    }
-                },
-                ExportFormat::WebM => {
-                    let duration = if state.auto_duration {
-                        let d = effective_duration_s as f32 + state.hold_s.max(0.0);
-                        d.max(0.5)
-                    } else {
-                        state.duration_s
-                    };
-                    if has_composition {
-                        match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Composition(
-                                comp,
-                            ) => animatix::renderer::render_video_composition_with_progress(
-                                comp,
+                        if has_composition {
+                            match &cloned_target {
+                                crate::app::document::export_target::ExportTargetOwned::Composition(
+                                    comp,
+                                ) => animatix::renderer::render_video_composition_with_progress(
+                                    comp,
+                                    state.width,
+                                    state.height,
+                                    state.fps,
+                                    duration,
+                                    &output_path,
+                                    debug,
+                                    animatix::renderer::ExportSettings {
+                                        video_codec: animatix::renderer::VideoCodec::Vp9,
+                                        ..Default::default()
+                                    },
+                                    progress_ref,
+                                    cancel_ref,
+                                ),
+                                _ => unreachable!(),
+                            }
+                        } else {
+                            let timeline = match &cloned_target {
+                                crate::app::document::export_target::ExportTargetOwned::Timeline(t) => {
+                                    t.clone()
+                                },
+                                _ => unreachable!(),
+                            };
+                            animatix::renderer::render_video_timeline_with_progress(
+                                timeline,
                                 state.width,
                                 state.height,
                                 state.fps,
@@ -1023,46 +1049,43 @@ impl GuiShell {
                                 },
                                 progress_ref,
                                 cancel_ref,
-                            ),
-                            _ => unreachable!(),
+                            )
                         }
-                    } else {
-                        let timeline = match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => {
-                                t.clone()
-                            },
-                            _ => unreachable!(),
+                    },
+                    ExportFormat::Mov => {
+                        let duration = if state.auto_duration {
+                            let d = effective_duration_s as f32 + state.hold_s.max(0.0);
+                            d.max(0.5)
+                        } else {
+                            state.duration_s
                         };
-                        animatix::renderer::render_video_timeline_with_progress(
-                            timeline,
-                            state.width,
-                            state.height,
-                            state.fps,
-                            duration,
-                            &output_path,
-                            debug,
-                            animatix::renderer::ExportSettings {
-                                video_codec: animatix::renderer::VideoCodec::Vp9,
-                                ..Default::default()
-                            },
-                            progress_ref,
-                            cancel_ref,
-                        )
-                    }
-                },
-                ExportFormat::Mov => {
-                    let duration = if state.auto_duration {
-                        let d = effective_duration_s as f32 + state.hold_s.max(0.0);
-                        d.max(0.5)
-                    } else {
-                        state.duration_s
-                    };
-                    if has_composition {
-                        match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Composition(
-                                comp,
-                            ) => animatix::renderer::render_video_composition_with_progress(
-                                comp,
+                        if has_composition {
+                            match &cloned_target {
+                                crate::app::document::export_target::ExportTargetOwned::Composition(
+                                    comp,
+                                ) => animatix::renderer::render_video_composition_with_progress(
+                                    comp,
+                                    state.width,
+                                    state.height,
+                                    state.fps,
+                                    duration,
+                                    &output_path,
+                                    debug,
+                                    animatix::renderer::ExportSettings::default(),
+                                    progress_ref,
+                                    cancel_ref,
+                                ),
+                                _ => unreachable!(),
+                            }
+                        } else {
+                            let timeline = match &cloned_target {
+                                crate::app::document::export_target::ExportTargetOwned::Timeline(t) => {
+                                    t.clone()
+                                },
+                                _ => unreachable!(),
+                            };
+                            animatix::renderer::render_video_timeline_with_progress(
+                                timeline,
                                 state.width,
                                 state.height,
                                 state.fps,
@@ -1072,43 +1095,43 @@ impl GuiShell {
                                 animatix::renderer::ExportSettings::default(),
                                 progress_ref,
                                 cancel_ref,
-                            ),
-                            _ => unreachable!(),
+                            )
                         }
-                    } else {
-                        let timeline = match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => {
-                                t.clone()
-                            },
-                            _ => unreachable!(),
+                    },
+                    ExportFormat::Gif => {
+                        let duration = if state.auto_duration {
+                            let d = effective_duration_s as f32 + state.hold_s.max(0.0);
+                            d.max(0.5)
+                        } else {
+                            state.duration_s
                         };
-                        animatix::renderer::render_video_timeline_with_progress(
-                            timeline,
-                            state.width,
-                            state.height,
-                            state.fps,
-                            duration,
-                            &output_path,
-                            debug,
-                            animatix::renderer::ExportSettings::default(),
-                            progress_ref,
-                            cancel_ref,
-                        )
-                    }
-                },
-                ExportFormat::Gif => {
-                    let duration = if state.auto_duration {
-                        let d = effective_duration_s as f32 + state.hold_s.max(0.0);
-                        d.max(0.5)
-                    } else {
-                        state.duration_s
-                    };
-                    if has_composition {
-                        match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Composition(
-                                comp,
-                            ) => animatix::renderer::render_gif_composition_with_progress(
-                                comp,
+                        if has_composition {
+                            match &cloned_target {
+                                crate::app::document::export_target::ExportTargetOwned::Composition(
+                                    comp,
+                                ) => animatix::renderer::render_gif_composition_with_progress(
+                                    comp,
+                                    state.width,
+                                    state.height,
+                                    state.fps,
+                                    duration,
+                                    &output_path,
+                                    debug,
+                                    animatix::renderer::ExportSettings::default(),
+                                    progress_ref,
+                                    cancel_ref,
+                                ),
+                                _ => unreachable!(),
+                            }
+                        } else {
+                            let timeline = match &cloned_target {
+                                crate::app::document::export_target::ExportTargetOwned::Timeline(t) => {
+                                    t.clone()
+                                },
+                                _ => unreachable!(),
+                            };
+                            animatix::renderer::render_gif_timeline_with_progress(
+                                timeline,
                                 state.width,
                                 state.height,
                                 state.fps,
@@ -1118,33 +1141,18 @@ impl GuiShell {
                                 animatix::renderer::ExportSettings::default(),
                                 progress_ref,
                                 cancel_ref,
-                            ),
-                            _ => unreachable!(),
+                            )
                         }
-                    } else {
-                        let timeline = match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Timeline(t) => {
-                                t.clone()
-                            },
-                            _ => unreachable!(),
-                        };
-                        animatix::renderer::render_gif_timeline_with_progress(
-                            timeline,
-                            state.width,
-                            state.height,
-                            state.fps,
-                            duration,
-                            &output_path,
-                            debug,
-                            animatix::renderer::ExportSettings::default(),
-                            progress_ref,
-                            cancel_ref,
-                        )
-                    }
-                },
-            };
-            (result, result_path)
-        });
-        self.export_store.export_thread = Some(handle);
+                    },
+                };
+                (result, result_path)
+            });
+            self.export_store.export_thread = Some(handle);
+        }
+        #[cfg(not(feature = "video"))]
+        {
+            self.export_store.export_status =
+                ExportStatus::Failed("Export requires the 'video' feature (FFmpeg)".into());
+        }
     }
 }

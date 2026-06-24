@@ -56,6 +56,9 @@ pub struct AnimationTrack {
     pub first_seen_ms: u64,
     /// Labels of child actors in the scene hierarchy.
     pub children: Vec<String>,
+    /// Label of the parent actor in the scene hierarchy, if any.
+    /// `None` for root-level actors.
+    pub parent: Option<String>,
     /// Whether the actor is visible in the preview and export.
     pub visible: bool,
     /// Whether the actor is locked (preventing selection and drag in the GUI).
@@ -169,6 +172,7 @@ impl AnimationTrack {
             kind: ActorKindId::Shape(ShapeKind::Rect),
             first_seen_ms: u64::MAX,
             children: Vec::new(),
+            parent: None,
             visible: true,
             locked: false,
 
@@ -214,6 +218,16 @@ impl AnimationTrack {
     pub fn layout_size_get(&self, time_ms: u64) -> Option<[f32; 2]> {
         self.geometry.layout_size.as_ref().map(|t| t.evaluate(time_ms))
     }
+    /// Returns the parent actor label, if this actor has a parent.
+    pub fn parent(&self) -> Option<&str> {
+        self.parent.as_deref()
+    }
+
+    /// Returns the labels of child actors.
+    pub fn children(&self) -> &[String] {
+        &self.children
+    }
+
     /// Return the last value of `layout_size`.
     pub fn layout_size_last(&self) -> Option<[f32; 2]> {
         self.geometry.layout_size.as_ref().map(|t| t.last_value())

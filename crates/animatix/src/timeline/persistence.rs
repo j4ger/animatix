@@ -297,6 +297,11 @@ impl Timeline {
 /// `vector_paths`) is preserved unchanged.
 ///
 /// `first_seen_ms` is set to `0` on the snapshot.
+///
+/// The `parent` and `children` fields are preserved as-is via `clone()` since
+/// they are labels (not animated), so no special collapse is needed.  Any
+/// consumer that re-inserts a snapshot into a fresh timeline should verify
+/// that hierarchy labels still resolve (see `inject_carry_bag`).
 pub fn snapshot_track_at(track: &AnimationTrack, time_ms: u64) -> AnimationTrack {
     let mut snapshot = track.clone();
     snapshot.first_seen_ms = 0;
