@@ -643,3 +643,218 @@ fn test_callout_place_default_is_right() {
         "default callout_place should be Right"
     );
 }
+
+// ── Commit 3: transform-aware target bounds regression tests ──────────────
+//
+// These tests build timelines directly (not via AST) so that we can set
+// position / scale / rotation / parent-child relationships precisely without
+// relying on how declaration-time props map to internal tracks.
+
+use crate::timeline::{ActorKindId, actor_kind::ShapeKind};
+
+/// Make a minimal target track with a given position and half-size.
+fn make_target_track(label: &str, pos: [f32; 2], half: [f32; 2]) -> AnimationTrack {
+    let mut track = AnimationTrack::new(label.to_string());
+    track.kind = ActorKindId::Shape(ShapeKind::Rect);
+    track.first_seen_ms = 0;
+    track.geometry.position = Some({
+        let mut t = PropertyTrack::new(pos);
+        t.add_keyframe(0, pos, Easing::Linear);
+        t
+    });
+    track.geometry.size = Some({
+        let mut t = PropertyTrack::new(half);
+        t.add_keyframe(0, half, Easing::Linear);
+        t
+    });
+    track
+}
+
+/// Make a Callout track that targets another actor (place=right, standoff=0).
+fn make_callout_track(label: &str, target: &str) -> AnimationTrack {
+    use crate::timeline::animation_track::CalloutPlace;
+    let mut track = AnimationTrack::new(label.to_string());
+    track.kind = ActorKindId::Callout;
+    track.first_seen_ms = 0;
+    track.geometry.callout_target = Some({
+        let mut t = PropertyTrack::new(target.to_string());
+        t.add_keyframe(0, target.to_string(), Easing::Linear);
+        t
+    });
+    track.geometry.callout_place = Some({
+        let mut t = PropertyTrack::new(CalloutPlace::Right);
+        t.add_keyframe(0, CalloutPlace::Right, Easing::Linear);
+        t
+    });
+    track.geometry.callout_standoff = Some({
+        let mut t = PropertyTrack::new(0.0f32);
+        t.add_keyframe(0, 0.0, Easing::Linear);
+        t
+    });
+    track
+}
+
+#[test]
+fn test_callout_target_translated_world_bounds() {
+    // A top-level target at (200, 100) with half=(40, 20).
+    // world_affine = T(200,100); AABB centre=(200,100), half=(40,20).
+    // place=right → attach = (240, 100).
+    let mut timeline = Timeline::new();
+    let target = make_target_track("box", [200.0, 100.0], [40.0, 20.0]);
+    timeline.tracks.insert("box".to_string(), target);
+    timeline.root_nodes.push("box".to_string());
+
+    let callout = make_callout_track("note", "box");
+    timeline.tracks.insert("note".to_string(), callout);
+    timeline.root_nodes.push("note".to_string());
+
+    let dims = SceneDimensions { width: 1920, height: 1080 };
+    let note = timeline.get_track("note").unwrap();
+    let geom = crate::timeline::callout_geometry::derive_callout_geometry(
+        note, 0, Some(&timeline), dims,
+    );
+    assert!((geom.to[0] - 240.0).abs() < 0.5, "expected to.x=240, got {}", geom.to[0]);
+    assert!((geom.to[1] - 100.0).abs() < 0.5, "expected to.y=100, got {}", geom.to[1]);
+}
+
+#[test]
+fn test_callout_target_scaled_world_bounds() {
+    // Target at (200, 100), half=(40, 20), scale=2.
+    // world_affine = T(200,100)*scale(2) → AABB half=(80,40), centre=(200,100).
+    // place=right → attach = (280, 100).
+    // Without transform-aware bounds (old code) we would get: attach = (240, 100).
+    let mut timeline = Timeline::new();
+    let mut target = make_target_track("box", [200.0, 100.0], [40.0, 20.0]);
+    target.geometry.scale = Some({
+        let mut t = PropertyTrack::new(2.0f32);
+        t.add_keyframe(0, 2.0, Easing::Linear);
+        t
+    });
+    timeline.tracks.insert("box".to_string(), target);
+    timeline.root_nodes.push("box".to_string());
+
+    let callout = make_callout_track("note", "box");
+    timeline.tracks.insert("note".to_string(), callout);
+    timeline.root_nodes.push("note".to_string());
+
+    let dims = SceneDimensions { width: 1920, height: 1080 };
+    let note = timeline.get_track("note").unwrap();
+    let geom = crate::timeline::callout_geometry::derive_callout_geometry(
+        note, 0, Some(&timeline), dims,
+    );
+    // scale=2 doubles the visual extent: half_x=40 → 80 → right = 200+80 = 280
+    assert!((geom.to[0] - 280.0).abs() < 0.5, "expected to.x=280 (scale-aware), got {}", geom.to[0]);
+    assert!((geom.to[1] - 100.0).abs() < 0.5, "expected to.y=100, got {}", geom.to[1]);
+}
+
+#[test]
+fn test_callout_target_rotated_aabb() {
+    // Target at (200, 100), half=(40, 20), rotation=π/2 (90°) in radians.
+    // After 90° rotation, the AABB swaps axes: AABB half_x=20, half_y=40.
+    // place=right → attach ≈ (200+20, 100) = (220, 100).
+    let angle_rad = std::f32::consts::FRAC_PI_2; // 90° in radians
+    let mut timeline = Timeline::new();
+    let mut target = make_target_track("box", [200.0, 100.0], [40.0, 20.0]);
+    target.geometry.rotation = Some({
+        let mut t = PropertyTrack::new(angle_rad);
+        t.add_keyframe(0, angle_rad, Easing::Linear);
+        t
+    });
+    timeline.tracks.insert("box".to_string(), target);
+    timeline.root_nodes.push("box".to_string());
+
+    let callout = make_callout_track("note", "box");
+    timeline.tracks.insert("note".to_string(), callout);
+    timeline.root_nodes.push("note".to_string());
+
+    let dims = SceneDimensions { width: 1920, height: 1080 };
+    let note = timeline.get_track("note").unwrap();
+    let geom = crate::timeline::callout_geometry::derive_callout_geometry(
+        note, 0, Some(&timeline), dims,
+    );
+    // After 90° rotation: AABB half_x = |hw*cos(π/2)| + |hh*sin(π/2)| = 0 + 20 = 20
+    let hw = 40.0_f32;
+    let hh = 20.0_f32;
+    let expected_half_x = hw * angle_rad.cos().abs() + hh * angle_rad.sin().abs();
+    let expected_to_x = 200.0 + expected_half_x;
+    assert!(
+        (geom.to[0] - expected_to_x).abs() < 0.5,
+        "expected to.x≈{:.1} (rotation-aware AABB), got {}",
+        expected_to_x, geom.to[0]
+    );
+}
+
+#[test]
+fn test_callout_target_nested_child_world_bounds() {
+    // parent at (100, 0); child nested at (100, 0) relative to parent.
+    // Child world centre = (200, 0), half=(40, 20).
+    // place=right → attach = (240, 0).
+    // (Old local-only resolver would see child.position=(100,0) → 100+40=140.)
+    let mut timeline = Timeline::new();
+
+    let parent = make_target_track("parent", [100.0, 0.0], [50.0, 50.0]);
+    timeline.tracks.insert("parent".to_string(), parent);
+    timeline.root_nodes.push("parent".to_string());
+
+    let mut child = make_target_track("child", [100.0, 0.0], [40.0, 20.0]);
+    child.parent = Some("parent".to_string());
+    timeline.tracks.insert("child".to_string(), child);
+    // Register child under parent
+    timeline.tracks.get_mut("parent").unwrap().children.push("child".to_string());
+
+    let callout = make_callout_track("note", "child");
+    timeline.tracks.insert("note".to_string(), callout);
+    timeline.root_nodes.push("note".to_string());
+
+    let dims = SceneDimensions { width: 1920, height: 1080 };
+    let note = timeline.get_track("note").unwrap();
+    let geom = crate::timeline::callout_geometry::derive_callout_geometry(
+        note, 0, Some(&timeline), dims,
+    );
+    // world centre x = parent.pos.x + child.pos.x = 100+100 = 200; right = 200+40 = 240
+    assert!(
+        (geom.to[0] - 240.0).abs() < 0.5,
+        "expected to.x=240 (nested world bounds), got {}",
+        geom.to[0]
+    );
+    assert!(
+        (geom.to[1] - 0.0).abs() < 0.5,
+        "expected to.y=0, got {}", geom.to[1]
+    );
+}
+
+#[test]
+fn test_callout_missing_target_produces_diagnostic() {
+    // A Callout with a target that does not exist should produce a build diagnostic.
+    let ast = vec![
+        make_config(),
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(0.0),
+            body: vec![
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    is_anonymous: false,
+                    label: "note".to_string(),
+                    array_index: None,
+                    ty: "Callout".to_string(),
+                    props: vec![Property {
+                        name: "target".to_string(),
+                        value: Expr::Str("nonexistent".to_string()),
+                        value_span: None,
+                        trailing_comment: None,
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                    span: None,
+                },
+            ],
+            span: None,
+        },
+    ];
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    use crate::diagnostics::DiagnosticCode;
+    let found = report.diagnostics.iter().any(|d| {
+        matches!(d.code, DiagnosticCode::CalloutTargetNotFound)
+    });
+    assert!(found, "expected CalloutTargetNotFound diagnostic, got: {:?}", report.diagnostics);
+}

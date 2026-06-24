@@ -1067,8 +1067,9 @@ pub(super) fn callout_effective_to(
     track: &animatix::timeline::AnimationTrack,
     timeline: &animatix::timeline::Timeline,
     time_ms: u64,
+    scene_dimensions: SceneDimensions,
 ) -> [f32; 2] {
-    animatix::timeline::callout_geometry::derive_callout_geometry(track, time_ms, Some(timeline))
+    animatix::timeline::callout_geometry::derive_callout_geometry(track, time_ms, Some(timeline), scene_dimensions)
         .to
 }
 
@@ -1118,7 +1119,7 @@ pub(super) fn callout_handle_screens(
 ) -> Option<(Pos2, Pos2)> {
     use animatix::timeline::TrackAccessor;
     let track = timeline.get_track(actor)?;
-    let to = callout_effective_to(track, timeline, time_ms);
+    let to = callout_effective_to(track, timeline, time_ms, scene_dimensions);
     let label_at = track.geometry.label_at.get(time_ms, [0.0, 50.0]);
     let tip_world = kurbo::Point::new(to[0] as f64, to[1] as f64);
     let label_world = kurbo::Point::new((to[0] + label_at[0]) as f64, (to[1] + label_at[1]) as f64);

@@ -138,6 +138,8 @@ pub enum DiagnosticCode {
     ReservedLabelPrefix,
     /// A property was placed inside braces without a preceding actor, so it was dropped.
     BracedPropertySilentDrop,
+    /// A Callout `target` references an actor that does not exist in the timeline.
+    CalloutTargetNotFound,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -206,6 +208,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::BracedPropertySilentDrop => {
                 write!(f, "braced-property-silent-drop")
             }
+            DiagnosticCode::CalloutTargetNotFound => write!(f, "callout-target-not-found"),
         }
     }
 }

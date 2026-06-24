@@ -55,7 +55,7 @@ impl GestureHandler for CalloutGesture {
                     None => return GestureResult::Ignored,
                 };
 
-                let to = crate::app::preview::callout_effective_to(track, timeline, time_ms);
+                let to = crate::app::preview::callout_effective_to(track, timeline, time_ms, ctx.scene_dimensions);
                 let label_at = track.geometry.label_at.get(time_ms, [0.0, 50.0]);
                 let is_targeted = !track.geometry.callout_target.get(time_ms, String::new()).is_empty();
                 let to_offset = track.geometry.callout_to_offset.get(time_ms, [0.0, 0.0]);

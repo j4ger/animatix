@@ -334,6 +334,28 @@ impl Timeline {
         // Restore env with the frozen base layer
         timeline.env.base = Some(std::sync::Arc::clone(&timeline.env_base));
 
+        // Validate Callout `target` references after all actors are built.
+        // This is a post-build pass so forward declarations are visible.
+        for (label, track) in &timeline.tracks {
+            if track.kind == crate::timeline::ActorKindId::Callout {
+                use crate::timeline::TrackAccessor;
+                let target = track.geometry.callout_target.get(0, String::new());
+                if !target.is_empty() && !timeline.tracks.contains_key(&target) {
+                    diagnostics.push(
+                        Diagnostic::error(
+                            DiagnosticCode::CalloutTargetNotFound,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Callout '{}' has target '{}', but no actor with that label exists.",
+                                label, target
+                            ),
+                        )
+                        .with_subject(label),
+                    );
+                }
+            }
+        }
+
         BuildReport::new(timeline, diagnostics)
     }
 }

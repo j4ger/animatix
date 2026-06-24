@@ -183,7 +183,7 @@ impl Primitive for CalloutPrimitive {
         use crate::timeline::Value;
 
         // Derive geometry using the shared helper (handles both manual and targeted mode).
-        let geom = derive_callout_geometry(ctx.track, ctx.time_ms, ctx.target_resolver);
+        let geom = derive_callout_geometry(ctx.track, ctx.time_ms, ctx.target_resolver, ctx.scene_dimensions);
         let mut from = geom.from;
         let mut to = geom.to;
         let mut head_size = ctx.track.shape.head_size.get(ctx.time_ms, 10.0);
