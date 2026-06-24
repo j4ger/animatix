@@ -1,4 +1,5 @@
 use crate::ast::{BinaryOp, LoopPattern, UnaryOp};
+use crate::timeline::env::CapturedEnv;
 use crate::timeline::{Environment, EvalError, Value};
 use super::types::{
     BuiltinFn, CompiledExpr, ModifierExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides,
@@ -249,6 +250,17 @@ pub fn evaluate_compiled_expr(
                 .map(|arg| evaluate_compiled_expr(arg, env))
                 .collect::<Result<Vec<_>, _>>()?;
             eval_method(receiver_val, name, &arg_values, env)
+        }
+        CompiledExpr::Closure(params, body) => {
+            Ok(Value::Closure(params.clone(), body.clone(), CapturedEnv::snapshot(env)))
+        }
+        CompiledExpr::Construct(name, fields) => {
+            let mut map = std::collections::HashMap::new();
+            for (field_name, field_expr) in fields {
+                let val = evaluate_compiled_expr(field_expr, env)?;
+                map.insert(field_name.clone(), val);
+            }
+            Ok(Value::Object(name.clone(), map))
         }
     }
 }

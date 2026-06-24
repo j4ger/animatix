@@ -1,10 +1,11 @@
-use super::ir::{
-    BuiltinFn, CompiledExpr, ModifierExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides,
-    apply_binary_op, eval_abs, eval_atan2, eval_ceil, eval_clamp, eval_cos, eval_deg, eval_exp, eval_floor,
-    eval_format, eval_lerp, eval_log, eval_max, eval_min, eval_rad, eval_sin, eval_sqrt, eval_tan,
-    make_vec_value,
+use super::ir::
+{BuiltinFn, CompiledExpr, ModifierExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides,
+ apply_binary_op, eval_abs, eval_atan2, eval_ceil, eval_clamp, eval_cos, eval_deg, eval_exp, eval_floor,
+ eval_format, eval_lerp, eval_log, eval_max, eval_min, eval_rad, eval_sin, eval_sqrt, eval_tan,
+ make_vec_value,
 };
-use crate::ast::{BinaryOp, LoopPattern};
+use crate::ast::{BinaryOp, Expr, LoopPattern};
+use crate::timeline::env::CapturedEnv;
 use crate::timeline::{Environment, EvalError, Value};
 use std::fmt;
 
@@ -99,6 +100,21 @@ pub enum Instruction {
         target: String,
         /// Property name to override.
         property: String,
+    },
+    /// Snapshot the current environment and push a closure value.
+    MakeClosure {
+        /// Closure parameter names.
+        params: Vec<String>,
+        /// Closure body expression (evaluated lazily at call time).
+        body: Box<Expr>,
+    },
+    /// Pop N field values from the stack and construct an Object.
+    /// Fields are listed in order; each entry is (field_name).
+    MakeObject {
+        /// Object type name.
+        type_name: String,
+        /// Field names in push order.
+        fields: Vec<String>,
     },
     /// Halt execution.
     Halt,
@@ -296,6 +312,22 @@ impl BytecodeCompiler {
                 }
                 self.instructions
                     .push(Instruction::CallMethod(name.clone(), args.len()));
+            }
+            CompiledExpr::Closure(params, body) => {
+                self.instructions.push(Instruction::MakeClosure {
+                    params: params.clone(),
+                    body: body.clone(),
+                });
+            }
+            CompiledExpr::Construct(type_name, fields) => {
+                let field_names: Vec<String> = fields.iter().map(|(n, _)| n.clone()).collect();
+                for (_, field_expr) in fields {
+                    self.compile_expr(field_expr)?;
+                }
+                self.instructions.push(Instruction::MakeObject {
+                    type_name: type_name.clone(),
+                    fields: field_names,
+                });
             }
         }
         Ok(())
@@ -568,6 +600,22 @@ impl ModifierVm {
                     );
                     self.ip += 1;
                 }
+                Instruction::MakeClosure { params, body } => {
+                    let captures = CapturedEnv::snapshot(frame_env);
+                    self.stack.push(Value::Closure(params.clone(), body.clone(), captures));
+                    self.ip += 1;
+                }
+                Instruction::MakeObject { type_name, fields } => {
+                    let mut values: Vec<Value> = Vec::with_capacity(fields.len());
+                    for _ in 0..fields.len() {
+                        values.push(self.pop()?);
+                    }
+                    values.reverse();
+                    let map: std::collections::HashMap<String, Value> =
+                        fields.iter().cloned().zip(values).collect();
+                    self.stack.push(Value::Object(type_name.clone(), map));
+                    self.ip += 1;
+                }
                 Instruction::Halt => break,
             }
         }
@@ -619,6 +667,12 @@ impl fmt::Display for ModifierBytecodeProgram {
                 },
                 Instruction::WriteOverride { target, property } => {
                     writeln!(f, "{idx}: WriteOverride {target} {property}")?
+                }
+                Instruction::MakeClosure { params, body: _ } => {
+                    writeln!(f, "{idx}: MakeClosure {:?}", params)?
+                }
+                Instruction::MakeObject { type_name, fields } => {
+                    writeln!(f, "{idx}: MakeObject {type_name} {:?}", fields)?
                 }
                 Instruction::Halt => writeln!(f, "{idx}: Halt")?,
             }

@@ -63,6 +63,11 @@ pub enum CompiledExpr {
     Index(Box<CompiledExpr>, Box<CompiledExpr>),
     /// Call a method on an expression.
     Method(Box<CompiledExpr>, String, Vec<CompiledExpr>),
+    /// Create a closure value (parameter names, body expression).
+    /// The environment is captured at evaluation time.
+    Closure(Vec<String>, Box<Expr>),
+    /// Construct an object value (type name, compiled field expressions).
+    Construct(String, Vec<(String, CompiledExpr)>),
 }
 
 /// Expression used in modifier IR, either compiled or unsupported.

@@ -196,6 +196,15 @@ pub fn compile_expr(expr: &Expr) -> Option<CompiledExpr> {
             let args: Vec<_> = args.iter().map(compile_expr).collect::<Option<Vec<_>>>()?;
             Some(CompiledExpr::Method(Box::new(receiver), name.clone(), args))
         }
-        Expr::Closure(_, _) | Expr::Construct(_, _) => None,
+        Expr::Closure(params, body) => {
+            Some(CompiledExpr::Closure(params.clone(), body.clone()))
+        }
+        Expr::Construct(name, properties) => {
+            let fields: Option<Vec<_>> = properties
+                .iter()
+                .map(|p| compile_expr(&p.value).map(|v| (p.name.clone(), v)))
+                .collect();
+            fields.map(|f| CompiledExpr::Construct(name.clone(), f))
+        }
     }
 }

@@ -150,6 +150,19 @@ impl fmt::Display for DisplayCompiledExpr<'_> {
                 }
                 write!(f, ")")
             }
+            CompiledExpr::Closure(params, _body) => {
+                write!(f, "closure({:?})", params)
+            }
+            CompiledExpr::Construct(name, fields) => {
+                write!(f, "{name}{{")?;
+                for (idx, (field, expr)) in fields.iter().enumerate() {
+                    if idx > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{field}: {}", DisplayCompiledExpr(expr))?;
+                }
+                write!(f, "}}")
+            }
         }
     }
 }
