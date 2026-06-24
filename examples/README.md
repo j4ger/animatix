@@ -32,6 +32,7 @@ A progressive suite of 24 numbered `.amx` demos (00–23). Each builds on the pr
 | 23 | `23_plot_kinds.amx` | **Plot kinds** — polar, parametric, implicit PlotCurve in a standalone demo |
 | 26 | `26_data_math.amx` | **BarChart & Equation** — standalone BarChart, BarChart inside Graph, Equation with Fragment highlight/unhighlight animations |
 | 27 | `27_layout_text.amx` | **Layout & Text** — percentage sizing, min/max constraints, typography (font_weight, letter_spacing, line_height), text wrapping and overflow |
+| 28 | `28_generation_reactive.amx` | **Generation & Reactive** — `Group` transform inheritance, `Mask` clip container, array-indexed actors via `for` loop, advanced `always` (analytical wave, staggered opacity, `_animating_*` flag guard) |
 
 ## Running Examples
 

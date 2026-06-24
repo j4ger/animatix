@@ -1,0 +1,84 @@
+// 28 — Generation & Reactive: Group/Mask containers, array actors, advanced always
+// Demonstrates:
+//   - Group: non-layout grouping with shared transform inheritance
+//   - Mask: clip children using a shape boundary
+//   - Array-indexed actors via `for item, i in list` with tuple destructuring
+//   - Advanced always: analytical motion, staggered opacity, _animating_* flag guard
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+title: Text, text: "Generation & Reactive", font_size: 44, color: text.primary, anchor: scene.top, offset: (0, 56)
+sub: Text, text: "Group · Mask · Array actors · always", font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 104)
+
+// ── 1. Group container — children share transform with parent ──────────────
+// Rotating the group rotates all children together.
+#0s
+badge_group: Group, at: (260, 400) {
+  bg: Rect, size: (140, 140), color: surface.secondary
+  icon_a: Ellipse, size: (48, 48), color: accent.primary, at: (-28, -28)
+  icon_b: Rect, size: (36, 36), color: accent.success, at: (28, 28)
+  group_label: Text, text: "Group", font_size: 14, color: text.muted, at: (0, 52)
+}
+
+// ── 2. Mask container — clips children to a shape boundary ─────────────────
+// The first child defines the clip shape; remaining children are masked to it.
+reveal_mask: Mask, at: (640, 400) {
+  clip_shape: Ellipse, size: (180, 180), color: accent.primary
+  inner_rect: Rect, size: (180, 180), color: surface.secondary
+  inner_text: Text, text: "Masked", font_size: 18, color: text.primary, at: (0, 0)
+}
+
+// ── 3. Array-indexed actors via `for (x, y), i in list` ───────────────────
+// `dots[i]` expands to dots__0 … dots__8 at build time.
+// Each dot's initial position comes from tuple destructuring of the list.
+for (x, y), i in {(900,320),(960,320),(1020,320),(900,400),(960,400),(1020,400),(900,480),(960,480),(1020,480)} {
+  dots[i]: Ellipse, size: (28, 28), color: accent.primary, at: (x, y), opacity: 0
+}
+
+// ── always: wave motion + staggered fade-in + reactive color ───────────────
+always {
+  // Analytical sine wave — stateless, pure function of t
+  dots__0.at = (900,  320 + 30.0 * sin(t * 2.5 + 0.0))
+  dots__1.at = (960,  320 + 30.0 * sin(t * 2.5 + 0.7))
+  dots__2.at = (1020, 320 + 30.0 * sin(t * 2.5 + 1.4))
+  dots__3.at = (900,  400 + 30.0 * sin(t * 2.5 + 2.1))
+  dots__4.at = (960,  400 + 30.0 * sin(t * 2.5 + 2.8))
+  dots__5.at = (1020, 400 + 30.0 * sin(t * 2.5 + 3.5))
+  dots__6.at = (900,  480 + 30.0 * sin(t * 2.5 + 4.2))
+  dots__7.at = (960,  480 + 30.0 * sin(t * 2.5 + 4.9))
+  dots__8.at = (1020, 480 + 30.0 * sin(t * 2.5 + 5.6))
+
+  // Staggered fade-in: each dot's opacity ramps 0→1 at t=1+idx×0.06s
+  dots__0.opacity = clamp((t - 1.0) / 0.3, 0, 1)
+  dots__1.opacity = clamp((t - 1.06) / 0.3, 0, 1)
+  dots__2.opacity = clamp((t - 1.12) / 0.3, 0, 1)
+  dots__3.opacity = clamp((t - 1.18) / 0.3, 0, 1)
+  dots__4.opacity = clamp((t - 1.24) / 0.3, 0, 1)
+  dots__5.opacity = clamp((t - 1.30) / 0.3, 0, 1)
+  dots__6.opacity = clamp((t - 1.36) / 0.3, 0, 1)
+  dots__7.opacity = clamp((t - 1.42) / 0.3, 0, 1)
+  dots__8.opacity = clamp((t - 1.48) / 0.3, 0, 1)
+
+  // Color sweep: corner dots change hue after t=2.5s
+  dots__0.color = if t > 2.5 { accent.danger } else { accent.primary }
+  dots__4.color = if t > 2.5 { accent.success } else { accent.primary }
+  dots__8.color = if t > 2.5 { accent.secondary } else { accent.primary }
+
+  // _animating_rotation guard: breathe group opacity only when at rest
+  if badge_group._animating_rotation == 0 {
+    badge_group.opacity = 0.75 + 0.25 * sin(t * 1.5)
+  }
+}
+
+// ── Entrance ────────────────────────────────────────────────────────────────
+#0.4s
+fade-in title [600ms, ease: ease-out]
+fade-in sub [400ms, delay: 100ms]
+
+#0.8s
+fade-in badge_group [500ms, ease: ease-out]
+fade-in reveal_mask [500ms, delay: 150ms]
+
+// ── Group-level rotation (triggers _animating_rotation flag) ────────────────
+#1.8s
+rotate badge_group [by: tau, 3s, ease: ease-in-out]
