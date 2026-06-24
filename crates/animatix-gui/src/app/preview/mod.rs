@@ -230,6 +230,24 @@ pub enum DragState {
         /// Mouse position in scene space at drag start.
         start_scene: kurbo::Point,
     },
+    /// Dragging a callout label handle — updates `label_at`.
+    CalloutLabel {
+        actor: String,
+        /// `label_at` value at drag start.
+        start_label_at: [f32; 2],
+        /// Mouse position in scene space at drag start.
+        start_scene: kurbo::Point,
+    },
+    /// Dragging a callout tip handle — updates `to` (manual) or `to_offset` (targeted).
+    CalloutTip {
+        actor: String,
+        /// Whether the callout has a non-empty `target` (targeted mode).
+        is_targeted: bool,
+        /// `to` or `to_offset` value at drag start.
+        start_value: [f32; 2],
+        /// Mouse position in scene space at drag start.
+        start_scene: kurbo::Point,
+    },
     /// Dragging a motion path keyframe control point.
     MotionPath {
         actor: String,
@@ -1037,6 +1055,94 @@ pub(super) fn draw_vertex_handles(
         painter.circle_filled(screen, radius, fill);
         painter.circle_stroke(screen, radius, Stroke::new(STROKE_WIDTH, stroke_color));
     }
+}
+
+// ─── Callout Helpers ──────────────────────────────────────────────────────
+
+/// Compute the effective scene-space tip position for a callout actor.
+///
+/// In targeted mode (`target` non-empty and target track exists) this mirrors
+/// core's formula from `crates/animatix/src/primitives/callout.rs`:
+///   `to = attach_point(place, target_aabb) + to_offset`
+/// Falls back to `line_to` when untargeted or the target is not found.
+pub(super) fn callout_effective_to(
+    track: &animatix::timeline::AnimationTrack,
+    timeline: &animatix::timeline::Timeline,
+    time_ms: u64,
+) -> [f32; 2] {
+    use animatix::timeline::TrackAccessor;
+    let target_name = track.geometry.callout_target.get(time_ms, String::new());
+    if !target_name.is_empty() {
+        if let Some(target_track) = timeline.get_track(&target_name) {
+            let place = track.geometry.callout_place.get(time_ms, "right".to_string());
+            let to_offset = track.geometry.callout_to_offset.get(time_ms, [0.0, 0.0]);
+            let centre = target_track.geometry.position.get(time_ms, [0.0, 0.0]);
+            let half = target_track.geometry.size.get(time_ms, [50.0, 50.0]);
+            let attach: [f32; 2] = match place.as_str() {
+                "above" | "top" => [centre[0], centre[1] - half[1]],
+                "below" | "bottom" => [centre[0], centre[1] + half[1]],
+                "left" => [centre[0] - half[0], centre[1]],
+                _ => [centre[0] + half[0], centre[1]], // "right" and fallback
+            };
+            return [attach[0] + to_offset[0], attach[1] + to_offset[1]];
+        }
+    }
+    track.shape.line_to.get(time_ms, [0.0, 0.0])
+}
+
+// ─── Callout Handles ───────────────────────────────────────────────────────
+
+/// Draw the tip and label handles for a selected Callout actor.
+///
+/// - Tip handle: diamond at `to` (scene space)
+/// - Label handle: circle at `to + label_at` (scene space)
+pub(super) fn draw_callout_handles(
+    painter: &egui::Painter,
+    tip_screen: Pos2,
+    label_screen: Pos2,
+    active_tip: bool,
+    active_label: bool,
+    pixels_per_point: f32,
+) {
+    let r = PREVIEW_HANDLE_SIZE * 0.7 * pixels_per_point;
+    // Tip: diamond
+    let tip_color = if active_tip { accent_hover() } else { text::PRIMARY };
+    let tip_pts = [
+        Pos2::new(tip_screen.x, tip_screen.y - r * 1.4),
+        Pos2::new(tip_screen.x + r * 1.4, tip_screen.y),
+        Pos2::new(tip_screen.x, tip_screen.y + r * 1.4),
+        Pos2::new(tip_screen.x - r * 1.4, tip_screen.y),
+    ];
+    for i in 0..4 {
+        painter.line_segment([tip_pts[i], tip_pts[(i + 1) % 4]], Stroke::new(1.5, tip_color));
+    }
+    // Label: circle
+    let lbl_color = if active_label { accent_hover() } else { text::PRIMARY };
+    painter.circle_filled(label_screen, r, lbl_color);
+    painter.circle_stroke(label_screen, r, Stroke::new(STROKE_WIDTH, SELECTION_COLOR));
+}
+
+/// Compute screen-space positions of the callout tip and label handles.
+/// Returns `(tip_screen, label_screen)` or `None` if the actor has no callout data.
+pub(super) fn callout_handle_screens(
+    actor: &str,
+    timeline: &animatix::timeline::Timeline,
+    time_ms: u64,
+    preview_rect: egui::Rect,
+    scene_dimensions: SceneDimensions,
+    desired: Vec2,
+    zoom: f32,
+    pan: Vec2,
+) -> Option<(Pos2, Pos2)> {
+    use animatix::timeline::TrackAccessor;
+    let track = timeline.get_track(actor)?;
+    let to = callout_effective_to(track, timeline, time_ms);
+    let label_at = track.geometry.label_at.get(time_ms, [0.0, 50.0]);
+    let tip_world = kurbo::Point::new(to[0] as f64, to[1] as f64);
+    let label_world = kurbo::Point::new((to[0] + label_at[0]) as f64, (to[1] + label_at[1]) as f64);
+    let tip_screen = scene_to_screen(tip_world, preview_rect, scene_dimensions, desired, zoom, pan);
+    let label_screen = scene_to_screen(label_world, preview_rect, scene_dimensions, desired, zoom, pan);
+    Some((tip_screen, label_screen))
 }
 
 // ─── Preview Helpers ────────────────────────────────────────────────────────

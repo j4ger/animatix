@@ -23,6 +23,7 @@ impl GestureRouter {
         let is_active_reorder = matches!(ctx.drag_state, DragState::Reorder { .. });
         let is_active_marquee = ctx.selection.marquee_start.is_some();
         let is_active_vertex = matches!(ctx.drag_state, DragState::EditVertices { .. });
+        let is_active_callout = matches!(ctx.drag_state, DragState::CalloutLabel { .. } | DragState::CalloutTip { .. });
         let is_drag_started = response.drag_started();
 
         // Build per-frame gesture frame
@@ -64,6 +65,7 @@ impl GestureRouter {
         if is_active_motion_path { route_active(&mut super::gestures::motion_path::MotionPathGesture); return; }
         if is_active_marquee { route_active(&mut super::gestures::marquee::MarqueeGesture); return; }
         if is_active_vertex { route_active(&mut super::gestures::vertex::VertexGesture); return; }
+        if is_active_callout { route_active(&mut super::gestures::callout::CalloutGesture); return; }
         if is_active_reorder { route_active(&mut super::gestures::reorder::ReorderGesture); return; }
         if is_active_move { route_active(&mut super::gestures::move_actor::MoveActorGesture); return; }
 
@@ -85,6 +87,8 @@ impl GestureRouter {
                 if motion_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
                 let mut vertex_handler = super::gestures::vertex::VertexGesture;
                 if vertex_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
+                let mut callout_handler = super::gestures::callout::CalloutGesture;
+                if callout_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
                 let mut move_handler = super::gestures::move_actor::MoveActorGesture;
                 if move_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
                 let mut reorder_handler = super::gestures::reorder::ReorderGesture;

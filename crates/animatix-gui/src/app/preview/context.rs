@@ -1070,6 +1070,39 @@ impl PreviewContext<'_> {
                 );
             }
 
+            // Callout handles: tip + label
+            let is_callout = self
+                .timeline
+                .and_then(|t| t.get_track(actor))
+                .map(|tr| tr.kind == animatix::timeline::ActorKindId::Callout)
+                .unwrap_or(false);
+            if is_callout {
+                if let Some(timeline) = self.timeline {
+                    let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
+                    if let Some((tip_screen, label_screen)) = preview::callout_handle_screens(
+                        actor,
+                        timeline,
+                        time_ms,
+                        preview_rect,
+                        self.scene_dimensions,
+                        preview_rect.size(),
+                        self.preview.viewport.preview_zoom,
+                        self.preview.viewport.preview_pan,
+                    ) {
+                        let active_tip = matches!(&self.drag_state, DragState::CalloutTip { actor: a, .. } if a == actor);
+                        let active_label = matches!(&self.drag_state, DragState::CalloutLabel { actor: a, .. } if a == actor);
+                        preview::draw_callout_handles(
+                            ui.painter(),
+                            tip_screen,
+                            label_screen,
+                            active_tip,
+                            active_label,
+                            ui.ctx().pixels_per_point(),
+                        );
+                    }
+                }
+            }
+
             if is_dragging {
                 let measurement_color = accent::PRIMARY;
                 let text_color = text::PRIMARY;
