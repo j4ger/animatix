@@ -75,6 +75,30 @@ pub(super) fn insert_property(stmts: &mut [Stmt], actor: &str, property: &str, v
 }
 
 // ---------------------------------------------------------------------------
+// RemoveProperty
+// ---------------------------------------------------------------------------
+
+pub(super) fn remove_property(stmts: &mut [Stmt], actor: &str, property: &str) -> Result<(), SourceEditError> {
+    let source_prop = canonical_to_source(property);
+
+    let actor_decl = find_actor_decl_mut(stmts, actor)
+        .ok_or_else(|| SourceEditError::ActorNotFound { actor: actor.to_string() })?;
+
+    if let Stmt::ActorDecl { props, .. } = actor_decl {
+        let before = props.len();
+        props.retain(|p| p.name != source_prop);
+        if props.len() < before {
+            return Ok(());
+        }
+    }
+
+    Err(SourceEditError::PropertyNotFound {
+        actor: actor.to_string(),
+        property: property.to_string(),
+    })
+}
+
+// ---------------------------------------------------------------------------
 // InsertActor
 // ---------------------------------------------------------------------------
 
@@ -962,5 +986,65 @@ btn.position = (200, 100)"#);
         } else {
             panic!("Expected ActorDecl");
         }
+    }
+
+    #[test]
+    fn remove_existing_property() {
+        let mut stmts = parse(r#"#0s
+callout: Callout, target: box1, place: right"#);
+        let edit = SourceEdit::RemoveProperty {
+            actor: "callout".into(),
+            property: "target".into(),
+        };
+        assert!(apply_edit(&mut stmts, edit).is_ok());
+
+        let actor = find_actor_decl_mut(&mut stmts, "callout").expect("actor should exist");
+        assert!(find_prop_mut(actor, "target").is_none(), "'target' should have been removed");
+        // Other properties remain
+        assert!(find_prop_mut(actor, "place").is_some(), "'place' should still exist");
+    }
+
+    #[test]
+    fn remove_property_actor_not_found() {
+        let mut stmts = parse(r#"#0s
+box1: Rect, size: (100, 100)"#);
+        let edit = SourceEdit::RemoveProperty {
+            actor: "missing".into(),
+            property: "size".into(),
+        };
+        assert!(apply_edit(&mut stmts, edit).is_err());
+    }
+
+    #[test]
+    fn remove_property_not_found_on_actor() {
+        let mut stmts = parse(r#"#0s
+box1: Rect, size: (100, 100)"#);
+        let edit = SourceEdit::RemoveProperty {
+            actor: "box1".into(),
+            property: "color".into(),
+        };
+        assert!(apply_edit(&mut stmts, edit).is_err());
+    }
+
+    #[test]
+    fn remove_property_does_not_touch_assignments() {
+        // Keyframed assignments should remain untouched
+        let mut stmts = parse(r#"#0s
+callout: Callout, target: box1
+#1s
+callout.target = box2"#);
+        let edit = SourceEdit::RemoveProperty {
+            actor: "callout".into(),
+            property: "target".into(),
+        };
+        assert!(apply_edit(&mut stmts, edit).is_ok());
+
+        // Declaration prop removed
+        let actor = find_actor_decl_mut(&mut stmts, "callout").expect("actor should exist");
+        assert!(find_prop_mut(actor, "target").is_none());
+
+        // Assignment still present
+        let assignment = find_assignment_mut(&mut stmts, "callout", "target");
+        assert!(assignment.is_some(), "keyframed assignment should remain");
     }
 }

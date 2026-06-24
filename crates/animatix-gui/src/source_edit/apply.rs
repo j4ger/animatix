@@ -86,6 +86,11 @@ pub enum SourceEdit {
     DeleteActor {
         label: String,
     },
+    /// Remove a property from an actor declaration. Does not remove keyframed assignments.
+    RemoveProperty {
+        actor: String,
+        property: String,
+    },
     /// Reorder top-level scene declarations.
     ReorderScenes {
         new_order: Vec<String>,
@@ -235,6 +240,9 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
             Ok(())
         }
         SourceEdit::DeleteActor { label } => super::actor_edits::delete_actor(stmts, &label),
+        SourceEdit::RemoveProperty { actor, property } => {
+            super::actor_edits::remove_property(stmts, &actor, &property)
+        }
         SourceEdit::ReorderScenes { new_order } => super::scene_edits::reorder_scenes(stmts, new_order),
         SourceEdit::SetPlayTarget { scene, target } => {
             super::scene_edits::set_play_target(stmts, &scene, target.as_deref())
