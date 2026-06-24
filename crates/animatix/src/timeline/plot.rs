@@ -199,10 +199,13 @@ pub fn resolve_func_source(
             local_env.set_binding(name, Value::Num(arg_val));
             evaluate_expr(body, &local_env).map(|v| v.as_num())
         }
-        FuncSource::Blend { from, to, frozen_progress } => {
-            let from_val = resolve_func_source(from, env, arg_name, arg_val)?;
-            let to_val = resolve_func_source(to, env, arg_name, arg_val)?;
-            Ok(from_val + (to_val - from_val) * frozen_progress)
+        FuncSource::Blend { .. } => {
+            let flat = flatten_blend(source);
+            let mut sum = 0.0;
+            for (weight, src) in flat {
+                sum += weight * resolve_func_source(src, env, arg_name, arg_val)?;
+            }
+            Ok(sum)
         }
     }
 }
@@ -227,13 +230,16 @@ pub fn resolve_func_source_vec2(
                 other => [other.as_num(), f64::NAN],
             })
         }
-        FuncSource::Blend { from, to, frozen_progress } => {
-            let [fx, fy] = resolve_func_source_vec2(from, env, arg_name, arg_val)?;
-            let [tx, ty] = resolve_func_source_vec2(to, env, arg_name, arg_val)?;
-            Ok([
-                fx + (tx - fx) * frozen_progress,
-                fy + (ty - fy) * frozen_progress,
-            ])
+        FuncSource::Blend { .. } => {
+            let flat = flatten_blend(source);
+            let mut sum_x = 0.0;
+            let mut sum_y = 0.0;
+            for (weight, src) in flat {
+                let [vx, vy] = resolve_func_source_vec2(src, env, arg_name, arg_val)?;
+                sum_x += weight * vx;
+                sum_y += weight * vy;
+            }
+            Ok([sum_x, sum_y])
         }
     }
 }
@@ -258,7 +264,7 @@ pub(crate) enum PlotFuncRef<'a> {
 }
 
 /// Evaluate `source` at scalar `x`, using `cache` to avoid redundant evaluations.
-fn eval_source_scalar(
+pub(crate) fn eval_source_scalar(
     source: &FuncSource,
     env: &mut Environment,
     arg_name: &str,
@@ -280,12 +286,14 @@ fn eval_source_scalar(
             });
             val.as_num()
         }
-        FuncSource::Blend { from, to, frozen_progress } => {
-            let mut fc = HashMap::new();
-            let mut tc = HashMap::new();
-            let fv = eval_source_scalar(from, env, arg_name, x, &mut fc);
-            let tv = eval_source_scalar(to, env, arg_name, x, &mut tc);
-            fv + (tv - fv) * frozen_progress
+        FuncSource::Blend { .. } => {
+            let flat = flatten_blend(source);
+            let mut sum = 0.0;
+            for (weight, src) in flat {
+                let mut cache = HashMap::new();
+                sum += weight * eval_source_scalar(src, env, arg_name, x, &mut cache);
+            }
+            sum
         }
     }
 }
@@ -317,12 +325,17 @@ fn eval_source_vec2(
                 _ => [f64::NAN, f64::NAN],
             }
         }
-        FuncSource::Blend { from, to, frozen_progress } => {
-            let mut fc = HashMap::new();
-            let mut tc = HashMap::new();
-            let [fx, fy] = eval_source_vec2(from, env, arg_name, t, &mut fc);
-            let [tx, ty] = eval_source_vec2(to, env, arg_name, t, &mut tc);
-            [fx + (tx - fx) * frozen_progress, fy + (ty - fy) * frozen_progress]
+        FuncSource::Blend { .. } => {
+            let flat = flatten_blend(source);
+            let mut sum_x = 0.0;
+            let mut sum_y = 0.0;
+            for (weight, src) in flat {
+                let mut cache = HashMap::new();
+                let [vx, vy] = eval_source_vec2(src, env, arg_name, t, &mut cache);
+                sum_x += weight * vx;
+                sum_y += weight * vy;
+            }
+            [sum_x, sum_y]
         }
     }
 }
@@ -375,6 +388,31 @@ pub(crate) fn blend_depth(source: &FuncSource) -> usize {
         FuncSource::Raw(..) => 0,
         FuncSource::Blend { from, to, .. } => {
             1 + blend_depth(from).max(blend_depth(to))
+        }
+    }
+}
+
+/// Flatten nested [`FuncSource::Blend`] trees into a linear list of
+/// `(weight, base_source)` pairs for O(N) weighted-sum evaluation.
+///
+/// Each base [`FuncSource::Raw`] appears exactly once in the output list.
+/// The lerp formula `from*(1-p) + to*p` is distributed through the tree
+/// so that a depth-N cascade produces N+1 leaf entries instead of 2^N
+/// recursive evaluations.
+pub(crate) fn flatten_blend(source: &FuncSource) -> Vec<(f64, &FuncSource)> {
+    match source {
+        FuncSource::Raw(..) => vec![(1.0, source)],
+        FuncSource::Blend { from, to, frozen_progress } => {
+            let mut result = Vec::new();
+            // from contributes with weight (1 - frozen_progress)
+            for (w, s) in flatten_blend(from) {
+                result.push((w * (1.0 - frozen_progress), s));
+            }
+            // to contributes with weight frozen_progress
+            for (w, s) in flatten_blend(to) {
+                result.push((w * frozen_progress, s));
+            }
+            result
         }
     }
 }
@@ -708,10 +746,13 @@ pub(crate) fn eval_implicit_source(
                 _ => f64::NAN,
             }
         }
-        FuncSource::Blend { from, to, frozen_progress } => {
-            let from_val = eval_implicit_source(from, env, x, y);
-            let to_val = eval_implicit_source(to, env, x, y);
-            from_val + (to_val - from_val) * frozen_progress
+        FuncSource::Blend { .. } => {
+            let flat = flatten_blend(source);
+            let mut sum = 0.0;
+            for (weight, src) in flat {
+                sum += weight * eval_implicit_source(src, env, x, y);
+            }
+            sum
         }
     }
 }
