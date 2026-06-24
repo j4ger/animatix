@@ -191,7 +191,8 @@ impl Primitive for CalloutPrimitive {
         // Warn when targeted but resolver didn't find the target.
         let target_name = ctx.track.geometry.callout_target.get(ctx.time_ms, String::new());
         if !target_name.is_empty() && ctx.target_resolver.is_none() {
-            tracing::warn!(
+            // Build-time diagnostic (CalloutTargetNotFound) already covers this; debug only to avoid per-frame spam.
+            tracing::debug!(
                 "callout '{}': target actor '{}' not found in timeline",
                 ctx.track.label,
                 target_name

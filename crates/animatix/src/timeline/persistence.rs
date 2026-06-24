@@ -119,7 +119,7 @@ impl Timeline {
     ///
     /// `has_successor` — when `false`, any persisted actors will emit a
     /// `PersistTargetNotCarried` warning since there is no next scene.
-    pub fn compute_carry_bag(&self, time_ms: u64, has_successor: bool) -> CarryBag {
+    pub fn compute_carry_bag(&self, time_ms: u64, _has_successor: bool) -> CarryBag {
         let mut entries = BTreeMap::new();
 
         // Collect labels whose persistence flag is set.

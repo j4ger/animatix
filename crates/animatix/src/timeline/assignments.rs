@@ -15,7 +15,7 @@ use crate::renderer::error::RenderError;
 use crate::timeline::VelloPath;
 use crate::timeline::actor_kind::ActorKindId;
 use crate::timeline::build::build_graph_axis_paths;
-use crate::timeline::plot::{FuncSource, PlotCurveKind};
+use crate::timeline::plot::FuncSource;
 use crate::timeline::property_engine::{parse_property_value, write_property_field};
 use crate::timeline::property_registry::{PropertyFlags, lookup_property};
 use crate::timeline::property_track::TrackAccessor;

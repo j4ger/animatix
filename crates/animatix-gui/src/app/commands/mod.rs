@@ -31,6 +31,8 @@ pub enum UndoLabel {
     FindReplaceAll,
     InsertionFromPalette,
     PropertyEdit(PropertyEdit),
+    /// Undo label for callout detach; constructed when undo integration is wired up.
+    #[allow(dead_code)] // Undo wiring for DetachCallout is planned but not yet connected.
     DetachCallout { actor: String },
 
     // Actor

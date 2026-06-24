@@ -1080,20 +1080,6 @@ pub(super) fn draw_vertex_handles(
 
 // ─── Callout Helpers ──────────────────────────────────────────────────────
 
-/// Compute the effective scene-space tip position for a callout actor.
-///
-/// Delegates to the shared core helper so GUI handle positions always match
-/// the rendered arrow tip.
-pub(super) fn callout_effective_to(
-    track: &animatix::timeline::AnimationTrack,
-    timeline: &animatix::timeline::Timeline,
-    time_ms: u64,
-    scene_dimensions: SceneDimensions,
-) -> [f32; 2] {
-    animatix::timeline::callout_geometry::derive_callout_geometry(track, time_ms, Some(timeline), scene_dimensions)
-        .to
-}
-
 // ─── Callout Handles ───────────────────────────────────────────────────────
 
 /// Draw the tip and label handles for a selected Callout actor.
@@ -1124,29 +1110,6 @@ pub(super) fn draw_callout_handles(
     let lbl_color = if active_label { accent_hover() } else { text::PRIMARY };
     painter.circle_filled(label_screen, r, lbl_color);
     painter.circle_stroke(label_screen, r, Stroke::new(STROKE_WIDTH, SELECTION_COLOR));
-}
-
-/// Compute screen-space positions of the callout tip and label handles.
-/// Returns `(tip_screen, label_screen)` or `None` if the actor has no callout data.
-pub(super) fn callout_handle_screens(
-    actor: &str,
-    timeline: &animatix::timeline::Timeline,
-    time_ms: u64,
-    preview_rect: egui::Rect,
-    scene_dimensions: SceneDimensions,
-    desired: Vec2,
-    zoom: f32,
-    pan: Vec2,
-) -> Option<(Pos2, Pos2)> {
-    use animatix::timeline::TrackAccessor;
-    let track = timeline.get_track(actor)?;
-    let to = callout_effective_to(track, timeline, time_ms, scene_dimensions);
-    let label_at = track.geometry.label_at.get(time_ms, [0.0, 50.0]);
-    let tip_world = kurbo::Point::new(to[0] as f64, to[1] as f64);
-    let label_world = kurbo::Point::new((to[0] + label_at[0]) as f64, (to[1] + label_at[1]) as f64);
-    let tip_screen = scene_to_screen(tip_world, preview_rect, scene_dimensions, desired, zoom, pan);
-    let label_screen = scene_to_screen(label_world, preview_rect, scene_dimensions, desired, zoom, pan);
-    Some((tip_screen, label_screen))
 }
 
 /// Draw four side handles around a targeted callout's target bounds.

@@ -275,6 +275,7 @@ impl Default for HighlightTracks {
 }
 
 impl HighlightTracks {
+    #[allow(dead_code)] // Used as serde `default` attribute target; not directly called.
     fn default_blend() -> vello::peniko::Mix {
         vello::peniko::Mix::Difference
     }

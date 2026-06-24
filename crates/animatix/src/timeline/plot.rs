@@ -712,22 +712,6 @@ pub(crate) fn implicit_intersection(
     kurbo::Point::new(screen_x, screen_y)
 }
 
-pub(crate) fn evaluate_implicit_value(
-    env: &mut Environment,
-    arg_names: &[String],
-    body: &Expr,
-    x: f64,
-    y: f64,
-) -> f64 {
-    let x_name = arg_names.first().map(String::as_str).unwrap_or("x");
-    let y_name = arg_names.get(1).map(String::as_str).unwrap_or("y");
-    env.set_binding(x_name, Value::Num(x));
-    env.set_binding(y_name, Value::Num(y));
-    evaluate_expr(body, env)
-        .unwrap_or(Value::Num(f64::NAN))
-        .as_num()
-}
-
 /// Evaluate a [`FuncSource`] at (x, y) coordinates, returning a scalar value
 /// for implicit contour detection. Supports blended transitions via recursive
 /// evaluation of `Blend` nodes.
@@ -912,6 +896,7 @@ pub fn build_implicit_plot_path_from_source(
 /// Legacy wrapper that builds an implicit plot path from raw args/body.
 /// Creates a `FuncSource::Raw` and delegates to [`build_implicit_plot_path_from_source`].
 #[deprecated(since = "0.5", note = "use build_implicit_plot_path_from_source instead")]
+#[allow(dead_code)] // Legacy public API shim; kept for backward compatibility.
 pub fn build_implicit_plot_path(
     env: &mut Environment,
     arg_names: &[String],
@@ -991,6 +976,7 @@ impl ProceduralPlot {
 /// Compatibility shim for `scene_eval.rs` (pre-Task-4). Delegates to
 /// [`sample_procedural_plot_at`] with no active transitions.
 #[deprecated(since = "0.5", note = "use sample_procedural_plot_at instead")]
+#[allow(dead_code)] // Legacy public API shim; kept for backward compatibility.
 pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &mut Environment) -> Vec<VelloPath> {
     sample_procedural_plot_at(plot, env, 0, &[])
 }
