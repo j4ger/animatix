@@ -13,7 +13,7 @@ New primitive types for educational content.
 
 | # | Task | Notes |
 |---|------|-------|
-| 9 | **Callout/annotation primitive** | ✅ Shipped. Coordinate-based: `Callout { from: (x,y), to: (x,y), label: "...", label_at: (0, 50), head_size: 8, color: white }`. Draws a labeled arrow between two points. See `examples/callout_example.amx`. |
+| 9 | **Callout/annotation primitive** | ✅ Shipped. Coordinate-based: `Callout { from: (x,y), to: (x,y), label: "...", label_at: (0, 50), head_size: 8, color: white }`. Targeted mode: `target: actor, place: bottom, standoff: 8, to_offset: (dx,dy)` — auto-places arrow tip on actor edge with optional GUI-adjusted offset. See `examples/callout_example.amx`. |
 
 ---
 

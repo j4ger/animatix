@@ -1,7 +1,10 @@
 // Example demonstrating the Callout primitive
 //
-// A Callout draws a labeled arrow from `from` to `to`, placing
-// the label text at `to + label_at`.
+// Coordinate-based: `from`/`to` set explicit endpoints.
+// Targeted mode: `target: actor` auto-places the arrow tip on the actor;
+//   `place: (side)` chooses which side (top/bottom/left/right/auto),
+//   `standoff` adds gap between tip and actor edge,
+//   `to_offset` nudges the tip after placement (GUI drag handle result).
 
 config {
     colorscheme: "editorial-dark",
@@ -36,3 +39,26 @@ callout2.to = (400, 300) [2s, ease: ease-in-out]
 
 #4s
 callout2.to = (200, 300) [2s, ease: ease-in-out]
+
+// ── Targeted mode ──────────────────────────────────────────────────────────
+// The actor being annotated
+box1: Rect {
+    at: (700, 200),
+    size: (120, 60),
+    color: (0.2, 0.6, 0.9, 1.0),
+}
+
+// Callout that tracks `box1` automatically.
+// `place: bottom` puts the arrow tip on the bottom edge.
+// `standoff: 8` leaves an 8px gap between tip and edge.
+// `to_offset` is the fine-tune set by GUI drag; (0,0) means no adjustment.
+callout3: Callout {
+    from: (500, 400),
+    target: box1,
+    place: bottom,
+    standoff: 8,
+    to_offset: (0, 0),
+    label: "Tracked Actor",
+    label_at: (0, -20),
+    color: (1.0, 0.8, 0.0, 1.0),
+}

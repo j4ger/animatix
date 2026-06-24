@@ -537,7 +537,7 @@ img: Image, url: "examples/assets/checker.png", at: (100, 100), size: (200, 150)
 | Shapes | `stroke`, `stroke_width`, `fill_opacity`, `stroke_progress` |
 | `Line` | `from`, `to` |
 | `Arrow` | `from`, `to`, `head_size` |
-| `Callout` | `from`, `to`, `head_size`, `label`, `label_at` |
+| `Callout` | `from`, `to`, `head_size`, `label`, `label_at`; targeted mode: `target: actor`, `place: top/bottom/left/right/auto`, `standoff`, `to_offset` |
 | `Legend` | `at` |
 | `Polygon` | `points: {(x, y), ...}` |
 | `Path` | `commands: {move_to(...), line_to(...), curve_to(...), close()}` |
