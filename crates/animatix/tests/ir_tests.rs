@@ -125,17 +125,14 @@ fn ir_lowering_ignores_comments_in_always_blocks() {
 }
 
 #[test]
-fn ir_lowering_rejects_unsupported_expression_forms() {
+fn ir_lowering_supports_construct_expression_forms() {
     let expr = Expr::Construct(
         "Point".to_string(),
         vec![],
     );
 
     let compiled = compile_modifier_expr(&expr);
-    assert!(matches!(
-        compiled,
-        ModifierExpr::Unsupported(Expr::Construct(_, _))
-    ));
+    assert!(matches!(compiled, ModifierExpr::Compiled(_)), "Construct should lower to Compiled, got {:?}", compiled);
 }
 
 #[test]
@@ -347,7 +344,7 @@ fn modifier_bytecode_executes_let_and_if() {
 }
 
 #[test]
-fn modifier_bytecode_rejects_unsupported_ir_expr() {
+fn modifier_bytecode_supports_construct_ir_expr() {
     let program = vec![Stmt::Always {
         body: vec![Stmt::Assignment {
             target: vec!["pulse".to_string()],
@@ -365,8 +362,7 @@ fn modifier_bytecode_rejects_unsupported_ir_expr() {
     }];
 
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
-    let error = compile_modifier_bytecode(&ir).expect_err("bytecode compilation should fail");
-    assert_eq!(error, VmCompileError::UnsupportedExpr);
+    compile_modifier_bytecode(&ir).expect("bytecode compilation should succeed for Construct");
 }
 
 #[test]
