@@ -36,6 +36,7 @@ pub mod actions;
 /// Asset loading and caching.
 #[cfg(feature = "render")]
 pub mod assets;
+pub mod callout_geometry;
 mod actor_kind;
 mod assignments;
 mod build;

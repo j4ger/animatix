@@ -5,6 +5,7 @@ use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, EvaluateCtx, Primi
 use crate::renderer::error::RenderError;
 use crate::renderer::text::TextKind;
 use crate::timeline::{AnimationTrack, Environment, SceneDimensions, TrackAccessor, Value, VectorShapeState, VelloPath};
+use crate::timeline::callout_geometry::derive_callout_geometry;
 
 /// Parse a numeric value from an AST expression.
 fn parse_f32(expr: &Expr) -> Option<f32> {
@@ -168,62 +169,20 @@ impl Primitive for CalloutPrimitive {
     ) -> Result<Option<Vec<RenderCommand>>, RenderError> {
         use crate::timeline::Value;
 
-        // Sample arrow properties from tracks
-        let mut from = ctx.track.shape.line_from.get(ctx.time_ms, [-100.0, 0.0]);
-        let mut to = ctx.track.shape.line_to.get(ctx.time_ms, [100.0, 0.0]);
+        // Derive geometry using the shared helper (handles both manual and targeted mode).
+        let geom = derive_callout_geometry(ctx.track, ctx.time_ms, ctx.target_resolver);
+        let mut from = geom.from;
+        let mut to = geom.to;
         let mut head_size = ctx.track.shape.head_size.get(ctx.time_ms, 10.0);
 
-        // ── Targeted callout mode ──
-        // When a non-empty `target` is set, derive `to` and `from` from the
-        // target actor's scene-space AABB, using `place` and `standoff`.
-        //
-        // Formula:
-        //   to   = attach_point(place, target_aabb) + to_offset
-        //   from = to + direction(place) * standoff
-        //
-        // The label still renders at `to + label_at` (manual mode unchanged).
+        // Warn when targeted but resolver didn't find the target.
         let target_name = ctx.track.geometry.callout_target.get(ctx.time_ms, String::new());
-        if !target_name.is_empty() {
-            if let Some(timeline) = ctx.timeline {
-                let place = ctx.track.geometry.callout_place.get(ctx.time_ms, "right".to_string());
-                let standoff = ctx.track.geometry.callout_standoff.get(ctx.time_ms, 40.0);
-                let to_offset = ctx.track.geometry.callout_to_offset.get(ctx.time_ms, [0.0, 0.0]);
-
-                if let Some(target_track) = timeline.get_track(&target_name) {
-                    // Unrotated scene-space AABB: centre ± half_size
-                    let centre = target_track.geometry.position.get(ctx.time_ms, [0.0, 0.0]);
-                    let half = target_track.geometry.size.get(ctx.time_ms, [50.0, 50.0]);
-
-                    let (attach, dir): ([f32; 2], [f32; 2]) = match place.as_str() {
-                        "above" | "top" => (
-                            [centre[0], centre[1] - half[1]],
-                            [0.0, -1.0],
-                        ),
-                        "below" | "bottom" => (
-                            [centre[0], centre[1] + half[1]],
-                            [0.0, 1.0],
-                        ),
-                        "left" => (
-                            [centre[0] - half[0], centre[1]],
-                            [-1.0, 0.0],
-                        ),
-                        // "right" and fallback
-                        _ => (
-                            [centre[0] + half[0], centre[1]],
-                            [1.0, 0.0],
-                        ),
-                    };
-
-                    to = [attach[0] + to_offset[0], attach[1] + to_offset[1]];
-                    from = [to[0] + dir[0] * standoff, to[1] + dir[1] * standoff];
-                } else {
-                    tracing::warn!(
-                        "callout '{}': target actor '{}' not found in timeline",
-                        ctx.track.label,
-                        target_name
-                    );
-                }
-            }
+        if !target_name.is_empty() && ctx.target_resolver.is_none() {
+            tracing::warn!(
+                "callout '{}': target actor '{}' not found in timeline",
+                ctx.track.label,
+                target_name
+            );
         }
 
         if let Some(overrides) = ctx.overrides {

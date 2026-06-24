@@ -1061,33 +1061,15 @@ pub(super) fn draw_vertex_handles(
 
 /// Compute the effective scene-space tip position for a callout actor.
 ///
-/// In targeted mode (`target` non-empty and target track exists) this mirrors
-/// core's formula from `crates/animatix/src/primitives/callout.rs`:
-///   `to = attach_point(place, target_aabb) + to_offset`
-/// Falls back to `line_to` when untargeted or the target is not found.
+/// Delegates to the shared core helper so GUI handle positions always match
+/// the rendered arrow tip.
 pub(super) fn callout_effective_to(
     track: &animatix::timeline::AnimationTrack,
     timeline: &animatix::timeline::Timeline,
     time_ms: u64,
 ) -> [f32; 2] {
-    use animatix::timeline::TrackAccessor;
-    let target_name = track.geometry.callout_target.get(time_ms, String::new());
-    if !target_name.is_empty() {
-        if let Some(target_track) = timeline.get_track(&target_name) {
-            let place = track.geometry.callout_place.get(time_ms, "right".to_string());
-            let to_offset = track.geometry.callout_to_offset.get(time_ms, [0.0, 0.0]);
-            let centre = target_track.geometry.position.get(time_ms, [0.0, 0.0]);
-            let half = target_track.geometry.size.get(time_ms, [50.0, 50.0]);
-            let attach: [f32; 2] = match place.as_str() {
-                "above" | "top" => [centre[0], centre[1] - half[1]],
-                "below" | "bottom" => [centre[0], centre[1] + half[1]],
-                "left" => [centre[0] - half[0], centre[1]],
-                _ => [centre[0] + half[0], centre[1]], // "right" and fallback
-            };
-            return [attach[0] + to_offset[0], attach[1] + to_offset[1]];
-        }
-    }
-    track.shape.line_to.get(time_ms, [0.0, 0.0])
+    animatix::timeline::callout_geometry::derive_callout_geometry(track, time_ms, Some(timeline))
+        .to
 }
 
 // ─── Callout Handles ───────────────────────────────────────────────────────

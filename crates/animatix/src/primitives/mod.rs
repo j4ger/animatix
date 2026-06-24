@@ -46,6 +46,7 @@ use crate::timeline::{
     ActorCategory, ActorKindId, AnimationTrack, DEFAULT_WHITE, Environment, SceneDimensions,
     Timeline, TrackAccessor, Value, VectorShapeState, VectorShapeStyle, VelloPath,
 };
+use crate::timeline::callout_geometry::TargetResolver;
 
 /// Evaluate text paths for a text primitive at frame time.
 ///
@@ -327,8 +328,9 @@ pub struct EvaluateCtx<'a> {
     pub overrides: Option<&'a std::collections::HashMap<String, Value>>,
     /// Pre-sampled vector paths (includes procedural plot sampling).
     pub vector_paths: &'a [VelloPath],
-    /// Timeline reference for target actor lookup (targeted callout mode).
-    pub timeline: Option<&'a Timeline>,
+    /// Narrow resolver for target actor bounds (targeted callout mode).
+    /// Replaces the previous broad `Option<&Timeline>` field.
+    pub target_resolver: Option<&'a dyn TargetResolver>,
 }
 
 /// Mutable context for text recompilation.
