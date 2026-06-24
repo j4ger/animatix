@@ -6,7 +6,7 @@ rust-version = "1.85"
 default-run = "animatix-gui"
 
 [features]
-default = ["video"]
+default = []
 video = ["animatix/video"]
 
 [dependencies]
