@@ -608,6 +608,10 @@ impl AnimationTrack {
             MinHeight => TrackFieldRef::F32(&self.geometry.min_height),
             MaxHeight => TrackFieldRef::F32(&self.geometry.max_height),
             LabelAt => TrackFieldRef::Vec2(&self.geometry.label_at),
+            CalloutTarget => TrackFieldRef::String(&self.geometry.callout_target),
+            CalloutPlace => TrackFieldRef::String(&self.geometry.callout_place),
+            CalloutStandoff => TrackFieldRef::F32(&self.geometry.callout_standoff),
+            CalloutToOffset => TrackFieldRef::Vec2(&self.geometry.callout_to_offset),
             VectorPaths => TrackFieldRef::VectorPaths(&self.shape.vector_paths),
             TextPaths => TrackFieldRef::TextPaths(&self.text.text_paths),
             #[cfg(feature = "render")]
@@ -679,6 +683,10 @@ impl AnimationTrack {
             MinHeight => TrackFieldMut::F32(&mut self.geometry.min_height),
             MaxHeight => TrackFieldMut::F32(&mut self.geometry.max_height),
             LabelAt => TrackFieldMut::Vec2(&mut self.geometry.label_at),
+            CalloutTarget => TrackFieldMut::String(&mut self.geometry.callout_target),
+            CalloutPlace => TrackFieldMut::String(&mut self.geometry.callout_place),
+            CalloutStandoff => TrackFieldMut::F32(&mut self.geometry.callout_standoff),
+            CalloutToOffset => TrackFieldMut::Vec2(&mut self.geometry.callout_to_offset),
             VectorPaths => TrackFieldMut::VectorPaths(&mut self.shape.vector_paths),
             TextPaths => TrackFieldMut::TextPaths(&mut self.text.text_paths),
             #[cfg(feature = "render")]

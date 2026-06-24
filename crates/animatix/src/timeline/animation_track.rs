@@ -365,6 +365,14 @@ pub struct GeometryTracks {
     pub max_height: Option<PropertyTrack<f32>>,
     /// Label position offset for callout annotations.
     pub label_at: Option<PropertyTrack<[f32; 2]>>,
+    /// Target actor path for targeted callout mode.
+    pub callout_target: Option<PropertyTrack<String>>,
+    /// Placement hint for targeted callout (e.g. "above", "below", "left", "right").
+    pub callout_place: Option<PropertyTrack<String>>,
+    /// Standoff distance between callout tip and target.
+    pub callout_standoff: Option<PropertyTrack<f32>>,
+    /// Offset applied to the callout anchor on the target side.
+    pub callout_to_offset: Option<PropertyTrack<[f32; 2]>>,
 }
 
 // ─────────────────────────────────────────────────────────────

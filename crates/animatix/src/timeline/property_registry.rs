@@ -289,6 +289,14 @@ pub enum ActorField {
     // ── Callout / annotation ──
     /// Label position offset for callouts.
     LabelAt,
+    /// Target actor path for targeted callout mode.
+    CalloutTarget,
+    /// Placement hint string for targeted callout.
+    CalloutPlace,
+    /// Standoff distance from tip to target.
+    CalloutStandoff,
+    /// Offset on the target side of the callout anchor.
+    CalloutToOffset,
 
     // ── Font metrics (baseline alignment) ──
     /// Font ascent in scene units.
@@ -421,6 +429,10 @@ impl ActorField {
 
             // ── Callout ──
             ActorField::LabelAt => PropertyValue::Vec2([0.0, 0.0]),
+            ActorField::CalloutTarget => PropertyValue::String(String::new()),
+            ActorField::CalloutPlace => PropertyValue::String(String::new()),
+            ActorField::CalloutStandoff => PropertyValue::F32(20.0),
+            ActorField::CalloutToOffset => PropertyValue::Vec2([0.0, 0.0]),
 
             // ── Highlight ──
             ActorField::HighlightColor => PropertyValue::Vec4([0.3, 0.5, 1.0, 1.0]),
@@ -665,6 +677,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("opacity",       ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::Opacity,             None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("overflow",       ValueType::String,      F::ASSIGNABLE,                ActorField::Overflow,            None,                             Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]), |_| super::property_engine::PropertyValue::String("visible".to_string())),
     schema!("padding",       ValueType::F32,         F::empty(),                   ActorField::ContainerLayoutGroup, Some(GroupMembership { group_id: GroupHandlerId::ContainerLayout }), Applicable::ActorKinds(&[A::Graph, A::Row, A::Col, A::Grid, A::Stack]), |_| super::property_engine::PropertyValue::F32(0.0)),
+    schema!("place",         ValueType::String,      F::ASSIGNABLE,                ActorField::CalloutPlace,      None,                             Applicable::ActorKinds(&[A::Callout]), |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("points",        ValueType::PointList,   F::ASSIGNABLE_A,              ActorField::Points,              Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Polygon]), |_| super::property_engine::PropertyValue::PointList(Vec::new())),
     schema!("position",      ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::Position,            None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])),
     schema!("radius_x",      ValueType::F32,         F::ASSIGNABLE_AI,                ActorField::Size,                Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ShapeKinds(&[S::Ellipse]), |_| super::property_engine::PropertyValue::F32(50.0), ReadSource::Component { field: ActorField::Size, index: 0, scale: 1.0 }),
@@ -679,15 +692,18 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     schema!("show_labels",    ValueType::String,      F::empty(),                   ActorField::NoStorage,              None,                             Applicable::ActorKinds(&[A::BarChart]), |_| super::property_engine::PropertyValue::String("true".to_string())),
     schema!("size",          ValueType::Vec2,        F::ALL,                       ActorField::Size,                None,                             Applicable::SizedActors, |_| super::property_engine::PropertyValue::Vec2([50.0, 50.0])),
     schema!("source",        ValueType::String,      F::ASSIGNABLE,                ActorField::AudioSource,         None,                             Applicable::ActorKinds(&[A::Audio]), |_| super::property_engine::PropertyValue::String(String::new())),
+    schema!("standoff",      ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::CalloutStandoff,   None,                             Applicable::ActorKinds(&[A::Callout]), |_| super::property_engine::PropertyValue::F32(20.0)),
     schema!("stroke",        ValueType::Color,       F::ASSIGNABLE_AI,             ActorField::StrokeColor,         None,                             Applicable::AllStrokePaths, |_| super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])),
     schema!("stroke_progress",ValueType::F32,        F::ASSIGNABLE_AI,             ActorField::StrokeProgress,      None,                             Applicable::AllStrokePaths, |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("stroke_width",  ValueType::F32,         F::ASSIGNABLE_AI,             ActorField::StrokeWidth,         None,                             Applicable::AllStrokePaths, |_| super::property_engine::PropertyValue::F32(1.0)),
     schema!("t_domain",      ValueType::Vec2,        F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve]), |_| super::property_engine::PropertyValue::Vec2([0.0, 1.0])),
+    schema!("target",        ValueType::String,      F::ASSIGNABLE,                ActorField::CalloutTarget,     None,                             Applicable::ActorKinds(&[A::Callout]), |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("text",          ValueType::String,      F::ASSIGNABLE_A,              ActorField::TextContent,         None,                             Applicable::ActorKinds(&[A::Text]), |_| super::property_engine::PropertyValue::String(String::new())),
     schema!("text_align",    ValueType::String,      F::ASSIGNABLE,                ActorField::TextAlign,           None,                             Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]), |_| super::property_engine::PropertyValue::String("left".to_string())),
     schema!("tick_labels",   ValueType::String,      F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph]), |_| super::property_engine::PropertyValue::String("auto".to_string())),
     schema!("ticks",         ValueType::String,      F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::Graph]), |_| super::property_engine::PropertyValue::String("auto".to_string())),
     schema!("to",            ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::LineTo,              Some(GroupMembership { group_id: GroupHandlerId::VectorShapeState }), Applicable::ActorKinds(&[A::Shape(S::Line), A::Shape(S::Arrow), A::Callout]), |_| super::property_engine::PropertyValue::Vec2([100.0, 0.0])),
+    schema!("to_offset",     ValueType::Vec2,        F::ASSIGNABLE_AI,             ActorField::CalloutToOffset,   None,                             Applicable::ActorKinds(&[A::Callout]), |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])),
     schema!("tolerance",     ValueType::F32,         F::empty(),                   ActorField::PlotDomainGroup,     Some(GroupMembership { group_id: GroupHandlerId::PlotDomain }), Applicable::ActorKinds(&[A::PlotCurve]), |_| super::property_engine::PropertyValue::F32(2.0)),
     schema!("transform",     ValueType::Transform,   F::ASSIGNABLE_AI,             ActorField::Transform,           None,                             Applicable::Everything, |_| super::property_engine::PropertyValue::Transform([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])),
     schema!("url",           ValueType::String,      F::ASSIGNABLE,                ActorField::ImageData,           None,                             Applicable::ActorKinds(&[A::Image, A::Svg]), |_| super::property_engine::PropertyValue::String(String::new())),
