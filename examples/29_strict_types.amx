@@ -1,0 +1,75 @@
+// 29 — Strict Types: Type annotations and gradual type checking
+// Demonstrates:
+//   - strict_types: true requiring all component/action params to be annotated
+//   - Common types: Num, Str, Bool, Vec2, Color, List<Color>
+//   - Default values combined with type annotations (size: Vec2 = (40, 40))
+//   - List<Color> parameter with covariant subtyping (Color <: Vec4)
+//   - Typed action parameters: action highlight(tint: Color)
+//   - rgb() produces a Color — satisfies Color-typed params at build time
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720), strict_types: true }
+
+// ── Typed component: all params annotated, strict_types enforces this ──────
+pub component TypedCard(label: Str, amount: Num, bg: Color, enabled: Bool = true) {
+  frame: Rect, size: (220, 130), color: bg
+  tag: Text, text: label, font_size: 15, color: text.secondary, anchor: scene.top, offset: (0, 18)
+  val: Text, text: amount, font_size: 42, color: text.primary, anchor: scene.center
+
+  // action params are type-checked too: tint must be Color
+  action highlight(tint: Color) {
+    self.frame.color = tint [300ms]
+    self.frame.color = bg [300ms]
+  }
+}
+
+// ── List<Color> param — homogeneous list; Color <: Vec4 so List<Color> <: List<Vec4>
+// size: Vec2 = (40, 40) shows type annotation with a default value
+pub component Swatches(colors: List<Color>, size: Vec2 = (40, 40)) {
+  for c, i in colors {
+    dot[i]: Ellipse, size: size, color: c
+  }
+}
+
+// ── Scene ─────────────────────────────────────────────────────────────────
+title: Text, text: "Strict Type Annotations", font_size: 38, color: text.primary,
+  anchor: scene.top, offset: (0, 52)
+sub: Text, text: "Num  Str  Bool  Vec2  Color  List<Color>",
+  font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 100)
+
+#0s
+// ✓ "Revenue" : Str, 89000 : Num, rgb(...) : Color — all checked at build time
+row: Row, anchor: scene.center, gap: 28, align: "center" {
+  c1: TypedCard, label: "Revenue", amount: 89000, bg: rgb(0.18, 0.55, 0.38)
+  c2: TypedCard, label: "Users",   amount: 12400, bg: rgb(0.22, 0.40, 0.75)
+  c3: TypedCard, label: "Latency", amount: 24,    bg: rgb(0.65, 0.47, 0.18)
+}
+
+// ✓ List<Color>: each rgb(...) element is Color; list satisfies List<Color> param
+swatch_row: Row, anchor: scene.bottom, offset: (0, -70), gap: 12, align: "center" {
+  palette: Swatches, colors: {rgb(0.9, 0.3, 0.3), rgb(0.3, 0.8, 0.4), rgb(0.3, 0.5, 0.9),
+    rgb(0.8, 0.7, 0.2), rgb(0.6, 0.3, 0.8)}
+}
+
+// ── Animations ────────────────────────────────────────────────────────────
+#0.4s
+fade-in title [500ms, ease: ease-out]
+fade-in sub   [500ms, ease: ease-out]
+
+#0.9s
+stagger [120ms] {
+  fade-in c1 [450ms]
+  fade-in c2 [450ms]
+  fade-in c3 [450ms]
+}
+
+#1.6s
+fade-in swatch_row [600ms]
+
+#2.2s
+// ✓ highlight(tint: Color) — rgb(...) satisfies Color, type-checked at build time
+highlight c1 [tint: rgb(0.4, 0.9, 0.6)]
+highlight c2 [tint: rgb(0.4, 0.6, 1.0)]
+highlight c3 [tint: rgb(1.0, 0.8, 0.3)]
+
+#3s
+c1.val.text = 102000 [700ms]
