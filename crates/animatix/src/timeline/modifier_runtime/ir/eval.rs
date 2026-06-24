@@ -289,7 +289,7 @@ pub(crate) fn eval_format(args: &[Value]) -> Result<Value, EvalError> {
             Value::List(items) => format!("{:?}", items),
             Value::Object(name, fields) => format!("{}({:?})", name, fields),
             Value::NativeFn(_) => "<NativeFn>".to_string(),
-            Value::Closure(_, _) => "<Closure>".to_string(),
+            Value::Closure(_, _, _) => "<Closure>".to_string(),
         };
         output = output.replacen("{}", &replacement, 1);
     }

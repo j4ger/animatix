@@ -306,7 +306,7 @@ impl Timeline {
                 }
             };
             let (to_args, to_body) = match closure_val {
-                Value::Closure(args, body) => (args, *body),
+                Value::Closure(args, body, _) => (args, *body),
                 _ => {
                     diagnostics.push(
                         Diagnostic::error(

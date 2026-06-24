@@ -587,11 +587,7 @@ impl Timeline {
                         &prop_subject,
                     )
                     .unwrap_or(Value::Num(0.0));
-                    if let Value::Closure(args, body) = v {
-                        // Capture the current loop-variable overrides so render-time
-                        // sampling can resolve names like `freq` from a for-loop.
-                        let captures: HashMap<String, Value> =
-                            initial_eval_env.overrides.clone();
+                    if let Value::Closure(args, body, captures) = v {
                         func = Some((args, body, captures));
                     }
                 }
@@ -841,7 +837,7 @@ impl Timeline {
                                     Value::Str(_) => "string".to_string(),
                                     Value::List(_) => "list".to_string(),
                                     Value::NativeFn(_) => "function".to_string(),
-                                    Value::Closure(_, _) => "closure".to_string(),
+                                    Value::Closure(_, _, _) => "closure".to_string(),
                                     Value::Object(name, _) => name.clone(),
                                     Value::Bool(_) => "bool".to_string(),
                                 }

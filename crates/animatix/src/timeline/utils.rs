@@ -80,7 +80,7 @@ fn hash_value<V: Hasher>(value: &Value, hasher: &mut V) {
         Value::List(items) => { 7u8.hash(hasher); items.len().hash(hasher); }
         Value::Object(name, _) => { 8u8.hash(hasher); name.hash(hasher); }
         Value::NativeFn(_) => { 9u8.hash(hasher); } // pointer identity
-        Value::Closure(params, _) => { 10u8.hash(hasher); params.hash(hasher); }
+        Value::Closure(params, _, _) => { 10u8.hash(hasher); params.hash(hasher); }
     }
 }
 
@@ -484,8 +484,11 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
             }
         }
 
-        // Closures capture by cloning the call-time environment (not a lexical snapshot).
-        Expr::Closure(args, body) => Ok(Value::Closure(args.clone(), body.clone())),
+        // Closures capture the current override environment at creation time (lexical scope).
+        Expr::Closure(args, body) => {
+            let captures: HashMap<String, Value> = env.overrides.clone();
+            Ok(Value::Closure(args.clone(), body.clone(), captures))
+        }
 
         Expr::Path(parts) => {
             let dotted = parts.join(".");
@@ -641,10 +644,10 @@ fn evaluate_call(func: &str, args: &[Expr], env: &Environment) -> Result<Value, 
                 }
                 native_func(&arg_values, env)
             }
-            // Closures capture by cloning the call-time environment.
-            // Parameters are bound into the cloned environment.
-            // The body evaluates against the extended clone.
-            Value::Closure(params, body) => {
+            // Closures evaluate against the captured (lexical) environment,
+            // then bind parameters on top. Free variables resolve to their
+            // values at creation time, not call time.
+            Value::Closure(params, body, ref captures) => {
                 if args.len() != params.len() {
                     return Err(EvalError::TypeMismatch(format!(
                         "Closure '{}' expects {} arguments, got {}",
@@ -659,7 +662,10 @@ fn evaluate_call(func: &str, args: &[Expr], env: &Environment) -> Result<Value, 
                     arg_values.push(evaluate_expr(arg, env)?);
                 }
 
-                let mut child_env = env.clone();
+                let mut child_env = Environment::new();
+                for (k, v) in captures {
+                    child_env.set(k, v.clone());
+                }
                 for (param, val) in params.iter().zip(arg_values) {
                     child_env.set(param, val);
                 }
@@ -872,7 +878,7 @@ fn format_value(value: &Value) -> String {
         Value::List(items) => format!("{:?}", items),
         Value::Object(name, fields) => format!("{}({:?})", name, fields),
         Value::NativeFn(_) => "<NativeFn>".to_string(),
-        Value::Closure(args, _) => format!("<Closure({:?})>", args),
+        Value::Closure(args, _, _) => format!("<Closure({:?})>", args),
     }
 }
 
@@ -949,6 +955,7 @@ mod tests {
                 BinaryOp::Mul,
                 Box::new(Expr::Num(2.0)),
             )),
+            HashMap::new(),
         );
         env.set("f", closure);
 
@@ -1165,26 +1172,28 @@ mod tests {
     }
 
     #[test]
-    fn test_evaluate_closure_uses_call_time_environment() {
+    fn test_evaluate_closure_captures_variable_at_creation_time() {
         let mut env = Environment::new();
-        env.set(
-            "f",
-            Value::Closure(
-                vec!["x".to_string()],
-                Box::new(Expr::Binary(
-                    Box::new(Expr::Ident("x".to_string())),
-                    BinaryOp::Add,
-                    Box::new(Expr::Ident("y".to_string())),
-                )),
-            ),
-        );
         env.set("y", Value::Num(3.0));
+        let closure = Value::Closure(
+            vec!["x".to_string()],
+            Box::new(Expr::Binary(
+                Box::new(Expr::Ident("x".to_string())),
+                BinaryOp::Add,
+                Box::new(Expr::Ident("y".to_string())),
+            )),
+            HashMap::from([("y".to_string(), Value::Num(3.0))]),
+        );
+        env.set("f", closure);
+        // y is changed in the environment after closure creation,
+        // but the closure captured y=3 at creation time.
         env.set("y", Value::Num(10.0));
 
         let call_expr = Expr::Call("f".to_string(), vec![Expr::Num(4.0)]);
         let result = evaluate_expr(&call_expr, &env).expect("Evaluation failed");
 
-        assert_eq!(result, Value::Num(14.0));
+        // With capture semantics, y=3 (captured at creation time)
+        assert_eq!(result, Value::Num(7.0));
     }
 
     #[test]

@@ -64,8 +64,8 @@ pub enum Value {
     /// Native Rust function callable from the runtime.
     #[allow(clippy::type_complexity)]
     NativeFn(Arc<dyn Fn(&[Value], &Environment) -> Result<Value, EvalError> + Send + Sync>),
-    /// User-defined closure (parameter names, body expression).
-    Closure(Vec<String>, Box<crate::ast::Expr>),
+    /// User-defined closure (parameter names, body expression, captured environment).
+    Closure(Vec<String>, Box<crate::ast::Expr>, HashMap<String, Value>),
 }
 
 impl fmt::Debug for Value {
@@ -81,7 +81,7 @@ impl fmt::Debug for Value {
             Value::List(items) => write!(f, "List({:?})", items),
             Value::Object(name, fields) => write!(f, "{}({:?})", name, fields),
             Value::NativeFn(_) => write!(f, "<NativeFn>"),
-            Value::Closure(args, _) => write!(f, "<Closure({:?})>", args),
+            Value::Closure(args, _, _) => write!(f, "<Closure({:?})>", args),
         }
     }
 }
