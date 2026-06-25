@@ -81,6 +81,7 @@ pub(crate) fn parser<'src>(
                 text::keyword("Color").to(TypeAnnotation::Color),
                 text::keyword("Actor").to(TypeAnnotation::Actor),
                 text::keyword("Scene").to(TypeAnnotation::Scene),
+                text::keyword("Any").to(TypeAnnotation::Any),
             ));
             let list = text::keyword("List")
                 .ignore_then(just('<').padded())

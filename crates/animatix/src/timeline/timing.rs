@@ -518,10 +518,12 @@ pub(crate) fn parse_timing_modifiers(
                     ),
                 }
             }
-            // Custom effect modifiers handled directly by effect execute functions
-            Some("intensity" | "frequency") => {
-                // These are action-specific modifiers parsed and used by effect implementations
-                // Skip emitting diagnostic - they're valid but not timing modifiers
+            // Action-specific effect modifiers handled directly by action execute functions.
+            // These are declared in ActionSignature.modifiers and consumed by the action itself;
+            // the timing parser must not warn on them. Extend this list if a new action
+            // declares custom effect keys (alternative: thread ActionSignature into this fn).
+            Some("intensity" | "frequency" | "color" | "blend" | "padding" | "radius") => {
+                // Valid action-effect modifiers — not timing modifiers, skip diagnostic.
             }
             Some(name) => push_modifier_diagnostic(
                 diagnostics,

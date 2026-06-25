@@ -682,4 +682,48 @@ mod tests {
             report.diagnostics
         );
     }
+
+    #[test]
+    fn highlight_with_color_and_blend_no_unsupported_modifier_warning() {
+        // `color` and `blend` are action-effect modifiers declared in highlight's signature;
+        // parse_timing_modifiers must not emit UnsupportedModifierKey for them.
+        let mut ast = make_equation_with_fragment();
+        if let Stmt::Keyframe { body, .. } = &mut ast[0] {
+            body.push(Stmt::Action(
+                Action {
+                    verb: "highlight".to_string(),
+                    targets: vec!["f1".to_string()],
+                    args: vec![],
+                    modifiers: vec![
+                        Modifier {
+                            name: None,
+                            value: Expr::Ident("800ms".to_string()),
+                        },
+                        Modifier {
+                            name: Some("color".to_string()),
+                            value: Expr::Ident("RED".to_string()),
+                        },
+                        Modifier {
+                            name: Some("blend".to_string()),
+                            value: Expr::Str("difference".to_string()),
+                        },
+                    ],
+                    byte_span: None,
+                },
+                None,
+            ));
+        }
+
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+
+        let unsupported_key_warnings = report.diagnostics.iter().filter(|d| {
+            d.code == animatix_syntax::diagnostics::DiagnosticCode::UnsupportedModifierKey
+                && d.severity == crate::diagnostics::DiagnosticSeverity::Warning
+        }).count();
+        assert_eq!(
+            unsupported_key_warnings, 0,
+            "highlight with color/blend should not produce UnsupportedModifierKey warnings; got: {:?}",
+            report.diagnostics
+        );
+    }
 }
