@@ -130,35 +130,54 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
             })
             .padded();
 
+        // Postfix fold: field access, method calls, and subscript indexing.
+        // Subscript `[` has no leading whitespace so `x[0]` indexes but
+        // `fade-in x [300ms]` still parses the modifier list separately.
+        #[derive(Clone)]
+        enum PostfixStep {
+            Field(String, Option<Vec<Expr>>),
+            Index(Expr),
+        }
+        let postfix_step = choice((
+            just('.')
+                .padded()
+                .ignore_then(ident.clone())
+                .then(
+                    atom.clone()
+                        .separated_by(just(',').padded())
+                        .allow_trailing()
+                        .collect::<Vec<_>>()
+                        .delimited_by(just('(').padded(), just(')').padded())
+                        .or_not(),
+                )
+                .map(|(seg, args)| PostfixStep::Field(seg, args)),
+            just('[')
+                .ignore_then(expr.clone().padded())
+                .then_ignore(just(']').padded())
+                .map(PostfixStep::Index),
+        ));
+
         let access = atom
             .clone()
             .foldl(
-                just('.')
-                    .padded()
-                    .ignore_then(ident.clone())
-                    .then(
-                        atom.clone()
-                            .separated_by(just(',').padded())
-                            .allow_trailing()
-                            .collect::<Vec<_>>()
-                            .delimited_by(just('(').padded(), just(')').padded())
-                            .or_not(),
-                    )
-                    .repeated(),
-                |base, (segment, args)| {
-                    if let Some(args) = args {
-                        // Method call with arguments
-                        Expr::Method(Box::new(base), segment, args)
-                    } else {
-                        // Field access or path extension (no args)
-                        match base {
-                            Expr::Ident(name) => Expr::Path(vec![name, segment]),
-                            Expr::Path(mut parts) => {
-                                parts.push(segment);
-                                Expr::Path(parts)
+                postfix_step.repeated(),
+                |base, step| match step {
+                    PostfixStep::Field(segment, args) => {
+                        if let Some(args) = args {
+                            Expr::Method(Box::new(base), segment, args)
+                        } else {
+                            match base {
+                                Expr::Ident(name) => Expr::Path(vec![name, segment]),
+                                Expr::Path(mut parts) => {
+                                    parts.push(segment);
+                                    Expr::Path(parts)
+                                }
+                                other => Expr::Method(Box::new(other), segment, Vec::new()),
                             }
-                            other => Expr::Method(Box::new(other), segment, Vec::new()),
                         }
+                    }
+                    PostfixStep::Index(index_expr) => {
+                        Expr::Index(Box::new(base), Box::new(index_expr))
                     }
                 },
             );

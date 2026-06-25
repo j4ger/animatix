@@ -45,7 +45,6 @@ pub(crate) fn parser<'src>(
 ) -> Boxed<'src, 'src, StrInput<'src>, Stmt, ParserExtra<'src>> {
     recursive(|_stmt| {
         let ident = common::ident();
-        let dotted_ident = common::dotted_ident();
         let label_expr = common::label_expr(expr.clone());
 
         // Property block: { prop1, prop2, ... }
@@ -145,7 +144,9 @@ pub(crate) fn parser<'src>(
             .as_context()
             .padded();
 
-        let assignment = dotted_ident
+        let indexed_dotted_ident = common::indexed_dotted_ident();
+
+        let assignment = indexed_dotted_ident
             .clone()
             .then_ignore(just('=').padded())
             .then(expr.clone().map_with(|value, extra: &mut MapExtra<'src, '_, &'src str, extra::Err<Rich<'src, char>>>| {
@@ -192,7 +193,7 @@ pub(crate) fn parser<'src>(
             .padded();
 
         // Reactive binding: actor.prop := expr
-        let reactive_binding = dotted_ident
+        let reactive_binding = indexed_dotted_ident
             .clone()
             .then_ignore(just(":=").padded())
             .then(expr.clone().map_with(|value, extra: &mut MapExtra<'src, '_, &'src str, extra::Err<Rich<'src, char>>>| {
@@ -358,9 +359,10 @@ pub(crate) fn parser<'src>(
             .as_context()
             .padded();
 
-        // Action target: dotted path like `actor` or `actor.child` or `parent.child.grandchild`.
-        // Joins segments with '.' into a single string for downstream hierarchical resolution.
-        let action_target = dotted_ident
+        // Action target: dotted path where segments may carry integer array indices.
+        // `dots[0].at` is resolved to `dots__0.at` by the indexed parser, matching
+        // the `__` scheme used by `resolve_array_index` in timeline/build/process.rs.
+        let action_target = indexed_dotted_ident
             .clone()
             .map(|segments| segments.join("."));
 

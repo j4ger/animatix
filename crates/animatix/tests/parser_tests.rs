@@ -5,6 +5,7 @@ use animatix_syntax::ast::{
     UnaryOp,
 };
 use animatix_syntax::parser::parse_source;
+use animatix::timeline::Timeline as AnimatixTimeline;
 
 // Helper function to extract a single statement.
 // Actions, sequences, and staggers at the top level are wrapped in an implicit
@@ -1737,4 +1738,49 @@ fn test_at_slot_as_slot_fill() {
     if let Stmt::ActorDecl { children, .. } = stmt {
         assert!(!children.is_empty());
     }
+}
+
+// ---------------------------------------------------------------------------
+// Gap 1b integration: array-indexed targets build correctly
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_indexed_target_build_property_assignment() {
+    // dots__0 is declared by `dots[0]: Rect` inside a keyframe.
+    // `dots[0].opacity = 1` (outside keyframe, processed at t=0) sets a
+    // keyframe on the dots__0 track, verifying the indexed target resolves.
+    let src = r#"
+#0s
+dots__0: Rect, at: (0,0), size: (10,10)
+dots[0].opacity = 1
+"#;
+    let (ast, errors) = parse_source(src);
+    assert!(errors.is_empty(), "parse errors: {:?}", errors);
+    let ast = ast.unwrap();
+    let timeline = AnimatixTimeline::build(&ast);
+    assert!(
+        timeline.tracks().contains_key("dots__0"),
+        "track dots__0 should exist; tracks: {:?}",
+        timeline.tracks().keys().collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn test_indexed_target_build_action() {
+    // dots__1 is declared as a direct track.
+    // `fade-in dots[1] [300ms]` should generate an action event targeting `dots__1`.
+    let src = r#"
+#0s
+dots__1: Rect, at: (0,0), size: (10,10)
+fade-in dots[1] [300ms]
+"#;
+    let (ast, errors) = parse_source(src);
+    assert!(errors.is_empty(), "parse errors: {:?}", errors);
+    let ast = ast.unwrap();
+    let timeline = AnimatixTimeline::build(&ast);
+    let has_target = timeline
+        .action_events
+        .iter()
+        .any(|e| e.targets.iter().any(|t| t == "dots__1"));
+    assert!(has_target, "expected action event targeting dots__1; events: {:?}", timeline.action_events);
 }

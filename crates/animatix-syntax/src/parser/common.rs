@@ -88,6 +88,48 @@ pub(crate) fn dotted_ident<'src>(
 }
 
 // ---------------------------------------------------------------------------
+// Indexed dotted identifier parser (for targets/assignments)
+// ---------------------------------------------------------------------------
+
+/// Parse a dotted path where each segment may carry an integer array index.
+///
+/// `dots[0].at` → `["dots__0", "at"]`
+/// `actor.prop`  → `["actor", "prop"]`
+///
+/// Only **integer-literal** indices are supported in targets; a variable index
+/// like `dots[i]` is not accepted here (use `Expr::Index` in value position).
+/// The `__{index}` encoding mirrors `resolve_array_index` in
+/// `timeline/build/process.rs`.
+pub(crate) fn indexed_dotted_ident<'src>(
+) -> impl Parser<'src, StrInput<'src>, Vec<String>, ParserExtra<'src>> + Clone {
+    // One segment: `ident` optionally followed by `[integer]`.
+    let segment = ident()
+        .then(
+            just('[')
+                .ignore_then(
+                    text::int::<_, ParserExtra<'src>>(10)
+                        .to_slice()
+                        .try_map(|s: &str, span| {
+                            s.parse::<usize>()
+                                .map_err(|_| Rich::custom(span, "array index must be a non-negative integer literal"))
+                        }),
+                )
+                .then_ignore(just(']'))
+                .or_not(),
+        )
+        .map(|(name, idx)| match idx {
+            // Rewrite `label[n]` → `label__n` to match `resolve_array_index`.
+            Some(n) => format!("{}__{}" , name, n),
+            None => name,
+        });
+
+    segment
+        .separated_by(just('.').padded())
+        .at_least(1)
+        .collect::<Vec<_>>()
+}
+
+// ---------------------------------------------------------------------------
 // Type identifier parser
 // ---------------------------------------------------------------------------
 

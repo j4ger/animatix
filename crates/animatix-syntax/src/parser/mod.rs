@@ -886,4 +886,107 @@ mod tests {
             assert_eq!(action.targets, vec!["eq.f1", "eq.f2"]);
         }
     }
+
+    // -----------------------------------------------------------------------
+    // Gap 1a: subscript in value expressions
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn parse_subscript_expr_integer() {
+        // `items[0]` in value position → Expr::Index
+        let src = "always { x = items[0] }";
+        let (stmts, errs) = parse_source(src);
+        assert!(errs.is_empty(), "unexpected parse errors: {:?}", errs);
+        let stmts = stmts.unwrap();
+        if let Stmt::Always { body, .. } = &stmts[0] {
+            if let Stmt::Assignment { value, .. } = &body[0] {
+                assert!(
+                    matches!(value, Expr::Index(base, idx)
+                        if matches!(base.as_ref(), Expr::Ident(n) if n == "items")
+                        && matches!(idx.as_ref(), Expr::Num(n) if *n == 0.0)
+                    ),
+                    "expected Index(Ident(items), Num(0)), got {:?}",
+                    value
+                );
+            } else {
+                panic!("expected Assignment, got {:?}", body[0]);
+            }
+        } else {
+            panic!("expected Always, got {:?}", stmts[0]);
+        }
+    }
+
+    #[test]
+    fn parse_subscript_does_not_consume_modifier_bracket() {
+        // `fade-in x [300ms]` — the `[300ms]` must be a modifier, not a subscript.
+        let src = "fade-in x [300ms]";
+        let result = parse_snippet(src);
+        assert!(result.is_some(), "should parse without error");
+        let stmts = result.unwrap();
+        let action = stmts.iter().flat_map(|s| match s {
+            Stmt::Keyframe { body, .. } => body.iter().collect::<Vec<_>>(),
+            other => vec![other],
+        }).find(|s| matches!(s, Stmt::Action(..)));
+        assert!(action.is_some(), "expected Action stmt");
+        if let Stmt::Action(a, _) = action.unwrap() {
+            assert_eq!(a.targets, vec!["x"], "target should be 'x', not 'x[300ms]'");
+            assert!(!a.modifiers.is_empty(), "modifier list should not be empty");
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Gap 1b: array-indexed targets
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn parse_indexed_action_target() {
+        // `fade-in dots[0] [300ms]` → target resolves to "dots__0"
+        let src = "fade-in dots[0] [300ms]";
+        let result = parse_snippet(src);
+        assert!(result.is_some(), "indexed action target should parse");
+        let stmts = result.unwrap();
+        let action = stmts.iter().flat_map(|s| match s {
+            Stmt::Keyframe { body, .. } => body.iter().collect::<Vec<_>>(),
+            other => vec![other],
+        }).find(|s| matches!(s, Stmt::Action(..)));
+        assert!(action.is_some(), "expected Action stmt");
+        if let Stmt::Action(a, _) = action.unwrap() {
+            assert_eq!(a.targets, vec!["dots__0"]);
+        }
+    }
+
+    #[test]
+    fn parse_indexed_assignment_target() {
+        // `dots[0].opacity = 1` → target ["dots__0"], property "opacity"
+        let src = "dots[0].opacity = 1";
+        let result = parse_snippet(src);
+        assert!(result.is_some(), "indexed assignment target should parse");
+        let stmts = result.unwrap();
+        let stmt = stmts.iter().flat_map(|s| match s {
+            Stmt::Keyframe { body, .. } => body.iter().collect::<Vec<_>>(),
+            other => vec![other],
+        }).find(|s| matches!(s, Stmt::Assignment { .. }));
+        assert!(stmt.is_some(), "expected Assignment stmt");
+        if let Stmt::Assignment { target, property, .. } = stmt.unwrap() {
+            assert_eq!(target, &vec!["dots__0".to_string()]);
+            assert_eq!(property, "opacity");
+        }
+    }
+
+    #[test]
+    fn parse_indexed_dotted_assignment_target() {
+        // `dots[1].at.x = 5` → target ["dots__1", "at"], property "x"
+        let src = "dots[1].at.x = 5";
+        let result = parse_snippet(src);
+        assert!(result.is_some(), "dotted indexed assignment should parse");
+        let stmts = result.unwrap();
+        let stmt = stmts.iter().flat_map(|s| match s {
+            Stmt::Keyframe { body, .. } => body.iter().collect::<Vec<_>>(),
+            other => vec![other],
+        }).find(|s| matches!(s, Stmt::Assignment { .. }));
+        if let Stmt::Assignment { target, property, .. } = stmt.unwrap() {
+            assert_eq!(target, &vec!["dots__1".to_string(), "at".to_string()]);
+            assert_eq!(property, "x");
+        }
+    }
 }
