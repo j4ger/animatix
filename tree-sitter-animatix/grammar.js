@@ -522,8 +522,8 @@ module.exports = grammar({
     // It tokenizes '800ms', '2.5s', etc. as a single token
 
     string: $ => choice(
-      seq('"', /[^"\\]*/, '"'),
-      seq("'", /[^'\\]*/, "'")
+      seq('"', /([^"\\]|\\.)*/, '"'),
+      seq("'", /([^'\\]|\\.)*/, "'")
     ),
 
     boolean: $ => choice('true', 'false'),

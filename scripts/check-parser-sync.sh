@@ -79,7 +79,10 @@ else
         [ -f "$f" ] || continue
         TOTAL=$((TOTAL + 1))
         name="$(basename "$f")"
+        # Capture output and exit code separately - tree-sitter may return non-zero for warnings
+        set +e
         result=$(cd "$TS_DIR" && tree-sitter parse --quiet "$f" 2>&1)
+        set -e
         if echo "$result" | grep -q "ERROR"; then
             echo "  FAIL: $name"
             echo "$result" | grep "ERROR" | head -3 | sed 's/^/    /'
