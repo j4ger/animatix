@@ -15,3 +15,6 @@ pub mod row;
 pub mod text;
 pub mod timeline;
 pub mod toast;
+pub mod traits;
+
+pub use traits::{Collapsible, Disableable, Selectable, Size, Sizable};

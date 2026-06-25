@@ -6,6 +6,8 @@ use crate::tokens::spatial::{ROW_M, SPACE_L, SPACE_S};
 use crate::tokens::typography::TextRole;
 
 /// Response from a `Row`.
+// eparts principle 3: default arrow cursor for buttons/rows, pointer only for links.
+// The Row's clickable sense would otherwise show a PointingHand on hover — overridden below.
 pub struct RowResponse {
     pub row_clicked: bool,
     pub chevron_clicked: bool,
@@ -199,7 +201,8 @@ impl<'a> Row<'a> {
             drag_started: row_response.drag_started(),
             hovered: row_response.hovered(),
             row_rect,
-            response: row_response,
+            // Principle 3: override egui's default PointingHand with Default arrow for the row.
+            response: row_response.on_hover_cursor(egui::CursorIcon::Default),
         }
     }
 }

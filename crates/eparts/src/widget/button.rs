@@ -7,6 +7,8 @@ use crate::tokens::spatial::{
 use crate::tokens::typography::TextRole;
 
 // ── Button types ──
+// eparts principle 3: default arrow cursor for buttons, pointer only for links.
+// egui's Sense::click() would otherwise show a PointingHand on hover — overridden below.
 
 /// Variant of button behavior and appearance.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -227,10 +229,12 @@ impl egui::Widget for Button {
                     );
                 }
 
+                // Principle 3: override egui's default PointingHand with Default arrow.
                 if !self.tooltip.is_empty() {
-                    response.on_hover_text(self.tooltip)
+                    response.on_hover_cursor(egui::CursorIcon::Default)
+                        .on_hover_text(self.tooltip)
                 } else {
-                    response
+                    response.on_hover_cursor(egui::CursorIcon::Default)
                 }
             },
             ButtonVariant::Ghost => {
@@ -320,10 +324,12 @@ impl egui::Widget for Button {
                     );
                 }
 
+                // Principle 3: override egui's default PointingHand with Default arrow.
                 if !self.tooltip.is_empty() {
-                    response.on_hover_text(self.tooltip)
+                    response.on_hover_cursor(egui::CursorIcon::Default)
+                        .on_hover_text(self.tooltip)
                 } else {
-                    response
+                    response.on_hover_cursor(egui::CursorIcon::Default)
                 }
             },
             ButtonVariant::Primary | ButtonVariant::Secondary => {
@@ -404,10 +410,12 @@ impl egui::Widget for Button {
                     );
                 }
 
+                // Principle 3: override egui's default PointingHand with Default arrow.
                 if !self.tooltip.is_empty() {
-                    response.on_hover_text(self.tooltip)
+                    response.on_hover_cursor(egui::CursorIcon::Default)
+                        .on_hover_text(self.tooltip)
                 } else {
-                    response
+                    response.on_hover_cursor(egui::CursorIcon::Default)
                 }
             },
         }

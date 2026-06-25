@@ -6,8 +6,10 @@
 pub mod primitive;
 pub mod semantic;
 pub mod spatial;
+pub mod theme;
 pub mod typography;
 pub mod motion;
 pub mod util;
 
 pub use util::{lerp_color, multiply_alpha};
+pub use theme::{theme, theme_from_ctx, set_theme, Theme};

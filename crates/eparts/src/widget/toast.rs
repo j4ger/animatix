@@ -23,6 +23,7 @@ pub struct Toast {
     pub level: ToastLevel,
     pub created_at: Instant,
     pub duration: std::time::Duration,
+    pub count: u32,
 }
 
 impl Toast {
@@ -32,6 +33,7 @@ impl Toast {
             level,
             created_at: Instant::now(),
             duration: std::time::Duration::from_secs(3),
+            count: 1,
         }
     }
 
@@ -89,15 +91,53 @@ impl Toast {
     }
 }
 
+/// Screen corner where toasts are anchored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ToastPlacement {
+    #[default]
+    BottomRight,
+    BottomLeft,
+    TopRight,
+    TopLeft,
+    BottomCenter,
+    TopCenter,
+}
+
 /// Queue of pending toasts.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct ToastQueue {
     toasts: Vec<Toast>,
+    placement: ToastPlacement,
+}
+
+impl Default for ToastQueue {
+    fn default() -> Self {
+        Self {
+            toasts: Vec::new(),
+            placement: ToastPlacement::BottomRight,
+        }
+    }
 }
 
 impl ToastQueue {
     pub fn push(&mut self, toast: Toast) {
+        // Dedup: collapse non-expired toasts with the same level and message.
+        if let Some(existing) = self
+            .toasts
+            .iter_mut()
+            .find(|t| t.level == toast.level && t.message == toast.message && !t.is_expired(Instant::now()))
+        {
+            existing.count += 1;
+            existing.created_at = Instant::now();
+            return;
+        }
         self.toasts.push(toast);
+    }
+
+    /// Set the toast anchor corner.
+    pub fn with_placement(mut self, placement: ToastPlacement) -> Self {
+        self.placement = placement;
+        self
     }
 
     /// Remove expired toasts and render the rest.
@@ -114,9 +154,21 @@ impl ToastQueue {
         let spacing = TOAST_SPACING;
         let margin = TOAST_MARGIN;
 
-        // Stack from bottom-right
-        let start_x = viewport.max.x - margin - toast_w;
-        let start_y = viewport.max.y - margin;
+        // Determine anchor corner and stacking direction from placement.
+        let (start_x, start_y, stack_up) = match self.placement {
+            ToastPlacement::BottomRight => {
+                (viewport.max.x - margin - toast_w, viewport.max.y - margin, true)
+            }
+            ToastPlacement::BottomLeft => (margin, viewport.max.y - margin, true),
+            ToastPlacement::TopRight => (viewport.max.x - margin - toast_w, margin, false),
+            ToastPlacement::TopLeft => (margin, margin, false),
+            ToastPlacement::BottomCenter => (
+                viewport.center().x - toast_w / 2.0,
+                viewport.max.y - margin,
+                true,
+            ),
+            ToastPlacement::TopCenter => (viewport.center().x - toast_w / 2.0, margin, false),
+        };
 
         let mut i = 0;
         while i < self.toasts.len() {
@@ -127,7 +179,11 @@ impl ToastQueue {
                 continue;
             }
 
-            let y = start_y - (i as f32 + 1.0) * (toast_h + spacing);
+            let y = if stack_up {
+                start_y - (i as f32 + 1.0) * (toast_h + spacing)
+            } else {
+                start_y + i as f32 * (toast_h + spacing)
+            };
             let rect = Rect::from_min_size(Pos2::new(start_x, y), Vec2::new(toast_w, toast_h));
 
             // Make the toast clickable to dismiss
@@ -167,8 +223,13 @@ impl ToastQueue {
             let text_x = icon_x + SPACE_6;
             let text_color = text::PRIMARY.linear_multiply(alpha);
             let text_max_w = (toast_w - (text_x - rect.min.x) - SPACE_6).max(40.0);
+            let display_message = if toast.count > 1 {
+                format!("{} (x{})", toast.message, toast.count)
+            } else {
+                toast.message.clone()
+            };
             let galley = ui.painter().layout(
-                toast.message.clone(),
+                display_message,
                 TextRole::BodyS.font_id(),
                 text_color,
                 text_max_w,
@@ -182,5 +243,34 @@ impl ToastQueue {
         if !self.toasts.is_empty() {
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(50));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dedup_push_same_message_and_level() {
+        let mut queue = ToastQueue::default();
+        queue.push(Toast::info("hello"));
+        queue.push(Toast::info("hello"));
+        assert_eq!(queue.toasts.len(), 1);
+        assert_eq!(queue.toasts[0].count, 2);
+    }
+
+    #[test]
+    fn push_different_messages() {
+        let mut queue = ToastQueue::default();
+        queue.push(Toast::info("hello"));
+        queue.push(Toast::info("world"));
+        assert_eq!(queue.toasts.len(), 2);
+    }
+
+    #[test]
+    fn with_placement_sets_field() {
+        let mut queue = ToastQueue::default();
+        queue = queue.with_placement(ToastPlacement::TopLeft);
+        assert_eq!(queue.placement, ToastPlacement::TopLeft);
     }
 }
