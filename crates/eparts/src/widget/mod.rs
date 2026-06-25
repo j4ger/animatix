@@ -7,6 +7,7 @@
 pub mod anim;
 pub mod button;
 pub mod context_menu;
+pub mod diagnostics;
 pub mod dialog;
 pub mod easing_curve_editor;
 pub mod layout;

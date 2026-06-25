@@ -5,3 +5,6 @@
 
 pub mod tokens;
 pub mod widget;
+
+// Trait that decouples the diagnostics widget from animatix-domain types.
+pub use widget::diagnostics::DiagnosticEntry;
