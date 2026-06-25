@@ -6,7 +6,48 @@
 //! time interpolation, giving real non-linear animation.
 
 use crate::tokens::motion::{INSTANT, Transition};
-use egui::{Context, Id};
+use egui::{Color32, Context, Id};
+
+/// Linear interpolation between two values of the same type.
+///
+/// Foundation for widget micro-animations (crossfades, expands). Implemented
+/// for the common UI types; `t` is the progress in `[0, 1]`.
+pub trait Lerp {
+    /// Interpolate from `self` toward `other` by `t` (clamped to `[0, 1]`).
+    fn lerp(self, other: Self, t: f32) -> Self;
+}
+
+impl Lerp for f32 {
+    fn lerp(self, other: Self, t: f32) -> Self {
+        let t = t.clamp(0.0, 1.0);
+        self + (other - self) * t
+    }
+}
+
+impl Lerp for egui::Color32 {
+    fn lerp(self, other: Self, t: f32) -> Self {
+        let t = t.clamp(0.0, 1.0);
+        // Interpolate in linear-ish premultiplied space via egui's blend.
+        Color32::from_rgba_unmultiplied(
+            (self.r() as f32).lerp(other.r() as f32, t).round() as u8,
+            (self.g() as f32).lerp(other.g() as f32, t).round() as u8,
+            (self.b() as f32).lerp(other.b() as f32, t).round() as u8,
+            (self.a() as f32).lerp(other.a() as f32, t).round() as u8,
+        )
+    }
+}
+
+impl Lerp for egui::Pos2 {
+    fn lerp(self, other: Self, t: f32) -> Self {
+        egui::pos2(self.x.lerp(other.x, t), self.y.lerp(other.y, t))
+    }
+}
+
+impl Lerp for egui::Vec2 {
+    fn lerp(self, other: Self, t: f32) -> Self {
+        egui::vec2(self.x.lerp(other.x, t), self.y.lerp(other.y, t))
+    }
+}
 
 /// Animates a value toward a target using the given transition parameters.
 ///
@@ -22,7 +63,6 @@ pub fn animate_toward(ctx: &Context, id: Id, target: f32, transition: Transition
 
 /// Animates a boolean state (e.g., hover, active) toward a target boolean.
 /// Returns an f32 in [0.0, 1.0] where 0.0 = false, 1.0 = true.
-#[allow(dead_code)] // Reserved for future animation call sites
 pub fn animate_bool(ctx: &Context, id: Id, target: bool, transition: Transition) -> f32 {
     let target_f = if target { 1.0 } else { 0.0 };
     animate_toward(ctx, id, target_f, transition)
@@ -34,11 +74,32 @@ pub fn animate_channel(ctx: &Context, id: Id, target: f32, transition: Transitio
     animate_toward(ctx, id, target, transition)
 }
 
+/// Eased boolean animation: returns progress in `[0, 1]` with the transition's
+/// cubic-bezier easing applied (smooth crossfades/expands for widgets like
+/// checkboxes, switches, collapsibles).
+pub fn animate_bool_eased(ctx: &Context, id: Id, target: bool, transition: Transition) -> f32 {
+    let target_f = if target { 1.0 } else { 0.0 };
+    animate_toward_eased(ctx, id, target_f, transition)
+}
+
+/// Interpolate any [`Lerp`] value by an eased boolean transition.
+pub fn animate_lerp<T: Lerp>(
+    ctx: &Context,
+    id: Id,
+    from: T,
+    to: T,
+    target: bool,
+    transition: Transition,
+) -> T {
+    let t = animate_bool_eased(ctx, id, target, transition);
+    from.lerp(to, t)
+}
+
 /// Animates a boolean-state value (0.0 or 1.0 target) with easing.
 /// Returns the eased progress in [0, 1].
 /// Uses `animate_toward` for linear time progress, then applies the
 /// transition's cubic-bezier easing via `CubicBezier::sample()`.
-#[allow(dead_code)] // Reserved for future animation call sites; dialog now handles easing inline
+#[allow(dead_code)] // Used by animate_bool_eased and direct callers; retained as a building block.
 pub fn animate_toward_eased(ctx: &Context, id: Id, target: f32, transition: Transition) -> f32 {
     if transition.duration == INSTANT {
         return target;
@@ -46,4 +107,32 @@ pub fn animate_toward_eased(ctx: &Context, id: Id, target: f32, transition: Tran
     let linear = animate_toward(ctx, id, target, transition);
     // linear is in [0, 1] because target is either 0 or 1 and initial value is the opposite
     transition.easing.sample(linear.clamp(0.0, 1.0))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lerp_f32() {
+        assert_eq!(0.0_f32.lerp(10.0, 0.5), 5.0);
+        assert_eq!(0.0_f32.lerp(10.0, 0.0), 0.0);
+        assert_eq!(0.0_f32.lerp(10.0, 1.0), 10.0);
+        // clamps out-of-range t
+        assert_eq!(0.0_f32.lerp(10.0, 2.0), 10.0);
+    }
+
+    #[test]
+    fn lerp_color_endpoints() {
+        let a = Color32::from_rgb(0, 0, 0);
+        let b = Color32::from_rgb(255, 255, 255);
+        assert_eq!(a.lerp(b, 0.0), a);
+        assert_eq!(a.lerp(b, 1.0).r(), 255);
+    }
+
+    #[test]
+    fn lerp_pos_vec() {
+        assert_eq!(egui::pos2(0.0, 0.0).lerp(egui::pos2(4.0, 8.0), 0.5), egui::pos2(2.0, 4.0));
+        assert_eq!(egui::vec2(0.0, 0.0).lerp(egui::vec2(4.0, 8.0), 0.25), egui::vec2(1.0, 2.0));
+    }
 }

@@ -4,6 +4,8 @@
 //! no diagnostic phases). They depend only on `egui`, `egui-phosphor`, and the
 //! generic `eparts::tokens` design-token system.
 
+pub mod slider;
+pub mod select;
 pub mod anim;
 pub mod overlay;
 pub mod button;
@@ -12,7 +14,10 @@ pub mod diagnostics;
 pub mod dialog;
 pub mod easing_curve_editor;
 pub mod kbd;
+pub mod label;
 pub mod layout;
+pub mod form;
+pub mod input;
 pub mod row;
 pub mod spinner;
 pub mod text;
@@ -27,3 +32,8 @@ pub use spinner::Spinner;
 pub use tooltip::{Tooltip, text_tooltip};
 pub use popover::Popover;
 pub use kbd::{Kbd, format_shortcut};
+pub use label::Label;
+pub use form::{Field, Form};
+pub use input::{NumberField, TextField};
+pub use slider::Slider;
+pub use select::Select;
