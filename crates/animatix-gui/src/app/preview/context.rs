@@ -1105,11 +1105,12 @@ impl PreviewContext<'_> {
                             let place_screens = preview::callout_place_handle_screens(
                                 &geo, preview_rect, self.scene_dimensions, desired, zoom, pan,
                             );
-                            let active_place = if matches!(&self.drag_state, DragState::CalloutStandoff { actor: a, .. } | DragState::CalloutDetach { actor: a, .. } if a == actor) {
-                                None
-                            } else {
-                                None // highlights individual place on tap, not during drag
-                            };
+                            // Individual place handles are never highlighted yet:
+                            // intended to highlight on tap, but not during drag.
+                            // TODO: highlight the tapped place once tap selection lands.
+                            let active_place: Option<
+                                animatix::timeline::animation_track::CalloutPlace,
+                            > = None;
                             preview::draw_callout_place_handles(
                                 ui.painter(),
                                 place_screens,

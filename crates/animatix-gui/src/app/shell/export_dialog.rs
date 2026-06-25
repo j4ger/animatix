@@ -20,7 +20,9 @@ use crate::app::design_tokens::spatial::{
 };
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::document::export_target::ExportScope;
-use crate::app::utils::text::{truncate_chars, truncate_middle};
+use crate::app::utils::text::truncate_chars;
+#[cfg(feature = "video")]
+use crate::app::utils::text::truncate_middle;
 
 // ─── Export Configuration ───────────────────────────────────────────────────
 
@@ -78,6 +80,8 @@ impl Default for ExportDialogState {
 pub(crate) enum ExportStatus {
     Idle,
     Running,
+    // Only produced by the video export path (background thread completion).
+    #[cfg(feature = "video")]
     Complete { path: PathBuf },
     Failed(String),
 }
@@ -701,6 +705,7 @@ impl GuiShell {
             // Status message (left side)
             match &self.export_store.export_status {
                 ExportStatus::Idle => {},
+                #[cfg(feature = "video")]
                 ExportStatus::Complete { path } => {
                     let path_str = path.display().to_string();
                     let label = truncate_middle(&path_str, 15, 15);
@@ -812,6 +817,7 @@ impl GuiShell {
             },
         };
 
+        #[cfg(feature = "video")]
         let cloned_target = match target {
             crate::app::document::export_target::ExportTargetRef::Timeline { timeline, .. } => {
                 crate::app::document::export_target::ExportTargetOwned::Timeline(timeline.clone())
@@ -829,6 +835,7 @@ impl GuiShell {
         // Keep the full export target for dispatch below.
         // Timeline targets go to render_*_timeline_with_progress,
         // Composition targets go to render_*_composition_with_progress.
+        #[cfg(feature = "video")]
         let has_composition = matches!(
             cloned_target,
             crate::app::document::export_target::ExportTargetOwned::Composition(_)
@@ -884,6 +891,7 @@ impl GuiShell {
             }
         }
 
+        #[cfg(feature = "video")]
         let debug = animatix::timeline::DebugRenderOptions {
             draw_bounds: self.ui_store.view.debug_bounds,
             compute_hit_regions: true,

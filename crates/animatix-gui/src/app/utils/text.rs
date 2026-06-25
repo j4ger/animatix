@@ -6,6 +6,9 @@ pub fn truncate_chars(s: &str, max: usize) -> String {
 
 /// If `s` has more than `head + tail` characters, returns
 /// `first head chars + '…' + last tail chars`. Otherwise returns `s` unchanged.
+// Only called from the `video`-gated export status UI; kept (and unit-tested)
+// unconditionally so the default build still type-checks and tests it.
+#[cfg_attr(not(feature = "video"), allow(dead_code))]
 pub fn truncate_middle(s: &str, head: usize, tail: usize) -> String {
     let count = s.chars().count();
     if count > head + tail + 1 {
