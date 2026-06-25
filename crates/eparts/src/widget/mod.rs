@@ -12,9 +12,11 @@ pub mod dialog;
 pub mod easing_curve_editor;
 pub mod layout;
 pub mod row;
+pub mod spinner;
 pub mod text;
 pub mod timeline;
 pub mod toast;
 pub mod traits;
 
 pub use traits::{Collapsible, Disableable, Selectable, Size, Sizable};
+pub use spinner::Spinner;

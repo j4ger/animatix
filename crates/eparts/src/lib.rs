@@ -10,6 +10,7 @@ pub mod widget;
 
 // Trait that decouples the diagnostics widget from animatix-domain types.
 pub use widget::diagnostics::DiagnosticEntry;
+pub use widget::spinner::Spinner;
 
 // ── Shared widget traits & Size (A1 + A2) ──────────────────────────
 pub use widget::traits::{Collapsible, Disableable, Selectable, Size, Sizable};
