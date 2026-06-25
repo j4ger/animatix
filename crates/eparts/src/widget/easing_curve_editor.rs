@@ -3,8 +3,8 @@
 //! Interactive cubic-bezier easing editor. Shows a small preview of the curve
 //! with draggable control points P1 and P2.
 
-use crate::app::design_tokens::semantic::{accent, border, canvas, status, surface, text};
-use crate::app::design_tokens::spatial::{RADIUS_M, SPACE_M, SPACE_S, STROKE_WIDTH};
+use crate::tokens::semantic::{accent, border, lines, status, surface, text};
+use crate::tokens::spatial::{RADIUS_M, SPACE_M, SPACE_S, STROKE_WIDTH};
 use egui::{Pos2, Rect, Sense, Stroke, Vec2};
 
 /// State for the easing curve editor widget.
@@ -80,14 +80,14 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
                 Pos2::new(x, plot_rect.top()),
                 Pos2::new(x, plot_rect.bottom()),
             ],
-            Stroke::new(STROKE_WIDTH, canvas::grid_line()),
+            Stroke::new(STROKE_WIDTH, lines::grid_line()),
         );
         painter.line_segment(
             [
                 Pos2::new(plot_rect.left(), y),
                 Pos2::new(plot_rect.right(), y),
             ],
-            Stroke::new(STROKE_WIDTH, canvas::grid_line()),
+            Stroke::new(STROKE_WIDTH, lines::grid_line()),
         );
     }
 

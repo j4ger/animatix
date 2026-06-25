@@ -134,6 +134,21 @@ pub mod border {
     pub const FOCUS: Color32 = p::BLUE_500;
 }
 
+// ── Lines (neutral grid/guide) ─────────────────────────────────────────
+
+pub mod lines {
+    use super::*;
+
+    /// Light grid line (white, alpha 12).
+    pub fn grid_line() -> Color32 {
+        Color32::from_rgba_unmultiplied(255, 255, 255, 12)
+    }
+    /// Guide / reference line (white, alpha 30).
+    pub fn guide_line() -> Color32 {
+        Color32::from_rgba_unmultiplied(255, 255, 255, 30)
+    }
+}
+
 // ── Overlay ──
 
 pub mod overlay {

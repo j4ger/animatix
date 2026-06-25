@@ -38,12 +38,10 @@ pub mod canvas {
 
     pub const BG: Color32 = p::CANVAS_BG;
 
-    pub fn grid_line() -> Color32 {
-        Color32::from_rgba_unmultiplied(255, 255, 255, 12)
-    }
-    pub fn guide_line() -> Color32 {
-        Color32::from_rgba_unmultiplied(255, 255, 255, 30)
-    }
+    // Neutral line colors promoted to eparts::tokens::semantic::lines —
+    // re-exported here so existing `canvas::grid_line()` / `canvas::guide_line()`
+    // call sites keep resolving without changes.
+    pub use eparts::tokens::semantic::lines::{grid_line, guide_line};
     pub fn hatch_line() -> Color32 {
         Color32::from_rgba_unmultiplied(255, 255, 255, 30)
     }
