@@ -1165,25 +1165,20 @@ impl<'a> TsConverter<'a> {
             match item {
                 RawItem::Item(i) => result.push(i),
                 RawItem::Property(p) => {
-                    if let Some(last) = result.last_mut() {
-                        match last {
-                            InlineItem::Labeled { props, .. }
-                            | InlineItem::Anonymous { props, .. } => {
-                                props.push(p);
-                            }
-                            _ => {}
-                        }
+                    if let Some(
+                        InlineItem::Labeled { props, .. } | InlineItem::Anonymous { props, .. },
+                    ) = result.last_mut()
+                    {
+                        props.push(p);
                     }
                 }
                 RawItem::Children(c) => {
-                    if let Some(last) = result.last_mut() {
-                        match last {
-                            InlineItem::Labeled { children, .. }
-                            | InlineItem::Anonymous { children, .. } => {
-                                *children = c;
-                            }
-                            _ => {}
-                        }
+                    if let Some(
+                        InlineItem::Labeled { children, .. }
+                        | InlineItem::Anonymous { children, .. },
+                    ) = result.last_mut()
+                    {
+                        *children = c;
                     }
                 }
             }
@@ -1194,10 +1189,9 @@ impl<'a> TsConverter<'a> {
     /// Extract the single variant from an `inline_item` wrapper node.
     fn collect_inline_item_variant(&mut self, node: Node) -> Option<RawItem> {
         let mut cursor = node.walk();
-        for variant_node in node.named_children(&mut cursor) {
-            return self.convert_inline_item_variant_to_raw(variant_node);
-        }
-        None
+        node.named_children(&mut cursor)
+            .next()
+            .and_then(|variant_node| self.convert_inline_item_variant_to_raw(variant_node))
     }
 
     /// Convert a single inline variant node to a `RawItem`.
