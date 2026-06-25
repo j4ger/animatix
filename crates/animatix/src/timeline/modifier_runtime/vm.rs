@@ -28,19 +28,19 @@ fn bind_loop_var_vm(
                     }
                 }
                 Value::Vec2([x, y]) if names.len() == 2 => {
-                    frame_env.set(&names[0], Value::Num(x as f64));
-                    frame_env.set(&names[1], Value::Num(y as f64));
+                    frame_env.set(&names[0], Value::Num(x));
+                    frame_env.set(&names[1], Value::Num(y));
                 }
                 Value::Vec3([x, y, z]) if names.len() == 3 => {
-                    frame_env.set(&names[0], Value::Num(x as f64));
-                    frame_env.set(&names[1], Value::Num(y as f64));
-                    frame_env.set(&names[2], Value::Num(z as f64));
+                    frame_env.set(&names[0], Value::Num(x));
+                    frame_env.set(&names[1], Value::Num(y));
+                    frame_env.set(&names[2], Value::Num(z));
                 }
                 Value::Vec4([x, y, z, w]) if names.len() == 4 => {
-                    frame_env.set(&names[0], Value::Num(x as f64));
-                    frame_env.set(&names[1], Value::Num(y as f64));
-                    frame_env.set(&names[2], Value::Num(z as f64));
-                    frame_env.set(&names[3], Value::Num(w as f64));
+                    frame_env.set(&names[0], Value::Num(x));
+                    frame_env.set(&names[1], Value::Num(y));
+                    frame_env.set(&names[2], Value::Num(z));
+                    frame_env.set(&names[3], Value::Num(w));
                 }
                 _ => {
                     // If we can't destructure, bind the whole value to the first variable

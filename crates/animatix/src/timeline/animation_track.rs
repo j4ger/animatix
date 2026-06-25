@@ -77,6 +77,10 @@ impl CalloutPlace {
     /// Parse from a string identifier or quoted string.
     /// Accepts `right`, `left`, `top`, `above`, `bottom`, `below`, `auto`.
     /// Returns `None` for unrecognised values.
+    // Inherent `from_str` returns `Option` (not `Result`) and predates any
+    // `FromStr` need; implementing the std trait would change the signature and
+    // break call sites that rely on the `Option` return.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "right"  => Some(Self::Right),
@@ -438,7 +442,6 @@ mod tests {
     };
     use crate::timeline::property_registry::ActorField;
     use crate::timeline::property_track::TrackAccessor;
-    use kurbo::BezPath;
 
     /// Every ActorKindId variant must have a corresponding ActorKindMeta entry.
     /// This test enumerates all variants and verifies they are in the registry.

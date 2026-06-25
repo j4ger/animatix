@@ -24,7 +24,7 @@ fn build_callout_timeline(
     label_at: [f32; 2],
     head_size: f32,
 ) -> Timeline {
-    let mut props = vec![
+    let props = vec![
         Property {
             name: "from".to_string(),
             value: Expr::Tuple(vec![Expr::Num(from[0] as f64), Expr::Num(from[1] as f64)]),

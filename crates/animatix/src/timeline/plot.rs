@@ -423,6 +423,9 @@ pub(crate) fn flatten_blend(source: &FuncSource) -> Vec<(f64, &FuncSource)> {
     }
 }
 
+// Recursive plot samplers thread many independent sampling/styling params;
+// grouping them into a struct is a separate refactor.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn sample_recursive_cartesian(
     min_t: f64,
     max_t: f64,
@@ -505,6 +508,9 @@ pub(crate) fn sample_recursive_cartesian(
     }
 }
 
+// Recursive plot samplers thread many independent sampling/styling params;
+// grouping them into a struct is a separate refactor.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn sample_recursive_polar(
     min_t: f64,
     max_t: f64,
@@ -584,6 +590,9 @@ pub(crate) fn sample_recursive_polar(
     }
 }
 
+// Recursive plot samplers thread many independent sampling/styling params;
+// grouping them into a struct is a separate refactor.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn sample_recursive_parametric(
     min_t: f64,
     max_t: f64,
@@ -895,7 +904,7 @@ pub fn build_implicit_plot_path_from_source(
 
 /// Legacy wrapper that builds an implicit plot path from raw args/body.
 /// Creates a `FuncSource::Raw` and delegates to [`build_implicit_plot_path_from_source`].
-#[deprecated(since = "0.5", note = "use build_implicit_plot_path_from_source instead")]
+#[deprecated(since = "0.5.0", note = "use build_implicit_plot_path_from_source instead")]
 #[allow(dead_code)] // Legacy public API shim; kept for backward compatibility.
 pub fn build_implicit_plot_path(
     env: &mut Environment,
@@ -975,7 +984,7 @@ impl ProceduralPlot {
 /// Re-sample a procedural plot at frame time using the given environment.
 /// Compatibility shim for `scene_eval.rs` (pre-Task-4). Delegates to
 /// [`sample_procedural_plot_at`] with no active transitions.
-#[deprecated(since = "0.5", note = "use sample_procedural_plot_at instead")]
+#[deprecated(since = "0.5.0", note = "use sample_procedural_plot_at instead")]
 #[allow(dead_code)] // Legacy public API shim; kept for backward compatibility.
 pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &mut Environment) -> Vec<VelloPath> {
     sample_procedural_plot_at(plot, env, 0, &[])
@@ -1023,8 +1032,8 @@ pub fn sample_procedural_plot_at(
         // Use the last completed transition's target, or the declaration func.
         let last_complete = transitions
             .iter()
-            .filter(|t| t.is_complete_at(time_ms))
-            .last();
+            .rev()
+            .find(|t| t.is_complete_at(time_ms));
         match last_complete {
             Some(t) => PlotFuncRef::Single(&t.to),
             None => PlotFuncRef::Single(&decl_source),

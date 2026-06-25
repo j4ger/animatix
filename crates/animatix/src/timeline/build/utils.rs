@@ -120,7 +120,7 @@ impl GraphContext {
 /// * `scale` — Static scale/domain configuration.
 /// * `geo` — Dynamic geometry (size, position, padding).
 /// * `relative` — If `true`, returns coordinates relative to the graph's position.
-///               If `false`, returns absolute screen coordinates.
+///   If `false`, returns absolute screen coordinates.
 ///
 /// # Returns
 /// Screen coordinates as `[x, y]`.

@@ -822,7 +822,7 @@ mod tests {
 
     #[test]
     fn test_value_to_f64() {
-        assert_eq!(value_to_f64(&Value::Num(3.14)).unwrap(), 3.14);
+        assert_eq!(value_to_f64(&Value::Num(3.25)).unwrap(), 3.25);
         assert!(value_to_f64(&Value::Str("x".to_string())).is_err());
     }
 

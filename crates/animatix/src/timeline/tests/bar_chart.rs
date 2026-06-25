@@ -10,7 +10,7 @@ fn bar_colors_scheme_token_single() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(report.diagnostics.is_empty(), "Expected no diagnostics, got: {:?}", report.diagnostics);
-    assert!(report.output.tracks.get("chart").is_some(), "chart track should exist");
+    assert!(report.output.tracks.contains_key("chart"), "chart track should exist");
 }
 
 #[test]
@@ -63,7 +63,7 @@ fn bar_colors_invalid_token_emits_diagnostic() {
         "Expected UnknownColorReference diagnostic, got: {:?}",
         report.diagnostics
     );
-    assert!(report.output.tracks.get("chart").is_some(), "chart track should exist");
+    assert!(report.output.tracks.contains_key("chart"), "chart track should exist");
 }
 
 #[test]
@@ -117,7 +117,7 @@ fn show_axis_invalid_type_emits_diagnostic() {
         "Expected InvalidPropertyValue diagnostic, got: {:?}",
         report.diagnostics
     );
-    assert!(report.output.tracks.get("chart").is_some(), "chart track should exist");
+    assert!(report.output.tracks.contains_key("chart"), "chart track should exist");
 }
 
 #[test]
@@ -137,7 +137,7 @@ fn flat_number_list_auto_labeling() {
         report.diagnostics
     );
     // The chart track should still exist (auto-labeling worked)
-    assert!(report.output.tracks.get("chart").is_some(), "chart track should exist");
+    assert!(report.output.tracks.contains_key("chart"), "chart track should exist");
 }
 
 #[test]
@@ -156,7 +156,7 @@ fn flat_number_list_single_value() {
         "Expected auto-labeling diagnostic, got: {:?}",
         report.diagnostics
     );
-    assert!(report.output.tracks.get("chart").is_some(), "chart track should exist");
+    assert!(report.output.tracks.contains_key("chart"), "chart track should exist");
 }
 
 #[test]
@@ -170,7 +170,7 @@ fn tuple_list_still_works_with_no_diagnostics() {
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     // Normal tuple list should produce no diagnostics
     assert!(report.diagnostics.is_empty(), "Expected no diagnostics, got: {:?}", report.diagnostics);
-    assert!(report.output.tracks.get("chart").is_some(), "chart track should exist");
+    assert!(report.output.tracks.contains_key("chart"), "chart track should exist");
 }
 
 #[test]

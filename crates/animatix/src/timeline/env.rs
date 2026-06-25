@@ -62,7 +62,7 @@ impl std::error::Error for EvalError {}
 /// **Guarantee**: every `merge_into` call site passes an [`Environment`]
 /// whose `base` Arc is already set to the timeline stdlib.  Debug assertions
 /// verify this invariant at runtime (non-release builds).
-#[derive(Clone)]
+#[derive(Clone, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CapturedEnv(pub HashMap<String, Value>);
 
@@ -93,12 +93,6 @@ impl CapturedEnv {
 impl std::fmt::Debug for CapturedEnv {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "CapturedEnv({:?})", self.0)
-    }
-}
-
-impl Default for CapturedEnv {
-    fn default() -> Self {
-        CapturedEnv(HashMap::new())
     }
 }
 

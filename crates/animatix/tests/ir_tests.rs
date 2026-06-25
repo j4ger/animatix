@@ -6,7 +6,7 @@ use animatix_syntax::module::ModuleGraph;
 use animatix::timeline::{
     Environment, SceneDimensions, Timeline, Value, evaluate_expr, load_standard_library,
 };
-use animatix::vm::{VmCompileError, compile_modifier_bytecode};
+use animatix::vm::compile_modifier_bytecode;
 use std::collections::HashMap;
 use std::fs;
 

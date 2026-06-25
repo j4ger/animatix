@@ -20,7 +20,7 @@ use std::collections::BTreeMap;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::timeline::{
-    AnimationTrack, CapturedEnv, PlacementMode, PositionBinding, SceneDimensions, Timeline,
+    AnimationTrack, PlacementMode, PositionBinding, SceneDimensions, Timeline,
     animation_track::{
         FilterTracks, GeometryTracks, HighlightTracks, ShapeTracks, StyleTracks, TextTracks,
     },
@@ -444,6 +444,7 @@ mod tests {
     use super::*;
     use crate::timeline::{Timeline, dispatch::AnimationTrack};
     use crate::timeline::property_track::TrackAccessor;
+    use crate::timeline::CapturedEnv;
     use crate::easing::Easing;
 
     fn make_timeline_with_persistent_actors() -> Timeline {

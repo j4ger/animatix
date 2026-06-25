@@ -311,7 +311,7 @@ fn pointlist_literal_tuples() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(report.diagnostics.is_empty(), "Expected no diagnostics, got: {:?}", report.diagnostics);
-    assert!(report.output.tracks.get("poly").is_some(), "poly track should exist");
+    assert!(report.output.tracks.contains_key("poly"), "poly track should exist");
 }
 
 #[test]

@@ -121,7 +121,7 @@ fn basic_func_transition_cartesian() {
     assert_eq!(t.to.arity(), 1, "to arity should be 1");
 
     // from should evaluate to sin(x) — verify at x = 1.0.
-    let mut env = stdlib_env();
+    let env = stdlib_env();
     let from_val = resolve_func_source(&t.from, &env, "x", 1.0)
         .expect("resolve from");
     assert!(
@@ -131,7 +131,7 @@ fn basic_func_transition_cartesian() {
     );
 
     // to should evaluate to cos(x) — verify at x = 1.0.
-    let to_val = resolve_func_source(&t.to, &mut env, "x", 1.0)
+    let to_val = resolve_func_source(&t.to, &env, "x", 1.0)
         .expect("resolve to");
     assert!(
         (to_val - 1.0_f64.cos()).abs() < 1e-9,
@@ -203,7 +203,7 @@ fn blend_at_half_progress() {
     };
 
     // At time_ms = 2500, progress is 0.5, so output ≈ 0.5*sin(x) + 0.5*cos(x).
-    let paths_mid = sample_procedural_plot_at(&plot, &mut env, 2500, &[transition.clone()]);
+    let paths_mid = sample_procedural_plot_at(&plot, &mut env, 2500, std::slice::from_ref(&transition));
     assert!(!paths_mid.is_empty(), "Expected output paths at mid-transition");
     assert!(
         !paths_mid[0].path.elements().is_empty(),
@@ -211,7 +211,7 @@ fn blend_at_half_progress() {
     );
 
     // Before the transition, output should be pure sin(x).
-    let paths_before = sample_procedural_plot_at(&plot, &mut env, 1000, &[transition.clone()]);
+    let paths_before = sample_procedural_plot_at(&plot, &mut env, 1000, std::slice::from_ref(&transition));
     assert!(!paths_before.is_empty(), "Expected output paths before transition");
 
     // After the transition, output should be pure cos(x).
@@ -1211,7 +1211,7 @@ fn flatten_blend_nested_depth_3() {
 ///        = 0.4*sin(x) + 0.42*cos(x) + 0.09
 #[test]
 fn resolve_func_source_nested_blend() {
-    let mut env = stdlib_env();
+    let env = stdlib_env();
 
     // Raw sources
     let a = FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
@@ -1375,7 +1375,7 @@ fn eval_implicit_source_nested_blend() {
 /// matches the mathematical formula within epsilon.
 #[test]
 fn depth_4_nested_blend_parity() {
-    let mut env = stdlib_env();
+    let env = stdlib_env();
 
     fn raw_const(val: f64) -> FuncSource {
         FuncSource::Raw(vec!["x".to_string()], Expr::Num(val), CapturedEnv::default())

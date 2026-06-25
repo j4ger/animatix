@@ -402,7 +402,6 @@ mod tests {
     use super::*;
     use crate::ast::{Expr, Modifier, Property, Stmt, Time};
     use crate::diagnostics::DiagnosticCode;
-use crate::timeline::AnimationTrack;
 
     fn circle_decl(label: &str) -> Stmt {
         Stmt::ActorDecl {
