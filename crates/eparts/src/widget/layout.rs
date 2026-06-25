@@ -1,4 +1,4 @@
-use egui::{CornerRadius, Margin, Rect, Response, Stroke, Vec2};
+use egui::{CornerRadius, Margin, Rect, Response, Stroke, Ui, Vec2, WidgetText};
 
 use crate::tokens::semantic::{accent, border, overlay, surface, text};
 use crate::tokens::spatial::component::{PILL_TAB_GAP, PILL_TAB_HEIGHT};
@@ -262,10 +262,238 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
             text_color,
         );
 
-        if response.clicked() {
-            clicked_tab = Some(*tab);
-        }
+    if response.clicked() {
+        clicked_tab = Some(*tab);
     }
+}
 
     clicked_tab
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Separator  (F1)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Horizontal rule drawn with `border::DEFAULT` and standard stroke width.
+pub fn separator(ui: &mut egui::Ui) {
+    let avail = ui.available_width();
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(avail, STROKE_WIDTH), egui::Sense::hover());
+    ui.painter().line_segment(
+        [rect.left_center(), rect.right_center()],
+        egui::Stroke::new(STROKE_WIDTH, border::DEFAULT),
+    );
+}
+
+/// Vertical rule drawn with `border::DEFAULT` and standard stroke width.
+pub fn separator_v(ui: &mut egui::Ui) {
+    let avail = ui.available_height();
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(STROKE_WIDTH, avail), egui::Sense::hover());
+    ui.painter().line_segment(
+        [
+            egui::pos2(rect.center().x, rect.min.y),
+            egui::pos2(rect.center().x, rect.max.y),
+        ],
+        egui::Stroke::new(STROKE_WIDTH, border::DEFAULT),
+    );
+}
+
+/// A labeled separator: thin line — text — thin line, all themed.
+pub fn separator_labeled(ui: &mut egui::Ui, label: impl Into<egui::WidgetText>) {
+    let label = label.into();
+    let label_str = label.text().to_string();
+    ui.horizontal(|ui| {
+        let galley = ui.painter().layout_no_wrap(
+            label_str.clone(),
+            TextRole::BodyS.font_id(),
+            text::MUTED,
+        );
+        let label_w = galley.size().x + SPACE_S * 2.0;
+        let avail = ui.available_width();
+        let line_h = STROKE_WIDTH;
+        let line_fraction = (avail - label_w) / 2.0;
+
+        // Left line
+        let (left_rect, _) = ui.allocate_exact_size(
+            Vec2::new(line_fraction.max(0.0), line_h),
+            egui::Sense::hover(),
+        );
+        ui.painter().line_segment(
+            [
+                egui::pos2(left_rect.min.x, left_rect.center().y),
+                egui::pos2(left_rect.max.x, left_rect.center().y),
+            ],
+            egui::Stroke::new(STROKE_WIDTH, border::DEFAULT),
+        );
+
+        // Label
+        let (label_rect, _) = ui.allocate_exact_size(
+            Vec2::new(label_w, line_h + SPACE_S * 2.0),
+            egui::Sense::hover(),
+        );
+        ui.painter().galley(
+            egui::pos2(
+                label_rect.center().x - galley.size().x / 2.0,
+                label_rect.center().y - galley.size().y / 2.0,
+            ),
+            galley,
+            text::MUTED,
+        );
+
+        // Right line
+        let (right_rect, _) = ui.allocate_exact_size(
+            Vec2::new(line_fraction.max(0.0), line_h),
+            egui::Sense::hover(),
+        );
+        ui.painter().line_segment(
+            [
+                egui::pos2(right_rect.min.x, right_rect.center().y),
+                egui::pos2(right_rect.max.x, right_rect.center().y),
+            ],
+            egui::Stroke::new(STROKE_WIDTH, border::DEFAULT),
+        );
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GroupBox  (F2)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// A titled, bordered container for grouping related inspector sections.
+///
+/// Paints a `border::DEFAULT` stroke around the whole container and places
+/// the `title` in `text::SECONDARY` at the top-left, inside the border.
+pub fn group_box(
+    ui: &mut egui::Ui,
+    title: impl Into<WidgetText>,
+    add_contents: impl FnOnce(&mut egui::Ui),
+) {
+    let title_text = title.into();
+    let title_str = title_text.text().to_string();
+
+    ui.vertical(|ui| {
+        // Title row — sits inside the border area.
+        ui.horizontal(|ui| {
+            ui.add_space(SPACE_M);
+            ui.label(
+                egui::RichText::new(title_str)
+                    .size(TextRole::Body.size())
+                    .color(text::SECONDARY),
+            );
+        });
+
+        // Body container with a full border.
+        egui::Frame::new()
+            .fill(surface::SURFACE)
+            .corner_radius(CornerRadius::same(RADIUS_M as u8))
+            .inner_margin(Margin::same(SPACE_M as i8))
+            .stroke(egui::Stroke::new(STROKE_WIDTH, border::DEFAULT))
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                add_contents(ui);
+            });
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// StatusBar  (F5)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// A bottom status bar: themed `surface::PANEL` background with a top
+/// `border::DEFAULT` stroke.  Content is split into a left-aligned and a
+/// right-aligned segment.
+///
+/// ```ignore
+/// status_bar(ui, |ui| {
+///     ui.horizontal(|ui| {
+///         ui.label("Ready");
+///         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+///             ui.label("Ln 12, Col 4");
+///         });
+///     });
+/// });
+/// ```
+pub fn status_bar(
+    ui: &mut Ui,
+    build: impl FnOnce(&mut Ui),
+) {
+    let h = ROW_S;
+    let avail_w = ui.available_width();
+
+    // Allocate and paint the bar background + top border.
+    let (_bar_rect, _) = ui.allocate_exact_size(Vec2::new(avail_w, h), egui::Sense::hover());
+
+    egui::Frame::new()
+        .fill(surface::PANEL)
+        .corner_radius(CornerRadius::same(0))
+        .inner_margin(Margin::symmetric(SPACE_M as i8, 0))
+        .stroke(egui::Stroke::new(STROKE_WIDTH, border::DEFAULT))
+        .show(ui, |ui| {
+            build(ui);
+        });
+}
+
+/// Convenience builder for a status bar with left- and right-aligned text items.
+///
+/// ```ignore
+/// StatusBar::new()
+///     .left("Ready")
+///     .right("Ln 12, Col 4")
+///     .show(ui);
+/// ```
+#[derive(Default)]
+pub struct StatusBar {
+    left_items: Vec<String>,
+    right_items: Vec<String>,
+}
+
+impl StatusBar {
+    /// Create an empty status bar builder.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Add a left-aligned text item.
+    pub fn left(mut self, text: impl Into<String>) -> Self {
+        self.left_items.push(text.into());
+        self
+    }
+
+    /// Add a right-aligned text item.
+    pub fn right(mut self, text: impl Into<String>) -> Self {
+        self.right_items.push(text.into());
+        self
+    }
+
+    /// Render the status bar into `ui`.
+    pub fn show(self, ui: &mut Ui) {
+        let h = ROW_S;
+        let avail_w = ui.available_width();
+
+        // Allocate and paint the bar background + top border.
+        let (_bar_rect, _) = ui.allocate_exact_size(Vec2::new(avail_w, h), egui::Sense::hover());
+
+        egui::Frame::new()
+            .fill(surface::PANEL)
+            .corner_radius(CornerRadius::same(0))
+            .inner_margin(Margin::symmetric(SPACE_M as i8, 0))
+            .stroke(egui::Stroke::new(STROKE_WIDTH, border::DEFAULT))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    // Left items
+                    for item in &self.left_items {
+                        ui.label(item.as_str());
+                    }
+                    // Spacer pushes right items to the far right.
+                    ui.add_space(ui.available_width());
+                    // Right items in a right-to-left sub-layout.
+                    ui.horizontal(|ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            for item in &self.right_items {
+                                ui.label(item.as_str());
+                            }
+                        });
+                    });
+                });
+            });
+    }
 }

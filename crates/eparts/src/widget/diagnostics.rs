@@ -53,8 +53,8 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
 
     let mut clicked_target: Option<DiagnosticTarget> = None;
 
-    card(ui, |ui| {
-        ui.horizontal(|ui| {
+    card(ui, |ui: &mut egui::Ui| {
+        ui.horizontal(|ui: &mut egui::Ui| {
             ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
 
             let error_count = diagnostics.iter().filter(|d| d.is_error()).count();
@@ -103,7 +103,7 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
                 );
             }
 
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui: &mut egui::Ui| {
                 if ui
                     .add(
                         egui::Button::new(
@@ -122,7 +122,7 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
 
         ui.add_space(SPACE_S);
 
-        egui::ScrollArea::vertical().max_height(180.0).show(ui, |ui| {
+        egui::ScrollArea::vertical().max_height(180.0).show(ui, |ui: &mut egui::Ui| {
             ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
             for (i, d) in diagnostics.iter().enumerate() {
                 if let Some(target) = diagnostic_row(ui, d, i == diagnostics.len() - 1) {

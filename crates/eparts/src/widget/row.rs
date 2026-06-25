@@ -26,6 +26,8 @@ pub struct Row<'a> {
     pub has_children: bool,
     pub is_expanded: bool,
     pub is_selected: bool,
+    pub secondary_selected: bool,
+    pub confirmed: bool,
     pub icon: Option<&'static str>,
     pub label: &'a str,
     pub label_color: Option<Color32>,
@@ -42,6 +44,8 @@ impl<'a> Row<'a> {
             has_children: false,
             is_expanded: false,
             is_selected: false,
+            secondary_selected: false,
+            confirmed: false,
             icon: None,
             label,
             label_color: None,
@@ -75,6 +79,16 @@ impl<'a> Row<'a> {
         self
     }
 
+    pub fn secondary_selected(mut self, yes: bool) -> Self {
+        self.secondary_selected = yes;
+        self
+    }
+
+    pub fn confirmed(mut self, yes: bool) -> Self {
+        self.confirmed = yes;
+        self
+    }
+
     pub fn icon(mut self, icon: Option<&'static str>) -> Self {
         self.icon = icon;
         self
@@ -102,6 +116,8 @@ impl<'a> Row<'a> {
 
         let bg = if self.is_selected {
             surface::WIDGET
+        } else if self.secondary_selected {
+            accent::faint()
         } else if row_response.hovered() {
             surface::HOVER
         } else {
@@ -114,6 +130,9 @@ impl<'a> Row<'a> {
         if self.is_selected {
             let accent = Rect::from_min_size(row_rect.min, Vec2::new(2.0, row_rect.height()));
             ui.painter().rect_filled(accent, 0.0, accent::PRIMARY);
+        } else if self.secondary_selected {
+            let accent = Rect::from_min_size(row_rect.min, Vec2::new(2.0, row_rect.height()));
+            ui.painter().rect_filled(accent, 0.0, accent::faint());
         }
 
         let baseline_y = row_rect.center().y;
@@ -185,7 +204,8 @@ impl<'a> Row<'a> {
         );
 
         if let Some(right) = self.right {
-            let right_x = row_rect.max.x - SPACE_S;
+            let check_width = if self.confirmed { ICON_SLOT_WIDTH + SPACE_S } else { 0.0 };
+            let right_x = row_rect.max.x - SPACE_S - check_width;
             let right_rect = Rect::from_min_size(
                 egui::pos2(cursor_x + SPACE_L, row_rect.min.y),
                 Vec2::new((right_x - cursor_x - SPACE_L).max(20.0), self.height),
@@ -193,6 +213,18 @@ impl<'a> Row<'a> {
             ui.scope_builder(egui::UiBuilder::new().max_rect(right_rect), |ui| {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), right);
             });
+        }
+
+        if self.confirmed {
+            let check_width = ICON_SLOT_WIDTH + SPACE_S;
+            let check_x = row_rect.max.x - SPACE_S - check_width / 2.0;
+            ui.painter().text(
+                egui::pos2(check_x, baseline_y),
+                egui::Align2::CENTER_CENTER,
+                egui_phosphor::regular::CHECK,
+                TextRole::Body.font_id(),
+                if self.is_selected { text::ON_ACCENT } else { accent::PRIMARY },
+            );
         }
 
         RowResponse {
@@ -206,3 +238,38 @@ impl<'a> Row<'a> {
         }
     }
 }
+
+impl crate::Selectable for Row<'_> {
+    fn selected(mut self, yes: bool) -> Self {
+        self.is_selected = yes;
+        self
+    }
+
+    fn is_selected(&self) -> bool {
+        self.is_selected
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::widget::traits::Selectable;
+
+    #[test]
+    fn builder_secondary_selected_and_confirmed() {
+        let row = Row::new("test")
+            .secondary_selected(true)
+            .confirmed(true);
+        assert!(row.secondary_selected);
+        assert!(row.confirmed);
+    }
+
+    #[test]
+    fn selectable_trait_for_row() {
+        let mut row = Row::new("test");
+        assert!(!row.is_selected());
+        row = row.selected(true);
+        assert!(row.is_selected());
+    }
+}
+
