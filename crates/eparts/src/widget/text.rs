@@ -7,7 +7,7 @@
 //! ui.label("Hello".role(TextRole::Body));
 //! ```
 
-use crate::app::design_tokens::typography::TextRole;
+use crate::tokens::typography::TextRole;
 
 /// Construct a RichText with a given TextRole and string content.
 #[allow(dead_code)] // Available for future TextRole migration call sites

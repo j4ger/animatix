@@ -26,12 +26,12 @@
 
 use egui::{Align2, Color32, CornerRadius, Id, Margin, Pos2, Rect, Sense, Stroke, Ui, Vec2};
 
-use crate::app::design_tokens::semantic::{accent, border, overlay, surface, text};
-use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S};
-use crate::app::design_tokens::spatial::{
+use crate::tokens::semantic::{accent, border, overlay, surface, text};
+use crate::tokens::spatial::{RADIUS_M, RADIUS_S};
+use crate::tokens::spatial::{
     ROW_M, ROW_S, SPACE_L, SPACE_M, SPACE_S, STROKE_WIDTH, menu as menu_spatial,
 };
-use crate::app::design_tokens::typography::TextRole;
+use crate::tokens::typography::TextRole;
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 

@@ -1,11 +1,11 @@
 use egui::{CornerRadius, Margin, Rect, Response, Stroke, Vec2};
 
-use crate::app::design_tokens::semantic::{accent, border, overlay, surface, text};
-use crate::app::design_tokens::spatial::component::{PILL_TAB_GAP, PILL_TAB_HEIGHT};
-use crate::app::design_tokens::spatial::{
+use crate::tokens::semantic::{accent, border, overlay, surface, text};
+use crate::tokens::spatial::component::{PILL_TAB_GAP, PILL_TAB_HEIGHT};
+use crate::tokens::spatial::{
     RADIUS_M, RADIUS_S, ROW_S, SPACE_M, SPACE_S, SPACE_XL, STROKE_WIDTH,
 };
-use crate::app::design_tokens::typography::TextRole;
+use crate::tokens::typography::TextRole;
 
 /// A styled container with our surface background, rounded corners,
 /// and layered shadow for depth.

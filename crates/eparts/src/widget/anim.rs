@@ -5,7 +5,7 @@
 //! `animate_toward_eased()` applies the sampled curve on top of egui's linear
 //! time interpolation, giving real non-linear animation.
 
-use crate::app::design_tokens::motion::{INSTANT, Transition};
+use crate::tokens::motion::{INSTANT, Transition};
 use egui::{Context, Id};
 
 /// Animates a value toward a target using the given transition parameters.

@@ -1,10 +1,10 @@
 use egui::{Color32, Response, Sense, Vec2};
 
-use crate::app::design_tokens::semantic::{accent, border, surface, text};
-use crate::app::design_tokens::spatial::{
+use crate::tokens::semantic::{accent, border, surface, text};
+use crate::tokens::spatial::{
     RADIUS_M, RADIUS_S, ROW_L, ROW_M, ROW_S, SPACE_M, STROKE_WIDTH,
 };
-use crate::app::design_tokens::typography::TextRole;
+use crate::tokens::typography::TextRole;
 
 // ── Button types ──
 

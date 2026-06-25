@@ -1,11 +1,7 @@
 //! Spatial tokens — spacing, row heights, stroke widths, radii,
 //! and reusable component dimensions.
 //!
-//! Only the generic (domain-free) tokens live here. App-specific submodules
-//! (`preview`, `timeline`, `inspector`, `menu`, `toolbar`, `welcome`, `dialog`)
-//! are defined in `animatix-gui/src/app/design_tokens/spatial.rs` and
-//! re-exported alongside these generic constants so that existing paths like
-//! `design_tokens::spatial::SPACE_4` continue to resolve.
+//! Only the generic (domain-free) tokens live here.
 
 // ── Unified spacing scale ──
 pub const SPACE_0: f32 = 0.0;
@@ -58,4 +54,28 @@ pub mod component {
     pub const TOAST_SPACING: f32 = 8.0;
     pub const TOAST_MARGIN: f32 = 16.0;
     pub const ICON_SLOT_WIDTH: f32 = 14.0;
+}
+
+// ── Menu layout constants (generic, used by context_menu widget) ──
+pub mod menu {
+    pub const MIN_WIDTH: f32 = 140.0;
+    pub const ICON_WIDTH: f32 = 16.0;
+    pub const CHECK_WIDTH: f32 = 14.0;
+    pub const SHADOW_OFFSET_Y: i8 = 4;
+    pub const SHADOW_BLUR: i8 = 12;
+}
+
+// ── Dialog layout constants (generic, used by dialog widget) ──
+pub mod dialog {
+    use super::SPACE_5;
+    use super::SPACE_7;
+
+    /// Inner margin applied around all dialog content (12px).
+    pub const INNER_MARGIN: f32 = SPACE_5;
+    /// Minimum gap between dialog edge and screen edge (24px).
+    pub const SCREEN_MARGIN: f32 = SPACE_7;
+    /// Maximum fraction of viewport the dialog may occupy.
+    pub const MAX_VIEWPORT_FRAC: [f32; 2] = [0.85, 0.8];
+    /// Vertical slide distance (px) for the open/close animation.
+    pub const SLIDE_PX: f32 = 12.0;
 }

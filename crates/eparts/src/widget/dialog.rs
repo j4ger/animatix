@@ -9,12 +9,12 @@
 
 use egui::{Align2, Margin, Stroke, Ui};
 
-use crate::app::components::anim;
-use crate::app::design_tokens::motion;
-use crate::app::design_tokens::semantic::{border, overlay, surface, text};
-use crate::app::design_tokens::spatial::{self, RADIUS_XL, STROKE_WIDTH};
-use crate::app::design_tokens::spatial::dialog as dialog_token;
-use crate::app::design_tokens::typography::TextRole;
+use crate::widget::anim;
+use crate::tokens::motion;
+use crate::tokens::semantic::{border, overlay, surface, text};
+use crate::tokens::spatial::{self, RADIUS_XL, STROKE_WIDTH};
+use crate::tokens::spatial::dialog as dialog_token;
+use crate::tokens::typography::TextRole;
 
 /// Context passed to the dialog body on each frame.
 pub struct DialogCtx {
@@ -45,7 +45,7 @@ impl<'a> DialogSpec<'a> {
             min_size: default_size,
             max_size: None,
             resizable: false,
-            max_viewport_frac: crate::app::design_tokens::spatial::dialog::MAX_VIEWPORT_FRAC,
+            max_viewport_frac: crate::tokens::spatial::dialog::MAX_VIEWPORT_FRAC,
             anchor_offset: [0.0, 0.0],
         }
     }

@@ -1,9 +1,9 @@
 use egui::{Color32, Id, Rect, Response, Sense, Vec2};
 
-use crate::app::design_tokens::semantic::{accent, surface, text};
-use crate::app::design_tokens::spatial::component::ICON_SLOT_WIDTH;
-use crate::app::design_tokens::spatial::{ROW_M, SPACE_L, SPACE_S};
-use crate::app::design_tokens::typography::TextRole;
+use crate::tokens::semantic::{accent, surface, text};
+use crate::tokens::spatial::component::ICON_SLOT_WIDTH;
+use crate::tokens::spatial::{ROW_M, SPACE_L, SPACE_S};
+use crate::tokens::typography::TextRole;
 
 /// Response from a `Row`.
 pub struct RowResponse {

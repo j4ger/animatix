@@ -1,9 +1,9 @@
-use crate::app::design_tokens::semantic::{accent, border, status, surface, text};
-use crate::app::design_tokens::spatial::component::{
+use crate::tokens::semantic::{accent, border, status, surface, text};
+use crate::tokens::spatial::component::{
     TOAST_HEIGHT, TOAST_MARGIN, TOAST_SPACING, TOAST_WIDTH,
 };
-use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, SPACE_2, SPACE_6, STROKE_WIDTH};
-use crate::app::design_tokens::typography::TextRole;
+use crate::tokens::spatial::{RADIUS_M, RADIUS_S, SPACE_2, SPACE_6, STROKE_WIDTH};
+use crate::tokens::typography::TextRole;
 use egui::{Color32, Pos2, Rect, Vec2};
 use std::time::Instant;
 

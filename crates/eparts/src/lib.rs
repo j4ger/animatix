@@ -4,3 +4,4 @@
 //! (Phase 3+) will be added alongside.
 
 pub mod tokens;
+pub mod widget;
