@@ -1,5 +1,6 @@
 use egui::{Color32, RichText, Stroke, Vec2};
 use std::path::PathBuf;
+#[cfg(feature = "video")]
 use std::sync::Arc;
 
 use crate::app::GuiShell;

@@ -643,7 +643,7 @@ mod tests {
     use super::super::apply::{find_actor_decl_mut, find_assignment_mut, find_prop_mut};
     use super::super::apply::{SourceEdit, apply_edit};
     use animatix_syntax::ast::{ComponentDef, Expr, InlineItem, Property, Stmt};
-    use animatix_syntax::parser::{parser, parser_simple};
+    use animatix_syntax::parser::parser_simple;
     use chumsky::Parser;
 
     fn parse(source: &str) -> Vec<Stmt> {
