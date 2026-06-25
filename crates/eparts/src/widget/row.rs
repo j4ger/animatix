@@ -109,40 +109,64 @@ impl<'a> Row<'a> {
         self
     }
 
+    // ── Primary entry point (preserves existing behaviour) ──────────
+
+    /// Standard render: allocate a full-width rect from the ui, paint, and return.
     pub fn show(self, ui: &mut egui::Ui, row_id: Id) -> RowResponse {
         let available = ui.available_width();
         let (row_rect, row_response) =
             ui.allocate_exact_size(Vec2::new(available, self.height), self.sense);
+        let painter = ui.painter_at(row_rect);
+        self.show_in_rect(ui, row_rect, row_response, row_id, &painter)
+    }
+
+    // ── Rect-mode entry point (for Tree / List) ─────────────────────
+
+    /// Render into a pre-allocated `rect` using `ui` for interaction.
+    ///
+    /// A scoped child Ui is built with `max_rect = rect` so the `right` slot
+    /// and any sub-widgets are confined to the row bounds without consuming
+    /// the parent layout cursor.
+    pub fn show_in_rect(
+        self,
+        ui: &mut egui::Ui,
+        rect: Rect,
+        row_response: Response,
+        row_id: Id,
+        painter: &egui::Painter,
+    ) -> RowResponse {
+        let row_clicked = row_response.clicked();
+        let hovered = row_response.hovered();
 
         let bg = if self.is_selected {
             surface::WIDGET
         } else if self.secondary_selected {
             accent::faint()
-        } else if row_response.hovered() {
+        } else if hovered {
             surface::HOVER
         } else {
             Color32::TRANSPARENT
         };
         if bg != Color32::TRANSPARENT {
-            ui.painter().rect_filled(row_rect, 0.0, bg);
+            painter.rect_filled(rect, 0.0, bg);
         }
 
         if self.is_selected {
-            let accent = Rect::from_min_size(row_rect.min, Vec2::new(2.0, row_rect.height()));
-            ui.painter().rect_filled(accent, 0.0, accent::PRIMARY);
+            let accent = Rect::from_min_size(rect.min, Vec2::new(2.0, rect.height()));
+            painter.rect_filled(accent, 0.0, accent::PRIMARY);
         } else if self.secondary_selected {
-            let accent = Rect::from_min_size(row_rect.min, Vec2::new(2.0, row_rect.height()));
-            ui.painter().rect_filled(accent, 0.0, accent::faint());
+            let accent = Rect::from_min_size(rect.min, Vec2::new(2.0, rect.height()));
+            painter.rect_filled(accent, 0.0, accent::faint());
         }
 
-        let baseline_y = row_rect.center().y;
-        let mut cursor_x = row_rect.min.x + SPACE_S + self.indent;
+        let baseline_y = rect.center().y;
+        let mut cursor_x = rect.min.x + SPACE_S + self.indent;
 
         let chevron_rect = Rect::from_min_size(
-            egui::pos2(cursor_x, row_rect.min.y),
+            egui::pos2(cursor_x, rect.min.y),
             Vec2::new(ICON_SLOT_WIDTH, self.height),
         );
-        let chevron_response = ui.interact(chevron_rect, row_id.with("chevron"), Sense::click());
+        let chevron_resp = ui.interact(chevron_rect, row_id.with("chevron"), Sense::click());
 
         if self.has_children {
             let icon = if self.is_expanded {
@@ -150,12 +174,12 @@ impl<'a> Row<'a> {
             } else {
                 egui_phosphor::regular::CARET_RIGHT
             };
-            let color = if chevron_response.hovered() {
+            let color = if chevron_resp.hovered() {
                 text::SECONDARY
             } else {
                 text::MUTED
             };
-            ui.painter().text(
+            painter.text(
                 egui::pos2(chevron_rect.center().x, baseline_y),
                 egui::Align2::CENTER_CENTER,
                 icon,
@@ -168,7 +192,7 @@ impl<'a> Row<'a> {
         if let Some(icon_str) = self.icon {
             cursor_x += SPACE_S;
             let icon_rect = Rect::from_min_size(
-                egui::pos2(cursor_x, row_rect.min.y),
+                egui::pos2(cursor_x, rect.min.y),
                 Vec2::new(ICON_SLOT_WIDTH, self.height),
             );
             let default_color = if self.is_selected {
@@ -176,7 +200,7 @@ impl<'a> Row<'a> {
             } else {
                 text::MUTED
             };
-            ui.painter().text(
+            painter.text(
                 egui::pos2(icon_rect.center().x, baseline_y),
                 egui::Align2::CENTER_CENTER,
                 icon_str,
@@ -195,7 +219,7 @@ impl<'a> Row<'a> {
                 text::SECONDARY
             }
         });
-        ui.painter().text(
+        painter.text(
             egui::pos2(cursor_x, baseline_y),
             egui::Align2::LEFT_CENTER,
             self.label,
@@ -203,22 +227,22 @@ impl<'a> Row<'a> {
             label_color,
         );
 
-        if let Some(right) = self.right {
+        // right slot — render inside a scoped child confined to rect
+        if let Some(right_fn) = self.right {
             let check_width = if self.confirmed { ICON_SLOT_WIDTH + SPACE_S } else { 0.0 };
-            let right_x = row_rect.max.x - SPACE_S - check_width;
+            let right_area_width = (rect.max.x - SPACE_S - check_width - cursor_x - SPACE_L).max(20.0);
             let right_rect = Rect::from_min_size(
-                egui::pos2(cursor_x + SPACE_L, row_rect.min.y),
-                Vec2::new((right_x - cursor_x - SPACE_L).max(20.0), self.height),
+                egui::pos2(cursor_x + SPACE_L, rect.min.y),
+                Vec2::new(right_area_width, self.height),
             );
-            ui.scope_builder(egui::UiBuilder::new().max_rect(right_rect), |ui| {
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), right);
-            });
+            let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(right_rect));
+            child_ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), right_fn);
         }
 
         if self.confirmed {
             let check_width = ICON_SLOT_WIDTH + SPACE_S;
-            let check_x = row_rect.max.x - SPACE_S - check_width / 2.0;
-            ui.painter().text(
+            let check_x = rect.max.x - SPACE_S - check_width / 2.0;
+            painter.text(
                 egui::pos2(check_x, baseline_y),
                 egui::Align2::CENTER_CENTER,
                 egui_phosphor::regular::CHECK,
@@ -228,12 +252,12 @@ impl<'a> Row<'a> {
         }
 
         RowResponse {
-            row_clicked: row_response.clicked() && !chevron_response.clicked(),
-            chevron_clicked: chevron_response.clicked(),
+            row_clicked: row_clicked && !chevron_resp.clicked(),
+            chevron_clicked: chevron_resp.clicked(),
             drag_started: row_response.drag_started(),
-            hovered: row_response.hovered(),
-            row_rect,
-            // Principle 3: override egui's default PointingHand with Default arrow for the row.
+            hovered,
+            row_rect: rect,
+            // Principle 3: override egui's default PointingHand with Default arrow.
             response: row_response.on_hover_cursor(egui::CursorIcon::Default),
         }
     }
@@ -272,4 +296,3 @@ mod tests {
         assert!(row.is_selected());
     }
 }
-

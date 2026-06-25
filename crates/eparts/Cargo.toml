@@ -8,3 +8,26 @@ description = "Reusable egui widgets and design tokens extracted from Animatix."
 [dependencies]
 egui          = { workspace = true }
 egui-phosphor = { workspace = true }
+
+[features]
+# Default: tokens + traits + all current core widgets. These depend only on
+# egui + egui-phosphor, so the default build stays dependency-light.
+default = []
+
+# ── Reserved feature seams for committed framework-expansion work (roadmap §6.X). ──
+# These are intentionally empty today: the widgets/deps they will gate do not
+# exist yet. They pre-shape the package seams so adding the heavy/optional
+# surfaces later is mechanical and consumers pay only for what they use.
+#
+# theme-json : JSON theme loading + schema + hot-reload (will add serde + notify)
+# table      : data-table widget (will add egui_extras)
+# charts     : chart/plot widgets
+# webview    : embedded web content
+# i18n       : localization hooks (will add rust-i18n)
+# unstable   : experimental APIs not yet covered by semver
+theme-json = []
+table = []
+charts = []
+webview = []
+i18n = []
+unstable = []
