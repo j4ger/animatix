@@ -1,7 +1,9 @@
-//! `eparts` — Reusable egui widgets and design tokens extracted from Animatix.
+//! `eparts` — Reusable egui widget + design-token library extracted from Animatix.
 //!
-//! Phase 2 provides the generic half of the token system. Widget modules
-//! (Phase 3+) will be added alongside.
+//! The **tokens** module exposes generic design tokens: colors, spacing, typography, and motion.
+//! The **widget** module exposes domain-agnostic egui widgets: button, row, layout, dialog,
+//! context_menu, toast, anim, text, timeline, easing curve editor, and a diagnostics list
+//! generic over the `DiagnosticEntry` trait.
 
 pub mod tokens;
 pub mod widget;

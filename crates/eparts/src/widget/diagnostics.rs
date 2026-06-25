@@ -22,8 +22,10 @@ pub trait DiagnosticEntry {
     /// Human-readable message describing the issue.
     fn message(&self) -> &str;
     /// 1-based source line, or `None` if unknown.
+    /// The widget converts this to the 0-based `DiagnosticTarget` internally.
     fn line(&self) -> Option<usize>;
     /// 1-based source column, or `None` if unknown (defaults to 0 on click).
+    /// The widget converts this to the 0-based `DiagnosticTarget` internally.
     fn column(&self) -> Option<usize>;
     /// Optional human-readable phase label (e.g. "parse", "build").
     /// Defaults to `None`.

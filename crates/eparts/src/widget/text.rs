@@ -2,7 +2,7 @@
 //!
 //! Usage:
 //! ```ignore
-//! use crate::app::components::text::{rich, RichTextExt};
+//! use eparts::widget::text::{rich, RichTextExt};
 //! ui.label(rich(TextRole::Body, "Hello"));
 //! ui.label("Hello".role(TextRole::Body));
 //! ```
