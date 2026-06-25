@@ -43,6 +43,41 @@ impl GuiShell {
                 );
                 ui.add_space(SPACE_M);
 
+                // ── Appearance (IDE light/dark/auto) ──
+                layout::section_header(ui, egui_phosphor::regular::SUN, "Appearance", None);
+                ui.add_space(SPACE_S);
+                layout::labeled_row(
+                    ui,
+                    RichText::new("Theme").size(TextRole::BodyS.size()).color(text::SECONDARY),
+                    SETTINGS_INPUT_WIDTH,
+                    |ui| {
+                        let current = self.ui_store.view.app_theme;
+                        let label = match current {
+                            eparts::AppThemeChoice::Auto => "Auto (system)",
+                            eparts::AppThemeChoice::Light => "Light",
+                            eparts::AppThemeChoice::Dark => "Dark",
+                        };
+                        egui::ComboBox::from_id_salt(ui.id().with("app_theme"))
+                            .selected_text(label)
+                            .width(ui.available_width())
+                            .show_ui(ui, |ui| {
+                                for (choice, name) in [
+                                    (eparts::AppThemeChoice::Auto, "Auto (system)"),
+                                    (eparts::AppThemeChoice::Light, "Light"),
+                                    (eparts::AppThemeChoice::Dark, "Dark"),
+                                ] {
+                                    if ui
+                                        .selectable_label(current == choice, name)
+                                        .clicked()
+                                    {
+                                        self.ui_store.view.app_theme = choice;
+                                    }
+                                }
+                            });
+                    },
+                );
+                ui.add_space(SPACE_M);
+
                 // ── Colorscheme ──
                 layout::section_header(ui, egui_phosphor::regular::PALETTE, "Colorscheme", None);
                 ui.add_space(SPACE_S);

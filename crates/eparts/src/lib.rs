@@ -15,4 +15,4 @@ pub use widget::diagnostics::DiagnosticEntry;
 pub use widget::traits::{Collapsible, Disableable, Selectable, Size, Sizable};
 
 // ── Runtime theme (B1) ──────────────────────────────────────────────
-pub use tokens::theme::{theme, theme_from_ctx, set_theme, Theme};
+pub use tokens::theme::{theme, theme_from_ctx, set_theme, AppThemeChoice, Theme};

@@ -4,7 +4,7 @@ use crate::app::commands::{
     ActorCommand, DocumentCommand, PlaybackCommand, SceneCommand, ShellAction, ViewAction,
     ViewCommand,
 };
-use crate::app::design_tokens::semantic::{accent, border, surface, text};
+use crate::app::design_tokens::semantic::surface;
 use crate::app::design_tokens::spatial::{self, component::ICON_SLOT_WIDTH};
 use crate::app::persistence::{
     clear_app_state, load_app_state, load_workspace_persistence, persistence_path, save_app_state,
@@ -59,6 +59,24 @@ struct AnimatixApp {
     preview_texture_id: Option<egui::TextureId>,
     /// Audio playback engine for preview audio synced with the timeline.
     audio_engine: Option<AudioEngine>,
+    /// Cached OS dark/light detection for the `Auto` theme (None = unknown).
+    system_is_dark: Option<bool>,
+    /// Last time the OS theme was probed (periodic re-detect for Auto mode).
+    last_theme_probe: Option<std::time::Instant>,
+    /// The theme choice applied on the previous frame, to avoid redundant work.
+    applied_theme_signature: Option<(eparts::AppThemeChoice, Option<bool>)>,
+}
+
+/// Probe the OS light/dark appearance via the `dark-light` crate.
+///
+/// Cross-platform: XDG Desktop Portal on Linux, native APIs on Windows/macOS.
+/// Returns `None` when the OS does not report a preference.
+fn detect_system_dark() -> Option<bool> {
+    match dark_light::detect() {
+        Ok(dark_light::Mode::Dark) => Some(true),
+        Ok(dark_light::Mode::Light) => Some(false),
+        _ => None,
+    }
 }
 
 impl AnimatixApp {
@@ -75,9 +93,9 @@ impl AnimatixApp {
         let device = &render_state.device;
         let queue = &render_state.queue;
 
-        // Set up dark theme
-        cc.egui_ctx.set_visuals(egui::Visuals::dark());
-        install_theme(&cc.egui_ctx);
+        // Set up theme: detect OS appearance, resolve the persisted choice, apply.
+        // (Resolved after `shell` is loaded below, since the choice is persisted there.)
+        let system_is_dark = detect_system_dark();
 
         // Register Phosphor icon font
         let mut fonts = egui::FontDefinitions::default();
@@ -87,6 +105,11 @@ impl AnimatixApp {
         let preview_surface = PreviewSurface::new(device, queue)
             .map_err(|e| format!("Preview surface init failed: {e}"))?;
         let shell = GuiShell::load(initial_path, show_welcome);
+
+        let choice = shell.ui_store.view.app_theme;
+        let theme = choice.resolve(system_is_dark);
+        eparts::set_theme(&cc.egui_ctx, theme);
+        install_theme(&cc.egui_ctx, &theme, choice.is_dark(system_is_dark));
 
         let audio_engine = match AudioEngine::new() {
             Ok(engine) => Some(engine),
@@ -101,6 +124,9 @@ impl AnimatixApp {
             preview_surface,
             preview_texture_id: None,
             audio_engine,
+            system_is_dark,
+            last_theme_probe: Some(std::time::Instant::now()),
+            applied_theme_signature: Some((choice, system_is_dark)),
         })
     }
 
@@ -555,6 +581,30 @@ impl eframe::App for AnimatixApp {
         // Prepare frame (hot reload, playback tick, pending rebuild)
         self.shell.prepare_frame();
 
+        // Re-resolve the app theme. Periodically re-probe the OS appearance (cheap
+        // amortized: every ~2s) so `Auto` follows runtime OS light/dark changes;
+        // reapply only when the effective theme actually changes.
+        {
+            let now = std::time::Instant::now();
+            let due = self
+                .last_theme_probe
+                .map(|t| now.duration_since(t).as_secs_f32() >= 2.0)
+                .unwrap_or(true);
+            if due {
+                self.system_is_dark = detect_system_dark();
+                self.last_theme_probe = Some(now);
+            }
+            let choice = self.shell.ui_store.view.app_theme;
+            let signature = (choice, self.system_is_dark);
+            if self.applied_theme_signature != Some(signature) {
+                let dark = choice.is_dark(self.system_is_dark);
+                let theme = choice.resolve(self.system_is_dark);
+                eparts::set_theme(ui.ctx(), theme);
+                install_theme(ui.ctx(), &theme, dark);
+                self.applied_theme_signature = Some(signature);
+            }
+        }
+
         // Handle keyboard shortcuts
         self.handle_keyboard_shortcuts(ui.ctx());
 
@@ -611,7 +661,7 @@ fn live_preview_status(preview: &PreviewPaneState, active_scene: Option<&str>) -
     }
 }
 
-fn install_theme(ctx: &egui::Context) {
+fn install_theme(ctx: &egui::Context, theme: &eparts::Theme, dark: bool) {
     let mut style = (*ctx.global_style()).clone();
 
     // Tighter spacing
@@ -620,57 +670,8 @@ fn install_theme(ctx: &egui::Context) {
     style.spacing.window_margin = egui::Margin::same(spatial::SPACE_4 as i8);
     style.spacing.indent = ICON_SLOT_WIDTH;
 
-    // Background hierarchy (darkest to lightest)
-    style.visuals.panel_fill = surface::PANEL;
-    style.visuals.window_fill = surface::PANEL;
-    style.visuals.extreme_bg_color = surface::BASE;
-    style.visuals.faint_bg_color = surface::SURFACE;
-
-    // Widget states
-    style.visuals.widgets.noninteractive.bg_fill = surface::SURFACE;
-    style.visuals.widgets.noninteractive.weak_bg_fill = surface::SURFACE;
-    style.visuals.widgets.noninteractive.bg_stroke =
-        egui::Stroke::new(spatial::STROKE_WIDTH, border::DEFAULT);
-    style.visuals.widgets.noninteractive.fg_stroke =
-        egui::Stroke::new(spatial::STROKE_WIDTH, text::SECONDARY);
-    style.visuals.widgets.noninteractive.corner_radius =
-        egui::CornerRadius::same(spatial::RADIUS_M as u8);
-
-    style.visuals.widgets.inactive.bg_fill = surface::WIDGET;
-    style.visuals.widgets.inactive.weak_bg_fill = surface::WIDGET;
-    style.visuals.widgets.inactive.bg_stroke =
-        egui::Stroke::new(spatial::STROKE_WIDTH, border::DEFAULT);
-    style.visuals.widgets.inactive.fg_stroke =
-        egui::Stroke::new(spatial::STROKE_WIDTH, text::PRIMARY);
-    style.visuals.widgets.inactive.corner_radius =
-        egui::CornerRadius::same(spatial::RADIUS_M as u8);
-
-    style.visuals.widgets.hovered.bg_fill = surface::HOVER;
-    style.visuals.widgets.hovered.weak_bg_fill = surface::HOVER;
-    style.visuals.widgets.hovered.bg_stroke =
-        egui::Stroke::new(spatial::STROKE_WIDTH, accent::PRIMARY);
-    style.visuals.widgets.hovered.fg_stroke =
-        egui::Stroke::new(spatial::STROKE_WIDTH, text::PRIMARY);
-    style.visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(spatial::RADIUS_M as u8);
-
-    style.visuals.widgets.active.bg_fill = surface::ACTIVE;
-    style.visuals.widgets.active.weak_bg_fill = surface::ACTIVE;
-    style.visuals.widgets.active.bg_stroke =
-        egui::Stroke::new(spatial::STROKE_WIDTH, accent::PRIMARY);
-    style.visuals.widgets.active.fg_stroke =
-        egui::Stroke::new(spatial::STROKE_WIDTH, text::PRIMARY);
-    style.visuals.widgets.active.corner_radius = egui::CornerRadius::same(spatial::RADIUS_M as u8);
-
-    // Selection
-    style.visuals.selection.bg_fill = accent::selection();
-    style.visuals.selection.stroke = egui::Stroke::new(spatial::STROKE_WIDTH, accent::PRIMARY);
-
-    // Text colors
-    style.visuals.override_text_color = Some(text::PRIMARY);
-
-    // Strikethrough / separator
-    style.visuals.widgets.noninteractive.bg_stroke =
-        egui::Stroke::new(spatial::STROKE_WIDTH, surface::WIDGET);
+    // Map the eparts Theme onto egui Visuals so stock widgets match the palette.
+    style.visuals = theme.to_visuals(dark);
 
     // Disable selectable labels globally (we handle selection manually)
     style.interaction.selectable_labels = false;

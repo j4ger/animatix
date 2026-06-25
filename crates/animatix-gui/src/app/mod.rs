@@ -462,6 +462,11 @@ impl GuiShell {
             ui_store.snap_fps = s.snap_fps;
             ui_store.keyframe_merge_window_s = s.keyframe_merge_window_s;
             preview.overlay.grid_size = s.grid_size;
+            ui_store.view.app_theme = match s.app_theme.as_str() {
+                "light" => eparts::AppThemeChoice::Light,
+                "dark" => eparts::AppThemeChoice::Dark,
+                _ => eparts::AppThemeChoice::Auto,
+            };
             // undo_limit is on DocumentStore created below inside Self {} — skipped for now (default 100 is fine)
         }
 
@@ -988,6 +993,12 @@ impl GuiShell {
                 keyframe_merge_window_s: self.ui_store.keyframe_merge_window_s,
                 undo_limit: self.document_store.history.undo_limit,
                 grid_size: self.preview_store.preview.overlay.grid_size,
+                app_theme: match self.ui_store.view.app_theme {
+                    eparts::AppThemeChoice::Light => "light",
+                    eparts::AppThemeChoice::Dark => "dark",
+                    eparts::AppThemeChoice::Auto => "auto",
+                }
+                .to_string(),
             }),
         };
         if let Ok(serialized) =

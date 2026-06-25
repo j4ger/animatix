@@ -15,6 +15,7 @@ animatix-analyzer = { path = "../animatix-analyzer" }
 animatix-syntax = { path = "../animatix-syntax" }
 eparts = { path = "../eparts" }
 crossbeam-channel = "0.5"
+dark-light = "2.0"
 directories = "6.0.0"
 eframe = { workspace = true }
 egui = { workspace = true, features = ["serde"] }

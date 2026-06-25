@@ -97,6 +97,8 @@ pub struct ViewStore {
     pub active_scene: Option<String>,
     /// Timeline horizontal scroll offset (zoom/pan live in PreviewPaneState.viewport).
     pub timeline_scroll_offset: f32,
+    /// IDE appearance preference (Auto follows the OS light/dark setting).
+    pub app_theme: eparts::AppThemeChoice,
 }
 
 impl ViewStore {
@@ -119,6 +121,7 @@ impl ViewStore {
             find_replace_open: false,
             active_scene: None,
             timeline_scroll_offset: 0.0,
+            app_theme: eparts::AppThemeChoice::default(),
         }
     }
 }

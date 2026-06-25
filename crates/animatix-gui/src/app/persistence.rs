@@ -92,6 +92,13 @@ pub(crate) struct SettingsPersistence {
     pub keyframe_merge_window_s: f64,
     pub undo_limit: usize,
     pub grid_size: f32,
+    /// IDE appearance: "auto" | "light" | "dark". Defaults to "auto".
+    #[serde(default = "default_app_theme")]
+    pub app_theme: String,
+}
+
+fn default_app_theme() -> String {
+    "auto".to_string()
 }
 
 #[derive(Debug, Serialize, Deserialize)]
