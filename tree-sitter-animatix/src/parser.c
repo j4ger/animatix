@@ -1673,7 +1673,7 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
   eof = lexer->eof(lexer);
   switch (state) {
     case 0:
-      if (eof) ADVANCE(19);
+      if (eof) ADVANCE(18);
       ADVANCE_MAP(
         '!', 52,
         '"', 66,
@@ -1699,11 +1699,11 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
         ']', 42,
         '^', 56,
         '{', 27,
-        '|', 10,
+        '|', 9,
         '}', 28,
       );
       if (('\t' <= lookahead && lookahead <= '\r') ||
-          lookahead == ' ') SKIP(13);
+          lookahead == ' ') SKIP(12);
       if (('A' <= lookahead && lookahead <= 'Z') ||
           lookahead == '_' ||
           ('a' <= lookahead && lookahead <= 'z')) ADVANCE(74);
@@ -1715,45 +1715,37 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
       if (lookahead == '&') ADVANCE(61);
       END_STATE();
     case 3:
-      if (lookahead == '/') ADVANCE(20);
+      if (lookahead == '/') ADVANCE(19);
       END_STATE();
     case 4:
-      if (lookahead == '/') ADVANCE(72);
-      if (lookahead == '\\') ADVANCE(11);
-      if (('\t' <= lookahead && lookahead <= '\r') ||
-          lookahead == ' ') ADVANCE(73);
-      if (lookahead != 0 &&
-          lookahead != '\'') ADVANCE(71);
-      END_STATE();
-    case 5:
       if (lookahead == '=') ADVANCE(58);
       END_STATE();
-    case 6:
+    case 5:
       if (lookahead == '=') ADVANCE(57);
       if (lookahead == '>') ADVANCE(64);
       END_STATE();
+    case 6:
+      if (lookahead == 'l') ADVANCE(7);
+      END_STATE();
     case 7:
-      if (lookahead == 'l') ADVANCE(8);
+      if (lookahead == 'o') ADVANCE(8);
       END_STATE();
     case 8:
-      if (lookahead == 'o') ADVANCE(9);
-      END_STATE();
-    case 9:
       if (lookahead == 't') ADVANCE(47);
       END_STATE();
-    case 10:
+    case 9:
       if (lookahead == '|') ADVANCE(62);
+      END_STATE();
+    case 10:
+      if (lookahead != 0 &&
+          lookahead != '\n') ADVANCE(73);
       END_STATE();
     case 11:
       if (lookahead != 0 &&
-          lookahead != '\n') ADVANCE(71);
-      END_STATE();
-    case 12:
-      if (lookahead != 0 &&
           lookahead != '\n') ADVANCE(69);
       END_STATE();
-    case 13:
-      if (eof) ADVANCE(19);
+    case 12:
+      if (eof) ADVANCE(18);
       ADVANCE_MAP(
         '!', 52,
         '"', 66,
@@ -1779,17 +1771,17 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
         ']', 42,
         '^', 56,
         '{', 27,
-        '|', 10,
+        '|', 9,
         '}', 28,
       );
       if (('\t' <= lookahead && lookahead <= '\r') ||
-          lookahead == ' ') SKIP(13);
+          lookahead == ' ') SKIP(12);
       if (('A' <= lookahead && lookahead <= 'Z') ||
           lookahead == '_' ||
           ('a' <= lookahead && lookahead <= 'z')) ADVANCE(74);
       END_STATE();
-    case 14:
-      if (eof) ADVANCE(19);
+    case 13:
+      if (eof) ADVANCE(18);
       ADVANCE_MAP(
         '!', 51,
         '"', 66,
@@ -1811,15 +1803,50 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
         '}', 28,
       );
       if (('\t' <= lookahead && lookahead <= '\r') ||
-          lookahead == ' ') SKIP(14);
+          lookahead == ' ') SKIP(13);
+      if (('A' <= lookahead && lookahead <= 'Z') ||
+          lookahead == '_' ||
+          ('a' <= lookahead && lookahead <= 'z')) ADVANCE(74);
+      END_STATE();
+    case 14:
+      if (eof) ADVANCE(18);
+      ADVANCE_MAP(
+        '!', 4,
+        '"', 66,
+        '#', 39,
+        '%', 55,
+        '&', 2,
+        '\'', 70,
+        '(', 32,
+        ')', 34,
+        '*', 53,
+        '+', 40,
+        ',', 33,
+        '-', 50,
+        '.', 49,
+        '/', 54,
+        ':', 35,
+        '<', 36,
+        '=', 5,
+        '>', 38,
+        '@', 48,
+        '[', 63,
+        ']', 42,
+        '^', 56,
+        '{', 27,
+        '|', 9,
+        '}', 28,
+      );
+      if (('\t' <= lookahead && lookahead <= '\r') ||
+          lookahead == ' ') SKIP(15);
       if (('A' <= lookahead && lookahead <= 'Z') ||
           lookahead == '_' ||
           ('a' <= lookahead && lookahead <= 'z')) ADVANCE(74);
       END_STATE();
     case 15:
-      if (eof) ADVANCE(19);
+      if (eof) ADVANCE(18);
       ADVANCE_MAP(
-        '!', 5,
+        '!', 4,
         '"', 66,
         '#', 39,
         '%', 55,
@@ -1835,61 +1862,26 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
         '/', 54,
         ':', 35,
         '<', 36,
-        '=', 6,
+        '=', 5,
         '>', 38,
         '@', 48,
-        '[', 63,
+        '[', 41,
         ']', 42,
         '^', 56,
         '{', 27,
-        '|', 10,
+        '|', 9,
         '}', 28,
       );
       if (('\t' <= lookahead && lookahead <= '\r') ||
-          lookahead == ' ') SKIP(16);
+          lookahead == ' ') SKIP(15);
       if (('A' <= lookahead && lookahead <= 'Z') ||
           lookahead == '_' ||
           ('a' <= lookahead && lookahead <= 'z')) ADVANCE(74);
       END_STATE();
     case 16:
-      if (eof) ADVANCE(19);
+      if (eof) ADVANCE(18);
       ADVANCE_MAP(
-        '!', 5,
-        '"', 66,
-        '#', 39,
-        '%', 55,
-        '&', 2,
-        '\'', 70,
-        '(', 32,
-        ')', 34,
-        '*', 53,
-        '+', 40,
-        ',', 33,
-        '-', 50,
-        '.', 49,
-        '/', 54,
-        ':', 35,
-        '<', 36,
-        '=', 6,
-        '>', 38,
-        '@', 48,
-        '[', 41,
-        ']', 42,
-        '^', 56,
-        '{', 27,
-        '|', 10,
-        '}', 28,
-      );
-      if (('\t' <= lookahead && lookahead <= '\r') ||
-          lookahead == ' ') SKIP(16);
-      if (('A' <= lookahead && lookahead <= 'Z') ||
-          lookahead == '_' ||
-          ('a' <= lookahead && lookahead <= 'z')) ADVANCE(74);
-      END_STATE();
-    case 17:
-      if (eof) ADVANCE(19);
-      ADVANCE_MAP(
-        '!', 5,
+        '!', 4,
         '"', 66,
         '#', 39,
         '%', 55,
@@ -1911,19 +1903,19 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
         ']', 42,
         '^', 56,
         '{', 27,
-        '|', 10,
+        '|', 9,
         '}', 28,
       );
       if (('\t' <= lookahead && lookahead <= '\r') ||
-          lookahead == ' ') SKIP(18);
+          lookahead == ' ') SKIP(17);
       if (('A' <= lookahead && lookahead <= 'Z') ||
           lookahead == '_' ||
           ('a' <= lookahead && lookahead <= 'z')) ADVANCE(74);
       END_STATE();
-    case 18:
-      if (eof) ADVANCE(19);
+    case 17:
+      if (eof) ADVANCE(18);
       ADVANCE_MAP(
-        '!', 5,
+        '!', 4,
         '"', 66,
         '#', 39,
         '%', 55,
@@ -1945,24 +1937,30 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
         ']', 42,
         '^', 56,
         '{', 27,
-        '|', 10,
+        '|', 9,
         '}', 28,
       );
       if (('\t' <= lookahead && lookahead <= '\r') ||
-          lookahead == ' ') SKIP(18);
+          lookahead == ' ') SKIP(17);
       if (('A' <= lookahead && lookahead <= 'Z') ||
           lookahead == '_' ||
           ('a' <= lookahead && lookahead <= 'z')) ADVANCE(74);
       END_STATE();
-    case 19:
+    case 18:
       ACCEPT_TOKEN(ts_builtin_sym_end);
+      END_STATE();
+    case 19:
+      ACCEPT_TOKEN(anon_sym_SLASH_SLASH);
       END_STATE();
     case 20:
       ACCEPT_TOKEN(anon_sym_SLASH_SLASH);
+      if (lookahead == '\\') ADVANCE(10);
+      if (lookahead != 0 &&
+          lookahead != '\'') ADVANCE(73);
       END_STATE();
     case 21:
       ACCEPT_TOKEN(anon_sym_SLASH_SLASH);
-      if (lookahead == '\\') ADVANCE(12);
+      if (lookahead == '\\') ADVANCE(11);
       if (lookahead != 0 &&
           lookahead != '"') ADVANCE(69);
       END_STATE();
@@ -2077,7 +2075,7 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
       END_STATE();
     case 48:
       ACCEPT_TOKEN(anon_sym_AT);
-      if (lookahead == 's') ADVANCE(7);
+      if (lookahead == 's') ADVANCE(6);
       END_STATE();
     case 49:
       ACCEPT_TOKEN(anon_sym_DOT);
@@ -2097,7 +2095,7 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
       END_STATE();
     case 54:
       ACCEPT_TOKEN(anon_sym_SLASH);
-      if (lookahead == '/') ADVANCE(20);
+      if (lookahead == '/') ADVANCE(19);
       END_STATE();
     case 55:
       ACCEPT_TOKEN(anon_sym_PERCENT);
@@ -2138,7 +2136,7 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
     case 67:
       ACCEPT_TOKEN(aux_sym_string_token1);
       if (lookahead == '/') ADVANCE(68);
-      if (lookahead == '\\') ADVANCE(12);
+      if (lookahead == '\\') ADVANCE(11);
       if (('\t' <= lookahead && lookahead <= '\r') ||
           lookahead == ' ') ADVANCE(67);
       if (lookahead != 0 &&
@@ -2147,13 +2145,13 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
     case 68:
       ACCEPT_TOKEN(aux_sym_string_token1);
       if (lookahead == '/') ADVANCE(21);
-      if (lookahead == '\\') ADVANCE(12);
+      if (lookahead == '\\') ADVANCE(11);
       if (lookahead != 0 &&
           lookahead != '"') ADVANCE(69);
       END_STATE();
     case 69:
       ACCEPT_TOKEN(aux_sym_string_token1);
-      if (lookahead == '\\') ADVANCE(12);
+      if (lookahead == '\\') ADVANCE(11);
       if (lookahead != 0 &&
           lookahead != '"') ADVANCE(69);
       END_STATE();
@@ -2162,19 +2160,25 @@ static bool ts_lex(TSLexer *lexer, TSStateId state) {
       END_STATE();
     case 71:
       ACCEPT_TOKEN(aux_sym_string_token2);
+      if (lookahead == '/') ADVANCE(72);
+      if (lookahead == '\\') ADVANCE(10);
+      if (('\t' <= lookahead && lookahead <= '\r') ||
+          lookahead == ' ') ADVANCE(71);
+      if (lookahead != 0 &&
+          lookahead != '\'') ADVANCE(73);
       END_STATE();
     case 72:
       ACCEPT_TOKEN(aux_sym_string_token2);
       if (lookahead == '/') ADVANCE(20);
+      if (lookahead == '\\') ADVANCE(10);
+      if (lookahead != 0 &&
+          lookahead != '\'') ADVANCE(73);
       END_STATE();
     case 73:
       ACCEPT_TOKEN(aux_sym_string_token2);
-      if (lookahead == '/') ADVANCE(72);
-      if (lookahead == '\\') ADVANCE(11);
-      if (('\t' <= lookahead && lookahead <= '\r') ||
-          lookahead == ' ') ADVANCE(73);
+      if (lookahead == '\\') ADVANCE(10);
       if (lookahead != 0 &&
-          lookahead != '\'') ADVANCE(71);
+          lookahead != '\'') ADVANCE(73);
       END_STATE();
     case 74:
       ACCEPT_TOKEN(sym_identifier);
@@ -2565,155 +2569,155 @@ static bool ts_lex_keywords(TSLexer *lexer, TSStateId state) {
 static const TSLexMode ts_lex_modes[STATE_COUNT] = {
   [0] = {.lex_state = 0, .external_lex_state = 1},
   [1] = {.lex_state = 0},
-  [2] = {.lex_state = 14, .external_lex_state = 1},
-  [3] = {.lex_state = 17},
-  [4] = {.lex_state = 17},
-  [5] = {.lex_state = 17},
-  [6] = {.lex_state = 17},
-  [7] = {.lex_state = 17},
-  [8] = {.lex_state = 14, .external_lex_state = 1},
-  [9] = {.lex_state = 17},
-  [10] = {.lex_state = 17},
-  [11] = {.lex_state = 17},
-  [12] = {.lex_state = 17},
-  [13] = {.lex_state = 17},
-  [14] = {.lex_state = 17},
-  [15] = {.lex_state = 17},
-  [16] = {.lex_state = 15},
-  [17] = {.lex_state = 17},
+  [2] = {.lex_state = 13, .external_lex_state = 1},
+  [3] = {.lex_state = 16},
+  [4] = {.lex_state = 16},
+  [5] = {.lex_state = 16},
+  [6] = {.lex_state = 16},
+  [7] = {.lex_state = 16},
+  [8] = {.lex_state = 13, .external_lex_state = 1},
+  [9] = {.lex_state = 16},
+  [10] = {.lex_state = 16},
+  [11] = {.lex_state = 16},
+  [12] = {.lex_state = 16},
+  [13] = {.lex_state = 16},
+  [14] = {.lex_state = 16},
+  [15] = {.lex_state = 16},
+  [16] = {.lex_state = 14},
+  [17] = {.lex_state = 16},
   [18] = {.lex_state = 0},
-  [19] = {.lex_state = 17},
-  [20] = {.lex_state = 17},
-  [21] = {.lex_state = 17},
-  [22] = {.lex_state = 17},
-  [23] = {.lex_state = 17},
-  [24] = {.lex_state = 17},
-  [25] = {.lex_state = 17},
-  [26] = {.lex_state = 17},
-  [27] = {.lex_state = 17},
-  [28] = {.lex_state = 17},
-  [29] = {.lex_state = 17},
-  [30] = {.lex_state = 17},
-  [31] = {.lex_state = 17},
-  [32] = {.lex_state = 17},
-  [33] = {.lex_state = 17},
-  [34] = {.lex_state = 15},
-  [35] = {.lex_state = 17},
+  [19] = {.lex_state = 16},
+  [20] = {.lex_state = 16},
+  [21] = {.lex_state = 16},
+  [22] = {.lex_state = 16},
+  [23] = {.lex_state = 16},
+  [24] = {.lex_state = 16},
+  [25] = {.lex_state = 16},
+  [26] = {.lex_state = 16},
+  [27] = {.lex_state = 16},
+  [28] = {.lex_state = 16},
+  [29] = {.lex_state = 16},
+  [30] = {.lex_state = 16},
+  [31] = {.lex_state = 16},
+  [32] = {.lex_state = 16},
+  [33] = {.lex_state = 16},
+  [34] = {.lex_state = 14},
+  [35] = {.lex_state = 16},
   [36] = {.lex_state = 0},
   [37] = {.lex_state = 0},
   [38] = {.lex_state = 0},
-  [39] = {.lex_state = 15},
-  [40] = {.lex_state = 17},
-  [41] = {.lex_state = 17},
-  [42] = {.lex_state = 17},
-  [43] = {.lex_state = 17},
-  [44] = {.lex_state = 17},
-  [45] = {.lex_state = 17},
-  [46] = {.lex_state = 15},
-  [47] = {.lex_state = 17},
-  [48] = {.lex_state = 17},
-  [49] = {.lex_state = 17},
-  [50] = {.lex_state = 17},
-  [51] = {.lex_state = 17},
-  [52] = {.lex_state = 17},
-  [53] = {.lex_state = 17},
-  [54] = {.lex_state = 17},
-  [55] = {.lex_state = 17},
-  [56] = {.lex_state = 14, .external_lex_state = 1},
-  [57] = {.lex_state = 17},
-  [58] = {.lex_state = 14, .external_lex_state = 1},
-  [59] = {.lex_state = 17},
-  [60] = {.lex_state = 14, .external_lex_state = 1},
-  [61] = {.lex_state = 14, .external_lex_state = 1},
-  [62] = {.lex_state = 17},
-  [63] = {.lex_state = 14, .external_lex_state = 1},
-  [64] = {.lex_state = 14, .external_lex_state = 1},
-  [65] = {.lex_state = 14, .external_lex_state = 1},
-  [66] = {.lex_state = 14, .external_lex_state = 1},
-  [67] = {.lex_state = 14, .external_lex_state = 1},
-  [68] = {.lex_state = 14, .external_lex_state = 1},
-  [69] = {.lex_state = 14, .external_lex_state = 1},
-  [70] = {.lex_state = 14, .external_lex_state = 1},
-  [71] = {.lex_state = 14, .external_lex_state = 1},
-  [72] = {.lex_state = 14, .external_lex_state = 1},
-  [73] = {.lex_state = 14, .external_lex_state = 1},
-  [74] = {.lex_state = 14, .external_lex_state = 1},
-  [75] = {.lex_state = 14, .external_lex_state = 1},
-  [76] = {.lex_state = 14, .external_lex_state = 1},
-  [77] = {.lex_state = 14, .external_lex_state = 1},
-  [78] = {.lex_state = 14, .external_lex_state = 1},
-  [79] = {.lex_state = 14, .external_lex_state = 1},
-  [80] = {.lex_state = 14, .external_lex_state = 1},
-  [81] = {.lex_state = 14, .external_lex_state = 1},
-  [82] = {.lex_state = 14, .external_lex_state = 1},
-  [83] = {.lex_state = 14, .external_lex_state = 1},
-  [84] = {.lex_state = 14, .external_lex_state = 1},
-  [85] = {.lex_state = 14, .external_lex_state = 1},
-  [86] = {.lex_state = 14, .external_lex_state = 1},
-  [87] = {.lex_state = 14, .external_lex_state = 1},
-  [88] = {.lex_state = 14, .external_lex_state = 1},
-  [89] = {.lex_state = 14, .external_lex_state = 1},
-  [90] = {.lex_state = 14, .external_lex_state = 1},
-  [91] = {.lex_state = 14, .external_lex_state = 1},
-  [92] = {.lex_state = 14, .external_lex_state = 1},
-  [93] = {.lex_state = 14, .external_lex_state = 1},
-  [94] = {.lex_state = 14, .external_lex_state = 1},
-  [95] = {.lex_state = 14, .external_lex_state = 1},
-  [96] = {.lex_state = 14, .external_lex_state = 1},
-  [97] = {.lex_state = 14, .external_lex_state = 1},
-  [98] = {.lex_state = 14, .external_lex_state = 1},
-  [99] = {.lex_state = 14, .external_lex_state = 1},
-  [100] = {.lex_state = 14, .external_lex_state = 1},
-  [101] = {.lex_state = 14, .external_lex_state = 1},
-  [102] = {.lex_state = 14, .external_lex_state = 1},
-  [103] = {.lex_state = 14, .external_lex_state = 1},
-  [104] = {.lex_state = 14, .external_lex_state = 1},
-  [105] = {.lex_state = 14, .external_lex_state = 1},
-  [106] = {.lex_state = 14, .external_lex_state = 1},
-  [107] = {.lex_state = 14, .external_lex_state = 1},
-  [108] = {.lex_state = 14, .external_lex_state = 1},
-  [109] = {.lex_state = 14, .external_lex_state = 1},
-  [110] = {.lex_state = 14, .external_lex_state = 1},
-  [111] = {.lex_state = 14, .external_lex_state = 1},
-  [112] = {.lex_state = 14, .external_lex_state = 1},
-  [113] = {.lex_state = 14, .external_lex_state = 1},
-  [114] = {.lex_state = 14, .external_lex_state = 1},
-  [115] = {.lex_state = 15},
-  [116] = {.lex_state = 17},
-  [117] = {.lex_state = 15},
-  [118] = {.lex_state = 14},
-  [119] = {.lex_state = 17},
-  [120] = {.lex_state = 17},
-  [121] = {.lex_state = 14},
-  [122] = {.lex_state = 17},
-  [123] = {.lex_state = 14},
-  [124] = {.lex_state = 14},
-  [125] = {.lex_state = 14},
-  [126] = {.lex_state = 14},
-  [127] = {.lex_state = 14},
-  [128] = {.lex_state = 14},
+  [39] = {.lex_state = 14},
+  [40] = {.lex_state = 16},
+  [41] = {.lex_state = 16},
+  [42] = {.lex_state = 16},
+  [43] = {.lex_state = 16},
+  [44] = {.lex_state = 16},
+  [45] = {.lex_state = 16},
+  [46] = {.lex_state = 14},
+  [47] = {.lex_state = 16},
+  [48] = {.lex_state = 16},
+  [49] = {.lex_state = 16},
+  [50] = {.lex_state = 16},
+  [51] = {.lex_state = 16},
+  [52] = {.lex_state = 16},
+  [53] = {.lex_state = 16},
+  [54] = {.lex_state = 16},
+  [55] = {.lex_state = 16},
+  [56] = {.lex_state = 13, .external_lex_state = 1},
+  [57] = {.lex_state = 16},
+  [58] = {.lex_state = 13, .external_lex_state = 1},
+  [59] = {.lex_state = 16},
+  [60] = {.lex_state = 13, .external_lex_state = 1},
+  [61] = {.lex_state = 13, .external_lex_state = 1},
+  [62] = {.lex_state = 16},
+  [63] = {.lex_state = 13, .external_lex_state = 1},
+  [64] = {.lex_state = 13, .external_lex_state = 1},
+  [65] = {.lex_state = 13, .external_lex_state = 1},
+  [66] = {.lex_state = 13, .external_lex_state = 1},
+  [67] = {.lex_state = 13, .external_lex_state = 1},
+  [68] = {.lex_state = 13, .external_lex_state = 1},
+  [69] = {.lex_state = 13, .external_lex_state = 1},
+  [70] = {.lex_state = 13, .external_lex_state = 1},
+  [71] = {.lex_state = 13, .external_lex_state = 1},
+  [72] = {.lex_state = 13, .external_lex_state = 1},
+  [73] = {.lex_state = 13, .external_lex_state = 1},
+  [74] = {.lex_state = 13, .external_lex_state = 1},
+  [75] = {.lex_state = 13, .external_lex_state = 1},
+  [76] = {.lex_state = 13, .external_lex_state = 1},
+  [77] = {.lex_state = 13, .external_lex_state = 1},
+  [78] = {.lex_state = 13, .external_lex_state = 1},
+  [79] = {.lex_state = 13, .external_lex_state = 1},
+  [80] = {.lex_state = 13, .external_lex_state = 1},
+  [81] = {.lex_state = 13, .external_lex_state = 1},
+  [82] = {.lex_state = 13, .external_lex_state = 1},
+  [83] = {.lex_state = 13, .external_lex_state = 1},
+  [84] = {.lex_state = 13, .external_lex_state = 1},
+  [85] = {.lex_state = 13, .external_lex_state = 1},
+  [86] = {.lex_state = 13, .external_lex_state = 1},
+  [87] = {.lex_state = 13, .external_lex_state = 1},
+  [88] = {.lex_state = 13, .external_lex_state = 1},
+  [89] = {.lex_state = 13, .external_lex_state = 1},
+  [90] = {.lex_state = 13, .external_lex_state = 1},
+  [91] = {.lex_state = 13, .external_lex_state = 1},
+  [92] = {.lex_state = 13, .external_lex_state = 1},
+  [93] = {.lex_state = 13, .external_lex_state = 1},
+  [94] = {.lex_state = 13, .external_lex_state = 1},
+  [95] = {.lex_state = 13, .external_lex_state = 1},
+  [96] = {.lex_state = 13, .external_lex_state = 1},
+  [97] = {.lex_state = 13, .external_lex_state = 1},
+  [98] = {.lex_state = 13, .external_lex_state = 1},
+  [99] = {.lex_state = 13, .external_lex_state = 1},
+  [100] = {.lex_state = 13, .external_lex_state = 1},
+  [101] = {.lex_state = 13, .external_lex_state = 1},
+  [102] = {.lex_state = 13, .external_lex_state = 1},
+  [103] = {.lex_state = 13, .external_lex_state = 1},
+  [104] = {.lex_state = 13, .external_lex_state = 1},
+  [105] = {.lex_state = 13, .external_lex_state = 1},
+  [106] = {.lex_state = 13, .external_lex_state = 1},
+  [107] = {.lex_state = 13, .external_lex_state = 1},
+  [108] = {.lex_state = 13, .external_lex_state = 1},
+  [109] = {.lex_state = 13, .external_lex_state = 1},
+  [110] = {.lex_state = 13, .external_lex_state = 1},
+  [111] = {.lex_state = 13, .external_lex_state = 1},
+  [112] = {.lex_state = 13, .external_lex_state = 1},
+  [113] = {.lex_state = 13, .external_lex_state = 1},
+  [114] = {.lex_state = 13, .external_lex_state = 1},
+  [115] = {.lex_state = 14},
+  [116] = {.lex_state = 16},
+  [117] = {.lex_state = 14},
+  [118] = {.lex_state = 13},
+  [119] = {.lex_state = 16},
+  [120] = {.lex_state = 16},
+  [121] = {.lex_state = 13},
+  [122] = {.lex_state = 16},
+  [123] = {.lex_state = 13},
+  [124] = {.lex_state = 13},
+  [125] = {.lex_state = 13},
+  [126] = {.lex_state = 13},
+  [127] = {.lex_state = 13},
+  [128] = {.lex_state = 13},
   [129] = {.lex_state = 0},
-  [130] = {.lex_state = 15},
+  [130] = {.lex_state = 14},
   [131] = {.lex_state = 0},
-  [132] = {.lex_state = 14},
-  [133] = {.lex_state = 14},
+  [132] = {.lex_state = 13},
+  [133] = {.lex_state = 13},
   [134] = {.lex_state = 0},
   [135] = {.lex_state = 0},
-  [136] = {.lex_state = 14},
-  [137] = {.lex_state = 14},
-  [138] = {.lex_state = 15},
-  [139] = {.lex_state = 14},
-  [140] = {.lex_state = 14},
-  [141] = {.lex_state = 14},
-  [142] = {.lex_state = 15},
-  [143] = {.lex_state = 14},
+  [136] = {.lex_state = 13},
+  [137] = {.lex_state = 13},
+  [138] = {.lex_state = 14},
+  [139] = {.lex_state = 13},
+  [140] = {.lex_state = 13},
+  [141] = {.lex_state = 13},
+  [142] = {.lex_state = 14},
+  [143] = {.lex_state = 13},
   [144] = {.lex_state = 0},
-  [145] = {.lex_state = 14},
-  [146] = {.lex_state = 14},
-  [147] = {.lex_state = 14},
-  [148] = {.lex_state = 14},
-  [149] = {.lex_state = 14},
-  [150] = {.lex_state = 14},
+  [145] = {.lex_state = 13},
+  [146] = {.lex_state = 13},
+  [147] = {.lex_state = 13},
+  [148] = {.lex_state = 13},
+  [149] = {.lex_state = 13},
+  [150] = {.lex_state = 13},
   [151] = {.lex_state = 0},
   [152] = {.lex_state = 0},
   [153] = {.lex_state = 0},
@@ -2721,28 +2725,28 @@ static const TSLexMode ts_lex_modes[STATE_COUNT] = {
   [155] = {.lex_state = 0},
   [156] = {.lex_state = 0},
   [157] = {.lex_state = 0},
-  [158] = {.lex_state = 14},
+  [158] = {.lex_state = 13},
   [159] = {.lex_state = 0},
   [160] = {.lex_state = 0},
-  [161] = {.lex_state = 17},
+  [161] = {.lex_state = 16},
   [162] = {.lex_state = 0},
   [163] = {.lex_state = 0},
   [164] = {.lex_state = 0},
-  [165] = {.lex_state = 17},
+  [165] = {.lex_state = 16},
   [166] = {.lex_state = 0},
-  [167] = {.lex_state = 17},
-  [168] = {.lex_state = 17},
-  [169] = {.lex_state = 17},
+  [167] = {.lex_state = 16},
+  [168] = {.lex_state = 16},
+  [169] = {.lex_state = 16},
   [170] = {.lex_state = 0},
-  [171] = {.lex_state = 17},
-  [172] = {.lex_state = 17},
+  [171] = {.lex_state = 16},
+  [172] = {.lex_state = 16},
   [173] = {.lex_state = 0},
-  [174] = {.lex_state = 17},
+  [174] = {.lex_state = 16},
   [175] = {.lex_state = 0},
   [176] = {.lex_state = 0},
   [177] = {.lex_state = 0},
   [178] = {.lex_state = 0},
-  [179] = {.lex_state = 17},
+  [179] = {.lex_state = 16},
   [180] = {.lex_state = 0},
   [181] = {.lex_state = 0},
   [182] = {.lex_state = 0},
@@ -2757,12 +2761,12 @@ static const TSLexMode ts_lex_modes[STATE_COUNT] = {
   [191] = {.lex_state = 0},
   [192] = {.lex_state = 0},
   [193] = {.lex_state = 0},
-  [194] = {.lex_state = 17},
-  [195] = {.lex_state = 17},
-  [196] = {.lex_state = 17},
-  [197] = {.lex_state = 17},
+  [194] = {.lex_state = 16},
+  [195] = {.lex_state = 16},
+  [196] = {.lex_state = 16},
+  [197] = {.lex_state = 16},
   [198] = {.lex_state = 0},
-  [199] = {.lex_state = 17},
+  [199] = {.lex_state = 16},
   [200] = {.lex_state = 0},
   [201] = {.lex_state = 0},
   [202] = {.lex_state = 0},
@@ -2771,49 +2775,49 @@ static const TSLexMode ts_lex_modes[STATE_COUNT] = {
   [205] = {.lex_state = 0},
   [206] = {.lex_state = 0},
   [207] = {.lex_state = 0},
-  [208] = {.lex_state = 17},
+  [208] = {.lex_state = 16},
   [209] = {.lex_state = 0},
-  [210] = {.lex_state = 17},
+  [210] = {.lex_state = 16},
   [211] = {.lex_state = 0},
   [212] = {.lex_state = 0},
   [213] = {.lex_state = 0},
   [214] = {.lex_state = 0},
   [215] = {.lex_state = 0},
-  [216] = {.lex_state = 17},
-  [217] = {.lex_state = 17},
+  [216] = {.lex_state = 16},
+  [217] = {.lex_state = 16},
   [218] = {.lex_state = 0},
   [219] = {.lex_state = 0},
   [220] = {.lex_state = 0},
   [221] = {.lex_state = 0},
   [222] = {.lex_state = 0},
   [223] = {.lex_state = 0},
-  [224] = {.lex_state = 17},
-  [225] = {.lex_state = 17},
-  [226] = {.lex_state = 17},
+  [224] = {.lex_state = 16},
+  [225] = {.lex_state = 16},
+  [226] = {.lex_state = 16},
   [227] = {.lex_state = 0},
   [228] = {.lex_state = 0},
   [229] = {.lex_state = 0},
-  [230] = {.lex_state = 17},
-  [231] = {.lex_state = 17},
+  [230] = {.lex_state = 16},
+  [231] = {.lex_state = 16},
   [232] = {.lex_state = 0},
   [233] = {.lex_state = 0},
-  [234] = {.lex_state = 17},
-  [235] = {.lex_state = 17},
+  [234] = {.lex_state = 16},
+  [235] = {.lex_state = 16},
   [236] = {.lex_state = 0},
   [237] = {.lex_state = 0},
   [238] = {.lex_state = 0},
   [239] = {.lex_state = 0},
-  [240] = {.lex_state = 17},
+  [240] = {.lex_state = 16},
   [241] = {.lex_state = 0},
-  [242] = {.lex_state = 17},
-  [243] = {.lex_state = 17},
-  [244] = {.lex_state = 17},
-  [245] = {.lex_state = 17},
-  [246] = {.lex_state = 14},
-  [247] = {.lex_state = 14},
-  [248] = {.lex_state = 14},
-  [249] = {.lex_state = 14},
-  [250] = {.lex_state = 14},
+  [242] = {.lex_state = 16},
+  [243] = {.lex_state = 16},
+  [244] = {.lex_state = 16},
+  [245] = {.lex_state = 16},
+  [246] = {.lex_state = 13},
+  [247] = {.lex_state = 13},
+  [248] = {.lex_state = 13},
+  [249] = {.lex_state = 13},
+  [250] = {.lex_state = 13},
   [251] = {.lex_state = 0},
   [252] = {.lex_state = 0},
   [253] = {.lex_state = 0},
@@ -2840,7 +2844,7 @@ static const TSLexMode ts_lex_modes[STATE_COUNT] = {
   [274] = {.lex_state = 0},
   [275] = {.lex_state = 0},
   [276] = {.lex_state = 0},
-  [277] = {.lex_state = 14},
+  [277] = {.lex_state = 13},
   [278] = {.lex_state = 0},
   [279] = {.lex_state = 0},
   [280] = {.lex_state = 0},
@@ -2853,12 +2857,12 @@ static const TSLexMode ts_lex_modes[STATE_COUNT] = {
   [287] = {.lex_state = 0},
   [288] = {.lex_state = 0},
   [289] = {.lex_state = 0},
-  [290] = {.lex_state = 14},
+  [290] = {.lex_state = 13},
   [291] = {.lex_state = 0, .external_lex_state = 1},
   [292] = {.lex_state = 0},
-  [293] = {.lex_state = 14},
+  [293] = {.lex_state = 13},
   [294] = {.lex_state = 0},
-  [295] = {.lex_state = 14},
+  [295] = {.lex_state = 13},
   [296] = {.lex_state = 0},
   [297] = {.lex_state = 0},
   [298] = {.lex_state = 0},
@@ -2871,11 +2875,11 @@ static const TSLexMode ts_lex_modes[STATE_COUNT] = {
   [305] = {.lex_state = 0},
   [306] = {.lex_state = 0},
   [307] = {.lex_state = 0},
-  [308] = {.lex_state = 14},
+  [308] = {.lex_state = 13},
   [309] = {.lex_state = 0},
   [310] = {.lex_state = 0},
   [311] = {.lex_state = 0},
-  [312] = {.lex_state = 14},
+  [312] = {.lex_state = 13},
   [313] = {.lex_state = 0},
   [314] = {.lex_state = 0},
   [315] = {.lex_state = 0},
@@ -2883,7 +2887,7 @@ static const TSLexMode ts_lex_modes[STATE_COUNT] = {
   [317] = {.lex_state = 0},
   [318] = {.lex_state = 0},
   [319] = {.lex_state = 0},
-  [320] = {.lex_state = 14},
+  [320] = {.lex_state = 13},
   [321] = {.lex_state = 0},
   [322] = {.lex_state = 0},
   [323] = {.lex_state = 0},
@@ -2896,7 +2900,7 @@ static const TSLexMode ts_lex_modes[STATE_COUNT] = {
   [330] = {.lex_state = 0},
   [331] = {.lex_state = 0},
   [332] = {.lex_state = 0},
-  [333] = {.lex_state = 14},
+  [333] = {.lex_state = 13},
   [334] = {.lex_state = 0},
   [335] = {.lex_state = 0},
   [336] = {.lex_state = 0},
@@ -2937,26 +2941,26 @@ static const TSLexMode ts_lex_modes[STATE_COUNT] = {
   [371] = {.lex_state = 0},
   [372] = {.lex_state = 0},
   [373] = {.lex_state = 0},
-  [374] = {.lex_state = 14},
-  [375] = {.lex_state = 4},
+  [374] = {.lex_state = 13},
+  [375] = {.lex_state = 71},
   [376] = {.lex_state = 0},
   [377] = {.lex_state = 0},
   [378] = {.lex_state = 0},
   [379] = {.lex_state = 0},
   [380] = {.lex_state = 0},
   [381] = {.lex_state = 0},
-  [382] = {.lex_state = 14},
+  [382] = {.lex_state = 13},
   [383] = {.lex_state = 0},
   [384] = {.lex_state = 0},
   [385] = {.lex_state = 0},
-  [386] = {.lex_state = 15},
+  [386] = {.lex_state = 14},
   [387] = {.lex_state = 0},
   [388] = {.lex_state = 0},
   [389] = {.lex_state = 0},
   [390] = {.lex_state = 0},
   [391] = {.lex_state = 0},
   [392] = {.lex_state = 0},
-  [393] = {.lex_state = 15},
+  [393] = {.lex_state = 14},
   [394] = {.lex_state = 0},
   [395] = {.lex_state = 0},
   [396] = {.lex_state = 0},
@@ -2972,13 +2976,13 @@ static const TSLexMode ts_lex_modes[STATE_COUNT] = {
   [406] = {.lex_state = 0},
   [407] = {.lex_state = 0},
   [408] = {.lex_state = 0},
-  [409] = {.lex_state = 14},
+  [409] = {.lex_state = 13},
   [410] = {.lex_state = 0},
-  [411] = {.lex_state = 15},
-  [412] = {.lex_state = 15},
+  [411] = {.lex_state = 14},
+  [412] = {.lex_state = 14},
   [413] = {.lex_state = 0},
   [414] = {.lex_state = 67},
-  [415] = {.lex_state = 4},
+  [415] = {.lex_state = 71},
   [416] = {.lex_state = 0},
   [417] = {.lex_state = 0},
   [418] = {.lex_state = 0},
