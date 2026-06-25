@@ -117,6 +117,20 @@ pub fn modal(
         ctx.data_mut(|d| d.insert_temp(opened_id, true));
     }
 
+    let prev_focus_id = egui::Id::new(spec.id).with("prev_focus");
+
+    // ── Focus save/restore ──
+    // When the dialog first opens it steals focus from whatever widget the
+    // user was interacting with. Capture that widget's Id so we can hand
+    // focus back once the dialog is fully dismissed (exit animation done).
+    if first_frame && !is_closing {
+        ctx.memory(|m| {
+            ctx.data_mut(|d| {
+                d.insert_temp(prev_focus_id, m.focused());
+            });
+        });
+    }
+
     // Use separate transitions for open vs close:
     //   - Open:  MODAL (DECELERATE, 0.40s) — fast rise, gentle settle
     //   - Close: MODAL_EXIT (STANDARD, 0.20s) — shorter symmetric exit;
@@ -243,6 +257,15 @@ pub fn modal(
     let fully_closed = is_closing && raw_progress <= 0.0;
     if fully_closed {
         ctx.data_mut(|d| {
+            // Restore focus to the widget that was active before the dialog opened.
+            // Guard: if nothing had focus (m.focused() was None), stored value is
+            // None and request_focus is a no-op.
+            if let Some(saved) = d.get_temp::<Option<egui::Id>>(prev_focus_id).as_ref().and_then(|o| *o) {
+                ctx.memory_mut(|m| {
+                    m.request_focus(saved);
+                });
+            }
+            d.remove::<Option<egui::Id>>(prev_focus_id);
             d.remove::<bool>(closing_id);
             d.remove::<bool>(opened_id);
         });

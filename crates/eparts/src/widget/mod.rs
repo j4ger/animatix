@@ -5,18 +5,25 @@
 //! generic `eparts::tokens` design-token system.
 
 pub mod anim;
+pub mod overlay;
 pub mod button;
 pub mod context_menu;
 pub mod diagnostics;
 pub mod dialog;
 pub mod easing_curve_editor;
+pub mod kbd;
 pub mod layout;
 pub mod row;
 pub mod spinner;
 pub mod text;
 pub mod timeline;
 pub mod toast;
+pub mod tooltip;
+pub mod popover;
 pub mod traits;
 
 pub use traits::{Collapsible, Disableable, Selectable, Size, Sizable};
 pub use spinner::Spinner;
+pub use tooltip::{Tooltip, text_tooltip};
+pub use popover::Popover;
+pub use kbd::{Kbd, format_shortcut};
