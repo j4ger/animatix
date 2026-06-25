@@ -351,6 +351,14 @@ fn expr_type(expr: &Expr) -> TypeAnnotation {
             // (we can't know for sure without symbol table, so we guess)
             TypeAnnotation::Any
         }
+        // Known colorscheme namespaces (accent.*, text.*, surface.*, stroke.*) infer Color.
+        // scene.* is excluded — it mixes colors and anchors.
+        Expr::Path(parts)
+            if parts.len() >= 2
+                && matches!(parts[0].as_str(), "accent" | "text" | "surface" | "stroke") =>
+        {
+            TypeAnnotation::Color
+        }
         Expr::Path(parts) if parts.len() == 1 => {
             TypeAnnotation::Any
         }
@@ -708,5 +716,50 @@ mod tests {
         let mut env = TypeEnv::new(&components, &module_actions);
         let type_errors = env.check_statements(&ast);
         assert!(type_errors.is_empty(), "Type errors: {:?}", type_errors);
+    }
+
+    #[test]
+    fn colorscheme_paths_infer_color_in_strict_mode() {
+        use crate::ast::Expr;
+        // Known colorscheme namespaces with ≥2 segments → Color
+        for ns in &["accent", "text", "surface", "stroke"] {
+            let path = Expr::Path(vec![ns.to_string(), "primary".to_string()]);
+            assert_eq!(
+                expr_type(&path),
+                TypeAnnotation::Color,
+                "{ns}.primary should be Color"
+            );
+        }
+        // scene.* stays Any (mixes colors and anchors)
+        let scene = Expr::Path(vec!["scene".to_string(), "background".to_string()]);
+        assert_eq!(expr_type(&scene), TypeAnnotation::Any);
+        // single-segment stays Any
+        let single = Expr::Path(vec!["accent".to_string()]);
+        assert_eq!(expr_type(&single), TypeAnnotation::Any);
+    }
+
+    #[test]
+    fn colorscheme_path_accepted_for_color_param() {
+        // accent.primary should be accepted where a Color param is expected
+        let env = make_env(); // Button has a 'color: Color' param
+        let stmts = vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "btn".to_string(),
+            array_index: None,
+            ty: "Button".to_string(),
+            props: vec![Property {
+                name: "color".to_string(),
+                value: Expr::Path(vec!["accent".to_string(), "primary".to_string()]),
+                value_span: None,
+                trailing_comment: None,
+            }],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }];
+        let mut env = env;
+        let diagnostics = env.check_statements(&stmts);
+        assert!(diagnostics.is_empty(), "accent.primary should be accepted for Color param, got: {:?}", diagnostics);
     }
 }

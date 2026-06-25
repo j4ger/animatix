@@ -683,7 +683,13 @@ pub fn infer_expr_type(expr: &Expr) -> PropertyType {
         }
         Expr::List(_) => PropertyType::Array,
         Expr::Ident(_) => PropertyType::Any,
-        Expr::Path(_) => PropertyType::Any, // e.g., text.primary
+        // Known colorscheme namespaces always yield Color; scene.* is excluded (mixes colors and anchors).
+        Expr::Path(parts) if parts.len() >= 2
+            && matches!(parts[0].as_str(), "accent" | "text" | "surface" | "stroke") =>
+        {
+            PropertyType::Color
+        }
+        Expr::Path(_) => PropertyType::Any, // e.g., text.primary (single-segment), scene.*
         Expr::Index(_, _) => PropertyType::Any,
         Expr::Binary(left, op, right) => {
             let lt = infer_expr_type(left);
@@ -823,5 +829,24 @@ mod tests {
         let text_props = table.properties.get("Text").unwrap();
         assert!(text_props.contains(&"content".to_string()));
         assert!(text_props.contains(&"font_size".to_string()));
+    }
+
+    #[test]
+    fn colorscheme_paths_infer_color() {
+        // accent.*, text.*, surface.*, stroke.* with ≥2 segments → Color
+        for ns in &["accent", "text", "surface", "stroke"] {
+            let path = Expr::Path(vec![ns.to_string(), "primary".to_string()]);
+            assert_eq!(
+                infer_expr_type(&path),
+                PropertyType::Color,
+                "{ns}.primary should be Color"
+            );
+        }
+        // scene.* stays Any (mixes colors and anchors)
+        let scene = Expr::Path(vec!["scene".to_string(), "background".to_string()]);
+        assert_eq!(infer_expr_type(&scene), PropertyType::Any);
+        // single-segment stays Any
+        let single = Expr::Path(vec!["accent".to_string()]);
+        assert_eq!(infer_expr_type(&single), PropertyType::Any);
     }
 }
