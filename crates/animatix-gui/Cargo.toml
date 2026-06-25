@@ -13,6 +13,7 @@ video = ["animatix/video"]
 animatix = { path = "../animatix" }
 animatix-analyzer = { path = "../animatix-analyzer" }
 animatix-syntax = { path = "../animatix-syntax" }
+eparts = { path = "../eparts" }
 crossbeam-channel = "0.5"
 directories = "6.0.0"
 eframe = { workspace = true }

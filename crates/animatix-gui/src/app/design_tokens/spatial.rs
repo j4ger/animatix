@@ -1,47 +1,65 @@
 //! Spatial tokens — spacing, row heights, stroke widths, radii,
 //! and domain-specific layout dimensions.
+//!
+//! Generic spatial constants (`SPACE_*`, `ROW_*`, `RADIUS_*`, `STROKE_*`,
+//! legacy aliases, `component`) are individually re-exported from
+//! `eparts::tokens::spatial`. App-specific submodules (`preview`, `timeline`,
+//! `inspector`, `menu`, `toolbar`, `welcome`, `dialog`) are defined inline
+//! below.
+//!
+//! Every item — generic and app-specific — is at the same module depth so
+//! that existing paths like `design_tokens::spatial::SPACE_4` and
+//! `design_tokens::spatial::preview::HANDLE_SIZE` continue to resolve.
 
-// ── Unified spacing scale ──
-pub const SPACE_0: f32 = 0.0;
-pub const SPACE_1: f32 = 2.0;
-pub const SPACE_2: f32 = 4.0;
-pub const SPACE_3: f32 = 6.0;
-pub const SPACE_4: f32 = 8.0;
-pub const SPACE_5: f32 = 12.0;
-pub const SPACE_6: f32 = 16.0;
-pub const SPACE_7: f32 = 24.0;
-pub const SPACE_8: f32 = 32.0;
+// ── Generic tokens — individually re-exported from eparts ─────────────────────
+// Individual re-exports (rather than `pub use …::spatial;`) are required
+// so that local submodules like `dialog` can resolve `super::SPACE_4`.
 
-// ── Legacy naming aliases (Phase 1 migration compatibility) ──
-// These will be removed once all call sites use the new SPACE_N scale.
-pub const SPACE_XS: f32 = SPACE_1;
-pub const SPACE_S: f32 = SPACE_2;
-pub const SPACE_M: f32 = SPACE_3;
-pub const SPACE_L: f32 = SPACE_4;
-pub const SPACE_XL: f32 = SPACE_5;
-pub const PAD_XS: f32 = SPACE_1;
-pub const PAD_S: f32 = SPACE_2;
-pub const PAD_M: f32 = SPACE_3;
-pub const PAD_L: f32 = SPACE_4;
-pub const PAD_XL: f32 = SPACE_5;
-pub const PAD_XXL: f32 = SPACE_6;
+// Spacing scale
+pub use eparts::tokens::spatial::SPACE_0;
+pub use eparts::tokens::spatial::SPACE_1;
+pub use eparts::tokens::spatial::SPACE_2;
+pub use eparts::tokens::spatial::SPACE_3;
+pub use eparts::tokens::spatial::SPACE_4;
+pub use eparts::tokens::spatial::SPACE_5;
+pub use eparts::tokens::spatial::SPACE_6;
+pub use eparts::tokens::spatial::SPACE_7;
+pub use eparts::tokens::spatial::SPACE_8;
 
-// ── Row heights ──
-pub const ROW_XS: f32 = 18.0;
-pub const ROW_S: f32 = 20.0;
-pub const ROW_M: f32 = 24.0;
-pub const ROW_L: f32 = 28.0;
+// Legacy aliases
+pub use eparts::tokens::spatial::PAD_XXL;
+pub use eparts::tokens::spatial::PAD_L;
+pub use eparts::tokens::spatial::PAD_M;
+pub use eparts::tokens::spatial::PAD_S;
+pub use eparts::tokens::spatial::PAD_XL;
+pub use eparts::tokens::spatial::PAD_XS;
+pub use eparts::tokens::spatial::SPACE_XL;
+pub use eparts::tokens::spatial::SPACE_XS;
+pub use eparts::tokens::spatial::SPACE_L;
+pub use eparts::tokens::spatial::SPACE_M;
+pub use eparts::tokens::spatial::SPACE_S;
 
-// ── Stroke widths ──
-pub const STROKE_WIDTH: f32 = 1.0;
-pub const STROKE_WIDTH_THICK: f32 = 1.5;
-pub const STROKE_WIDTH_THIN: f32 = 0.5;
+// Row heights
+pub use eparts::tokens::spatial::ROW_L;
+pub use eparts::tokens::spatial::ROW_M;
+pub use eparts::tokens::spatial::ROW_S;
+pub use eparts::tokens::spatial::ROW_XS;
 
-// ── Corner radii ──
-pub const RADIUS_S: f32 = 2.0;
-pub const RADIUS_M: f32 = 4.0;
-pub const RADIUS_L: f32 = 6.0;
-pub const RADIUS_XL: f32 = 8.0;
+// Stroke widths
+pub use eparts::tokens::spatial::STROKE_WIDTH;
+pub use eparts::tokens::spatial::STROKE_WIDTH_THICK;
+pub use eparts::tokens::spatial::STROKE_WIDTH_THIN;
+
+// Corner radii
+pub use eparts::tokens::spatial::RADIUS_L;
+pub use eparts::tokens::spatial::RADIUS_M;
+pub use eparts::tokens::spatial::RADIUS_S;
+pub use eparts::tokens::spatial::RADIUS_XL;
+
+// Reusable component submodule
+pub use eparts::tokens::spatial::component;
+
+// ── App-specific submodules — defined locally ────────────────────────────────
 
 // ── Preview canvas ──
 pub mod preview {
@@ -89,22 +107,14 @@ pub mod welcome {
     pub const TOP_OFFSET_FRAC: f32 = 0.22;
 }
 
-// ── Reusable component dimensions ──
-pub mod component {
-    pub const PILL_TAB_HEIGHT: f32 = 26.0;
-    pub const PILL_TAB_GAP: f32 = 2.0;
-    pub const TOAST_WIDTH: f32 = 280.0;
-    pub const TOAST_HEIGHT: f32 = 40.0;
-    pub const TOAST_SPACING: f32 = 8.0;
-    pub const TOAST_MARGIN: f32 = 16.0;
-    pub const ICON_SLOT_WIDTH: f32 = 14.0;
-}
-
 // ── Dialog layout constants ──
 pub mod dialog {
-    use super::SPACE_4;
-    use super::SPACE_5;
-    use super::SPACE_7;
+    // SPACE_* are re-exported at the `spatial` module level from eparts;
+    // Rust use-super resolution does not follow re-export chains, so import
+    // from eparts directly.
+    use eparts::tokens::spatial::SPACE_4;
+    use eparts::tokens::spatial::SPACE_5;
+    use eparts::tokens::spatial::SPACE_7;
 
     /// Inner margin applied around all dialog content (12px).
     pub const INNER_MARGIN: f32 = SPACE_5;
@@ -126,7 +136,10 @@ pub mod dialog {
 
 // ── Inspector layout ──
 pub mod inspector {
-    use super::ROW_M;
+    // ROW_M is re-exported at the `spatial` module level from eparts;
+    // Rust use-super resolution does not follow re-export chains, so import
+    // from eparts directly.
+    use eparts::tokens::spatial::ROW_M;
 
     pub const KF_COL_WIDTH: f32 = 18.0;
     pub const LABEL_MIN_WIDTH: f32 = 90.0;
