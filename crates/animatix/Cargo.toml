@@ -32,7 +32,7 @@ typst = { version = "0.14.2", optional = true }
 typst-layout = { version = "0.14.2", optional = true }
 usvg = { version = "0.47.0", optional = true }
 vello = { git = "https://github.com/linebender/vello", rev = "17166312", default-features = false, features = ["wgpu"], optional = true }
-wgpu = { version = "29.0.0", default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"], optional = true }
+wgpu = { workspace = true, default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"], optional = true }
 taffy = { version = "0.10", default-features = false, features = ["flexbox", "grid", "std", "taffy_tree"] }
 thiserror = "2.0"
 tracing = "0.1"

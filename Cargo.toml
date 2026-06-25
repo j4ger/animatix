@@ -8,3 +8,15 @@ members = [
     "crates/tree-sitter-animatix"
 ]
 resolver = "2"
+
+[workspace.dependencies]
+# egui stack — single source of truth, shared by eparts + animatix-gui
+egui            = { version = "0.34" }
+eframe          = { version = "0.34", default-features = false, features = ["default_fonts", "wgpu", "x11", "wayland"] }
+egui-phosphor   = { version = "0.12", default-features = false, features = ["regular"] }
+egui_extras     = { version = "0.34", features = ["syntect"] }
+egui_tiles      = { version = "0.15", features = ["serde"] }
+egui_code_editor = { version = "0.2", features = ["editor", "egui"] }
+
+# Shared graphics dep already duplicated across animatix + animatix-gui
+wgpu            = { version = "29.0.0", default-features = false }

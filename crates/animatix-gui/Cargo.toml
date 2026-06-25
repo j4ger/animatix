@@ -15,12 +15,12 @@ animatix-analyzer = { path = "../animatix-analyzer" }
 animatix-syntax = { path = "../animatix-syntax" }
 crossbeam-channel = "0.5"
 directories = "6.0.0"
-eframe = { version = "0.34", default-features = false, features = ["default_fonts", "wgpu", "x11", "wayland"] }
-egui = { version = "0.34", features = ["serde"] }
-egui_code_editor = { version = "0.2", features = ["editor", "egui"] }
-egui_extras = { version = "0.34", features = ["syntect"] }
-egui_tiles = { version = "0.15", features = ["serde"] }
-egui-phosphor = { version = "0.12", default-features = false, features = ["regular"] }
+eframe = { workspace = true }
+egui = { workspace = true, features = ["serde"] }
+egui_code_editor = { workspace = true }
+egui_extras = { workspace = true }
+egui_tiles = { workspace = true }
+egui-phosphor = { workspace = true }
 kurbo = "0.13.0"
 pollster = "0.4.0"
 ron = "0.12.0"
@@ -35,7 +35,7 @@ rodio = "0.20"
 tree-sitter = "0.26"
 tree-sitter-animatix = { path = "../tree-sitter-animatix" }
 tree-sitter-highlight = "0.26"
-wgpu = "29.0.0"
+wgpu = { workspace = true, default-features = true }
 
 [dev-dependencies]
 chumsky = "0.12"
