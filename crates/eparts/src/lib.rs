@@ -18,6 +18,8 @@ pub use widget::traits::{Collapsible, Disableable, Selectable, Size, Sizable};
 // ── Runtime theme (B1) ──────────────────────────────────────────────
 pub use tokens::theme::{theme, theme_from_ctx, set_theme, AppThemeChoice, Theme};
 
+pub use tokens::spatial::{density, density_from_ctx, set_density, Density, spatial, spatial_from_ctx, Spatial};
+
 // ── Motion preference (reduced-motion) ───────────────────────────────
 pub use tokens::motion::{motion_preference, motion_preference_from_ctx, set_motion_preference, MotionPreference, resolve_duration};
 
