@@ -98,6 +98,13 @@ pub(crate) struct SettingsPersistence {
     /// True when the user prefers reduced motion. Defaults to false.
     #[serde(default)]
     pub reduce_motion: bool,
+    /// Density preference: "default" or "compact". Defaults to "default".
+    #[serde(default = "default_density")]
+    pub density: String,
+}
+
+fn default_density() -> String {
+    "default".to_string()
 }
 
 fn default_app_theme() -> String {

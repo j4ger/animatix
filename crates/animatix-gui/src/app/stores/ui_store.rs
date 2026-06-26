@@ -106,6 +106,8 @@ pub struct ViewStore {
     pub timeline_focused: bool,
     /// True when the user prefers reduced motion (animations snap to instant).
     pub reduce_motion: bool,
+    /// Density preference for UI spacing.
+    pub density: eparts::Density,
 }
 
 impl ViewStore {
@@ -131,6 +133,7 @@ impl ViewStore {
             app_theme: eparts::AppThemeChoice::default(),
             timeline_focused: false,
             reduce_motion: false,
+            density: eparts::Density::Default,
         }
     }
 }

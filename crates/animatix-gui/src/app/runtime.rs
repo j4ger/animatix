@@ -67,6 +67,8 @@ struct AnimatixApp {
     applied_theme_signature: Option<(eparts::AppThemeChoice, Option<bool>)>,
     /// The motion preference applied on the previous frame, to avoid redundant work.
     applied_motion_preference: Option<bool>,
+    /// The density applied on the previous frame, to avoid redundant work.
+    applied_density: Option<eparts::Density>,
 }
 
 /// Probe the OS light/dark appearance via the `dark-light` crate.
@@ -114,6 +116,7 @@ impl AnimatixApp {
         install_theme(&cc.egui_ctx, &theme, choice.is_dark(system_is_dark));
 
         let reduce_motion = shell.ui_store.view.reduce_motion;
+        let initial_density = shell.ui_store.view.density;
 
         let audio_engine = match AudioEngine::new() {
             Ok(engine) => Some(engine),
@@ -132,6 +135,7 @@ impl AnimatixApp {
             last_theme_probe: Some(std::time::Instant::now()),
             applied_theme_signature: Some((choice, system_is_dark)),
             applied_motion_preference: Some(reduce_motion),
+            applied_density: Some(initial_density),
         })
     }
 
@@ -638,6 +642,13 @@ impl eframe::App for AnimatixApp {
                 };
                 eparts::set_motion_preference(ui.ctx(), pref);
                 self.applied_motion_preference = Some(reduce);
+            }
+
+            // Sync density preference
+            let d = self.shell.ui_store.view.density;
+            if self.applied_density != Some(d) {
+                eparts::set_density(ui.ctx(), d);
+                self.applied_density = Some(d);
             }
         }
 

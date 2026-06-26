@@ -464,6 +464,10 @@ impl GuiShell {
                 _ => eparts::AppThemeChoice::Auto,
             };
             ui_store.view.reduce_motion = s.reduce_motion;
+            ui_store.view.density = match s.density.as_str() {
+                "compact" => eparts::Density::Compact,
+                _ => eparts::Density::Default,
+            };
             // undo_limit is on DocumentStore created below inside Self {} — skipped for now (default 100 is fine)
         }
 
@@ -998,6 +1002,11 @@ impl GuiShell {
                 }
                 .to_string(),
                 reduce_motion: self.ui_store.view.reduce_motion,
+                density: match self.ui_store.view.density {
+                    eparts::Density::Compact => "compact",
+                    eparts::Density::Default => "default",
+                }
+                .to_string(),
             }),
         };
         if let Ok(serialized) =

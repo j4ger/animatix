@@ -89,6 +89,36 @@ impl GuiShell {
                                 ui.checkbox(&mut self.ui_store.view.reduce_motion, "Snap animations");
                             });
                         });
+
+                    ui.add_space(sp.base.space_2);
+
+                    {
+                        let mut density_idx = match self.ui_store.view.density {
+                            eparts::Density::Default => Some(0usize),
+                            eparts::Density::Compact => Some(1),
+                        };
+                        let densities = ["Default", "Compact"];
+
+                        eparts::widget::Form::new("density_form")
+                            .label_width(SETTINGS_INPUT_WIDTH)
+                            .show(ui, |f| {
+                                f.field("Density", |ui| {
+                                    ui.add(
+                                        eparts::widget::Select::new(
+                                            "density_select",
+                                            &mut density_idx,
+                                            &densities,
+                                        )
+                                        .placeholder("Select density"),
+                                    );
+                                });
+                            });
+
+                        self.ui_store.view.density = match density_idx {
+                            Some(1) => eparts::Density::Compact,
+                            _ => eparts::Density::Default,
+                        };
+                    }
                 }
                 ui.add_space(sp.base.space_3);
 
