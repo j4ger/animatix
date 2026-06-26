@@ -439,20 +439,29 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                 ctx.preview.snap.snap_hud_label = None;
 
                 // ── Time Lens ──
-                let mut all_kf: Vec<f64> = if let Some(tl) = ctx.timeline {
-                    tl.root_actor_labels()
-                        .iter()
-                        .flat_map(|label| {
-                            tl.get_track(label)
-                                .map(animatix::timeline::collect_all_keyframe_times)
-                                .unwrap_or_default()
-                        })
-                        .collect()
+                let wants_keyboard = ui.ctx().egui_wants_keyboard_input();
+                let t_held = !wants_keyboard
+                    && ui.input(|i| i.key_pressed(egui::Key::T) || i.key_down(egui::Key::T));
+
+                let all_kf = if t_held {
+                    let mut all_kf: Vec<f64> = if let Some(tl) = ctx.timeline {
+                        tl.root_actor_labels()
+                            .iter()
+                            .flat_map(|label| {
+                                tl.get_track(label)
+                                    .map(animatix::timeline::collect_all_keyframe_times)
+                                    .unwrap_or_default()
+                            })
+                            .collect()
+                    } else {
+                        Vec::new()
+                    };
+                    all_kf.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                    all_kf.dedup_by(|a, b| (*a - *b).abs() < 0.001);
+                    all_kf
                 } else {
                     Vec::new()
                 };
-                all_kf.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-                all_kf.dedup_by(|a, b| (*a - *b).abs() < 0.001);
                 if let Some(new_time) = ctx.preview.time_lens.update_and_show(
                     ui,
                     ctx.preview.playback.current_time_s(),
