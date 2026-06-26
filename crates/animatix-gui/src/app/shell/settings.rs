@@ -28,54 +28,57 @@ impl GuiShell {
                 layout::section_header(ui, egui_phosphor::regular::GRID_FOUR, "Preview", None);
                 ui.add_space(SPACE_S);
 
-                layout::labeled_row(
-                    ui,
-                    RichText::new("Grid size").size(TextRole::BodyS.size()).color(text::SECONDARY),
-                    SETTINGS_INPUT_WIDTH,
-                    |ui| {
-                        ui.add(
-                            egui::DragValue::new(&mut self.preview_store.preview.overlay.grid_size)
-                                .speed(1.0)
-                                .range(1.0..=200.0)
-                                .suffix(" px"),
-                        );
-                    },
-                );
+                    {
+                    let mut v = self.preview_store.preview.overlay.grid_size as f64;
+                    eparts::widget::Form::new("preview_form")
+                        .label_width(SETTINGS_INPUT_WIDTH)
+                        .show(ui, |f| {
+                            f.field("Grid size", |ui| {
+                                eparts::NumberField::new(&mut v)
+                                    .range(1.0..=200.0)
+                                    .speed(1.0)
+                                    .suffix(" px")
+                                    .show(ui);
+                            });
+                        });
+                    self.preview_store.preview.overlay.grid_size = v as f32;
+                }
                 ui.add_space(SPACE_M);
 
                 // ── Appearance (IDE light/dark/auto) ──
                 layout::section_header(ui, egui_phosphor::regular::SUN, "Appearance", None);
                 ui.add_space(SPACE_S);
-                layout::labeled_row(
-                    ui,
-                    RichText::new("Theme").size(TextRole::BodyS.size()).color(text::SECONDARY),
-                    SETTINGS_INPUT_WIDTH,
-                    |ui| {
-                        let current = self.ui_store.view.app_theme;
-                        let label = match current {
-                            eparts::AppThemeChoice::Auto => "Auto (system)",
-                            eparts::AppThemeChoice::Light => "Light",
-                            eparts::AppThemeChoice::Dark => "Dark",
-                        };
-                        egui::ComboBox::from_id_salt(ui.id().with("app_theme"))
-                            .selected_text(label)
-                            .width(ui.available_width())
-                            .show_ui(ui, |ui| {
-                                for (choice, name) in [
-                                    (eparts::AppThemeChoice::Auto, "Auto (system)"),
-                                    (eparts::AppThemeChoice::Light, "Light"),
-                                    (eparts::AppThemeChoice::Dark, "Dark"),
-                                ] {
-                                    if ui
-                                        .selectable_label(current == choice, name)
-                                        .clicked()
-                                    {
-                                        self.ui_store.view.app_theme = choice;
-                                    }
-                                }
+
+                {
+                    let mut theme_idx = match self.ui_store.view.app_theme {
+                        eparts::AppThemeChoice::Auto => Some(0),
+                        eparts::AppThemeChoice::Light => Some(1),
+                        eparts::AppThemeChoice::Dark => Some(2),
+                    };
+                    let themes = ["Auto (system)", "Light", "Dark"];
+
+                    eparts::widget::Form::new("appearance_form")
+                        .label_width(SETTINGS_INPUT_WIDTH)
+                        .show(ui, |f| {
+                            f.field("Theme", |ui| {
+                                ui.add(
+                                    eparts::widget::Select::new(
+                                        "app_theme_select",
+                                        &mut theme_idx,
+                                        &themes,
+                                    )
+                                    .placeholder("Select theme"),
+                                );
                             });
-                    },
-                );
+                        });
+
+                    self.ui_store.view.app_theme = match theme_idx {
+                        Some(0) => eparts::AppThemeChoice::Auto,
+                        Some(1) => eparts::AppThemeChoice::Light,
+                        Some(2) => eparts::AppThemeChoice::Dark,
+                        _ => self.ui_store.view.app_theme,
+                    };
+                }
                 ui.add_space(SPACE_M);
 
                 // ── Colorscheme ──
@@ -150,134 +153,112 @@ impl GuiShell {
                 layout::section_header(ui, egui_phosphor::regular::CURSOR_CLICK, "Input", None);
                 ui.add_space(SPACE_S);
 
-                layout::labeled_row(
-                    ui,
-                    RichText::new("Nudge step").size(TextRole::BodyS.size()).color(text::SECONDARY),
-                    SETTINGS_INPUT_WIDTH,
-                    |ui| {
-                        ui.add(
-                            egui::DragValue::new(&mut self.ui_store.nudge_step_px)
-                                .speed(0.5)
-                                .range(0.1..=50.0)
-                                .suffix(" px"),
-                        );
-                    },
-                );
-                ui.add_space(SPACE_S);
+                {
+                    let mut nudge_step_px = self.ui_store.nudge_step_px as f64;
+                    let mut nudge_step_shift_px = self.ui_store.nudge_step_shift_px as f64;
+                    let mut rotation_snap_degrees = self.ui_store.rotation_snap_degrees as f64;
 
-                layout::labeled_row(
-                    ui,
-                    RichText::new("Nudge step (Shift)").size(TextRole::BodyS.size()).color(text::SECONDARY),
-                    SETTINGS_INPUT_WIDTH,
-                    |ui| {
-                        ui.add(
-                            egui::DragValue::new(&mut self.ui_store.nudge_step_shift_px)
-                                .speed(0.5)
-                                .range(1.0..=200.0)
-                                .suffix(" px"),
-                        );
-                    },
-                );
-                ui.add_space(SPACE_S);
+                    eparts::widget::Form::new("input_form")
+                        .label_width(SETTINGS_INPUT_WIDTH)
+                        .show(ui, |f| {
+                            f.field("Nudge step", |ui| {
+                                eparts::NumberField::new(&mut nudge_step_px)
+                                    .range(0.1..=50.0)
+                                    .speed(0.5)
+                                    .suffix(" px")
+                                    .show(ui);
+                            });
+                            f.field("Nudge step (Shift)", |ui| {
+                                eparts::NumberField::new(&mut nudge_step_shift_px)
+                                    .range(1.0..=200.0)
+                                    .speed(0.5)
+                                    .suffix(" px")
+                                    .show(ui);
+                            });
+                            f.field("Rotation snap", |ui| {
+                                eparts::NumberField::new(&mut rotation_snap_degrees)
+                                    .range(1.0..=90.0)
+                                    .speed(1.0)
+                                    .suffix("°")
+                                    .show(ui);
+                            });
+                        });
 
-                layout::labeled_row(
-                    ui,
-                    RichText::new("Rotation snap").size(TextRole::BodyS.size()).color(text::SECONDARY),
-                    SETTINGS_INPUT_WIDTH,
-                    |ui| {
-                        ui.add(
-                            egui::DragValue::new(&mut self.ui_store.rotation_snap_degrees)
-                                .speed(1.0)
-                                .range(1.0..=90.0)
-                                .suffix("°"),
-                        );
-                    },
-                );
+                    self.ui_store.nudge_step_px = nudge_step_px as f32;
+                    self.ui_store.nudge_step_shift_px = nudge_step_shift_px as f32;
+                    self.ui_store.rotation_snap_degrees = rotation_snap_degrees as f32;
+                }
                 ui.add_space(SPACE_M);
 
                 // ── Playback ──
                 layout::section_header(ui, egui_phosphor::regular::PLAY, "Playback", None);
                 ui.add_space(SPACE_S);
 
-                layout::labeled_row(
-                    ui,
-                    RichText::new("Scrub step").size(TextRole::BodyS.size()).color(text::SECONDARY),
-                    SETTINGS_INPUT_WIDTH,
-                    |ui| {
-                        ui.add(
-                            egui::DragValue::new(&mut self.ui_store.scrub_step_s)
-                                .speed(0.01)
-                                .range(0.01..=1.0)
-                                .suffix(" s"),
-                        );
-                    },
-                );
+                {
+                    let mut scrub_step_s = self.ui_store.scrub_step_s;
+                    eparts::widget::Form::new("playback_form")
+                        .label_width(SETTINGS_INPUT_WIDTH)
+                        .show(ui, |f| {
+                            f.field("Scrub step", |ui| {
+                                eparts::NumberField::new(&mut scrub_step_s)
+                                    .range(0.01..=1.0)
+                                    .speed(0.01)
+                                    .suffix(" s")
+                                    .show(ui);
+                            });
+                        });
+                    self.ui_store.scrub_step_s = scrub_step_s;
+                }
                 ui.add_space(SPACE_M);
 
                 // ── Editor ──
                 layout::section_header(ui, egui_phosphor::regular::PENCIL, "Editor", None);
                 ui.add_space(SPACE_S);
 
-                layout::labeled_row(
-                    ui,
-                    RichText::new("Rebuild debounce").size(TextRole::BodyS.size()).color(text::SECONDARY),
-                    SETTINGS_INPUT_WIDTH,
-                    |ui| {
-                        ui.add(
-                            egui::DragValue::new(&mut self.ui_store.rebuild_debounce_ms)
-                                .speed(10.0)
-                                .range(0..=1000)
-                                .suffix(" ms"),
-                        );
-                    },
-                );
-                ui.add_space(SPACE_S);
+                {
+                    let mut rebuild_debounce_ms = self.ui_store.rebuild_debounce_ms as f64;
+                    let mut undo_limit = self.document_store.history.undo_limit as f64;
+                    let mut snap_fps = self.ui_store.snap_fps as f64;
+                    let mut keyframe_merge_window_ms = self.ui_store.keyframe_merge_window_s * 1000.0;
 
-                layout::labeled_row(
-                    ui,
-                    RichText::new("Undo limit").size(TextRole::BodyS.size()).color(text::SECONDARY),
-                    SETTINGS_INPUT_WIDTH,
-                    |ui| {
-                        ui.add(
-                            egui::DragValue::new(&mut self.document_store.history.undo_limit)
-                                .speed(10.0)
-                                .range(10..=1000)
-                                .suffix(" entries"),
-                        );
-                    },
-                );
-                ui.add_space(SPACE_S);
+                    eparts::widget::Form::new("editor_form")
+                        .label_width(SETTINGS_INPUT_WIDTH)
+                        .show(ui, |f| {
+                            f.field("Rebuild debounce", |ui| {
+                                eparts::NumberField::new(&mut rebuild_debounce_ms)
+                                    .range(0.0..=1000.0)
+                                    .speed(10.0)
+                                    .suffix(" ms")
+                                    .show(ui);
+                            });
+                            f.field("Undo limit", |ui| {
+                                eparts::NumberField::new(&mut undo_limit)
+                                    .range(10.0..=1000.0)
+                                    .speed(10.0)
+                                    .suffix(" entries")
+                                    .show(ui);
+                            });
+                            f.field("Snap FPS", |ui| {
+                                eparts::NumberField::new(&mut snap_fps)
+                                    .range(1.0..=240.0)
+                                    .speed(1.0)
+                                    .suffix(" fps")
+                                    .show(ui);
+                            });
+                            f.field("Keyframe merge window", |ui| {
+                                eparts::NumberField::new(&mut keyframe_merge_window_ms)
+                                    .range(0.0..=500.0)
+                                    .speed(1.0)
+                                    .suffix(" ms")
+                                    .show(ui);
+                            });
+                        });
 
-                layout::labeled_row(
-                    ui,
-                    RichText::new("Snap FPS").size(TextRole::BodyS.size()).color(text::SECONDARY),
-                    SETTINGS_INPUT_WIDTH,
-                    |ui| {
-                        ui.add(
-                            egui::DragValue::new(&mut self.ui_store.snap_fps)
-                                .speed(1.0)
-                                .range(1.0..=240.0)
-                                .suffix(" fps"),
-                        );
-                    },
-                );
-                ui.add_space(SPACE_S);
-
-                layout::labeled_row(
-                    ui,
-                    RichText::new("Keyframe merge window").size(TextRole::BodyS.size()).color(text::SECONDARY),
-                    SETTINGS_INPUT_WIDTH,
-                    |ui| {
-                        let mut value_ms = (self.ui_store.keyframe_merge_window_s * 1000.0) as f32;
-                        ui.add(
-                            egui::DragValue::new(&mut value_ms)
-                                .speed(1.0)
-                                .range(0.0..=500.0)
-                                .suffix(" ms"),
-                        );
-                        self.ui_store.keyframe_merge_window_s = (value_ms as f64 / 1000.0).max(0.0);
-                    },
-                );
+                    self.ui_store.rebuild_debounce_ms = rebuild_debounce_ms as u64;
+                    self.document_store.history.undo_limit = undo_limit as usize;
+                    self.ui_store.snap_fps = snap_fps as f32;
+                    self.ui_store.keyframe_merge_window_s = (keyframe_merge_window_ms / 1000.0).max(0.0);
+                }
         close
         });
 
