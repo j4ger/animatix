@@ -63,10 +63,24 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 
 ### Video Export
 
-To enable video export, install FFmpeg system libraries and build with:
+> **Always build/test the `video` feature inside `nix develop`.** The flake's
+> `rustPlatform.bindgenHook` regenerates the `rsmpeg`/`rusty_ffmpeg` bindings
+> from the FFmpeg headers provided by the dev shell, so the build works even
+> though the pinned `rsmpeg` version's tag (`ffmpeg.8.0`) lags the FFmpeg
+> nixpkgs ships (8.1). Running any `--features video` cargo command **outside**
+> `nix develop` fails: `pkg-config` can't find FFmpeg and a stale prebuilt
+> `binding.rs` is used instead. If you hit an `rsmpeg`/FFmpeg "field vs.
+> accessor method" error, you are almost certainly outside the nix shell — not
+> looking at a real version-incompatibility bug.
+
+To enable video export, enter the dev shell first, then build with the `video` feature:
 ```bash
+nix develop                          # provides FFmpeg + pkg-config + bindgenHook
 cargo build --features animatix/video
 ```
+
+(Non-Nix users: install FFmpeg system libraries + `pkg-config`, then
+`cargo build --features animatix/video`.)
 
 To build just the crate without video:
 ```bash
@@ -82,7 +96,7 @@ The GUI crate (`animatix-gui`) does **not** include `video` by default, so `carg
 cargo build -p animatix-gui
 cargo test -p animatix-gui
 
-# Build/test the GUI with video export (requires FFmpeg system libraries)
+# Build/test the GUI with video export (run inside `nix develop`)
 cargo build -p animatix-gui --features video
 cargo check -p animatix-gui --features video
 ```
