@@ -135,6 +135,13 @@ impl Button {
     }
 }
 
+/// Normalize a button label: an empty or whitespace-only label is treated as
+/// `None` so icon-only buttons don't reserve blank label space (which would
+/// push the icon off-center).
+fn effective_label(label: Option<&str>) -> Option<&str> {
+    label.filter(|l| !l.trim().is_empty())
+}
+
 impl egui::Widget for Button {
     fn ui(mut self, ui: &mut egui::Ui) -> Response {
         let (row_height, radius) = match self.size {
@@ -142,6 +149,11 @@ impl egui::Widget for Button {
         };
 
         let t = theme::theme(ui);
+
+        // An empty/whitespace label is treated as "no label" so icon-only ghost/
+        // primary buttons (e.g. `Button::ghost("").with_icon(..)`) center the icon
+        // instead of reserving phantom space for a blank label.
+        let label: Option<&str> = effective_label(self.label.as_deref());
 
         let icon_font = TextRole::Body.font_id();
         let label_font = TextRole::BodyS.font_id();
@@ -218,7 +230,7 @@ impl egui::Widget for Button {
                 let icon_width = icon_galley.as_ref().map_or(0.0, |g| g.size().x);
                 let mut width = icon_width + SPACE_M * 2.0;
                 let mut label_galley = None;
-                if let Some(ref l) = self.label {
+                if let Some(l) = label {
                     let galley = ui.painter().layout_no_wrap(
                         format!("  {}", l),
                         label_font.clone(),
@@ -317,7 +329,7 @@ impl egui::Widget for Button {
                 if icon_width > 0.0 {
                     width += icon_width + SPACE_M;
                 }
-                let label_str = self.label.as_deref();
+                let label_str = label;
                 if let Some(l) = label_str {
                     let galley =
                         ui.painter().layout_no_wrap(l.to_string(), label_font.clone(), t.text.primary);
@@ -471,5 +483,15 @@ mod tests {
     fn on_hover_callback() {
         let b = Button::icon("★").on_hover(Box::new(|| {}));
         assert!(b.on_hover.is_some());
+    }
+
+    #[test]
+    fn effective_label_treats_blank_as_none() {
+        // Empty / whitespace labels must collapse to None so icon-only ghost
+        // buttons (`Button::ghost("").with_icon(..)`) center their icon.
+        assert_eq!(effective_label(None), None);
+        assert_eq!(effective_label(Some("")), None);
+        assert_eq!(effective_label(Some("   ")), None);
+        assert_eq!(effective_label(Some("Hi")), Some("Hi"));
     }
 }

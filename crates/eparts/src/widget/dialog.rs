@@ -125,11 +125,11 @@ pub fn modal(
     // user was interacting with. Capture that widget's Id so we can hand
     // focus back once the dialog is fully dismissed (exit animation done).
     if first_frame && !is_closing {
-        ctx.memory(|m| {
-            ctx.data_mut(|d| {
-                d.insert_temp(prev_focus_id, m.focused());
-            });
-        });
+        // Read focus first (releases the Memory lock), then write to data.
+        // egui stores `data` inside `Memory`, so `ctx.memory()` and `ctx.data_mut()`
+        // lock the SAME RwLock — nesting them would deadlock (freeze).
+        let focused = ctx.memory(|m| m.focused());
+        ctx.data_mut(|d| d.insert_temp(prev_focus_id, focused));
     }
 
     // Use separate transitions for open vs close:
@@ -257,19 +257,22 @@ pub fn modal(
     // completes with no threshold-magic ghost tail.
     let fully_closed = is_closing && raw_progress <= 0.0;
     if fully_closed {
-        ctx.data_mut(|d| {
-            // Restore focus to the widget that was active before the dialog opened.
-            // Guard: if nothing had focus (m.focused() was None), stored value is
-            // None and request_focus is a no-op.
-            if let Some(saved) = d.get_temp::<Option<egui::Id>>(prev_focus_id).as_ref().and_then(|o| *o) {
-                ctx.memory_mut(|m| {
-                    m.request_focus(saved);
-                });
-            }
+        // Read+clear the saved focus from data first (releases the lock), THEN
+        // request focus via Memory. Nesting `ctx.memory_mut` inside `ctx.data_mut`
+        // would deadlock because data lives inside Memory (same RwLock).
+        let saved = ctx.data_mut(|d| {
+            let saved = d
+                .get_temp::<Option<egui::Id>>(prev_focus_id)
+                .and_then(|o| o);
             d.remove::<Option<egui::Id>>(prev_focus_id);
             d.remove::<bool>(closing_id);
             d.remove::<bool>(opened_id);
+            saved
         });
+        // Restore focus to the widget active before the dialog opened (if any).
+        if let Some(saved) = saved {
+            ctx.memory_mut(|m| m.request_focus(saved));
+        }
     }
 
     !fully_closed // returns `true` while the dialog should stay visible (open or animating closed)
