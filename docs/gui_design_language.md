@@ -1,10 +1,10 @@
 # Animatix GUI Design Language
 
 > Authoritative specification for the visual design language, token system,
-> component taxonomy, interaction model, and migration plan for the Animatix GUI.
+> component taxonomy, interaction model, and remaining work for the Animatix GUI.
 >
-> **Status**: Draft — supersedes ad-hoc conventions in `design_tokens.rs` once
-> Phase 1 migration lands.
+> **Status**: Active — `eparts` crate is the shipped component library.
+> The shipped `eparts` code is the source of truth; this document is kept in sync with it.
 
 ---
 
@@ -15,12 +15,27 @@
 3. [Typography](#3-typography)
 4. [Spatial System](#4-spatial-system)
 5. [Color System](#5-color-system)
+   - 5.1 Surface Depth (6 levels)
+   - 5.2 Light Theme Values
+   - 5.3 Semantic Color Roles
+   - 5.4 Color Constraints
+   - 5.5 IDE Token Group
 6. [Component Taxonomy](#6-component-taxonomy)
+   - 6.1 Three Layers
+   - 6.2 Unified Button API
+   - 6.3 Component Constraints
+   - 6.4 Component Theme Slots
 7. [Interaction Language](#7-interaction-language)
+   - 7.1 Gesture System
+   - 7.2 Keyboard Navigation
+   - 7.3 Command System
+   - 7.4 Interaction Constraints (focus ring, cursor convention)
+   - 7.5 Iconography
+   - 7.6 Overlay Layering
 8. [Motion Language](#8-motion-language)
 9. [Layout System](#9-layout-system)
 10. [Accessibility Constraints](#10-accessibility-constraints)
-11. [Migration Plan](#11-migration-plan)
+11. [Status & Remaining Work](#11-status--remaining-work)
 
 ---
 
@@ -68,186 +83,77 @@ operations that *could* be undoable. Only truly irreversible operations
 
 ```
 Layer 1: Primitive   — raw values (hex colors, pixel counts)
-                       Visibility: pub(crate) — never referenced outside tokens/
-                       
+                       Visibility: pub (crate-public) — eparts is a library; the
+                       consuming app's semantic submodules reference primitives
+                       directly via `eparts::tokens::primitive`
+                        
 Layer 2: Semantic    — role-based names mapped from primitives
-                       Visibility: pub — the public API consumed by all UI code
-                       
-Layer 3: Component   — per-component token overrides
+                       Visibility: pub — the public API consumed by widget code
+                        
+Layer 3: Component   — per-component token slots (Theme struct)
                        Visibility: pub — lives alongside the component module
 ```
 
+**Layering invariant.** Widget code imports semantic roles (e.g.
+`semantic::surface::WIDGET`) or reads the runtime `Theme` struct; it never
+imports `primitive::*` directly. This invariant is enforced by **convention
++ code review**, not by `pub(crate)` — because eparts is a published library
+and the consuming app's own semantic submodules (category, diagnostic,
+curve, editor, timeline, canvas) legitimately reference raw palette entries
+through `eparts::tokens::primitive` as their upstream source.
+
+
 ### 2.2 Rust Module Layout
 
-The token system uses Rust's module system for grouping and visibility
-control — no structs, no runtime structs, no trait objects. The compiler
-enforces the layering via `pub(crate)` vs `pub`.
+The token system uses Rust's module system for grouping and visibility control.
 
 ```rust
-// crates/animatix-gui/src/app/design_tokens/mod.rs
+// crates/eparts/src/tokens/mod.rs
 
-/// Primitive token values. Never import from outside this crate's
-/// `design_tokens` module. All consumption goes through `semantic`.
-pub(crate) mod primitive;
+/// Primitive token values — pub so app-specific semantic submodules
+/// in the consuming crate can reference raw palette entries.
+pub mod primitive;
 
-/// Semantic tokens — the public API. All UI code imports from here.
-pub mod semantic;
+/// Semantic tokens — the public API consumed by widget code.
+pub mod semantic;  // surface (6 levels) + text, accent, status, border, lines, overlay
 
-/// Utility functions (lerp, alpha-multiply) — kept for legacy compat
-/// during migration, eventually replaced by pre-computed constants.
+/// Utility functions (lerp, alpha-multiply).
 pub mod util;
 ```
 
 ```rust
-// crates/animatix-gui/src/app/design_tokens/primitive.rs
+// crates/animatix-gui/src/app/design_tokens/semantic.rs (consuming app)
+// App-specific submodules access raw palette entries via super::primitive.
+use super::primitive as p;
 
-use egui::Color32;
-
-// ── Raw palette ──
-pub(crate) const BLUE_500: Color32 = Color32::from_rgb(84, 110, 255);
-pub(crate) const BLUE_400: Color32 = Color32::from_rgb(120, 145, 255);
-pub(crate) const BLUE_600: Color32 = Color32::from_rgb(60, 84, 220);
-
-pub(crate) const GRAY_950: Color32 = Color32::from_rgb(10, 12, 16);
-pub(crate) const GRAY_900: Color32 = Color32::from_rgb(16, 18, 23);
-pub(crate) const GRAY_850: Color32 = Color32::from_rgb(22, 25, 31);
-pub(crate) const GRAY_800: Color32 = Color32::from_rgb(30, 34, 42);
-pub(crate) const GRAY_700: Color32 = Color32::from_rgb(42, 47, 57);
-pub(crate) const GRAY_600: Color32 = Color32::from_rgb(60, 66, 78);
-pub(crate) const GRAY_500: Color32 = Color32::from_rgb(90, 97, 112);
-pub(crate) const GRAY_400: Color32 = Color32::from_rgb(130, 138, 153);
-pub(crate) const GRAY_300: Color32 = Color32::from_rgb(170, 178, 192);
-pub(crate) const GRAY_200: Color32 = Color32::from_rgb(210, 216, 228);
-pub(crate) const GRAY_100: Color32 = Color32::from_rgb(232, 236, 245);
-
-pub(crate) const GREEN_500: Color32 = Color32::from_rgb(80, 200, 140);
-pub(crate) const AMBER_500: Color32 = Color32::from_rgb(255, 196, 92);
-pub(crate) const RED_500: Color32 = Color32::from_rgb(255, 100, 100);
-pub(crate) const CYAN_500: Color32 = Color32::from_rgb(137, 200, 235);
-pub(crate) const PURPLE_500: Color32 = Color32::from_rgb(156, 39, 176);
+pub mod surface {
+    pub const BASE: Color32 = p::GRAY_950;
+    // ...
+}
 ```
 
 ```rust
-// crates/animatix-gui/src/app/design_tokens/semantic.rs
+// crates/eparts/src/tokens/primitive.rs
 
 use egui::Color32;
-use super::primitive as p;
 
-// ── Surface (5 depth layers) ──
-
-pub mod surface {
-    use super::*;
-    /// Depth 0: window bottom layer
-    pub const BASE: Color32 = p::GRAY_950;
-    /// Depth 1: panel background
-    pub const PANEL: Color32 = p::GRAY_900;
-    /// Depth 2: cards / floating surfaces
-    pub const SURFACE: Color32 = p::GRAY_850;
-    /// Depth 3: widgets (inputs, buttons)
-    pub const WIDGET: Color32 = p::GRAY_800;
-    /// Depth 4: hover overlay
-    pub const HOVER: Color32 = p::GRAY_700;
-    /// Depth 4+: active/pressed
-    pub const ACTIVE: Color32 = p::GRAY_600;
-}
-
-// ── Text ──
-
-pub mod text {
-    use super::*;
-    pub const PRIMARY: Color32 = p::GRAY_100;
-    pub const SECONDARY: Color32 = p::GRAY_400;
-    pub const MUTED: Color32 = p::GRAY_500;
-    pub const DISABLED: Color32 = p::GRAY_600;
-}
-
-// ── Accent ──
-
-pub mod accent {
-    use super::*;
-    pub const PRIMARY: Color32 = p::BLUE_500;
-    pub const PRIMARY_HOVER: Color32 = p::BLUE_400;
-    pub const PRIMARY_ACTIVE: Color32 = p::BLUE_600;
-
-    // Pre-computed alpha variants (no runtime linear_multiply)
-    pub const SELECTION: Color32 =
-        Color32::from_rgba_unmultiplied(84, 110, 255, 60);
-    pub const FAINT: Color32 =
-        Color32::from_rgba_unmultiplied(84, 110, 255, 30);
-    pub const GHOST: Color32 =
-        Color32::from_rgba_unmultiplied(84, 110, 255, 80);
-    pub const SUBTLE: Color32 =
-        Color32::from_rgba_unmultiplied(84, 110, 255, 120);
-}
-
-// ── Status ──
-
-pub mod status {
-    use super::*;
-    pub const SUCCESS: Color32 = p::GREEN_500;
-    pub const WARNING: Color32 = p::AMBER_500;
-    pub const ERROR: Color32 = p::RED_500;
-    pub const INFO: Color32 = p::BLUE_500;
-
-    pub const SUCCESS_FAINT: Color32 =
-        Color32::from_rgba_unmultiplied(80, 200, 140, 60);
-    pub const WARNING_FAINT: Color32 =
-        Color32::from_rgba_unmultiplied(255, 196, 92, 60);
-    pub const ERROR_FAINT: Color32 =
-        Color32::from_rgba_unmultiplied(255, 100, 100, 60);
-}
-
-// ── Category (timeline property groups, scene tracks, etc.) ──
-
-pub mod category {
-    use super::*;
-    pub const TRANSFORM: Color32 = p::BLUE_500;
-    pub const STYLE: Color32 = p::GREEN_500;
-    pub const SHAPE: Color32 = p::AMBER_500;
-    pub const TEXT: Color32 = p::CYAN_500;
-    pub const ACTION: Color32 = p::PURPLE_500;
-}
-
-// ── Borders ──
-
-pub mod border {
-    use super::*;
-    pub const DEFAULT: Color32 = p::GRAY_700;
-    pub const HOVER: Color32 = p::GRAY_600;
-    pub const FOCUS: Color32 = p::BLUE_500;
-}
-
-// ── Canvas-specific (does NOT share UI chrome tokens) ──
-
-pub mod canvas {
-    use super::*;
-    pub const BG: Color32 = Color32::from_rgb(8, 8, 12);
-    pub const GRID_LINE: Color32 =
-        Color32::from_rgba_unmultiplied(255, 255, 255, 12);
-    pub const GUIDE_LINE: Color32 =
-        Color32::from_rgba_unmultiplied(255, 255, 255, 30);
-    pub const SELECTION_MARQUEE: Color32 =
-        Color32::from_rgba_unmultiplied(84, 110, 255, 200);
-    pub const HANDLE_FILL: Color32 = p::GRAY_100;
-    pub const HANDLE_STROKE: Color32 = p::BLUE_500;
-    pub const GHOST_PREV: Color32 =
-        Color32::from_rgba_unmultiplied(80, 220, 120, 77);
-    pub const GHOST_NEXT: Color32 =
-        Color32::from_rgba_unmultiplied(80, 160, 255, 77);
-    pub const SNAP_GUIDE: Color32 =
-        Color32::from_rgba_unmultiplied(84, 191, 123, 160);
-}
+// All entries are `pub` — app semantic submodules reference them directly.
+pub const GRAY_950: Color32 = Color32::from_rgb(10, 12, 16);
+pub const GRAY_900: Color32 = Color32::from_rgb(16, 18, 23);
+pub const GRAY_600: Color32 = Color32::from_rgb(60, 66, 78);
+// ... full palette in primitive.rs
 ```
 
 ### 2.3 Token Constraints
 
 | Rule | Enforcement |
 |------|-------------|
-| UI code must not import `primitive` | `pub(crate)` visibility — compiler error if leaked |
+| UI/widget code must not import `primitive` directly | Convention + code review — widgets read `theme(ui)` slots or `semantic::*`, never `primitive::*` |
 | No runtime `linear_multiply` for alpha | Pre-computed `const` values only |
 | Status and Category colors must not be shared | Separate modules, separate types |
-| Every semantic color must exist in both dark and light themes | Phase 2: dual-theme `cfg` or runtime swap |
-| Component-level tokens live in component modules, not in `design_tokens/` | Convention + code review |
+| Every semantic color must exist in both dark and light themes | Runtime `Theme` swap; both `Theme::dark()` and `Theme::light()` define all slots |
+| Component-level tokens live in the `Theme` struct, not in `design_tokens/` | Convention + review; `tokens/theme.rs` is the source of truth |
+| Raw color literals (`Color32::from_rgb`, `from_gray`, etc.) | Allowed **only** inside `tokens/primitive.rs` and `tokens/theme.rs`; never in widget code |
 
 ### 2.4 Import Convention
 
@@ -376,25 +282,57 @@ Single 9-step scale based on a 2px base. Replaces the current dual
 
 ## 5. Color System
 
-### 5.1 Surface Depth (5 layers)
+### 5.1 Surface Depth (6 levels)
 
 ```
-Depth 0  BASE       #0A0C10   — window background
-Depth 1  PANEL      #101217   — panel background
-Depth 2  SURFACE    #16191F   — cards, floating surfaces
-Depth 3  WIDGET     #1E222A   — inputs, buttons
-Depth 4  HOVER      #2A2F39   — hover overlay
-         ACTIVE     #3C423A   — pressed/active
+Depth 0  BASE       #0A0C10   GRAY_950 — window background
+Depth 1  PANEL      #101217   GRAY_900 — panel background
+Depth 2  SURFACE    #16191F   GRAY_850 — cards, floating surfaces
+Depth 3  WIDGET     #1E222A   GRAY_800 — inputs, buttons
+Depth 4  HOVER      #2A2F39   GRAY_700 — hover overlay
+Depth 5  ACTIVE     #3C424E   GRAY_600 — pressed / active
 ```
 
-Adjacent layers must differ by >= 6% luminance. The current values
-(`#0C0E12` -> `#121418`) differ by only ~2.3% — the new values above
-correct this.
+Adjacent layers must differ by >= 6% luminance. These values are the
+current shipped palette (`crates/eparts/src/tokens/primitive.rs`).
 
-### 5.2 Semantic Color Roles
+### 5.2 Light Theme Values
+
+`Theme::light()` (shipped — see `crates/eparts/src/tokens/theme.rs`). Accent
+and status hues are identical to dark for brand consistency; surfaces are
+near-white with dark text.
 
 ```
-Accent:
+Surface:
+  BASE       #F8F9FA   — window background
+  PANEL      #FFFFFF   — panel background
+  SURFACE    #FAFBFC   — cards, floating surfaces
+  WIDGET     #F0F1F3   — inputs, buttons
+  HOVER      #E3E5E9   — hover overlay
+  ACTIVE     #D2D4D8   — pressed / active
+
+Text:
+  PRIMARY    #14181E   — primary text (dark on light)
+  SECONDARY  #5A6170   — secondary
+  MUTED      #828A99   — muted
+  DISABLED   #B4B9C0   — disabled
+  ON_ACCENT  #FFFFFF   — text on accent fills
+
+Border:
+  DEFAULT    #C8CCD1
+  STRONG     #A0A5AC
+  FOCUS      #546EFF   (same as dark — brand accent)
+
+Overlay:
+  backdrop()    rgba(0,0,0,140)
+  badge_bg()    rgba(248,249,250,235)
+  tooltip_bg()  rgba(255,255,255,245)
+```
+
+### 5.3 Semantic Color Roles
+
+```
+Accent (dark and light identical):
   PRIMARY          #546EFF   — primary interaction color
   PRIMARY_HOVER    #7891FF
   PRIMARY_ACTIVE   #3C54DC
@@ -414,9 +352,20 @@ Category (never reused as status):
   SHAPE            #FFC45C   — geometry parameters
   TEXT             #89C8EB   — text properties
   ACTION           #9C27B0   — action blocks
+
+Lines (neutral grid / guide separators — `eparts::tokens::semantic::lines`):
+  lines::grid_line()    rgba(255,255,255,12)  — light grid line on dark canvas
+  lines::guide_line()   rgba(255,255,255,30)  — reference / snap guide line
+
+Overlay (backdrops / scrims — `eparts::tokens::semantic::overlay`):
+  overlay::backdrop()        rgba(0,0,0,120)       — panel-level dimming scrim
+  overlay::badge_bg()        rgba(10,12,16,220)    — floating badge background
+  overlay::tooltip_bg()      rgba(10,12,16,235)    — tooltip popup background
+  overlay::shadow_ambient()  rgba(0,0,0,40)        — ambient shadow color
+  overlay::shadow_direct()   rgba(0,0,0,60)        — direct shadow color
 ```
 
-### 5.3 Color Constraints
+### 5.4 Color Constraints
 
 1. **Status and Category colors are disjoint sets.** The current code reuses
    `GREEN` for both "success" and "style category" — this is forbidden.
@@ -426,6 +375,31 @@ Category (never reused as status):
 3. Selection uses alpha-tinted accent (60/255), never solid fill.
 4. Canvas colors live in `semantic::canvas` and do not share tokens with
    UI chrome.
+
+### 5.5 IDE Token Group
+
+Canvas-specific and IDE-specific tokens live in the app's
+`design_tokens::semantic::canvas` submodule (defined in
+`crates/animatix-gui/src/app/design_tokens/semantic.rs`). These are the
+tokens that distinguish the IDE surface from generic UI chrome.
+
+```
+canvas::BG                    #08080C   — canvas viewport background
+canvas::grid_line()           rgba(255,255,255,12)  — grid (re-export of lines::grid_line)
+canvas::guide_line()          rgba(255,255,255,30)  — reference guide (re-export of lines::guide_line)
+canvas::hatch_line()          rgba(255,255,255,30)  — hatch pattern overlay
+canvas::ghost_prev()          rgba(80,220,120,77)   — ghost frame (prev)
+canvas::ghost_next()          rgba(80,160,255,77)   — ghost frame (next)
+canvas::snap_guide_line()     rgba(84,191,123,160)  — snap guide indicator
+canvas::snap_guide_label_bg() rgba(30,30,35,200)    — snap guide label background
+```
+
+Selection marquees and transform handles use `semantic::accent::selection()`
+(rgba(84,110,255,60)) for fills and `semantic::accent::PRIMARY` for
+outlines — not separate canvas tokens.
+
+The command palette uses `surface.overlay` / `overlay::backdrop()` as its
+background scrim, consistent with dialog-level overlays.
 
 ---
 
@@ -476,60 +450,178 @@ Primitive  →  Pattern  →  Domain
 
 ### 6.2 Unified Button API
 
+The `Button` widget provides a lean, builder-based API. Per eparts principle 6
+("4-tier size vocabulary, wire what you use"), only the variants and sizes that
+have call sites are pre-built; additional variants/sizes are added when a call
+site needs them, not speculatively.
+
+**Variants** (3):
+
+```
+ButtonVariant::Primary   filled accent background — primary actions
+ButtonVariant::Ghost     transparent, accent underline when active — toolbar toggles
+ButtonVariant::Icon      square icon-only — small icon commands
+```
+
+**Sizes** (1):
+
+```
+ButtonSize::Medium  (ROW_M height, default)
+```
+
+**Constructors** (free functions, not enum variants):
+
 ```rust
-pub struct Button {
-    variant: ButtonVariant,
-    size: ButtonSize,
-    icon: Option<&'static str>,
-    label: Option<String>,
-    tooltip: Option<String>,
-    disabled: bool,
-    active: bool,
-}
+Button::primary(label: impl Into<String>) -> Self   // filled accent
+Button::ghost(label: impl Into<String>)  -> Self    // transparent with underline
+Button::icon(icon: &'static str)         -> Self    // icon-only square
+```
 
-pub enum ButtonVariant {
-    Primary,   // solid accent fill
-    Secondary, // widget fill with border
-    Ghost,     // transparent, hover shows bg
-    Icon,      // square, icon-only
-}
+**Builder methods** (all return `Self`):
 
-pub enum ButtonSize {
-    Small,  // ROW_S height
-    Medium, // ROW_M height (default)
-    Large,  // ROW_L height
-}
+```rust
+.with_icon(icon: &'static str)              // prepend an icon
+.with_tooltip(tip: &'static str)            // egui hover tooltip
+.active(active: bool)                        // pressed/toggled state (Ghost)
+.icon_color(c: Color32)                      // override icon fg color
+.hover_icon_color(c: Color32)                // override icon fg on hover
+.loading(loading: bool)                      // show spinner, disable interaction
+.on_hover(cb: Box<dyn FnOnce()>)             // callback on hover
+```
+
+**Disabled state.** There is no `disabled()` builder. A button is disabled
+when the `disabled` field is set externally (e.g. via a form-level
+disability gate). The loading state (`loading(true)`) disables interaction
+and shows a spinner simultaneously.
+
+**Policy note.** A `danger`/destructive variant is *seeded in the Theme*
+(`theme.button.danger` — see §6.4) but is **not** yet exposed as a
+`ButtonVariant`. Destructive actions in the GUI currently use raw `egui::Button`.
+This is tracked as a follow-up (T2.10).
+
+```rust
+// crates/eparts/src/widget/button.rs — source of truth
+
+pub enum ButtonVariant { Primary, Ghost, Icon }
+pub enum ButtonSize     { Medium }
 
 impl Button {
     pub fn primary(label: impl Into<String>) -> Self { ... }
-    pub fn secondary(label: impl Into<String>) -> Self { ... }
-    pub fn ghost(label: impl Into<String>) -> Self { ... }
-    pub fn icon(icon: &'static str) -> Self { ... }
-
-    pub fn small(mut self) -> Self { self.size = Small; self }
-    pub fn with_tooltip(mut self, tip: impl Into<String>) -> Self { ... }
-    pub fn disabled(mut self) -> Self { self.disabled = true; self }
-    pub fn active(mut self) -> Self { self.active = true; self }
-    pub fn with_icon(mut self, icon: &'static str) -> Self { ... }
-}
-
-impl egui::Widget for Button {
-    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
-        // Single state machine: default → hover → active → disabled → focused
-        // Single paint path driven by variant + state
-    }
+    pub fn ghost(label: impl Into<String>)  -> Self { ... }
+    pub fn icon(icon: &'static str)         -> Self { ... }
+    pub fn with_icon(self, icon: &'static str)          -> Self { ... }
+    pub fn with_tooltip(self, tip: &'static str)        -> Self { ... }
+    pub fn active(self, active: bool)                    -> Self { ... }
+    pub fn icon_color(self, c: Color32)                  -> Self { ... }
+    pub fn hover_icon_color(self, c: Color32)            -> Self { ... }
+    pub fn loading(self, loading: bool)                  -> Self { ... }
+    pub fn on_hover(self, cb: Box<dyn FnOnce()>)         -> Self { ... }
 }
 ```
 
 ### 6.3 Component Constraints
 
-1. Primitive components implement `egui::Widget` — no free functions.
-2. Every Primitive supports all 5 interaction states.
+#### Tier-1 vs Tier-2 API contract
+
+Per `crates/eparts/AGENTS.md` "Widget API contract", eparts widgets follow a
+deliberate two-tier convention. The design doc's earlier statement
+("Primitive components implement `egui::Widget` — no free functions") is
+incorrect and is corrected here.
+
+**Tier 1 — `impl egui::Widget`** (invoked `ui.add(MyWidget::new(...))`).
+Use for self-contained widgets that take only plain values/builder options
+and return an `egui::Response`. No content closures, no rich return struct.
+Examples: `Button`, `Label`, `Spinner`, `Slider`, `Select`, `Badge`, `Tag`,
+`Alert`, `ProgressBar`, `Skeleton`, `Kbd`.
+
+**Tier 2 — `pub fn show(self, ui, ...) -> T`** (invoked
+`MyWidget::new(...).show(ui, ...)`). Use when the widget needs any of: a
+content/render closure (`FnOnce(&mut Ui)`), a rich return value (a `*Response`
+action struct beyond `egui::Response`), or cross-frame state coordination.
+Examples: `Form`/`Field`, `Dialog::modal`, `Popover`, `Tooltip`,
+`Collapsible`, `Tree`, `List`, `ColorPicker`, `TextField`/`NumberField`,
+`Row`, `TabBar`, `ResizeHandle`, `Toast`.
+
+**Rules:**
+- A widget exposes exactly **one** primary entry point — either `impl Widget`
+  OR `show()`, never both. (Builder setters like `with_size`, `show_value`
+  are fine; they are not entry points.)
+- Tier-2 `show()` returns either `egui::Response` or a documented `*Response`
+  struct; name rich structs `<Widget>Response`.
+- Free functions in layout helpers (`card`, `section_header`, `separator`)
+  are a deliberate exception: they are stateless layout helpers, not widgets.
+- When unsure, prefer Tier 1; promote to Tier 2 only when a closure / rich
+  return / state coordination is required.
+
+**Exception — `Row::show_in_rect`.** `Row` exposes a second rect-mode entry
+point (`show_in_rect`) that takes a pre-allocated rect + response + painter.
+This is used by container widgets (`Tree`, `List`) that own allocation; it is
+not a competing API — `show()` allocates and delegates to `show_in_rect`.
+Both paths render the same `Row`.
+
+#### Structural constraints
+
+1. Primitive components implement `egui::Widget` (Tier-1) or `show()`
+   (Tier-2) — never both.
+2. Every component supports the interaction states relevant to its variant:
+   `normal`, `hover`, `active` / `pressed`, `disabled`, and `focused` (focus
+   ring). Not every state is meaningful for every variant (e.g. `Icon` has
+   no `active` underline), but all five states are wired in the slot structs.
 3. Pattern components compose Primitives — no direct `painter` calls.
 4. Domain panels compose Patterns + Primitives — no direct `painter` calls
    for standard UI elements (canvas painting is exempt).
-5. Component-level tokens live in the component's module as `const` values
-   referencing semantic tokens.
+5. Component-level tokens live in the `Theme` struct (`tokens/theme.rs`),
+   not in component modules as bare `const` values.
+
+### 6.4 Component Theme Slots
+
+The `Theme` struct (source of truth: `crates/eparts/src/tokens/theme.rs`)
+exposes component-scoped color slot groups. Each group maps all interaction
+states to `Slot { bg, fg, border }` or lighter types. The full taxonomy:
+
+```
+theme.button
+  .primary   — ButtonStateSlots { normal, hover, active, selected, disabled, focus }
+  .secondary — ButtonStateSlots  (seeded; no ButtonVariant::Secondary yet)
+  .ghost     — ButtonStateSlots
+  .icon      — ButtonStateSlots
+  .danger    — ButtonStateSlots  (seeded from status::error*; no ButtonVariant::Danger yet — T2.10)
+
+theme.list
+  .even      — Fill { bg, fg }   zebra even row
+  .odd       — Fill { bg, fg }   zebra odd row
+  .selected  — Fill { bg, fg }   selected row
+  .hover     — Fill { bg, fg }   hovered row
+
+theme.tab
+  .active    — TabSlot { bg, fg, indicator }   active tab with accent indicator stripe
+  .inactive  — TabSlot { bg, fg, indicator }
+  .hover     — TabSlot { bg, fg, indicator }
+
+theme.menu_item
+  .normal    — Slot { bg, fg, border }
+  .hover     — Slot
+  .active    — Slot
+  .disabled  — Slot
+
+theme.input
+  .normal    — Slot { bg, fg, border }
+  .hover     — Slot
+  .focus     — Slot  (border = border.focus / accent)
+  .invalid   — Slot  (border = status.error)
+  .disabled  — Slot
+
+theme.scrollbar
+  .thumb       — Color32
+  .thumb_hover — Color32
+```
+
+Access pattern:
+```rust
+let t = eparts::theme(ui);
+let bg = t.button.primary.normal.bg;
+let err_border = t.input.invalid.border;
+```
 
 ---
 
@@ -578,53 +670,22 @@ pub enum GestureResult {
 | `[` / `]` | Previous / next keyframe |
 | `,` / `.` | Frame step backward / forward |
 
-### 7.3 Command System Refactor
+### 7.3 Command System
 
-Split the 50+ variant `Command` enum into domain packages:
+The command enum is split into 6 domain modules under
+`crates/animatix-gui/src/app/commands/`:
 
-```rust
-// commands/document.rs — undoable
-pub enum DocumentCommand {
-    Save, Reload, Rebuild,
-    OpenFile(PathBuf), SwitchWorkspace(PathBuf),
-}
-
-// commands/actor.rs — undoable
-pub enum ActorCommand {
-    Create { ty, label, position, props },
-    Delete(String), Duplicate(String),
-    Rename { old: String, new: String },
-    Reparent { actor: String, parent: Option<String> },
-    ToggleVisibility(String), ToggleLock(String),
-}
-
-// commands/keyframe.rs — undoable
-pub enum KeyframeCommand {
-    SetEasing { actor, property, time, easing },
-    Delete { actor, property, time },
-    Move { actor, property, old_time, new_time },
-}
-
-// commands/scene.rs — undoable
-pub enum SceneCommand {
-    Select(String), Reorder(Vec<String>),
-    SetTransition { from, transition },
-    Duplicate(String), Delete(String),
-}
-
-// commands/view.rs — NOT undoable
-pub enum ViewAction {
-    TogglePanel(WorkspaceTab),
-    SetZoom(f32), SetPan(Vec2),
-    SetTool(ToolMode), SetSidebarTab(SidebarTab),
-}
-
-// commands/playback.rs — NOT undoable
-pub enum PlaybackAction {
-    Toggle, Scrub(f64), StepForward, StepBackward,
-    PrevKeyframe, NextKeyframe,
-}
 ```
+commands/document.rs  — Save, Reload, Rebuild, OpenFile, SwitchWorkspace
+commands/actor.rs     — Create, Delete, Duplicate, Rename, Reparent, ToggleVisibility, ToggleLock
+commands/keyframe.rs  — SetEasing, Delete, Move (undoable)
+commands/scene.rs     — Select, Reorder, SetTransition, Duplicate, Delete (undoable)
+commands/view.rs      — TogglePanel, SetZoom, SetPan, SetTool (NOT undoable)
+commands/playback.rs  — Toggle, Scrub, StepForward, StepBackward, PrevKeyframe, NextKeyframe (NOT undoable)
+```
+
+Undoable and non-undoable commands are separate types; the undo stack
+only accepts undoable commands.
 
 ### 7.4 Interaction Constraints
 
@@ -635,7 +696,69 @@ pub enum PlaybackAction {
 3. Every command carries `timestamp()` and `description()` for the undo
    history UI.
 4. Text input focus disables global shortcuts (Space, arrows).
-5. Focus ring must be visible: 2px `accent::PRIMARY` outline.
+5. **Focus ring**: `STROKE_WIDTH` (2px) stroke in `theme.border.focus` /
+   `focus_ring()`, painted **inset by 1px** (`rect.shrink(1.0)`,
+   `StrokeKind::Inside`) to avoid clipping by the widget boundary. Every
+   focusable primitive (Button, Input, Select, …) uses this identical
+   treatment. See `crates/eparts/src/widget/button.rs` as the reference
+   implementation.
+6. **Cursor convention** (eparts principle 3): buttons and rows display the
+   default arrow cursor on hover. `CursorIcon::PointingHand` is reserved
+   exclusively for `Link` (genuine hyperlinks). egui's default for clickable
+   widgets is `PointingHand`; eparts widgets override it with
+   `.on_hover_cursor(egui::CursorIcon::Default)` to give a native-desktop
+   feel rather than a web feel.
+
+### 7.5 Iconography
+
+Icons use `egui-phosphor` `regular` weight. Rules:
+
+- **Default icon size**: `TextRole::Body` font size (13px) for inline and
+  toolbar icons. Icons in `Icon` buttons are centered in the `ROW_M` (24px)
+  slot using the same `Body` font.
+- **Icon color follows the slot `fg`**: icons read `slot.fg` from the active
+  `theme` slot; never a hardcoded `Color32`. Custom icon colors are only
+  allowed via `Button::icon_color()` / `hover_icon_color()` builder methods.
+- **Status icons always pair with text** (triple encoding — color + icon +
+  text, per §10.3). A standalone status icon without a label is not
+  accessible.
+
+### 7.6 Overlay Layering
+
+The managed overlay coordination layer (`crates/eparts/src/widget/overlay.rs`)
+defines a priority ordering for floating overlays so that Escape and
+outside-click dismissal are consumed by exactly the topmost one.
+
+**Priority ladder (low → high):**
+
+| Layer | `OverlayLayer` value | `egui::Order` | Typical use |
+|---|---|---|---|
+| `Dialog` | 0 (lowest) | `Order::Foreground` | Full-viewport modal dialogs |
+| `Popover` | 1 | `Order::Foreground` | Dropdown menus, anchored popovers |
+| `Tooltip` | 2 (highest) | `Order::Tooltip` | Transient hover tooltips |
+
+`Dialog` and `Popover` share `Order::Foreground`; use a monotonically
+increasing relative z within that plane (newer overlays paint above older
+ones). `Tooltip` uses egui's `Order::Tooltip` which paints above
+`Foreground`.
+
+**Dismissal rules:**
+- Escape is consumed only by the topmost overlay (`is_topmost(ctx, id)`);
+  lower-priority overlays are not triggered.
+- Outside-click (`clicked_outside`) checks whether the primary pointer click
+  landed outside the overlay's `content_rect`.
+- On close, call `overlay::remove_overlay(ctx, id)` so the next-topmost
+  overlay resumes receiving dismissal events.
+
+**Usage:**
+```rust
+overlay::push_overlay(ctx, egui::Id::new("my_dialog"), OverlayLayer::Dialog);
+if overlay::is_topmost(ctx, my_id) && overlay::escape_pressed(ctx, my_id) {
+    request_close();
+}
+// on close:
+overlay::remove_overlay(ctx, egui::Id::new("my_dialog"));
+```
 
 ---
 
@@ -657,7 +780,14 @@ pub enum PlaybackAction {
 | `STANDARD` | cubic-bezier(0.4, 0, 0.2, 1) | Default |
 | `DECELERATE` | cubic-bezier(0, 0, 0.2, 1) | Element enter |
 | `ACCELERATE` | cubic-bezier(0.4, 0, 1, 1) | Element exit |
-| `SPRING` | slight overshoot | Drag release snap-back |
+| `SPRING_OVERSHOOT` | cubic-bezier(0.34, 1.56, 0.64, 1.0) | Drag release snap-back |
+
+Note on `SPRING_OVERSHOOT`: the y1=1.56 control point produces a
+perceptual overshoot. egui's `Ui`-level animation helpers clamp their
+output to [0, 1], so the true spring bounce is only observable when the
+value is applied via the raw `CubicBezier::sample()` method (which does
+not clamp). A real physics spring would require a code-level spring
+integrator in `anim.rs` (optional future follow-up).
 
 ### 8.3 Motion Constraints
 
@@ -667,7 +797,10 @@ pub enum PlaybackAction {
 3. Panel transitions: `NORMAL` duration + `STANDARD` easing.
 4. Toast: `FAST` in, `NORMAL` out.
 5. Animations exceeding `SLOW` must have explicit justification in a comment.
-6. `prefers-reduced-motion`: all non-essential animations stop (Phase 2).
+6. `prefers-reduced-motion`: when the user enables the reduced-motion
+   preference (Settings toggle; OS detection where available), all
+   non-essential animation durations resolve to `INSTANT` (0ms). This is an
+   accessibility requirement, not a deferred nicety.
 
 ---
 
@@ -730,148 +863,33 @@ interactions.
 
 ---
 
-## 11. Migration Plan
+## 11. Status & Remaining Work
 
-Four phases, ordered by risk-to-reward ratio. Each phase is independently
-shippable and does not break the build.
+Phases 1–3 of the original migration plan are complete. See
+`.picopi/plans/eparts-refinement-roadmap.md` (M1–M7) for the eparts component
+work detail and `crates/animatix-gui/src/app/commands/` for the command-split
+implementation.
 
-### Phase 1: Token Refoundation (Low Risk, High Reward)
+**Completed:**
+- Phase 1 (token refoundation): 3-layer token system extracted into `eparts`
+  crate; `primitive`, `semantic`, `theme`, `spatial`, `typography`, `motion`
+  modules all live in `crates/eparts/src/tokens/`.
+- Phase 2 (component unification): `Button` (M3), `TextRole` typography (M5/M6),
+  runtime `Theme` with dark + light (M2), component slot structs (B2/B3).
+- Phase 3 (command split): 6 domain command modules shipped in
+  `commands/{actor,document,keyframe,playback,scene,view}.rs`.
+- Phase 4 (motion + keyboard + gesture types): motion token layer done;
+  `preview/gesture.rs` and extracted drag-mode handlers in `preview/gestures/`
+  are shipped.
 
-**Goal**: Replace flat `design_tokens.rs` with the 3-layer module system.
-
-**Files created**:
-- `design_tokens/mod.rs` (re-exports)
-- `design_tokens/primitive.rs` (`pub(crate)`)
-- `design_tokens/semantic.rs` (surface, text, accent, status, category,
-  border, canvas submodules)
-- `design_tokens/typography.rs` (`TextRole` enum)
-- `design_tokens/spatial.rs` (unified `SPACE_*` scale, delete `PAD_*`)
-- `design_tokens/motion.rs` (duration + easing constants)
-- `design_tokens/util.rs` (`lerp_color`, `multiply_alpha` — legacy)
-
-**Files modified**:
-- Every file currently importing `use crate::app::design_tokens::*;`
-  (~50+ files) — migrate to `use ...::semantic::*;`
-- `app/mod.rs` — update `pub mod design_tokens;` to point at new module
-
-**Migration strategy**:
-1. Create new module tree alongside old `design_tokens.rs`.
-2. Add a compatibility re-export in `design_tokens/mod.rs` that aliases
-   old constant names to new semantic paths:
-   ```rust
-   // Legacy compat — remove after all call sites migrated
-   pub use semantic::surface::BASE as BG_BASE;
-   pub use semantic::surface::PANEL as BG_PANEL;
-   // ...
-   ```
-3. Migrate call sites file-by-file, running `cargo check` after each.
-4. Delete compatibility aliases once all sites use semantic paths.
-5. Delete old `design_tokens.rs`.
-
-**Verification**: `cargo check` + `cargo test -p animatix-gui` after each
-file migration. Visual smoke test of GUI after phase complete.
-
-**Estimated scope**: ~50 files touched, mostly mechanical find-replace.
-
----
-
-### Phase 2: Component Unification (Medium Risk)
-
-**Goal**: Replace ad-hoc button functions with unified `Button` widget.
-Migrate typography to `TextRole`.
-
-**Files created**:
-- `components/button.rs` — rewrite with `Button` struct + `egui::Widget`
-- `components/text.rs` — `TextRole` helper methods
-
-**Files modified**:
-- All call sites of `icon_button`, `icon_button_colored`,
-  `toolbar_toggle_button`, `toolbar_action_button`
-- All call sites using raw `FontId::new(size, ...)` → `TextRole`
-- `components/layout.rs` — update `section_header` to drop `to_uppercase()`
-- `shell/toolbar.rs` — migrate to new `Button` API
-
-**Migration strategy**:
-1. Implement new `Button` widget alongside old functions.
-2. Migrate toolbar first (highest concentration of button calls).
-3. Migrate remaining call sites panel-by-panel.
-4. Delete old button functions.
-5. Migrate `FontId` usages to `TextRole` in a separate sweep.
-
-**Verification**: `cargo check` + `cargo test` + visual smoke test.
-
----
-
-### Phase 3: Command System Split (Medium Risk)
-
-**Goal**: Split the 50+ variant `Command` enum into domain packages.
-Separate undoable from non-undoable.
-
-**Files created**:
-- `commands/document.rs`
-- `commands/actor.rs`
-- `commands/keyframe.rs`
-- `commands/scene.rs`
-- `commands/view.rs`
-- `commands/playback.rs`
-
-**Files modified**:
-- `commands.rs` → `commands/mod.rs` (re-exports + `ShellAction` wrapper)
-- `command_handlers.rs` (804 lines) — split into domain handlers
-- `command_bus.rs` — update dispatch logic
-- All files matching on `Command::` variants
-
-**Migration strategy**:
-1. Create new domain command modules.
-2. Add `From<DomainCommand> for Command` compatibility impls.
-3. Migrate handlers one domain at a time (document → actor → keyframe →
-   scene → view → playback).
-4. Migrate call sites (panels that push commands).
-5. Delete old flat `Command` enum.
-
-**Verification**: `cargo check` + `cargo test` + undo/redo smoke test.
-
----
-
-### Phase 4: Interaction Layer Upgrade (Higher Risk)
-
-**Goal**: Introduce gesture system, keyboard navigation framework, and
-unified motion API.
-
-**Files created**:
-- `preview/gesture.rs` — `Gesture` enum + `GestureHandler` trait
-- `preview/gesture_router.rs` — routes raw egui events to gesture handlers
-- `interaction/keyboard.rs` — focus management + keyboard shortcut registry
-- `design_tokens/motion.rs` — `anim::transition()` helper
-
-**Files modified**:
-- `preview/drag_handler.rs` (763 lines) — gradually replaced by gesture
-  handlers
-- `preview/mod.rs` — integrate gesture router
-- `runtime.rs` — keyboard shortcut dispatch via new framework
-- All files using `animate_value_with_time` — migrate to `anim::transition`
-
-**Migration strategy**:
-1. Implement gesture types + router (no behavior change yet).
-2. Migrate canvas drag interactions to gesture handlers, one drag mode
-   at a time (move → resize → rotate → multi-select).
-3. Implement keyboard focus ring + navigation.
-4. Migrate scattered animations to unified `anim::transition`.
-5. Delete old `drag_handler.rs` once fully replaced.
-
-**Verification**: `cargo check` + `cargo test` + extensive manual testing
-of all canvas interactions.
-
----
-
-### Phase Summary
-
-| Phase | Risk | Files Touched | Key Deliverable |
-|-------|------|---------------|-----------------|
-| 1. Token Refoundation | Low | ~50 | 3-layer token module system |
-| 2. Component Unification | Medium | ~30 | Unified `Button` widget + `TextRole` |
-| 3. Command System Split | Medium | ~20 | Domain command packages |
-| 4. Interaction Upgrade | Higher | ~15 | Gesture system + keyboard nav |
-
-Each phase can land independently. Phases 1 and 2 can partially overlap
-(token migration in one file can include both token + typography updates).
+**Remaining / verify:**
+- Migrate inspector/dialog fields onto `Form` / `Field` (input slot tokens).
+- Gesture-router migration: the legacy `drag_handler.rs` has been fully retired; drag modes now live under `preview/gestures/`. Remaining: confirm no drag mode regressed once the gesture router covers all remaining drag
+  modes (verify: `preview/gestures/` covers move/scale/rotate/pivot/reorder/
+  marquee/vertex/motion_path — confirm no residual usage of the old file).
+- Drive toolbar tooltip cheat-sheet from `ShortcutRegistry` instead of
+  ad-hoc strings.
+- Wire `ButtonVariant::Danger` (T2.10): `theme.button.danger` slots are seeded;
+  the variant is not yet exposed.
+- Contrast matrix for light theme: verify all text/background pairs meet
+  WCAG AA (4.5:1) for `Theme::light()` values.
