@@ -3,16 +3,16 @@
 //! All three widgets are theme-driven, app-owned state, and use `animate_bool_eased`
 //! / `animate_lerp` for crossfades and thumb motion.
 
-use egui::{Align2, Color32, Id, Pos2, Response, Sense, Stroke, StrokeKind, Vec2};
+use egui::{Color32, Pos2, Response, Sense, Stroke, StrokeKind, Vec2};
 use std::hash::{Hash, Hasher};
 
 use crate::tokens::motion::{NORMAL, STANDARD, Transition};
 use crate::tokens::spatial::{
-    RADIUS_L, RADIUS_M, SPACE_M, SPACE_S, STROKE_WIDTH, STROKE_WIDTH_THICK,
+    RADIUS_M, SPACE_M, STROKE_WIDTH, STROKE_WIDTH_THICK,
 };
 use crate::tokens::theme;
 use crate::tokens::typography::TextRole;
-use crate::widget::anim::{animate_bool_eased, animate_lerp, Lerp};
+use crate::widget::anim::{animate_bool_eased, animate_lerp};
 
 // ── Side ────────────────────────────────────────────────────────────
 
@@ -38,7 +38,6 @@ pub enum Side {
 /// let mut enabled = false;
 /// ui.add(Checkbox::new(&mut enabled).label("Enable feature"));
 /// ```
-#[derive(Clone, Debug)]
 pub struct Checkbox<'a> {
     value: &'a mut bool,
     label: Option<&'a str>,
@@ -79,7 +78,6 @@ impl<'a> Checkbox<'a> {
 impl<'a> egui::Widget for Checkbox<'a> {
     fn ui(self, ui: &mut egui::Ui) -> Response {
         let t = theme(ui);
-        let ctx = ui.ctx();
         let id = egui::Id::new(self.value as *const _);
 
         // Layout calculations
@@ -123,7 +121,7 @@ impl<'a> egui::Widget for Checkbox<'a> {
             duration: NORMAL,
             easing: STANDARD,
         };
-        let check_t = animate_bool_eased(ctx, id.with("check"), *self.value, transition);
+        let check_t = animate_bool_eased(ui.ctx(), id.with("check"), *self.value, transition);
 
         // Draw checkbox box
         let box_bg = if *self.value {
@@ -207,7 +205,6 @@ impl<'a> egui::Widget for Checkbox<'a> {
 /// let mut choice = Choice::A;
 /// ui.add(Radio::new(&mut choice, Choice::B).label("Option B"));
 /// ```
-#[derive(Clone, Debug)]
 pub struct Radio<'a, T> {
     value: &'a mut T,
     this_value: T,
@@ -250,12 +247,11 @@ impl<'a, T: PartialEq + Clone + Hash> Radio<'a, T> {
 impl<'a, T: PartialEq + Clone + Hash> egui::Widget for Radio<'a, T> {
     fn ui(self, ui: &mut egui::Ui) -> Response {
         let t = theme(ui);
-        let ctx = ui.ctx();
         let selected = *self.value == self.this_value;
 
         // Stable id derived from the value pointer + option identity
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        (self.value as *const _).hash(&mut hasher);
+        (self.value as *const T as usize).hash(&mut hasher);
         self.this_value.hash(&mut hasher);
         let id = egui::Id::new(hasher.finish());
 
@@ -299,7 +295,7 @@ impl<'a, T: PartialEq + Clone + Hash> egui::Widget for Radio<'a, T> {
             duration: NORMAL,
             easing: STANDARD,
         };
-        let dot_t = animate_bool_eased(ctx, id.with("dot"), selected, transition);
+        let dot_t = animate_bool_eased(ui.ctx(), id.with("dot"), selected, transition);
 
         // Draw outer circle
         let outer_color = if selected {
@@ -357,7 +353,6 @@ impl<'a, T: PartialEq + Clone + Hash> egui::Widget for Radio<'a, T> {
 /// let mut on = false;
 /// ui.add(Switch::new(&mut on).label("Dark mode"));
 /// ```
-#[derive(Clone, Debug)]
 pub struct Switch<'a> {
     value: &'a mut bool,
     label: Option<&'a str>,
@@ -398,11 +393,10 @@ impl<'a> Switch<'a> {
 impl<'a> egui::Widget for Switch<'a> {
     fn ui(self, ui: &mut egui::Ui) -> Response {
         let t = theme(ui);
-        let ctx = ui.ctx();
         let id = egui::Id::new(self.value as *const _);
 
         // Dimensions
-        let track_height = 20.0;
+        let track_height: f32 = 20.0;
         let track_width = 36.0;
         let thumb_radius = 10.0;
         let spacing = SPACE_M;
@@ -453,7 +447,7 @@ impl<'a> egui::Widget for Switch<'a> {
 
         // Animated thumb position
         let thumb_x = animate_lerp(
-            ctx,
+            ui.ctx(),
             id.with("thumb"),
             left_x,
             right_x,
@@ -463,7 +457,7 @@ impl<'a> egui::Widget for Switch<'a> {
 
         // Animated track color crossfade
         let track_color = animate_lerp(
-            ctx,
+            ui.ctx(),
             id.with("track"),
             t.surface.widget,
             t.accent.primary,
@@ -532,8 +526,9 @@ mod tests {
     #[test]
     fn checkbox_builder_defaults() {
         let mut val = false;
+        let ptr = &mut val as *mut _;
         let cb = Checkbox::new(&mut val);
-        assert_eq!(cb.value as *const _, &mut val as *const _);
+        assert_eq!(cb.value as *const _, ptr as *const _);
         assert!(cb.label.is_none());
         assert_eq!(cb.label_side, Side::Right);
         assert_eq!(cb.tooltip, "");

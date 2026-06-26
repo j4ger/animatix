@@ -9,6 +9,11 @@ description = "Reusable egui widgets and design tokens extracted from Animatix."
 egui          = { workspace = true }
 egui-phosphor = { workspace = true }
 
+[dev-dependencies]
+# For the `gallery` example binary only (visual showcase + manual visual test).
+# Does not affect consumers of the library.
+eframe        = { workspace = true }
+
 [features]
 # Default: tokens + traits + all current core widgets. These depend only on
 # egui + egui-phosphor, so the default build stays dependency-light.

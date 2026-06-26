@@ -35,6 +35,7 @@ pub mod traits;
 pub mod link;
 pub mod tree;
 pub mod list;
+pub mod toggle;
 
 pub use traits::{Collapsible, Disableable, Selectable, Size, Sizable};
 pub use spinner::Spinner;
@@ -54,5 +55,6 @@ pub use collapsible::Accordion;
 pub use tabs::TabBar;
 pub use link::Link;
 pub use feedback::{Skeleton, ProgressBar, Badge, Tag, Alert, AlertLevel};
+pub use toggle::{Checkbox, Radio, Side, Switch};
 pub use tree::{Tree, TreeAction, TreeId, TreeItem, TreeResponse};
 pub use list::{List, ListAction, ListResponse, SearchableList, SearchableListResponse};

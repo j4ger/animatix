@@ -24,3 +24,4 @@ pub use widget::list::{List, ListAction, ListResponse, SearchableList, Searchabl
 
 // ── Input widgets (C2 + C3) ─────────────────────────────────────────
 pub use widget::input::{TextField, NumberField};
+pub use widget::toggle::{Checkbox, Radio, Side, Switch};

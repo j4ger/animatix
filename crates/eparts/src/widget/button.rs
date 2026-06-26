@@ -65,6 +65,15 @@ impl Button {
         }
     }
 
+    /// Create a Primary variant button (filled accent) with the given label.
+    pub fn primary(label: impl Into<String>) -> Self {
+        Self {
+            variant: ButtonVariant::Primary,
+            label: Some(label.into()),
+            ..Self::new_base()
+        }
+    }
+
     /// Create a Ghost variant button with the given label.
     pub fn ghost(label: impl Into<String>) -> Self {
         Self {
