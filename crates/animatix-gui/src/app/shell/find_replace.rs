@@ -8,19 +8,20 @@ use crate::app::design_tokens::semantic::surface;
 
 use crate::app::design_tokens::semantic::text;
 
-use crate::app::design_tokens::spatial::{ROW_M, SPACE_2, SPACE_3};
 use crate::app::design_tokens::typography::TextRole;
 
 impl GuiShell {
     pub(crate) fn find_replace_ui(&mut self, ui: &mut egui::Ui) {
+        let sp = crate::app::design_tokens::spatial::spatial(ui);
+
         let spec = dialog::DialogSpec::new("find_replace", [420.0, 160.0])
             .with_min_size([380.0, 140.0]);
 
         let open = dialog::modal(ui, &spec, |ui, _dc| -> bool {
             let close = dialog::title_row(ui, "Find & Replace");
-            ui.add_space(SPACE_3);
+            ui.add_space(sp.base.space_3);
             ui.separator();
-            ui.add_space(SPACE_3);
+            ui.add_space(sp.base.space_3);
 
                 ui.label(
                     egui::RichText::new("Find").size(TextRole::BodyS.size()).color(text::SECONDARY),
@@ -30,7 +31,7 @@ impl GuiShell {
                         .desired_width(f32::INFINITY)
                         .hint_text("Search term…"),
                 );
-                ui.add_space(SPACE_2);
+                ui.add_space(sp.base.space_2);
 
                 ui.label(
                     egui::RichText::new("Replace with")
@@ -42,12 +43,12 @@ impl GuiShell {
                         .desired_width(f32::INFINITY)
                         .hint_text("Replacement…"),
                 );
-                ui.add_space(SPACE_3);
+                ui.add_space(sp.base.space_3);
 
                 ui.horizontal(|ui| {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let replace_all = ui.add_sized(
-                            [100.0, ROW_M],
+                            [100.0, sp.base.row_m],
                             egui::Button::new(
                                 egui::RichText::new("Replace All")
                                     .size(TextRole::BodyS.size())
@@ -60,7 +61,7 @@ impl GuiShell {
                         }
 
                         let find_next = ui.add_sized(
-                            [90.0, ROW_M],
+                            [90.0, sp.base.row_m],
                             egui::Button::new(
                                 egui::RichText::new("Find Next")
                                     .size(TextRole::BodyS.size())

@@ -4,7 +4,7 @@ use crate::app::components::{self};
 use crate::app::design_tokens::semantic::accent;
 use crate::app::design_tokens::semantic::text;
 
-use crate::app::design_tokens::spatial::{ROW_S, SPACE_1, SPACE_3, dialog as dialog_token};
+use crate::app::design_tokens::spatial::dialog as dialog_token;
 use crate::app::design_tokens::typography::TextRole;
 
 use crate::app::GuiShell;
@@ -75,6 +75,8 @@ const SHORTCUT_GROUPS: &[(&str, &[(&str, &str)])] = &[
 
 impl GuiShell {
     pub(crate) fn shortcut_cheat_sheet_ui(&mut self, ui: &mut egui::Ui) {
+        let sp = crate::app::design_tokens::spatial::spatial(ui);
+
         let spec = components::dialog::DialogSpec::new(
             "shortcut_cheat_sheet",
             [480.0, 540.0],
@@ -83,16 +85,16 @@ impl GuiShell {
 
         let open = components::dialog::modal(ui, &spec, |ui, _dc| -> bool {
             let close = components::dialog::title_row(ui, "Keyboard Shortcuts");
-            ui.add_space(SPACE_3);
+            ui.add_space(sp.base.space_3);
             ui.separator();
-            ui.add_space(SPACE_3);
+            ui.add_space(sp.base.space_3);
 
             egui::ScrollArea::vertical()
                 .max_height(ui.available_height())
                 .show(ui, |ui| {
                     let avail_w = ui.available_width();
                     let n_cols = if avail_w < dialog_token::SINGLE_COL_THRESHOLD { 1 } else { 2 };
-                    let col_w = (avail_w - dialog_token::COL_GAP * (n_cols - 1) as f32) / n_cols as f32;
+                    let col_w = (avail_w - sp.dialog.col_gap * (n_cols - 1) as f32) / n_cols as f32;
 
                     if n_cols == 1 {
                         // Single column — render all groups
@@ -102,7 +104,7 @@ impl GuiShell {
                     } else {
                         // Two columns — split groups across columns
                         ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing = Vec2::new(dialog_token::COL_GAP, 0.0);
+                            ui.spacing_mut().item_spacing = Vec2::new(sp.dialog.col_gap, 0.0);
 
                             let mid = SHORTCUT_GROUPS.len().div_ceil(2);
                             shortcut_column(ui, &SHORTCUT_GROUPS[..mid], col_w);
@@ -120,6 +122,7 @@ impl GuiShell {
 }
 
 fn shortcut_column(ui: &mut egui::Ui, groups: &[(&str, &[(&str, &str)])], width: f32) {
+    let sp = crate::app::design_tokens::spatial::spatial(ui);
     ui.vertical(|ui| {
         ui.set_min_width(width);
         for (title, shortcuts) in groups {
@@ -129,23 +132,24 @@ fn shortcut_column(ui: &mut egui::Ui, groups: &[(&str, &[(&str, &str)])], width:
                     .color(accent::PRIMARY)
                     .strong(),
             );
-            ui.add_space(SPACE_1);
+            ui.add_space(sp.base.space_1);
 
             for (key, desc) in *shortcuts {
                 shortcut_row(ui, key, desc, width);
             }
-            ui.add_space(SPACE_3);
+            ui.add_space(sp.base.space_3);
         }
     });
 }
 
 fn shortcut_row(ui: &mut egui::Ui, key: &str, desc: &str, col_w: f32) {
+    let sp = crate::app::design_tokens::spatial::spatial(ui);
     // Fixed-width key column — prevents long keys from overlapping the description.
     let key_w = (col_w * dialog_token::KEY_COL_FRAC).min(dialog_token::KEY_COL_MAX);
 
     ui.horizontal(|ui| {
         ui.add_sized(
-            [key_w, ROW_S],
+            [key_w, sp.base.row_s],
             egui::Label::new(
                 RichText::new(key)
                     .monospace()

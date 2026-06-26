@@ -10,7 +10,7 @@ use crate::app::design_tokens::semantic::surface;
 
 use crate::app::design_tokens::semantic::text;
 
-use crate::app::design_tokens::spatial::{RADIUS_M, ROW_M, SPACE_2, SPACE_3, STROKE_WIDTH};
+use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 
 struct PaletteItem {
@@ -22,6 +22,8 @@ struct PaletteItem {
 
 impl GuiShell {
     pub(crate) fn command_palette_ui(&mut self, ui: &mut egui::Ui) {
+        let sp = crate::app::design_tokens::spatial::spatial(ui);
+
         let spec = DialogSpec::new("command_palette", [480.0, 400.0])
             .with_min_size([400.0, 300.0])
             .with_max_size([600.0, 500.0])
@@ -32,7 +34,7 @@ impl GuiShell {
 
         let open = dialog::modal(ui, &spec, |ui, _dc| -> bool {
             let close = dialog::title_row(ui, "Command Palette");
-            ui.add_space(SPACE_3);
+            ui.add_space(sp.base.space_3);
 
             // Search input
             let search_resp = ui.add(
@@ -43,9 +45,9 @@ impl GuiShell {
                     .id_source("cmd_palette_search"),
             );
             search_resp.request_focus();
-            ui.add_space(SPACE_3);
+            ui.add_space(sp.base.space_3);
             ui.separator();
-            ui.add_space(SPACE_2);
+            ui.add_space(sp.base.space_2);
 
             let query = self.ui_store.command_palette_query.to_lowercase();
             let items = self.build_palette_items();
@@ -114,7 +116,7 @@ impl GuiShell {
                             })
                             .stroke(egui::Stroke::new(STROKE_WIDTH, border::DEFAULT))
                             .corner_radius(RADIUS_M)
-                            .min_size(egui::vec2(ui.available_width(), ROW_M)),
+                            .min_size(egui::vec2(ui.available_width(), sp.base.row_m)),
                         );
                         if resp.clicked() {
                             commands.push(item.action.clone());

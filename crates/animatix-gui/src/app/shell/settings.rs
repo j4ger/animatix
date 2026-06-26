@@ -4,7 +4,6 @@ use crate::app::components;
 use crate::app::components::layout;
 use crate::app::design_tokens::semantic::text;
 
-use crate::app::design_tokens::spatial::{SPACE_2, SPACE_3};
 use crate::app::design_tokens::typography::TextRole;
 
 use crate::app::GuiShell;
@@ -13,6 +12,8 @@ const SETTINGS_INPUT_WIDTH: f32 = 120.0;
 
 impl GuiShell {
     pub(crate) fn settings_dialog_ui(&mut self, ui: &mut egui::Ui) {
+        let sp = crate::app::design_tokens::spatial::spatial(ui);
+
         let spec = components::dialog::DialogSpec::new("Settings", [420.0, 520.0])
             .with_min_size([380.0, 400.0])
             .with_max_size([600.0, 700.0])
@@ -20,13 +21,13 @@ impl GuiShell {
 
         let open = components::dialog::modal(ui, &spec, |ui, _dc| -> bool {
             let close = components::dialog::title_row(ui, "Settings");
-            ui.add_space(SPACE_3);
+            ui.add_space(sp.base.space_3);
             ui.separator();
-            ui.add_space(SPACE_3);
+            ui.add_space(sp.base.space_3);
 
                 // ── Preview ──
                 layout::section_header(ui, egui_phosphor::regular::GRID_FOUR, "Preview", None);
-                ui.add_space(SPACE_2);
+                ui.add_space(sp.base.space_2);
 
                     {
                     let mut v = self.preview_store.preview.overlay.grid_size as f64;
@@ -43,11 +44,11 @@ impl GuiShell {
                         });
                     self.preview_store.preview.overlay.grid_size = v as f32;
                 }
-                ui.add_space(SPACE_3);
+                ui.add_space(sp.base.space_3);
 
                 // ── Appearance (IDE light/dark/auto) ──
                 layout::section_header(ui, egui_phosphor::regular::SUN, "Appearance", None);
-                ui.add_space(SPACE_2);
+                ui.add_space(sp.base.space_2);
 
                 {
                     let mut theme_idx = match self.ui_store.view.app_theme {
@@ -79,7 +80,7 @@ impl GuiShell {
                         _ => self.ui_store.view.app_theme,
                     };
 
-                    ui.add_space(SPACE_2);
+                    ui.add_space(sp.base.space_2);
 
                     eparts::widget::Form::new("motion_form")
                         .label_width(SETTINGS_INPUT_WIDTH)
@@ -89,11 +90,11 @@ impl GuiShell {
                             });
                         });
                 }
-                ui.add_space(SPACE_3);
+                ui.add_space(sp.base.space_3);
 
                 // ── Colorscheme ──
                 layout::section_header(ui, egui_phosphor::regular::PALETTE, "Colorscheme", None);
-                ui.add_space(SPACE_2);
+                ui.add_space(sp.base.space_2);
 
                 let current_scheme = self
                     .document_store
@@ -157,11 +158,11 @@ impl GuiShell {
                             });
                     },
                 );
-                ui.add_space(SPACE_3);
+                ui.add_space(sp.base.space_3);
 
                 // ── Input ──
                 layout::section_header(ui, egui_phosphor::regular::CURSOR_CLICK, "Input", None);
-                ui.add_space(SPACE_2);
+                ui.add_space(sp.base.space_2);
 
                 {
                     let mut nudge_step_px = self.ui_store.nudge_step_px as f64;
@@ -198,11 +199,11 @@ impl GuiShell {
                     self.ui_store.nudge_step_shift_px = nudge_step_shift_px as f32;
                     self.ui_store.rotation_snap_degrees = rotation_snap_degrees as f32;
                 }
-                ui.add_space(SPACE_3);
+                ui.add_space(sp.base.space_3);
 
                 // ── Playback ──
                 layout::section_header(ui, egui_phosphor::regular::PLAY, "Playback", None);
-                ui.add_space(SPACE_2);
+                ui.add_space(sp.base.space_2);
 
                 {
                     let mut scrub_step_s = self.ui_store.scrub_step_s;
@@ -219,11 +220,11 @@ impl GuiShell {
                         });
                     self.ui_store.scrub_step_s = scrub_step_s;
                 }
-                ui.add_space(SPACE_3);
+                ui.add_space(sp.base.space_3);
 
                 // ── Editor ──
                 layout::section_header(ui, egui_phosphor::regular::PENCIL, "Editor", None);
-                ui.add_space(SPACE_2);
+                ui.add_space(sp.base.space_2);
 
                 {
                     let mut rebuild_debounce_ms = self.ui_store.rebuild_debounce_ms as f64;

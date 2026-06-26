@@ -10,8 +10,7 @@ use crate::app::design_tokens::semantic::surface;
 
 use crate::app::design_tokens::semantic::text;
 
-use crate::app::design_tokens::spatial::toolbar::HEIGHT as TOOLBAR_HEIGHT;
-use crate::app::design_tokens::spatial::{RADIUS_M, SPACE_2, SPACE_4, SPACE_5, STROKE_WIDTH};
+use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 
 // TOOLBAR_HEIGHT imported via design_tokens::*
@@ -22,15 +21,17 @@ impl GuiShell {
         let border_color = surface::WIDGET;
         let text_primary = text::PRIMARY;
 
+        let sp = crate::app::design_tokens::spatial::spatial(ui);
+
         let frame_response = egui::Frame::new()
             .fill(toolbar_bg)
             .inner_margin(egui::Margin::symmetric(12, 4))
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
-                ui.set_height(TOOLBAR_HEIGHT);
+                ui.set_height(sp.toolbar.height);
 
                 ui.horizontal_centered(|ui| {
-                    ui.spacing_mut().item_spacing = Vec2::new(SPACE_4, 0.0);
+                    ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_4, 0.0);
 
                     // App mark
                     let (mark_rect, _response) =
@@ -69,7 +70,7 @@ impl GuiShell {
 
                     // Status badge: last-good or stale
                     if self.document_store.showing_last_good() {
-                        ui.add_space(SPACE_2);
+                        ui.add_space(sp.base.space_2);
                         let response = egui::Frame::new()
                             .fill(status::DIAGNOSTIC_ERROR)
                             .corner_radius(RADIUS_M)
@@ -88,7 +89,7 @@ impl GuiShell {
                             "Build failed — preview shows the last successful build",
                         );
                     } else if self.document_store.snapshot_is_stale() {
-                        ui.add_space(SPACE_2);
+                        ui.add_space(sp.base.space_2);
                         let response = egui::Frame::new()
                             .fill(status::WARNING)
                             .corner_radius(RADIUS_M)
@@ -108,7 +109,7 @@ impl GuiShell {
 
                     // Building indicator (pulsing)
                     if self.preview_store.rebuild_in_progress {
-                        ui.add_space(SPACE_2);
+                        ui.add_space(sp.base.space_2);
                         let t = ui.ctx().animate_value_with_time(
                             ui.id().with("build_spinner"),
                             0.0,
@@ -214,9 +215,9 @@ impl GuiShell {
                             let active_scene =
                                 self.document_store.source.document.active_scene.as_deref();
                             // Left-align the breadcrumb with some spacing from the filename
-                            ui.add_space(SPACE_5);
+                            ui.add_space(sp.base.space_5);
                             ui.horizontal(|ui| {
-                                ui.spacing_mut().item_spacing = Vec2::new(SPACE_2, 0.0);
+                                ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
                                 for (i, name) in scene_names.iter().enumerate() {
                                     if i > 0 {
                                         ui.label(
@@ -253,9 +254,9 @@ impl GuiShell {
                     }
 
                     // ── Center: viewport toggles + zoom cycle ──
-                    ui.add_space(SPACE_5);
+                    ui.add_space(sp.base.space_5);
                     ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing = Vec2::new(SPACE_2, 0.0);
+                        ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
 
                         // Grid toggle
                         let grid = self.preview_store.preview.overlay.show_grid;
@@ -367,7 +368,7 @@ impl GuiShell {
 
                     // Right-aligned: inspector + settings + command palette
                     ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
-                        ui.spacing_mut().item_spacing = Vec2::new(SPACE_2, 0.0);
+                        ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
 
                         // Command palette / shortcut reference button
                         if ui
