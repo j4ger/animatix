@@ -13,7 +13,8 @@ use crate::app::design_tokens::semantic::status;
 use crate::app::design_tokens::semantic::surface;
 use crate::app::design_tokens::semantic::text;
 use crate::app::design_tokens::spatial::preview::{HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS, MIN_ZOOM as PREVIEW_MIN_ZOOM};
-use crate::app::design_tokens::spatial::{RADIUS_M, SPACE_2, STROKE_WIDTH};
+use crate::app::design_tokens::spatial::spatial;
+use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::preview::performance::PerformanceMetrics;
 use crate::app::preview::{ActorProps, DragState, selection, self};
@@ -190,7 +191,8 @@ impl PreviewContext<'_> {
         );
 
         // Build text edit UI
-        let mut child = ui.new_child(egui::UiBuilder::new().max_rect(editor_rect.shrink(SPACE_2)));
+        let sp = spatial(ui);
+        let mut child = ui.new_child(egui::UiBuilder::new().max_rect(editor_rect.shrink(sp.base.space_2)));
         child.set_clip_rect(editor_rect);
 
         let font = match edit.property.as_str() {

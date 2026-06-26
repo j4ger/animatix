@@ -5,7 +5,7 @@ use crate::app::commands::{
     ViewAction, ViewCommand,
 };
 use crate::app::design_tokens::semantic::surface;
-use crate::app::design_tokens::spatial::{self, component::ICON_SLOT_WIDTH};
+use crate::app::design_tokens::spatial::spatial_from_ctx;
 use crate::app::persistence::{
     clear_app_state, load_app_state, load_workspace_persistence, persistence_path, save_app_state,
 };
@@ -698,13 +698,14 @@ fn live_preview_status(preview: &PreviewPaneState, active_scene: Option<&str>) -
 }
 
 fn install_theme(ctx: &egui::Context, theme: &eparts::Theme, dark: bool) {
+    let sp = spatial_from_ctx(ctx);
     let mut style = (*ctx.global_style()).clone();
 
     // Tighter spacing
-    style.spacing.item_spacing = Vec2::new(spatial::SPACE_2, spatial::SPACE_2);
-    style.spacing.button_padding = Vec2::new(spatial::SPACE_4, spatial::SPACE_2);
-    style.spacing.window_margin = egui::Margin::same(spatial::SPACE_4 as i8);
-    style.spacing.indent = ICON_SLOT_WIDTH;
+    style.spacing.item_spacing = Vec2::new(sp.base.space_2, sp.base.space_2);
+    style.spacing.button_padding = Vec2::new(sp.base.space_4, sp.base.space_2);
+    style.spacing.window_margin = egui::Margin::same(sp.base.space_4 as i8);
+    style.spacing.indent = sp.base.component.icon_slot_width;
 
     // Map the eparts Theme onto egui Visuals so stock widgets match the palette.
     style.visuals = theme.to_visuals(dark);
