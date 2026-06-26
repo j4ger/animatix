@@ -4,7 +4,7 @@
 //! plus the `Size` enum they share.  These replace per-widget size/state enums and
 //! keep widget APIs chainable and consistent.
 
-use crate::tokens::spatial::{RADIUS_L, RADIUS_M, RADIUS_S, ROW_L, ROW_M, ROW_S, ROW_XS};
+use crate::tokens::spatial::{Density, RADIUS_L, RADIUS_M, RADIUS_S, ROW_L, ROW_M, ROW_S, ROW_XS};
 use crate::tokens::typography::TextRole;
 
 // ── Size ──────────────────────────────────────────────────────────────
@@ -35,6 +35,11 @@ impl Size {
         }
     }
 
+    /// Returns the row height scaled for the given density.
+    pub fn row_height_for(self, d: Density) -> f32 {
+        d.scale(self.row_height())
+    }
+
     /// Returns the corner radius (in px) for this size.
     pub fn radius(self) -> f32 {
         match self {
@@ -56,6 +61,11 @@ impl Size {
         }
     }
 
+    /// Returns the horizontal padding scaled for the given density.
+    pub fn pad_x_for(self, d: Density) -> f32 {
+        d.scale(self.pad_x())
+    }
+
     /// Returns the vertical padding (in px) for this size.
     pub fn pad_y(self) -> f32 {
         match self {
@@ -65,6 +75,11 @@ impl Size {
             Self::Lg => crate::tokens::spatial::SPACE_4,
             Self::Custom(_) => crate::tokens::spatial::SPACE_3,
         }
+    }
+
+    /// Returns the vertical padding scaled for the given density.
+    pub fn pad_y_for(self, d: Density) -> f32 {
+        d.scale(self.pad_y())
     }
 
     /// Returns the `TextRole` that corresponds to this size.

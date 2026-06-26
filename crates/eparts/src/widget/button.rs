@@ -1,8 +1,7 @@
 use egui::{Color32, Response, Sense, Vec2};
 
 use crate::tokens::spatial::{RADIUS_S, ROW_M, STROKE_WIDTH};
-use crate::tokens::theme;
-use crate::tokens::typography::TextRole;
+use crate::{density, spatial, tokens::theme, tokens::typography::TextRole};
 use crate::widget::spinner::Spinner;
 use crate::widget::traits::{Size, Sizable};
 
@@ -161,8 +160,10 @@ fn effective_label(label: Option<&str>) -> Option<&str> {
 
 impl egui::Widget for Button {
     fn ui(mut self, ui: &mut egui::Ui) -> Response {
-        let row_height = self.size.row_height();
+        let d = density(ui);
+        let row_height = self.size.row_height_for(d);
         let radius = self.size.radius();
+        let _s = spatial(ui);
 
         let t = theme::theme(ui);
 
@@ -245,7 +246,7 @@ impl egui::Widget for Button {
             }
             ButtonVariant::Ghost => {
                 let icon_width = icon_galley.as_ref().map_or(0.0, |g| g.size().x);
-                let mut width = icon_width + self.size.pad_x() * 2.0;
+                let mut width = icon_width + self.size.pad_x_for(d) * 2.0;
                 let mut label_galley = None;
                 if let Some(l) = label {
                     let galley = ui.painter().layout_no_wrap(
@@ -294,7 +295,7 @@ impl egui::Widget for Button {
                         self.icon_color.unwrap_or(slot.fg)
                     };
 
-                    let mut cursor_x = rect.min.x + self.size.pad_x();
+                    let mut cursor_x = rect.min.x + self.size.pad_x_for(d);
                     let baseline_y = rect.center().y;
 
                     if let Some(icon) = self.icon {
@@ -348,9 +349,9 @@ impl egui::Widget for Button {
                     _ => unreachable!(),
                 };
                 let icon_width = icon_galley.as_ref().map_or(0.0, |g| g.size().x);
-                let mut width = self.size.pad_x() * 2.0;
+                let mut width = self.size.pad_x_for(d) * 2.0;
                 if icon_width > 0.0 {
-                    width += icon_width + self.size.pad_x();
+                    width += icon_width + self.size.pad_x_for(d);
                 }
                 let label_str = label;
                 if let Some(l) = label_str {
@@ -375,7 +376,7 @@ impl egui::Widget for Button {
                 ui.painter().rect_filled(rect, radius, slot.bg);
 
                 if !self.loading {
-                    let mut cursor_x = rect.min.x + self.size.pad_x();
+                    let mut cursor_x = rect.min.x + self.size.pad_x_for(d);
                     let baseline_y = rect.center().y;
 
                     if icon_width > 0.0 {
@@ -394,7 +395,7 @@ impl egui::Widget for Button {
                                 icon_font,
                                 icon_fg,
                             );
-                            cursor_x += icon_width + self.size.pad_x();
+                            cursor_x += icon_width + self.size.pad_x_for(d);
                         }
                     }
 

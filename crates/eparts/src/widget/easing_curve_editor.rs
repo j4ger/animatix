@@ -3,8 +3,8 @@
 //! Interactive cubic-bezier easing editor. Shows a small preview of the curve
 //! with draggable control points P1 and P2.
 
-use crate::tokens::spatial::{RADIUS_M, SPACE_2, SPACE_3, STROKE_WIDTH};
-use crate::tokens::theme::theme;
+use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
+use crate::{spatial, tokens::theme::theme};
 use egui::{Pos2, Rect, Sense, Stroke, Vec2};
 
 /// State for the easing curve editor widget.
@@ -47,12 +47,13 @@ impl EasingCurveState {
 /// Returns `Some(new_state)` if the user dragged a control point.
 pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option<EasingCurveState> {
     let t = theme(ui);
+    let s = spatial(ui);
     let desired_size = Vec2::new(ui.available_width(), 100.0);
     let (rect, response) = ui.allocate_exact_size(desired_size, Sense::click_and_drag());
     let painter = ui.painter_at(rect);
 
     // Plot area with padding
-    let plot_rect = rect.shrink2(Vec2::new(SPACE_3, SPACE_2));
+    let plot_rect = rect.shrink2(Vec2::new(s.space_3, s.space_2));
 
     // Map normalized (0..1) to plot_rect
     let map = |x: f32, y: f32| -> Pos2 {

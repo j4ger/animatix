@@ -17,7 +17,7 @@
 
 use egui::{CornerRadius, DragValue, Margin, Response, Stroke, TextEdit, Ui};
 
-use crate::tokens::spatial::{RADIUS_M, SPACE_2, SPACE_3, STROKE_WIDTH};
+use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::tokens::theme;
 
 // ── TextField (C2) ─────────────────────────────────────────────────
@@ -101,6 +101,7 @@ impl<'a> TextField<'a> {
     /// Render the field and return the inner [`egui::Response`].
     pub fn show(self, ui: &mut Ui) -> TextFieldResponse {
         let t = theme(ui);
+        let s = crate::spatial(ui);
 
         // Pre-compute borrow-safe values before giving buf to TextEdit.
         let is_invalid = self.validate.as_ref().is_some_and(|f| !f(self.buf));
@@ -108,8 +109,8 @@ impl<'a> TextField<'a> {
         let show_clear = self.cleanable && buf_nonempty;
 
         let desired_width = self.desired_width.unwrap_or_else(|| ui.available_width());
-        let row_height = ui.text_style_height(&egui::TextStyle::Body) + SPACE_3 * 2.0;
-        let inner_margin = SPACE_2;
+        let row_height = ui.text_style_height(&egui::TextStyle::Body) + s.space_3 * 2.0;
+        let inner_margin = s.space_2;
         let radius = CornerRadius::same(RADIUS_M as u8);
 
         let (outer_rect, outer_resp) = ui.allocate_exact_size(
@@ -135,7 +136,7 @@ impl<'a> TextField<'a> {
         child_ui.add_enabled_ui(self.enabled, |ui| {
             ui.horizontal(|ui| {
                 ui.set_min_height(row_height - inner_margin * 2.0);
-                ui.spacing_mut().item_spacing.x = SPACE_2;
+                ui.spacing_mut().item_spacing.x = s.space_2;
 
                 if let Some(ref pre) = self.prefix {
                     ui.label(egui::RichText::new(pre).color(fg));
@@ -266,8 +267,9 @@ impl<'a> NumberField<'a> {
     /// Render the field and return the inner [`egui::Response`].
     pub fn show(self, ui: &mut Ui) -> Response {
         let t = theme(ui);
+        let s = crate::spatial(ui);
         let desired_width = self.desired_width.unwrap_or(80.0);
-        let row_height = ui.text_style_height(&egui::TextStyle::Body) + SPACE_3 * 2.0;
+        let row_height = ui.text_style_height(&egui::TextStyle::Body) + s.space_3 * 2.0;
 
         let (outer_rect, outer_resp) =
             ui.allocate_exact_size(egui::vec2(desired_width, row_height), egui::Sense::hover());
@@ -276,7 +278,7 @@ impl<'a> NumberField<'a> {
             return outer_resp;
         }
 
-        let inner_margin = SPACE_2;
+        let inner_margin = s.space_2;
         let radius = CornerRadius::same(RADIUS_M as u8);
 
         let mut child_ui = ui.new_child(

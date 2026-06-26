@@ -12,7 +12,7 @@
 
 use egui::{CornerRadius, Context, Response, Rect, Sense, Stroke, Widget};
 
-use crate::tokens::spatial::{RADIUS_S, SPACE_1};
+use crate::tokens::spatial::RADIUS_S;
 use crate::tokens::theme::theme;
 use crate::tokens::typography::TextRole;
 
@@ -40,6 +40,7 @@ impl Kbd {
 impl Widget for Kbd {
     fn ui(self, ui: &mut egui::Ui) -> Response {
         let t = theme(ui);
+        let s = crate::spatial(ui);
         let font_id = TextRole::Caption.font_id();
 
         let galley = ui.painter().layout(
@@ -49,7 +50,7 @@ impl Widget for Kbd {
             ui.available_width(),
         );
 
-        let pad = SPACE_1;
+        let pad = s.space_1;
         let size = galley.size() + egui::vec2(pad * 2.0, pad * 2.0);
         // `min_rect()` returns a `Rect` whose `min` field is the top-left corner.
         let rect = Rect::from_min_size(ui.min_rect().min, size);

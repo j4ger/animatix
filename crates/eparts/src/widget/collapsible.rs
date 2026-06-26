@@ -20,7 +20,7 @@
 //! is open at a time (mutually exclusive).
 
 use crate::tokens::motion::Transition;
-use crate::tokens::spatial::{SPACE_2, SPACE_3, STROKE_WIDTH};
+use crate::tokens::spatial::STROKE_WIDTH;
 use crate::tokens::typography::TextRole;
 use crate::widget::anim::animate_bool_eased;
 use crate::widget::traits::Collapsible as CollapsibleTrait;
@@ -64,6 +64,7 @@ impl CollapsibleSection {
     /// Render the collapsible section.
     pub fn show(&self, ui: &mut Ui, body_fn: impl FnOnce(&mut Ui)) -> Response {
         let t = crate::tokens::theme::theme(ui);
+        let s = crate::spatial(ui);
         let progress_id = self.id.with(PROGRESS_KEY);
         let state_id = self.id.with(STATE_KEY);
 
@@ -73,7 +74,7 @@ impl CollapsibleSection {
         });
 
         // Allocate a clickable header area.
-        let header_h = TextRole::Body.size() + SPACE_2 * 2.0;
+        let header_h = TextRole::Body.size() + s.space_2 * 2.0;
         let avail_w = ui.available_width();
         let (header_rect, header_response) =
             ui.allocate_exact_size(Vec2::new(avail_w, header_h), Sense::click());
@@ -85,7 +86,7 @@ impl CollapsibleSection {
 
         // Chevron.
         ui.painter().text(
-            egui::pos2(header_rect.min.x + SPACE_3, header_rect.center().y),
+            egui::pos2(header_rect.min.x + s.space_3, header_rect.center().y),
             egui::Align2::LEFT_CENTER,
             "\u{25B6}",
             TextRole::BodyS.font_id(),
@@ -94,7 +95,7 @@ impl CollapsibleSection {
 
         // Title text.
         ui.painter().text(
-            egui::pos2(header_rect.min.x + SPACE_3 + SPACE_2, header_rect.center().y),
+            egui::pos2(header_rect.min.x + s.space_3 + s.space_2, header_rect.center().y),
             egui::Align2::LEFT_CENTER,
             &self.header,
             TextRole::Body.font_id(),
@@ -129,7 +130,7 @@ impl CollapsibleSection {
         // ── Body ────────────────────────────────────────────────────────────
         if effective_open {
             ui.vertical(|ui| {
-                ui.add_space(SPACE_2);
+                ui.add_space(s.space_2);
                 let full_h = ui.available_height();
                 let body_h = full_h * progress;
                 if body_h > 0.5 {

@@ -14,7 +14,7 @@ use crate::tokens::motion;
 use crate::tokens::theme::theme;
 use crate::tokens::spatial::{self, RADIUS_XL, STROKE_WIDTH};
 use crate::tokens::spatial::dialog as dialog_token;
-use crate::tokens::typography::TextRole;
+use crate::{density, tokens::typography::TextRole};
 
 /// Context passed to the dialog body on each frame.
 pub struct DialogCtx {
@@ -192,6 +192,10 @@ pub fn modal(
             .max(spec.min_size[1]),
     ];
 
+    // ── Resolve scaled dialog margins ──
+    let inner_margin = density(ui).scale(spatial::dialog::INNER_MARGIN);
+    let screen_margin = density(ui).scale(spatial::dialog::SCREEN_MARGIN);
+
     // ── Centered dialog using egui window for proper layout ──
     let window = egui::Window::new(spec.id)
         .anchor(
@@ -212,7 +216,7 @@ pub fn modal(
                 .fill(window_bg)
                 .stroke(Stroke::new(STROKE_WIDTH, border_color))
                 .corner_radius(RADIUS_XL)
-                .inner_margin(Margin::same(spatial::dialog::INNER_MARGIN as i8))
+                .inner_margin(Margin::same(inner_margin as i8))
                 .shadow(t.elevation_overlay()),
         );
 
@@ -229,7 +233,7 @@ pub fn modal(
     let resp = window.show(ctx, |window_ui| {
         // Fade window content (widgets, text, etc.) with animation progress
         window_ui.set_opacity(progress);
-        window_ui.set_min_width(spec.min_size[0] - 2.0 * spatial::dialog::INNER_MARGIN);
+        window_ui.set_min_width(spec.min_size[0] - 2.0 * screen_margin);
         let dc = DialogCtx { first_frame };
         body(window_ui, &dc)
     });

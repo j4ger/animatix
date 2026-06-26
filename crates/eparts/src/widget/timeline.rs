@@ -1,7 +1,7 @@
 use egui::{Sense, Vec2};
 
-use crate::tokens::spatial::{RADIUS_M, SPACE_2, STROKE_WIDTH};
-use crate::tokens::theme::theme;
+use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
+use crate::{spatial, tokens::theme::theme};
 
 /// Draws a diamond-shaped keyframe marker.
 pub fn keyframe_dot(
@@ -47,11 +47,12 @@ pub struct TimelineStrip<'a> {
 impl<'a> TimelineStrip<'a> {
     pub fn show(self, ui: &mut egui::Ui) -> Option<f64> {
         let t = theme(ui);
+        let s = spatial(ui);
         let desired = Vec2::new(ui.available_width(), self.height);
         let (rect, response) = ui.allocate_exact_size(desired, Sense::click_and_drag());
         let painter = ui.painter_at(rect);
 
-        let track = rect.shrink2(Vec2::new(SPACE_2, 3.0));
+        let track = rect.shrink2(Vec2::new(s.space_2, 3.0));
         painter.rect_filled(track, RADIUS_M, t.surface.widget);
         painter.rect_stroke(
             track,

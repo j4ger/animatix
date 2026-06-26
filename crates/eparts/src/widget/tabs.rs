@@ -1,8 +1,7 @@
 use egui::{Id, Rect, Response, Sense, Vec2};
 
-use crate::tokens::spatial::component::{PILL_TAB_GAP, PILL_TAB_HEIGHT};
 use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
-use crate::tokens::typography::TextRole;
+use crate::{spatial, tokens::typography::TextRole};
 
 /// A stateful pill-style tab bar.
 ///
@@ -41,8 +40,8 @@ impl<'a> TabBar<'a> {
             id: id.into(),
             selected_index,
             tabs: tabs.to_vec(),
-            height: PILL_TAB_HEIGHT,
-            gap: PILL_TAB_GAP,
+            height: crate::tokens::spatial::component::PILL_TAB_HEIGHT,
+            gap: crate::tokens::spatial::component::PILL_TAB_GAP,
             sense: Sense::click(),
         }
     }
@@ -76,9 +75,19 @@ impl<'a> crate::widget::Sizable for TabBar<'a> {
 impl<'a> TabBar<'a> {
     pub fn show(self, ui: &mut egui::Ui) -> Response {
         let t = crate::theme(ui);
+        let s = spatial(ui);
         let available = ui.available_width();
-        let tab_h = self.height;
-        let gap = self.gap;
+        // Density-aware defaults: override base consts only when not explicitly set
+        let tab_h = if self.height == crate::tokens::spatial::component::PILL_TAB_HEIGHT {
+            s.component.pill_tab_height
+        } else {
+            self.height
+        };
+        let gap = if self.gap == crate::tokens::spatial::component::PILL_TAB_GAP {
+            s.component.pill_tab_gap
+        } else {
+            self.gap
+        };
         let tab_w = if self.tabs.is_empty() {
             0.0
         } else {

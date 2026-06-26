@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use egui::{Id, Sense};
 
-use crate::tokens::spatial::ROW_M;
+use crate::tokens::spatial::{density, ROW_M};
 use crate::widget::input::TextField;
 use crate::widget::row::Row;
 
@@ -77,6 +77,7 @@ impl<'a> List<'a> {
     pub fn show(self, ui: &mut egui::Ui, id_source: impl std::hash::Hash) -> ListResponse {
         let list_id = Id::new(id_source);
         let num_items = self.items.len();
+        let row_h = density(ui).scale(self.row_height);
         let timeout_secs = self.type_ahead_timeout.as_secs_f64();
 
         // ── Read / initialise Memory ────────────────────────────────
@@ -161,12 +162,12 @@ impl<'a> List<'a> {
         });
 
         // ── Allocate & paint ────────────────────────────────────────
-        let total_height = num_items as f32 * self.row_height;
+        let total_height = num_items as f32 * row_h;
         let (outer_rect, outer_resp) =
             ui.allocate_exact_size(egui::vec2(ui.available_width(), total_height), Sense::click());
 
         if outer_resp.clicked() {
-            if let Some(clicked_idx) = row_at(outer_resp.interact_pointer_pos(), outer_rect, self.row_height) {
+            if let Some(clicked_idx) = row_at(outer_resp.interact_pointer_pos(), outer_rect, row_h) {
                 if clicked_idx < num_items {
                     sel_idx = Some(clicked_idx);
                     if action.is_none() {
@@ -184,16 +185,16 @@ impl<'a> List<'a> {
         let painter = ui.painter_at(outer_rect);
 
         for (idx, label) in self.items.iter().enumerate() {
-            let y = outer_rect.min.y + idx as f32 * self.row_height;
+            let y = outer_rect.min.y + idx as f32 * row_h;
             let row_rect = egui::Rect::from_min_max(
                 egui::pos2(outer_rect.min.x, y),
-                egui::pos2(outer_rect.max.x, y + self.row_height),
+                egui::pos2(outer_rect.max.x, y + row_h),
             );
             let is_selected = sel_idx == Some(idx);
             let row_resp = ui.interact(row_rect, list_id.with(idx), Sense::click());
 
             let _ = Row::new(label)
-                .height(self.row_height)
+                .height(row_h)
                 .selected(is_selected)
                 .show_in_rect(ui, row_rect, row_resp, list_id.with(idx), &painter);
         }

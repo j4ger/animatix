@@ -1,8 +1,8 @@
 use egui::{Color32, Rect, RichText, Sense, Stroke, Vec2};
 
-use crate::tokens::spatial::{ROW_L, SPACE_2, SPACE_3, SPACE_4, STROKE_WIDTH};
+use crate::tokens::spatial::{STROKE_WIDTH};
 use crate::tokens::theme::{Theme, theme};
-use crate::tokens::typography::TextRole;
+use crate::{spatial, tokens::typography::TextRole};
 use super::layout::card;
 
 /// Where to place the cursor after clicking a diagnostic.
@@ -53,10 +53,11 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
 
     let mut clicked_target: Option<DiagnosticTarget> = None;
     let t = theme(ui);
+    let s = spatial(ui);
 
     card(ui, |ui: &mut egui::Ui| {
         ui.horizontal(|ui: &mut egui::Ui| {
-            ui.spacing_mut().item_spacing = Vec2::new(SPACE_2, 0.0);
+            ui.spacing_mut().item_spacing = Vec2::new(s.space_2, 0.0);
 
             let error_count = diagnostics.iter().filter(|d| d.is_error()).count();
             let warning_count = diagnostics.iter().filter(|d| !d.is_error()).count();
@@ -121,12 +122,12 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
             });
         });
 
-        ui.add_space(SPACE_2);
+        ui.add_space(s.space_2);
 
         egui::ScrollArea::vertical().max_height(180.0).show(ui, |ui: &mut egui::Ui| {
             ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
             for (i, d) in diagnostics.iter().enumerate() {
-                if let Some(target) = diagnostic_row(ui, d, i == diagnostics.len() - 1, &t) {
+                if let Some(target) = diagnostic_row(ui, d, i == diagnostics.len() - 1, &t, s) {
                     clicked_target = Some(target);
                 }
             }
@@ -141,9 +142,10 @@ fn diagnostic_row<T: DiagnosticEntry>(
     diagnostic: &T,
     is_last: bool,
     t: &Theme,
+    s: crate::tokens::spatial::Spatial,
 ) -> Option<DiagnosticTarget> {
     let available = ui.available_width();
-    let row_h = ROW_L;
+    let row_h = s.row_l;
     let (row_rect, response) = ui.allocate_exact_size(Vec2::new(available, row_h), Sense::click());
 
     let accent_color = if diagnostic.is_error() {
@@ -170,7 +172,7 @@ fn diagnostic_row<T: DiagnosticEntry>(
     ui.painter().rect_filled(accent_rect, 0.0, accent_color);
 
     let baseline_y = row_rect.center().y;
-    let mut cursor_x = row_rect.min.x + SPACE_3 + 2.0;
+    let mut cursor_x = row_rect.min.x + s.space_3 + 2.0;
 
     ui.painter().text(
         egui::pos2(cursor_x + 7.0, baseline_y),
@@ -183,7 +185,7 @@ fn diagnostic_row<T: DiagnosticEntry>(
 
     let phase_str = diagnostic.phase_label().unwrap_or_default();
     let phase_badge_w = 40.0_f32;
-    let msg_max_width = (row_rect.max.x - cursor_x - SPACE_4 - phase_badge_w).max(20.0);
+    let msg_max_width = (row_rect.max.x - cursor_x - s.space_4 - phase_badge_w).max(20.0);
 
     let msg = diagnostic.message().lines().next().unwrap_or_default();
     let font_id = TextRole::Body.font_id();
@@ -198,7 +200,7 @@ fn diagnostic_row<T: DiagnosticEntry>(
     );
 
     ui.painter().text(
-        egui::pos2(row_rect.max.x - SPACE_2, baseline_y),
+        egui::pos2(row_rect.max.x - s.space_2, baseline_y),
         egui::Align2::RIGHT_CENTER,
         phase_str,
         TextRole::Micro.font_id(),
@@ -208,8 +210,8 @@ fn diagnostic_row<T: DiagnosticEntry>(
     if !is_last {
         ui.painter().line_segment(
             [
-                egui::pos2(row_rect.min.x + SPACE_3, row_rect.bottom() - 0.5),
-                egui::pos2(row_rect.max.x - SPACE_2, row_rect.bottom() - 0.5),
+                egui::pos2(row_rect.min.x + s.space_3, row_rect.bottom() - 0.5),
+                egui::pos2(row_rect.max.x - s.space_2, row_rect.bottom() - 0.5),
             ],
             Stroke::new(STROKE_WIDTH, t.border.default),
         );

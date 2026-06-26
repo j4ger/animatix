@@ -5,8 +5,8 @@
 
 use crate::theme;
 use crate::tokens::spatial::{
-    component::PROGRESS_BAR_HEIGHT,
-    RADIUS_M, RADIUS_S, SPACE_2, SPACE_3, STROKE_WIDTH,
+    spatial,
+    RADIUS_M, RADIUS_S, STROKE_WIDTH,
 };
 use crate::tokens::typography::TextRole;
 use egui::{Align2, Color32, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2, Widget};
@@ -121,8 +121,9 @@ impl ProgressBar {
 impl Widget for ProgressBar {
     fn ui(self, ui: &mut Ui) -> Response {
         let t = theme(ui);
+        let s = spatial(ui);
         let width = ui.available_width();
-        let height = PROGRESS_BAR_HEIGHT;
+        let height = s.component.progress_bar_height;
         let size = Vec2::new(width, height);
         let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
         let radius = RADIUS_M as u8;
@@ -198,9 +199,10 @@ impl Badge {
 impl Widget for Badge {
     fn ui(self, ui: &mut Ui) -> Response {
         let t = theme(ui);
+        let s = spatial(ui);
         let font = TextRole::Caption.font_id();
         let galley = ui.painter().layout_no_wrap(self.text.clone(), font, t.text.primary);
-        let pad = SPACE_2;
+        let pad = s.space_2;
         let size = Vec2::new(galley.size().x + pad * 2.0, galley.size().y + pad);
         let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
         let radius = rect.height() / 2.0;
@@ -261,11 +263,12 @@ impl Tag {
 impl Widget for Tag {
     fn ui(self, ui: &mut Ui) -> Response {
         let t = theme(ui);
+        let s = spatial(ui);
         let font = TextRole::BodyS.font_id();
         let suffix = if self.removable { " ✕" } else { "" };
         let text = format!("{}{}", self.text, suffix);
         let galley = ui.painter().layout_no_wrap(text, font, t.text.primary);
-        let pad = SPACE_2;
+        let pad = s.space_2;
         let size = Vec2::new(galley.size().x + pad * 2.0, galley.size().y + pad);
         let sense = if self.removable {
             Sense::click()
@@ -341,6 +344,7 @@ impl Alert {
 impl Widget for Alert {
     fn ui(self, ui: &mut Ui) -> Response {
         let t = theme(ui);
+        let s = spatial(ui);
         let (icon, color, bg) = match self.level {
             AlertLevel::Info => (
                 egui_phosphor::regular::INFO,
@@ -379,8 +383,8 @@ impl Widget for Alert {
             ui.painter()
                 .layout_no_wrap(self.text.clone(), body_font.clone(), t.text.primary);
 
-        let spacing = SPACE_2;
-        let pad = SPACE_3;
+        let spacing = s.space_2;
+        let pad = s.space_3;
         let bar_w = 4.0;
         let icon_w = icon_galley.size().x;
         let mut width = pad * 2.0 + bar_w + spacing + icon_w + body_galley.size().x;
@@ -388,7 +392,7 @@ impl Widget for Alert {
 
         if let Some(ref tg) = title_galley {
             width = pad * 2.0 + bar_w + spacing + icon_w + tg.size().x;
-            height = pad * 2.0 + tg.size().y + spacing + body_galley.size().y;
+            height = tg.size().y + spacing + body_galley.size().y;
         }
 
         let size = Vec2::new(ui.available_width().max(width), height);

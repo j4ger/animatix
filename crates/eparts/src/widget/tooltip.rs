@@ -28,7 +28,7 @@
 //! ```
 
 use crate::tokens::theme::theme;
-use crate::tokens::spatial::{RADIUS_M, SPACE_2, SPACE_3, STROKE_WIDTH};
+use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use egui::{Area, CornerRadius, Id, Margin, Order, Response, Stroke, Ui, Vec2};
 
 use std::time::Duration;
@@ -142,8 +142,9 @@ impl Tooltip {
         let mut tooltip_hovered = false;
         if prelim_open {
             let t = theme(ui);
+            let s = crate::spatial(ui);
             let screen_rect = ctx.viewport_rect();
-            let gap = SPACE_2;
+            let gap = s.space_2;
             let mut desired_pos = trigger.rect.left_bottom() + Vec2::new(0.0, gap);
 
             // Rough horizontal clamp so we don't spawn off-screen.
@@ -151,9 +152,9 @@ impl Tooltip {
             let est_max_width = (screen_rect.width() * 0.35).min(320.0).max(est_min_width);
             desired_pos.x = desired_pos
                 .x
-                .max(screen_rect.min.x + SPACE_2)
-                .min(screen_rect.max.x - est_max_width - SPACE_2);
-            desired_pos.y = desired_pos.y.min(screen_rect.max.y - SPACE_2);
+                .max(screen_rect.min.x + s.space_2)
+                .min(screen_rect.max.x - est_max_width - s.space_2);
+            desired_pos.y = desired_pos.y.min(screen_rect.max.y - s.space_2);
 
             let area = Area::new(self.id.with("area"))
                 .order(Order::Tooltip)
@@ -165,7 +166,7 @@ impl Tooltip {
                     .fill(t.overlay.tooltip_bg)
                     .stroke(Stroke::new(STROKE_WIDTH, t.border.default))
                     .corner_radius(CornerRadius::same(RADIUS_M as u8))
-                    .inner_margin(Margin::same(SPACE_3 as i8))
+                    .inner_margin(Margin::same(s.space_3 as i8))
                     .show(ui, add_contents);
             });
 

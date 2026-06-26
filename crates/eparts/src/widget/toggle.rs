@@ -7,7 +7,7 @@ use egui::{Color32, Pos2, Response, Sense, Stroke, StrokeKind, Vec2};
 use std::hash::{Hash, Hasher};
 
 use crate::tokens::motion::{NORMAL, STANDARD, Transition};
-use crate::tokens::spatial::{toggle, ROW_XS, RADIUS_M, SPACE_3, STROKE_WIDTH, STROKE_WIDTH_THICK};
+use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH, STROKE_WIDTH_THICK};
 use crate::tokens::theme;
 use crate::tokens::typography::TextRole;
 use crate::widget::anim::{animate_bool_eased, animate_lerp};
@@ -79,8 +79,9 @@ impl<'a> egui::Widget for Checkbox<'a> {
         let id = egui::Id::new(self.value as *const _);
 
         // Layout calculations
-        let box_size = Vec2::splat(ROW_XS);
-        let spacing = SPACE_3;
+        let s = crate::spatial(ui);
+        let box_size = Vec2::splat(s.row_xs);
+        let spacing = s.space_3;
         let font = TextRole::Body.font_id();
         let label_galley = self.label.map(|l| {
             ui.painter()
@@ -254,8 +255,9 @@ impl<'a, T: PartialEq + Clone + Hash> egui::Widget for Radio<'a, T> {
         let id = egui::Id::new(hasher.finish());
 
         // Layout
-        let outer_size = Vec2::splat(toggle::RADIO_SIZE);
-        let spacing = SPACE_3;
+        let s = crate::spatial(ui);
+        let outer_size = Vec2::splat(s.toggle.radio_size);
+        let spacing = s.space_3;
         let font = TextRole::Body.font_id();
         let label_galley = self.label.map(|l| {
             ui.painter()
@@ -394,10 +396,11 @@ impl<'a> egui::Widget for Switch<'a> {
         let id = egui::Id::new(self.value as *const _);
 
         // Dimensions
-        let track_height = toggle::SWITCH_TRACK_HEIGHT;
-        let track_width = toggle::SWITCH_TRACK_WIDTH;
-        let thumb_radius = toggle::SWITCH_THUMB_RADIUS;
-        let spacing = SPACE_3;
+        let s = crate::spatial(ui);
+        let track_height = s.toggle.switch_track_height;
+        let track_width = s.toggle.switch_track_width;
+        let thumb_radius = s.toggle.switch_thumb_radius;
+        let spacing = s.space_3;
 
         let font = TextRole::Body.font_id();
         let label_galley = self.label.map(|l| {

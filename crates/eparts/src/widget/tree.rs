@@ -58,7 +58,7 @@ use egui::{Id, Response, Sense};
 #[allow(unused_imports)]
 use std::collections::HashSet;
 
-use crate::tokens::spatial::{ROW_M, SPACE_4};
+use crate::tokens::spatial::{density, ROW_M, SPACE_4};
 use crate::widget::row::Row;
 
 // ── Public types ─────────────────────────────────────────────────────
@@ -140,6 +140,8 @@ impl<'a> Tree<'a> {
     pub fn show(self, ui: &mut egui::Ui, id_source: impl std::hash::Hash) -> TreeResponse {
         let tree_id = Id::new(id_source);
         let num_items = self.items.len();
+        let row_h = density(ui).scale(self.row_height);
+        let indent = density(ui).scale(self.indent_step);
 
         // ── Read / initialise Memory state ──────────────────────────
         let mut sel_idx: Option<usize> = ui
@@ -297,7 +299,7 @@ impl<'a> Tree<'a> {
         });
 
         // ── Allocate the outer frame ────────────────────────────────
-        let total_height = num_items as f32 * self.row_height;
+        let total_height = num_items as f32 * row_h;
         let (outer_rect, outer_resp) =
             ui.allocate_exact_size(egui::vec2(ui.available_width(), total_height), Sense::click());
 
@@ -323,10 +325,10 @@ impl<'a> Tree<'a> {
         let painter = ui.painter_at(outer_rect);
 
         for (idx, item) in self.items.iter().enumerate() {
-            let y = outer_rect.min.y + idx as f32 * self.row_height;
+            let y = outer_rect.min.y + idx as f32 * row_h;
             let row_rect = egui::Rect::from_min_max(
                 egui::pos2(outer_rect.min.x, y),
-                egui::pos2(outer_rect.max.x, y + self.row_height),
+                egui::pos2(outer_rect.max.x, y + row_h),
             );
             let is_selected = sel_idx == Some(idx);
             let row_id = tree_id.with(idx);
@@ -338,8 +340,8 @@ impl<'a> Tree<'a> {
             }
 
             let _ = Row::new(&item.label)
-                .height(self.row_height)
-                .indent(item.depth as f32 * self.indent_step)
+                .height(row_h)
+                .indent(item.depth as f32 * indent)
                 .has_children(item.has_children)
                 .expanded(item.expanded)
                 .selected(is_selected)

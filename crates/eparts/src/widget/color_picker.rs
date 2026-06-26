@@ -21,7 +21,7 @@
 use egui::{Color32, CornerRadius, Id, Response, Stroke, Ui};
 
 use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
-use crate::tokens::theme::theme;
+use crate::{spatial, tokens::theme::theme};
 use crate::widget::popover::Popover;
 use crate::widget::input::TextField;
 
@@ -110,6 +110,7 @@ impl<'a> ColorPicker<'a> {
     /// Render the trigger swatch button and (when open) the popover panel.
     pub fn show(self, ui: &mut Ui) -> ColorPickerResponse {
         let t = theme(ui);
+        let _s = spatial(ui);
         let Self { id, color, show_alpha, swatches } = self;
 
         // ── Trigger: small rounded swatch button ──────────────────────────

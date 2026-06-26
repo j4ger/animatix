@@ -8,6 +8,7 @@
 //! `accent::PRIMARY` while the handle is being dragged.
 
 use crate::tokens::spatial::{RADIUS_S, SPACE_2, STROKE_WIDTH};
+use crate::{spatial};
 use egui::{CornerRadius, CursorIcon, Id, Rect, Sense, Ui, Vec2};
 
 // ── Public API ─────────────────────────────────────────────────────────────────
@@ -79,6 +80,7 @@ impl ResizeHandle {
     /// Render the resize handle and return the drag delta this frame (0.0 when idle).
     pub fn show(&self, ui: &mut Ui) -> f32 {
         let t = crate::tokens::theme::theme(ui);
+        let _s = spatial(ui);
         let visual = self.axis.visual_width();
         let pad = self.hit_pad;
 

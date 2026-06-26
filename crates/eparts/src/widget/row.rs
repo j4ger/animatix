@@ -1,7 +1,7 @@
 use egui::{Color32, Id, Rect, Response, Sense, Vec2};
 
 use crate::tokens::spatial::component::ICON_SLOT_WIDTH;
-use crate::tokens::spatial::{ROW_M, SPACE_2, SPACE_4};
+use crate::tokens::spatial::{density, spatial, ROW_M};
 use crate::tokens::typography::TextRole;
 
 /// Response from a `Row`.
@@ -112,9 +112,10 @@ impl<'a> Row<'a> {
 
     /// Standard render: allocate a full-width rect from the ui, paint, and return.
     pub fn show(self, ui: &mut egui::Ui, row_id: Id) -> RowResponse {
+        let h = density(ui).scale(self.height);
         let available = ui.available_width();
         let (row_rect, row_response) =
-            ui.allocate_exact_size(Vec2::new(available, self.height), self.sense);
+            ui.allocate_exact_size(Vec2::new(available, h), self.sense);
         let painter = ui.painter_at(row_rect);
         self.show_in_rect(ui, row_rect, row_response, row_id, &painter)
     }
@@ -141,6 +142,8 @@ impl<'a> Row<'a> {
         painter: &egui::Painter,
     ) -> RowResponse {
         let t = crate::tokens::theme::theme(ui);
+        let s = spatial(ui);
+        let h = density(ui).scale(self.height);
         let row_clicked = row_response.clicked();
         let hovered = row_response.hovered();
 
@@ -166,11 +169,11 @@ impl<'a> Row<'a> {
         }
 
         let baseline_y = rect.center().y;
-        let mut cursor_x = rect.min.x + SPACE_2 + self.indent;
+        let mut cursor_x = rect.min.x + s.space_2 + self.indent;
 
         let chevron_rect = Rect::from_min_size(
             egui::pos2(cursor_x, rect.min.y),
-            Vec2::new(ICON_SLOT_WIDTH, self.height),
+            Vec2::new(ICON_SLOT_WIDTH, h),
         );
         let chevron_resp = ui.interact(chevron_rect, row_id.with("chevron"), Sense::click());
 
@@ -196,10 +199,10 @@ impl<'a> Row<'a> {
         cursor_x += ICON_SLOT_WIDTH;
 
         if let Some(icon_str) = self.icon {
-            cursor_x += SPACE_2;
+            cursor_x += s.space_2;
             let icon_rect = Rect::from_min_size(
                 egui::pos2(cursor_x, rect.min.y),
-                Vec2::new(ICON_SLOT_WIDTH, self.height),
+                Vec2::new(ICON_SLOT_WIDTH, h),
             );
             let default_color = if self.is_selected {
                 t.text.primary
@@ -213,9 +216,9 @@ impl<'a> Row<'a> {
                 TextRole::Body.font_id(),
                 self.label_color.unwrap_or(default_color),
             );
-            cursor_x += ICON_SLOT_WIDTH + SPACE_2;
+            cursor_x += ICON_SLOT_WIDTH + s.space_2;
         } else {
-            cursor_x += SPACE_2 * 2.0;
+            cursor_x += s.space_2 * 2.0;
         }
 
         let label_color = self.label_color.unwrap_or({
@@ -235,19 +238,19 @@ impl<'a> Row<'a> {
 
         // right slot — render inside a scoped child confined to rect
         if let Some(right_fn) = self.right {
-            let check_width = if self.confirmed { ICON_SLOT_WIDTH + SPACE_2 } else { 0.0 };
-            let right_area_width = (rect.max.x - SPACE_2 - check_width - cursor_x - SPACE_4).max(20.0);
+            let check_width = if self.confirmed { ICON_SLOT_WIDTH + s.space_2 } else { 0.0 };
+            let right_area_width = (rect.max.x - s.space_2 - check_width - cursor_x - s.space_4).max(20.0);
             let right_rect = Rect::from_min_size(
-                egui::pos2(cursor_x + SPACE_4, rect.min.y),
-                Vec2::new(right_area_width, self.height),
+                egui::pos2(cursor_x + s.space_4, rect.min.y),
+                Vec2::new(right_area_width, h),
             );
             let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(right_rect));
             child_ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), right_fn);
         }
 
         if self.confirmed {
-            let check_width = ICON_SLOT_WIDTH + SPACE_2;
-            let check_x = rect.max.x - SPACE_2 - check_width / 2.0;
+            let check_width = ICON_SLOT_WIDTH + s.space_2;
+            let check_x = rect.max.x - s.space_2 - check_width / 2.0;
             painter.text(
                 egui::pos2(check_x, baseline_y),
                 egui::Align2::CENTER_CENTER,

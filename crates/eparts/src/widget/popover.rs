@@ -44,7 +44,7 @@
 
 use egui::{Context, CornerRadius, Id, Order, Pos2, Rect, Response, Ui};
 
-use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
+use crate::{spatial, tokens::spatial::{RADIUS_M, STROKE_WIDTH}};
 use crate::widget::overlay::{
     OverlayLayer, clicked_outside, escape_pressed, is_topmost, push_overlay, remove_overlay,
 };
@@ -275,6 +275,7 @@ impl Popover {
         }
 
         // ── Render ───────────────────────────────────────────────────────
+        let _s = spatial(ui);
         let popover_rect = if is_open {
             // Anchor position clamped to viewport so the Area's fixed_pos is
             // already within screen bounds before rendering.

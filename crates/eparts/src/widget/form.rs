@@ -9,7 +9,6 @@
 
 use egui::{Align, Layout, Vec2};
 
-use crate::tokens::spatial::SPACE_3;
 use crate::tokens::theme::theme;
 use crate::tokens::typography::TextRole;
 use crate::widget::label::Label;
@@ -65,8 +64,9 @@ impl Form {
 
     /// Show the form, yielding a [`Field`] builder for each row.
     pub fn show(self, ui: &mut egui::Ui, f: impl FnOnce(&mut Field)) {
+        let s = crate::spatial(ui);
         ui.vertical(|ui| {
-            ui.spacing_mut().item_spacing.y = SPACE_3;
+            ui.spacing_mut().item_spacing.y = s.space_3;
             let mut field = Field {
                 ui,
                 label_width: self.label_width,
@@ -118,6 +118,7 @@ impl<'a> Field<'a> {
         add_contents: impl FnOnce(&mut egui::Ui),
     ) {
         let t = theme(self.ui);
+        let s = crate::spatial(self.ui);
         self.ui.horizontal(|ui| {
             // Fixed-width label column, right-aligned, using theme secondary text
             ui.allocate_ui_with_layout(
@@ -132,7 +133,7 @@ impl<'a> Field<'a> {
                     );
                 }
             );
-            ui.add_space(SPACE_3);
+            ui.add_space(s.space_3);
             add_contents(ui);
         });
     }

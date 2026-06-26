@@ -27,15 +27,10 @@
 use egui::{Align2, Color32, CornerRadius, Id, Margin, Pos2, Rect, Sense, Stroke, Ui, Vec2};
 
 use crate::tokens::theme;
-use crate::tokens::spatial::{RADIUS_M, RADIUS_S};
-use crate::tokens::spatial::{ROW_M, ROW_S, SPACE_2, SPACE_3, SPACE_4, STROKE_WIDTH, menu as menu_spatial};
+use crate::tokens::spatial::{RADIUS_M, RADIUS_S, SPACE_2, STROKE_WIDTH, Spatial, menu as menu_spatial};
 use crate::tokens::typography::TextRole;
 
 // ─── Constants ──────────────────────────────────────────────────────────────
-
-const MENU_ITEM_HEIGHT: f32 = ROW_M; // 24.0
-const MENU_ICON_GAP: f32 = SPACE_2; // 4.0
-const MENU_SHORTCUT_GAP: f32 = SPACE_4; // 8.0
 
 // ─── Data Types ─────────────────────────────────────────────────────────────
 
@@ -96,7 +91,7 @@ struct MenuLayout {
 }
 
 impl MenuLayout {
-    fn from_entries(entries: &[MenuEntry]) -> Self {
+    fn from_entries(entries: &[MenuEntry], s: &Spatial) -> Self {
         let mut check_col = false;
         let mut icon_col = false;
         for entry in entries {
@@ -109,12 +104,12 @@ impl MenuLayout {
                 }
             }
         }
-        let mut text_left = SPACE_3;
+        let mut text_left = s.space_3;
         if check_col {
-            text_left += menu_spatial::CHECK_WIDTH + MENU_ICON_GAP;
+            text_left += menu_spatial::CHECK_WIDTH + s.space_2;
         }
         if icon_col {
-            text_left += menu_spatial::ICON_WIDTH + MENU_ICON_GAP;
+            text_left += menu_spatial::ICON_WIDTH + s.space_2;
         }
         Self {
             check_col,
@@ -132,10 +127,11 @@ impl MenuLayout {
 /// Returns the index of the clicked item, or `None` if nothing was clicked.
 pub fn render_menu(ui: &mut Ui, entries: &[MenuEntry]) -> Option<usize> {
     let t = theme::theme(ui);
+    let s = crate::spatial(ui);
 
     ui.set_min_width(menu_spatial::MIN_WIDTH);
 
-    let layout = MenuLayout::from_entries(entries);
+    let layout = MenuLayout::from_entries(entries, &s);
     let mut clicked_index = None;
     let mut content_width = menu_spatial::MIN_WIDTH;
 
@@ -162,9 +158,9 @@ pub fn render_menu(ui: &mut Ui, entries: &[MenuEntry]) -> Option<usize> {
                     Color32::PLACEHOLDER,
                     f32::INFINITY,
                 );
-                needed += MENU_SHORTCUT_GAP + sc_galley.size().x;
+                needed += s.space_4 + sc_galley.size().x;
             }
-            content_width = content_width.max(needed + SPACE_3 * 2.0);
+            content_width = content_width.max(needed + s.space_3 * 2.0);
         }
     }
 
@@ -246,8 +242,9 @@ fn render_menu_item(
     layout: &MenuLayout,
     t: &theme::Theme,
 ) -> MenuItemResponse {
+    let s = crate::spatial(ui);
     let (rect, response) = ui.allocate_exact_size(
-        Vec2::new(content_width, MENU_ITEM_HEIGHT),
+        Vec2::new(content_width, s.row_m),
         if enabled {
             Sense::click()
         } else {
@@ -271,7 +268,7 @@ fn render_menu_item(
     }
 
     let baseline_y = rect.center().y;
-    let mut cursor_x = rect.min.x + SPACE_3;
+    let mut cursor_x = rect.min.x + s.space_3;
 
     // ── Checkmark column ──
     if layout.check_col {
@@ -284,7 +281,7 @@ fn render_menu_item(
                 t.text.primary,
             );
         }
-        cursor_x += menu_spatial::CHECK_WIDTH + MENU_ICON_GAP;
+        cursor_x += menu_spatial::CHECK_WIDTH + s.space_2;
     }
 
     // ── Icon column ──
@@ -307,7 +304,7 @@ fn render_menu_item(
                 icon_color,
             );
         }
-        cursor_x += menu_spatial::ICON_WIDTH + MENU_ICON_GAP;
+        cursor_x += menu_spatial::ICON_WIDTH + s.space_2;
     }
 
     // ── Label ──
@@ -335,7 +332,7 @@ fn render_menu_item(
             t.text.muted
         };
         ui.painter().text(
-            egui::pos2(rect.max.x - SPACE_3, baseline_y),
+            egui::pos2(rect.max.x - s.space_3, baseline_y),
             Align2::RIGHT_CENTER,
             sc,
             TextRole::BodyS.font_id(),
@@ -349,10 +346,11 @@ fn render_menu_item(
 }
 
 fn render_menu_header(ui: &mut Ui, text: &str, content_width: f32, t: &theme::Theme) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(content_width, ROW_S), Sense::hover());
+    let s = crate::spatial(ui);
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(content_width, s.row_s), Sense::hover());
 
     ui.painter().text(
-        egui::pos2(rect.min.x + SPACE_3, rect.center().y),
+        egui::pos2(rect.min.x + s.space_3, rect.center().y),
         Align2::LEFT_CENTER,
         text,
         TextRole::Micro.font_id(),
@@ -361,13 +359,14 @@ fn render_menu_header(ui: &mut Ui, text: &str, content_width: f32, t: &theme::Th
 }
 
 fn render_menu_separator(ui: &mut Ui, content_width: f32, t: &theme::Theme) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(content_width, SPACE_3 + 1.0), Sense::hover());
+    let s = crate::spatial(ui);
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(content_width, s.space_3 + 1.0), Sense::hover());
 
     let y = rect.center().y;
     ui.painter().line_segment(
         [
-            egui::pos2(rect.min.x + SPACE_3, y),
-            egui::pos2(rect.max.x - SPACE_3, y),
+            egui::pos2(rect.min.x + s.space_3, y),
+            egui::pos2(rect.max.x - s.space_3, y),
         ],
         Stroke::new(STROKE_WIDTH, t.border.default),
     );

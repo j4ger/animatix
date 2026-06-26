@@ -1,8 +1,9 @@
 use crate::tokens::theme::{theme, Theme};
-use crate::tokens::spatial::component::{
-    TOAST_HEIGHT, TOAST_MARGIN, TOAST_SPACING, TOAST_WIDTH,
+use crate::tokens::spatial::{
+    component::TOAST_WIDTH,
+    spatial,
+    RADIUS_M, RADIUS_S, STROKE_WIDTH,
 };
-use crate::tokens::spatial::{RADIUS_M, RADIUS_S, SPACE_2, SPACE_6, STROKE_WIDTH};
 use crate::tokens::typography::TextRole;
 use egui::{Color32, Pos2, Rect, Vec2};
 use std::time::Instant;
@@ -149,11 +150,12 @@ impl ToastQueue {
         }
 
         let theme = theme(ui);
+        let s = spatial(ui);
         let viewport = ui.max_rect();
         let toast_w = TOAST_WIDTH;
-        let toast_h = TOAST_HEIGHT;
-        let spacing = TOAST_SPACING;
-        let margin = TOAST_MARGIN;
+        let toast_h = s.component.toast_height;
+        let spacing = s.component.toast_spacing;
+        let margin = s.component.toast_margin;
 
         // Determine anchor corner and stacking direction from placement.
         let (start_x, start_y, stack_up) = match self.placement {
@@ -210,12 +212,12 @@ impl ToastQueue {
             );
 
             // Left accent bar
-            let accent_rect = Rect::from_min_size(rect.min, Vec2::new(SPACE_2, toast_h));
+            let accent_rect = Rect::from_min_size(rect.min, Vec2::new(s.space_2, toast_h));
             let accent_color = toast.color(&theme).linear_multiply(alpha);
             ui.painter().rect_filled(accent_rect, RADIUS_S, accent_color);
 
             // Icon
-            let icon_x = rect.min.x + SPACE_6;
+            let icon_x = rect.min.x + s.space_6;
             let icon_color = toast.color(&theme).linear_multiply(alpha);
             ui.painter().text(
                 Pos2::new(icon_x, rect.center().y),
@@ -226,9 +228,9 @@ impl ToastQueue {
             );
 
             // Message (wrapped to toast width so it doesn't overflow)
-            let text_x = icon_x + SPACE_6;
+            let text_x = icon_x + s.space_6;
             let text_color = theme.text.primary.linear_multiply(alpha);
-            let text_max_w = (toast_w - (text_x - rect.min.x) - SPACE_6).max(40.0);
+            let text_max_w = (toast_w - (text_x - rect.min.x) - s.space_6).max(40.0);
             let display_message = if toast.count > 1 {
                 format!("{} (x{})", toast.message, toast.count)
             } else {
