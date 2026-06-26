@@ -13,6 +13,8 @@ pub struct SelectionStore {
     pub selected_actors: HashSet<String>,
     pub hit_regions: Vec<(String, kurbo::Rect)>,
     pub selection: SelectionState,
+    /// Canonical keyframe multi-selection: (actor, property, time_ms).
+    pub selected_keyframes: Vec<(String, String, u64)>,
 }
 
 impl SelectionStore {
@@ -21,6 +23,7 @@ impl SelectionStore {
             selected_actors: HashSet::new(),
             hit_regions: Vec::new(),
             selection: SelectionState::default(),
+            selected_keyframes: Vec::new(),
         }
     }
 }
@@ -99,6 +102,8 @@ pub struct ViewStore {
     pub timeline_scroll_offset: f32,
     /// IDE appearance preference (Auto follows the OS light/dark setting).
     pub app_theme: eparts::AppThemeChoice,
+    /// True when the timeline panel or any of its children received pointer interaction this frame.
+    pub timeline_focused: bool,
 }
 
 impl ViewStore {
@@ -122,6 +127,7 @@ impl ViewStore {
             active_scene: None,
             timeline_scroll_offset: 0.0,
             app_theme: eparts::AppThemeChoice::default(),
+            timeline_focused: false,
         }
     }
 }
@@ -203,7 +209,7 @@ impl UiStore {
         UiSnapshot {
             active_scene: self.view.active_scene.clone(),
             selected_actors: self.selection.selected_actors.clone(),
-            selected_keyframes: Vec::new(), // TODO: populate from keyframe selection
+            selected_keyframes: self.selection.selected_keyframes.clone(),
             playhead_time_s: 0.0,           // caller should set this from preview store
             loop_start_s: None,
             loop_end_s: None,
@@ -213,11 +219,10 @@ impl UiStore {
     }
 
     /// Restore UI state from a snapshot.
-    #[allow(dead_code)] // Restores UI state on undo; handler not yet migrated.
-    /// Restores UI state on undo; handler not yet migrated.
     pub fn restore_snapshot(&mut self, snapshot: crate::app::document::history::UiSnapshot) {
         self.view.active_scene = snapshot.active_scene;
         self.selection.selected_actors = snapshot.selected_actors;
+        self.selection.selected_keyframes = snapshot.selected_keyframes;
         self.view.timeline_scroll_offset = snapshot.timeline_scroll_offset;
         self.view.tool_mode = snapshot.tool_mode;
         // Clear drag state on restore

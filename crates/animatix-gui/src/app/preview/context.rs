@@ -47,6 +47,10 @@ pub(crate) struct PreviewContext<'a> {
     pub debug_layout: bool,
     /// Show padding/gap regions as overlay.
     pub debug_spacing: bool,
+    /// True while a timeline rebuild is running.
+    pub rebuild_in_progress: bool,
+    /// True when there is an active non-empty scene to preview.
+    pub has_scene: bool,
 }
 
 // ─── Helper methods ─────────────────────────────────────────────────────────
@@ -618,13 +622,31 @@ impl PreviewContext<'_> {
                 }
             },
             None => {
-                ui.painter().text(
-                    preview_rect.center(),
-                    egui::Align2::CENTER_CENTER,
-                    "Preview initializing…",
-                    egui::TextStyle::Body.resolve(ui.style()),
-                    text::MUTED,
-                );
+                if !self.has_scene {
+                    ui.painter().text(
+                        preview_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        "No scene to preview",
+                        egui::TextStyle::Body.resolve(ui.style()),
+                        text::MUTED,
+                    );
+                    let hint_pos = preview_rect.center() + egui::vec2(0.0, 20.0);
+                    ui.painter().text(
+                        hint_pos,
+                        egui::Align2::CENTER_CENTER,
+                        "Open a file or create a scene to get started",
+                        egui::TextStyle::Body.resolve(ui.style()),
+                        text::MUTED,
+                    );
+                } else {
+                    ui.painter().text(
+                        preview_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        "Preview initializing…",
+                        egui::TextStyle::Body.resolve(ui.style()),
+                        text::MUTED,
+                    );
+                }
             },
         }
     }
@@ -712,6 +734,28 @@ impl PreviewContext<'_> {
                 ui.painter(),
                 preview_rect,
                 self.performance_metrics,
+            );
+        }
+
+        // ── Rebuild indicator pill ──
+        if self.rebuild_in_progress {
+            let pill_text = "Rebuilding…";
+            let galley = ui.painter().layout_no_wrap(
+                pill_text.to_string(),
+                TextRole::Micro.font_id(),
+                text::MUTED,
+            );
+            let padding = Vec2::new(8.0, 4.0);
+            let pill_size = galley.size() + padding * 2.0;
+            let pill_rect = egui::Rect::from_min_size(
+                preview_rect.right_bottom() - pill_size - egui::vec2(8.0, 8.0),
+                pill_size,
+            );
+            ui.painter().rect_filled(pill_rect, 3.0, surface::WIDGET);
+            ui.painter().galley(
+                pill_rect.left_center() + egui::vec2(padding.x, -galley.size().y / 2.0),
+                galley,
+                text::MUTED,
             );
         }
     }
@@ -1108,9 +1152,11 @@ impl PreviewContext<'_> {
                             // Individual place handles are never highlighted yet:
                             // intended to highlight on tap, but not during drag.
                             // TODO: highlight the tapped place once tap selection lands.
-                            let active_place: Option<
-                                animatix::timeline::animation_track::CalloutPlace,
-                            > = None;
+                            let active_place = if self.selection.tapped_place_actor.as_deref() == Some(actor) {
+                                self.selection.tapped_place
+                            } else {
+                                None
+                            };
                             preview::draw_callout_place_handles(
                                 ui.painter(),
                                 place_screens,

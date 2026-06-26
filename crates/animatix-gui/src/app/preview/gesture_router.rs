@@ -71,6 +71,7 @@ impl GestureRouter {
 
         // ── Drag start: try extracted start handlers in priority order ──
         if is_drag_started {
+            ctx.selection.clear_tapped_place();
             if let Some(pos) = frame.screen_pos {
                 let start_gesture = Gesture::DragStart {
                     pos,

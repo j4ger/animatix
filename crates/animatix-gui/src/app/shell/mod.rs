@@ -110,7 +110,14 @@ impl GuiShell {
                 &self.ui_store,
             ),
             Command::SelectScene(scene) => {
-                scene::handle_select_scene(&mut self.document_store, &mut self.preview_store, scene)
+                self.ui_store.selection.selection.clear_tapped_place();
+                self.ui_store.selection.selected_keyframes.clear();
+                scene::handle_select_scene(
+                    &mut self.document_store,
+                    &mut self.preview_store,
+                    &mut self.ui_store,
+                    scene,
+                )
             },
             Command::ReorderScenes(new_order) => scene::handle_reorder_scenes(
                 &mut self.document_store,
@@ -245,6 +252,10 @@ impl GuiShell {
                 property,
                 old_time_s,
                 new_time_s,
+            ),
+            Command::SetSelectedKeyframes(keyframes) => ui::handle_set_selected_keyframes(
+                &mut self.ui_store,
+                keyframes,
             ),
             Command::ResizeAction {
                 verb,
@@ -420,6 +431,7 @@ impl GuiShell {
             },
             ViewAction::DeselectActors => {
                 self.ui_store.selection.selected_actors.clear();
+                self.ui_store.selection.selection.clear_tapped_place();
                 vec![]
             },
         }

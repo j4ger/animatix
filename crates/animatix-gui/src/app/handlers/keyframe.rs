@@ -45,6 +45,7 @@ pub fn handle_delete_keyframe(
         ui_store,
     };
     ctrl.handle_delete_keyframe(&actor, &property, time_s);
+    ctrl.prune_stale_keyframe_selections();
     vec![]
 }
 
@@ -69,6 +70,7 @@ pub fn handle_move_keyframe(
         ui_store,
     };
     ctrl.handle_move_keyframe(&actor, &property, old_time_s, new_time_s);
+    ctrl.prune_stale_keyframe_selections();
     vec![]
 }
 

@@ -35,6 +35,8 @@ pub(crate) struct WorkspaceBehavior<'a> {
     pub(crate) snap_fps: f32,
     pub(crate) debug_layout: bool,
     pub(crate) debug_spacing: bool,
+    /// Set by the timeline panel each frame; true when the panel has pointer interaction.
+    pub(crate) timeline_focused: &'a mut bool,
 }
 
 impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
@@ -89,6 +91,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
             },
             WorkspaceTab::Preview => {
                 let active_tl = self.document_store.source.document.active_timeline();
+                let has_scene = active_tl.map(|tl| !tl.tracks().is_empty()).unwrap_or(false);
                 let mut ctx = preview_panel::PreviewContext {
                     scene_dimensions: self.document_store.source.document.scene_dimensions,
                     preview: &mut self.preview_store.preview,
@@ -108,6 +111,8 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     performance_metrics: &mut self.preview_store.performance_metrics,
                     debug_layout: self.debug_layout,
                     debug_spacing: self.debug_spacing,
+                    rebuild_in_progress: self.preview_store.rebuild_in_progress,
+                    has_scene,
                 };
                 preview_panel::preview_panel_ui(&mut ctx, ui);
             },
@@ -190,6 +195,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     actor_keyframes: &self.document_store.source.cached_actor_keyframes,
                     scene_keyframe_times: &scene_keyframe_times,
                     snap_fps: self.snap_fps,
+                    timeline_focused: self.timeline_focused,
                 };
                 timeline_panel::timeline_panel_ui(&mut ctx, ui);
             },

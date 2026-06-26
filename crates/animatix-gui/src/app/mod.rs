@@ -375,11 +375,17 @@ impl GuiShell {
             match reloader.update(app_time) {
                 ReloadStatus::ShouldReload { path: _ } => {
                     // LiveDocument: editor is the source of truth. If the editor
-                    // has unsaved changes, do NOT silently overwrite them.
+                    // has unsaved changes, route through the unsaved-changes dialog so
+                    // the user can Save (which overwrites the on-disk edit) or Discard
+                    // (which loads the external change). Guard with is_open to avoid
+                    // re-prompting every frame while the watcher keeps firing.
                     if self.document_store.source.document.is_dirty {
-                        self.preview_store.preview.set_status_error(
-                            "External file changed • reload blocked (unsaved edits)",
-                        );
+                        if !self.ui_store.unsaved_changes.is_open {
+                            self.ui_store.unsaved_changes.open(
+                                "File changed on disk. Reload and discard your unsaved edits?",
+                                DocumentCommand::Reload.into(),
+                            );
+                        }
                         return;
                     }
                     if let Err(err) = self.document_store.source.document.reload_from_disk() {
@@ -918,6 +924,7 @@ impl GuiShell {
             snap_fps: self.ui_store.snap_fps,
             debug_layout: self.ui_store.view.debug_layout,
             debug_spacing: self.ui_store.view.debug_spacing,
+            timeline_focused: &mut self.ui_store.view.timeline_focused,
         };
         tree.ui(&mut behavior, ui);
 
@@ -1109,20 +1116,9 @@ impl GuiShell {
                         .fill(accent::PRIMARY),
                     );
                     if confirm.clicked() {
-                        // P0.3: warn if there are unsaved changes before switching workspace
-                        if self.document_store.source.is_dirty() {
-                            self.preview_store.preview.status =
-                                "Save changes before switching workspace".to_string();
-                            self.ui_store.toasts.push(
-                                crate::app::components::toast::Toast::warning(
-                                    "Save changes before switching workspace",
-                                ),
-                            );
-                        } else {
-                            let path = PathBuf::from(&self.ui_store.workspace_switcher_path);
-                            commands.push_back(DocumentCommand::SwitchWorkspace(path).into());
-                            body_close = true;
-                        }
+                        let path = PathBuf::from(&self.ui_store.workspace_switcher_path);
+                        commands.push_back(DocumentCommand::SwitchWorkspace(path).into());
+                        body_close = true;
                     }
 
                     let cancel = ui.add_sized(

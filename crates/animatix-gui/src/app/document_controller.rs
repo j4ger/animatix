@@ -740,4 +740,63 @@ impl DocumentController<'_> {
             ty,
         )
     }
+
+    /// Prune stale keyframe selection entries after a document mutation.
+    /// Retains only triples whose (actor, property, time_ms) still exist.
+    pub(crate) fn prune_stale_keyframe_selections(&mut self) {
+        if self.ui_store.selection.selected_keyframes.is_empty() {
+            return;
+        }
+        self.ui_store.selection.selected_keyframes.retain(|(actor, _property, time_ms)| {
+            let Some(track) = self
+                .document_store
+                .source
+                .document
+                .active_timeline()
+                .and_then(|t| t.get_track(actor))
+            else {
+                return false;
+            };
+            let mut found = false;
+            macro_rules! check {
+                ($opt:expr) => {
+                    if let Some(ref pt) = $opt {
+                        if pt.keyframes().contains_key(time_ms) {
+                            found = true;
+                        }
+                    }
+                };
+            }
+            check!(track.geometry.position);
+            check!(track.geometry.motion_offset);
+            check!(track.geometry.rotation);
+            check!(track.geometry.scale);
+            check!(track.geometry.size);
+            check!(track.geometry.layout_size);
+            check!(track.style.color);
+            check!(track.style.opacity);
+            check!(track.style.stroke_width);
+            check!(track.style.stroke_color);
+            check!(track.style.stroke_progress);
+            check!(track.style.fill_opacity);
+            check!(track.style.line_cap);
+            check!(track.style.line_join);
+            check!(track.text.text_content);
+            check!(track.text.font_family);
+            check!(track.text.font_size);
+            check!(track.shape.shape_type);
+            check!(track.shape.line_from);
+            check!(track.shape.line_to);
+            check!(track.shape.arc_angles);
+            check!(track.shape.points);
+            check!(track.shape.commands);
+            check!(track.shape.vector_paths);
+            check!(track.shape.head_size);
+            check!(track.filter.filter_blur);
+            check!(track.filter.filter_brightness);
+            check!(track.filter.filter_contrast);
+            check!(track.filter.filter_saturate);
+            found
+        });
+    }
 }

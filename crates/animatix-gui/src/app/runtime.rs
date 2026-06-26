@@ -1,8 +1,8 @@
 use super::*;
 use crate::app::audio::AudioEngine;
 use crate::app::commands::{
-    ActorCommand, DocumentCommand, PlaybackCommand, SceneCommand, ShellAction, ViewAction,
-    ViewCommand,
+    ActorCommand, DocumentCommand, KeyframeCommand, PlaybackCommand, SceneCommand, ShellAction,
+    ViewAction, ViewCommand,
 };
 use crate::app::design_tokens::semantic::surface;
 use crate::app::design_tokens::spatial::{self, component::ICON_SLOT_WIDTH};
@@ -204,10 +204,31 @@ impl AnimatixApp {
                     }
                 },
                 KeyboardAction::DeleteSelection => {
-                    self.shell
-                        .ui_store
-                        .pending_actions
-                        .push_back(ActorCommand::DeleteSelectedActors.into());
+                    // When the timeline panel is focused, delete selected keyframes
+                    // instead of selected actors. The Canvas scope already guards
+                    // against firing while text fields/inspector inputs are active.
+                    if self.shell.ui_store.view.timeline_focused
+                        && !self.shell.ui_store.selection.selected_keyframes.is_empty()
+                    {
+                        for (actor, property, time_ms) in
+                            self.shell.ui_store.selection.selected_keyframes.clone()
+                        {
+                            self.shell.ui_store.pending_actions.push_back(
+                                KeyframeCommand::DeleteKeyframe {
+                                    actor,
+                                    property,
+                                    time_s: time_ms as f64 / 1000.0,
+                                }
+                                .into(),
+                            );
+                        }
+                        self.shell.ui_store.selection.selected_keyframes.clear();
+                    } else {
+                        self.shell
+                            .ui_store
+                            .pending_actions
+                            .push_back(ActorCommand::DeleteSelectedActors.into());
+                    }
                 },
                 KeyboardAction::GroupSelection => {
                     self.shell

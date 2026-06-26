@@ -13,6 +13,7 @@ use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use egui::{Pos2, Vec2};
 use std::collections::HashSet;
+use animatix::timeline::animation_track::CalloutPlace;
 
 // ─── Selection State ────────────────────────────────────────────────────────
 
@@ -37,6 +38,18 @@ pub(crate) struct SelectionState {
     pub(crate) marquee_start: Option<Pos2>,
     /// Marquee selection: current screen-space pointer position during drag.
     pub(crate) marquee_current: Option<Pos2>,
+    /// Place handle tapped in preview (for callout place highlight).
+    pub(crate) tapped_place: Option<CalloutPlace>,
+    /// Actor that owns the tapped place handle.
+    pub(crate) tapped_place_actor: Option<String>,
+}
+
+impl SelectionState {
+    /// Clear the tapped-place highlight state.
+    pub(crate) fn clear_tapped_place(&mut self) {
+        self.tapped_place = None;
+        self.tapped_place_actor = None;
+    }
 }
 
 // ─── Helper Functions ───────────────────────────────────────────────────────
@@ -126,6 +139,7 @@ pub(crate) fn handle_click(
         if !multi {
             selected_actors.clear();
         }
+        selection.clear_tapped_place();
         return;
     }
 

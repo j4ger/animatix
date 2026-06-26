@@ -126,11 +126,6 @@ pub fn handle_switch_workspace(
     document_store: &DocumentStore,
     path: PathBuf,
 ) -> Vec<Effect> {
-    if document_store.source.is_dirty() {
-        return vec![Effect::Toast(Toast::warning(
-            "Save changes before switching workspace",
-        ))];
-    }
     if path.exists() && path.is_dir() {
         workspace_store.workspace_root = path.clone();
         workspace_store.expanded_dirs = std::collections::HashSet::from([path.clone()]);
@@ -195,13 +190,6 @@ pub fn handle_reload(
     preview_store: &mut PreviewStore,
     workspace_store: &mut WorkspaceStore,
 ) -> Vec<Effect> {
-    // P0.3: Refuse to reload if there are unsaved changes.
-    if document_store.source.is_dirty() {
-        preview_store.preview.status = "Save changes before reloading".to_string();
-        return vec![Effect::Toast(Toast::warning(
-            "Save changes before reloading",
-        ))];
-    }
     let path = document_store.source.file_path().to_path_buf();
     match std::fs::read_to_string(&path) {
         Ok(text) => {

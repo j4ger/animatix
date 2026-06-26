@@ -311,6 +311,14 @@ pub fn handle_set_keyframe_view_mode(
     vec![]
 }
 
+pub fn handle_set_selected_keyframes(
+    ui_store: &mut crate::app::stores::UiStore,
+    keyframes: Vec<(String, String, u64)>,
+) -> Vec<Effect> {
+    ui_store.selection.selected_keyframes = keyframes;
+    vec![]
+}
+
 pub fn handle_set_pivot_offset(
     ui_store: &mut crate::app::stores::UiStore,
     actor: String,
@@ -318,4 +326,30 @@ pub fn handle_set_pivot_offset(
 ) -> Vec<Effect> {
     ui_store.pivot_offsets.insert(actor, offset);
     vec![]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn handle_set_selected_keyframes_populates_store() {
+        let mut ui_store = crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        let triples = vec![
+            ("Actor1".into(), "position".into(), 1000u64),
+            ("Actor2".into(), "rotation".into(), 2000u64),
+        ];
+        let _effects = handle_set_selected_keyframes(&mut ui_store, triples.clone());
+        assert_eq!(ui_store.selection.selected_keyframes, triples);
+    }
+
+    #[test]
+    fn handle_set_selected_keyframes_replaces_previous() {
+        let mut ui_store = crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        let first = vec![("A".into(), "p".into(), 1u64)];
+        let _ = handle_set_selected_keyframes(&mut ui_store, first);
+        let second = vec![("B".into(), "q".into(), 2u64)];
+        let _ = handle_set_selected_keyframes(&mut ui_store, second.clone());
+        assert_eq!(ui_store.selection.selected_keyframes, second);
+    }
 }

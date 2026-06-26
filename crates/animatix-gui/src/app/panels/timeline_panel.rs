@@ -160,6 +160,8 @@ pub(crate) struct TimelineContext<'a> {
     /// Cached per-scene keyframe time positions (for density strip rendering).
     pub scene_keyframe_times: &'a HashMap<String, Vec<f64>>,
     pub snap_fps: f32,
+    /// Set by the panel each frame; true when the panel or its children received pointer interaction.
+    pub timeline_focused: &'a mut bool,
 }
 
 /// Render the entire timeline panel.
@@ -605,6 +607,14 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         scene_keyframe_times,
         ..
     } = ctx;
+
+    // Reset timeline-focus flag; will be set to true below if the panel
+    // or any of its children receives pointer interaction this frame.
+    *ctx.timeline_focused = false;
+    let timeline_outer_rect = ui.available_rect_before_wrap();
+    if ui.input(|i| i.pointer.has_pointer()) && ui.rect_contains_pointer(timeline_outer_rect) {
+        *ctx.timeline_focused = true;
+    }
 
     // Empty state when no timeline is loaded
     if timeline.is_none() && composition.is_none() {
@@ -2172,6 +2182,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         }
 
         // ── Save keyframe drag + multi-select state ──
+        let prev_multi_selected = multi_selected.clone();
         ui.data_mut(|d| {
             if let Some(drag) = new_kf_drag.clone() {
                 d.insert_temp(kf_drag_data_id, drag);
@@ -2185,6 +2196,26 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 d.remove::<(usize, u64, Edge, f32, f64, f64)>(action_drag_data_id);
             }
         });
+
+        // ── Mirror keyframe selection into the shared store ──
+        if multi_selected != prev_multi_selected {
+            let canonical: Vec<(String, String, u64)> = multi_selected
+                .iter()
+                .filter_map(|(actor, time_ms)| {
+                    timeline.and_then(|tl| tl.get_track(actor)).map(|track| {
+                        let mut triples = Vec::new();
+                        for (prop_name, times) in collect_per_property_keyframes(track) {
+                            if times.contains(time_ms) {
+                                triples.push((actor.clone(), prop_name.to_string(), *time_ms));
+                            }
+                        }
+                        triples
+                    })
+                })
+                .flatten()
+                .collect();
+            commands.push_back(ShellAction::Command(Command::SetSelectedKeyframes(canonical)));
+        }
 
         // Draw clip rect border
         ui.painter().rect_stroke(

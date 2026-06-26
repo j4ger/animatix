@@ -77,6 +77,7 @@ impl GestureHandler for CalloutGesture {
 
                 // Priority 1: tip handle
                 if pos.distance(tip_screen) <= hit_r {
+                    ctx.selection.clear_tapped_place();
                     // Shift+drag on targeted callout: initiate detach
                     if geo.is_targeted && modifiers.shift {
                         *ctx.drag_state = DragState::CalloutDetach {
@@ -99,6 +100,7 @@ impl GestureHandler for CalloutGesture {
 
                 // Priority 2: label handle
                 if pos.distance(label_screen) <= hit_r {
+                    ctx.selection.clear_tapped_place();
                     *ctx.drag_state = DragState::CalloutLabel {
                         actor,
                         start_label_at: label_at,
@@ -115,6 +117,7 @@ impl GestureHandler for CalloutGesture {
                         preview_rect, ctx.scene_dimensions, desired, zoom, pan,
                     );
                     if pos.distance(from_screen) <= hit_r {
+                        ctx.selection.clear_tapped_place();
                         *ctx.drag_state = DragState::CalloutStandoff {
                             actor,
                             tip_scene: geo.to,
@@ -131,7 +134,10 @@ impl GestureHandler for CalloutGesture {
                     for (i, screen) in place_screens.iter().enumerate() {
                         if pos.distance(*screen) <= hit_r {
                             // Clicking a place handle: emit PropertyEdit immediately and don't enter drag.
-                            let place_str = PLACE_ORDER[i].as_str();
+                            let place = PLACE_ORDER[i];
+                            ctx.selection.tapped_place = Some(place);
+                            ctx.selection.tapped_place_actor = Some(actor.clone());
+                            let place_str = place.as_str();
                             ctx.commands.push_back(
                                 DocumentCommand::PropertyEdit(PropertyEdit {
                                     time_s: None,

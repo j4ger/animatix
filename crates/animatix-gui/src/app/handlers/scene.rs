@@ -31,6 +31,7 @@ pub fn handle_reorder_scenes(
 pub fn handle_select_scene(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
+    _ui_store: &mut crate::app::stores::UiStore,
     scene: String,
 ) -> Vec<Effect> {
     if let Some(composition) = document_store.source.document.composition.as_ref() {

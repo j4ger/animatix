@@ -31,6 +31,9 @@ use animatix_syntax::to_source::ToSource;
 /// Id used to persist the explorer filter string in egui's data store.
 const EXPLORER_FILTER_ID: &str = "explorer_filter";
 
+/// Id used to persist the layers filter string in egui's data store.
+const LAYERS_FILTER_ID: &str = "layers_filter";
+
 /// Shared context for the sidebar panel (tab bar + dispatch only).
 ///
 /// This is a wide struct because it carries everything the sidebar tabs might
@@ -120,9 +123,12 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
         let content_offset_id = ui.id().with("sidebar_slide");
         if prev_tab != active_tab {
             ui.ctx().animate_value_with_time(content_offset_id, 6.0, 0.0);
-            // Clear explorer filter when switching away from the Explorer tab
+            // Clear explorer/layers filters when switching away from those tabs
             if active_tab != SidebarTab::Explorer {
                 ui.data_mut(|d| d.remove::<String>(egui::Id::new(EXPLORER_FILTER_ID)));
+            }
+            if active_tab != SidebarTab::Layers {
+                ui.data_mut(|d| d.remove::<String>(egui::Id::new(LAYERS_FILTER_ID)));
             }
         }
         let offset = anim::animate_toward(ui.ctx(), content_offset_id, 0.0, motion::PANEL);
@@ -579,6 +585,29 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
         return;
     };
 
+    // ── Filter input ──────────────────────────────────────────────────────
+    let filter_id = egui::Id::new(LAYERS_FILTER_ID);
+    let mut filter = ui.data(|d| d.get_temp::<String>(filter_id)).unwrap_or_default();
+
+    ui.horizontal(|ui| {
+        ui.add_space(SPACE_2);
+        let response = ui.add(
+            egui::TextEdit::singleline(&mut filter)
+                .hint_text("Filter layers…")
+                .desired_width(f32::INFINITY),
+        );
+        if response.changed() {
+            ui.data_mut(|d| d.insert_temp(filter_id, filter.clone()));
+        }
+        if filter.is_empty() && response.lost_focus() {
+            ui.data_mut(|d| d.insert_temp(filter_id, String::new()));
+        }
+    });
+    ui.add_space(SPACE_2);
+
+    let filter_lower = filter.to_lowercase();
+    let has_filter = !filter_lower.is_empty();
+
     // Show which scene's actors are being displayed
     if ctx.is_composition {
         if let Some(scene_name) = ctx.active_scene.as_ref() {
@@ -662,6 +691,8 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
                 ctx.commands,
                 time_ms,
                 0,
+                &filter_lower,
+                has_filter,
             );
         }
     });
@@ -678,6 +709,8 @@ fn render_actor_tree(
     commands: &mut ActionQueue,
     _time_ms: u64,
     depth: usize,
+    filter_lower: &str,
+    has_filter: bool,
 ) {
     let Some(track) = timeline.get_track(label) else {
         return;
@@ -686,7 +719,36 @@ fn render_actor_tree(
     let is_selected = selected_actors.contains(label);
     let is_anonymous = label.starts_with("__anon");
     let has_children = !track.children.is_empty();
-    let is_expanded = has_children && !collapsed_actors.contains(label);
+
+    // ── Filter logic ─────────────────────────────────────────────────────
+    // When a filter is active, decide whether this actor (and its subtree)
+    // should be visible.  An actor is visible if:
+    //   1. Its own label matches the filter, OR
+    //   2. Any of its descendants match the filter.
+    // Matching directories/actors are force-expanded so their descendants
+    // remain visible (mirrors explorer_content_ui's show-mask logic).
+    // NOTE: selected_actors is intentionally NOT cleared when filtering;
+    // hidden-but-selected actors stay selected so they survive filter changes.
+    // Drag-reparent drops are disabled while filtered to avoid reparenting
+    // through partially-visible tree branches (ambiguous drop targets).
+    let (is_expanded, should_show) = if has_filter {
+        let base_expanded = has_children && !collapsed_actors.contains(label);
+        let self_matches = label.to_lowercase().contains(filter_lower);
+        let descendant_matches = track.children.iter().any(|child| {
+            actor_matches_filter(timeline, child, filter_lower)
+        });
+        let show = self_matches || descendant_matches;
+        let expanded = self_matches || descendant_matches || base_expanded;
+        (expanded, show)
+    } else {
+        let is_expanded = has_children && !collapsed_actors.contains(label);
+        (is_expanded, true)
+    };
+
+    if has_filter && !should_show {
+        return;
+    }
+
     let is_visible = track.visible;
 
     let (icon, display_label, label_color) = if is_anonymous {
@@ -767,15 +829,17 @@ fn render_actor_tree(
         .show(ui, row_id);
 
     // ── Drag-and-drop reparenting ──
+    // Disabled while a filter is active: the partial tree makes drop targets
+    // ambiguous (hidden ancestors/descendants can't be valid drop destinations).
     let drag_id = ui.id().with("layer_drag");
     let drag_data_id = drag_id.with("data");
 
-    if response.drag_started && !is_anonymous {
+    if !has_filter && response.drag_started && !is_anonymous {
         ui.data_mut(|d| d.insert_temp(drag_data_id, label.to_string()));
     }
 
     let is_dragging = ui.data(|d| d.get_temp::<String>(drag_data_id)).is_some();
-    let is_drop_target = is_dragging && response.hovered && !is_anonymous;
+    let is_drop_target = !has_filter && is_dragging && response.hovered && !is_anonymous;
     if is_drop_target {
         let dragged = ui.data(|d| d.get_temp::<String>(drag_data_id)).unwrap_or_default();
         if dragged != label {
@@ -807,7 +871,7 @@ fn render_actor_tree(
         }
     }
 
-    if is_dragging && ui.input(|i| i.pointer.any_released()) {
+    if !has_filter && is_dragging && ui.input(|i| i.pointer.any_released()) {
         let dragged = ui.data(|d| d.get_temp::<String>(drag_data_id)).unwrap_or_default();
         if !dragged.is_empty() && dragged != label {
             let pointer_pos = ui.input(|i| i.pointer.latest_pos());
@@ -951,9 +1015,23 @@ fn render_actor_tree(
                 commands,
                 _time_ms,
                 depth + 1,
+                filter_lower,
+                has_filter,
             );
         }
     }
+}
+
+/// Recursively check whether any actor in the subtree rooted at `label`
+/// matches `filter_lower` (case-insensitive substring on the actor label).
+fn actor_matches_filter(timeline: &Timeline, label: &str, filter_lower: &str) -> bool {
+    let Some(track) = timeline.get_track(label) else {
+        return false;
+    };
+    if label.to_lowercase().contains(filter_lower) {
+        return true;
+    }
+    track.children.iter().any(|child| actor_matches_filter(timeline, child, filter_lower))
 }
 
 // ─── Components Tab ───────────────────────────────────────────────────────

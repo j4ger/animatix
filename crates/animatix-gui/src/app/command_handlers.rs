@@ -718,6 +718,7 @@ graph: Rect, size: (400, 400)
     fn select_scene_switches_active_scene_and_seeks() {
         let mut document_store = make_parsed_document_store(MULTI_SCENE_SOURCE);
         let mut preview_store = make_preview_store(5.0);
+        let mut ui_store = make_ui_store();
 
         // Should be a composition with two scenes
         assert!(
@@ -730,8 +731,12 @@ graph: Rect, size: (400, 400)
             "default active scene should be Intro"
         );
 
-        let effects =
-            scene::handle_select_scene(&mut document_store, &mut preview_store, "Diagram".into());
+        let effects = scene::handle_select_scene(
+            &mut document_store,
+            &mut preview_store,
+            &mut ui_store,
+            "Diagram".into(),
+        );
 
         // Active scene should switch
         assert_eq!(
@@ -758,10 +763,12 @@ graph: Rect, size: (400, 400)
     fn select_scene_noop_for_invalid_scene() {
         let mut document_store = make_parsed_document_store(MULTI_SCENE_SOURCE);
         let mut preview_store = make_preview_store(5.0);
+        let mut ui_store = make_ui_store();
 
         let effects = scene::handle_select_scene(
             &mut document_store,
             &mut preview_store,
+            &mut ui_store,
             "NonExistent".into(),
         );
 
@@ -780,6 +787,7 @@ graph: Rect, size: (400, 400)
     fn select_scene_noop_without_composition() {
         let mut document_store = make_parsed_document_store(TEST_SOURCE);
         let mut preview_store = make_preview_store(5.0);
+        let mut ui_store = make_ui_store();
 
         // Single-scene document has no composition
         assert!(
@@ -787,8 +795,12 @@ graph: Rect, size: (400, 400)
             "TEST_SOURCE should not be a composition"
         );
 
-        let effects =
-            scene::handle_select_scene(&mut document_store, &mut preview_store, "Intro".into());
+        let effects = scene::handle_select_scene(
+            &mut document_store,
+            &mut preview_store,
+            &mut ui_store,
+            "Intro".into(),
+        );
 
         // Should return empty effects
         assert!(effects.is_empty(), "expected no effects without composition");

@@ -334,6 +334,8 @@ pub enum Command {
         property: String,
         time_s: f64,
     },
+    /// Set the canonical keyframe multi-selection in the UI store.
+    SetSelectedKeyframes(Vec<(String, String, u64)>),
     /// Move a keyframe to a new time. Emitted by timeline drag.
     MoveKeyframe {
         actor: String,
