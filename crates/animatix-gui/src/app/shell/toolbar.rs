@@ -133,10 +133,28 @@ impl GuiShell {
                     }
 
                     // Filename dropdown
+                    // Shortcut hints pulled from the shared ShortcutRegistry so the
+                    // labels stay in sync with the actual keybindings (and are
+                    // platform-aware) instead of being hardcoded.
+                    let save_tip = crate::app::interaction::keyboard::tooltip_with_shortcut(
+                        "Save",
+                        &crate::app::interaction::keyboard::KeyboardAction::Save,
+                        ui.ctx(),
+                    );
+                    let reload_tip = crate::app::interaction::keyboard::tooltip_with_shortcut(
+                        "Reload from disk",
+                        &crate::app::interaction::keyboard::KeyboardAction::Reload,
+                        ui.ctx(),
+                    );
+                    let rebuild_tip = crate::app::interaction::keyboard::tooltip_with_shortcut(
+                        "Rebuild timeline",
+                        &crate::app::interaction::keyboard::KeyboardAction::Rebuild,
+                        ui.ctx(),
+                    );
                     ui.menu_button(egui_phosphor::regular::CARET_DOWN, |ui| {
                         if ui
                             .button(format!("{} Save", egui_phosphor::regular::FLOPPY_DISK))
-                            .on_hover_text("Save (Ctrl+S)")
+                            .on_hover_text(&save_tip)
                             .clicked()
                         {
                             commands.push_back(DocumentCommand::Save.into());
@@ -156,7 +174,7 @@ impl GuiShell {
                                 "{} Reload from disk",
                                 egui_phosphor::regular::ARROW_CLOCKWISE
                             ))
-                            .on_hover_text("Reload from disk (Ctrl+R)")
+                            .on_hover_text(&reload_tip)
                             .clicked()
                         {
                             commands.push_back(DocumentCommand::Reload.into());
@@ -167,7 +185,7 @@ impl GuiShell {
                                 "{} Rebuild timeline",
                                 egui_phosphor::regular::HARD_DRIVES
                             ))
-                            .on_hover_text("Rebuild timeline (Ctrl+Shift+R)")
+                            .on_hover_text(&rebuild_tip)
                             .clicked()
                         {
                             commands.push_back(DocumentCommand::Rebuild.into());

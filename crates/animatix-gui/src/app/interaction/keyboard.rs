@@ -497,7 +497,6 @@ impl ShortcutRegistry {
     /// `NudgeSelected { dx: f32, dy: f32 }` (`f32` is not `Eq`/`Hash`).
     ///
     /// Returns [`None`] when no binding exists for the given action variant.
-    #[allow(dead_code)] // Public API for reverse shortcut lookup (used in tests & future toolbar wiring)
     pub fn shortcut_for(&self, action: &KeyboardAction) -> Option<&KeyboardShortcut> {
         self.shortcuts
             .iter()
@@ -505,6 +504,32 @@ impl ShortcutRegistry {
                 std::mem::discriminant(action) == std::mem::discriminant(&info.action)
             })
             .map(|(shortcut, _)| shortcut)
+    }
+}
+
+/// The process-wide shortcut registry.
+///
+/// Shared so both the keyboard handler (runtime) and UI affordances (toolbar
+/// tooltips, cheat sheet) read the *same* bindings instead of hardcoding strings.
+pub static SHORTCUT_REGISTRY: std::sync::LazyLock<ShortcutRegistry> =
+    std::sync::LazyLock::new(ShortcutRegistry::new);
+
+/// Human-readable, platform-aware shortcut label for an action (e.g. `"Ctrl+S"`),
+/// or `None` if the action has no binding. Pulls from [`SHORTCUT_REGISTRY`] and
+/// formats via eparts' `format_shortcut`.
+pub fn shortcut_hint(action: &KeyboardAction, ctx: &Context) -> Option<String> {
+    SHORTCUT_REGISTRY
+        .shortcut_for(action)
+        .map(|sc| eparts::widget::format_shortcut(sc, ctx))
+}
+
+/// A tooltip string with the action's shortcut appended in parentheses when one
+/// exists, e.g. `tooltip_with_shortcut("Save", &KeyboardAction::Save, ctx)` ->
+/// `"Save (Ctrl+S)"`. Falls back to the bare label when unbound.
+pub fn tooltip_with_shortcut(label: &str, action: &KeyboardAction, ctx: &Context) -> String {
+    match shortcut_hint(action, ctx) {
+        Some(hint) => format!("{label} ({hint})"),
+        None => label.to_string(),
     }
 }
 

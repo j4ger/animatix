@@ -131,12 +131,10 @@ impl AnimatixApp {
     }
 
     fn handle_keyboard_shortcuts(&mut self, ctx: &egui::Context) {
-        use crate::app::interaction::keyboard::{FocusContext, KeyboardAction, ShortcutRegistry};
+        use crate::app::interaction::keyboard::{FocusContext, KeyboardAction};
         use crate::app::preview::{DragState, ToolMode};
         use crate::app::shell::insertion_palette::PaletteMode;
-        use std::sync::LazyLock;
-
-        static SHORTCUT_REGISTRY: LazyLock<ShortcutRegistry> = LazyLock::new(ShortcutRegistry::new);
+        use crate::app::interaction::keyboard::SHORTCUT_REGISTRY;
 
         let has_selection = !self.shell.ui_store.selection.selected_actors.is_empty();
         let focus = FocusContext {
