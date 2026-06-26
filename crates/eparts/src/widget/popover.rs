@@ -333,10 +333,12 @@ impl Popover {
 
 /// Save the currently focused widget Id to Memory.
 fn save_focus(ctx: &Context, key: Id) {
-    ctx.memory(|m| {
-        ctx.data_mut(|d| {
-            d.insert_temp(key, m.focused());
-        });
+    // Read focus first (releases the Memory lock), THEN write to data.
+    // egui stores `data` inside `Memory`, so `ctx.memory()` and `ctx.data_mut()`
+    // lock the SAME RwLock — nesting them would deadlock (freeze).
+    let focused = ctx.memory(|m| m.focused());
+    ctx.data_mut(|d| {
+        d.insert_temp(key, focused);
     });
 }
 
@@ -350,21 +352,24 @@ fn finish_close(
 ) {
     remove_overlay(ctx, popover_id);
 
-    ctx.data_mut(|d| {
-        // Restore focus to the widget that was active before the popover opened.
-        // Guard: if nothing had focus (`m.focused()` was None), stored value is
-        // None and `request_focus` is a no-op.
-        if let Some(saved) = d
+    // Read+clear the saved focus from data first (releases the lock), THEN
+    // request focus via Memory. Nesting `ctx.memory_mut` inside `ctx.data_mut`
+    // would deadlock because data lives inside Memory (same RwLock).
+    let saved = ctx.data_mut(|d| {
+        let saved = d
             .get_temp::<Option<Id>>(prev_focus_key)
             .as_ref()
-            .and_then(|o| *o)
-        {
-            ctx.memory_mut(|m| m.request_focus(saved));
-        }
+            .and_then(|o| *o);
         d.remove::<bool>(opened_key);
         d.remove::<bool>(closing_key);
         d.remove::<Option<Id>>(prev_focus_key);
+        saved
     });
+    // Restore focus to the widget that was active before the popover opened.
+    // Guard: if nothing had focus, `saved` is None and this is a no-op.
+    if let Some(saved) = saved {
+        ctx.memory_mut(|m| m.request_focus(saved));
+    }
 }
 
 // ─── Memory key helpers ─────────────────────────────────────────────────────

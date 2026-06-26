@@ -125,7 +125,12 @@ impl<'a> TextField<'a> {
         // Initial slot for text color (focus resolved after rendering).
         let fg = if !self.enabled { t.input.disabled.fg } else { t.input.normal.fg };
 
+        // Reserve background + border shape slots BEFORE rendering the text
+        // content so they paint behind it. egui appends shapes in call order,
+        // so painting the (opaque) fill after the TextEdit would cover the text.
         let painter = ui.painter_at(outer_rect);
+        let bg_idx = painter.add(egui::Shape::Noop);
+        let border_idx = painter.add(egui::Shape::Noop);
         let mut child_ui = ui.new_child(
             egui::UiBuilder::new().max_rect(outer_rect.shrink(inner_margin)),
         );
@@ -184,12 +189,18 @@ impl<'a> TextField<'a> {
             t.input.normal
         };
 
-        painter.rect_filled(outer_rect, radius, active_slot.bg);
-        painter.rect_stroke(
-            outer_rect,
-            radius,
-            Stroke::new(STROKE_WIDTH, active_slot.border),
-            egui::StrokeKind::Inside,
+        painter.set(
+            bg_idx,
+            egui::epaint::RectShape::filled(outer_rect, radius, active_slot.bg),
+        );
+        painter.set(
+            border_idx,
+            egui::epaint::RectShape::stroke(
+                outer_rect,
+                radius,
+                Stroke::new(STROKE_WIDTH, active_slot.border),
+                egui::StrokeKind::Inside,
+            ),
         );
 
         TextFieldResponse { response: outer_resp, changed: cleared }
@@ -281,6 +292,13 @@ impl<'a> NumberField<'a> {
         let inner_margin = s.space_2;
         let radius = CornerRadius::same(RADIUS_M as u8);
 
+        // Reserve background + border shape slots BEFORE adding the DragValue
+        // so they paint behind the number. egui appends shapes in call order;
+        // painting the opaque fill afterwards would cover the value text.
+        let painter = ui.painter_at(outer_rect);
+        let bg_idx = painter.add(egui::Shape::Noop);
+        let border_idx = painter.add(egui::Shape::Noop);
+
         let mut child_ui = ui.new_child(
             egui::UiBuilder::new().max_rect(outer_rect.shrink(inner_margin)),
         );
@@ -315,13 +333,18 @@ impl<'a> NumberField<'a> {
             t.input.normal
         };
 
-        let painter = ui.painter_at(outer_rect);
-        painter.rect_filled(outer_rect, radius, slot.bg);
-        painter.rect_stroke(
-            outer_rect,
-            radius,
-            Stroke::new(STROKE_WIDTH, slot.border),
-            egui::StrokeKind::Inside,
+        painter.set(
+            bg_idx,
+            egui::epaint::RectShape::filled(outer_rect, radius, slot.bg),
+        );
+        painter.set(
+            border_idx,
+            egui::epaint::RectShape::stroke(
+                outer_rect,
+                radius,
+                Stroke::new(STROKE_WIDTH, slot.border),
+                egui::StrokeKind::Inside,
+            ),
         );
 
         inner_resp
