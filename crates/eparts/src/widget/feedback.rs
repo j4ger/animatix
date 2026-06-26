@@ -5,6 +5,7 @@
 
 use crate::theme;
 use crate::tokens::spatial::{
+    component::PROGRESS_BAR_HEIGHT,
     RADIUS_M, RADIUS_S, SPACE_2, SPACE_3, STROKE_WIDTH,
 };
 use crate::tokens::typography::TextRole;
@@ -121,7 +122,7 @@ impl Widget for ProgressBar {
     fn ui(self, ui: &mut Ui) -> Response {
         let t = theme(ui);
         let width = ui.available_width();
-        let height = 16.0;
+        let height = PROGRESS_BAR_HEIGHT;
         let size = Vec2::new(width, height);
         let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
         let radius = RADIUS_M as u8;

@@ -232,12 +232,7 @@ fn menu_frame(t: &theme::Theme) -> egui::Frame {
         .stroke(Stroke::new(STROKE_WIDTH, t.border.default))
         .corner_radius(CornerRadius::same(RADIUS_M as u8))
         .inner_margin(Margin::same(SPACE_2 as i8))
-        .shadow(egui::Shadow {
-            offset: [0, menu_spatial::SHADOW_OFFSET_Y],
-            blur: menu_spatial::SHADOW_BLUR as u8,
-            spread: 0,
-            color: t.overlay.shadow_direct,
-        })
+        .shadow(t.elevation.raised)
 }
 
 fn render_menu_item(

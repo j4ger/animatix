@@ -1,9 +1,10 @@
 use egui::{Color32, Response, Sense, Vec2};
 
-use crate::tokens::spatial::{RADIUS_M, RADIUS_S, ROW_M, SPACE_3, STROKE_WIDTH};
+use crate::tokens::spatial::{RADIUS_S, ROW_M, STROKE_WIDTH};
 use crate::tokens::theme;
 use crate::tokens::typography::TextRole;
 use crate::widget::spinner::Spinner;
+use crate::widget::traits::{Size, Sizable};
 
 // ── Button types ──
 // eparts principle 3: default arrow cursor for buttons, pointer only for links.
@@ -18,13 +19,8 @@ pub enum ButtonVariant {
     Ghost,
     /// Square icon-only button; for small icon commands.
     Icon,
-}
-
-/// Preset sizes for buttons.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ButtonSize {
-    /// Default size.
-    Medium,
+    /// Destructive-action button (delete, remove, …).
+    Danger,
 }
 
 /// A unified button widget with builder API.
@@ -36,7 +32,7 @@ pub enum ButtonSize {
 /// ```
 pub struct Button {
     variant: ButtonVariant,
-    size: ButtonSize,
+    size: Size,
     icon: Option<&'static str>,
     label: Option<String>,
     tooltip: &'static str,
@@ -52,7 +48,7 @@ impl Button {
     fn new_base() -> Self {
         Self {
             variant: ButtonVariant::Primary,
-            size: ButtonSize::Medium,
+            size: Size::Md,
             icon: None,
             label: None,
             tooltip: "",
@@ -88,6 +84,15 @@ impl Button {
         Self {
             variant: ButtonVariant::Icon,
             icon: Some(icon),
+            ..Self::new_base()
+        }
+    }
+
+    /// Create a Danger variant button (destructive action) with the given label.
+    pub fn danger(label: impl Into<String>) -> Self {
+        Self {
+            variant: ButtonVariant::Danger,
+            label: Some(label.into()),
             ..Self::new_base()
         }
     }
@@ -133,6 +138,18 @@ impl Button {
         self.on_hover = Some(cb);
         self
     }
+
+    /// Set the button size.
+    pub fn with_size(mut self, size: Size) -> Self {
+        self.size = size;
+        self
+    }
+}
+
+impl Sizable for Button {
+    fn with_size(self, size: Size) -> Self {
+        self.with_size(size)
+    }
 }
 
 /// Normalize a button label: an empty or whitespace-only label is treated as
@@ -144,9 +161,8 @@ fn effective_label(label: Option<&str>) -> Option<&str> {
 
 impl egui::Widget for Button {
     fn ui(mut self, ui: &mut egui::Ui) -> Response {
-        let (row_height, radius) = match self.size {
-            ButtonSize::Medium => (ROW_M, RADIUS_M),
-        };
+        let row_height = self.size.row_height();
+        let radius = self.size.radius();
 
         let t = theme::theme(ui);
 
@@ -180,7 +196,7 @@ impl egui::Widget for Button {
                 };
 
                 if slot.bg != Color32::TRANSPARENT {
-                    ui.painter().rect_filled(rect, RADIUS_M, slot.bg);
+                    ui.painter().rect_filled(rect, radius, slot.bg);
                 }
 
                 if !self.loading {
@@ -206,7 +222,7 @@ impl egui::Widget for Button {
                 if !self.loading && !self.disabled && response.has_focus() {
                     ui.painter().rect_stroke(
                         rect.shrink(1.0),
-                        RADIUS_M,
+                        radius,
                         egui::Stroke::new(STROKE_WIDTH, t.focus_ring()),
                         egui::StrokeKind::Inside,
                     );
@@ -214,7 +230,8 @@ impl egui::Widget for Button {
 
                 if self.loading {
                     let spinner_size = row_height * 0.6;
-                    let spinner_rect = egui::Rect::from_center_size(rect.center(), Vec2::splat(spinner_size));
+                    let spinner_rect =
+                        egui::Rect::from_center_size(rect.center(), Vec2::splat(spinner_size));
                     ui.put(spinner_rect, Spinner::new().set_size(spinner_size));
                 }
 
@@ -225,10 +242,10 @@ impl egui::Widget for Button {
                 } else {
                     response.on_hover_cursor(egui::CursorIcon::Default)
                 }
-            },
+            }
             ButtonVariant::Ghost => {
                 let icon_width = icon_galley.as_ref().map_or(0.0, |g| g.size().x);
-                let mut width = icon_width + SPACE_3 * 2.0;
+                let mut width = icon_width + self.size.pad_x() * 2.0;
                 let mut label_galley = None;
                 if let Some(l) = label {
                     let galley = ui.painter().layout_no_wrap(
@@ -277,7 +294,7 @@ impl egui::Widget for Button {
                         self.icon_color.unwrap_or(slot.fg)
                     };
 
-                    let mut cursor_x = rect.min.x + SPACE_3;
+                    let mut cursor_x = rect.min.x + self.size.pad_x();
                     let baseline_y = rect.center().y;
 
                     if let Some(icon) = self.icon {
@@ -311,7 +328,8 @@ impl egui::Widget for Button {
 
                 if self.loading {
                     let spinner_size = row_height * 0.6;
-                    let spinner_rect = egui::Rect::from_center_size(rect.center(), Vec2::splat(spinner_size));
+                    let spinner_rect =
+                        egui::Rect::from_center_size(rect.center(), Vec2::splat(spinner_size));
                     ui.put(spinner_rect, Spinner::new().set_size(spinner_size));
                 }
 
@@ -322,12 +340,17 @@ impl egui::Widget for Button {
                 } else {
                     response.on_hover_cursor(egui::CursorIcon::Default)
                 }
-            },
-            ButtonVariant::Primary => {
+            }
+            ButtonVariant::Primary | ButtonVariant::Danger => {
+                let slot_group = match self.variant {
+                    ButtonVariant::Primary => &t.button.primary,
+                    ButtonVariant::Danger => &t.button.danger,
+                    _ => unreachable!(),
+                };
                 let icon_width = icon_galley.as_ref().map_or(0.0, |g| g.size().x);
-                let mut width = SPACE_3 * 2.0;
+                let mut width = self.size.pad_x() * 2.0;
                 if icon_width > 0.0 {
-                    width += icon_width + SPACE_3;
+                    width += icon_width + self.size.pad_x();
                 }
                 let label_str = label;
                 if let Some(l) = label_str {
@@ -339,7 +362,6 @@ impl egui::Widget for Button {
                 let sense = if self.loading { Sense::hover() } else { Sense::click() };
                 let (rect, response) = ui.allocate_exact_size(size, sense);
 
-                let slot_group = &t.button.primary;
                 let slot = if self.loading || self.disabled {
                     &slot_group.disabled
                 } else if self.active || response.is_pointer_button_down_on() {
@@ -353,7 +375,7 @@ impl egui::Widget for Button {
                 ui.painter().rect_filled(rect, radius, slot.bg);
 
                 if !self.loading {
-                    let mut cursor_x = rect.min.x + SPACE_3;
+                    let mut cursor_x = rect.min.x + self.size.pad_x();
                     let baseline_y = rect.center().y;
 
                     if icon_width > 0.0 {
@@ -372,7 +394,7 @@ impl egui::Widget for Button {
                                 icon_font,
                                 icon_fg,
                             );
-                            cursor_x += icon_width + SPACE_3;
+                            cursor_x += icon_width + self.size.pad_x();
                         }
                     }
 
@@ -398,7 +420,8 @@ impl egui::Widget for Button {
 
                 if self.loading {
                     let spinner_size = row_height * 0.6;
-                    let spinner_rect = egui::Rect::from_center_size(rect.center(), Vec2::splat(spinner_size));
+                    let spinner_rect =
+                        egui::Rect::from_center_size(rect.center(), Vec2::splat(spinner_size));
                     ui.put(spinner_rect, Spinner::new().set_size(spinner_size));
                 }
 
@@ -409,7 +432,7 @@ impl egui::Widget for Button {
                 } else {
                     response.on_hover_cursor(egui::CursorIcon::Default)
                 }
-            },
+            }
         };
         if response.hovered() {
             if let Some(cb) = self.on_hover.take() {
@@ -493,5 +516,24 @@ mod tests {
         assert_eq!(effective_label(Some("")), None);
         assert_eq!(effective_label(Some("   ")), None);
         assert_eq!(effective_label(Some("Hi")), Some("Hi"));
+    }
+
+    #[test]
+    fn danger_constructor() {
+        let b = Button::danger("Delete");
+        assert_eq!(b.variant, ButtonVariant::Danger);
+        assert_eq!(b.label, Some("Delete".to_string()));
+    }
+
+    #[test]
+    fn size_setter() {
+        let b = Button::primary("Save").sm();
+        assert_eq!(b.size, Size::Sm);
+    }
+
+    #[test]
+    fn size_default_is_md() {
+        let b = Button::primary("Save");
+        assert_eq!(b.size, Size::Md);
     }
 }

@@ -14,7 +14,7 @@
 //! eparts::set_theme(ctx, Theme::light());
 //! ```
 
-use egui::{Color32, Context, CornerRadius, Stroke, Visuals};
+use egui::{Color32, Context, CornerRadius, Shadow, Stroke, Visuals};
 
 use crate::tokens::semantic;
 use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
@@ -197,6 +197,23 @@ pub struct Lines {
     pub guide: Color32,
 }
 
+/// Elevation shadow tokens for floating surfaces.
+///
+/// Three conceptual levels: `flat` (no shadow, in-panel chrome — no token needed),
+/// `raised` (popover / menu / dropdown / toast — soft small shadow), and
+/// `overlay` (dialog / modal — larger shadow on top of backdrop scrim).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Elevation {
+    /// Soft small shadow for popover, menu, dropdown, toast.
+    ///   Dark: offset [0, 2] / blur 4 / spread 0 / rgba(0,0,0,40)
+    ///   Light: offset [0, 3] / blur 6 / spread 0 / rgba(0,0,0,50)
+    pub raised: Shadow,
+    /// Larger shadow for dialog / modal, painted on top of backdrop scrim.
+    ///   Dark: offset [0, 8] / blur 24 / spread 0 / rgba(0,0,0,80)
+    ///   Light: offset [0, 12] / blur 32 / spread 0 / rgba(0,0,0,60)
+    pub overlay: Shadow,
+}
+
 // ── Theme ─────────────────────────────────────────────────────────────
 
 /// The runtime theme.  Each field is a `Color32`; the struct is `Copy` so cloning is cheap.
@@ -224,6 +241,12 @@ pub struct Theme {
     pub input: InputSlots,
     /// Scrollbar thumb color slots.
     pub scrollbar: ScrollbarSlots,
+
+    // ── Elevation / shadow tokens (T2.7) ──
+    /// Shadow tokens for floating surfaces.  `flat` has no shadow (in-panel
+    /// chrome); use `raised` for popover/menu/toast/dropdown and `overlay`
+    /// for dialog/modal.
+    pub elevation: Elevation,
 }
 
 impl Theme {
@@ -303,6 +326,20 @@ impl Theme {
             scrollbar: ScrollbarSlots {
                 thumb: semantic::border::HOVER,
                 thumb_hover: semantic::text::MUTED,
+            },
+            elevation: Elevation {
+                raised: Shadow {
+                    offset: [0, 2],
+                    blur: 4,
+                    spread: 0,
+                    color: Color32::from_rgba_unmultiplied(0, 0, 0, 40),
+                },
+                overlay: Shadow {
+                    offset: [0, 8],
+                    blur: 24,
+                    spread: 0,
+                    color: Color32::from_rgba_unmultiplied(0, 0, 0, 80),
+                },
             },
         }
     }
@@ -453,6 +490,22 @@ impl Theme {
                 thumb: border_strong,
                 thumb_hover: semantic::accent::PRIMARY,
             },
+            elevation: Elevation {
+                // Light: raised shadow — slightly stronger offset/blur for light bg
+                raised: Shadow {
+                    offset: [0, 3],
+                    blur: 6,
+                    spread: 0,
+                    color: Color32::from_rgba_unmultiplied(0, 0, 0, 50),
+                },
+                // Light: overlay shadow — larger for dialog/modal
+                overlay: Shadow {
+                    offset: [0, 12],
+                    blur: 32,
+                    spread: 0,
+                    color: Color32::from_rgba_unmultiplied(0, 0, 0, 60),
+                },
+            },
         }
     }
 
@@ -462,6 +515,18 @@ impl Theme {
     /// consistent across the UI. Do not add additional focus colors elsewhere.
     pub fn focus_ring(&self) -> Color32 {
         self.border.focus
+    }
+
+    /// Convenience accessor for the `raised` elevation shadow.
+    /// Use for popover, menu, dropdown, and toast.
+    pub fn elevation_raised(&self) -> Shadow {
+        self.elevation.raised
+    }
+
+    /// Convenience accessor for the `overlay` elevation shadow.
+    /// Use for dialog / modal surfaces.
+    pub fn elevation_overlay(&self) -> Shadow {
+        self.elevation.overlay
     }
 
     /// Map this theme onto an `egui::Visuals` so stock egui widgets match.
@@ -798,6 +863,11 @@ mod tests {
         assert_eq!(t.overlay.shadow_ambient, semantic::overlay::shadow_ambient());
         assert_eq!(t.overlay.shadow_direct, semantic::overlay::shadow_direct());
 
+        // Elevation shadows are non-zero (not default).
+        assert!(t.elevation.raised.blur > 0);
+        assert!(t.elevation.overlay.blur > t.elevation.raised.blur);
+        assert!(t.elevation.overlay.color.a() > t.elevation.raised.color.a());
+
         assert_eq!(t.lines.grid, semantic::lines::grid_line());
         assert_eq!(t.lines.guide, semantic::lines::guide_line());
     }
@@ -814,6 +884,8 @@ mod tests {
         assert_eq!(read.status.success, original.status.success);
         assert_eq!(read.border.default, original.border.default);
         assert_eq!(read.overlay.backdrop, original.overlay.backdrop);
+        assert_eq!(read.elevation.raised, original.elevation.raised);
+        assert_eq!(read.elevation.overlay, original.elevation.overlay);
     }
 
     #[test]
@@ -828,12 +900,27 @@ mod tests {
         // Light surface is bright, light text is dark (contrast sanity).
         assert!(l.surface.base.r() > 200 && l.surface.base.g() > 200 && l.surface.base.b() > 200);
         assert!(l.text.primary.r() < 80 && l.text.primary.g() < 80 && l.text.primary.b() < 80);
+        // Raised is smaller than overlay in both themes.
+        assert!(d.elevation.overlay.blur > d.elevation.raised.blur);
+        assert!(l.elevation.overlay.blur > l.elevation.raised.blur);
+        // Light raised is slightly stronger than dark (light surfaces need more contrast).
+        assert!(l.elevation.raised.blur >= d.elevation.raised.blur);
     }
 
     #[test]
     fn focus_ring_matches_border_focus() {
         assert_eq!(Theme::dark().focus_ring(), Theme::dark().border.focus);
         assert_eq!(Theme::light().focus_ring(), Theme::light().border.focus);
+    }
+
+    #[test]
+    fn accessor_methods_return_correct_values() {
+        let d = Theme::dark();
+        assert_eq!(d.elevation_raised(), d.elevation.raised);
+        assert_eq!(d.elevation_overlay(), d.elevation.overlay);
+        let l = Theme::light();
+        assert_eq!(l.elevation_raised(), l.elevation.raised);
+        assert_eq!(l.elevation_overlay(), l.elevation.overlay);
     }
 
     #[test]

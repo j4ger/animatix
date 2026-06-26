@@ -7,7 +7,7 @@ use egui::{Color32, Pos2, Response, Sense, Stroke, StrokeKind, Vec2};
 use std::hash::{Hash, Hasher};
 
 use crate::tokens::motion::{NORMAL, STANDARD, Transition};
-use crate::tokens::spatial::{RADIUS_M, SPACE_3, STROKE_WIDTH, STROKE_WIDTH_THICK};
+use crate::tokens::spatial::{toggle, ROW_XS, RADIUS_M, SPACE_3, STROKE_WIDTH, STROKE_WIDTH_THICK};
 use crate::tokens::theme;
 use crate::tokens::typography::TextRole;
 use crate::widget::anim::{animate_bool_eased, animate_lerp};
@@ -79,7 +79,7 @@ impl<'a> egui::Widget for Checkbox<'a> {
         let id = egui::Id::new(self.value as *const _);
 
         // Layout calculations
-        let box_size = Vec2::splat(18.0);
+        let box_size = Vec2::splat(ROW_XS);
         let spacing = SPACE_3;
         let font = TextRole::Body.font_id();
         let label_galley = self.label.map(|l| {
@@ -254,7 +254,7 @@ impl<'a, T: PartialEq + Clone + Hash> egui::Widget for Radio<'a, T> {
         let id = egui::Id::new(hasher.finish());
 
         // Layout
-        let outer_size = Vec2::splat(16.0);
+        let outer_size = Vec2::splat(toggle::RADIO_SIZE);
         let spacing = SPACE_3;
         let font = TextRole::Body.font_id();
         let label_galley = self.label.map(|l| {
@@ -394,9 +394,9 @@ impl<'a> egui::Widget for Switch<'a> {
         let id = egui::Id::new(self.value as *const _);
 
         // Dimensions
-        let track_height: f32 = 20.0;
-        let track_width = 36.0;
-        let thumb_radius = 10.0;
+        let track_height = toggle::SWITCH_TRACK_HEIGHT;
+        let track_width = toggle::SWITCH_TRACK_WIDTH;
+        let thumb_radius = toggle::SWITCH_THUMB_RADIUS;
         let spacing = SPACE_3;
 
         let font = TextRole::Body.font_id();

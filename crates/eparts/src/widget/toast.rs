@@ -194,6 +194,11 @@ impl ToastQueue {
                 continue;
             }
 
+            // Elevated shadow behind the toast (faded with alpha)
+            let mut shadow = theme.elevation.raised;
+            shadow.color = shadow.color.linear_multiply(alpha);
+            ui.painter().add(shadow.as_shape(rect, RADIUS_M));
+
             // Background with alpha
             let bg = theme.surface.surface.linear_multiply(alpha);
             ui.painter().rect_filled(rect, RADIUS_M as u8, bg);

@@ -212,7 +212,8 @@ pub fn modal(
                 .fill(window_bg)
                 .stroke(Stroke::new(STROKE_WIDTH, border_color))
                 .corner_radius(RADIUS_XL)
-                .inner_margin(Margin::same(spatial::dialog::INNER_MARGIN as i8)),
+                .inner_margin(Margin::same(spatial::dialog::INNER_MARGIN as i8))
+                .shadow(t.elevation_overlay()),
         );
 
     let window = if spec.resizable {

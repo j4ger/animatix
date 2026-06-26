@@ -33,6 +33,19 @@ pub const RADIUS_L: f32 = 6.0;
 pub const RADIUS_XL: f32 = 8.0;
 
 // ── Reusable component dimensions ──
+pub mod toggle {
+    /// Square size of the checkbox hit/display box (18 px).
+    pub const CHECKBOX_SIZE: f32 = 18.0;
+    /// Diameter of the radio button outer circle (16 px).
+    pub const RADIO_SIZE: f32 = 16.0;
+    /// Height of the switch track pill (20 px).
+    pub const SWITCH_TRACK_HEIGHT: f32 = 20.0;
+    /// Width of the switch track pill (36 px).
+    pub const SWITCH_TRACK_WIDTH: f32 = 36.0;
+    /// Radius of the switch thumb/knob circle (10 px).
+    pub const SWITCH_THUMB_RADIUS: f32 = 10.0;
+}
+
 pub mod component {
     pub const PILL_TAB_HEIGHT: f32 = 26.0;
     pub const PILL_TAB_GAP: f32 = 2.0;
@@ -41,6 +54,8 @@ pub mod component {
     pub const TOAST_SPACING: f32 = 8.0;
     pub const TOAST_MARGIN: f32 = 16.0;
     pub const ICON_SLOT_WIDTH: f32 = 14.0;
+    /// Height of the determinate progress bar (16 px).
+    pub const PROGRESS_BAR_HEIGHT: f32 = 16.0;
 }
 
 // ── Menu layout constants (generic, used by context_menu widget) ──

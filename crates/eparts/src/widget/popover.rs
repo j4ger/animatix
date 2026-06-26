@@ -422,19 +422,14 @@ fn compute_anchor_pos_clamped(
 /// * fill → `t.surface.floating_card_bg`
 /// * stroke → `t.border.default`
 /// * corner radius → [`RADIUS_M`]
-/// * shadow colour → `t.overlay.shadow_direct`
+/// * shadow → `t.elevation.raised`
 fn popover_frame(t: &crate::tokens::theme::Theme) -> egui::Frame {
     egui::Frame::new()
         .fill(t.surface.floating_card_bg)
         .stroke(egui::Stroke::new(STROKE_WIDTH, t.border.default))
         .corner_radius(CornerRadius::same(RADIUS_M as u8))
         .inner_margin(egui::Margin::same(12))
-        .shadow(egui::Shadow {
-            offset: [0, 4],
-            blur: 12,
-            spread: 0,
-            color: t.overlay.shadow_direct,
-        })
+        .shadow(t.elevation.raised)
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
