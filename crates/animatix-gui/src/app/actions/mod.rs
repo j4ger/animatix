@@ -110,11 +110,14 @@ impl GuiShell {
                     actor: actor_c.clone(),
                     property: "from".into(),
                     value: from_expr.clone(),
-                }).or_else(|_| crate::source_edit::apply_edit(trial, SourceEdit::InsertProperty {
-                    actor: actor_c.clone(),
-                    property: "from".into(),
-                    value: from_expr,
-                }));
+                }).or_else(|err| {
+                    tracing::warn!("failed to set property 'from' on actor '{}': {}", actor_c, err);
+                    crate::source_edit::apply_edit(trial, SourceEdit::InsertProperty {
+                        actor: actor_c.clone(),
+                        property: "from".into(),
+                        value: from_expr,
+                    })
+                });
                 // Set to
                 let to_expr = Expr::Tuple(vec![
                     Expr::Num(to[0] as f64),
@@ -124,11 +127,14 @@ impl GuiShell {
                     actor: actor_c.clone(),
                     property: "to".into(),
                     value: to_expr.clone(),
-                }).or_else(|_| crate::source_edit::apply_edit(trial, SourceEdit::InsertProperty {
-                    actor: actor_c.clone(),
-                    property: "to".into(),
-                    value: to_expr,
-                }));
+                }).or_else(|err| {
+                    tracing::warn!("failed to set property 'to' on actor '{}': {}", actor_c, err);
+                    crate::source_edit::apply_edit(trial, SourceEdit::InsertProperty {
+                        actor: actor_c.clone(),
+                        property: "to".into(),
+                        value: to_expr,
+                    })
+                });
                 // Set label_at
                 let label_expr = Expr::Tuple(vec![
                     Expr::Num(label_at[0] as f64),
@@ -138,16 +144,22 @@ impl GuiShell {
                     actor: actor_c.clone(),
                     property: "label_at".into(),
                     value: label_expr.clone(),
-                }).or_else(|_| crate::source_edit::apply_edit(trial, SourceEdit::InsertProperty {
-                    actor: actor_c.clone(),
-                    property: "label_at".into(),
-                    value: label_expr,
-                }));
+                }).or_else(|err| {
+                    tracing::warn!("failed to set property 'label_at' on actor '{}': {}", actor_c, err);
+                    crate::source_edit::apply_edit(trial, SourceEdit::InsertProperty {
+                        actor: actor_c.clone(),
+                        property: "label_at".into(),
+                        value: label_expr,
+                    })
+                });
                 // Remove target
-                let _ = crate::source_edit::apply_edit(trial, SourceEdit::RemoveProperty {
+                let result = crate::source_edit::apply_edit(trial, SourceEdit::RemoveProperty {
                     actor: actor_c.clone(),
                     property: "target".into(),
                 });
+                if let Err(err) = result {
+                    tracing::warn!("failed to remove property 'target' on actor '{}': {}", actor_c, err);
+                }
                 Ok(())
             })
         } else {

@@ -45,7 +45,10 @@ fn collect_tree_entries(
 
     let read_dir = match fs::read_dir(dir) {
         Ok(read_dir) => read_dir,
-        Err(_) => return,
+        Err(err) => {
+            tracing::debug!("failed to read directory '{}': {}", dir.display(), err);
+            return;
+        }
     };
 
     let mut children: Vec<_> = read_dir.filter_map(Result::ok).collect();

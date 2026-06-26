@@ -136,19 +136,25 @@ pub(super) fn load_app_state() -> Option<PathBuf> {
 pub(super) fn save_app_state(recent_file: &Path) {
     let path = app_state_path();
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).ok();
+        if let Err(e) = fs::create_dir_all(parent) {
+            tracing::warn!("Failed to create persistence directory {}: {}", parent.display(), e);
+        }
     }
     let state = AppState {
         recent_file: Some(recent_file.to_path_buf()),
     };
     if let Ok(serialized) = ron::ser::to_string_pretty(&state, ron::ser::PrettyConfig::default()) {
-        fs::write(&path, serialized).ok();
+        if let Err(e) = fs::write(&path, serialized) {
+            tracing::warn!("Failed to write app state file {}: {}", path.display(), e);
+        }
     }
 }
 
 pub(super) fn clear_app_state() {
     let path = app_state_path();
     if path.exists() {
-        fs::remove_file(&path).ok();
+        if let Err(e) = fs::remove_file(&path) {
+            tracing::warn!("Failed to remove app state file {}: {}", path.display(), e);
+        }
     }
 }
