@@ -68,6 +68,30 @@ Never store state in a retained widget instance — widgets are constructed and 
 
 The `Theme` is stored in Memory and read at the top of a widget's `ui()` via `let t = eparts::theme(ui);`.
 
+## Widget API contract (entry-point convention)
+
+eparts widgets follow a deliberate two-tier convention. Pick the tier that matches the widget:
+
+**Tier 1 — `impl egui::Widget`** (invoked with `ui.add(MyWidget::new(...))`). Use this for
+self-contained widgets that take only plain values/builder options and return an `egui::Response`.
+No content closures, no rich return struct. Examples: `Button`, `Label`, `Spinner`, `Slider`,
+`Select`, `Badge`, `Tag`, `Alert`, `ProgressBar`, `Skeleton`, `Kbd`.
+
+**Tier 2 — `pub fn show(self, ui, ...) -> T`** (invoked as `MyWidget::new(...).show(ui, ...)`). Use
+this when the widget needs any of: a content/render closure (`FnOnce(&mut Ui)`), a rich return value
+(a `*Response`/action struct beyond `egui::Response`), or cross-frame state coordination. Examples:
+`Form`/`Field`, `Dialog::modal`, `Popover`, `Tooltip`, `Collapsible`, `Tree`, `List`, `ColorPicker`,
+`TextField`/`NumberField`, `Row`, `TabBar`, `ResizeHandle`, `Toast`.
+
+Rules:
+- A widget exposes exactly **one** primary entry point — either `impl Widget` OR `show()`, never both.
+  (Builder setters like `with_size`, `show_value`, `show_percentage` are fine; they are not entry points.)
+- Tier-2 `show()` returns either `egui::Response` or a documented `*Response` struct; name rich structs
+  `<Widget>Response`.
+- Free functions in `layout.rs` (`card`, `section_header`, `separator`, …) are a deliberate exception:
+  they are stateless layout helpers, not widgets, and stay as `fn(ui, …)`.
+- When unsure, prefer Tier 1; promote to Tier 2 only when a closure / rich return / state is required.
+
 ## Verification (per workspace AGENTS.md)
 
 Before committing:
