@@ -433,10 +433,6 @@ pub fn status_bar(
     let t = theme(ui);
     let s = spatial(ui);
     let h = s.row_s;
-    let avail_w = ui.available_width();
-
-    // Allocate and paint the bar background + top border.
-    let (_bar_rect, _) = ui.allocate_exact_size(Vec2::new(avail_w, h), egui::Sense::hover());
 
     egui::Frame::new()
         .fill(t.surface.panel)
@@ -444,7 +440,10 @@ pub fn status_bar(
         .inner_margin(Margin::symmetric(s.space_3 as i8, 0))
         .stroke(egui::Stroke::new(STROKE_WIDTH, t.border.default))
         .show(ui, |ui| {
-            build(ui);
+            ui.set_min_height(h);
+            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                build(ui);
+            });
         });
 }
 
@@ -485,10 +484,6 @@ impl StatusBar {
         let t = theme(ui);
         let s = spatial(ui);
         let h = s.row_s;
-        let avail_w = ui.available_width();
-
-        // Allocate and paint the bar background + top border.
-        let (_bar_rect, _) = ui.allocate_exact_size(Vec2::new(avail_w, h), egui::Sense::hover());
 
         egui::Frame::new()
             .fill(t.surface.panel)
@@ -496,20 +491,17 @@ impl StatusBar {
             .inner_margin(Margin::symmetric(s.space_3 as i8, 0))
             .stroke(egui::Stroke::new(STROKE_WIDTH, t.border.default))
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
+                ui.set_min_height(h);
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                     // Left items
                     for item in &self.left_items {
                         ui.label(item.as_str());
                     }
-                    // Spacer pushes right items to the far right.
-                    ui.add_space(ui.available_width());
-                    // Right items in a right-to-left sub-layout.
-                    ui.horizontal(|ui| {
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            for item in &self.right_items {
-                                ui.label(item.as_str());
-                            }
-                        });
+                    // Right items pushed to far right.
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        for item in self.right_items.iter().rev() {
+                            ui.label(item.as_str());
+                        }
                     });
                 });
             });

@@ -537,7 +537,7 @@ pub(crate) fn render_property_row(
                         egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                         |ui| {
                             ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
-                            let half_w = ui.available_width() / 2.0 - 2.0;
+                            let half_w = (ui.available_width() - 3.0 * sp.base.space_2) / 2.0;
                             // Axis label for first component
                             ui.add_sized(
                                 Vec2::new(16.0, row_height - sp.base.space_2),

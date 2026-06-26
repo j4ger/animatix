@@ -246,11 +246,15 @@ impl egui::Widget for Button {
             }
             ButtonVariant::Ghost => {
                 let icon_width = icon_galley.as_ref().map_or(0.0, |g| g.size().x);
-                let mut width = icon_width + self.size.pad_x_for(d) * 2.0;
+                let pad_x = self.size.pad_x_for(d);
+                let mut width = pad_x * 2.0;
+                if icon_width > 0.0 {
+                    width += icon_width + pad_x;
+                }
                 let mut label_galley = None;
                 if let Some(l) = label {
                     let galley = ui.painter().layout_no_wrap(
-                        format!("  {}", l),
+                        l.to_string(),
                         label_font.clone(),
                         t.text.primary,
                     );
@@ -295,7 +299,7 @@ impl egui::Widget for Button {
                         self.icon_color.unwrap_or(slot.fg)
                     };
 
-                    let mut cursor_x = rect.min.x + self.size.pad_x_for(d);
+                    let mut cursor_x = rect.min.x + pad_x;
                     let baseline_y = rect.center().y;
 
                     if let Some(icon) = self.icon {
@@ -306,7 +310,7 @@ impl egui::Widget for Button {
                             icon_font,
                             icon_color,
                         );
-                        cursor_x += icon_width;
+                        cursor_x += icon_width + pad_x;
                     }
 
                     if let Some(galley) = label_galley {

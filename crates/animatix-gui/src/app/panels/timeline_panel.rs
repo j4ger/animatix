@@ -362,7 +362,7 @@ fn render_transport_strip(
             surface::BASE,
         );
 
-        ui.horizontal(|ui| {
+        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
             ui.add_space(sp.base.space_2);
 
             // Go to start

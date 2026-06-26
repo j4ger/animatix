@@ -636,8 +636,10 @@ impl GuiShell {
                             self.preview_store.preview.status_severity == StatusSeverity::Error;
                         if is_error {
                             // Red accent pill + warning icon for errors
-                            let bg_rect =
-                                egui::Rect::from_min_size(ui.cursor().min, egui::vec2(14.0, 14.0));
+                            let (bg_rect, _) = ui.allocate_exact_size(
+                                egui::vec2(14.0, 14.0),
+                                egui::Sense::hover(),
+                            );
                             ui.painter().rect_filled(
                                 bg_rect,
                                 RADIUS_S,
