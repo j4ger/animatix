@@ -1,5 +1,7 @@
 //! Motion tokens — duration and easing primitives.
 
+use egui::Context;
+
 /// Duration constants for egui animations (seconds).
 pub const INSTANT: f32 = 0.0;
 pub const FAST: f32 = 0.10;
@@ -149,3 +151,54 @@ mod tests {
         assert!((sample_1 - 1.0).abs() < 0.001, "sample(1.0) != 1.0: {}", sample_1);
     }
 }
+
+// ── Motion preference (reduced-motion) ───────────────────────────────
+
+/// A user's motion-preference policy.
+///
+/// - `Full` — animations play at their defined durations (default).
+/// - `Reduced` — all animations resolve to [`INSTANT`] (0.0 s), snapping
+///   values immediately.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MotionPreference {
+    /// Play animations normally.
+    #[default]
+    Full,
+    /// Minimize or eliminate motion; all durations resolve to 0.
+    Reduced,
+}
+
+/// The egui Memory key used to store the motion preference.
+fn motion_preference_key() -> egui::Id {
+    egui::Id::new("eparts_motion_preference")
+}
+
+/// Read the current [`MotionPreference`] from an `egui::Context`.
+pub fn motion_preference_from_ctx(ctx: &Context) -> MotionPreference {
+    ctx.data(|d| d.get_temp::<MotionPreference>(motion_preference_key()))
+        .unwrap_or_default()
+}
+
+/// Read the current [`MotionPreference`] from a `Ui`.
+pub fn motion_preference(ui: &egui::Ui) -> MotionPreference {
+    motion_preference_from_ctx(ui.ctx())
+}
+
+/// Store a new [`MotionPreference`] in the `egui::Context` Memory.
+pub fn set_motion_preference(ctx: &Context, pref: MotionPreference) {
+    ctx.data_mut(|d| d.insert_temp(motion_preference_key(), pref));
+}
+
+/// Resolve a [`Transition`]'s effective duration under the current
+/// motion-preference policy.
+///
+/// When `pref` is [`MotionPreference::Reduced`], returns [`INSTANT`] regardless
+/// of the transition's declared duration; otherwise returns the transition's
+/// duration unchanged.
+pub fn resolve_duration(pref: MotionPreference, transition: Transition) -> f32 {
+    match pref {
+        MotionPreference::Reduced => INSTANT,
+        MotionPreference::Full => transition.duration,
+    }
+}
+

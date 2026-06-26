@@ -6,6 +6,7 @@
 //! time interpolation, giving real non-linear animation.
 
 use crate::tokens::motion::{INSTANT, Transition};
+use crate::tokens::motion::{motion_preference_from_ctx, resolve_duration};
 use egui::{Color32, Context, Id};
 
 /// Linear interpolation between two values of the same type.
@@ -53,12 +54,15 @@ impl Lerp for egui::Vec2 {
 ///
 /// Returns the current animated value. When `target` changes, starts animating
 /// from the current animated value toward the new target over `transition.duration`
-/// seconds. If `transition` is `INSTANT`, returns `target` immediately.
+/// seconds. If `transition` is `INSTANT` or the current [`MotionPreference`]
+/// is [`MotionPreference::Reduced`], returns `target` immediately.
 pub fn animate_toward(ctx: &Context, id: Id, target: f32, transition: Transition) -> f32 {
-    if transition.duration == INSTANT {
+    let pref = motion_preference_from_ctx(ctx);
+    let duration = resolve_duration(pref, transition);
+    if duration == INSTANT {
         return target;
     }
-    ctx.animate_value_with_time(id, target, transition.duration)
+    ctx.animate_value_with_time(id, target, duration)
 }
 
 /// Animates a boolean state (e.g., hover, active) toward a target boolean.
@@ -100,7 +104,9 @@ pub fn animate_lerp<T: Lerp>(
 /// Uses `animate_toward` for linear time progress, then applies the
 /// transition's cubic-bezier easing via `CubicBezier::sample()`.
 pub fn animate_toward_eased(ctx: &Context, id: Id, target: f32, transition: Transition) -> f32 {
-    if transition.duration == INSTANT {
+    let pref = motion_preference_from_ctx(ctx);
+    let duration = resolve_duration(pref, transition);
+    if duration == INSTANT {
         return target;
     }
     let linear = animate_toward(ctx, id, target, transition);
@@ -134,4 +140,36 @@ mod tests {
         assert_eq!(egui::pos2(0.0, 0.0).lerp(egui::pos2(4.0, 8.0), 0.5), egui::pos2(2.0, 4.0));
         assert_eq!(egui::vec2(0.0, 0.0).lerp(egui::vec2(4.0, 8.0), 0.25), egui::vec2(1.0, 2.0));
     }
+
+    #[test]
+    fn animate_toward_reduced_motion_snaps() {
+        use crate::tokens::motion::{set_motion_preference, MotionPreference, SLOW, STANDARD, Transition};
+        let ctx = Context::default();
+        set_motion_preference(&ctx, MotionPreference::Reduced);
+        let id = egui::Id::new("test_reduced");
+        let t = animate_toward(&ctx, id, 42.0, Transition { duration: SLOW, easing: STANDARD });
+        assert_eq!(t, 42.0);
+    }
+
+    #[test]
+    fn animate_toward_full_motion_animates() {
+        use crate::tokens::motion::{FAST, STANDARD, Transition};
+        let ctx = Context::default();
+        let id = egui::Id::new("test_full");
+        // With default (Full) preference and a brand-new id, egui returns the
+        // target immediately because there is no prior animation state to interpolate from.
+        let result = animate_toward(&ctx, id, 42.0, Transition { duration: FAST, easing: STANDARD });
+        assert_eq!(result, 42.0);
+    }
+
+    #[test]
+    fn animate_toward_eased_reduced_motion_snaps() {
+        use crate::tokens::motion::{set_motion_preference, MotionPreference, NORMAL, STANDARD, Transition};
+        let ctx = Context::default();
+        set_motion_preference(&ctx, MotionPreference::Reduced);
+        let id = egui::Id::new("test_eased_reduced");
+        let t = animate_toward_eased(&ctx, id, 1.0, Transition { duration: NORMAL, easing: STANDARD });
+        assert_eq!(t, 1.0);
+    }
 }
+

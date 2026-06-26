@@ -18,6 +18,9 @@ pub use widget::traits::{Collapsible, Disableable, Selectable, Size, Sizable};
 // ── Runtime theme (B1) ──────────────────────────────────────────────
 pub use tokens::theme::{theme, theme_from_ctx, set_theme, AppThemeChoice, Theme};
 
+// ── Motion preference (reduced-motion) ───────────────────────────────
+pub use tokens::motion::{motion_preference, motion_preference_from_ctx, set_motion_preference, MotionPreference, resolve_duration};
+
 // ── Tree, List, SearchableList (H1 + H2 + H3) ──────────────────────
 pub use widget::tree::{Tree, TreeAction, TreeId, TreeItem, TreeResponse};
 pub use widget::list::{List, ListAction, ListResponse, SearchableList, SearchableListResponse};
