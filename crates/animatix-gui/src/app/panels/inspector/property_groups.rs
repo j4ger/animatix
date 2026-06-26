@@ -4,6 +4,9 @@ use animatix::timeline::{
 };
 use egui::{Color32, Stroke, Vec2};
 
+use eparts::{NumberField, TextField};
+use eparts::widget::Select;
+
 use crate::app::commands::{
     ActionQueue, DocumentCommand, DragEvent, KeyframeCommand, PropertyEdit,
     PropertyValue as GuiPropertyValue, ShellAction,
@@ -521,8 +524,8 @@ pub(crate) fn render_property_row(
     // ── Input widget (inside input_rect, no extra frame) ──
     match &entry.kind {
         PropertyKind::Vec2 { x, y } => {
-            let mut nx = *x;
-            let mut ny = *y;
+            let nx = *x;
+            let ny = *y;
             let (a_label, b_label) = vec2_labels(entry.name);
             ui.scope_builder(
                 egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(SPACE_2, 0.0))),
@@ -533,20 +536,38 @@ pub(crate) fn render_property_row(
                         |ui| {
                             ui.spacing_mut().item_spacing = Vec2::new(SPACE_2, 0.0);
                             let half_w = ui.available_width() / 2.0 - 2.0;
-                            let rx = ui.add_sized(
-                                Vec2::new(half_w.max(30.0), row_height - SPACE_2),
-                                egui::DragValue::new(&mut nx)
-                                    .speed(0.5)
-                                    .max_decimals(1)
-                                    .prefix(a_label),
+                            // Axis label for first component
+                            ui.add_sized(
+                                Vec2::new(16.0, row_height - SPACE_2),
+                                egui::Label::new(
+                                    egui::RichText::new(a_label)
+                                        .size(TextRole::Micro.size())
+                                        .color(text::MUTED),
+                                )
+                                .selectable(false),
                             );
-                            let ry = ui.add_sized(
-                                Vec2::new(half_w.max(30.0), row_height - SPACE_2),
-                                egui::DragValue::new(&mut ny)
-                                    .speed(0.5)
-                                    .max_decimals(1)
-                                    .prefix(b_label),
+                            let mut nfx = nx as f64;
+                            let rx = NumberField::new(&mut nfx)
+                                .speed(0.5)
+                                .desired_width((half_w - 16.0).max(20.0))
+                                .show(ui);
+                            // Axis label for second component
+                            ui.add_sized(
+                                Vec2::new(16.0, row_height - SPACE_2),
+                                egui::Label::new(
+                                    egui::RichText::new(b_label)
+                                        .size(TextRole::Micro.size())
+                                        .color(text::MUTED),
+                                )
+                                .selectable(false),
                             );
+                            let mut nfy = ny as f64;
+                            let ry = NumberField::new(&mut nfy)
+                                .speed(0.5)
+                                .desired_width((half_w - 16.0).max(20.0))
+                                .show(ui);
+                            let nx_out = nfx as f32;
+                            let ny_out = nfy as f32;
                             if rx.drag_started() || ry.drag_started() {
                                 commands.push_back(ShellAction::Drag(
                                     DragEvent::InspectorInputDragStarted,
@@ -563,7 +584,7 @@ pub(crate) fn render_property_row(
                                         time_s: None,
                                         actor: actor_label.to_string(),
                                         property: entry.name.to_string(),
-                                        value: GuiPropertyValue::Vec2([nx, ny]),
+                                        value: GuiPropertyValue::Vec2([nx_out, ny_out]),
                                         create_keyframe: keyframe_mode,
                                     })
                                     .into(),
@@ -634,6 +655,8 @@ pub(crate) fn render_property_row(
                     },
                 );
             } else {
+                // Non-0..1 float: use eparts NumberField
+                let mut nv = *v as f64;
                 ui.scope_builder(
                     egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(SPACE_2, 0.0))),
                     |ui| {
@@ -641,13 +664,11 @@ pub(crate) fn render_property_row(
                         ui.with_layout(
                             egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                             |ui| {
-                                let response = ui.add_sized(
-                                    Vec2::new(ui.available_width(), row_height - SPACE_2),
-                                    egui::DragValue::new(&mut nv)
-                                        .speed(if is_angle { 0.5 } else { 0.1 })
-                                        .suffix(if is_angle { "°" } else { unit })
-                                        .max_decimals(if is_angle { 1 } else { 2 }),
-                                );
+                                let response = NumberField::new(&mut nv)
+                                    .speed(if is_angle { 0.5 } else { 0.1_f32 })
+                                    .suffix(if is_angle { "°" } else { unit })
+                                    .desired_width(ui.available_width())
+                                    .show(ui);
                                 if response.drag_started() {
                                     commands.push_back(ShellAction::Drag(
                                         DragEvent::InspectorInputDragStarted,
@@ -665,7 +686,7 @@ pub(crate) fn render_property_row(
                                             time_s: None,
                                             actor: actor_label.to_string(),
                                             property: entry.name.to_string(),
-                                            value: GuiPropertyValue::Float(out_val),
+                                            value: GuiPropertyValue::Float(out_val as f32),
                                             create_keyframe: keyframe_mode,
                                         })
                                         .into(),
@@ -678,7 +699,7 @@ pub(crate) fn render_property_row(
             }
         },
         PropertyKind::U32(v) => {
-            let mut nv = *v as i64;
+            let mut nv = *v as f64;
             ui.scope_builder(
                 egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(SPACE_2, 0.0))),
                 |ui| {
@@ -686,10 +707,10 @@ pub(crate) fn render_property_row(
                     ui.with_layout(
                         egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                         |ui| {
-                            let response = ui.add_sized(
-                                Vec2::new(ui.available_width(), row_height - SPACE_2),
-                                egui::DragValue::new(&mut nv).speed(0.1).max_decimals(0),
-                            );
+                            let response = NumberField::new(&mut nv)
+                                .speed(0.1_f32)
+                                .desired_width(ui.available_width())
+                                .show(ui);
                             if response.drag_started() {
                                 commands.push_back(ShellAction::Drag(
                                     DragEvent::InspectorInputDragStarted,
@@ -706,7 +727,7 @@ pub(crate) fn render_property_row(
                                         time_s: None,
                                         actor: actor_label.to_string(),
                                         property: entry.name.to_string(),
-                                        value: GuiPropertyValue::Float(nv as f32),
+                                        value: GuiPropertyValue::Float(nv as u32 as f32),
                                         create_keyframe: keyframe_mode,
                                     })
                                     .into(),
@@ -776,37 +797,42 @@ pub(crate) fn render_property_row(
                         egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                         |ui| {
                             if entry.name == "shape_type" {
-                                let variants: Vec<&str> = [
-                                    ShapeType::Rect,
-                                    ShapeType::Ellipse,
-                                    ShapeType::Line,
-                                    ShapeType::Polygon,
-                                    ShapeType::Path,
-                                ]
-                                .iter()
-                                .map(|st| st.as_str())
-                                .collect();
-                                egui::ComboBox::from_id_salt(ui.id().with(("enum", entry.name)))
-                                    .selected_text(text.as_str())
-                                    .width(ui.available_width())
-                                    .show_ui(ui, |ui| {
-                                        for v in variants {
-                                            if ui.selectable_label(v == text, v).clicked() {
-                                                commands.push_back(
-                                                    DocumentCommand::PropertyEdit(PropertyEdit {
-                                                        time_s: None,
-                                                        actor: actor_label.to_string(),
-                                                        property: entry.name.to_string(),
-                                                        value: GuiPropertyValue::Text(
-                                                            v.to_string(),
-                                                        ),
-                                                        create_keyframe: keyframe_mode,
-                                                    })
-                                                    .into(),
-                                                );
-                                            }
-                                        }
-                                    });
+                                use std::sync::OnceLock;
+                                static SHAPE_VARIANTS: OnceLock<Vec<&'static str>> = OnceLock::new();
+                                let variants = SHAPE_VARIANTS.get_or_init(|| {
+                                    vec![
+                                        ShapeType::Rect.as_str(),
+                                        ShapeType::Ellipse.as_str(),
+                                        ShapeType::Line.as_str(),
+                                        ShapeType::Polygon.as_str(),
+                                        ShapeType::Path.as_str(),
+                                    ]
+                                });
+                                // Map current text to Option<usize> index for Select
+                                let mut sel_idx = variants.iter().position(|v| *v == text);
+                                ui.add_sized(
+                                    Vec2::new(ui.available_width(), row_height - SPACE_2),
+                                    Select::new(
+                                        ui.id().with(("enum", entry.name)),
+                                        &mut sel_idx,
+                                        &variants[..],
+                                    ),
+                                );
+                                if let Some(idx) = sel_idx {
+                                    let chosen = variants[idx];
+                                    if chosen != text {
+                                        commands.push_back(
+                                            DocumentCommand::PropertyEdit(PropertyEdit {
+                                                time_s: None,
+                                                actor: actor_label.to_string(),
+                                                property: entry.name.to_string(),
+                                                value: GuiPropertyValue::Text(chosen.to_string()),
+                                                create_keyframe: keyframe_mode,
+                                            })
+                                            .into(),
+                                        );
+                                    }
+                                }
                             } else if entry.name == "font_family" {
                                 use std::sync::OnceLock;
                                 static FONT_CONTEXT: OnceLock<
@@ -841,11 +867,10 @@ pub(crate) fn render_property_row(
                                 || entry.name == "text"
                                 || entry.name == "source"
                             {
-                                let edit = egui::TextEdit::singleline(&mut buf)
-                                    .font(TextRole::BodyS.font_id())
-                                    .desired_width(ui.available_width());
-                                let response = ui.add(edit);
-                                if response.changed() {
+                                let tf_resp = TextField::new(&mut buf)
+                                    .desired_width(ui.available_width())
+                                    .show(ui);
+                                if tf_resp.changed {
                                     commands.push_back(
                                         DocumentCommand::PropertyEdit(PropertyEdit {
                                             time_s: None,
