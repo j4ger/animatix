@@ -58,7 +58,7 @@ use egui::{Id, Response, Sense};
 #[allow(unused_imports)]
 use std::collections::HashSet;
 
-use crate::tokens::spatial::{ROW_M, SPACE_L};
+use crate::tokens::spatial::{ROW_M, SPACE_4};
 use crate::widget::row::Row;
 
 // ── Public types ─────────────────────────────────────────────────────
@@ -118,7 +118,7 @@ impl<'a> Tree<'a> {
         Self {
             items,
             row_height: ROW_M,
-            indent_step: SPACE_L,
+            indent_step: SPACE_4,
         }
     }
 
@@ -128,7 +128,7 @@ impl<'a> Tree<'a> {
         self
     }
 
-    /// Indent increment per depth level in pixels (default: [`SPACE_L`]).
+    /// Indent increment per depth level in pixels (default: [`SPACE_4`]).
     pub fn indent_step(mut self, px: f32) -> Self {
         self.indent_step = px;
         self
@@ -559,6 +559,20 @@ mod tests {
     fn type_ahead_empty_prefix() {
         let items = build_flat(&HashSet::new());
         assert_eq!(super::type_ahead_match("", 0, &items), None);
+    }
+
+    #[test]
+    fn tree_builder_row_height() {
+        let items: Vec<TreeItem> = vec![];
+        let tree = Tree::new(&items).row_height(32.0);
+        assert_eq!(tree.row_height, 32.0);
+    }
+
+    #[test]
+    fn tree_builder_indent_step() {
+        let items: Vec<TreeItem> = vec![];
+        let tree = Tree::new(&items).indent_step(24.0);
+        assert_eq!(tree.indent_step, 24.0);
     }
 }
 

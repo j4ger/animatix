@@ -20,7 +20,7 @@
 //! is open at a time (mutually exclusive).
 
 use crate::tokens::motion::Transition;
-use crate::tokens::spatial::{SPACE_M, SPACE_S, STROKE_WIDTH};
+use crate::tokens::spatial::{SPACE_2, SPACE_3, STROKE_WIDTH};
 use crate::tokens::typography::TextRole;
 use crate::widget::anim::animate_bool_eased;
 use crate::widget::traits::Collapsible as CollapsibleTrait;
@@ -73,7 +73,7 @@ impl CollapsibleSection {
         });
 
         // Allocate a clickable header area.
-        let header_h = TextRole::Body.size() + SPACE_S * 2.0;
+        let header_h = TextRole::Body.size() + SPACE_2 * 2.0;
         let avail_w = ui.available_width();
         let (header_rect, header_response) =
             ui.allocate_exact_size(Vec2::new(avail_w, header_h), Sense::click());
@@ -85,7 +85,7 @@ impl CollapsibleSection {
 
         // Chevron.
         ui.painter().text(
-            egui::pos2(header_rect.min.x + SPACE_M, header_rect.center().y),
+            egui::pos2(header_rect.min.x + SPACE_3, header_rect.center().y),
             egui::Align2::LEFT_CENTER,
             "\u{25B6}",
             TextRole::BodyS.font_id(),
@@ -94,7 +94,7 @@ impl CollapsibleSection {
 
         // Title text.
         ui.painter().text(
-            egui::pos2(header_rect.min.x + SPACE_M + SPACE_S, header_rect.center().y),
+            egui::pos2(header_rect.min.x + SPACE_3 + SPACE_2, header_rect.center().y),
             egui::Align2::LEFT_CENTER,
             &self.header,
             TextRole::Body.font_id(),
@@ -129,7 +129,7 @@ impl CollapsibleSection {
         // ── Body ────────────────────────────────────────────────────────────
         if effective_open {
             ui.vertical(|ui| {
-                ui.add_space(SPACE_S);
+                ui.add_space(SPACE_2);
                 let full_h = ui.available_height();
                 let body_h = full_h * progress;
                 if body_h > 0.5 {

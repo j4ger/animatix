@@ -1,7 +1,7 @@
 use egui::{Color32, Id, Rect, Response, Sense, Vec2};
 
 use crate::tokens::spatial::component::ICON_SLOT_WIDTH;
-use crate::tokens::spatial::{ROW_M, SPACE_L, SPACE_S};
+use crate::tokens::spatial::{ROW_M, SPACE_2, SPACE_4};
 use crate::tokens::typography::TextRole;
 
 /// Response from a `Row`.
@@ -121,7 +121,13 @@ impl<'a> Row<'a> {
 
     // ── Rect-mode entry point (for Tree / List) ─────────────────────
 
-    /// Render into a pre-allocated `rect` using `ui` for interaction.
+    /// Rect-mode entry point for container widgets that pre-allocate layout
+    /// (e.g. `Tree`, `List`).
+    ///
+    /// `show()` allocates the full-width rect and delegates here. Call this
+    /// directly when the container already owns the row rect.
+    ///
+    /// See AGENTS.md "Widget API contract" Tier-2 rect-mode exception.
     ///
     /// A scoped child Ui is built with `max_rect = rect` so the `right` slot
     /// and any sub-widgets are confined to the row bounds without consuming
@@ -160,7 +166,7 @@ impl<'a> Row<'a> {
         }
 
         let baseline_y = rect.center().y;
-        let mut cursor_x = rect.min.x + SPACE_S + self.indent;
+        let mut cursor_x = rect.min.x + SPACE_2 + self.indent;
 
         let chevron_rect = Rect::from_min_size(
             egui::pos2(cursor_x, rect.min.y),
@@ -190,7 +196,7 @@ impl<'a> Row<'a> {
         cursor_x += ICON_SLOT_WIDTH;
 
         if let Some(icon_str) = self.icon {
-            cursor_x += SPACE_S;
+            cursor_x += SPACE_2;
             let icon_rect = Rect::from_min_size(
                 egui::pos2(cursor_x, rect.min.y),
                 Vec2::new(ICON_SLOT_WIDTH, self.height),
@@ -207,9 +213,9 @@ impl<'a> Row<'a> {
                 TextRole::Body.font_id(),
                 self.label_color.unwrap_or(default_color),
             );
-            cursor_x += ICON_SLOT_WIDTH + SPACE_S;
+            cursor_x += ICON_SLOT_WIDTH + SPACE_2;
         } else {
-            cursor_x += SPACE_S * 2.0;
+            cursor_x += SPACE_2 * 2.0;
         }
 
         let label_color = self.label_color.unwrap_or({
@@ -229,10 +235,10 @@ impl<'a> Row<'a> {
 
         // right slot — render inside a scoped child confined to rect
         if let Some(right_fn) = self.right {
-            let check_width = if self.confirmed { ICON_SLOT_WIDTH + SPACE_S } else { 0.0 };
-            let right_area_width = (rect.max.x - SPACE_S - check_width - cursor_x - SPACE_L).max(20.0);
+            let check_width = if self.confirmed { ICON_SLOT_WIDTH + SPACE_2 } else { 0.0 };
+            let right_area_width = (rect.max.x - SPACE_2 - check_width - cursor_x - SPACE_4).max(20.0);
             let right_rect = Rect::from_min_size(
-                egui::pos2(cursor_x + SPACE_L, rect.min.y),
+                egui::pos2(cursor_x + SPACE_4, rect.min.y),
                 Vec2::new(right_area_width, self.height),
             );
             let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(right_rect));
@@ -240,8 +246,8 @@ impl<'a> Row<'a> {
         }
 
         if self.confirmed {
-            let check_width = ICON_SLOT_WIDTH + SPACE_S;
-            let check_x = rect.max.x - SPACE_S - check_width / 2.0;
+            let check_width = ICON_SLOT_WIDTH + SPACE_2;
+            let check_x = rect.max.x - SPACE_2 - check_width / 2.0;
             painter.text(
                 egui::pos2(check_x, baseline_y),
                 egui::Align2::CENTER_CENTER,
@@ -294,5 +300,60 @@ mod tests {
         assert!(!row.is_selected());
         row = row.selected(true);
         assert!(row.is_selected());
+    }
+
+    #[test]
+    fn builder_height() {
+        let row = Row::new("test").height(48.0);
+        assert_eq!(row.height, 48.0);
+    }
+
+    #[test]
+    fn builder_indent() {
+        let row = Row::new("test").indent(16.0);
+        assert_eq!(row.indent, 16.0);
+    }
+
+    #[test]
+    fn builder_has_children() {
+        let row = Row::new("test").has_children(true);
+        assert!(row.has_children);
+    }
+
+    #[test]
+    fn builder_is_expanded() {
+        let row = Row::new("test").expanded(true);
+        assert!(row.is_expanded);
+    }
+
+    #[test]
+    fn builder_icon() {
+        let row = Row::new("test").icon(Some("GEAR"));
+        assert_eq!(row.icon, Some("GEAR"));
+    }
+
+    #[test]
+    fn builder_icon_none() {
+        let row = Row::new("test").icon(None);
+        assert!(row.icon.is_none());
+    }
+
+    #[test]
+    fn builder_label_color() {
+        let color = egui::Color32::RED;
+        let row = Row::new("test").label_color(color);
+        assert_eq!(row.label_color, Some(color));
+    }
+
+    #[test]
+    fn builder_right_set() {
+        let row = Row::new("test").right(|_| {});
+        assert!(row.right.is_some());
+    }
+
+    #[test]
+    fn builder_sense() {
+        let row = Row::new("test").sense(egui::Sense::drag());
+        assert_eq!(row.sense, egui::Sense::drag());
     }
 }

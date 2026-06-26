@@ -160,7 +160,7 @@ impl Widget for Select<'_> {
             None => self.placeholder,
         };
 
-        let button_response = ui.button(current_label);
+        let button_response = ui.button(current_label).on_hover_cursor(egui::CursorIcon::Default);
 
         let popover = Popover::new(popover_id)
             .below()

@@ -99,7 +99,6 @@ pub fn animate_lerp<T: Lerp>(
 /// Returns the eased progress in [0, 1].
 /// Uses `animate_toward` for linear time progress, then applies the
 /// transition's cubic-bezier easing via `CubicBezier::sample()`.
-#[allow(dead_code)] // Used by animate_bool_eased and direct callers; retained as a building block.
 pub fn animate_toward_eased(ctx: &Context, id: Id, target: f32, transition: Transition) -> f32 {
     if transition.duration == INSTANT {
         return target;

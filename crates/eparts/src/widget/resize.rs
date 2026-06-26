@@ -7,7 +7,7 @@
 //! Highlight colour switches between `border::HOVER` (idle hover) and
 //! `accent::PRIMARY` while the handle is being dragged.
 
-use crate::tokens::spatial::{RADIUS_S, SPACE_S, STROKE_WIDTH};
+use crate::tokens::spatial::{RADIUS_S, SPACE_2, STROKE_WIDTH};
 use egui::{CornerRadius, CursorIcon, Id, Rect, Sense, Ui, Vec2};
 
 // ── Public API ─────────────────────────────────────────────────────────────────
@@ -66,11 +66,11 @@ pub struct ResizeHandle {
 impl ResizeHandle {
     /// Create a new resize handle with the given id and axis.
     pub fn new(id: impl Into<Id>, axis: ResizeAxis) -> Self {
-        Self { id: id.into(), axis, hit_pad: SPACE_S }
+        Self { id: id.into(), axis, hit_pad: SPACE_2 }
     }
 
     /// Set the extra padding (px) added to the visual width to enlarge the
-    /// hitbox. Defaults to [`SPACE_S`] (4 px each side for a horizontal handle).
+    /// hitbox. Defaults to [`SPACE_2`] (4 px each side for a horizontal handle).
     pub fn with_hit_pad(mut self, pad: f32) -> Self {
         self.hit_pad = pad;
         self
@@ -159,7 +159,7 @@ mod tests {
     fn resize_handle_new_defaults() {
         let h = ResizeHandle::new("test_id", ResizeAxis::Horizontal);
         assert_eq!(h.axis, ResizeAxis::Horizontal);
-        assert_eq!(h.hit_pad, SPACE_S);
+        assert_eq!(h.hit_pad, SPACE_2);
     }
 
     #[test]

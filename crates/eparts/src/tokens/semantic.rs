@@ -11,7 +11,7 @@ use egui::Color32;
 
 use super::primitive as p;
 
-// ── Surface (5 depth layers) ──
+// ── Surface (6 levels) ──
 
 pub mod surface {
     use super::*;

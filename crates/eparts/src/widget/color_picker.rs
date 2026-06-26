@@ -128,7 +128,7 @@ impl<'a> ColorPicker<'a> {
                 );
                 // Simple two-tone checkerboard approximation
                 let half = egui::Rect::from_min_max(rect.min, egui::pos2(rect.center().x, rect.max.y));
-                painter.rect_filled(half, cr, Color32::from_gray(180));
+                painter.rect_filled(half, cr, t.text.disabled);
             }
             painter.rect_filled(rect, cr, *color);
             let border_color = if trigger.hovered() {

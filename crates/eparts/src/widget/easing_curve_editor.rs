@@ -3,7 +3,7 @@
 //! Interactive cubic-bezier easing editor. Shows a small preview of the curve
 //! with draggable control points P1 and P2.
 
-use crate::tokens::spatial::{RADIUS_M, SPACE_M, SPACE_S, STROKE_WIDTH};
+use crate::tokens::spatial::{RADIUS_M, SPACE_2, SPACE_3, STROKE_WIDTH};
 use crate::tokens::theme::theme;
 use egui::{Pos2, Rect, Sense, Stroke, Vec2};
 
@@ -52,7 +52,7 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
     let painter = ui.painter_at(rect);
 
     // Plot area with padding
-    let plot_rect = rect.shrink2(Vec2::new(SPACE_M, SPACE_S));
+    let plot_rect = rect.shrink2(Vec2::new(SPACE_3, SPACE_2));
 
     // Map normalized (0..1) to plot_rect
     let map = |x: f32, y: f32| -> Pos2 {
@@ -191,4 +191,34 @@ fn cubic_bezier_y(t: f32, cp: [f32; 4]) -> f32 {
     let t = t.clamp(0.0, 1.0);
     let omt = 1.0 - t;
     3.0 * omt * omt * t * cp[1] + 3.0 * omt * t * t * cp[3] + t * t * t
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn easing_curve_state_default() {
+        let state = EasingCurveState::default();
+        assert_eq!(state.p1x, 0.42);
+        assert_eq!(state.p1y, 0.0);
+        assert_eq!(state.p2x, 0.58);
+        assert_eq!(state.p2y, 1.0);
+    }
+
+    #[test]
+    fn easing_curve_state_from_array() {
+        let state = EasingCurveState::from_array([0.25, 0.1, 0.75, 0.9]);
+        assert_eq!(state.p1x, 0.25);
+        assert_eq!(state.p1y, 0.1);
+        assert_eq!(state.p2x, 0.75);
+        assert_eq!(state.p2y, 0.9);
+    }
+
+    #[test]
+    fn easing_curve_state_roundtrip() {
+        let arr = [0.1, 0.2, 0.3, 0.4];
+        let state = EasingCurveState::from_array(arr);
+        assert_eq!(state.to_array(), arr);
+    }
 }

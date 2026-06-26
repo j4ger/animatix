@@ -23,7 +23,11 @@ See the full roadmap at `.picopi/plans/eparts-refinement-roadmap.md` (in the wor
 
 1. **Theme-driven, never hardcode colors.** Every color comes from a `tokens::semantic` role or the
    `Theme` struct; never `Color32::from_rgb(...)` inline in a widget. Whether a role resolves at compile
-   time (const) or runtime (`Theme`) is an implementation detail behind the role name.
+   time (const) or runtime (`Theme`) is an implementation detail behind the role name. Raw color literals
+   (`Color32::from_rgb`, `from_gray`, etc.) are allowed only inside the token definition layer
+   (`crates/eparts/src/tokens/primitive.rs`, `crates/eparts/src/tokens/theme.rs` — e.g. `Theme::light()`/`dark()`
+   and `*_slots()` builders). Widgets must never contain color literals; they read semantic roles or
+   `theme(ui)` slots.
 2. **Builder pattern mandatory + builder tests.** Every widget is `Widget::new(...)` + chained `.with_x()`
    setters returning `Self`, and every builder field gets a unit test asserting it is set.
 3. **Cursor convention: default arrow for buttons, pointer only for links.** Buttons/rows keep the default
@@ -66,6 +70,11 @@ Cross-frame widget state has exactly two homes:
 
 Never store state in a retained widget instance — widgets are constructed and consumed each frame.
 
+`ToastQueue` (`crates/eparts/src/widget/toast.rs`) is an app-owned state manager, not a per-frame
+widget instance. It is the sanctioned exception to "never store cross-frame state in a widget
+struct," because the application owns and persists it (like `ui_store`). Genuinely transient per-widget
+state still must live in egui Memory.
+
 The `Theme` is stored in Memory and read at the top of a widget's `ui()` via `let t = eparts::theme(ui);`.
 
 ## Widget API contract (entry-point convention)
@@ -91,6 +100,11 @@ Rules:
 - Free functions in `layout.rs` (`card`, `section_header`, `separator`, …) are a deliberate exception:
   they are stateless layout helpers, not widgets, and stay as `fn(ui, …)`.
 - When unsure, prefer Tier 1; promote to Tier 2 only when a closure / rich return / state is required.
+
+**Tier-2 rect-mode exception.** Container-driven widgets (e.g. `Row`) may expose a second entry
+`show_in_rect(rect, response, painter, …)` alongside `show()`. This is the SAME logical entry, not a
+competing API: `show()` allocates the widget rect then delegates to `show_in_rect`; container widgets
+(`Tree`, `List`) that pre-allocate the rect call `show_in_rect` directly.
 
 ## Verification (per workspace AGENTS.md)
 

@@ -294,3 +294,50 @@ pub fn title_row(ui: &mut Ui, title: &str) -> bool {
     });
     close
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dialog_spec_defaults() {
+        let spec = DialogSpec::new("test_id", [400.0, 300.0]);
+        assert_eq!(spec.id, "test_id");
+        assert_eq!(spec.default_size, [400.0, 300.0]);
+        assert_eq!(spec.min_size, [400.0, 300.0]);
+        assert!(spec.max_size.is_none());
+        assert!(!spec.resizable);
+        assert_eq!(spec.max_viewport_frac, crate::tokens::spatial::dialog::MAX_VIEWPORT_FRAC);
+        assert_eq!(spec.anchor_offset, [0.0, 0.0]);
+    }
+
+    #[test]
+    fn with_min_size() {
+        let spec = DialogSpec::new("test_id", [400.0, 300.0]).with_min_size([200.0, 150.0]);
+        assert_eq!(spec.min_size, [200.0, 150.0]);
+    }
+
+    #[test]
+    fn with_resizable() {
+        let spec = DialogSpec::new("test_id", [400.0, 300.0]).with_resizable(true);
+        assert!(spec.resizable);
+    }
+
+    #[test]
+    fn with_max_size() {
+        let spec = DialogSpec::new("test_id", [400.0, 300.0]).with_max_size([800.0, 600.0]);
+        assert_eq!(spec.max_size, Some([800.0, 600.0]));
+    }
+
+    #[test]
+    fn with_max_viewport_frac() {
+        let spec = DialogSpec::new("test_id", [400.0, 300.0]).with_max_viewport_frac([0.9, 0.9]);
+        assert_eq!(spec.max_viewport_frac, [0.9, 0.9]);
+    }
+
+    #[test]
+    fn with_anchor_offset() {
+        let spec = DialogSpec::new("test_id", [400.0, 300.0]).with_anchor_offset([0.0, -80.0]);
+        assert_eq!(spec.anchor_offset, [0.0, -80.0]);
+    }
+}
