@@ -10,7 +10,7 @@ use crate::app::commands::{ActionQueue, KeyframeCommand, PlaybackCommand};
 use crate::app::design_tokens::semantic::status;
 use crate::app::design_tokens::semantic::surface;
 use crate::app::design_tokens::semantic::text;
-use crate::app::design_tokens::spatial::{RADIUS_S, ROW_S, SPACE_1, SPACE_2, STROKE_WIDTH};
+use crate::app::design_tokens::spatial::{spatial, RADIUS_S, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 
 // ─── Data Structures ──────────────────────────────────────────────────────
@@ -50,6 +50,7 @@ pub(super) fn render_dope_sheet(
     actor_label: &str,
     commands: &mut ActionQueue,
 ) {
+    let sp = spatial(ui);
     let groups = collect_track_groups(track);
 
     if groups.is_empty() {
@@ -77,7 +78,7 @@ pub(super) fn render_dope_sheet(
             );
         }
     }
-    ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_2);
+    ui.spacing_mut().item_spacing = Vec2::new(0.0, sp.base.space_2);
 }
 
 // ─── Compact Track Row ────────────────────────────────────────────────────
@@ -105,7 +106,8 @@ fn render_compact_track_row(
     actor_label: &str,
     commands: &mut ActionQueue,
 ) {
-    let row_height = ROW_S;
+    let sp = spatial(ui);
+    let row_height = sp.base.row_s;
     let available = ui.available_width();
     let (row_rect, response) =
         ui.allocate_exact_size(Vec2::new(available, row_height), egui::Sense::hover());
@@ -118,7 +120,7 @@ fn render_compact_track_row(
     let duration_s = timeline.duration_seconds().max(0.1);
 
     // Icon
-    let mut cursor_x = row_rect.min.x + SPACE_2;
+    let mut cursor_x = row_rect.min.x + sp.base.space_2;
     ui.painter().text(
         egui::pos2(cursor_x + 7.0, baseline_y),
         egui::Align2::CENTER_CENTER,
@@ -141,7 +143,7 @@ fn render_compact_track_row(
     let count = track.keyframes.len();
     let count_label = format!("{} {}", egui_phosphor::regular::DIAMOND, count);
     ui.painter().text(
-        egui::pos2(row_rect.max.x - SPACE_2, baseline_y),
+        egui::pos2(row_rect.max.x - sp.base.space_2, baseline_y),
         egui::Align2::RIGHT_CENTER,
         count_label,
         TextRole::Micro.font_id(),
@@ -150,7 +152,7 @@ fn render_compact_track_row(
 
     // Mini timeline strip (subtle, behind everything)
     let strip_left = cursor_x + 70.0_f32.min(available * 0.3);
-    let strip_right = row_rect.max.x - SPACE_2 - 50.0;
+    let strip_right = row_rect.max.x - sp.base.space_2 - 50.0;
     if strip_right > strip_left + 20.0 {
         let strip_rect = egui::Rect::from_min_max(
             egui::pos2(strip_left, row_rect.min.y + 5.0),
@@ -253,7 +255,7 @@ fn render_compact_track_row(
                     .color(text::MUTED),
             );
         });
-        ui.add_space(SPACE_1);
+        ui.add_space(sp.base.space_1);
         for (time_ms, value, easing) in &track.keyframes {
             let is_current = *time_ms == current_time_ms;
             let color = if is_current {

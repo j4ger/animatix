@@ -16,12 +16,9 @@ use crate::app::design_tokens::semantic::surface;
 use crate::app::design_tokens::semantic::surface::WIDGET;
 use crate::app::design_tokens::semantic::text;
 use crate::app::design_tokens::semantic::text::DISABLED;
+use crate::app::design_tokens::spatial::{spatial, RADIUS_M, RADIUS_S, STROKE_WIDTH};
 use crate::app::design_tokens::spatial::inspector::{
-    INPUT_WIDTH_FLOAT as INSPECTOR_INPUT_WIDTH_FLOAT, ROW_HEIGHT as INSPECTOR_ROW_HEIGHT,
-};
-use crate::app::design_tokens::spatial::{
-    RADIUS_M, RADIUS_S, ROW_L, ROW_M, ROW_S, ROW_XS, SPACE_1, SPACE_2, SPACE_3, SPACE_4, SPACE_5,
-    STROKE_WIDTH,
+    INPUT_WIDTH_FLOAT as INSPECTOR_INPUT_WIDTH_FLOAT,
 };
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::icons::actor_icon_str;
@@ -102,6 +99,7 @@ fn render_scene_inspector(
     _preview: &PreviewPaneState,
 ) {
     use crate::app::components::layout;
+    let sp = spatial(ui);
 
     let Some(scene) = composition.scenes.get(active_scene) else {
         layout::empty_state(
@@ -116,17 +114,17 @@ fn render_scene_inspector(
     ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
         // ── Scene Header ──
         let available = ui.available_width();
-        let row_h = ROW_L;
+        let row_h = sp.base.row_l;
         let (row_rect, _) =
             ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
         ui.painter().text(
-            Pos2::new(row_rect.min.x + SPACE_2, row_rect.center().y),
+            Pos2::new(row_rect.min.x + sp.base.space_2, row_rect.center().y),
             egui::Align2::LEFT_CENTER,
             format!("{} {}", egui_phosphor::regular::FILM_STRIP, active_scene),
             TextRole::Heading.font_id(),
             accent::PRIMARY,
         );
-        ui.add_space(SPACE_3);
+        ui.add_space(sp.base.space_3);
 
         // ── Scene Properties ──
         layout::card(ui, |ui| {
@@ -222,7 +220,7 @@ fn render_scene_inspector(
             });
         });
 
-        ui.add_space(SPACE_3);
+        ui.add_space(sp.base.space_3);
 
         // ── Play Edge ──
         if let Some(edge) = composition.edges.get(active_scene) {
@@ -396,7 +394,7 @@ fn render_scene_inspector(
             });
         }
 
-        ui.add_space(SPACE_3);
+        ui.add_space(sp.base.space_3);
 
         // ── Scene List ──
         layout::card(ui, |ui| {
@@ -411,7 +409,7 @@ fn render_scene_inspector(
                 let response = ui.interact(
                     egui::Rect::from_min_size(
                         ui.cursor().min,
-                        Vec2::new(ui.available_width(), ROW_M),
+                        Vec2::new(ui.available_width(), sp.base.row_m),
                     ),
                     ui.id().with(format!("scene_list_{}", scene_name)),
                     egui::Sense::click(),
@@ -427,7 +425,7 @@ fn render_scene_inspector(
                     ui.painter().rect_filled(response.rect, RADIUS_S, bg);
                 }
                 ui.painter().text(
-                    Pos2::new(response.rect.min.x + SPACE_2, response.rect.center().y),
+                    Pos2::new(response.rect.min.x + sp.base.space_2, response.rect.center().y),
                     egui::Align2::LEFT_CENTER,
                     scene_name,
                     TextRole::BodyS.font_id(),
@@ -467,6 +465,7 @@ pub(super) fn inspector_ui(
     property_view_mode: &mut PropertyViewMode,
     keyframe_view_mode: &mut KeyframeViewMode,
 ) {
+    let sp = spatial(ui);
     let should_reset = selected_actors
         .iter()
         .next()
@@ -488,7 +487,7 @@ pub(super) fn inspector_ui(
     let root_nodes = timeline.root_actor_labels();
     if root_nodes.is_empty() {
         ui.vertical_centered(|ui| {
-            ui.add_space(SPACE_5 * 3.0);
+            ui.add_space(sp.base.space_5 * 3.0);
             ui.add(
                 egui::Label::new(
                     RichText::new(egui_phosphor::regular::FILM_STRIP)
@@ -497,7 +496,7 @@ pub(super) fn inspector_ui(
                 )
                 .selectable(false),
             );
-            ui.add_space(SPACE_3);
+            ui.add_space(sp.base.space_3);
             ui.add(
                 egui::Label::new(
                     RichText::new("No actors in scene")
@@ -506,7 +505,7 @@ pub(super) fn inspector_ui(
                 )
                 .selectable(false),
             );
-            ui.add_space(SPACE_4);
+            ui.add_space(sp.base.space_4);
             if ui
                 .button(
                     RichText::new(format!("{} Add Actor", egui_phosphor::regular::PLUS))
@@ -572,13 +571,13 @@ pub(super) fn inspector_ui(
                         &format!("{} actors selected", multi_count),
                         None,
                     );
-                    ui.add_space(SPACE_2);
+                    ui.add_space(sp.base.space_2);
                     ui.label(
                         RichText::new("Multi-selected — drag/nudge in preview applies to all. Select a single actor to edit properties.")
                             .size(TextRole::Micro.size())
                             .color(text::MUTED),
                     );
-                    ui.add_space(SPACE_1);
+                    ui.add_space(sp.base.space_1);
                     let names: Vec<&str> = selected_actors.iter().map(String::as_str).collect();
                     ui.label(
                         RichText::new(names.join(", "))
@@ -593,11 +592,11 @@ pub(super) fn inspector_ui(
         // Single-actor selection
         ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
             render_actor_header(ui, track, current_time_s, commands);
-            ui.add_space(SPACE_3);
+            ui.add_space(sp.base.space_3);
 
             // ── Parent ──
             render_parent_card(ui, timeline, sel, commands);
-            ui.add_space(SPACE_3);
+            ui.add_space(sp.base.space_3);
 
             // ── Active Properties ──
             layout::card(ui, |ui| {
@@ -609,13 +608,13 @@ pub(super) fn inspector_ui(
                 // View-mode segmented control
                 {
                     let right = ui.clip_rect().max.x;
-                    let row_top = header_top + SPACE_2 + 2.0 + SPACE_2;
+                    let row_top = header_top + sp.base.space_2 + 2.0 + sp.base.space_2;
                     let seg_count = 3;
                     let seg_width = 80.0;
                     let total_w = seg_count as f32 * seg_width;
                     let seg_rect = egui::Rect::from_min_size(
-                        egui::pos2(right - SPACE_2 - total_w, row_top),
-                        egui::Vec2::new(total_w, ROW_S),
+                        egui::pos2(right - sp.base.space_2 - total_w, row_top),
+                        egui::Vec2::new(total_w, sp.base.row_s),
                     );
                     let mut seg_ui = ui.new_child(
                         egui::UiBuilder::new()
@@ -642,7 +641,7 @@ pub(super) fn inspector_ui(
                 let groups = build_property_groups(track, current_time_ms);
                 if groups.is_empty() {
                     ui.vertical_centered(|ui| {
-                        ui.add_space(SPACE_3);
+                        ui.add_space(sp.base.space_3);
                         ui.add(
                             egui::Label::new(
                                 RichText::new("No editable properties")
@@ -687,7 +686,7 @@ pub(super) fn inspector_ui(
                 }
             });
 
-            ui.add_space(SPACE_3);
+            ui.add_space(sp.base.space_3);
 
             // ── Pivot ──
             if multi_count == 1 {
@@ -710,7 +709,7 @@ pub(super) fn inspector_ui(
                         *pivot = [0.0, 0.0];
                     }
                 });
-                ui.add_space(SPACE_3);
+                ui.add_space(sp.base.space_3);
             }
 
             // ── Container Children ──
@@ -726,7 +725,7 @@ pub(super) fn inspector_ui(
                     let order = timeline.get_child_order(sel, time_ms);
                     render_container_children(ui, sel, &order, commands, keyframe_mode);
                 });
-                ui.add_space(SPACE_3);
+                ui.add_space(sp.base.space_3);
             }
 
             // ── Mini Timeline ──
@@ -738,14 +737,14 @@ pub(super) fn inspector_ui(
                     duration_s,
                     current_time_s,
                     keyframes: &all_kf,
-                    height: ROW_XS,
+                    height: sp.base.row_xs,
                 };
                 if let Some(scrub_t) = strip.show(ui) {
                     commands.push_back(PlaybackCommand::ScrubTo(scrub_t).into());
                 }
             });
 
-            ui.add_space(SPACE_3);
+            ui.add_space(sp.base.space_3);
 
             // ── Keyframes ──
             let kf_count = count_keyframes(track);
@@ -763,13 +762,13 @@ pub(super) fn inspector_ui(
                 // View-mode segmented control
                 {
                     let right = ui.clip_rect().max.x;
-                    let row_top = header_top + SPACE_2 + 2.0 + SPACE_2;
+                    let row_top = header_top + sp.base.space_2 + 2.0 + sp.base.space_2;
                     let seg_count = 2;
                     let seg_width = 80.0;
                     let total_w = seg_count as f32 * seg_width;
                     let seg_rect = egui::Rect::from_min_size(
-                        egui::pos2(right - SPACE_2 - total_w, row_top),
-                        egui::Vec2::new(total_w, ROW_S),
+                        egui::pos2(right - sp.base.space_2 - total_w, row_top),
+                        egui::Vec2::new(total_w, sp.base.row_s),
                     );
                     let mut seg_ui = ui.new_child(
                         egui::UiBuilder::new()
@@ -835,6 +834,7 @@ fn render_property_stream(
     _current_time_s: f64,
     property_view_mode: &mut PropertyViewMode,
 ) {
+    let sp = spatial(ui);
     // Flatten all entries and sort by keyframe count descending
     let mut all_entries: Vec<(&PropertyGroup, &PropertyEntry)> = Vec::new();
     for group in groups {
@@ -847,9 +847,9 @@ fn render_property_stream(
     // Find max keyframe count for bar scaling
     let max_kf = all_entries.iter().map(|(_, e)| e.keyframe_count).max().unwrap_or(1).max(1);
 
-    ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_1);
+    ui.spacing_mut().item_spacing = Vec2::new(0.0, sp.base.space_1);
     for (group, entry) in &all_entries {
-        let row_height = INSPECTOR_ROW_HEIGHT;
+        let row_height = sp.inspector.row_height;
         let available = ui.available_width();
         let (row_rect, row_response) =
             ui.allocate_exact_size(Vec2::new(available, row_height), egui::Sense::hover());
@@ -869,8 +869,8 @@ fn render_property_stream(
         };
         if bar_w > 0.0 {
             let bar_rect = egui::Rect::from_min_max(
-                egui::pos2(row_rect.min.x + SPACE_2, baseline_y - 3.0),
-                egui::pos2(row_rect.min.x + SPACE_2 + bar_w, baseline_y + 3.0),
+                egui::pos2(row_rect.min.x + sp.base.space_2, baseline_y - 3.0),
+                egui::pos2(row_rect.min.x + sp.base.space_2 + bar_w, baseline_y + 3.0),
             );
             let bar_color = if entry.keyframe_count >= max_kf / 2 {
                 status::WARNING
@@ -881,7 +881,7 @@ fn render_property_stream(
         }
 
         // Icon + property name
-        let name_x = row_rect.min.x + SPACE_2 + bar_max_w + SPACE_2;
+        let name_x = row_rect.min.x + sp.base.space_2 + bar_max_w + sp.base.space_2;
         ui.painter().text(
             egui::pos2(name_x, baseline_y),
             egui::Align2::LEFT_CENTER,
@@ -908,7 +908,7 @@ fn render_property_stream(
             let count_text =
                 format!("{} {}", egui_phosphor::regular::DIAMOND, entry.keyframe_count);
             ui.painter().text(
-                egui::pos2(row_rect.max.x - SPACE_2, baseline_y),
+                egui::pos2(row_rect.max.x - sp.base.space_2, baseline_y),
                 egui::Align2::RIGHT_CENTER,
                 count_text,
                 TextRole::Micro.font_id(),
@@ -921,23 +921,23 @@ fn render_property_stream(
             *property_view_mode = PropertyViewMode::Semantic;
         }
     }
-    ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_2);
+    ui.spacing_mut().item_spacing = Vec2::new(0.0, sp.base.space_2);
 
     // Divider between animated and non-animated
     let animated_count = all_entries.iter().filter(|(_, e)| e.keyframe_count > 0).count();
     if animated_count > 0 && animated_count < all_entries.len() {
-        ui.add_space(SPACE_2);
+        ui.add_space(sp.base.space_2);
         let divider_rect = ui.available_rect_before_wrap();
         if divider_rect.width() > 0.0 {
             ui.painter().line_segment(
                 [
-                    egui::pos2(divider_rect.min.x + SPACE_2, divider_rect.min.y + 4.0),
-                    egui::pos2(divider_rect.max.x - SPACE_2, divider_rect.min.y + 4.0),
+                    egui::pos2(divider_rect.min.x + sp.base.space_2, divider_rect.min.y + 4.0),
+                    egui::pos2(divider_rect.max.x - sp.base.space_2, divider_rect.min.y + 4.0),
                 ],
                 egui::Stroke::new(STROKE_WIDTH, border::DEFAULT),
             );
         }
-        ui.add_space(SPACE_2);
+        ui.add_space(sp.base.space_2);
     }
 }
 
@@ -949,9 +949,10 @@ fn render_actor_header(
     current_time_s: f64,
     commands: &mut ActionQueue,
 ) {
+    let sp = spatial(ui);
     let current_time_ms = (current_time_s * 1000.0) as u64;
     let available = ui.available_width();
-    let row_h = ROW_L;
+    let row_h = sp.base.row_l;
     let (row_rect, _) = ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
 
     // ── Left side: icon + name ──
@@ -969,7 +970,7 @@ fn render_actor_header(
                     )
                     .selectable(false),
                 );
-                ui.add_space(SPACE_2);
+                ui.add_space(sp.base.space_2);
 
                 // Actor label (click to rename)
                 let edit_id = ui.id().with("actor_name_edit");
@@ -1043,7 +1044,7 @@ fn render_actor_header(
                         )
                         .selectable(false),
                     );
-                    ui.add_space(SPACE_3);
+                    ui.add_space(sp.base.space_3);
                 }
 
                 if let Some(shape_pt) = &track.shape.shape_type {
@@ -1128,12 +1129,13 @@ fn render_container_children(
     commands: &mut ActionQueue,
     keyframe_mode: bool,
 ) {
-    ui.spacing_mut().item_spacing = Vec2::new(SPACE_2, SPACE_2);
+    let sp = spatial(ui);
+    ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, sp.base.space_2);
     for (i, label) in order.iter().enumerate() {
         let row_id = ui.id().with(format!("child_{}", i));
         let available = ui.available_width();
         let (row_rect, _) =
-            ui.allocate_exact_size(Vec2::new(available, ROW_M), egui::Sense::hover());
+            ui.allocate_exact_size(Vec2::new(available, sp.base.row_m), egui::Sense::hover());
 
         // Background
         let bg = if ui.rect_contains_pointer(row_rect) {
@@ -1146,7 +1148,7 @@ fn render_container_children(
         }
 
         let baseline_y = row_rect.center().y;
-        let mut cursor_x = row_rect.min.x + SPACE_3;
+        let mut cursor_x = row_rect.min.x + sp.base.space_3;
 
         // Index badge
         let badge_text = format!("{}", i + 1);
@@ -1158,7 +1160,7 @@ fn render_container_children(
             text::MUTED,
             None,
         );
-        cursor_x += ROW_S + SPACE_2;
+        cursor_x += sp.base.row_s + sp.base.space_2;
 
         // Label
         ui.painter().text(
@@ -1170,9 +1172,9 @@ fn render_container_children(
         );
 
         // Up / Down buttons (right-aligned)
-        let btn_size = Vec2::new(ROW_S, ROW_S);
+        let btn_size = Vec2::new(sp.base.row_s, sp.base.row_s);
         let btn_y = row_rect.min.y + (row_rect.height() - btn_size.y) * 0.5;
-        let mut btn_x = row_rect.max.x - SPACE_2 - btn_size.x;
+        let mut btn_x = row_rect.max.x - sp.base.space_2 - btn_size.x;
 
         // Down button
         let down_rect = egui::Rect::from_min_size(egui::pos2(btn_x, btn_y), btn_size);
@@ -1193,7 +1195,7 @@ fn render_container_children(
             TextRole::BodyS.font_id(),
             down_color,
         );
-        btn_x -= btn_size.x + SPACE_1;
+        btn_x -= btn_size.x + sp.base.space_1;
 
         // Up button
         let up_rect = egui::Rect::from_min_size(egui::pos2(btn_x, btn_y), btn_size);

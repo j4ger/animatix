@@ -20,10 +20,9 @@ use crate::app::design_tokens::spatial::inspector::{
     COL_GAP as INSPECTOR_COL_GAP, KF_BTN_WIDTH as INSPECTOR_KF_BTN_WIDTH,
     KF_COL_WIDTH as INSPECTOR_KF_COL_WIDTH, LABEL_MAX_WIDTH as INSPECTOR_LABEL_MAX_WIDTH,
     LABEL_MIN_WIDTH as INSPECTOR_LABEL_MIN_WIDTH, LABEL_WIDTH_FRAC as INSPECTOR_LABEL_WIDTH_FRAC,
-    ROW_HEIGHT as INSPECTOR_ROW_HEIGHT,
 };
 use crate::app::design_tokens::spatial::{
-    RADIUS_S, ROW_M, SPACE_1, SPACE_2, SPACE_4, STROKE_WIDTH,
+    spatial, RADIUS_S, STROKE_WIDTH,
 };
 use crate::app::design_tokens::typography::TextRole;
 
@@ -283,9 +282,10 @@ pub(crate) fn render_property_group(
 ) {
     let group_id = ui.id().with(("prop_group", group.name));
     let mut expanded = ui.data(|d| d.get_temp::<bool>(group_id)).unwrap_or(true);
+    let sp = spatial(ui);
 
     let header = row::Row::new(group.name)
-        .height(ROW_M)
+        .height(sp.base.row_m)
         .icon(Some(group.icon))
         .has_children(true)
         .expanded(expanded)
@@ -321,7 +321,7 @@ pub(crate) fn render_property_group(
             s.visuals.widgets.open.bg_stroke = Stroke::NONE;
             s
         };
-        ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_1);
+        ui.spacing_mut().item_spacing = Vec2::new(0.0, sp.base.space_1);
         for entry in &group.properties {
             render_property_row(
                 ui,
@@ -333,9 +333,9 @@ pub(crate) fn render_property_group(
                 &flat_style,
             );
         }
-        ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_2);
+        ui.spacing_mut().item_spacing = Vec2::new(0.0, sp.base.space_2);
     }
-    ui.add_space(SPACE_4);
+    ui.add_space(sp.base.space_4);
 }
 
 pub(crate) fn render_property_row(
@@ -347,7 +347,8 @@ pub(crate) fn render_property_row(
     current_time_s: f64,
     flat_style: &egui::Style,
 ) {
-    let row_height = INSPECTOR_ROW_HEIGHT;
+    let sp = spatial(ui);
+    let row_height = sp.inspector.row_height;
     let available = ui.available_width();
     let (row_rect, row_response) =
         ui.allocate_exact_size(Vec2::new(available, row_height), egui::Sense::hover());
@@ -365,9 +366,9 @@ pub(crate) fn render_property_row(
         .clamp(INSPECTOR_LABEL_MIN_WIDTH, INSPECTOR_LABEL_MAX_WIDTH);
     let label_col_right = kf_col_right + label_width;
     let input_col_left = label_col_right + INSPECTOR_COL_GAP;
-    let kf_btn_right = row_rect.max.x - SPACE_2;
+    let kf_btn_right = row_rect.max.x - sp.base.space_2;
     let kf_btn_left = kf_btn_right - INSPECTOR_KF_BTN_WIDTH;
-    let input_col_right = kf_btn_left - SPACE_2;
+    let input_col_right = kf_btn_left - sp.base.space_2;
 
     // ── Keyframe dot (centered in KF column) ──
     let dot_center = egui::pos2(row_rect.min.x + INSPECTOR_KF_COL_WIDTH / 2.0, baseline_y);
@@ -381,7 +382,7 @@ pub(crate) fn render_property_row(
 
     // ── Property label (truncated, vertically centered) ──
     let label_rect = egui::Rect::from_min_max(
-        egui::pos2(kf_col_right + SPACE_2, row_rect.min.y),
+        egui::pos2(kf_col_right + sp.base.space_2, row_rect.min.y),
         egui::pos2(label_col_right, row_rect.max.y),
     );
     ui.scope_builder(egui::UiBuilder::new().max_rect(label_rect), |ui| {
@@ -529,17 +530,17 @@ pub(crate) fn render_property_row(
             let ny = *y;
             let (a_label, b_label) = vec2_labels(entry.name);
             ui.scope_builder(
-                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(SPACE_2, 0.0))),
+                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
                 |ui| {
                     *ui.style_mut() = flat_style.clone();
                     ui.with_layout(
                         egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                         |ui| {
-                            ui.spacing_mut().item_spacing = Vec2::new(SPACE_2, 0.0);
+                            ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
                             let half_w = ui.available_width() / 2.0 - 2.0;
                             // Axis label for first component
                             ui.add_sized(
-                                Vec2::new(16.0, row_height - SPACE_2),
+                                Vec2::new(16.0, row_height - sp.base.space_2),
                                 egui::Label::new(
                                     egui::RichText::new(a_label)
                                         .size(TextRole::Micro.size())
@@ -554,7 +555,7 @@ pub(crate) fn render_property_row(
                                 .show(ui);
                             // Axis label for second component
                             ui.add_sized(
-                                Vec2::new(16.0, row_height - SPACE_2),
+                                Vec2::new(16.0, row_height - sp.base.space_2),
                                 egui::Label::new(
                                     egui::RichText::new(b_label)
                                         .size(TextRole::Micro.size())
@@ -606,16 +607,16 @@ pub(crate) fn render_property_row(
             let unit = unit_suffix(entry.name);
             if is_01 {
                 ui.scope_builder(
-                    egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(SPACE_2, 0.0))),
+                    egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
                     |ui| {
                         *ui.style_mut() = flat_style.clone();
                         ui.with_layout(
                             egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                             |ui| {
-                                ui.spacing_mut().item_spacing = Vec2::new(SPACE_2, 0.0);
+                                ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
                                 let slider_w = ui.available_width() * 0.55;
                                 let slider = ui.add_sized(
-                                    Vec2::new(slider_w.max(40.0), row_height - SPACE_2),
+                                    Vec2::new(slider_w.max(40.0), row_height - sp.base.space_2),
                                     egui::Slider::new(&mut nv, 0.0..=1.0)
                                         .show_value(false)
                                         .trailing_fill(true),
@@ -659,7 +660,7 @@ pub(crate) fn render_property_row(
                 // Non-0..1 float: use eparts NumberField
                 let mut nv = *v as f64;
                 ui.scope_builder(
-                    egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(SPACE_2, 0.0))),
+                    egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
                     |ui| {
                         *ui.style_mut() = flat_style.clone();
                         ui.with_layout(
@@ -702,7 +703,7 @@ pub(crate) fn render_property_row(
         PropertyKind::U32(v) => {
             let mut nv = *v as f64;
             ui.scope_builder(
-                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(SPACE_2, 0.0))),
+                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
                 |ui| {
                     *ui.style_mut() = flat_style.clone();
                     ui.with_layout(
@@ -748,13 +749,13 @@ pub(crate) fn render_property_row(
             );
             let hex = format!("#{:02x}{:02x}{:02x}", color.r(), color.g(), color.b());
             ui.scope_builder(
-                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(SPACE_2, 0.0))),
+                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
                 |ui| {
                     *ui.style_mut() = flat_style.clone();
                     ui.with_layout(
                         egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                         |ui| {
-                            ui.spacing_mut().item_spacing = Vec2::new(SPACE_2, 0.0);
+                            ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
                             let btn = ui.color_edit_button_srgba(&mut color);
                             ui.add(
                                 egui::Label::new(
@@ -791,7 +792,7 @@ pub(crate) fn render_property_row(
         PropertyKind::Text(text) => {
             let mut buf = text.clone();
             ui.scope_builder(
-                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(SPACE_2, 0.0))),
+                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
                 |ui| {
                     *ui.style_mut() = flat_style.clone();
                     ui.with_layout(
@@ -812,7 +813,7 @@ pub(crate) fn render_property_row(
                                 // Map current text to Option<usize> index for Select
                                 let mut sel_idx = variants.iter().position(|v| *v == text);
                                 ui.add_sized(
-                                    Vec2::new(ui.available_width(), row_height - SPACE_2),
+                                    Vec2::new(ui.available_width(), row_height - sp.base.space_2),
                                     Select::new(
                                         ui.id().with(("enum", entry.name)),
                                         &mut sel_idx,

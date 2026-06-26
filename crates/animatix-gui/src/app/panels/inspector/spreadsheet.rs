@@ -25,7 +25,7 @@ use crate::app::design_tokens::semantic::accent;
 use crate::app::design_tokens::semantic::status;
 use crate::app::design_tokens::semantic::surface;
 use crate::app::design_tokens::semantic::text;
-use crate::app::design_tokens::spatial::{ROW_M, ROW_S, SPACE_2, SPACE_3, SPACE_5};
+use crate::app::design_tokens::spatial::spatial;
 use crate::app::design_tokens::typography::TextRole;
 
 /// The list of spreadsheet columns (property names).
@@ -60,20 +60,21 @@ pub(crate) fn render_property_spreadsheet(
     scene_dimensions: SceneDimensions,
     property_view_mode: &mut PropertyViewMode,
 ) {
+    let sp = spatial(ui);
     // ── View-mode toggle bar ──
     ui.horizontal(|ui| {
-        ui.add_space(SPACE_2);
+        ui.add_space(sp.base.space_2);
         let btn = egui::Button::new(
             RichText::new(format!("{} Semantic", egui_phosphor::regular::ROWS))
                 .size(TextRole::Micro.size())
                 .color(text::SECONDARY),
         )
-        .min_size(Vec2::new(0.0, ROW_S));
+        .min_size(Vec2::new(0.0, sp.base.row_s));
         if ui.add(btn).on_hover_text("Switch to semantic property view").clicked() {
             *property_view_mode = PropertyViewMode::Semantic;
             return;
         }
-        ui.add_space(SPACE_3);
+        ui.add_space(sp.base.space_3);
         ui.add(
             egui::Label::new(
                 RichText::new(egui_phosphor::regular::TABLE)
@@ -88,9 +89,9 @@ pub(crate) fn render_property_spreadsheet(
             )
             .selectable(false),
         );
-        ui.add_space(SPACE_2);
+        ui.add_space(sp.base.space_2);
     });
-    ui.add_space(SPACE_3);
+    ui.add_space(sp.base.space_3);
 
     let Some(timeline) = timeline else {
         layout::empty_state(
@@ -134,7 +135,7 @@ pub(crate) fn render_property_spreadsheet(
 
     if actors.is_empty() {
         ui.vertical_centered(|ui| {
-            ui.add_space(SPACE_5 * 3.0);
+            ui.add_space(sp.base.space_5 * 3.0);
             ui.add(
                 egui::Label::new(
                     RichText::new(egui_phosphor::regular::FILM_STRIP)
@@ -143,7 +144,7 @@ pub(crate) fn render_property_spreadsheet(
                 )
                 .selectable(false),
             );
-            ui.add_space(SPACE_3);
+            ui.add_space(sp.base.space_3);
             ui.add(
                 egui::Label::new(
                     RichText::new("No actors in scene")
@@ -159,7 +160,7 @@ pub(crate) fn render_property_spreadsheet(
     let time_ms = (current_time_s * 1000.0) as u64;
 
     // ── Determine row height and column widths ──
-    let row_height = ROW_M; // 24px — matches INSPECTOR_ROW_HEIGHT
+    let row_height = sp.base.row_m; // 24px — matches INSPECTOR_ROW_HEIGHT
     let label_col_width = 140.0;
     let value_col_width = 90.0;
 
@@ -168,7 +169,7 @@ pub(crate) fn render_property_spreadsheet(
         egui::Grid::new(ui.id().with("spreadsheet_grid"))
             .striped(true)
             .min_col_width(label_col_width)
-            .spacing(Vec2::new(SPACE_2, 0.0))
+            .spacing(Vec2::new(sp.base.space_2, 0.0))
             .show(ui, |ui| {
                 // ── Column headers (top-left corner + property names) ──
                 // Top-left corner header
@@ -240,7 +241,7 @@ pub(crate) fn render_property_spreadsheet(
                         text::PRIMARY
                     };
                     ui.painter().text(
-                        Pos2::new(label_rect.min.x + SPACE_2, label_rect.center().y),
+                        Pos2::new(label_rect.min.x + sp.base.space_2, label_rect.center().y),
                         egui::Align2::LEFT_CENTER,
                         format!("{} {}", icon, actor_label),
                         TextRole::BodyS.font_id(),

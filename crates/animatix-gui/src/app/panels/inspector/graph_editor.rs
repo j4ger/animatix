@@ -11,7 +11,7 @@ use crate::app::design_tokens::semantic::curve;
 use crate::app::design_tokens::semantic::status;
 use crate::app::design_tokens::semantic::surface;
 use crate::app::design_tokens::semantic::text;
-use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, SPACE_2, SPACE_3, STROKE_WIDTH};
+use crate::app::design_tokens::spatial::{spatial, RADIUS_M, RADIUS_S, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use animatix::timeline::{
     AnimationTrack, ValueType, property_keyframe_easing, property_keyframe_times,
@@ -37,6 +37,7 @@ pub fn render_multi_fcurve(
     current_time_s: f64,
     _commands: &mut ActionQueue,
 ) {
+    let sp = spatial(ui);
     let available = ui.available_width();
     let height = 160.0f32;
     let (rect, response) = ui.allocate_exact_size(Vec2::new(available, height), Sense::hover());
@@ -177,12 +178,12 @@ pub fn render_multi_fcurve(
         ui.data(|d| d.get_temp(visibility_id).unwrap_or_default());
     for curve in &curves {
         visibility.entry(curve.label.clone()).or_insert(true);
-    }
+   }
 
     let legend_height = 18.0f32;
     let legend_rect = egui::Rect::from_min_max(
-        egui::pos2(rect.min.x + SPACE_3, rect.min.y + SPACE_2),
-        egui::pos2(rect.max.x - SPACE_3, rect.min.y + SPACE_2 + legend_height),
+        egui::pos2(rect.min.x + sp.base.space_3, rect.min.y + sp.base.space_2),
+        egui::pos2(rect.max.x - sp.base.space_3, rect.min.y + sp.base.space_2 + legend_height),
     );
 
     let mut legend_x = legend_rect.min.x;
@@ -224,15 +225,15 @@ pub fn render_multi_fcurve(
         if item_response.clicked() {
             visibility.insert(curve.label.clone(), !is_visible);
         }
-        legend_x += item_width + SPACE_2;
+        legend_x += item_width + sp.base.space_2;
     }
 
     ui.data_mut(|d| d.insert_temp(visibility_id, visibility.clone()));
 
     // Plot area
     let plot_rect = egui::Rect::from_min_max(
-        egui::pos2(rect.min.x + SPACE_3, legend_rect.max.y + SPACE_2),
-        egui::pos2(rect.max.x - SPACE_3, rect.max.y - SPACE_2),
+        egui::pos2(rect.min.x + sp.base.space_3, legend_rect.max.y + sp.base.space_2),
+        egui::pos2(rect.max.x - sp.base.space_3, rect.max.y - sp.base.space_2),
     );
 
     // Find global value range across all visible curves
