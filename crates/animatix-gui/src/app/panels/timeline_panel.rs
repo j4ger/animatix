@@ -31,11 +31,8 @@ use crate::app::design_tokens::semantic::status;
 use crate::app::design_tokens::semantic::surface;
 use crate::app::design_tokens::semantic::text;
 use crate::app::design_tokens::semantic::timeline;
-use crate::app::design_tokens::spatial::timeline::{
-    KF_HALF as KF_DIAMOND_HALF, LABEL_COL_WIDTH, PLAYBACK_STRIP_HEIGHT, RANGE_HEIGHT, RULER_HEIGHT,
-    TRACK_ROW_HEIGHT,
-};
-use crate::app::design_tokens::spatial::{RADIUS_S, SPACE_2, STROKE_WIDTH};
+use crate::app::design_tokens::spatial::timeline::{KF_HALF as KF_DIAMOND_HALF};
+use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use animatix::composition::Composition;
 use animatix::timeline::Timeline;
@@ -348,9 +345,10 @@ fn render_transport_strip(
     preview: &mut PreviewPaneState,
     commands: &mut ActionQueue,
 ) {
+    let sp = crate::app::design_tokens::spatial::spatial(ui);
     let strip_rect = Rect::from_min_size(
         Pos2::new(scroll_rect.left(), strip_top),
-        Vec2::new(scroll_rect.width(), PLAYBACK_STRIP_HEIGHT),
+        Vec2::new(scroll_rect.width(), sp.timeline.playback_strip_height),
     );
 
     ui.scope_builder(egui::UiBuilder::new().max_rect(strip_rect), |ui| {
@@ -365,7 +363,7 @@ fn render_transport_strip(
         );
 
         ui.horizontal(|ui| {
-            ui.add_space(SPACE_2);
+            ui.add_space(sp.base.space_2);
 
             // Go to start
             if ui
@@ -611,6 +609,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
     // Reset timeline-focus flag; will be set to true below if the panel
     // or any of its children receives pointer interaction this frame.
     *ctx.timeline_focused = false;
+    let sp = crate::app::design_tokens::spatial::spatial(ui);
     let timeline_outer_rect = ui.available_rect_before_wrap();
     if ui.input(|i| i.pointer.has_pointer()) && ui.rect_contains_pointer(timeline_outer_rect) {
         *ctx.timeline_focused = true;
@@ -783,10 +782,10 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
     {
         let outer_rect = ui.available_rect_before_wrap();
         let strip_top = outer_rect.top();
-        let strip_bot = strip_top + PLAYBACK_STRIP_HEIGHT;
+        let strip_bot = strip_top + sp.timeline.playback_strip_height;
         render_transport_strip(ui, outer_rect, strip_top, strip_bot, preview, commands);
     }
-    ui.add_space(PLAYBACK_STRIP_HEIGHT);
+    ui.add_space(sp.timeline.playback_strip_height);
 
     // ── All content lives inside the ScrollArea ──
     // Wheel navigation (zoom/pan) is handled inside the closure so we share
@@ -798,7 +797,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         let scroll_rect = ui.available_rect_before_wrap();
         let left_edge = scroll_rect.left();
         let available = scroll_rect.width();
-        let label_col_w = LABEL_COL_WIDTH.min(available * 0.3);
+        let label_col_w = sp.timeline.label_col_width.min(available * 0.3);
         let bar_origin_x = left_edge + label_col_w;
         let bar_width = (available - label_col_w).max(80.0);
 
@@ -889,11 +888,11 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
 
         // ── Compute y positions for all sections ──
         let ruler_top = content_y;
-        let ruler_bot = ruler_top + RULER_HEIGHT;
+        let ruler_bot = ruler_top + sp.timeline.ruler_height;
         content_y = ruler_bot;
 
         let scene_track_top = content_y;
-        let scene_track_bot = scene_track_top + TRACK_ROW_HEIGHT;
+        let scene_track_bot = scene_track_top + sp.timeline.track_row_height;
         if composition.is_some() {
             content_y = scene_track_bot;
         }
@@ -915,11 +914,11 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         let actor_track_count = actor_tree.len();
         let total_track_rows = actor_track_count + extra_prop_lanes;
         let actor_first_top = content_y;
-        let actor_last_bot = actor_first_top + total_track_rows as f32 * TRACK_ROW_HEIGHT;
+        let actor_last_bot = actor_first_top + total_track_rows as f32 * sp.timeline.track_row_height;
         content_y = actor_last_bot;
 
         let rs_top = content_y;
-        let rs_bot = rs_top + RANGE_HEIGHT;
+        let rs_bot = rs_top + sp.timeline.range_height;
         content_y = rs_bot;
 
         let content_bottom = content_y;
@@ -969,7 +968,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                         Stroke::new(STROKE_WIDTH, border::DEFAULT),
                     );
                     painter.text(
-                        Pos2::new(x, ruler_top + RULER_HEIGHT * 0.35),
+                        Pos2::new(x, ruler_top + sp.timeline.ruler_height * 0.35),
                         Align2::CENTER_CENTER,
                         if tick_step >= 1.0 {
                             format!("{:.0}s", t)
@@ -1005,7 +1004,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
             );
             painter.rect_filled(label_rect, 0.0, surface::BASE);
             painter.text(
-                Pos2::new(scroll_rect.left() + SPACE_2, (st_top + st_bot) / 2.0),
+                Pos2::new(scroll_rect.left() + sp.base.space_2, (st_top + st_bot) / 2.0),
                 Align2::LEFT_CENTER,
                 format!("{} Scenes", egui_phosphor::regular::FILM_STRIP),
                 TextRole::BodyS.font_id(),
@@ -1262,7 +1261,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 .is_some_and(|t| !t.children.is_empty());
             let is_selected = selected_actors.contains(actor_label);
             let at_top = current_y;
-            let at_bot = at_top + TRACK_ROW_HEIGHT;
+            let at_bot = at_top + sp.timeline.track_row_height;
             let track_rect = Rect::from_min_max(
                 Pos2::new(scroll_rect.left(), at_top),
                 Pos2::new(scroll_rect.right(), at_bot),
@@ -1295,7 +1294,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
             let indent = *depth as f32 * 14.0;
 
             // Chevron toggle button (only if actor has children)
-            let chevron_x = scroll_rect.left() + SPACE_2 + indent;
+            let chevron_x = scroll_rect.left() + sp.base.space_2 + indent;
             if has_children {
                 let chevron_icon = if is_collapsed {
                     egui_phosphor::regular::CARET_RIGHT
@@ -1304,7 +1303,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 };
                 let chevron_rect = Rect::from_min_size(
                     Pos2::new(chevron_x, at_top + 2.0),
-                    Vec2::new(14.0, TRACK_ROW_HEIGHT - 4.0),
+                    Vec2::new(14.0, sp.timeline.track_row_height - 4.0),
                 );
                 let chevron_resp = ui.interact(
                     chevron_rect,
@@ -1336,7 +1335,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
             let prop_toggle_x = chevron_x + if has_children { 18.0 } else { 4.0 };
             let prop_toggle_rect = Rect::from_min_size(
                 Pos2::new(prop_toggle_x, at_top + 2.0),
-                Vec2::new(14.0, TRACK_ROW_HEIGHT - 4.0),
+                Vec2::new(14.0, sp.timeline.track_row_height - 4.0),
             );
             let prop_toggle_resp = ui.interact(
                 prop_toggle_rect,
@@ -1363,7 +1362,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
             }
 
             // Track label
-            let label_x = prop_toggle_x + 16.0 + SPACE_2;
+            let label_x = prop_toggle_x + 16.0 + sp.base.space_2;
             let label_text = if actor_label.chars().count() > 16 {
                 actor_label.chars().take(15).collect::<String>() + "…"
             } else {
@@ -1864,7 +1863,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                         let prop_kfs = collect_per_property_keyframes(track);
                         for (prop_name, kf_times) in &prop_kfs {
                             let prop_top = current_y;
-                            let prop_bot = prop_top + TRACK_ROW_HEIGHT;
+                            let prop_bot = prop_top + sp.timeline.track_row_height;
                             let prop_rect = Rect::from_min_max(
                                 Pos2::new(scroll_rect.left(), prop_top),
                                 Pos2::new(scroll_rect.right(), prop_bot),
@@ -1892,7 +1891,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                 group.map(property_group_color).unwrap_or(status::WARNING);
 
                             // Small colored dot indicator
-                            let dot_x = scroll_rect.left() + SPACE_2 + prop_indent;
+                            let dot_x = scroll_rect.left() + sp.base.space_2 + prop_indent;
                             painter.circle_filled(
                                 Pos2::new(dot_x + 3.0, prop_rect.center().y),
                                 3.0,
@@ -2057,7 +2056,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 surface::BASE,
             );
             painter.text(
-                Pos2::new(scroll_rect.left() + SPACE_2, (rs_top + rs_bot) / 2.0),
+                Pos2::new(scroll_rect.left() + sp.base.space_2, (rs_top + rs_bot) / 2.0),
                 Align2::LEFT_CENTER,
                 "Region",
                 TextRole::Micro.font_id(),
@@ -2091,7 +2090,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     );
                 }
 
-                let hs = Vec2::new(12.0, RANGE_HEIGHT);
+                let hs = Vec2::new(12.0, sp.timeline.range_height);
                 let sh = Rect::from_center_size(Pos2::new(wx, range_bar.center().y), hs);
                 let sr =
                     ui.interact(sh, ui.id().with("range_start_handle"), Sense::click_and_drag());

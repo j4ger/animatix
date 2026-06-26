@@ -17,8 +17,6 @@ use crate::app::design_tokens::motion;
 use crate::app::design_tokens::semantic::accent;
 use crate::app::design_tokens::semantic::status;
 use crate::app::design_tokens::semantic::text;
-use crate::app::design_tokens::spatial::component::ICON_SLOT_WIDTH;
-use crate::app::design_tokens::spatial::{ROW_L, SPACE_1, SPACE_2, SPACE_3, SPACE_4, SPACE_5};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::icons::actor_icon_str;
 use crate::app::panels::SidebarTab;
@@ -112,12 +110,13 @@ pub(crate) struct AssetsContext<'a> {
 }
 
 pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
+    let sp = crate::app::design_tokens::spatial::spatial(ui);
     super::panel_frame().show(ui, |ui| {
         let mut active_tab = *ctx.sidebar_tab;
         let prev_tab = *ctx.sidebar_tab;
 
         render_sidebar_tab_bar(ui, &mut active_tab);
-        ui.add_space(SPACE_3);
+        ui.add_space(sp.base.space_3);
 
         // Slide-in animation on tab switch
         let content_offset_id = ui.id().with("sidebar_slide");
@@ -238,12 +237,13 @@ fn editor_content_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
 }
 
 fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::Ui) {
+    let sp = crate::app::design_tokens::spatial::spatial(ui);
     // ── Filter input ────────────────────────────────────────────────────────
     let filter_id = egui::Id::new(EXPLORER_FILTER_ID);
     let mut filter = ui.data(|d| d.get_temp::<String>(filter_id)).unwrap_or_default();
 
     ui.horizontal(|ui| {
-        ui.add_space(SPACE_2);
+        ui.add_space(sp.base.space_2);
         let response = ui.add(
             egui::TextEdit::singleline(&mut filter)
                 .hint_text("Filter files…")
@@ -258,9 +258,7 @@ fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::Ui) {
             ui.data_mut(|d| d.insert_temp(filter_id, String::new()));
         }
     });
-    ui.add_space(SPACE_2);
-
-    ui.add_space(SPACE_2);
+    ui.add_space(sp.base.space_2);
 
     let filter_lower = filter.to_lowercase();
     let has_filter = !filter_lower.is_empty();
@@ -348,7 +346,7 @@ fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::Ui) {
             let path = entry.path.clone();
             let is_dir = entry.is_dir;
             let response = row::Row::new(&entry.name)
-                .indent(entry.depth as f32 * ICON_SLOT_WIDTH)
+                .indent(entry.depth as f32 * sp.base.component.icon_slot_width)
                 .selected(is_selected)
                 .icon(icon)
                 .label_color(label_color.unwrap_or(text::SECONDARY))
@@ -403,6 +401,7 @@ fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::Ui) {
 }
 
 fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
+    let sp = crate::app::design_tokens::spatial::spatial(ui);
     let Some(composition) = ctx.composition else {
         layout::empty_state(
             ui,
@@ -533,7 +532,7 @@ fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
             // Sub-label: duration + transition
             if is_active {
                 ui.horizontal(|ui| {
-                    ui.add_space(ICON_SLOT_WIDTH + SPACE_2);
+                    ui.add_space(sp.base.component.icon_slot_width + sp.base.space_2);
                     ui.label(
                         RichText::new(&duration_hint)
                             .size(TextRole::Micro.size())
@@ -542,13 +541,13 @@ fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
                 });
                 if let Some(hint) = transition_hint {
                     ui.horizontal(|ui| {
-                        ui.add_space(ICON_SLOT_WIDTH + SPACE_2);
+                        ui.add_space(sp.base.component.icon_slot_width + sp.base.space_2);
                         ui.label(
                             RichText::new(hint).size(TextRole::Micro.size()).color(text::MUTED),
                         );
                     });
                 }
-                ui.add_space(SPACE_2);
+                ui.add_space(sp.base.space_2);
             }
         }
 
@@ -580,6 +579,7 @@ fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
 }
 
 fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
+    let sp = crate::app::design_tokens::spatial::spatial(ui);
     let Some(timeline) = ctx.timeline else {
         layout::empty_state(ui, egui_phosphor::regular::FILM_STRIP, "No timeline loaded", "");
         return;
@@ -590,7 +590,7 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
     let mut filter = ui.data(|d| d.get_temp::<String>(filter_id)).unwrap_or_default();
 
     ui.horizontal(|ui| {
-        ui.add_space(SPACE_2);
+        ui.add_space(sp.base.space_2);
         let response = ui.add(
             egui::TextEdit::singleline(&mut filter)
                 .hint_text("Filter layers…")
@@ -603,7 +603,7 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
             ui.data_mut(|d| d.insert_temp(filter_id, String::new()));
         }
     });
-    ui.add_space(SPACE_2);
+    ui.add_space(sp.base.space_2);
 
     let filter_lower = filter.to_lowercase();
     let has_filter = !filter_lower.is_empty();
@@ -612,7 +612,7 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
     if ctx.is_composition {
         if let Some(scene_name) = ctx.active_scene.as_ref() {
             ui.horizontal(|ui| {
-                ui.add_space(SPACE_4);
+                ui.add_space(sp.base.space_4);
                 ui.add(
                     egui::Label::new(
                         RichText::new(format!(
@@ -626,23 +626,23 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
                     .selectable(false),
                 );
             });
-            ui.add_space(SPACE_2);
+            ui.add_space(sp.base.space_2);
         }
     }
 
     let root_nodes = timeline.root_actor_labels();
     if root_nodes.is_empty() {
         ui.vertical_centered(|ui| {
-            ui.add_space(SPACE_5 * 3.0);
+            ui.add_space(sp.base.space_5 * 3.0);
             ui.add(
                 egui::Label::new(
                     RichText::new(egui_phosphor::regular::FILM_STRIP)
-                        .size(ROW_L)
+                        .size(sp.base.row_l)
                         .color(text::MUTED),
                 )
                 .selectable(false),
             );
-            ui.add_space(SPACE_3);
+            ui.add_space(sp.base.space_3);
             ui.add(
                 egui::Label::new(
                     RichText::new("No actors in scene")
@@ -651,7 +651,7 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
                 )
                 .selectable(false),
             );
-            ui.add_space(SPACE_5);
+            ui.add_space(sp.base.space_5);
             if ui
                 .button(
                     RichText::new(format!("{} Add Actor", egui_phosphor::regular::PLUS))
@@ -712,6 +712,7 @@ fn render_actor_tree(
     filter_lower: &str,
     has_filter: bool,
 ) {
+    let sp = crate::app::design_tokens::spatial::spatial(ui);
     let Some(track) = timeline.get_track(label) else {
         return;
     };
@@ -786,7 +787,7 @@ fn render_actor_tree(
     };
 
     let response = row::Row::new(display_label)
-        .indent(depth as f32 * ICON_SLOT_WIDTH)
+        .indent(depth as f32 * sp.base.component.icon_slot_width)
         .selected(is_selected)
         .icon(icon)
         .label_color(label_color.unwrap_or(if is_visible {
@@ -798,7 +799,7 @@ fn render_actor_tree(
         .expanded(is_expanded)
         .sense(egui::Sense::click_and_drag())
         .right(|ui| {
-            ui.spacing_mut().item_spacing = Vec2::new(SPACE_1, 0.0);
+            ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_1, 0.0);
             let eye_btn = ui.add(
                 Button::icon(eye_icon)
                     .with_tooltip(if is_visible {
@@ -1037,6 +1038,7 @@ fn actor_matches_filter(timeline: &Timeline, label: &str, filter_lower: &str) ->
 // ─── Components Tab ───────────────────────────────────────────────────────
 
 fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
+    let sp = crate::app::design_tokens::spatial::spatial(ui);
     if ctx.components.is_empty() {
         layout::empty_state(
             ui,
@@ -1078,7 +1080,7 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
 
             // Jump-to-definition button (top-right of component row)
             ui.horizontal(|ui| {
-                ui.add_space(ICON_SLOT_WIDTH + SPACE_2 + 2.0);
+                ui.add_space(sp.base.component.icon_slot_width + sp.base.space_2 + 2.0);
                 if ui
                     .add(
                         egui::Button::new(
@@ -1133,7 +1135,7 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
 
             if !slots.is_empty() {
                 ui.horizontal(|ui| {
-                    ui.add_space(ICON_SLOT_WIDTH + SPACE_2);
+                    ui.add_space(sp.base.component.icon_slot_width + sp.base.space_2);
                     ui.label(
                         egui::RichText::new(format!("@slots: {}", slots.join(", ")))
                             .size(TextRole::Micro.size())
@@ -1145,7 +1147,7 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
             // Show params as sub-label
             if !entry.definition.params.is_empty() {
                 ui.horizontal(|ui| {
-                    ui.add_space(ICON_SLOT_WIDTH + SPACE_2);
+                    ui.add_space(sp.base.component.icon_slot_width + sp.base.space_2);
                     let params: Vec<String> = entry
                         .definition
                         .params
@@ -1197,6 +1199,7 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
 // ─── Assets Tab ───────────────────────────────────────────────────────────
 
 fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
+    let sp = crate::app::design_tokens::spatial::spatial(ui);
     let Some(cache) = ctx.asset_cache else {
         layout::empty_state(
             ui,
@@ -1256,7 +1259,7 @@ fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
                     );
                 }
             }
-            ui.add_space(SPACE_3);
+            ui.add_space(sp.base.space_3);
         }
 
         if !svgs.is_empty() {
