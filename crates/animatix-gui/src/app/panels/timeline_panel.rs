@@ -1801,10 +1801,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 if !track_selected.is_empty() {
                     ui.strong(format!("{} selected keyframes", track_selected.len()));
                     ui.separator();
-                    if ui
-                        .button(format!("{} Delete selected", egui_phosphor::regular::TRASH))
-                        .clicked()
-                    {
+                    if ui.add(Button::danger(format!("{} Delete selected", egui_phosphor::regular::TRASH))).clicked() {
                         for (actor, time_ms) in &track_selected {
                             if let Some(tl) = timeline {
                                 if let Some(track) = tl.get_track(actor) {

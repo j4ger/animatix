@@ -12,6 +12,7 @@ use crate::app::commands::{
     PropertyValue as GuiPropertyValue, ShellAction,
 };
 use crate::app::components::row;
+use crate::app::components::button::Button;
 use crate::app::design_tokens::semantic::status;
 use crate::app::design_tokens::semantic::surface;
 use crate::app::design_tokens::semantic::text;
@@ -489,7 +490,7 @@ pub(crate) fn render_property_row(
             ui.set_min_width(140.0);
             ui.strong(format!("Keyframe @ {:.2}s", current_time_s));
             ui.separator();
-            if ui.button(format!("{} Delete", egui_phosphor::regular::TRASH)).clicked() {
+            if ui.add(Button::danger(format!("{} Delete", egui_phosphor::regular::TRASH))).clicked() {
                 commands.push_back(
                     KeyframeCommand::DeleteKeyframe {
                         actor: actor_label.to_string(),
