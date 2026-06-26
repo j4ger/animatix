@@ -11,7 +11,7 @@ use egui::{Align2, Margin, Stroke, Ui};
 
 use crate::widget::anim;
 use crate::tokens::motion;
-use crate::tokens::semantic::{border, overlay, surface, text};
+use crate::tokens::theme::theme;
 use crate::tokens::spatial::{self, RADIUS_XL, STROKE_WIDTH};
 use crate::tokens::spatial::dialog as dialog_token;
 use crate::tokens::typography::TextRole;
@@ -96,6 +96,7 @@ pub fn modal(
     spec: &DialogSpec,
     body: impl FnOnce(&mut Ui, &DialogCtx) -> bool,
 ) -> bool {
+    let t = theme(ui);
     let ctx = ui.ctx();
     let screen_rect = ctx.viewport_rect();
 
@@ -152,7 +153,7 @@ pub fn modal(
     };
 
     // ── Animated backdrop (painted before window, layered behind it) ──
-    let bg = overlay::backdrop();
+    let bg = t.overlay.backdrop;
     let alpha = (bg.a() as f32 * progress).round() as u8;
     let backdrop_color =
         egui::Color32::from_rgba_premultiplied(bg.r(), bg.g(), bg.b(), alpha);
@@ -165,16 +166,16 @@ pub fn modal(
 
     // ── Window fill and border opacity — scales with animation progress ──
     let border_color = egui::Color32::from_rgba_premultiplied(
-        border::DEFAULT.r(),
-        border::DEFAULT.g(),
-        border::DEFAULT.b(),
-        (border::DEFAULT.a() as f32 * progress).round() as u8,
+        t.border.default.r(),
+        t.border.default.g(),
+        t.border.default.b(),
+        (t.border.default.a() as f32 * progress).round() as u8,
     );
     let window_bg = egui::Color32::from_rgba_premultiplied(
-        surface::BASE.r(),
-        surface::BASE.g(),
-        surface::BASE.b(),
-        (surface::BASE.a() as f32 * progress).round() as u8,
+        t.surface.base.r(),
+        t.surface.base.g(),
+        t.surface.base.b(),
+        (t.surface.base.a() as f32 * progress).round() as u8,
     );
 
     // ── Slide offset for window ──
@@ -278,9 +279,10 @@ pub fn modal(
 ///
 /// Returns `true` if the close button was clicked.
 pub fn title_row(ui: &mut Ui, title: &str) -> bool {
+    let t = theme(ui);
     let mut close = false;
     ui.horizontal(|ui| {
-        ui.label(egui::RichText::new(title).size(TextRole::Heading.size()).color(text::PRIMARY));
+        ui.label(egui::RichText::new(title).size(TextRole::Heading.size()).color(t.text.primary));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if ui.button(egui_phosphor::regular::X).on_hover_text("Close (Esc)").clicked() {
                 close = true;

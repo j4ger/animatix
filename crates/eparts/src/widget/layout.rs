@@ -1,6 +1,6 @@
 use egui::{CornerRadius, Margin, Rect, Response, Stroke, Ui, Vec2, WidgetText};
 
-use crate::tokens::semantic::{accent, border, overlay, surface, text};
+use crate::tokens::theme::theme;
 use crate::tokens::spatial::component::{PILL_TAB_GAP, PILL_TAB_HEIGHT};
 use crate::tokens::spatial::{
     RADIUS_M, RADIUS_S, ROW_S, SPACE_M, SPACE_S, SPACE_XL, STROKE_WIDTH,
@@ -10,15 +10,16 @@ use crate::tokens::typography::TextRole;
 /// A styled container with our surface background, rounded corners,
 /// and layered shadow for depth.
 pub fn card(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
+    let t = theme(ui);
     egui::Frame::new()
-        .fill(surface::SURFACE)
+        .fill(t.surface.surface)
         .corner_radius(CornerRadius::same(RADIUS_M as u8))
         .inner_margin(Margin::same(SPACE_M as i8))
         .shadow(egui::Shadow {
             offset: [0, 2],
             blur: 6,
             spread: 0,
-            color: overlay::shadow_ambient(),
+            color: t.overlay.shadow_ambient,
         })
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
@@ -28,6 +29,7 @@ pub fn card(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
 
 /// A section header that sticks to the top of the visible scroll area.
 pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<usize>) {
+    let t = theme(ui);
     let clip_rect = ui.clip_rect();
     let available = ui.available_width();
 
@@ -51,19 +53,19 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
     if is_sticky {
         let bg_rect =
             Rect::from_min_size(egui::pos2(paint_x, paint_y), Vec2::new(available, header_height));
-        ui.painter().rect_filled(bg_rect, RADIUS_M, surface::SURFACE);
+        ui.painter().rect_filled(bg_rect, RADIUS_M, t.surface.surface);
         ui.painter().line_segment(
             [
                 egui::pos2(paint_x, paint_y + header_height),
                 egui::pos2(paint_x + available, paint_y + header_height),
             ],
-            egui::Stroke::new(STROKE_WIDTH, border::DEFAULT),
+            egui::Stroke::new(STROKE_WIDTH, t.border.default),
         );
     }
 
     let line_rect =
         Rect::from_min_size(egui::pos2(paint_x, paint_y + SPACE_S), Vec2::new(24.0, line_h));
-    ui.painter().rect_filled(line_rect, RADIUS_S, accent::PRIMARY);
+    ui.painter().rect_filled(line_rect, RADIUS_S, t.accent.primary);
 
     let row_rect = Rect::from_min_size(
         egui::pos2(paint_x, paint_y + SPACE_S + line_h + SPACE_S),
@@ -77,7 +79,7 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
         egui::Align2::CENTER_CENTER,
         icon,
         TextRole::BodyS.font_id(),
-        text::MUTED,
+        t.text.muted,
     );
     cursor_x += 18.0;
 
@@ -86,7 +88,7 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
         egui::Align2::LEFT_CENTER,
         title,
         TextRole::Micro.font_id(),
-        text::MUTED,
+        t.text.muted,
     );
 
     if let Some(n) = count {
@@ -95,7 +97,7 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
             egui::Align2::RIGHT_CENTER,
             n.to_string(),
             TextRole::Micro.font_id(),
-            text::MUTED,
+            t.text.muted,
         );
     }
 }
@@ -105,25 +107,26 @@ pub const EMPTY_STATE_ICON_SIZE: f32 = 28.0;
 
 /// Centered empty-state placeholder with icon, title, and subtitle.
 pub fn empty_state(ui: &mut egui::Ui, icon: &str, title: &str, subtitle: &str) {
+    let t = theme(ui);
     ui.vertical_centered(|ui| {
         ui.add_space(SPACE_XL * 3.0);
         ui.add(
             egui::Label::new(
-                egui::RichText::new(icon).size(EMPTY_STATE_ICON_SIZE).color(text::MUTED),
+                egui::RichText::new(icon).size(EMPTY_STATE_ICON_SIZE).color(t.text.muted),
             )
             .selectable(false),
         );
         ui.add_space(SPACE_M);
         ui.add(
             egui::Label::new(
-                egui::RichText::new(title).size(TextRole::Title.size()).color(text::SECONDARY),
+                egui::RichText::new(title).size(TextRole::Title.size()).color(t.text.secondary),
             )
             .selectable(false),
         );
         ui.add_space(SPACE_S);
         ui.add(
             egui::Label::new(
-                egui::RichText::new(subtitle).size(TextRole::Body.size()).color(text::MUTED),
+                egui::RichText::new(subtitle).size(TextRole::Body.size()).color(t.text.muted),
             )
             .selectable(false),
         );
@@ -142,8 +145,9 @@ pub fn field_sized(
     desired_width: Option<f32>,
     add_contents: impl FnOnce(&mut egui::Ui),
 ) -> Response {
+    let t = theme(ui);
     let frame = egui::Frame::new()
-        .fill(surface::WIDGET)
+        .fill(t.surface.widget)
         .corner_radius(CornerRadius::same(RADIUS_M as u8))
         .inner_margin(Margin::symmetric(SPACE_S as i8, SPACE_S as i8));
 
@@ -168,9 +172,9 @@ pub fn field_sized(
 
     let is_hovered = ui.rect_contains_pointer(response.response.rect);
     let stroke = if is_hovered {
-        egui::Stroke::new(STROKE_WIDTH, border::HOVER)
+        egui::Stroke::new(STROKE_WIDTH, t.border.strong)
     } else {
-        egui::Stroke::new(STROKE_WIDTH, border::DEFAULT)
+        egui::Stroke::new(STROKE_WIDTH, t.border.default)
     };
     ui.painter().rect_stroke(
         response.response.rect,
@@ -206,13 +210,14 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
     active_tab: T,
     tabs: &[(T, &'static str, &'static str)],
 ) -> Option<T> {
+    let t = theme(ui);
     let available = ui.available_width();
     let tab_h = PILL_TAB_HEIGHT;
     let gap = PILL_TAB_GAP;
     let tab_w = (available - gap * (tabs.len().saturating_sub(1)) as f32) / tabs.len() as f32;
 
     let bar_rect = ui.allocate_exact_size(Vec2::new(available, tab_h), egui::Sense::hover()).0;
-    ui.painter().rect_filled(bar_rect, RADIUS_M, surface::WIDGET);
+    ui.painter().rect_filled(bar_rect, RADIUS_M, t.surface.widget);
 
     let mut clicked_tab = None;
 
@@ -227,23 +232,23 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
         // Draw pill background
         let pill = tab_rect.shrink2(Vec2::new(2.0, 2.0));
         if is_active {
-            ui.painter().rect_filled(pill, RADIUS_M, surface::SURFACE);
+            ui.painter().rect_filled(pill, RADIUS_M, t.surface.surface);
             ui.painter().rect_stroke(
                 pill,
                 RADIUS_M,
-                Stroke::new(STROKE_WIDTH, border::HOVER),
+                Stroke::new(STROKE_WIDTH, t.border.strong),
                 egui::StrokeKind::Inside,
             );
         } else if response.hovered() {
-            ui.painter().rect_filled(pill, RADIUS_M, surface::HOVER);
+            ui.painter().rect_filled(pill, RADIUS_M, t.surface.hover);
         }
 
         let text_color = if is_active {
-            text::PRIMARY
+            t.text.primary
         } else if response.hovered() {
-            text::SECONDARY
+            t.text.secondary
         } else {
-            text::MUTED
+            t.text.muted
         };
         let font_id = TextRole::BodyS.font_id();
         let full_text = format!("{}  {}", icon, label);
@@ -276,16 +281,18 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
 
 /// Horizontal rule drawn with `border::DEFAULT` and standard stroke width.
 pub fn separator(ui: &mut egui::Ui) {
+    let t = theme(ui);
     let avail = ui.available_width();
     let (rect, _) = ui.allocate_exact_size(Vec2::new(avail, STROKE_WIDTH), egui::Sense::hover());
     ui.painter().line_segment(
         [rect.left_center(), rect.right_center()],
-        egui::Stroke::new(STROKE_WIDTH, border::DEFAULT),
+        egui::Stroke::new(STROKE_WIDTH, t.border.default),
     );
 }
 
 /// Vertical rule drawn with `border::DEFAULT` and standard stroke width.
 pub fn separator_v(ui: &mut egui::Ui) {
+    let t = theme(ui);
     let avail = ui.available_height();
     let (rect, _) = ui.allocate_exact_size(Vec2::new(STROKE_WIDTH, avail), egui::Sense::hover());
     ui.painter().line_segment(
@@ -293,19 +300,20 @@ pub fn separator_v(ui: &mut egui::Ui) {
             egui::pos2(rect.center().x, rect.min.y),
             egui::pos2(rect.center().x, rect.max.y),
         ],
-        egui::Stroke::new(STROKE_WIDTH, border::DEFAULT),
+        egui::Stroke::new(STROKE_WIDTH, t.border.default),
     );
 }
 
 /// A labeled separator: thin line — text — thin line, all themed.
 pub fn separator_labeled(ui: &mut egui::Ui, label: impl Into<egui::WidgetText>) {
+    let t = theme(ui);
     let label = label.into();
     let label_str = label.text().to_string();
     ui.horizontal(|ui| {
         let galley = ui.painter().layout_no_wrap(
             label_str.clone(),
             TextRole::BodyS.font_id(),
-            text::MUTED,
+            t.text.muted,
         );
         let label_w = galley.size().x + SPACE_S * 2.0;
         let avail = ui.available_width();
@@ -322,7 +330,7 @@ pub fn separator_labeled(ui: &mut egui::Ui, label: impl Into<egui::WidgetText>) 
                 egui::pos2(left_rect.min.x, left_rect.center().y),
                 egui::pos2(left_rect.max.x, left_rect.center().y),
             ],
-            egui::Stroke::new(STROKE_WIDTH, border::DEFAULT),
+            egui::Stroke::new(STROKE_WIDTH, t.border.default),
         );
 
         // Label
@@ -336,7 +344,7 @@ pub fn separator_labeled(ui: &mut egui::Ui, label: impl Into<egui::WidgetText>) 
                 label_rect.center().y - galley.size().y / 2.0,
             ),
             galley,
-            text::MUTED,
+            t.text.muted,
         );
 
         // Right line
@@ -349,7 +357,7 @@ pub fn separator_labeled(ui: &mut egui::Ui, label: impl Into<egui::WidgetText>) 
                 egui::pos2(right_rect.min.x, right_rect.center().y),
                 egui::pos2(right_rect.max.x, right_rect.center().y),
             ],
-            egui::Stroke::new(STROKE_WIDTH, border::DEFAULT),
+            egui::Stroke::new(STROKE_WIDTH, t.border.default),
         );
     });
 }
@@ -367,6 +375,7 @@ pub fn group_box(
     title: impl Into<WidgetText>,
     add_contents: impl FnOnce(&mut egui::Ui),
 ) {
+    let t = theme(ui);
     let title_text = title.into();
     let title_str = title_text.text().to_string();
 
@@ -377,16 +386,16 @@ pub fn group_box(
             ui.label(
                 egui::RichText::new(title_str)
                     .size(TextRole::Body.size())
-                    .color(text::SECONDARY),
+                    .color(t.text.secondary),
             );
         });
 
         // Body container with a full border.
         egui::Frame::new()
-            .fill(surface::SURFACE)
+            .fill(t.surface.surface)
             .corner_radius(CornerRadius::same(RADIUS_M as u8))
             .inner_margin(Margin::same(SPACE_M as i8))
-            .stroke(egui::Stroke::new(STROKE_WIDTH, border::DEFAULT))
+            .stroke(egui::Stroke::new(STROKE_WIDTH, t.border.default))
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 add_contents(ui);
@@ -416,6 +425,7 @@ pub fn status_bar(
     ui: &mut Ui,
     build: impl FnOnce(&mut Ui),
 ) {
+    let t = theme(ui);
     let h = ROW_S;
     let avail_w = ui.available_width();
 
@@ -423,10 +433,10 @@ pub fn status_bar(
     let (_bar_rect, _) = ui.allocate_exact_size(Vec2::new(avail_w, h), egui::Sense::hover());
 
     egui::Frame::new()
-        .fill(surface::PANEL)
+        .fill(t.surface.panel)
         .corner_radius(CornerRadius::same(0))
         .inner_margin(Margin::symmetric(SPACE_M as i8, 0))
-        .stroke(egui::Stroke::new(STROKE_WIDTH, border::DEFAULT))
+        .stroke(egui::Stroke::new(STROKE_WIDTH, t.border.default))
         .show(ui, |ui| {
             build(ui);
         });
@@ -466,6 +476,7 @@ impl StatusBar {
 
     /// Render the status bar into `ui`.
     pub fn show(self, ui: &mut Ui) {
+        let t = theme(ui);
         let h = ROW_S;
         let avail_w = ui.available_width();
 
@@ -473,10 +484,10 @@ impl StatusBar {
         let (_bar_rect, _) = ui.allocate_exact_size(Vec2::new(avail_w, h), egui::Sense::hover());
 
         egui::Frame::new()
-            .fill(surface::PANEL)
+            .fill(t.surface.panel)
             .corner_radius(CornerRadius::same(0))
             .inner_margin(Margin::symmetric(SPACE_M as i8, 0))
-            .stroke(egui::Stroke::new(STROKE_WIDTH, border::DEFAULT))
+            .stroke(egui::Stroke::new(STROKE_WIDTH, t.border.default))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     // Left items

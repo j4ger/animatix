@@ -20,7 +20,6 @@
 //! is open at a time (mutually exclusive).
 
 use crate::tokens::motion::Transition;
-use crate::tokens::semantic::{border, surface, text};
 use crate::tokens::spatial::{SPACE_M, SPACE_S, STROKE_WIDTH};
 use crate::tokens::typography::TextRole;
 use crate::widget::anim::animate_bool_eased;
@@ -64,6 +63,7 @@ impl CollapsibleSection {
 
     /// Render the collapsible section.
     pub fn show(&self, ui: &mut Ui, body_fn: impl FnOnce(&mut Ui)) -> Response {
+        let t = crate::tokens::theme::theme(ui);
         let progress_id = self.id.with(PROGRESS_KEY);
         let state_id = self.id.with(STATE_KEY);
 
@@ -80,7 +80,7 @@ impl CollapsibleSection {
 
         // Hover background.
         if header_response.hovered() {
-            ui.painter().rect_filled(header_rect, CornerRadius::same(0), surface::HOVER);
+            ui.painter().rect_filled(header_rect, CornerRadius::same(0), t.surface.hover);
         }
 
         // Chevron.
@@ -89,7 +89,7 @@ impl CollapsibleSection {
             egui::Align2::LEFT_CENTER,
             "\u{25B6}",
             TextRole::BodyS.font_id(),
-            text::MUTED,
+            t.text.muted,
         );
 
         // Title text.
@@ -98,7 +98,7 @@ impl CollapsibleSection {
             egui::Align2::LEFT_CENTER,
             &self.header,
             TextRole::Body.font_id(),
-            text::PRIMARY,
+            t.text.primary,
         );
 
         // Toggle on click.
@@ -123,7 +123,7 @@ impl CollapsibleSection {
         let sep_y = header_rect.max.y;
         ui.painter().line_segment(
             [egui::pos2(header_rect.min.x, sep_y), egui::pos2(header_rect.max.x, sep_y)],
-            egui::Stroke::new(STROKE_WIDTH, border::DEFAULT),
+            egui::Stroke::new(STROKE_WIDTH, t.border.default),
         );
 
         // ── Body ────────────────────────────────────────────────────────────

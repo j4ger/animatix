@@ -7,7 +7,6 @@
 //! Highlight colour switches between `border::HOVER` (idle hover) and
 //! `accent::PRIMARY` while the handle is being dragged.
 
-use crate::tokens::semantic::{accent, border};
 use crate::tokens::spatial::{RADIUS_S, SPACE_S, STROKE_WIDTH};
 use egui::{CornerRadius, CursorIcon, Id, Rect, Sense, Ui, Vec2};
 
@@ -79,6 +78,7 @@ impl ResizeHandle {
 
     /// Render the resize handle and return the drag delta this frame (0.0 when idle).
     pub fn show(&self, ui: &mut Ui) -> f32 {
+        let t = crate::tokens::theme::theme(ui);
         let visual = self.axis.visual_width();
         let pad = self.hit_pad;
 
@@ -107,11 +107,11 @@ impl ResizeHandle {
         let is_dragged = response.dragged();
 
         let (stroke_color, line_width) = if is_dragged {
-            (accent::PRIMARY, STROKE_WIDTH + 0.5)
+            (t.accent.primary, STROKE_WIDTH + 0.5)
         } else if is_hovered {
-            (border::HOVER, STROKE_WIDTH)
+            (t.border.strong, STROKE_WIDTH)
         } else {
-            (border::DEFAULT, STROKE_WIDTH)
+            (t.border.default, STROKE_WIDTH)
         };
 
         let line_endpoints = match self.axis {
@@ -129,7 +129,7 @@ impl ResizeHandle {
             ui.painter().rect_filled(
                 rect,
                 CornerRadius::same(RADIUS_S as u8),
-                accent::faint(),
+                t.accent.faint,
             );
         }
 

@@ -190,6 +190,13 @@ pub struct Overlay {
     pub shadow_direct: Color32,
 }
 
+/// Neutral grid / guide line colors (white-alpha; not brand-specific).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Lines {
+    pub grid: Color32,
+    pub guide: Color32,
+}
+
 // ── Theme ─────────────────────────────────────────────────────────────
 
 /// The runtime theme.  Each field is a `Color32`; the struct is `Copy` so cloning is cheap.
@@ -201,6 +208,8 @@ pub struct Theme {
     pub status: Status,
     pub border: Border,
     pub overlay: Overlay,
+    /// Neutral grid / guide line colors.
+    pub lines: Lines,
 
     // ── Milestone 2: component-scoped slots (B2 + B3) ──
     /// Button color slots for all variants and states.
@@ -281,6 +290,10 @@ impl Theme {
                 tooltip_bg: semantic::overlay::tooltip_bg(),
                 shadow_ambient: semantic::overlay::shadow_ambient(),
                 shadow_direct: semantic::overlay::shadow_direct(),
+            },
+            lines: Lines {
+                grid: semantic::lines::grid_line(),
+                guide: semantic::lines::guide_line(),
             },
             button: dark_button_slots(),
             list: dark_list_slots(),
@@ -386,6 +399,11 @@ impl Theme {
                 tooltip_bg: Color32::from_rgba_unmultiplied(255, 255, 255, 245),
                 shadow_ambient: Color32::from_rgba_unmultiplied(0, 0, 0, 30),
                 shadow_direct: Color32::from_rgba_unmultiplied(0, 0, 0, 50),
+            },
+            // Neutral white-alpha lines read fine on light surfaces too; keep identical.
+            lines: Lines {
+                grid: semantic::lines::grid_line(),
+                guide: semantic::lines::guide_line(),
             },
             button: light_button_slots(
                 widget,
@@ -779,6 +797,9 @@ mod tests {
         assert_eq!(t.overlay.tooltip_bg, semantic::overlay::tooltip_bg());
         assert_eq!(t.overlay.shadow_ambient, semantic::overlay::shadow_ambient());
         assert_eq!(t.overlay.shadow_direct, semantic::overlay::shadow_direct());
+
+        assert_eq!(t.lines.grid, semantic::lines::grid_line());
+        assert_eq!(t.lines.guide, semantic::lines::guide_line());
     }
 
     #[test]

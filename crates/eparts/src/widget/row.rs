@@ -1,6 +1,5 @@
 use egui::{Color32, Id, Rect, Response, Sense, Vec2};
 
-use crate::tokens::semantic::{accent, surface, text};
 use crate::tokens::spatial::component::ICON_SLOT_WIDTH;
 use crate::tokens::spatial::{ROW_M, SPACE_L, SPACE_S};
 use crate::tokens::typography::TextRole;
@@ -135,15 +134,16 @@ impl<'a> Row<'a> {
         row_id: Id,
         painter: &egui::Painter,
     ) -> RowResponse {
+        let t = crate::tokens::theme::theme(ui);
         let row_clicked = row_response.clicked();
         let hovered = row_response.hovered();
 
         let bg = if self.is_selected {
-            surface::WIDGET
+            t.surface.widget
         } else if self.secondary_selected {
-            accent::faint()
+            t.accent.faint
         } else if hovered {
-            surface::HOVER
+            t.surface.hover
         } else {
             Color32::TRANSPARENT
         };
@@ -153,10 +153,10 @@ impl<'a> Row<'a> {
 
         if self.is_selected {
             let accent = Rect::from_min_size(rect.min, Vec2::new(2.0, rect.height()));
-            painter.rect_filled(accent, 0.0, accent::PRIMARY);
+            painter.rect_filled(accent, 0.0, t.accent.primary);
         } else if self.secondary_selected {
             let accent = Rect::from_min_size(rect.min, Vec2::new(2.0, rect.height()));
-            painter.rect_filled(accent, 0.0, accent::faint());
+            painter.rect_filled(accent, 0.0, t.accent.faint);
         }
 
         let baseline_y = rect.center().y;
@@ -175,9 +175,9 @@ impl<'a> Row<'a> {
                 egui_phosphor::regular::CARET_RIGHT
             };
             let color = if chevron_resp.hovered() {
-                text::SECONDARY
+                t.text.secondary
             } else {
-                text::MUTED
+                t.text.muted
             };
             painter.text(
                 egui::pos2(chevron_rect.center().x, baseline_y),
@@ -196,9 +196,9 @@ impl<'a> Row<'a> {
                 Vec2::new(ICON_SLOT_WIDTH, self.height),
             );
             let default_color = if self.is_selected {
-                text::PRIMARY
+                t.text.primary
             } else {
-                text::MUTED
+                t.text.muted
             };
             painter.text(
                 egui::pos2(icon_rect.center().x, baseline_y),
@@ -214,9 +214,9 @@ impl<'a> Row<'a> {
 
         let label_color = self.label_color.unwrap_or({
             if self.is_selected {
-                text::PRIMARY
+                t.text.primary
             } else {
-                text::SECONDARY
+                t.text.secondary
             }
         });
         painter.text(
@@ -247,7 +247,7 @@ impl<'a> Row<'a> {
                 egui::Align2::CENTER_CENTER,
                 egui_phosphor::regular::CHECK,
                 TextRole::Body.font_id(),
-                if self.is_selected { text::ON_ACCENT } else { accent::PRIMARY },
+                if self.is_selected { t.text.on_accent } else { t.accent.primary },
             );
         }
 

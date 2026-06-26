@@ -1,4 +1,4 @@
-use crate::tokens::semantic::{accent, border, status, surface, text};
+use crate::tokens::theme::{theme, Theme};
 use crate::tokens::spatial::component::{
     TOAST_HEIGHT, TOAST_MARGIN, TOAST_SPACING, TOAST_WIDTH,
 };
@@ -81,12 +81,12 @@ impl Toast {
         }
     }
 
-    pub fn color(&self) -> Color32 {
+    pub fn color(&self, t: &Theme) -> Color32 {
         match self.level {
-            ToastLevel::Info => accent::PRIMARY,
-            ToastLevel::Success => status::SUCCESS,
-            ToastLevel::Warning => status::WARNING,
-            ToastLevel::Error => status::ERROR,
+            ToastLevel::Info => t.accent.primary,
+            ToastLevel::Success => t.status.success,
+            ToastLevel::Warning => t.status.warning,
+            ToastLevel::Error => t.status.error,
         }
     }
 }
@@ -148,6 +148,7 @@ impl ToastQueue {
             return;
         }
 
+        let theme = theme(ui);
         let viewport = ui.max_rect();
         let toast_w = TOAST_WIDTH;
         let toast_h = TOAST_HEIGHT;
@@ -194,23 +195,23 @@ impl ToastQueue {
             }
 
             // Background with alpha
-            let bg = surface::SURFACE.linear_multiply(alpha);
+            let bg = theme.surface.surface.linear_multiply(alpha);
             ui.painter().rect_filled(rect, RADIUS_M as u8, bg);
             ui.painter().rect_stroke(
                 rect,
                 RADIUS_M as u8,
-                egui::Stroke::new(STROKE_WIDTH, border::DEFAULT.linear_multiply(alpha)),
+                egui::Stroke::new(STROKE_WIDTH, theme.border.default.linear_multiply(alpha)),
                 egui::StrokeKind::Outside,
             );
 
             // Left accent bar
             let accent_rect = Rect::from_min_size(rect.min, Vec2::new(SPACE_2, toast_h));
-            let accent_color = toast.color().linear_multiply(alpha);
+            let accent_color = toast.color(&theme).linear_multiply(alpha);
             ui.painter().rect_filled(accent_rect, RADIUS_S, accent_color);
 
             // Icon
             let icon_x = rect.min.x + SPACE_6;
-            let icon_color = toast.color().linear_multiply(alpha);
+            let icon_color = toast.color(&theme).linear_multiply(alpha);
             ui.painter().text(
                 Pos2::new(icon_x, rect.center().y),
                 egui::Align2::CENTER_CENTER,
@@ -221,7 +222,7 @@ impl ToastQueue {
 
             // Message (wrapped to toast width so it doesn't overflow)
             let text_x = icon_x + SPACE_6;
-            let text_color = text::PRIMARY.linear_multiply(alpha);
+            let text_color = theme.text.primary.linear_multiply(alpha);
             let text_max_w = (toast_w - (text_x - rect.min.x) - SPACE_6).max(40.0);
             let display_message = if toast.count > 1 {
                 format!("{} (x{})", toast.message, toast.count)

@@ -1,6 +1,5 @@
 use egui::{Color32, Response, Sense, Vec2};
 
-use crate::tokens::semantic::border;
 use crate::tokens::spatial::{RADIUS_M, RADIUS_S, ROW_M, SPACE_M, STROKE_WIDTH};
 use crate::tokens::theme;
 use crate::tokens::typography::TextRole;
@@ -411,6 +410,7 @@ pub fn play_pause_icon(is_playing: bool) -> &'static str {
 
 /// A small vertical separator for toolbar button groups.
 pub fn toolbar_separator(ui: &mut egui::Ui) {
+    let t = theme::theme(ui);
     let height = ROW_M - 4.0;
     let (rect, _) = ui.allocate_exact_size(Vec2::new(1.0, height), Sense::hover());
     ui.painter().line_segment(
@@ -418,7 +418,7 @@ pub fn toolbar_separator(ui: &mut egui::Ui) {
             egui::pos2(rect.center().x, rect.min.y),
             egui::pos2(rect.center().x, rect.max.y),
         ],
-        egui::Stroke::new(STROKE_WIDTH, border::DEFAULT),
+        egui::Stroke::new(STROKE_WIDTH, t.border.default),
     );
 }
 

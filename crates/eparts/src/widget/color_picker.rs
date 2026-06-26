@@ -20,8 +20,8 @@
 
 use egui::{Color32, CornerRadius, Id, Response, Stroke, Ui};
 
-use crate::tokens::semantic::border;
 use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
+use crate::tokens::theme::theme;
 use crate::widget::popover::Popover;
 use crate::widget::input::TextField;
 
@@ -109,6 +109,7 @@ impl<'a> ColorPicker<'a> {
 
     /// Render the trigger swatch button and (when open) the popover panel.
     pub fn show(self, ui: &mut Ui) -> ColorPickerResponse {
+        let t = theme(ui);
         let Self { id, color, show_alpha, swatches } = self;
 
         // ── Trigger: small rounded swatch button ──────────────────────────
@@ -131,9 +132,9 @@ impl<'a> ColorPicker<'a> {
             }
             painter.rect_filled(rect, cr, *color);
             let border_color = if trigger.hovered() {
-                border::HOVER
+                t.border.strong
             } else {
-                border::DEFAULT
+                t.border.default
             };
             painter.rect_stroke(rect, cr, Stroke::new(STROKE_WIDTH, border_color), egui::StrokeKind::Outside);
         }
@@ -205,7 +206,7 @@ impl<'a> ColorPicker<'a> {
                         if ui.is_rect_visible(sr) {
                             let cr = CornerRadius::same(3);
                             ui.painter().rect_filled(sr, cr, swatch);
-                            let sc = if sresp.hovered() { border::HOVER } else { border::DEFAULT };
+                            let sc = if sresp.hovered() { t.border.strong } else { t.border.default };
                             ui.painter().rect_stroke(sr, cr, Stroke::new(STROKE_WIDTH, sc), egui::StrokeKind::Outside);
                         }
                         if sresp.clicked() {

@@ -26,7 +26,7 @@
 
 use egui::{Align2, Color32, CornerRadius, Id, Margin, Pos2, Rect, Sense, Stroke, Ui, Vec2};
 
-use crate::tokens::semantic::{accent, border, overlay, surface, text};
+use crate::tokens::theme;
 use crate::tokens::spatial::{RADIUS_M, RADIUS_S};
 use crate::tokens::spatial::{
     ROW_M, ROW_S, SPACE_L, SPACE_M, SPACE_S, STROKE_WIDTH, menu as menu_spatial,
@@ -133,6 +133,8 @@ impl MenuLayout {
 ///
 /// Returns the index of the clicked item, or `None` if nothing was clicked.
 pub fn render_menu(ui: &mut Ui, entries: &[MenuEntry]) -> Option<usize> {
+    let t = theme::theme(ui);
+
     ui.set_min_width(menu_spatial::MIN_WIDTH);
 
     let layout = MenuLayout::from_entries(entries);
@@ -186,16 +188,17 @@ pub fn render_menu(ui: &mut Ui, entries: &[MenuEntry]) -> Option<usize> {
                     *enabled,
                     content_width,
                     &layout,
+                    &t,
                 );
                 if response.clicked && clicked_index.is_none() {
                     clicked_index = Some(i);
                 }
             },
             MenuEntry::Header(text) => {
-                render_menu_header(ui, text, content_width);
+                render_menu_header(ui, text, content_width, &t);
             },
             MenuEntry::Separator => {
-                render_menu_separator(ui, content_width);
+                render_menu_separator(ui, content_width, &t);
             },
         }
     }
@@ -213,26 +216,29 @@ pub fn render_floating_menu(
     pos: Pos2,
     entries: &[MenuEntry],
 ) -> (Option<usize>, Rect) {
+    // Theme is read from ctx here because no `ui` is available at this scope.
+    let t = theme::theme_from_ctx(ctx);
+
     let area = egui::Area::new(id).fixed_pos(pos).order(egui::Order::Foreground);
 
-    let inner = area.show(ctx, |ui| menu_frame().show(ui, |ui| render_menu(ui, entries)).inner);
+    let inner = area.show(ctx, |ui| menu_frame(&t).show(ui, |ui| render_menu(ui, entries)).inner);
 
     (inner.inner, inner.response.rect)
 }
 
 // ─── Internals ──────────────────────────────────────────────────────────────
 
-fn menu_frame() -> egui::Frame {
+fn menu_frame(t: &theme::Theme) -> egui::Frame {
     egui::Frame::new()
-        .fill(surface::SURFACE)
-        .stroke(Stroke::new(STROKE_WIDTH, border::DEFAULT))
+        .fill(t.surface.surface)
+        .stroke(Stroke::new(STROKE_WIDTH, t.border.default))
         .corner_radius(CornerRadius::same(RADIUS_M as u8))
         .inner_margin(Margin::same(SPACE_S as i8))
         .shadow(egui::Shadow {
             offset: [0, menu_spatial::SHADOW_OFFSET_Y],
             blur: menu_spatial::SHADOW_BLUR as u8,
             spread: 0,
-            color: overlay::shadow_direct(),
+            color: t.overlay.shadow_direct,
         })
 }
 
@@ -245,6 +251,7 @@ fn render_menu_item(
     enabled: bool,
     content_width: f32,
     layout: &MenuLayout,
+    t: &theme::Theme,
 ) -> MenuItemResponse {
     let (rect, response) = ui.allocate_exact_size(
         Vec2::new(content_width, MENU_ITEM_HEIGHT),
@@ -259,9 +266,9 @@ fn render_menu_item(
     let bg = if !enabled {
         Color32::TRANSPARENT
     } else if checked {
-        accent::PRIMARY
+        t.accent.primary
     } else if response.hovered() {
-        surface::HOVER
+        t.surface.hover
     } else {
         Color32::TRANSPARENT
     };
@@ -281,7 +288,7 @@ fn render_menu_item(
                 Align2::CENTER_CENTER,
                 egui_phosphor::regular::CHECK,
                 TextRole::BodyS.font_id(),
-                text::PRIMARY,
+                t.text.primary,
             );
         }
         cursor_x += menu_spatial::CHECK_WIDTH + MENU_ICON_GAP;
@@ -292,12 +299,12 @@ fn render_menu_item(
         if let Some(icon_str) = icon {
             let icon_color = if enabled {
                 if checked || response.hovered() {
-                    text::PRIMARY
+                    t.text.primary
                 } else {
-                    text::SECONDARY
+                    t.text.secondary
                 }
             } else {
-                text::DISABLED
+                t.text.disabled
             };
             ui.painter().text(
                 egui::pos2(cursor_x + menu_spatial::ICON_WIDTH / 2.0, baseline_y),
@@ -312,11 +319,11 @@ fn render_menu_item(
 
     // ── Label ──
     let label_color = if !enabled {
-        text::DISABLED
+        t.text.disabled
     } else if checked || response.hovered() {
-        text::PRIMARY
+        t.text.primary
     } else {
-        text::SECONDARY
+        t.text.secondary
     };
 
     ui.painter().text(
@@ -330,9 +337,9 @@ fn render_menu_item(
     // ── Shortcut (right-aligned) ──
     if let Some(sc) = shortcut {
         let shortcut_color = if !enabled {
-            text::DISABLED
+            t.text.disabled
         } else {
-            text::MUTED
+            t.text.muted
         };
         ui.painter().text(
             egui::pos2(rect.max.x - SPACE_M, baseline_y),
@@ -348,7 +355,7 @@ fn render_menu_item(
     }
 }
 
-fn render_menu_header(ui: &mut Ui, text: &str, content_width: f32) {
+fn render_menu_header(ui: &mut Ui, text: &str, content_width: f32, t: &theme::Theme) {
     let (rect, _) = ui.allocate_exact_size(Vec2::new(content_width, ROW_S), Sense::hover());
 
     ui.painter().text(
@@ -356,11 +363,11 @@ fn render_menu_header(ui: &mut Ui, text: &str, content_width: f32) {
         Align2::LEFT_CENTER,
         text,
         TextRole::Micro.font_id(),
-        text::MUTED,
+        t.text.muted,
     );
 }
 
-fn render_menu_separator(ui: &mut Ui, content_width: f32) {
+fn render_menu_separator(ui: &mut Ui, content_width: f32, t: &theme::Theme) {
     let (rect, _) = ui.allocate_exact_size(Vec2::new(content_width, SPACE_M + 1.0), Sense::hover());
 
     let y = rect.center().y;
@@ -369,6 +376,6 @@ fn render_menu_separator(ui: &mut Ui, content_width: f32) {
             egui::pos2(rect.min.x + SPACE_M, y),
             egui::pos2(rect.max.x - SPACE_M, y),
         ],
-        Stroke::new(STROKE_WIDTH, border::DEFAULT),
+        Stroke::new(STROKE_WIDTH, t.border.default),
     );
 }

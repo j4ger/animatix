@@ -44,8 +44,6 @@
 
 use egui::{Context, CornerRadius, Id, Order, Pos2, Rect, Response, Ui};
 
-use crate::tokens::semantic::overlay::shadow_direct;
-use crate::tokens::semantic::{border, surface};
 use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::widget::overlay::{
     OverlayLayer, clicked_outside, escape_pressed, is_topmost, push_overlay, remove_overlay,
@@ -297,7 +295,8 @@ impl Popover {
                 if let Some(mw) = self.max_width {
                     ui.set_max_width(mw);
                 }
-                popover_frame().show(ui, content).inner
+                let t = crate::tokens::theme::theme(ui);
+                popover_frame(&t).show(ui, content).inner
             });
 
             let rect = inner.response.rect;
@@ -419,22 +418,22 @@ fn compute_anchor_pos_clamped(
 
 /// The themed frame used for the popover body.
 ///
-/// Colours are sourced from `tokens::semantic`:
-/// * fill → [`surface::floating_card_bg`]
-/// * stroke → [`border::DEFAULT`]
+/// Colours are sourced from the runtime `Theme`.
+/// * fill → `t.surface.floating_card_bg`
+/// * stroke → `t.border.default`
 /// * corner radius → [`RADIUS_M`]
-/// * shadow colour → [`shadow_direct`]
-fn popover_frame() -> egui::Frame {
+/// * shadow colour → `t.overlay.shadow_direct`
+fn popover_frame(t: &crate::tokens::theme::Theme) -> egui::Frame {
     egui::Frame::new()
-        .fill(surface::floating_card_bg())
-        .stroke(egui::Stroke::new(STROKE_WIDTH, border::DEFAULT))
+        .fill(t.surface.floating_card_bg)
+        .stroke(egui::Stroke::new(STROKE_WIDTH, t.border.default))
         .corner_radius(CornerRadius::same(RADIUS_M as u8))
         .inner_margin(egui::Margin::same(12))
         .shadow(egui::Shadow {
             offset: [0, 4],
             blur: 12,
             spread: 0,
-            color: shadow_direct(),
+            color: t.overlay.shadow_direct,
         })
 }
 

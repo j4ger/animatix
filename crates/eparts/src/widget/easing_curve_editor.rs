@@ -3,8 +3,8 @@
 //! Interactive cubic-bezier easing editor. Shows a small preview of the curve
 //! with draggable control points P1 and P2.
 
-use crate::tokens::semantic::{accent, border, lines, status, surface, text};
 use crate::tokens::spatial::{RADIUS_M, SPACE_M, SPACE_S, STROKE_WIDTH};
+use crate::tokens::theme::theme;
 use egui::{Pos2, Rect, Sense, Stroke, Vec2};
 
 /// State for the easing curve editor widget.
@@ -46,6 +46,7 @@ impl EasingCurveState {
 ///
 /// Returns `Some(new_state)` if the user dragged a control point.
 pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option<EasingCurveState> {
+    let t = theme(ui);
     let desired_size = Vec2::new(ui.available_width(), 100.0);
     let (rect, response) = ui.allocate_exact_size(desired_size, Sense::click_and_drag());
     let painter = ui.painter_at(rect);
@@ -62,48 +63,48 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
     };
 
     // Background
-    painter.rect_filled(rect, RADIUS_M, surface::BASE);
+    painter.rect_filled(rect, RADIUS_M, t.surface.base);
     painter.rect_stroke(
         rect,
         RADIUS_M,
-        Stroke::new(STROKE_WIDTH, border::DEFAULT),
+        Stroke::new(STROKE_WIDTH, t.border.default),
         egui::StrokeKind::Outside,
     );
 
     // Grid
     for i in 0..=4 {
-        let t = i as f32 / 4.0;
-        let x = egui::lerp(plot_rect.left()..=plot_rect.right(), t);
-        let y = egui::lerp(plot_rect.top()..=plot_rect.bottom(), t);
+        let t_norm = i as f32 / 4.0;
+        let x = egui::lerp(plot_rect.left()..=plot_rect.right(), t_norm);
+        let y = egui::lerp(plot_rect.top()..=plot_rect.bottom(), t_norm);
         painter.line_segment(
             [
                 Pos2::new(x, plot_rect.top()),
                 Pos2::new(x, plot_rect.bottom()),
             ],
-            Stroke::new(STROKE_WIDTH, lines::grid_line()),
+            Stroke::new(STROKE_WIDTH, t.lines.grid),
         );
         painter.line_segment(
             [
                 Pos2::new(plot_rect.left(), y),
                 Pos2::new(plot_rect.right(), y),
             ],
-            Stroke::new(STROKE_WIDTH, lines::grid_line()),
+            Stroke::new(STROKE_WIDTH, t.lines.grid),
         );
     }
 
     // Diagonal reference line (linear)
-    painter.line_segment([map(0.0, 0.0), map(1.0, 1.0)], Stroke::new(1.0, text::DISABLED));
+    painter.line_segment([map(0.0, 0.0), map(1.0, 1.0)], Stroke::new(1.0, t.text.disabled));
 
     // Draw curve
     let cp = state.to_array();
     let segments = 40;
     let mut prev = map(0.0, 0.0);
     for s in 1..=segments {
-        let t = s as f32 / segments as f32;
-        let x = cubic_bezier_x(t, cp);
-        let y = cubic_bezier_y(t, cp);
+        let t_norm = s as f32 / segments as f32;
+        let x = cubic_bezier_x(t_norm, cp);
+        let y = cubic_bezier_y(t_norm, cp);
         let curr = map(x, y);
-        painter.line_segment([prev, curr], Stroke::new(2.5, accent::PRIMARY));
+        painter.line_segment([prev, curr], Stroke::new(2.5, t.accent.primary));
         prev = curr;
     }
 
@@ -114,12 +115,12 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
     let p3 = map(1.0, 1.0);
 
     // Control lines (dashed-ish via alpha)
-    painter.line_segment([p0, p1], Stroke::new(1.0, text::DISABLED.gamma_multiply(0.5)));
-    painter.line_segment([p2, p3], Stroke::new(1.0, text::DISABLED.gamma_multiply(0.5)));
+    painter.line_segment([p0, p1], Stroke::new(1.0, t.text.disabled.gamma_multiply(0.5)));
+    painter.line_segment([p2, p3], Stroke::new(1.0, t.text.disabled.gamma_multiply(0.5)));
 
     // Endpoints
-    painter.circle_filled(p0, 3.0, text::SECONDARY);
-    painter.circle_filled(p3, 3.0, text::SECONDARY);
+    painter.circle_filled(p0, 3.0, t.text.secondary);
+    painter.circle_filled(p3, 3.0, t.text.secondary);
 
     // Draggable handles
     let handle_radius = 6.0;
@@ -142,12 +143,12 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
         changed = true;
     }
     let p1_color = if p1_response.dragged() {
-        status::WARNING
+        t.status.warning
     } else {
-        accent::PRIMARY
+        t.accent.primary
     };
     painter.circle_filled(p1, handle_radius, p1_color);
-    painter.circle_stroke(p1, handle_radius + 1.5, Stroke::new(1.5, text::PRIMARY));
+    painter.circle_stroke(p1, handle_radius + 1.5, Stroke::new(1.5, t.text.primary));
 
     // P2 handle
     let p2_id = ui.id().with("easing_p2");
@@ -165,12 +166,12 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
         changed = true;
     }
     let p2_color = if p2_response.dragged() {
-        status::WARNING
+        t.status.warning
     } else {
-        accent::PRIMARY
+        t.accent.primary
     };
     painter.circle_filled(p2, handle_radius, p2_color);
-    painter.circle_stroke(p2, handle_radius + 1.5, Stroke::new(1.5, text::PRIMARY));
+    painter.circle_stroke(p2, handle_radius + 1.5, Stroke::new(1.5, t.text.primary));
 
     // Hover cursor
     if p1_response.hovered() || p2_response.hovered() || response.hovered() {

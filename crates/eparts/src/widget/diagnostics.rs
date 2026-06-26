@@ -1,7 +1,7 @@
 use egui::{Color32, Rect, RichText, Sense, Stroke, Vec2};
 
-use crate::tokens::semantic::{border, status, surface, text};
 use crate::tokens::spatial::{ROW_L, SPACE_L, SPACE_M, SPACE_S, STROKE_WIDTH};
+use crate::tokens::theme::{theme, Theme};
 use crate::tokens::typography::TextRole;
 use super::layout::card;
 
@@ -52,6 +52,7 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
     }
 
     let mut clicked_target: Option<DiagnosticTarget> = None;
+    let t = theme(ui);
 
     card(ui, |ui: &mut egui::Ui| {
         ui.horizontal(|ui: &mut egui::Ui| {
@@ -64,7 +65,7 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
                 egui::Label::new(
                     RichText::new(egui_phosphor::regular::WARNING_OCTAGON)
                         .size(TextRole::BodyS.size())
-                        .color(text::MUTED),
+                        .color(t.text.muted),
                 )
                 .selectable(false),
             );
@@ -73,7 +74,7 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
                 egui::Label::new(
                     RichText::new("Diagnostics")
                         .size(TextRole::BodyS.size())
-                        .color(text::SECONDARY),
+                        .color(t.text.secondary),
                 )
                 .selectable(false),
             );
@@ -83,7 +84,7 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
                     egui::Label::new(
                         RichText::new(format!("{} {}", egui_phosphor::regular::X, error_count))
                             .size(TextRole::Micro.size())
-                            .color(status::ERROR),
+                            .color(t.status.error),
                     )
                     .selectable(false),
                 );
@@ -97,7 +98,7 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
                             warning_count
                         ))
                         .size(TextRole::Micro.size())
-                        .color(status::WARNING),
+                        .color(t.status.warning),
                     )
                     .selectable(false),
                 );
@@ -109,7 +110,7 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
                         egui::Button::new(
                             RichText::new(egui_phosphor::regular::X)
                                 .size(TextRole::BodyS.size())
-                                .color(text::MUTED),
+                                .color(t.text.muted),
                         )
                         .frame(false),
                     )
@@ -125,7 +126,7 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
         egui::ScrollArea::vertical().max_height(180.0).show(ui, |ui: &mut egui::Ui| {
             ui.spacing_mut().item_spacing = Vec2::new(0.0, 1.0);
             for (i, d) in diagnostics.iter().enumerate() {
-                if let Some(target) = diagnostic_row(ui, d, i == diagnostics.len() - 1) {
+                if let Some(target) = diagnostic_row(ui, d, i == diagnostics.len() - 1, &t) {
                     clicked_target = Some(target);
                 }
             }
@@ -139,15 +140,16 @@ fn diagnostic_row<T: DiagnosticEntry>(
     ui: &mut egui::Ui,
     diagnostic: &T,
     is_last: bool,
+    t: &Theme,
 ) -> Option<DiagnosticTarget> {
     let available = ui.available_width();
     let row_h = ROW_L;
     let (row_rect, response) = ui.allocate_exact_size(Vec2::new(available, row_h), Sense::click());
 
     let accent_color = if diagnostic.is_error() {
-        status::ERROR
+        t.status.error
     } else {
-        status::WARNING
+        t.status.warning
     };
     let icon = if diagnostic.is_error() {
         egui_phosphor::regular::X
@@ -156,7 +158,7 @@ fn diagnostic_row<T: DiagnosticEntry>(
     };
 
     let bg = if response.hovered() {
-        surface::HOVER
+        t.surface.hover
     } else {
         Color32::TRANSPARENT
     };
@@ -187,12 +189,12 @@ fn diagnostic_row<T: DiagnosticEntry>(
     let font_id = TextRole::Body.font_id();
     let galley =
         ui.painter()
-            .layout(msg.to_string(), font_id.clone(), text::PRIMARY, msg_max_width);
+            .layout(msg.to_string(), font_id.clone(), t.text.primary, msg_max_width);
 
     ui.painter().galley(
         egui::pos2(cursor_x, baseline_y - galley.size().y / 2.0),
         galley,
-        text::PRIMARY,
+        t.text.primary,
     );
 
     ui.painter().text(
@@ -200,7 +202,7 @@ fn diagnostic_row<T: DiagnosticEntry>(
         egui::Align2::RIGHT_CENTER,
         phase_str,
         TextRole::Micro.font_id(),
-        diagnostic.phase_color().unwrap_or(text::MUTED),
+        diagnostic.phase_color().unwrap_or(t.text.muted),
     );
 
     if !is_last {
@@ -209,7 +211,7 @@ fn diagnostic_row<T: DiagnosticEntry>(
                 egui::pos2(row_rect.min.x + SPACE_M, row_rect.bottom() - 0.5),
                 egui::pos2(row_rect.max.x - SPACE_S, row_rect.bottom() - 0.5),
             ],
-            Stroke::new(STROKE_WIDTH, border::DEFAULT),
+            Stroke::new(STROKE_WIDTH, t.border.default),
         );
     }
 

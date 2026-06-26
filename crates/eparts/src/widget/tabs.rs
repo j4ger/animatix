@@ -1,6 +1,5 @@
 use egui::{Id, Rect, Response, Sense, Vec2};
 
-use crate::tokens::semantic::border;
 use crate::tokens::spatial::component::{PILL_TAB_GAP, PILL_TAB_HEIGHT};
 use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::tokens::typography::TextRole;
@@ -119,7 +118,7 @@ impl<'a> TabBar<'a> {
                 ui.painter().rect_stroke(
                     pill,
                     RADIUS_M,
-                    egui::Stroke::new(STROKE_WIDTH, border::HOVER),
+                    egui::Stroke::new(STROKE_WIDTH, t.border.strong),
                     egui::StrokeKind::Inside,
                 );
 
