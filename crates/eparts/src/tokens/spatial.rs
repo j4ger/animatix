@@ -14,19 +14,6 @@ pub const SPACE_6: f32 = 16.0;
 pub const SPACE_7: f32 = 24.0;
 pub const SPACE_8: f32 = 32.0;
 
-// ── Legacy naming aliases (Phase 1 migration compatibility) ──
-// These will be removed once all call sites use the new SPACE_N scale.
-pub const SPACE_XS: f32 = SPACE_1;
-pub const SPACE_S: f32 = SPACE_2;
-pub const SPACE_M: f32 = SPACE_3;
-pub const SPACE_L: f32 = SPACE_4;
-pub const SPACE_XL: f32 = SPACE_5;
-pub const PAD_XS: f32 = SPACE_1;
-pub const PAD_S: f32 = SPACE_2;
-pub const PAD_M: f32 = SPACE_3;
-pub const PAD_L: f32 = SPACE_4;
-pub const PAD_XL: f32 = SPACE_5;
-pub const PAD_XXL: f32 = SPACE_6;
 
 // ── Row heights ──
 pub const ROW_XS: f32 = 18.0;

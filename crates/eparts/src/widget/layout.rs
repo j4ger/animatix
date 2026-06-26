@@ -2,9 +2,7 @@ use egui::{CornerRadius, Margin, Rect, Response, Stroke, Ui, Vec2, WidgetText};
 
 use crate::tokens::theme::theme;
 use crate::tokens::spatial::component::{PILL_TAB_GAP, PILL_TAB_HEIGHT};
-use crate::tokens::spatial::{
-    RADIUS_M, RADIUS_S, ROW_S, SPACE_M, SPACE_S, SPACE_XL, STROKE_WIDTH,
-};
+use crate::tokens::spatial::{RADIUS_M, RADIUS_S, ROW_S, SPACE_2, SPACE_3, SPACE_5, STROKE_WIDTH};
 use crate::tokens::typography::TextRole;
 
 /// A styled container with our surface background, rounded corners,
@@ -14,7 +12,7 @@ pub fn card(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::new()
         .fill(t.surface.surface)
         .corner_radius(CornerRadius::same(RADIUS_M as u8))
-        .inner_margin(Margin::same(SPACE_M as i8))
+        .inner_margin(Margin::same(SPACE_3 as i8))
         .shadow(egui::Shadow {
             offset: [0, 2],
             blur: 6,
@@ -35,7 +33,7 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
 
     let line_h = 2.0;
     let row_h = ROW_S;
-    let header_height = SPACE_S + line_h + SPACE_S + row_h + SPACE_S;
+    let header_height = SPACE_2 + line_h + SPACE_2 + row_h + SPACE_2;
 
     let (alloc_rect, _) =
         ui.allocate_exact_size(Vec2::new(available, header_height), egui::Sense::hover());
@@ -64,11 +62,11 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
     }
 
     let line_rect =
-        Rect::from_min_size(egui::pos2(paint_x, paint_y + SPACE_S), Vec2::new(24.0, line_h));
+        Rect::from_min_size(egui::pos2(paint_x, paint_y + SPACE_2), Vec2::new(24.0, line_h));
     ui.painter().rect_filled(line_rect, RADIUS_S, t.accent.primary);
 
     let row_rect = Rect::from_min_size(
-        egui::pos2(paint_x, paint_y + SPACE_S + line_h + SPACE_S),
+        egui::pos2(paint_x, paint_y + SPACE_2 + line_h + SPACE_2),
         Vec2::new(available, row_h),
     );
     let baseline_y = row_rect.center().y;
@@ -93,7 +91,7 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
 
     if let Some(n) = count {
         ui.painter().text(
-            egui::pos2(row_rect.max.x - SPACE_S, baseline_y),
+            egui::pos2(row_rect.max.x - SPACE_2, baseline_y),
             egui::Align2::RIGHT_CENTER,
             n.to_string(),
             TextRole::Micro.font_id(),
@@ -109,21 +107,21 @@ pub const EMPTY_STATE_ICON_SIZE: f32 = 28.0;
 pub fn empty_state(ui: &mut egui::Ui, icon: &str, title: &str, subtitle: &str) {
     let t = theme(ui);
     ui.vertical_centered(|ui| {
-        ui.add_space(SPACE_XL * 3.0);
+        ui.add_space(SPACE_5 * 3.0);
         ui.add(
             egui::Label::new(
                 egui::RichText::new(icon).size(EMPTY_STATE_ICON_SIZE).color(t.text.muted),
             )
             .selectable(false),
         );
-        ui.add_space(SPACE_M);
+        ui.add_space(SPACE_3);
         ui.add(
             egui::Label::new(
                 egui::RichText::new(title).size(TextRole::Title.size()).color(t.text.secondary),
             )
             .selectable(false),
         );
-        ui.add_space(SPACE_S);
+        ui.add_space(SPACE_2);
         ui.add(
             egui::Label::new(
                 egui::RichText::new(subtitle).size(TextRole::Body.size()).color(t.text.muted),
@@ -149,7 +147,7 @@ pub fn field_sized(
     let frame = egui::Frame::new()
         .fill(t.surface.widget)
         .corner_radius(CornerRadius::same(RADIUS_M as u8))
-        .inner_margin(Margin::symmetric(SPACE_S as i8, SPACE_S as i8));
+        .inner_margin(Margin::symmetric(SPACE_2 as i8, SPACE_2 as i8));
 
     let response = frame.show(ui, |ui| {
         if let Some(w) = desired_width {
@@ -196,7 +194,7 @@ pub fn labeled_row(
     ui.horizontal(|ui| {
         ui.label(label);
         let remaining = ui.available_width();
-        let frame_width = input_width + 2.0 * SPACE_S;
+        let frame_width = input_width + 2.0 * SPACE_2;
         if remaining > frame_width {
             ui.add_space(remaining - frame_width);
         }
@@ -253,7 +251,7 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
         let font_id = TextRole::BodyS.font_id();
         let full_text = format!("{}  {}", icon, label);
         let galley = ui.painter().layout_no_wrap(full_text.clone(), font_id.clone(), text_color);
-        let show_label = galley.size().x + SPACE_XL <= tab_w;
+        let show_label = galley.size().x + SPACE_5 <= tab_w;
         let display_text = if show_label {
             full_text
         } else {
@@ -315,7 +313,7 @@ pub fn separator_labeled(ui: &mut egui::Ui, label: impl Into<egui::WidgetText>) 
             TextRole::BodyS.font_id(),
             t.text.muted,
         );
-        let label_w = galley.size().x + SPACE_S * 2.0;
+        let label_w = galley.size().x + SPACE_2 * 2.0;
         let avail = ui.available_width();
         let line_h = STROKE_WIDTH;
         let line_fraction = (avail - label_w) / 2.0;
@@ -335,7 +333,7 @@ pub fn separator_labeled(ui: &mut egui::Ui, label: impl Into<egui::WidgetText>) 
 
         // Label
         let (label_rect, _) = ui.allocate_exact_size(
-            Vec2::new(label_w, line_h + SPACE_S * 2.0),
+            Vec2::new(label_w, line_h + SPACE_2 * 2.0),
             egui::Sense::hover(),
         );
         ui.painter().galley(
@@ -382,7 +380,7 @@ pub fn group_box(
     ui.vertical(|ui| {
         // Title row — sits inside the border area.
         ui.horizontal(|ui| {
-            ui.add_space(SPACE_M);
+            ui.add_space(SPACE_3);
             ui.label(
                 egui::RichText::new(title_str)
                     .size(TextRole::Body.size())
@@ -394,7 +392,7 @@ pub fn group_box(
         egui::Frame::new()
             .fill(t.surface.surface)
             .corner_radius(CornerRadius::same(RADIUS_M as u8))
-            .inner_margin(Margin::same(SPACE_M as i8))
+            .inner_margin(Margin::same(SPACE_3 as i8))
             .stroke(egui::Stroke::new(STROKE_WIDTH, t.border.default))
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
@@ -435,7 +433,7 @@ pub fn status_bar(
     egui::Frame::new()
         .fill(t.surface.panel)
         .corner_radius(CornerRadius::same(0))
-        .inner_margin(Margin::symmetric(SPACE_M as i8, 0))
+        .inner_margin(Margin::symmetric(SPACE_3 as i8, 0))
         .stroke(egui::Stroke::new(STROKE_WIDTH, t.border.default))
         .show(ui, |ui| {
             build(ui);
@@ -486,7 +484,7 @@ impl StatusBar {
         egui::Frame::new()
             .fill(t.surface.panel)
             .corner_radius(CornerRadius::same(0))
-            .inner_margin(Margin::symmetric(SPACE_M as i8, 0))
+            .inner_margin(Margin::symmetric(SPACE_3 as i8, 0))
             .stroke(egui::Stroke::new(STROKE_WIDTH, t.border.default))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {

@@ -1,20 +1,16 @@
 //! Command palette: Cmd+Shift+P searchable list of all commands.
 
-use crate::app::components::dialog::{self, DialogSpec};
+use crate::app::components::dialog::{DialogSpec, self};
 use crate::app::GuiShell;
 use crate::app::commands::ViewAction;
-use crate::app::commands::{
-    ActorCommand, DocumentCommand, PlaybackCommand, ShellAction, ViewCommand,
-};
+use crate::app::commands::{ActorCommand, DocumentCommand, PlaybackCommand, ShellAction, ViewCommand};
 use crate::app::design_tokens::semantic::accent;
 use crate::app::design_tokens::semantic::border;
 use crate::app::design_tokens::semantic::surface;
 
 use crate::app::design_tokens::semantic::text;
 
-use crate::app::design_tokens::spatial::{
-    RADIUS_M, ROW_M, SPACE_M, SPACE_S, STROKE_WIDTH,
-};
+use crate::app::design_tokens::spatial::{RADIUS_M, ROW_M, SPACE_2, SPACE_3, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 
 struct PaletteItem {
@@ -36,7 +32,7 @@ impl GuiShell {
 
         let open = dialog::modal(ui, &spec, |ui, _dc| -> bool {
             let close = dialog::title_row(ui, "Command Palette");
-            ui.add_space(SPACE_M);
+            ui.add_space(SPACE_3);
 
             // Search input
             let search_resp = ui.add(
@@ -47,9 +43,9 @@ impl GuiShell {
                     .id_source("cmd_palette_search"),
             );
             search_resp.request_focus();
-            ui.add_space(SPACE_M);
+            ui.add_space(SPACE_3);
             ui.separator();
-            ui.add_space(SPACE_S);
+            ui.add_space(SPACE_2);
 
             let query = self.ui_store.command_palette_query.to_lowercase();
             let items = self.build_palette_items();

@@ -28,16 +28,14 @@ use egui::{Align2, Color32, CornerRadius, Id, Margin, Pos2, Rect, Sense, Stroke,
 
 use crate::tokens::theme;
 use crate::tokens::spatial::{RADIUS_M, RADIUS_S};
-use crate::tokens::spatial::{
-    ROW_M, ROW_S, SPACE_L, SPACE_M, SPACE_S, STROKE_WIDTH, menu as menu_spatial,
-};
+use crate::tokens::spatial::{ROW_M, ROW_S, SPACE_2, SPACE_3, SPACE_4, STROKE_WIDTH, menu as menu_spatial};
 use crate::tokens::typography::TextRole;
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const MENU_ITEM_HEIGHT: f32 = ROW_M; // 24.0
-const MENU_ICON_GAP: f32 = SPACE_S; // 4.0
-const MENU_SHORTCUT_GAP: f32 = SPACE_L; // 8.0
+const MENU_ICON_GAP: f32 = SPACE_2; // 4.0
+const MENU_SHORTCUT_GAP: f32 = SPACE_4; // 8.0
 
 // ─── Data Types ─────────────────────────────────────────────────────────────
 
@@ -111,7 +109,7 @@ impl MenuLayout {
                 }
             }
         }
-        let mut text_left = SPACE_M;
+        let mut text_left = SPACE_3;
         if check_col {
             text_left += menu_spatial::CHECK_WIDTH + MENU_ICON_GAP;
         }
@@ -166,7 +164,7 @@ pub fn render_menu(ui: &mut Ui, entries: &[MenuEntry]) -> Option<usize> {
                 );
                 needed += MENU_SHORTCUT_GAP + sc_galley.size().x;
             }
-            content_width = content_width.max(needed + SPACE_M * 2.0);
+            content_width = content_width.max(needed + SPACE_3 * 2.0);
         }
     }
 
@@ -233,7 +231,7 @@ fn menu_frame(t: &theme::Theme) -> egui::Frame {
         .fill(t.surface.surface)
         .stroke(Stroke::new(STROKE_WIDTH, t.border.default))
         .corner_radius(CornerRadius::same(RADIUS_M as u8))
-        .inner_margin(Margin::same(SPACE_S as i8))
+        .inner_margin(Margin::same(SPACE_2 as i8))
         .shadow(egui::Shadow {
             offset: [0, menu_spatial::SHADOW_OFFSET_Y],
             blur: menu_spatial::SHADOW_BLUR as u8,
@@ -278,7 +276,7 @@ fn render_menu_item(
     }
 
     let baseline_y = rect.center().y;
-    let mut cursor_x = rect.min.x + SPACE_M;
+    let mut cursor_x = rect.min.x + SPACE_3;
 
     // ── Checkmark column ──
     if layout.check_col {
@@ -342,7 +340,7 @@ fn render_menu_item(
             t.text.muted
         };
         ui.painter().text(
-            egui::pos2(rect.max.x - SPACE_M, baseline_y),
+            egui::pos2(rect.max.x - SPACE_3, baseline_y),
             Align2::RIGHT_CENTER,
             sc,
             TextRole::BodyS.font_id(),
@@ -359,7 +357,7 @@ fn render_menu_header(ui: &mut Ui, text: &str, content_width: f32, t: &theme::Th
     let (rect, _) = ui.allocate_exact_size(Vec2::new(content_width, ROW_S), Sense::hover());
 
     ui.painter().text(
-        egui::pos2(rect.min.x + SPACE_M, rect.center().y),
+        egui::pos2(rect.min.x + SPACE_3, rect.center().y),
         Align2::LEFT_CENTER,
         text,
         TextRole::Micro.font_id(),
@@ -368,14 +366,54 @@ fn render_menu_header(ui: &mut Ui, text: &str, content_width: f32, t: &theme::Th
 }
 
 fn render_menu_separator(ui: &mut Ui, content_width: f32, t: &theme::Theme) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(content_width, SPACE_M + 1.0), Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(content_width, SPACE_3 + 1.0), Sense::hover());
 
     let y = rect.center().y;
     ui.painter().line_segment(
         [
-            egui::pos2(rect.min.x + SPACE_M, y),
-            egui::pos2(rect.max.x - SPACE_M, y),
+            egui::pos2(rect.min.x + SPACE_3, y),
+            egui::pos2(rect.max.x - SPACE_3, y),
         ],
         Stroke::new(STROKE_WIDTH, t.border.default),
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn menu_entry_item_with_icon() {
+        let entry = MenuEntry::item_with_icon("COPY", "Copy");
+        match entry {
+            MenuEntry::Item { icon, label, shortcut, checked, enabled } => {
+                assert_eq!(icon, Some("COPY"));
+                assert_eq!(label, "Copy");
+                assert!(shortcut.is_none());
+                assert!(!checked);
+                assert!(enabled);
+            }
+            _ => panic!("expected Item variant"),
+        }
+    }
+
+    #[test]
+    fn menu_entry_header() {
+        let entry = MenuEntry::header("Section");
+        match entry {
+            MenuEntry::Header(label) => {
+                assert_eq!(label, "Section");
+            }
+            _ => panic!("expected Header variant"),
+        }
+    }
+
+    #[test]
+    fn menu_entry_separator() {
+        let entry = MenuEntry::separator();
+        match entry {
+            MenuEntry::Separator => {}
+            _ => panic!("expected Separator variant"),
+        }
+    }
 }

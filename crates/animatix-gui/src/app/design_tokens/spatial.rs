@@ -2,7 +2,7 @@
 //! and domain-specific layout dimensions.
 //!
 //! Generic spatial constants (`SPACE_*`, `ROW_*`, `RADIUS_*`, `STROKE_*`,
-//! legacy aliases, `component`) are individually re-exported from
+//! `component`) are individually re-exported from
 //! `eparts::tokens::spatial`. App-specific submodules (`preview`, `timeline`,
 //! `inspector`, `toolbar`, `welcome`, `dialog`) are defined inline
 //! below.
@@ -25,19 +25,6 @@ pub use eparts::tokens::spatial::SPACE_5;
 pub use eparts::tokens::spatial::SPACE_6;
 pub use eparts::tokens::spatial::SPACE_7;
 pub use eparts::tokens::spatial::SPACE_8;
-
-// Legacy aliases
-pub use eparts::tokens::spatial::PAD_XXL;
-pub use eparts::tokens::spatial::PAD_L;
-pub use eparts::tokens::spatial::PAD_M;
-pub use eparts::tokens::spatial::PAD_S;
-pub use eparts::tokens::spatial::PAD_XL;
-pub use eparts::tokens::spatial::PAD_XS;
-pub use eparts::tokens::spatial::SPACE_XL;
-pub use eparts::tokens::spatial::SPACE_XS;
-pub use eparts::tokens::spatial::SPACE_L;
-pub use eparts::tokens::spatial::SPACE_M;
-pub use eparts::tokens::spatial::SPACE_S;
 
 // Row heights
 pub use eparts::tokens::spatial::ROW_L;

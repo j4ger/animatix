@@ -1,6 +1,6 @@
 use egui::{Sense, Vec2};
 
-use crate::tokens::spatial::{RADIUS_M, SPACE_S, STROKE_WIDTH};
+use crate::tokens::spatial::{RADIUS_M, SPACE_2, STROKE_WIDTH};
 use crate::tokens::theme::theme;
 
 /// Draws a diamond-shaped keyframe marker.
@@ -51,7 +51,7 @@ impl<'a> TimelineStrip<'a> {
         let (rect, response) = ui.allocate_exact_size(desired, Sense::click_and_drag());
         let painter = ui.painter_at(rect);
 
-        let track = rect.shrink2(Vec2::new(SPACE_S, 3.0));
+        let track = rect.shrink2(Vec2::new(SPACE_2, 3.0));
         painter.rect_filled(track, RADIUS_M, t.surface.widget);
         painter.rect_stroke(
             track,

@@ -28,7 +28,7 @@
 //! ```
 
 use crate::tokens::theme::theme;
-use crate::tokens::spatial::{RADIUS_M, SPACE_2, SPACE_M, STROKE_WIDTH};
+use crate::tokens::spatial::{RADIUS_M, SPACE_2, SPACE_3, STROKE_WIDTH};
 use egui::{Area, CornerRadius, Id, Margin, Order, Response, Stroke, Ui, Vec2};
 
 use std::time::Duration;
@@ -165,7 +165,7 @@ impl Tooltip {
                     .fill(t.overlay.tooltip_bg)
                     .stroke(Stroke::new(STROKE_WIDTH, t.border.default))
                     .corner_radius(CornerRadius::same(RADIUS_M as u8))
-                    .inner_margin(Margin::same(SPACE_M as i8))
+                    .inner_margin(Margin::same(SPACE_3 as i8))
                     .show(ui, add_contents);
             });
 

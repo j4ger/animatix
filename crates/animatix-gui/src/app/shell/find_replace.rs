@@ -8,7 +8,7 @@ use crate::app::design_tokens::semantic::surface;
 
 use crate::app::design_tokens::semantic::text;
 
-use crate::app::design_tokens::spatial::{ROW_M, SPACE_M, SPACE_S};
+use crate::app::design_tokens::spatial::{ROW_M, SPACE_2, SPACE_3};
 use crate::app::design_tokens::typography::TextRole;
 
 impl GuiShell {
@@ -18,9 +18,9 @@ impl GuiShell {
 
         let open = dialog::modal(ui, &spec, |ui, _dc| -> bool {
             let close = dialog::title_row(ui, "Find & Replace");
-            ui.add_space(SPACE_M);
+            ui.add_space(SPACE_3);
             ui.separator();
-            ui.add_space(SPACE_M);
+            ui.add_space(SPACE_3);
 
                 ui.label(
                     egui::RichText::new("Find").size(TextRole::BodyS.size()).color(text::SECONDARY),
@@ -30,7 +30,7 @@ impl GuiShell {
                         .desired_width(f32::INFINITY)
                         .hint_text("Search term…"),
                 );
-                ui.add_space(SPACE_S);
+                ui.add_space(SPACE_2);
 
                 ui.label(
                     egui::RichText::new("Replace with")
@@ -42,7 +42,7 @@ impl GuiShell {
                         .desired_width(f32::INFINITY)
                         .hint_text("Replacement…"),
                 );
-                ui.add_space(SPACE_M);
+                ui.add_space(SPACE_3);
 
                 ui.horizontal(|ui| {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {

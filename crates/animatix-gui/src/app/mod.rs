@@ -22,29 +22,19 @@ pub(crate) mod stores;
 mod utils;
 
 use crate::app::design_tokens::semantic::{accent, border, status, surface, text};
-use crate::app::design_tokens::spatial::welcome::{
-    BTN_HEIGHT as WELCOME_BTN_HEIGHT, TOP_OFFSET_FRAC as WELCOME_TOP_OFFSET_FRAC,
-};
-use crate::app::design_tokens::spatial::{
-    RADIUS_L, RADIUS_M, RADIUS_S, ROW_L, SPACE_L, SPACE_M, SPACE_S, SPACE_XL,
-    STROKE_WIDTH,
-};
+use crate::app::design_tokens::spatial::welcome::{BTN_HEIGHT as WELCOME_BTN_HEIGHT, TOP_OFFSET_FRAC as WELCOME_TOP_OFFSET_FRAC};
+use crate::app::design_tokens::spatial::{RADIUS_L, RADIUS_M, RADIUS_S, ROW_L, SPACE_2, SPACE_3, SPACE_4, SPACE_5, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use crate::document::{DocumentSession, default_file_path};
 use crate::editor::EditorBuffer;
 use crate::hot_reload::{HotReloader, ReloadStatus};
 use crate::preview_surface::PreviewSurface;
 use animatix::timeline::SceneDimensions;
-use animatix_syntax::diagnostics::{
-    Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_phase_summary,
-};
+use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_phase_summary};
 use directories::ProjectDirs;
 use egui::{Color32, Stroke, Vec2};
 use file_tree::{build_file_tree, workspace_root_for};
-use persistence::{
-    SettingsPersistence, WorkspacePersistence, default_tree, load_workspace_persistence,
-    persistence_path,
-};
+use persistence::{SettingsPersistence, WorkspacePersistence, default_tree, load_workspace_persistence, persistence_path};
 #[cfg(test)]
 use preview::fit_preview;
 
@@ -602,7 +592,7 @@ impl GuiShell {
                     ui.set_width(ui.available_width());
                     if diagnostics.is_empty() {
                         ui.vertical_centered(|ui| {
-                            ui.add_space(SPACE_L);
+                            ui.add_space(SPACE_4);
                             ui.label(
                                 egui::RichText::new(format!(
                                 "No diagnostics — all clear {}",
@@ -655,7 +645,7 @@ impl GuiShell {
                                 egui::FontId::new(10.0, egui::FontFamily::Proportional),
                                 status::DIAGNOSTIC_ERROR,
                             );
-                            ui.add_space(SPACE_S);
+                            ui.add_space(SPACE_2);
                         }
                         let color = if is_error {
                             status::DIAGNOSTIC_ERROR
@@ -789,7 +779,7 @@ impl GuiShell {
                             egui::FontId::proportional(28.0), // 28px welcome icon: no TextRole
                             accent::PRIMARY,
                         );
-                        ui.add_space(SPACE_XL * 1.5);
+                        ui.add_space(SPACE_5 * 1.5);
 
                         // Title
                         ui.label(
@@ -798,7 +788,7 @@ impl GuiShell {
                                 .color(text::PRIMARY)
                                 .strong(),
                         );
-                        ui.add_space(SPACE_S);
+                        ui.add_space(SPACE_2);
 
                         // Subtitle
                         ui.label(
@@ -806,7 +796,7 @@ impl GuiShell {
                                 .size(TextRole::Body.size())
                                 .color(text::SECONDARY),
                         );
-                        ui.add_space(SPACE_XL * 2.5);
+                        ui.add_space(SPACE_5 * 2.5);
 
                         let btn_w = ui.available_width();
 
@@ -838,7 +828,7 @@ impl GuiShell {
                             commands.push_back(DocumentCommand::OpenFile(path).into());
                         }
 
-                        ui.add_space(SPACE_M);
+                        ui.add_space(SPACE_3);
 
                         // Secondary: open existing file
                         let open_resp = ui.add_sized(
@@ -863,7 +853,7 @@ impl GuiShell {
                             }
                         }
 
-                        ui.add_space(SPACE_M);
+                        ui.add_space(SPACE_3);
 
                         // Tertiary: open workspace
                         let ws_resp = ui.add_sized(
@@ -1087,22 +1077,22 @@ impl GuiShell {
             let title_close = dialog::title_row(ui, "Switch Workspace");
             let mut body_close = false;
 
-            ui.add_space(SPACE_M);
+            ui.add_space(SPACE_3);
             ui.separator();
-            ui.add_space(SPACE_M);
+            ui.add_space(SPACE_3);
 
             ui.label(
                 egui::RichText::new("Directory path")
                     .size(TextRole::BodyS.size())
                     .color(text::SECONDARY),
             );
-            ui.add_space(SPACE_S);
+            ui.add_space(SPACE_2);
             ui.add(
                 egui::TextEdit::singleline(&mut self.ui_store.workspace_switcher_path)
                     .desired_width(f32::INFINITY)
                     .hint_text("/path/to/workspace"),
             );
-            ui.add_space(SPACE_M);
+            ui.add_space(SPACE_3);
 
             ui.horizontal(|ui| {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -1161,9 +1151,9 @@ impl GuiShell {
             );
             let mut body_close = false;
 
-            ui.add_space(SPACE_M);
+            ui.add_space(SPACE_3);
             ui.separator();
-            ui.add_space(SPACE_M);
+            ui.add_space(SPACE_3);
 
             ui.add(
                 egui::Label::new(
@@ -1173,7 +1163,7 @@ impl GuiShell {
                 )
                 .selectable(false),
             );
-            ui.add_space(SPACE_XL);
+            ui.add_space(SPACE_5);
 
             ui.horizontal(|ui| {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {

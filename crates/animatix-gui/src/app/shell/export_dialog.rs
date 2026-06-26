@@ -13,10 +13,7 @@ use crate::app::design_tokens::semantic::surface;
 
 use crate::app::design_tokens::semantic::text;
 
-use crate::app::design_tokens::spatial::{
-    RADIUS_M, RADIUS_S, RADIUS_XL, ROW_L, ROW_M, SPACE_L, SPACE_M, SPACE_S, SPACE_XL, SPACE_XS,
-    STROKE_WIDTH,
-};
+use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, RADIUS_XL, ROW_L, ROW_M, SPACE_1, SPACE_2, SPACE_3, SPACE_4, SPACE_5, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::document::export_target::ExportScope;
 use crate::app::utils::text::truncate_chars;
@@ -138,7 +135,7 @@ impl GuiShell {
         if is_running {
             self.render_export_progress_overlay(ui, dialog_rect);
         } else {
-            let content_rect = dialog_rect.shrink(SPACE_XL);
+            let content_rect = dialog_rect.shrink(SPACE_5);
             let mut cursor_y = content_rect.top();
 
             // ── Title row ──
@@ -174,7 +171,7 @@ impl GuiShell {
                 self.export_store.export_dialog_open = false;
             }
 
-            cursor_y += ROW_L + SPACE_L;
+            cursor_y += ROW_L + SPACE_4;
 
             // Divider
             ui.painter().line_segment(
@@ -184,7 +181,7 @@ impl GuiShell {
                 ],
                 Stroke::new(STROKE_WIDTH, border::DEFAULT),
             );
-            cursor_y += SPACE_L;
+            cursor_y += SPACE_4;
 
             // ── Format tabs ──
             let tabs = [
@@ -209,7 +206,7 @@ impl GuiShell {
                     }
                 }
             });
-            cursor_y += ROW_M + SPACE_M;
+            cursor_y += ROW_M + SPACE_3;
 
             // ── Settings content ──
             let settings_rect = egui::Rect::from_min_size(
@@ -217,15 +214,15 @@ impl GuiShell {
                 Vec2::new(content_rect.width(), content_rect.bottom() - cursor_y - 54.0),
             );
             ui.scope_builder(egui::UiBuilder::new().max_rect(settings_rect), |ui| {
-                ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_M);
+                ui.spacing_mut().item_spacing = Vec2::new(0.0, SPACE_3);
                 self.render_export_settings(ui);
             });
 
             // ── Status / action bar ──
-            cursor_y = content_rect.bottom() - (ROW_L + SPACE_L);
+            cursor_y = content_rect.bottom() - (ROW_L + SPACE_4);
             let action_rect = egui::Rect::from_min_size(
                 egui::pos2(content_rect.left(), cursor_y),
-                Vec2::new(content_rect.width(), ROW_L + SPACE_M),
+                Vec2::new(content_rect.width(), ROW_L + SPACE_3),
             );
             ui.scope_builder(egui::UiBuilder::new().max_rect(action_rect), |ui| {
                 self.render_export_action_bar(ui);
@@ -239,7 +236,7 @@ impl GuiShell {
         // Keep spinner animating
         ui.ctx().request_repaint();
 
-        let content_rect = dialog_rect.shrink(SPACE_XL);
+        let content_rect = dialog_rect.shrink(SPACE_5);
         let center_y = content_rect.center().y;
         let spinner_center = egui::pos2(content_rect.center().x, center_y - 36.0);
 
@@ -425,7 +422,7 @@ impl GuiShell {
                 });
                 *width = w_f32 as u32;
 
-                ui.add_space(SPACE_S);
+                ui.add_space(SPACE_2);
 
                 let mut h_f32 = *height as f32;
                 layout::field_sized(ui, Some(78.0), |ui| {
@@ -438,7 +435,7 @@ impl GuiShell {
                 });
                 *height = h_f32 as u32;
 
-                ui.add_space(SPACE_S);
+                ui.add_space(SPACE_2);
 
                 if scene_dims.width > 0 && scene_dims.height > 0 {
                     let resp = ui.add(
@@ -456,7 +453,7 @@ impl GuiShell {
                 }
             });
 
-            ui.add_space(SPACE_XS);
+            ui.add_space(SPACE_1);
 
             // ── Quality presets ──
             Self::settings_row(ui, "Presets", |ui| {
@@ -486,7 +483,7 @@ impl GuiShell {
                 }
             });
 
-            ui.add_space(SPACE_XS);
+            ui.add_space(SPACE_1);
 
             // ── Format-specific settings ──
             match format {
@@ -503,7 +500,7 @@ impl GuiShell {
                         });
                         *time_s = t;
 
-                        ui.add_space(SPACE_S);
+                        ui.add_space(SPACE_2);
 
                         let resp = ui.add(
                             egui::Label::new(
@@ -545,7 +542,7 @@ impl GuiShell {
                         );
 
                         if *auto_duration {
-                            ui.add_space(SPACE_S);
+                            ui.add_space(SPACE_2);
                             ui.label(
                                 RichText::new("Hold:")
                                     .size(TextRole::BodyS.size())
@@ -563,7 +560,7 @@ impl GuiShell {
                             });
                             *hold_s = hold;
                         } else {
-                            ui.add_space(SPACE_S);
+                            ui.add_space(SPACE_2);
 
                             let mut dur = *duration_s;
                             layout::field_sized(ui, Some(80.0), |ui| {
@@ -604,7 +601,7 @@ impl GuiShell {
                 },
             }
 
-            ui.add_space(SPACE_S);
+            ui.add_space(SPACE_2);
 
             // ── Output path ──
             Self::settings_row(ui, "Output", |ui| {
@@ -636,7 +633,7 @@ impl GuiShell {
                     self.update_default_export_filename();
                 }
             });
-            ui.add_space(SPACE_S);
+            ui.add_space(SPACE_2);
         }
 
         // Default filename hint
@@ -658,7 +655,7 @@ impl GuiShell {
             ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
 
         let label_width = (available * 0.32).clamp(70.0, 110.0);
-        let content_left = row_rect.min.x + label_width + SPACE_L;
+        let content_left = row_rect.min.x + label_width + SPACE_4;
 
         // Label (left side)
         let label_rect = egui::Rect::from_min_max(

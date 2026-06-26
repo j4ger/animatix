@@ -17,9 +17,7 @@ use crate::app::design_tokens::semantic::surface;
 
 use crate::app::design_tokens::semantic::text;
 
-use crate::app::design_tokens::spatial::{
-    RADIUS_M, RADIUS_S, RADIUS_XL, SPACE_L, SPACE_M, SPACE_S, STROKE_WIDTH,
-};
+use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, RADIUS_XL, SPACE_2, SPACE_3, SPACE_4, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::insertion::{InsertionContext, InsertionRequest};
 
@@ -317,7 +315,7 @@ impl GuiShell {
         // Content
         let mut content = ui.new_child(egui::UiBuilder::new().max_rect(palette_rect));
         content.set_clip_rect(palette_rect);
-        content.add_space(SPACE_L);
+        content.add_space(SPACE_4);
 
         // Title + close
         content.horizontal(|ui| {
@@ -333,7 +331,7 @@ impl GuiShell {
                 }
             });
         });
-        content.add_space(SPACE_M);
+        content.add_space(SPACE_3);
 
         // ── Component parameter form ──────────────────────────────
         if let Some(ref mut form) = self.insertion_palette.param_form {
@@ -344,7 +342,7 @@ impl GuiShell {
                     .color(text::PRIMARY)
                     .strong(),
             );
-            content.add_space(SPACE_M);
+            content.add_space(SPACE_3);
             for (param_name, param_type, param_value) in &mut form.params {
                 content.horizontal(|ui| {
                     // Parameter name + type hint
@@ -401,9 +399,9 @@ impl GuiShell {
                         },
                     }
                 });
-                content.add_space(SPACE_S);
+                content.add_space(SPACE_2);
             }
-            content.add_space(SPACE_M);
+            content.add_space(SPACE_3);
             let mut should_insert = false;
             let mut should_back = false;
             content.horizontal(|ui| {
@@ -524,7 +522,7 @@ impl GuiShell {
         if query_response.changed() {
             self.insertion_palette.rebuild_filter();
         }
-        content.add_space(SPACE_M);
+        content.add_space(SPACE_3);
 
         // Mode tabs
         content.horizontal(|ui| {
@@ -566,7 +564,7 @@ impl GuiShell {
                 }
             }
         });
-        content.add_space(SPACE_M);
+        content.add_space(SPACE_3);
 
         // Keyboard navigation
         let mut enter_pressed = false;
@@ -610,7 +608,7 @@ impl GuiShell {
         }
 
         // Item list
-        let available_h = palette_rect.max.y - content.cursor().min.y - SPACE_L;
+        let available_h = palette_rect.max.y - content.cursor().min.y - SPACE_4;
         let item_h = 36.0f32;
 
         let mut clicked_item: Option<PaletteItem> = None;
@@ -649,7 +647,7 @@ impl GuiShell {
                         ui.label(
                             RichText::new(&item.icon).size(TextRole::Body.size()).color(item.color),
                         );
-                        ui.add_space(SPACE_S);
+                        ui.add_space(SPACE_2);
                         ui.vertical(|ui| {
                             ui.label(
                                 RichText::new(&item.label)

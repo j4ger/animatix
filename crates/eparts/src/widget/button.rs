@@ -1,6 +1,6 @@
 use egui::{Color32, Response, Sense, Vec2};
 
-use crate::tokens::spatial::{RADIUS_M, RADIUS_S, ROW_M, SPACE_M, STROKE_WIDTH};
+use crate::tokens::spatial::{RADIUS_M, RADIUS_S, ROW_M, SPACE_3, STROKE_WIDTH};
 use crate::tokens::theme;
 use crate::tokens::typography::TextRole;
 use crate::widget::spinner::Spinner;
@@ -228,7 +228,7 @@ impl egui::Widget for Button {
             },
             ButtonVariant::Ghost => {
                 let icon_width = icon_galley.as_ref().map_or(0.0, |g| g.size().x);
-                let mut width = icon_width + SPACE_M * 2.0;
+                let mut width = icon_width + SPACE_3 * 2.0;
                 let mut label_galley = None;
                 if let Some(l) = label {
                     let galley = ui.painter().layout_no_wrap(
@@ -277,7 +277,7 @@ impl egui::Widget for Button {
                         self.icon_color.unwrap_or(slot.fg)
                     };
 
-                    let mut cursor_x = rect.min.x + SPACE_M;
+                    let mut cursor_x = rect.min.x + SPACE_3;
                     let baseline_y = rect.center().y;
 
                     if let Some(icon) = self.icon {
@@ -325,9 +325,9 @@ impl egui::Widget for Button {
             },
             ButtonVariant::Primary => {
                 let icon_width = icon_galley.as_ref().map_or(0.0, |g| g.size().x);
-                let mut width = SPACE_M * 2.0;
+                let mut width = SPACE_3 * 2.0;
                 if icon_width > 0.0 {
-                    width += icon_width + SPACE_M;
+                    width += icon_width + SPACE_3;
                 }
                 let label_str = label;
                 if let Some(l) = label_str {
@@ -353,7 +353,7 @@ impl egui::Widget for Button {
                 ui.painter().rect_filled(rect, radius, slot.bg);
 
                 if !self.loading {
-                    let mut cursor_x = rect.min.x + SPACE_M;
+                    let mut cursor_x = rect.min.x + SPACE_3;
                     let baseline_y = rect.center().y;
 
                     if icon_width > 0.0 {
@@ -372,7 +372,7 @@ impl egui::Widget for Button {
                                 icon_font,
                                 icon_fg,
                             );
-                            cursor_x += icon_width + SPACE_M;
+                            cursor_x += icon_width + SPACE_3;
                         }
                     }
 

@@ -1,21 +1,13 @@
-use crate::app::commands::{
-    ActionQueue, DocumentCommand, KeyframeCommand, PropertyEdit, PropertyValue, ShellAction,
-    ViewAction,
-};
+use crate::app::commands::{ActionQueue, DocumentCommand, KeyframeCommand, PropertyEdit, PropertyValue, ShellAction, ViewAction};
 use crate::app::components::button::Button;
 use crate::app::design_tokens::semantic::border;
 use crate::app::design_tokens::semantic::status;
 use crate::app::design_tokens::semantic::surface;
 use crate::app::design_tokens::semantic::text;
-use crate::app::design_tokens::spatial::{
-    RADIUS_L, RADIUS_S, ROW_L, SPACE_M, SPACE_S, STROKE_WIDTH,
-};
+use crate::app::design_tokens::spatial::{RADIUS_L, RADIUS_S, ROW_L, SPACE_2, SPACE_3, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::preview::{ActorProps, PreviewTransform};
-use animatix::timeline::{
-    lookup_property, PropertyValue as TlPropertyValue, SceneDimensions, Timeline,
-    read_property_value_or_default,
-};
+use animatix::timeline::{PropertyValue as TlPropertyValue, SceneDimensions, Timeline, lookup_property, read_property_value_or_default};
 use egui::{Color32, Pos2, Rect, RichText, Sense, Stroke, Vec2};
 /// Show the property popup attached to a selected actor.
 ///
@@ -64,7 +56,7 @@ pub fn show_property_popup(
         egui::StrokeKind::Outside,
     );
     // Build child UI for content
-    let mut content = ui.new_child(egui::UiBuilder::new().max_rect(popup_rect.shrink(SPACE_M)));
+    let mut content = ui.new_child(egui::UiBuilder::new().max_rect(popup_rect.shrink(SPACE_3)));
     content.set_clip_rect(popup_rect);
     // ── Header: actor name + close (draggable) ──
     let header_h = ROW_L; // 28px - comfortable height for header
@@ -85,7 +77,7 @@ pub fn show_property_popup(
         ui.painter().rect_filled(header_rect, RADIUS_S as u8, surface::HOVER);
     }
     // Subtle drag handle indicator (6 dots) on the left side of header
-    let handle_center = Pos2::new(header_rect.min.x + SPACE_S + 4.0, header_rect.center().y);
+    let handle_center = Pos2::new(header_rect.min.x + SPACE_2 + 4.0, header_rect.center().y);
     let dot_color = if header_resp.hovered() {
         text::MUTED
     } else {
@@ -101,11 +93,11 @@ pub fn show_property_popup(
         }
     }
     // Header content with proper padding
-    let header_content_rect = header_rect.shrink2(Vec2::new(SPACE_S, 0.0));
+    let header_content_rect = header_rect.shrink2(Vec2::new(SPACE_2, 0.0));
     let mut header_ui = ui.new_child(egui::UiBuilder::new().max_rect(header_content_rect));
     header_ui.set_clip_rect(header_content_rect);
     header_ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing = Vec2::new(SPACE_S, 0.0);
+        ui.spacing_mut().item_spacing = Vec2::new(SPACE_2, 0.0);
         ui.label(RichText::new(actor).size(TextRole::Body.size()).color(text::PRIMARY).strong());
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if ui.add(Button::icon(egui_phosphor::regular::X).with_tooltip("Close")).clicked() {
@@ -113,7 +105,7 @@ pub fn show_property_popup(
             }
         });
     });
-    content.add_space(header_h + SPACE_S);
+    content.add_space(header_h + SPACE_2);
     // ── Property rows ──
     let time_ms = (current_time_s * 1000.0) as u64;
     // Read opacity from timeline
@@ -131,7 +123,7 @@ pub fn show_property_popup(
         .unwrap_or(1.0);
     let content_rect = Rect::from_min_max(
         content.cursor().min,
-        Pos2::new(popup_rect.max.x - SPACE_M, popup_rect.max.y - SPACE_M),
+        Pos2::new(popup_rect.max.x - SPACE_3, popup_rect.max.y - SPACE_3),
     );
     let mut rows_ui = ui.new_child(egui::UiBuilder::new().max_rect(content_rect));
     rows_ui.set_clip_rect(content_rect);
@@ -306,7 +298,7 @@ fn popup_property_row(
     // Value area (right-aligned, interactive)
     let value_area_width = 100.0;
     let value_rect = Rect::from_min_size(
-        Pos2::new(row_rect.max.x - value_area_width - SPACE_S, row_rect.min.y),
+        Pos2::new(row_rect.max.x - value_area_width - SPACE_2, row_rect.min.y),
         Vec2::new(value_area_width, row_h),
     );
     // Format value string

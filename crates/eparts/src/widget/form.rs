@@ -9,7 +9,7 @@
 
 use egui::{Align, Layout, Vec2};
 
-use crate::tokens::spatial::SPACE_M;
+use crate::tokens::spatial::SPACE_3;
 use crate::tokens::theme::theme;
 use crate::tokens::typography::TextRole;
 use crate::widget::label::Label;
@@ -21,7 +21,7 @@ use crate::widget::label::Label;
 ///
 /// ## Examples
 /// ```ignore
-/// # use eparts::widget::{Form, Field};
+/// # use eparts::widget::{Field, Form};
 /// # use eparts::tokens::typography::TextRole;
 /// Form::new("settings_form")
 ///     .label_width(120.0)
@@ -66,7 +66,7 @@ impl Form {
     /// Show the form, yielding a [`Field`] builder for each row.
     pub fn show(self, ui: &mut egui::Ui, f: impl FnOnce(&mut Field)) {
         ui.vertical(|ui| {
-            ui.spacing_mut().item_spacing.y = SPACE_M;
+            ui.spacing_mut().item_spacing.y = SPACE_3;
             let mut field = Field {
                 ui,
                 label_width: self.label_width,
@@ -80,7 +80,7 @@ impl Form {
 ///
 /// ## Examples
 /// ```ignore
-/// # use eparts::widget::{Form, Field};
+/// # use eparts::widget::{Field, Form};
 /// # let ui = &mut egui::Ui::dummy();
 /// Form::new("f").show(ui, |f: &mut Field| {
 ///     f.field("Name", |ui| {});
@@ -132,7 +132,7 @@ impl<'a> Field<'a> {
                     );
                 }
             );
-            ui.add_space(SPACE_M);
+            ui.add_space(SPACE_3);
             add_contents(ui);
         });
     }

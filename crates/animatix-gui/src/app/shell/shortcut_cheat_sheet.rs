@@ -4,7 +4,7 @@ use crate::app::components::{self};
 use crate::app::design_tokens::semantic::accent;
 use crate::app::design_tokens::semantic::text;
 
-use crate::app::design_tokens::spatial::{dialog as dialog_token, ROW_S, SPACE_M, SPACE_XS};
+use crate::app::design_tokens::spatial::{ROW_S, SPACE_1, SPACE_3, dialog as dialog_token};
 use crate::app::design_tokens::typography::TextRole;
 
 use crate::app::GuiShell;
@@ -83,9 +83,9 @@ impl GuiShell {
 
         let open = components::dialog::modal(ui, &spec, |ui, _dc| -> bool {
             let close = components::dialog::title_row(ui, "Keyboard Shortcuts");
-            ui.add_space(SPACE_M);
+            ui.add_space(SPACE_3);
             ui.separator();
-            ui.add_space(SPACE_M);
+            ui.add_space(SPACE_3);
 
             egui::ScrollArea::vertical()
                 .max_height(ui.available_height())
@@ -129,12 +129,12 @@ fn shortcut_column(ui: &mut egui::Ui, groups: &[(&str, &[(&str, &str)])], width:
                     .color(accent::PRIMARY)
                     .strong(),
             );
-            ui.add_space(SPACE_XS);
+            ui.add_space(SPACE_1);
 
             for (key, desc) in *shortcuts {
                 shortcut_row(ui, key, desc, width);
             }
-            ui.add_space(SPACE_M);
+            ui.add_space(SPACE_3);
         }
     });
 }
