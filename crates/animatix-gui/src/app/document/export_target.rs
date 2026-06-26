@@ -40,11 +40,10 @@ impl<'a> ExportTargetRef<'a> {
 
 /// Owned export target for background export threads.
 ///
-/// Only constructed/consumed by the video export path, so it is gated behind
-/// the `video` feature to avoid dead-code warnings in the default build.
-#[cfg(feature = "video")]
+/// Used by both the image and video export paths, so it must be available
+/// without the `video` feature.  (Keep the allow; image export also hits
+/// this enum, making the large-variant warning a real, intentional cost.)
 #[derive(Clone)]
-#[allow(clippy::large_enum_variant)] // Timeline is only used in the export path; boxing would add unnecessary indirection.
 pub enum ExportTargetOwned {
     Timeline(Timeline),
     Composition(Composition),

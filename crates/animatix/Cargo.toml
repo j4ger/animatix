@@ -7,7 +7,7 @@ rust-version = "1.85"
 [features]
 default = ["render", "text", "svg"]
 render = ["dep:wgpu", "dep:vello", "dep:bytemuck", "dep:pollster", "dep:image"]
-video = ["dep:rsmpeg", "dep:image"]
+video = ["render", "dep:rsmpeg"]
 text = ["dep:typst", "dep:typst-layout", "dep:fontdb", "dep:ttf-parser"]
 svg = ["dep:usvg", "dep:roxmltree"]
 serde = ["dep:serde", "animatix-syntax/serde"]

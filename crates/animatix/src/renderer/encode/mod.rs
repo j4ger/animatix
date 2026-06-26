@@ -7,25 +7,31 @@
 //!
 //! Sub-modules contain the actual encoding implementations for each format.
 
+#[cfg(feature = "video")]
 pub mod gif;
 pub mod image;
+#[cfg(feature = "video")]
 pub mod video;
 
+pub use image::{
+    render_image, render_image_composition, render_image_timeline,
+    render_image_timeline_with_debug, render_image_timeline_with_progress,
+};
+
+#[cfg(feature = "video")]
 pub use self::video::{
     render_video, render_video_composition, render_video_composition_with_progress,
     render_video_composition_with_settings, render_video_timeline,
     render_video_timeline_with_debug, render_video_timeline_with_progress,
     render_video_timeline_with_settings,
 };
+
+#[cfg(feature = "video")]
 pub use gif::{
     render_gif_composition, render_gif_composition_with_progress,
     render_gif_composition_with_settings, render_gif_timeline,
     render_gif_timeline_with_debug, render_gif_timeline_with_progress,
     render_gif_timeline_with_settings,
-};
-pub use image::{
-    render_image, render_image_composition, render_image_timeline,
-    render_image_timeline_with_debug, render_image_timeline_with_progress,
 };
 // ---------------------------------------------------------------------------
 // Error types
@@ -59,6 +65,8 @@ pub enum ExportError {
     Cancelled,
     /// ffmpeg binary not found on PATH.
     FfmpegNotFound,
+    /// Internal export error (e.g. target/format mismatch).
+    Internal(String),
 }
 
 impl std::fmt::Display for ExportError {
@@ -76,6 +84,7 @@ impl std::fmt::Display for ExportError {
             Self::ThreadPanicked => write!(f, "Render thread panicked"),
             Self::Cancelled => write!(f, "Export cancelled by user"),
             Self::FfmpegNotFound => write!(f, "ffmpeg is required for audio muxing. Install it from https://ffmpeg.org or via your package manager (e.g. `apt install ffmpeg`, `brew install ffmpeg`)."),
+            Self::Internal(msg) => write!(f, "Internal export error: {msg}"),
         }
     }
 }

@@ -73,7 +73,7 @@ To build just the crate without video:
 cargo build -p animatix
 ```
 
-Without FFmpeg, the default build includes rendering, text, and SVG support, but not video export.
+Without FFmpeg, the default build includes rendering, text, SVG support, and single-frame raster export (PNG/WebP), but not video/GIF export. Only the FFmpeg-dependent formats (MP4/WebM/MOV/GIF) require the `video` feature.
 
 The GUI crate (`animatix-gui`) does **not** include `video` by default, so `cargo test -p animatix-gui` runs without FFmpeg. To opt into video export:
 
@@ -87,7 +87,7 @@ cargo build -p animatix-gui --features video
 cargo check -p animatix-gui --features video
 ```
 
-Without the `video` feature, the export dialog will show an "Export requires the 'video' feature (FFmpeg)" message when attempting to export.
+Without the `video` feature, PNG and WebP export work normally. The export dialog will only show a "requires the 'video' feature (FFmpeg)" message when attempting an FFmpeg-dependent format (MP4/WebM/MOV/GIF).
 
 ## Code Rules
 

@@ -9,10 +9,9 @@ pub struct ExportStore {
     pub export_dialog_open: bool,
     pub export_state: ExportDialogState,
     pub export_status: ExportStatus,
-    #[cfg(feature = "video")]
     pub export_thread: Option<
         std::thread::JoinHandle<(
-            Result<(), animatix::renderer::video::ExportError>,
+            Result<(), animatix::renderer::ExportError>,
             std::path::PathBuf,
         )>,
     >,
@@ -28,7 +27,6 @@ impl ExportStore {
             export_dialog_open: false,
             export_state: ExportDialogState::default(),
             export_status: ExportStatus::Idle,
-            #[cfg(feature = "video")]
             export_thread: None,
             export_progress: Arc::new(AtomicU32::new(0)),
             export_cancelled: Arc::new(AtomicBool::new(false)),
@@ -39,14 +37,13 @@ impl ExportStore {
 
     /// Call this every frame to check if an export thread finished.
     pub fn poll_export_status(&mut self) {
-        #[cfg(feature = "video")]
         if let Some(handle) = self.export_thread.take() {
             if handle.is_finished() {
                 match handle.join() {
                     Ok((Ok(()), path)) => {
                         self.export_status = ExportStatus::Complete { path };
                     },
-                    Ok((Err(animatix::renderer::video::ExportError::Cancelled), _)) => {
+                    Ok((Err(animatix::renderer::ExportError::Cancelled), _)) => {
                         self.export_status = ExportStatus::Idle;
                     },
                     Ok((Err(e), _)) => {
