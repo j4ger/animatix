@@ -95,6 +95,9 @@ pub(crate) struct SettingsPersistence {
     /// IDE appearance: "auto" | "light" | "dark". Defaults to "auto".
     #[serde(default = "default_app_theme")]
     pub app_theme: String,
+    /// True when the user prefers reduced motion. Defaults to false.
+    #[serde(default)]
+    pub reduce_motion: bool,
 }
 
 fn default_app_theme() -> String {

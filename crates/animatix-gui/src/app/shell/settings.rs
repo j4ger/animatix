@@ -78,6 +78,16 @@ impl GuiShell {
                         Some(2) => eparts::AppThemeChoice::Dark,
                         _ => self.ui_store.view.app_theme,
                     };
+
+                    ui.add_space(SPACE_2);
+
+                    eparts::widget::Form::new("motion_form")
+                        .label_width(SETTINGS_INPUT_WIDTH)
+                        .show(ui, |f| {
+                            f.field("Reduce motion", |ui| {
+                                ui.checkbox(&mut self.ui_store.view.reduce_motion, "Snap animations");
+                            });
+                        });
                 }
                 ui.add_space(SPACE_3);
 

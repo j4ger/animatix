@@ -463,6 +463,7 @@ impl GuiShell {
                 "dark" => eparts::AppThemeChoice::Dark,
                 _ => eparts::AppThemeChoice::Auto,
             };
+            ui_store.view.reduce_motion = s.reduce_motion;
             // undo_limit is on DocumentStore created below inside Self {} — skipped for now (default 100 is fine)
         }
 
@@ -996,6 +997,7 @@ impl GuiShell {
                     eparts::AppThemeChoice::Auto => "auto",
                 }
                 .to_string(),
+                reduce_motion: self.ui_store.view.reduce_motion,
             }),
         };
         if let Ok(serialized) =

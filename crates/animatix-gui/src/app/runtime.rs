@@ -65,6 +65,8 @@ struct AnimatixApp {
     last_theme_probe: Option<std::time::Instant>,
     /// The theme choice applied on the previous frame, to avoid redundant work.
     applied_theme_signature: Option<(eparts::AppThemeChoice, Option<bool>)>,
+    /// The motion preference applied on the previous frame, to avoid redundant work.
+    applied_motion_preference: Option<bool>,
 }
 
 /// Probe the OS light/dark appearance via the `dark-light` crate.
@@ -111,6 +113,8 @@ impl AnimatixApp {
         eparts::set_theme(&cc.egui_ctx, theme);
         install_theme(&cc.egui_ctx, &theme, choice.is_dark(system_is_dark));
 
+        let reduce_motion = shell.ui_store.view.reduce_motion;
+
         let audio_engine = match AudioEngine::new() {
             Ok(engine) => Some(engine),
             Err(e) => {
@@ -127,6 +131,7 @@ impl AnimatixApp {
             system_is_dark,
             last_theme_probe: Some(std::time::Instant::now()),
             applied_theme_signature: Some((choice, system_is_dark)),
+            applied_motion_preference: Some(reduce_motion),
         })
     }
 
@@ -621,6 +626,18 @@ impl eframe::App for AnimatixApp {
                 eparts::set_theme(ui.ctx(), theme);
                 install_theme(ui.ctx(), &theme, dark);
                 self.applied_theme_signature = Some(signature);
+            }
+
+            // Sync motion preference (reduced-motion toggle)
+            let reduce = self.shell.ui_store.view.reduce_motion;
+            if self.applied_motion_preference != Some(reduce) {
+                let pref = if reduce {
+                    eparts::MotionPreference::Reduced
+                } else {
+                    eparts::MotionPreference::Full
+                };
+                eparts::set_motion_preference(ui.ctx(), pref);
+                self.applied_motion_preference = Some(reduce);
             }
         }
 

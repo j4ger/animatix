@@ -104,6 +104,8 @@ pub struct ViewStore {
     pub app_theme: eparts::AppThemeChoice,
     /// True when the timeline panel or any of its children received pointer interaction this frame.
     pub timeline_focused: bool,
+    /// True when the user prefers reduced motion (animations snap to instant).
+    pub reduce_motion: bool,
 }
 
 impl ViewStore {
@@ -128,6 +130,7 @@ impl ViewStore {
             timeline_scroll_offset: 0.0,
             app_theme: eparts::AppThemeChoice::default(),
             timeline_focused: false,
+            reduce_motion: false,
         }
     }
 }
