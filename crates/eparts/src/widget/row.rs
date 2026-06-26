@@ -143,7 +143,6 @@ impl<'a> Row<'a> {
     ) -> RowResponse {
         let t = crate::tokens::theme::theme(ui);
         let s = spatial(ui);
-        let h = density(ui).scale(self.height);
         let row_clicked = row_response.clicked();
         let hovered = row_response.hovered();
 
@@ -173,7 +172,7 @@ impl<'a> Row<'a> {
 
         let chevron_rect = Rect::from_min_size(
             egui::pos2(cursor_x, rect.min.y),
-            Vec2::new(ICON_SLOT_WIDTH, h),
+            Vec2::new(ICON_SLOT_WIDTH, rect.height()),
         );
         let chevron_resp = ui.interact(chevron_rect, row_id.with("chevron"), Sense::click());
 
@@ -202,7 +201,7 @@ impl<'a> Row<'a> {
             cursor_x += s.space_2;
             let icon_rect = Rect::from_min_size(
                 egui::pos2(cursor_x, rect.min.y),
-                Vec2::new(ICON_SLOT_WIDTH, h),
+                Vec2::new(ICON_SLOT_WIDTH, rect.height()),
             );
             let default_color = if self.is_selected {
                 t.text.primary
@@ -228,13 +227,25 @@ impl<'a> Row<'a> {
                 t.text.secondary
             }
         });
-        painter.text(
-            egui::pos2(cursor_x, baseline_y),
-            egui::Align2::LEFT_CENTER,
-            self.label,
-            TextRole::BodyS.font_id(),
-            label_color,
-        );
+        // Label truncation: stop at the start of the right-slot region (or row edge).
+        let check_width_pre = if self.confirmed { ICON_SLOT_WIDTH + s.space_2 } else { 0.0 };
+        let right_slot_start = rect.max.x - s.space_2 - check_width_pre;
+        let label_end_x = right_slot_start;
+        let label_avail_width = (label_end_x - cursor_x).max(0.0);
+        {
+            let font_id = TextRole::BodyS.font_id();
+            let galley = ui.painter().layout(
+                self.label.to_owned(),
+                font_id,
+                label_color,
+                label_avail_width,
+            );
+            painter.galley(
+                egui::pos2(cursor_x, baseline_y - galley.size().y / 2.0),
+                galley,
+                label_color,
+            );
+        }
 
         // right slot — render inside a scoped child confined to rect
         if let Some(right_fn) = self.right {
@@ -242,7 +253,7 @@ impl<'a> Row<'a> {
             let right_area_width = (rect.max.x - s.space_2 - check_width - cursor_x - s.space_4).max(20.0);
             let right_rect = Rect::from_min_size(
                 egui::pos2(cursor_x + s.space_4, rect.min.y),
-                Vec2::new(right_area_width, h),
+                Vec2::new(right_area_width, rect.height()),
             );
             let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(right_rect));
             child_ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), right_fn);

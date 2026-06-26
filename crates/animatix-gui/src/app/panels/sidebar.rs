@@ -1058,6 +1058,34 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
             let response = row::Row::new(name)
                 .icon(Some(egui_phosphor::regular::CUBE))
                 .label_color(text::SECONDARY)
+                .right(|ui| {
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                egui::RichText::new(egui_phosphor::regular::ARROW_SQUARE_OUT)
+                                    .size(11.0)
+                                    .color(text::MUTED),
+                            )
+                            .frame(false),
+                        )
+                        .on_hover_text("Jump to definition")
+                        .clicked()
+                    {
+                        let patterns = [
+                            format!("pub component {}", name),
+                            format!("component {}", name),
+                        ];
+                        let found_line = ctx
+                            .source_text
+                            .lines()
+                            .position(|line| patterns.iter().any(|p| line.trim().starts_with(p)));
+                        if let Some(line) = found_line {
+                            ctx.commands
+                                .push_back(ShellAction::Command(Command::ScrollToLine(line, 0)));
+                            *ctx.sidebar_tab = SidebarTab::Editor;
+                        }
+                    }
+                })
                 .show(ui, row_id);
 
             if response.response.double_clicked() {
@@ -1077,38 +1105,6 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
                     .into(),
                 );
             }
-
-            // Jump-to-definition button (top-right of component row)
-            ui.horizontal(|ui| {
-                ui.add_space(sp.base.component.icon_slot_width + sp.base.space_2 + 2.0);
-                if ui
-                    .add(
-                        egui::Button::new(
-                            egui::RichText::new(egui_phosphor::regular::ARROW_SQUARE_OUT)
-                                .size(11.0)
-                                .color(text::MUTED),
-                        )
-                        .frame(false),
-                    )
-                    .on_hover_text("Jump to definition")
-                    .clicked()
-                {
-                    // Search for the component definition line in source text
-                    let patterns = [
-                        format!("pub component {}", name),
-                        format!("component {}", name),
-                    ];
-                    let found_line = ctx
-                        .source_text
-                        .lines()
-                        .position(|line| patterns.iter().any(|p| line.trim().starts_with(p)));
-                    if let Some(line) = found_line {
-                        ctx.commands
-                            .push_back(ShellAction::Command(Command::ScrollToLine(line, 0)));
-                        *ctx.sidebar_tab = SidebarTab::Editor;
-                    }
-                }
-            });
 
             // Slots display
             let slots: Vec<String> = entry

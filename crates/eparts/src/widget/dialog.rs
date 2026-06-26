@@ -15,6 +15,7 @@ use crate::tokens::theme::theme;
 use crate::tokens::spatial::{self, RADIUS_XL, STROKE_WIDTH};
 use crate::tokens::spatial::dialog as dialog_token;
 use crate::{density, tokens::typography::TextRole};
+use crate::widget::button::Button;
 
 /// Context passed to the dialog body on each frame.
 pub struct DialogCtx {
@@ -292,7 +293,7 @@ pub fn title_row(ui: &mut Ui, title: &str) -> bool {
     ui.horizontal(|ui| {
         ui.label(egui::RichText::new(title).size(TextRole::Heading.size()).color(t.text.primary));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.button(egui_phosphor::regular::X).on_hover_text("Close (Esc)").clicked() {
+            if ui.add(Button::icon(egui_phosphor::regular::X).with_tooltip("Close (Esc)")).clicked() {
                 close = true;
             }
         });

@@ -110,7 +110,7 @@ impl<'a> TextField<'a> {
 
         let desired_width = self.desired_width.unwrap_or_else(|| ui.available_width());
         let row_height = ui.text_style_height(&egui::TextStyle::Body) + s.space_3 * 2.0;
-        let inner_margin = s.space_2;
+        let inner_margin = s.space_3;
         let radius = CornerRadius::same(RADIUS_M as u8);
 
         let (outer_rect, outer_resp) = ui.allocate_exact_size(
@@ -289,7 +289,7 @@ impl<'a> NumberField<'a> {
             return outer_resp;
         }
 
-        let inner_margin = s.space_2;
+        let inner_margin = s.space_3;
         let radius = CornerRadius::same(RADIUS_M as u8);
 
         // Reserve background + border shape slots BEFORE adding the DragValue

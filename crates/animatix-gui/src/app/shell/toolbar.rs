@@ -70,7 +70,6 @@ impl GuiShell {
 
                     // Status badge: last-good or stale
                     if self.document_store.showing_last_good() {
-                        ui.add_space(sp.base.space_2);
                         let response = egui::Frame::new()
                             .fill(status::DIAGNOSTIC_ERROR)
                             .corner_radius(RADIUS_M)
@@ -89,7 +88,6 @@ impl GuiShell {
                             "Build failed — preview shows the last successful build",
                         );
                     } else if self.document_store.snapshot_is_stale() {
-                        ui.add_space(sp.base.space_2);
                         let response = egui::Frame::new()
                             .fill(status::WARNING)
                             .corner_radius(RADIUS_M)
@@ -109,7 +107,6 @@ impl GuiShell {
 
                     // Building indicator (pulsing)
                     if self.preview_store.rebuild_in_progress {
-                        ui.add_space(sp.base.space_2);
                         let t = ui.ctx().animate_value_with_time(
                             ui.id().with("build_spinner"),
                             0.0,

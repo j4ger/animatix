@@ -193,7 +193,8 @@ fn render_scene_inspector(
             // Background color
             let bg_color = scene.timeline.background_color_at(0);
             layout::labeled_row(ui, "Background", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                let color_rect = egui::Rect::from_min_size(ui.cursor().min, Vec2::new(24.0, 24.0));
+                let center_y = ui.cursor().min.y + ui.available_height() / 2.0;
+                let color_rect = egui::Rect::from_center_size(egui::pos2(ui.cursor().min.x + 12.0, center_y), Vec2::new(24.0, 24.0));
                 ui.painter().rect_filled(
                     color_rect,
                     RADIUS_S,
@@ -608,7 +609,8 @@ pub(super) fn inspector_ui(
                 // View-mode segmented control
                 {
                     let right = ui.clip_rect().max.x;
-                    let row_top = header_top + sp.base.space_2 + 2.0 + sp.base.space_2;
+                    let sticky_top = header_top.max(ui.clip_rect().min.y);
+                    let row_top = sticky_top + sp.base.space_2 + 2.0 + sp.base.space_2;
                     let seg_count = 3;
                     let seg_width = 80.0;
                     let total_w = seg_count as f32 * seg_width;
@@ -762,7 +764,8 @@ pub(super) fn inspector_ui(
                 // View-mode segmented control
                 {
                     let right = ui.clip_rect().max.x;
-                    let row_top = header_top + sp.base.space_2 + 2.0 + sp.base.space_2;
+                    let sticky_top = header_top.max(ui.clip_rect().min.y);
+                    let row_top = sticky_top + sp.base.space_2 + 2.0 + sp.base.space_2;
                     let seg_count = 2;
                     let seg_width = 80.0;
                     let total_w = seg_count as f32 * seg_width;

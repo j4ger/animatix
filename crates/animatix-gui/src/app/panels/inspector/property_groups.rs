@@ -411,7 +411,11 @@ pub(crate) fn render_property_row(
     // Subtle background on hover for the input area
     let input_hover = ui.rect_contains_pointer(input_rect);
     if input_hover {
-        ui.painter().rect_filled(input_rect, RADIUS_S, surface::WIDGET);
+        ui.painter().rect_filled(
+            input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0)),
+            RADIUS_S,
+            surface::WIDGET,
+        );
     }
 
     // Flat widget styling passed from the group renderer (cached once per group).

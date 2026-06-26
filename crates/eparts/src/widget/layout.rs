@@ -74,13 +74,13 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
     let mut cursor_x = row_rect.min.x;
 
     ui.painter().text(
-        egui::pos2(cursor_x + 7.0, baseline_y),
+        egui::pos2(cursor_x + s.component.icon_slot_width / 2.0, baseline_y),
         egui::Align2::CENTER_CENTER,
         icon,
         TextRole::BodyS.font_id(),
         t.text.muted,
     );
-    cursor_x += 18.0;
+    cursor_x += s.component.icon_slot_width + s.space_2;
 
     ui.painter().text(
         egui::pos2(cursor_x, baseline_y),

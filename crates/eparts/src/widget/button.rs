@@ -355,7 +355,10 @@ impl egui::Widget for Button {
                 let icon_width = icon_galley.as_ref().map_or(0.0, |g| g.size().x);
                 let mut width = self.size.pad_x_for(d) * 2.0;
                 if icon_width > 0.0 {
-                    width += icon_width + self.size.pad_x_for(d);
+                    width += icon_width;
+                    if label.is_some() {
+                        width += self.size.pad_x_for(d);
+                    }
                 }
                 let label_str = label;
                 if let Some(l) = label_str {
@@ -399,7 +402,10 @@ impl egui::Widget for Button {
                                 icon_font,
                                 icon_fg,
                             );
-                            cursor_x += icon_width + self.size.pad_x_for(d);
+                            cursor_x += icon_width;
+                            if label_str.is_some() {
+                                cursor_x += self.size.pad_x_for(d);
+                            }
                         }
                     }
 

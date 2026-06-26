@@ -22,8 +22,8 @@ pub(crate) mod stores;
 mod utils;
 
 use crate::app::design_tokens::semantic::{accent, border, status, surface, text};
-use crate::app::design_tokens::spatial::welcome::{BTN_HEIGHT as WELCOME_BTN_HEIGHT, TOP_OFFSET_FRAC as WELCOME_TOP_OFFSET_FRAC};
-use crate::app::design_tokens::spatial::{RADIUS_L, RADIUS_M, RADIUS_S, ROW_L, SPACE_2, SPACE_3, SPACE_4, SPACE_5, STROKE_WIDTH};
+use crate::app::design_tokens::spatial::welcome::TOP_OFFSET_FRAC as WELCOME_TOP_OFFSET_FRAC;
+use crate::app::design_tokens::spatial::{spatial, RADIUS_L, RADIUS_M, RADIUS_S, ROW_L, SPACE_2, SPACE_3, SPACE_4, SPACE_5, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use crate::document::{DocumentSession, default_file_path};
 use crate::editor::EditorBuffer;
@@ -752,6 +752,7 @@ impl GuiShell {
 
     /// Welcome / onboarding screen shown when no document is loaded.
     fn welcome_screen_ui(&mut self, ui: &mut egui::Ui, commands: &mut ActionQueue) {
+        let sp = spatial(ui);
         let avail = ui.available_rect_before_wrap();
         ui.painter().rect_filled(avail, 0.0, surface::BASE);
 
@@ -786,7 +787,7 @@ impl GuiShell {
                             egui::FontId::proportional(28.0), // 28px welcome icon: no TextRole
                             accent::PRIMARY,
                         );
-                        ui.add_space(SPACE_5 * 1.5);
+                        ui.add_space(sp.base.space_5 * 1.5);
 
                         // Title
                         ui.label(
@@ -795,7 +796,7 @@ impl GuiShell {
                                 .color(text::PRIMARY)
                                 .strong(),
                         );
-                        ui.add_space(SPACE_2);
+                        ui.add_space(sp.base.space_2);
 
                         // Subtitle
                         ui.label(
@@ -803,13 +804,13 @@ impl GuiShell {
                                 .size(TextRole::Body.size())
                                 .color(text::SECONDARY),
                         );
-                        ui.add_space(SPACE_5 * 2.5);
+                        ui.add_space(sp.base.space_5 * 2.5);
 
                         let btn_w = ui.available_width();
 
                         // Primary: Create new scene
                         let new_resp = ui.add_sized(
-                            egui::vec2(btn_w, WELCOME_BTN_HEIGHT),
+                            egui::vec2(btn_w, sp.welcome.btn_height),
                             egui::Button::new(
                                 egui::RichText::new(format!(
                                     "{}  Create new scene",
@@ -835,11 +836,11 @@ impl GuiShell {
                             commands.push_back(DocumentCommand::OpenFile(path).into());
                         }
 
-                        ui.add_space(SPACE_3);
+                        ui.add_space(sp.base.space_3);
 
                         // Secondary: open existing file
                         let open_resp = ui.add_sized(
-                            egui::vec2(btn_w, WELCOME_BTN_HEIGHT),
+                            egui::vec2(btn_w, sp.welcome.btn_height),
                             egui::Button::new(
                                 egui::RichText::new(format!(
                                     "{}  Open existing file",
@@ -860,11 +861,11 @@ impl GuiShell {
                             }
                         }
 
-                        ui.add_space(SPACE_3);
+                        ui.add_space(sp.base.space_3);
 
                         // Tertiary: open workspace
                         let ws_resp = ui.add_sized(
-                            egui::vec2(btn_w, WELCOME_BTN_HEIGHT),
+                            egui::vec2(btn_w, sp.welcome.btn_height),
                             egui::Button::new(
                                 egui::RichText::new(format!(
                                     "{}  Open workspace",
