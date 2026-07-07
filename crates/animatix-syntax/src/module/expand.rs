@@ -110,6 +110,7 @@ fn expand_stmt_into(
         }
         Stmt::ForLoop {
             var,
+            index_var,
             iterable,
             body,
             span,
@@ -119,7 +120,7 @@ fn expand_stmt_into(
             merge_registry(registry, sub_registry);
             output.push(Stmt::ForLoop {
                 var: var.clone(),
-                index_var: None,
+                index_var: index_var.clone(),
                 iterable: iterable.clone(),
                 body: expanded_body,
                 span: *span,
@@ -148,6 +149,7 @@ fn expand_stmt_into(
         Stmt::ActorDecl {
             is_pub,
             label,
+            array_index,
             ty,
             props,
             modifiers,
@@ -167,7 +169,7 @@ fn expand_stmt_into(
                     is_pub: *is_pub,
                     is_anonymous: false,
                     label: label.clone(),
-                    array_index: None,
+                    array_index: array_index.clone(),
                     ty: ty.clone(),
                     props: props.clone(),
                     modifiers: modifiers.clone(),
@@ -215,7 +217,7 @@ fn expand_inline_items(
         match item {
             InlineItem::Labeled {
                 label,
-                array_index: _,
+                array_index,
                 ty,
                 props,
                 modifiers,
@@ -235,7 +237,7 @@ fn expand_inline_items(
                     let expanded_children = expand_inline_items(children, components, registry, ctx);
                     result.push(InlineItem::Labeled {
                         label: label.clone(),
-                        array_index: None,
+                        array_index: array_index.clone(),
                         ty: ty.clone(),
                         props: props.clone(),
                         modifiers: modifiers.clone(),
@@ -302,6 +304,7 @@ fn stmt_to_inline_item(stmt: &Stmt) -> Option<InlineItem> {
     match stmt {
         Stmt::ActorDecl {
             label,
+            array_index,
             ty,
             props,
             modifiers,
@@ -309,7 +312,7 @@ fn stmt_to_inline_item(stmt: &Stmt) -> Option<InlineItem> {
             ..
         } => Some(InlineItem::Labeled {
             label: label.clone(),
-            array_index: None,
+            array_index: array_index.clone(),
             ty: ty.clone(),
             props: props.clone(),
             modifiers: modifiers.clone(),
@@ -451,6 +454,7 @@ fn resolve_slots(
             Stmt::ActorDecl {
                 is_pub,
                 label,
+                array_index,
                 ty,
                 props,
                 modifiers,
@@ -481,7 +485,7 @@ fn resolve_slots(
                         is_pub: *is_pub,
                         is_anonymous: false,
                         label: label.clone(),
-                        array_index: None,
+                        array_index: array_index.clone(),
                         ty: ty.clone(),
                         props: props.clone(),
                         modifiers: modifiers.clone(),
@@ -495,4 +499,39 @@ fn resolve_slots(
             _ => stmt.clone(),
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parser::parser_simple;
+
+    #[test]
+    fn test_expand_preserves_forloop_index_var() {
+        // Regression: for-loop must preserve index_var through component expansion.
+        // The `for v, k in {50, 150, 250} { ... }` form must keep `k` after expansion.
+        let source = "for v, k in {50, 150, 250} { a[k]: Rect, size: (20,40), at: (v, 100) }";
+        let (stmts, _errors) = crate::parser::parse_source(source);
+        let stmts = stmts.unwrap();
+        let components = std::collections::HashMap::new();
+        let (expanded, _registry) = expand_statements(&stmts, &components);
+        // Find the ForLoop
+        let for_stmt = expanded.iter().find(|s| matches!(s, Stmt::ForLoop { .. })).unwrap();
+        if let Stmt::ForLoop { index_var, .. } = for_stmt {
+            assert_eq!(index_var.as_deref(), Some("k"), "index_var must be preserved through expansion");
+        } else {
+            panic!("Expected ForLoop");
+        }
+        // Find `a[k]` ActorDecl inside the ForLoop body
+        if let Stmt::ForLoop { body, .. } = for_stmt {
+            let act = body.iter().find_map(|s| {
+                if let Stmt::ActorDecl { array_index: Some(Expr::Ident(name)), .. } = s {
+                    Some(name.clone())
+                } else {
+                    None
+                }
+            });
+            assert_eq!(act.as_deref(), Some("k"), "array_index must be preserved through expansion");
+        }
+    }
 }
