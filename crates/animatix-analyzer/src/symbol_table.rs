@@ -53,6 +53,9 @@ pub struct SymbolTable {
     pub imports: Vec<ImportInfo>,
     /// Labels referenced in actions/assignments (for unused label detection).
     pub referenced_labels: HashSet<String>,
+    /// Labels of array-indexed actors (e.g., `bars[i]: Rect`).
+    /// Targets like `bars__0`, `bars__1` are considered defined.
+    pub array_labels: HashSet<String>,
     /// Namespaced symbols from aliased imports (e.g., "foo" → SymbolTable).
     pub namespaces: HashMap<String, SymbolTable>,
 }
@@ -149,10 +152,13 @@ const BUILTIN_TYPES: &[&str] = &[
 
 /// Known built-in actions.
 const BUILTIN_ACTIONS: &[&str] = &[
-    "fade-in", "draw-in", "wipe-in",
+    "fade-in", "draw-in", "wipe-in", "reveal-in",
     "fade-out", "wipe-out", "reveal-out", "draw-out",
     "move", "shift", "rotate", "scale",
+    "shake", "pulse", "bounce",
+    "highlight", "unhighlight",
     "persist", "remove",
+    "swap", "reorder",
 ];
 
 /// Known keywords.
@@ -176,6 +182,7 @@ fn known_properties() -> &'static HashMap<String, Vec<String>> {
         "rotation".to_string(),
         "opacity".to_string(),
         "color".to_string(),
+        "at".to_string(),
     ];
 
     // Text-specific
@@ -299,6 +306,7 @@ fn known_property_types() -> &'static HashMap<(String, String), PropertyType> {
         map.insert((ty.to_string(), "rotation".to_string()), PropertyType::Num);
         map.insert((ty.to_string(), "opacity".to_string()), PropertyType::Num);
         map.insert((ty.to_string(), "color".to_string()), PropertyType::Color);
+        map.insert((ty.to_string(), "at".to_string()), PropertyType::Vec2);
     }
 
     // Text-specific
@@ -408,7 +416,7 @@ impl SymbolTable {
                 });
             }
 
-            Stmt::ActorDecl { label, ty, span, .. } => {
+            Stmt::ActorDecl { label, array_index, ty, span, children, .. } => {
                 self.labels.insert(label.clone(), LabelInfo {
                     name: label.clone(),
                     kind: LabelKind::Actor,
@@ -417,6 +425,12 @@ impl SymbolTable {
                     span: *span,
                     ty: Some(ty.clone()),
                 });
+                if array_index.is_some() {
+                    self.array_labels.insert(label.clone());
+                }
+                for child in children {
+                    self.collect_inline_item(child);
+                }
             }
 
             Stmt::ComponentDef(def, span) => {
@@ -588,6 +602,68 @@ impl SymbolTable {
                 }
             }
             _ => {}
+        }
+    }
+
+    /// Collect inline item children into the symbol table.
+    fn collect_inline_item(&mut self, item: &InlineItem) {
+        match item {
+            InlineItem::Labeled { label, array_index, children, .. } => {
+                self.labels.insert(label.clone(), LabelInfo {
+                    name: label.clone(),
+                    kind: LabelKind::Actor,
+                    line: 0,
+                    col: 0,
+                    span: None,
+                    ty: None,
+                });
+                if array_index.is_some() {
+                    self.array_labels.insert(label.clone());
+                }
+                for child in children {
+                    self.collect_inline_item(child);
+                }
+            }
+            InlineItem::Anonymous { children, .. } => {
+                for child in children {
+                    self.collect_inline_item(child);
+                }
+            }
+            InlineItem::ForLoop { var, index_var, body, .. } => {
+                let var_names: Vec<String> = match var {
+                    LoopPattern::Single(name) => vec![name.clone()],
+                    LoopPattern::Tuple(names) => names.clone(),
+                };
+                for name in &var_names {
+                    self.labels.insert(name.clone(), LabelInfo {
+                        name: name.clone(),
+                        kind: LabelKind::For,
+                        line: 0,
+                        col: 0,
+                        span: None,
+                        ty: None,
+                    });
+                }
+                if let Some(iv) = index_var {
+                    self.labels.insert(iv.clone(), LabelInfo {
+                        name: iv.clone(),
+                        kind: LabelKind::For,
+                        line: 0,
+                        col: 0,
+                        span: None,
+                        ty: None,
+                    });
+                }
+                for item in body {
+                    self.collect_inline_item(item);
+                }
+            }
+            InlineItem::SlotMarker => {}
+            InlineItem::SlotFill { items, .. } => {
+                for item in items {
+                    self.collect_inline_item(item);
+                }
+            }
         }
     }
 

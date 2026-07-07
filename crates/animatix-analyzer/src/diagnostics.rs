@@ -230,8 +230,8 @@ fn collect_semantic_diagnostics(
     // Check for unused labels (actors, let bindings)
     for (name, info) in &symbols.labels {
         if !symbols.referenced_labels.contains(name) {
-            // Don't warn for for-loop variables or always blocks
-            if info.kind == LabelKind::For || info.kind == LabelKind::Always {
+            // Don't warn for for-loop variables, always blocks, or array base labels
+            if info.kind == LabelKind::For || info.kind == LabelKind::Always || symbols.array_labels.contains(name) {
                 continue;
             }
             diagnostics.push(Diagnostic {
@@ -271,6 +271,24 @@ fn span_to_diag(span: &Option<animatix_syntax::ast::Span>) -> (usize, usize, usi
             s.end_col.saturating_sub(1),
         ),
         None => (0, 0, 0, 0),
+    }
+}
+
+/// Format an array-indexed actor label (e.g., `bars[0]` → `"bars__0"`).
+/// Reserved for B1-core fixer (runtime for-loop track generation).
+#[allow(dead_code)]
+pub fn array_actor_label(base: &str, n: usize) -> String {
+    format!("{}__{}", base, n)
+}
+
+/// If `s` matches `^(.+)__\d+$`, return the base part (the prefix before `__`).
+/// Otherwise returns `None`.
+pub fn is_array_member_label(s: &str) -> Option<&str> {
+    let (prefix, suffix) = s.rsplit_once("__")?;
+    if suffix.chars().all(|c| c.is_ascii_digit()) && !suffix.is_empty() {
+        Some(prefix)
+    } else {
+        None
     }
 }
 
@@ -331,7 +349,10 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, tree: Option<&tree_sitter::Tre
 
             // Check if target labels exist
             for target in &action.targets {
-                if !symbols.labels.contains_key(target) {
+                let is_defined = symbols.labels.contains_key(target)
+                    || is_array_member_label(target)
+                        .map_or(false, |base| symbols.array_labels.contains(base));
+                if !is_defined {
                     // Use tree-sitter for precise target positioning when available
                     let (tline, tcol, tend_line, tend_col) = tree
                         .and_then(|t| find_token_range(t.root_node(), source, "identifier", target))
@@ -354,7 +375,10 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, tree: Option<&tree_sitter::Tre
 
             // Check if target label exists
             if let Some(label) = target.first() {
-                if !symbols.labels.contains_key(label) {
+                let is_defined = symbols.labels.contains_key(label)
+                    || is_array_member_label(label)
+                        .map_or(false, |base| symbols.array_labels.contains(base));
+                if !is_defined {
                     diagnostics.push(Diagnostic {
                         severity: DiagnosticSeverity::Warning,
                         line,
