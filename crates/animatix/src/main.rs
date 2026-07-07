@@ -570,32 +570,61 @@ fn main() {
                 }
             }
 
+            // Run semantic analysis (mirrors lint command behavior)
+            let analyzer = animatix_analyzer::Analyzer::new_with_path(
+                &source,
+                if file_label == "-" { None } else { Some(std::path::PathBuf::from(&file_label)) },
+            );
+            let lint_config = animatix_analyzer::LintConfig::from_source(&source);
+            let semantic = analyzer.diagnostics_with_config(&lint_config);
+
             match format {
                 OutputFormat::Json => {
-                    if diagnostics.is_empty() {
+                    if diagnostics.is_empty() && semantic.is_empty() {
                         println!(r#"{{"passed":true}}"#);
                     } else {
-                        let errors: Vec<String> = diagnostics
+                        let mut errors: Vec<String> = diagnostics
                             .iter()
                             .map(diagnostic_to_json)
                             .collect();
+                        for diag in &semantic {
+                            let line = diag.line.to_string();
+                            let col = diag.col.to_string();
+                            let severity = format!("{:?}", diag.severity).to_lowercase();
+                            let code = diag.code.as_deref().unwrap_or("");
+                            errors.push(format!(
+                                r#"{{"line":{},"col":{},"message":"{}","code":"{}","severity":"{}"}}"#,
+                                line,
+                                col,
+                                escape_json(&diag.message),
+                                code,
+                                severity,
+                            ));
+                        }
                         println!(
                             r#"{{"passed":false,"errors":[{}]}}"#,
                             errors.join(",")
                         );
-                        if diagnostics.iter().any(|d| d.is_error()) {
+                        if diagnostics.iter().any(|d| d.is_error())
+                            || semantic.iter().any(|d| d.is_error())
+                        {
                             std::process::exit(1);
                         }
                     }
                 }
                 OutputFormat::Text => {
-                    if diagnostics.is_empty() {
+                    if diagnostics.is_empty() && semantic.is_empty() {
                         println!("{}: OK (no diagnostics)", file_label);
                     } else {
                         for diag in &diagnostics {
                             println!("{}", format_diagnostic_with_source(diag, &source));
                         }
-                        if diagnostics.iter().any(|d| d.is_error()) {
+                        for diag in &semantic {
+                            println!("{}:{}", file_label, diag);
+                        }
+                        if diagnostics.iter().any(|d| d.is_error())
+                            || semantic.iter().any(|d| d.is_error())
+                        {
                             std::process::exit(1);
                         }
                     }
