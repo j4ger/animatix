@@ -235,7 +235,8 @@ impl Timeline {
                 | Stmt::Sequence { .. }
                 | Stmt::Stagger { .. }
                 | Stmt::LetDecl { .. }
-                | Stmt::Always { .. } => {
+                | Stmt::Always { .. }
+                | Stmt::ForLoop { .. } => {
                     let saved_opacity = timeline.default_opacity;
                     if !has_seen_keyframe {
                         timeline.default_opacity = 0.0;
