@@ -150,16 +150,31 @@ pub(crate) fn parse_numeric_vec2_with_lookup_diagnostic(
 }
 
 pub(crate) fn for_iter_values(iterable: &Expr, env: &Environment) -> Vec<Value> {
+    // Try to evaluate an expression, falling back to named-color resolution
+    // for identifiers that aren't in the environment (e.g. `red`, `blue`).
+    let try_eval = |item: &Expr| -> Option<Value> {
+        match evaluate_expr(item, env) {
+            Ok(val) => Some(val),
+            Err(e) => {
+                // Fall back to named-color resolution for bare identifiers
+                if let Expr::Ident(_) = item {
+                    if let Ok(Some(color)) = resolve_color_in_env(item, env) {
+                        let [r, g, b, a] = color;
+                        return Some(Value::Color([r as f64, g as f64, b as f64, a as f64]));
+                    }
+                }
+                tracing::warn!(
+                    "for_iter_values: failed to evaluate item {:?}: {}",
+                    item, e
+                );
+                None
+            }
+        }
+    };
+
     match iterable {
-        Expr::Tuple(items) => items
-            .iter()
-            .filter_map(|item| evaluate_expr(item, env).ok())
-            .collect(),
-        Expr::List(items) => items
-            .iter()
-            .map(|item| evaluate_expr(item, env))
-            .collect::<Result<Vec<Value>, _>>()
-            .unwrap_or_default(),
+        Expr::Tuple(items) => items.iter().filter_map(|item| try_eval(item)).collect(),
+        Expr::List(items) => items.iter().filter_map(|item| try_eval(item)).collect(),
         _ => match evaluate_expr(iterable, env) {
             Ok(Value::List(items)) => items,
             Ok(Value::Vec2([start, end])) => {
@@ -170,7 +185,13 @@ pub(crate) fn for_iter_values(iterable: &Expr, env: &Environment) -> Vec<Value> 
             Ok(Value::Vec3(values)) => values.into_iter().map(Value::Num).collect(),
             Ok(Value::Vec4(values)) => values.into_iter().map(Value::Num).collect(),
             Ok(value) => vec![value],
-            Err(_) => Vec::new(),
+            Err(e) => {
+                tracing::warn!(
+                    "for_iter_values: failed to evaluate iterable {:?}: {}",
+                    iterable, e
+                );
+                Vec::new()
+            }
         },
     }
 }
