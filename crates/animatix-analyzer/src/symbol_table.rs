@@ -144,9 +144,21 @@ pub struct SceneInfo {
 
 /// Known built-in types in the Animatix DSL.
 const BUILTIN_TYPES: &[&str] = &[
-    "Text", "Code", "Typst", "Svg", "Image",
-    "Rect", "Ellipse", "Line", "Polygon", "Path",
-    "Graph", "PlotCurve",
+    // Shapes
+    "Rect", "Ellipse", "Line", "Arrow", "Polygon", "Path",
+    // Text
+    "Text", "Code", "Typst",
+    // Media
+    "Image", "Svg", "Audio",
+    // Plots
+    "Graph", "PlotCurve", "VectorField", "Heatmap", "ContourSet", "NumberPlane", "BarChart",
+    // Containers
+    "Row", "Col", "Grid", "Stack", "Group", "Mask", "Filter",
+    // Equation / Fragment
+    "Equation", "Fragment",
+    // Annotations
+    "Callout", "Legend",
+    // Built-in component (handled by component system, not a primitive)
     "Button",
 ];
 
@@ -189,6 +201,7 @@ fn known_properties() -> &'static HashMap<String, Vec<String>> {
     let mut text_props = common.clone();
     text_props.extend([
         "content".to_string(),
+        "text".to_string(),
         "font_size".to_string(),
         "font_family".to_string(),
         "font_weight".to_string(),
@@ -222,6 +235,7 @@ fn known_properties() -> &'static HashMap<String, Vec<String>> {
     // Code-specific
     let mut code_props = common.clone();
     code_props.extend([
+        "code".to_string(),
         "content".to_string(),
         "language".to_string(),
         "font_weight".to_string(),
@@ -310,6 +324,7 @@ fn known_property_types() -> &'static HashMap<(String, String), PropertyType> {
     }
 
     // Text-specific
+    map.insert(("Text".to_string(), "text".to_string()), PropertyType::String);
     map.insert(("Text".to_string(), "content".to_string()), PropertyType::String);
     map.insert(("Text".to_string(), "font_size".to_string()), PropertyType::Num);
     map.insert(("Text".to_string(), "font_family".to_string()), PropertyType::String);
@@ -336,6 +351,7 @@ fn known_property_types() -> &'static HashMap<(String, String), PropertyType> {
     map.insert(("Typst".to_string(), "overflow".to_string()), PropertyType::String);
 
     // Code-specific
+    map.insert(("Code".to_string(), "code".to_string()), PropertyType::String);
     map.insert(("Code".to_string(), "content".to_string()), PropertyType::String);
     map.insert(("Code".to_string(), "language".to_string()), PropertyType::String);
     map.insert(("Code".to_string(), "font_weight".to_string()), PropertyType::Num);
