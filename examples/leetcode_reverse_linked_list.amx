@@ -1,0 +1,106 @@
+// LeetCode 206 — Reverse Linked List
+// Iterative: next = cur.next; cur.next = pre; pre = cur; cur = next.
+// PROBES:
+//  - animating Arrow `from`/`to` to flip a link's direction (PROBE: Arrow endpoint
+//    interpolation + arrowhead flip mid-animation; Callout supports timed `.to`,
+//    Arrow unverified)
+//  - multiple moving pointer labels with no attach/follow primitive (hardcoded coords)
+//  - no first-class edge/connector tracking two actors by reference; links are free Vec2
+//  - no list-of-actor-refs: each node/link/pointer is a separate hand-named actor
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+title: Text, text: "Reverse Linked List", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 44)
+
+null_box: Rect, size: (80, 56), fill_opacity: 0, stroke: text.muted, stroke_width: 2, at: (120, 380)
+null_t:   Text, text: "null", font_size: 18, color: text.muted, at: (120, 380)
+
+n0: Ellipse, size: (96, 96), color: surface.secondary, stroke: accent.primary, stroke_width: 3, at: (240, 380)
+n1: Ellipse, size: (96, 96), color: surface.secondary, stroke: accent.primary, stroke_width: 3, at: (440, 380)
+n2: Ellipse, size: (96, 96), color: surface.secondary, stroke: accent.primary, stroke_width: 3, at: (640, 380)
+n3: Ellipse, size: (96, 96), color: surface.secondary, stroke: accent.primary, stroke_width: 3, at: (840, 380)
+n4: Ellipse, size: (96, 96), color: surface.secondary, stroke: accent.primary, stroke_width: 3, at: (1040, 380)
+
+v0: Text, text: "1", font_size: 28, color: text.primary, at: (240, 380)
+v1: Text, text: "2", font_size: 28, color: text.primary, at: (440, 380)
+v2: Text, text: "3", font_size: 28, color: text.primary, at: (640, 380)
+v3: Text, text: "4", font_size: 28, color: text.primary, at: (840, 380)
+v4: Text, text: "5", font_size: 28, color: text.primary, at: (1040, 380)
+
+// Forward links link_k: n_k -> n_{k+1}. Endpoints animate to reverse the direction.
+link0: Arrow, from: (288, 380), to: (392, 380), color: accent.primary, stroke_width: 3, head_size: 16
+link1: Arrow, from: (488, 380), to: (592, 380), color: accent.primary, stroke_width: 3, head_size: 16
+link2: Arrow, from: (688, 380), to: (792, 380), color: accent.primary, stroke_width: 3, head_size: 16
+link3: Arrow, from: (888, 380), to: (992, 380), color: accent.primary, stroke_width: 3, head_size: 16
+
+pre_p:  Text, text: "▼ pre",  font_size: 18, color: accent.success, at: (120, 240)
+cur_p:  Text, text: "▼ cur",  font_size: 18, color: accent.warning, at: (240, 190)
+next_p: Text, text: "▼ next", font_size: 18, color: accent.danger,  at: (440, 140), opacity: 0
+
+#0.5s
+fade-in title [500ms]
+stagger [90ms] {
+  fade-in n0 [400ms]
+  fade-in n1 [400ms]
+  fade-in n2 [400ms]
+  fade-in n3 [400ms]
+  fade-in n4 [400ms]
+}
+stagger [90ms] {
+  fade-in v0 [400ms]
+  fade-in v1 [400ms]
+  fade-in v2 [400ms]
+  fade-in v3 [400ms]
+  fade-in v4 [400ms]
+}
+stagger [90ms] {
+  fade-in link0 [400ms]
+  fade-in link1 [400ms]
+  fade-in link2 [400ms]
+  fade-in link3 [400ms]
+}
+fade-in null_box [400ms]
+fade-in null_t [400ms]
+fade-in pre_p [400ms]
+fade-in cur_p [400ms]
+
+#1.6s
+fade-in next_p [400ms]
+
+// k=0: cur=n0. next=n1; reverse link0 (n0 -> null); pre=n0, cur=n1, next=n2.
+#2.2s
+pulse n1 [300ms, intensity: 1.2]
+link0.from = (192, 380) [600ms, ease: ease-in-out]
+link0.to   = (120, 380) [600ms, ease: ease-in-out]
+pre_p.at  = (240, 240) [500ms, ease: ease-in-out]
+cur_p.at  = (440, 190) [500ms, ease: ease-in-out]
+next_p.at = (640, 140) [500ms, ease: ease-in-out]
+
+// k=1: cur=n1. next=n2; reverse link1 (n1 -> n0); pre=n1, cur=n2, next=n3.
+#3.6s
+pulse n2 [300ms, intensity: 1.2]
+link1.from = (392, 380) [600ms, ease: ease-in-out]
+link1.to   = (288, 380) [600ms, ease: ease-in-out]
+pre_p.at  = (440, 240) [500ms, ease: ease-in-out]
+cur_p.at  = (640, 190) [500ms, ease: ease-in-out]
+next_p.at = (840, 140) [500ms, ease: ease-in-out]
+
+// k=2: cur=n2. next=n3; reverse link2 (n2 -> n1); pre=n2, cur=n3, next=n4.
+#5.0s
+pulse n3 [300ms, intensity: 1.2]
+link2.from = (592, 380) [600ms, ease: ease-in-out]
+link2.to   = (488, 380) [600ms, ease: ease-in-out]
+pre_p.at  = (640, 240) [500ms, ease: ease-in-out]
+cur_p.at  = (840, 190) [500ms, ease: ease-in-out]
+next_p.at = (1040, 140) [500ms, ease: ease-in-out]
+
+// k=3: cur=n3. next=n4; reverse link3 (n3 -> n2); pre=n3, cur=n4.
+#6.4s
+pulse n4 [300ms, intensity: 1.2]
+link3.from = (792, 380) [600ms, ease: ease-in-out]
+link3.to   = (688, 380) [600ms, ease: ease-in-out]
+pre_p.at = (840, 240) [500ms, ease: ease-in-out]
+cur_p.at = (1040, 190) [500ms, ease: ease-in-out]
+
+#7.8s
+fade-out next_p [400ms]

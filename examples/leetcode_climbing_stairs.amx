@@ -1,0 +1,94 @@
+// LeetCode 70 — Climbing Stairs (DP)
+// dp[0]=1, dp[1]=2, dp[k]=dp[k-1]+dp[k-2] -> 1,2,3,5,8,13.
+// PROBES:
+//  - manual diagonal staircase layout via per-step `at` (no built-in staircase primitive)
+//  - sequential reveal with draw-in on Rect leaves (PROBE: draw-in on a Rect path)
+//  - dependency highlight between non-adjacent steps via pulse (PROBE: `highlight` is
+//    documented for Equation/Typst; on Rect we use pulse instead)
+//  - reusable dependency arrows repositioned per step (PROBE: repeated from/to animation,
+//    no record-and-chain like PlotCurve.func has)
+//  - Text value update via assignment dp[k].text = "3" (PROBE: glyph re-render vs morph)
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+title: Text, text: "Climbing Stairs — DP", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 40)
+recap: Text, text: "dp[k] = dp[k-1] + dp[k-2]", font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 76)
+
+// step_k center = (180 + k*120, 560 - k*80); top edge = center.y - 40.
+step0: Rect, size: (140, 80), color: surface.secondary, stroke: accent.primary, stroke_width: 2, at: (180, 560)
+step1: Rect, size: (140, 80), color: surface.secondary, stroke: accent.primary, stroke_width: 2, at: (300, 480)
+step2: Rect, size: (140, 80), color: surface.secondary, stroke: accent.primary, stroke_width: 2, at: (420, 400)
+step3: Rect, size: (140, 80), color: surface.secondary, stroke: accent.primary, stroke_width: 2, at: (540, 320)
+step4: Rect, size: (140, 80), color: surface.secondary, stroke: accent.primary, stroke_width: 2, at: (660, 240)
+step5: Rect, size: (140, 80), color: surface.secondary, stroke: accent.primary, stroke_width: 2, at: (780, 160)
+
+dp0: Text, text: "1", font_size: 30, color: accent.success, at: (180, 552)
+dp1: Text, text: "2", font_size: 30, color: accent.success, at: (300, 472)
+dp2: Text, text: "?", font_size: 30, color: text.primary, at: (420, 392), opacity: 0
+dp3: Text, text: "?", font_size: 30, color: text.primary, at: (540, 312), opacity: 0
+dp4: Text, text: "?", font_size: 30, color: text.primary, at: (660, 232), opacity: 0
+dp5: Text, text: "?", font_size: 30, color: text.primary, at: (780, 152), opacity: 0
+
+// Reusable dependency arrows (positioned for k=2, hidden until first use).
+dep_a: Arrow, from: (300, 440), to: (420, 360), color: accent.info,      stroke_width: 3, head_size: 14, opacity: 0
+dep_b: Arrow, from: (180, 520), to: (420, 360), color: accent.secondary, stroke_width: 3, head_size: 14, opacity: 0
+
+#0.5s
+fade-in title [500ms]
+fade-in recap [500ms, delay: 150ms]
+stagger [220ms] {
+  draw-in step0 [500ms]
+  draw-in step1 [500ms]
+  draw-in step2 [500ms]
+  draw-in step3 [500ms]
+  draw-in step4 [500ms]
+  draw-in step5 [500ms]
+}
+fade-in dp0 [300ms]
+fade-in dp1 [300ms]
+
+// k=2: dp[2] = dp[1] + dp[0] = 3.
+#2.2s
+pulse step1 [350ms, intensity: 1.15]
+pulse step0 [350ms, intensity: 1.15]
+fade-in dep_a [300ms]
+fade-in dep_b [300ms]
+dp2.text = "3" [300ms]
+fade-in dp2 [300ms]
+
+// k=3: dp[3] = dp[2] + dp[1] = 5.
+#3.6s
+pulse step2 [350ms, intensity: 1.15]
+pulse step1 [350ms, intensity: 1.15]
+dep_a.from = (420, 360) [300ms, ease: ease-in-out]
+dep_a.to   = (540, 280) [300ms, ease: ease-in-out]
+dep_b.from = (300, 440) [300ms, ease: ease-in-out]
+dep_b.to   = (540, 280) [300ms, ease: ease-in-out]
+dp3.text = "5" [300ms]
+fade-in dp3 [300ms]
+
+// k=4: dp[4] = dp[3] + dp[2] = 8.
+#5.0s
+pulse step3 [350ms, intensity: 1.15]
+pulse step2 [350ms, intensity: 1.15]
+dep_a.from = (540, 280) [300ms, ease: ease-in-out]
+dep_a.to   = (660, 200) [300ms, ease: ease-in-out]
+dep_b.from = (420, 360) [300ms, ease: ease-in-out]
+dep_b.to   = (660, 200) [300ms, ease: ease-in-out]
+dp4.text = "8" [300ms]
+fade-in dp4 [300ms]
+
+// k=5: dp[5] = dp[4] + dp[3] = 13.
+#6.4s
+pulse step4 [350ms, intensity: 1.15]
+pulse step3 [350ms, intensity: 1.15]
+dep_a.from = (660, 200) [300ms, ease: ease-in-out]
+dep_a.to   = (780, 120) [300ms, ease: ease-in-out]
+dep_b.from = (540, 280) [300ms, ease: ease-in-out]
+dep_b.to   = (780, 120) [300ms, ease: ease-in-out]
+dp5.text = "13" [300ms]
+fade-in dp5 [300ms]
+
+#7.8s
+fade-out dep_a [400ms]
+fade-out dep_b [400ms]
