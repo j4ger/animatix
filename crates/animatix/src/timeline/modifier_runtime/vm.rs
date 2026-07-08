@@ -5,6 +5,8 @@ use super::ir::
  make_vec_value,
 };
 use crate::ast::{BinaryOp, Expr, LoopPattern};
+use crate::timeline::animation_track::SceneAnchor;
+use crate::timeline::callout_geometry::env_anchor_point;
 use crate::timeline::env::CapturedEnv;
 use crate::timeline::{Environment, EvalError, Value};
 use std::fmt;
@@ -86,6 +88,14 @@ pub enum Instruction {
     /// Advance iterator; if exhausted, jump to the end of the loop.
     /// Carries the loop pattern, optional index variable name, and end jump target.
     CheckFor(LoopPattern, Option<String>, usize),
+    /// Lazily resolve an actor anchor point from the frame environment.
+    /// `actor.anchor` → reads `{actor}.at` + `{actor}.size` from env.
+    AnchorLookup {
+        /// Actor label whose anchor point to resolve.
+        actor: String,
+        /// Which anchor point (top, right, center, etc.).
+        anchor: SceneAnchor,
+    },
     /// Pop a value and write it as an override for the target property.
     WriteOverride {
         /// Actor label to write the override to.
@@ -336,6 +346,12 @@ impl BytecodeCompiler {
                 self.instructions.push(Instruction::MakeObject {
                     type_name: type_name.clone(),
                     fields: field_names,
+                });
+            }
+            CompiledExpr::AnchorLookup { actor, anchor } => {
+                self.instructions.push(Instruction::AnchorLookup {
+                    actor: actor.clone(),
+                    anchor: *anchor,
                 });
             }
         }
@@ -611,6 +627,15 @@ impl ModifierVm {
                     self.stack.push(Value::Closure(params.clone(), body.clone(), captures));
                     self.ip += 1;
                 }
+                Instruction::AnchorLookup { actor, anchor } => {
+                    let value = env_anchor_point(frame_env, actor, *anchor)
+                        .map(Value::Vec2)
+                        .ok_or_else(|| EvalError::UndefinedVariable(
+                            format!("{actor}.{}", anchor.as_str())
+                        ))?;
+                    self.stack.push(value);
+                    self.ip += 1;
+                }
                 Instruction::MakeObject { type_name, fields } => {
                     let mut values: Vec<Value> = Vec::with_capacity(fields.len());
                     for _ in 0..fields.len() {
@@ -671,6 +696,9 @@ impl fmt::Display for ModifierBytecodeProgram {
                         writeln!(f, "{idx}: CheckFor {var} {end}")?;
                     }
                 },
+                Instruction::AnchorLookup { actor, anchor } => {
+                    writeln!(f, "{idx}: AnchorLookup {actor} {}", anchor.as_str())?
+                }
                 Instruction::WriteOverride { target, property } => {
                     writeln!(f, "{idx}: WriteOverride {target} {property}")?
                 }

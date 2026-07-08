@@ -5,6 +5,8 @@
 //! Closures evaluate against a clone of the caller environment with parameter bindings added.
 
 use crate::ast::{Expr, Time};
+use crate::timeline::animation_track::SceneAnchor;
+use crate::timeline::callout_geometry::env_anchor_point;
 use crate::timeline::env::{CapturedEnv, Environment, EvalError, Value};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -261,6 +263,19 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
 
         Expr::Path(parts) => {
             let dotted = parts.join(".");
+            // Lazy anchor-point resolution before plain env lookup.
+            // This makes `actor.right` reflect `always`-block position
+            // overrides because it reads `{actor}.at` and `{actor}.size`
+            // from the env (which includes override values).
+            if parts.len() == 2 && parts[0] != "scene" {
+                if let Some(anchor) = SceneAnchor::from_str(&parts[1]) {
+                    if let Some(point) = env_anchor_point(env, &parts[0], anchor) {
+                        return Ok(Value::Vec2(point));
+                    }
+                    // Fall through to plain env lookup — the actor may not
+                    // exist in the env yet (build-time), so return normal error.
+                }
+            }
             // First try direct lookup (backward compatible with injected
             // compound sub-keys like "node.position.x").
             if let Some(val) = env.get(&dotted) {

@@ -176,6 +176,9 @@ impl fmt::Display for DisplayCompiledExpr<'_> {
                 }
                 write!(f, "}}")
             }
+            CompiledExpr::AnchorLookup { actor, anchor } => {
+                write!(f, "anchor({}.{})", actor, anchor.as_str())
+            }
         }
     }
 }

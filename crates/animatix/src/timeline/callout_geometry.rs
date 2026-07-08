@@ -4,7 +4,7 @@
 //! (handle drawing / hit-testing) use [`derive_callout_geometry`] so that the
 //! tip position is computed by exactly one formula.
 
-use crate::timeline::{AnimationTrack, SceneDimensions, Timeline, TrackAccessor};
+use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Timeline, TrackAccessor, Value};
 use crate::timeline::animation_track::{CalloutPlace, SceneAnchor};
 
 // -- Resolver trait --
@@ -166,6 +166,38 @@ pub fn bounds_anchor_point(anchor: SceneAnchor, centre: [f32; 2], half: [f32; 2]
     }
 }
 
+/// Compute an actor anchor point from the frame environment (lazy resolution).
+///
+/// Reads `{actor}.at` (centre position) and `{actor}.size` from `env`,
+/// then computes the world-space anchor point using [`bounds_anchor_point`].
+/// Returns `None` if `{actor}.at` is not in the environment.
+///
+/// This is the lazy alternative to [`resolve_anchor_point`]: it does not
+/// require the `Timeline` or `TargetResolver` — just the per-frame env.
+/// Because it reads the env (which reflects `always`-block overrides),
+/// it produces up-to-date positions even when modifiers move the actor.
+pub fn env_anchor_point(
+    env: &Environment,
+    actor: &str,
+    anchor: SceneAnchor,
+) -> Option<[f64; 2]> {
+    let at = env.get(&format!("{actor}.at"))?;
+    let centre = match at {
+        Value::Vec2(c) => c,
+        _ => return None,
+    };
+    let half = match env.get(&format!("{actor}.size")) {
+        Some(Value::Vec2(s)) => [s[0] / 2.0, s[1] / 2.0],
+        _ => [0.0, 0.0], // No size → point anchor (treat as zero area)
+    };
+    let point = bounds_anchor_point(
+        anchor,
+        [centre[0] as f32, centre[1] as f32],
+        [half[0] as f32, half[1] as f32],
+    );
+    Some([point[0] as f64, point[1] as f64])
+}
+
 /// Resolve an actor's anchor point to a world-space `Vec2` at the given time.
 ///
 /// Returns `None` if the actor doesn't exist or has no bounds (the actor may
@@ -240,5 +272,74 @@ mod tests {
             assert_eq!(SceneAnchor::from_str(name), Some(*anchor));
         }
         assert_eq!(SceneAnchor::from_str("invalid"), None);
+    }
+
+    #[test]
+    fn env_anchor_point_uses_at_and_size_from_env() {
+        // Rect at (100,100) size (40,40): centre=(100,100), half=(20,20)
+        let mut env = Environment::new();
+        env.set("r.at", Value::Vec2([100.0, 100.0]));
+        env.set("r.size", Value::Vec2([40.0, 40.0]));
+
+        assert_eq!(
+            env_anchor_point(&env, "r", SceneAnchor::Right),
+            Some([120.0, 100.0])
+        );
+        assert_eq!(
+            env_anchor_point(&env, "r", SceneAnchor::Top),
+            Some([100.0, 80.0])
+        );
+        assert_eq!(
+            env_anchor_point(&env, "r", SceneAnchor::Center),
+            Some([100.0, 100.0])
+        );
+        assert_eq!(
+            env_anchor_point(&env, "r", SceneAnchor::Left),
+            Some([80.0, 100.0])
+        );
+        assert_eq!(
+            env_anchor_point(&env, "r", SceneAnchor::Bottom),
+            Some([100.0, 120.0])
+        );
+    }
+
+    #[test]
+    fn env_anchor_point_reflects_overridden_at() {
+        let mut env = Environment::new();
+        env.set("r.at", Value::Vec2([200.0, 100.0])); // overridden from original (100,100)
+        env.set("r.size", Value::Vec2([40.0, 40.0]));
+
+        // right should be (200+20, 100) = (220, 100)
+        assert_eq!(
+            env_anchor_point(&env, "r", SceneAnchor::Right),
+            Some([220.0, 100.0])
+        );
+        // top should be (200, 100-20) = (200, 80)
+        assert_eq!(
+            env_anchor_point(&env, "r", SceneAnchor::Top),
+            Some([200.0, 80.0])
+        );
+    }
+
+    #[test]
+    fn env_anchor_point_returns_none_when_at_missing() {
+        let env = Environment::new();
+        assert_eq!(env_anchor_point(&env, "r", SceneAnchor::Right), None);
+    }
+
+    #[test]
+    fn env_anchor_point_uses_zero_half_when_size_missing() {
+        let mut env = Environment::new();
+        env.set("r.at", Value::Vec2([100.0, 200.0]));
+        // No r.size — defaults to point anchor
+        assert_eq!(
+            env_anchor_point(&env, "r", SceneAnchor::Center),
+            Some([100.0, 200.0])
+        );
+        // With no half, all anchors collapse to centre
+        assert_eq!(
+            env_anchor_point(&env, "r", SceneAnchor::Right),
+            Some([100.0, 200.0])
+        );
     }
 }

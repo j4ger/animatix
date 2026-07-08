@@ -10,7 +10,6 @@ use super::{
     scene_anchor_point, set_lookup_color,
     set_lookup_vec2,
 };
-use super::callout_geometry::resolve_anchor_point;
 
 /// Apply a modifier override incrementally to the frame environment.
 ///
@@ -215,32 +214,11 @@ impl Timeline {
                 }
             }
 
-            // G5/G6: Inject actor-anchor-point lookups (`{label}.right`, etc.)
-            // so that `n0.right` resolves as a plain env lookup.
-            if let Some(dimensions) = scene_dimensions {
-                for anchor in [
-                    SceneAnchor::TopLeft,
-                    SceneAnchor::Top,
-                    SceneAnchor::TopRight,
-                    SceneAnchor::Left,
-                    SceneAnchor::Center,
-                    SceneAnchor::Right,
-                    SceneAnchor::BottomLeft,
-                    SceneAnchor::Bottom,
-                    SceneAnchor::BottomRight,
-                ] {
-                    if let Some(point) = resolve_anchor_point(
-                        self,
-                        label,
-                        anchor,
-                        time_ms,
-                        dimensions,
-                    ) {
-                        let key = format!("{label}.{}", anchor.as_str());
-                        set_lookup_vec2(env, &key, [point[0] as f64, point[1] as f64]);
-                    }
-                }
-            }
+            // G5/G6: Actor anchor points (`{label}.right`, etc.) are now
+            // resolved lazily from the frame environment at evaluation time
+            // (see `env_anchor_point` in callout_geometry.rs).  This replaces
+            // the old eager-injection approach, making anchor points reflect
+            // `always`-block position overrides.
         }
     }
 }

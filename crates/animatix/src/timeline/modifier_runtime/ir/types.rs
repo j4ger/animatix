@@ -1,5 +1,6 @@
 use crate::ast::{BinaryOp, Expr, LoopPattern, UnaryOp};
 use crate::timeline::Value;
+use crate::timeline::animation_track::SceneAnchor;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -72,6 +73,14 @@ pub enum CompiledExpr {
     Closure(Vec<String>, Box<Expr>),
     /// Construct an object value (type name, compiled field expressions).
     Construct(String, Vec<(String, CompiledExpr)>),
+    /// Lazily resolve an actor anchor point from the frame environment.
+    /// `{actor}.{anchor}` → reads `{actor}.at` + `{actor}.size` from env.
+    AnchorLookup {
+        /// Actor label whose anchor point to resolve.
+        actor: String,
+        /// Which anchor point (top, right, center, etc.).
+        anchor: SceneAnchor,
+    },
 }
 
 /// Expression used in modifier IR, either compiled or unsupported.

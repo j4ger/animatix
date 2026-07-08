@@ -1,5 +1,6 @@
 use crate::ast::{BinaryOp, Expr, MatchPattern, Stmt, TargetSegment};
 use crate::timeline::Value;
+use crate::timeline::animation_track::SceneAnchor;
 
 use super::types::{
     BuiltinFn, CompiledExpr, IrLowerError, ModifierExpr, ModifierIrProgram, ModifierIrStmt,
@@ -170,7 +171,21 @@ pub fn compile_expr(expr: &Expr) -> Option<CompiledExpr> {
         Expr::Bool(b) => Some(CompiledExpr::Const(Value::Bool(*b))),
         Expr::Null => Some(CompiledExpr::Const(Value::Num(0.0))),
         Expr::Ident(name) => Some(CompiledExpr::LoadEnv(name.clone())),
-        Expr::Path(parts) => Some(CompiledExpr::LoadEnv(parts.join("."))),
+        Expr::Path(parts) => {
+            // Lazy anchor-point resolution: `actor.right` style paths are
+            // resolved from the frame env at evaluation time, not eagerly
+            // injected.  Exclude `scene.*` (preserves existing scene anchor
+            // injection path) and non-2-part paths.
+            if parts.len() == 2 && parts[0] != "scene" {
+                if let Some(anchor) = SceneAnchor::from_str(&parts[1]) {
+                    return Some(CompiledExpr::AnchorLookup {
+                        actor: parts[0].clone(),
+                        anchor,
+                    });
+                }
+            }
+            Some(CompiledExpr::LoadEnv(parts.join(".")))
+        },
         Expr::Tuple(items) => items
             .iter()
             .map(compile_expr)

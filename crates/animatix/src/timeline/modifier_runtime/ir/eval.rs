@@ -1,4 +1,5 @@
 use crate::ast::{BinaryOp, LoopPattern, UnaryOp, array_actor_label};
+use crate::timeline::callout_geometry::env_anchor_point;
 use crate::timeline::env::CapturedEnv;
 use crate::timeline::{Environment, EvalError, Value};
 use super::types::{
@@ -284,6 +285,11 @@ pub fn evaluate_compiled_expr(
                 map.insert(field_name.clone(), val);
             }
             Ok(Value::Object(name.clone(), map))
+        }
+        CompiledExpr::AnchorLookup { actor, anchor } => {
+            env_anchor_point(env, actor, *anchor)
+                .map(Value::Vec2)
+                .ok_or_else(|| EvalError::UndefinedVariable(format!("{actor}.{}", anchor.as_str())))
         }
     }
 }
