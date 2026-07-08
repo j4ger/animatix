@@ -86,10 +86,23 @@ pub enum ModifierExpr {
 /// A statement in the modifier IR.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ModifierIrStmt {
-    /// Assign a value to a target object's property.
+    /// Assign a value to a target object's property (all-static target path).
     Assign {
         /// Object path segments.
         target: Vec<String>,
+        /// Property name to assign.
+        property: String,
+        /// Value expression.
+        value: ModifierExpr,
+    },
+    /// Assign a value to a runtime-indexed target (e.g. `bars[i].color = red`).
+    /// The base is the array label, index is compiled to a frame-time expression,
+    /// property is the last segment (always static), and value is the RHS.
+    AssignIndexed {
+        /// Array base label (e.g. "bars").
+        base: String,
+        /// Frame-time index expression.
+        index: CompiledExpr,
         /// Property name to assign.
         property: String,
         /// Value expression.

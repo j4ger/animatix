@@ -67,7 +67,7 @@ fn test_animated_scene_has_keyframes() {
             time: crate::ast::Time::Seconds(5.0),
             body: vec![
                 Stmt::Assignment {
-                    target: vec!["box0".to_string()],
+                    target: vec![crate::ast::TargetSegment::Static("box0".to_string())],
                     property: "position".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(200.0)]),
                     modifiers: vec![],
@@ -76,7 +76,7 @@ fn test_animated_scene_has_keyframes() {
                     span: None,
                 },
                 Stmt::Assignment {
-                    target: vec!["box0".to_string()],
+                    target: vec![crate::ast::TargetSegment::Static("box0".to_string())],
                     property: "color".to_string(),
                     value: Expr::Ident("accent.success".to_string()),
                     modifiers: vec![],
@@ -85,7 +85,7 @@ fn test_animated_scene_has_keyframes() {
                     span: None,
                 },
                 Stmt::Assignment {
-                    target: vec!["box0".to_string()],
+                    target: vec![crate::ast::TargetSegment::Static("box0".to_string())],
                     property: "opacity".to_string(),
                     value: Expr::Num(0.5),
                     modifiers: vec![],

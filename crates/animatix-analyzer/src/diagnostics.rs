@@ -274,24 +274,6 @@ fn span_to_diag(span: &Option<animatix_syntax::ast::Span>) -> (usize, usize, usi
     }
 }
 
-/// Format an array-indexed actor label (e.g., `bars[0]` → `"bars__0"`).
-/// Reserved for B1-core fixer (runtime for-loop track generation).
-#[allow(dead_code)]
-pub fn array_actor_label(base: &str, n: usize) -> String {
-    format!("{}__{}", base, n)
-}
-
-/// If `s` matches `^(.+)__\d+$`, return the base part (the prefix before `__`).
-/// Otherwise returns `None`.
-pub fn is_array_member_label(s: &str) -> Option<&str> {
-    let (prefix, suffix) = s.rsplit_once("__")?;
-    if suffix.chars().all(|c| c.is_ascii_digit()) && !suffix.is_empty() {
-        Some(prefix)
-    } else {
-        None
-    }
-}
-
 /// Search the tree-sitter tree for a node of the given kind containing `text`.
 /// Returns 0-based (line, col, end_line, end_col) if found.
 fn find_token_range(
@@ -374,7 +356,8 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, tree: Option<&tree_sitter::Tre
             let (line, col, end_line, end_col) = span_to_diag(span);
 
             // Check if target label exists
-            if let Some(label) = target.first() {
+            if let Some(seg) = target.first() {
+                let label = seg.label_str();
                 let is_defined = symbols.labels.contains_key(label)
                     || is_array_member_label(label)
                         .map_or(false, |base| symbols.array_labels.contains(base));
@@ -392,7 +375,8 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, tree: Option<&tree_sitter::Tre
             }
 
             // Check if property is known for the target type
-            if let Some(label) = target.first() {
+            if let Some(seg) = target.first() {
+                let label = seg.label_str();
                 if let Some(info) = symbols.labels.get(label) {
                     if let Some(ty) = &info.ty {
                         if let Some(known_props) = symbols.properties.get(ty) {

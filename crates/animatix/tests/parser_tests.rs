@@ -161,7 +161,7 @@ fn test_assignments_and_paths() {
     assert_eq!(
         parse_single_stmt("btn.color = \"red\""),
         Stmt::Assignment {
-            target: vec!["btn".to_string()],
+            target: vec![animatix_syntax::ast::TargetSegment::Static("btn".to_string())],
             property: "color".to_string(),
             value: Expr::Str("red".to_string()),
             modifiers: vec![],
@@ -173,7 +173,7 @@ fn test_assignments_and_paths() {
     assert_eq!(
         parse_single_stmt("morpher.size = (100, 100) [2s, ease: ease-out]"),
         Stmt::Assignment {
-            target: vec!["morpher".to_string()],
+            target: vec![animatix_syntax::ast::TargetSegment::Static("morpher".to_string())],
             property: "size".to_string(),
             value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
             modifiers: vec![
@@ -192,7 +192,7 @@ fn test_assignments_and_paths() {
     assert_eq!(
         parse_single_stmt("btn.at = (100, 100) [ease: linear]"),
         Stmt::Assignment {
-            target: vec!["btn".to_string()],
+            target: vec![animatix_syntax::ast::TargetSegment::Static("btn".to_string())],
             property: "at".to_string(),
             value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
             modifiers: vec![],
@@ -205,7 +205,7 @@ fn test_assignments_and_paths() {
     assert_eq!(
         parse_single_stmt("btn.opacity = 0.5 [ease: bounce]"),
         Stmt::Assignment {
-            target: vec!["btn".to_string()],
+            target: vec![animatix_syntax::ast::TargetSegment::Static("btn".to_string())],
             property: "opacity".to_string(),
             value: Expr::Num(0.5),
             modifiers: vec![],
@@ -218,7 +218,7 @@ fn test_assignments_and_paths() {
     assert_eq!(
         parse_single_stmt("left.badge.color = red"),
         Stmt::Assignment {
-            target: vec!["left".to_string(), "badge".to_string()],
+            target: vec![animatix_syntax::ast::TargetSegment::Static("left".to_string()), animatix_syntax::ast::TargetSegment::Static("badge".to_string())],
             property: "color".to_string(),
             value: Expr::Ident("red".to_string()),
             modifiers: vec![],
@@ -276,7 +276,7 @@ fn test_sequence_parse() {
                     byte_span: Some(ByteSpan { start: 11, end: 33 }),
                 }, None),
                 Stmt::Assignment {
-                    target: vec!["badge".to_string()],
+                    target: vec![animatix_syntax::ast::TargetSegment::Static("badge".to_string())],
                     property: "color".to_string(),
                     value: Expr::Ident("red".to_string()),
                     modifiers: vec![
@@ -320,7 +320,7 @@ fn test_stagger_parse() {
                     byte_span: Some(ByteSpan { start: 18, end: 40 }),
                 }, None),
                 Stmt::Assignment {
-                    target: vec!["second".to_string()],
+                    target: vec![animatix_syntax::ast::TargetSegment::Static("second".to_string())],
                     property: "color".to_string(),
                     value: Expr::Ident("red".to_string()),
                     modifiers: vec![Modifier {
@@ -525,7 +525,7 @@ fn test_modifier_delay_and_duplicates_parse() {
     assert_eq!(
         parse_single_stmt("badge.radius = 40 [delay: 1s, 500ms]"),
         Stmt::Assignment {
-            target: vec!["badge".to_string()],
+            target: vec![animatix_syntax::ast::TargetSegment::Static("badge".to_string())],
             property: "radius".to_string(),
             value: Expr::Num(40.0),
             modifiers: vec![
@@ -546,7 +546,7 @@ fn test_modifier_delay_and_duplicates_parse() {
     assert_eq!(
         parse_single_stmt("left.badge.color = red"),
         Stmt::Assignment {
-            target: vec!["left".to_string(), "badge".to_string()],
+            target: vec![animatix_syntax::ast::TargetSegment::Static("left".to_string()), animatix_syntax::ast::TargetSegment::Static("badge".to_string())],
             property: "color".to_string(),
             value: Expr::Ident("red".to_string()),
             modifiers: vec![],
@@ -1276,7 +1276,7 @@ fn test_expression_conditional() {
     assert_eq!(
         parse_single_stmt("pulse.size = if active { (120, 120) } else { (180, 180) }"),
         Stmt::Assignment {
-            target: vec!["pulse".to_string()],
+            target: vec![animatix_syntax::ast::TargetSegment::Static("pulse".to_string())],
             property: "size".to_string(),
             value: Expr::Conditional(
                 Box::new(Expr::Ident("active".to_string())),

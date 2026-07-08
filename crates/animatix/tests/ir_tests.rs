@@ -43,7 +43,7 @@ dots: Row, anchor: scene.bottom, offset: (0, -120), gap: 30, align: "center" {
 fn ir_lowering_lowers_always_assignment_subset() {
     let program = vec![Stmt::Always {
         body: vec![Stmt::Assignment {
-            target: vec!["pulse".to_string()],
+            target: vec![animatix_syntax::ast::TargetSegment::Static("pulse".to_string())],
             property: "opacity".to_string(),
             value: Expr::Num(1.0),
             modifiers: vec![],
@@ -81,7 +81,7 @@ fn ir_lowering_supports_conditionals_and_lets() {
                     Box::new(Expr::Num(1.0)),
                 ),
                 then_branch: vec![Stmt::Assignment {
-                    target: vec!["pulse".to_string()],
+                    target: vec![animatix_syntax::ast::TargetSegment::Static("pulse".to_string())],
                     property: "opacity".to_string(),
                     value: Expr::Num(1.0),
                     modifiers: vec![],
@@ -90,7 +90,7 @@ fn ir_lowering_supports_conditionals_and_lets() {
             span: None,
                 }],
                 else_branch: Some(vec![Stmt::Assignment {
-                    target: vec!["pulse".to_string()],
+                    target: vec![animatix_syntax::ast::TargetSegment::Static("pulse".to_string())],
                     property: "opacity".to_string(),
                     value: Expr::Num(0.0),
                     modifiers: vec![],
@@ -176,7 +176,7 @@ fn modifier_ir_can_lower_post_expansion_program() {
             time: Time::Seconds(0.0),
             body: vec![Stmt::Always {
                 body: vec![Stmt::Assignment {
-                    target: vec!["pulse".to_string()],
+                    target: vec![animatix_syntax::ast::TargetSegment::Static("pulse".to_string())],
                     property: "opacity".to_string(),
                     value: Expr::Binary(
                         Box::new(Expr::Ident("t".to_string())),
@@ -212,7 +212,7 @@ fn modifier_ir_matches_statement_modifier_execution() {
             Box::new(Expr::Num(1.0)),
         ),
         then_branch: vec![Stmt::Assignment {
-            target: vec!["pulse".to_string()],
+            target: vec![animatix_syntax::ast::TargetSegment::Static("pulse".to_string())],
             property: "opacity".to_string(),
             value: Expr::Num(1.0),
 modifiers: vec![],
@@ -221,7 +221,7 @@ modifiers: vec![],
             span: None,
                 }],
                 else_branch: Some(vec![Stmt::Assignment {
-                    target: vec!["pulse".to_string()],
+                    target: vec![animatix_syntax::ast::TargetSegment::Static("pulse".to_string())],
                     property: "opacity".to_string(),
                     value: Expr::Num(0.0),
                     modifiers: vec![],
@@ -261,7 +261,7 @@ modifiers: vec![],
 fn modifier_bytecode_compiles_assignment_subset() {
     let program = vec![Stmt::Always {
         body: vec![Stmt::Assignment {
-            target: vec!["pulse".to_string()],
+            target: vec![animatix_syntax::ast::TargetSegment::Static("pulse".to_string())],
             property: "opacity".to_string(),
             value: Expr::Num(1.0),
             modifiers: vec![],
@@ -301,7 +301,7 @@ fn modifier_bytecode_executes_let_and_if() {
                     Box::new(Expr::Num(1.0)),
                 ),
                 then_branch: vec![Stmt::Assignment {
-                    target: vec!["pulse".to_string()],
+                    target: vec![animatix_syntax::ast::TargetSegment::Static("pulse".to_string())],
                     property: "opacity".to_string(),
                     value: Expr::Num(1.0),
                     modifiers: vec![],
@@ -310,7 +310,7 @@ fn modifier_bytecode_executes_let_and_if() {
             span: None,
                 }],
                 else_branch: Some(vec![Stmt::Assignment {
-                    target: vec!["pulse".to_string()],
+                    target: vec![animatix_syntax::ast::TargetSegment::Static("pulse".to_string())],
                     property: "opacity".to_string(),
                     value: Expr::Num(0.0),
                     modifiers: vec![],
@@ -347,7 +347,7 @@ fn modifier_bytecode_executes_let_and_if() {
 fn modifier_bytecode_supports_construct_ir_expr() {
     let program = vec![Stmt::Always {
         body: vec![Stmt::Assignment {
-            target: vec!["pulse".to_string()],
+            target: vec![animatix_syntax::ast::TargetSegment::Static("pulse".to_string())],
             property: "opacity".to_string(),
             value: Expr::Construct(
                 "Point".to_string(),
@@ -469,7 +469,7 @@ fn vm_parity_nested_modifier_targets_match_ir() {
             Stmt::Always {
                 body: vec![
                     Stmt::Assignment {
-                        target: vec!["panel".to_string(), "badge".to_string()],
+                        target: vec![animatix_syntax::ast::TargetSegment::Static("panel".to_string()), animatix_syntax::ast::TargetSegment::Static("badge".to_string())],
                         property: "radius".to_string(),
                         value: Expr::Binary(
                             Box::new(Expr::Ident("t".to_string())),
@@ -482,7 +482,7 @@ fn vm_parity_nested_modifier_targets_match_ir() {
             span: None,
                     },
                     Stmt::Assignment {
-                        target: vec!["echo".to_string()],
+                        target: vec![animatix_syntax::ast::TargetSegment::Static("echo".to_string())],
                         property: "radius".to_string(),
                         value: Expr::Path(vec![
                             "panel".to_string(),

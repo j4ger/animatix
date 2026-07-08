@@ -9,7 +9,7 @@
 
 use crate::ast::LoopPattern;
 use super::modifier_runtime::{ir, vm};
-use super::{EvalError, SceneDimensions, Stmt, Timeline, Value, assignment_target_key, evaluate_expr};
+use super::{EvalError, SceneDimensions, Stmt, Timeline, Value, assignment_target_key_with_env, evaluate_expr};
 use tracing::warn;
 
 impl Timeline {
@@ -32,7 +32,15 @@ impl Timeline {
             } => {
                 match evaluate_expr(value, frame_env) {
                     Ok(val) => {
-                        let label = assignment_target_key(target);
+                        // Use the frame-time variant to handle Indexed segments (e.g. bars[i].color).
+                        // For all-Static targets this is equivalent to assignment_target_key.
+                        let label = match assignment_target_key_with_env(target, frame_env) {
+                            Ok(l) => l,
+                            Err(e) => {
+                                warn!("Modifier assignment error for {:?}.{property}: {e}", target);
+                                return;
+                            }
+                        };
                         overrides
                             .entry(label.clone())
                             .or_default()

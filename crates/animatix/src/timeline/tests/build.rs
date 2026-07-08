@@ -31,7 +31,7 @@ fn test_reactive_binding_desugars_to_modifier() {
                 span: None,
             },
             Stmt::ReactiveBinding {
-                target: vec!["orbiter".to_string()],
+                target: vec![crate::ast::TargetSegment::Static("orbiter".to_string())],
                 property: "at".to_string(),
                 value: Expr::Tuple(vec![
                     Expr::Binary(

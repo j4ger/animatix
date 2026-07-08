@@ -306,7 +306,7 @@ impl Timeline {
         // Check for always-blocks overriding keyframed properties.
         for stmt in &timeline.modifiers {
             if let crate::ast::Stmt::Assignment { target, property, span, .. } = stmt {
-                let actor_key = target.join(".");
+                let actor_key = crate::timeline::assignment_target_key(target);
                 if let Some(track) = timeline.tracks.get(&actor_key) {
                     if track.has_keyframes_for(property) {
                         diagnostics.push(

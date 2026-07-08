@@ -205,7 +205,7 @@ fn test_callout_animation() {
         Stmt::Keyframe {
             time: crate::ast::Time::Seconds(2.0),
             body: vec![Stmt::Assignment {
-                target: vec!["anim_callout".to_string()],
+                target: vec![crate::ast::TargetSegment::Static("anim_callout".to_string())],
                 property: "to".to_string(),
                 value: Expr::Tuple(vec![Expr::Num(300.0), Expr::Num(200.0)]),
                 modifiers: vec![],

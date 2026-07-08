@@ -469,8 +469,8 @@ fn rename_in_stmt(stmts: &mut [Stmt], old_label: &str, new_label: &str) {
             }
             Stmt::Assignment { target, .. } => {
                 for part in target.iter_mut() {
-                    if part == old_label {
-                        *part = new_label.to_string();
+                    if part.label_str() == old_label {
+                        *part = animatix_syntax::ast::TargetSegment::Static(new_label.to_string());
                     }
                 }
             }
@@ -834,7 +834,7 @@ btn.position = (200, 100)"#);
             for stmt in stmts {
                 match stmt {
                     Stmt::Assignment { target, property, .. } => {
-                        if target.last() == Some(&"my_box".to_string()) {
+                        if target.last() == Some(&animatix_syntax::ast::TargetSegment::Static("my_box".to_string())) {
                             if property == "color" {
                                 *found_color = true;
                             }
@@ -843,7 +843,7 @@ btn.position = (200, 100)"#);
                             }
                         }
                         assert!(
-                            target.last() != Some(&"btn".to_string()),
+                            target.last() != Some(&animatix_syntax::ast::TargetSegment::Static("btn".to_string())),
                             "Old reference 'btn' should have been renamed"
                         );
                     }

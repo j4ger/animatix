@@ -415,7 +415,7 @@ mod tests {
 
     fn make_assignment(target: &str, property: &str, value: Expr) -> Stmt {
         Stmt::Assignment {
-            target: vec![target.to_string()],
+            target: vec![crate::ast::TargetSegment::Static(target.to_string())],
             property: property.to_string(),
             value,
             modifiers: vec![],

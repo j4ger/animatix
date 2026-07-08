@@ -145,8 +145,10 @@ pub(crate) fn parser<'src>(
             .padded();
 
         let indexed_dotted_ident = common::indexed_dotted_ident();
+        // For assignments/reactive-bindings we need full expr parsing in brackets.
+        let indexed_dotted_ident_with_expr = common::indexed_dotted_ident_with_expr(expr.clone());
 
-        let assignment = indexed_dotted_ident
+        let assignment = indexed_dotted_ident_with_expr
             .clone()
             .then_ignore(just('=').padded())
             .then(expr.clone().map_with(|value, extra: &mut MapExtra<'src, '_, &'src str, extra::Err<Rich<'src, char>>>| {
@@ -162,7 +164,13 @@ pub(crate) fn parser<'src>(
                     ))
                 } else if path.len() == 1 {
                     // Single-segment assignment: e.g. `at = expr` inside an always block
-                    let property = path[0].clone();
+                    let property = match &path[0] {
+                        TargetSegment::Static(s) => s.clone(),
+                        TargetSegment::Indexed { .. } => return Err(Rich::custom(
+                            span,
+                            "indexed target cannot be a property name",
+                        )),
+                    };
                     let easing = common::extract_easing(&mut modifiers);
                     Ok(Stmt::Assignment {
                         target: vec![],
@@ -174,7 +182,10 @@ pub(crate) fn parser<'src>(
                         span: None,
                     })
                 } else {
-                    let property = path.last().cloned().unwrap_or_default();
+                    let property = match path.last().unwrap() {
+                        TargetSegment::Static(s) => s.clone(),
+                        _ => unreachable!("last assignment segment is always the property name (Static)"),
+                    };
                     let target = path[..path.len() - 1].to_vec();
                     let easing = common::extract_easing(&mut modifiers);
                     Ok(Stmt::Assignment {
@@ -193,7 +204,7 @@ pub(crate) fn parser<'src>(
             .padded();
 
         // Reactive binding: actor.prop := expr
-        let reactive_binding = indexed_dotted_ident
+        let reactive_binding = indexed_dotted_ident_with_expr
             .clone()
             .then_ignore(just(":=").padded())
             .then(expr.clone().map_with(|value, extra: &mut MapExtra<'src, '_, &'src str, extra::Err<Rich<'src, char>>>| {
@@ -207,7 +218,10 @@ pub(crate) fn parser<'src>(
                         "reactive binding target must include an actor label and a property (e.g. 'actor.prop := expr')",
                     ))
                 } else {
-                    let property = path.last().cloned().unwrap_or_default();
+                    let property = match path.last().unwrap() {
+                        TargetSegment::Static(s) => s.clone(),
+                        _ => unreachable!("last binding segment is always the property name (Static)"),
+                    };
                     let target = path[..path.len() - 1].to_vec();
                     Ok(Stmt::ReactiveBinding {
                         target,
@@ -364,7 +378,9 @@ pub(crate) fn parser<'src>(
         // the `__` scheme used by `resolve_array_index` in timeline/build/process.rs.
         let action_target = indexed_dotted_ident
             .clone()
-            .map(|segments| segments.join("."));
+            .map(|segments| {
+                target_segments_static_key(&segments)
+            });
 
         let action = ident
             .clone()

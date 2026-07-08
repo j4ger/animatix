@@ -145,7 +145,7 @@ pub(crate) use assignments::recompile_text_at_assignment;
 pub(crate) use position::preserve_instant_delayed_value;
 pub(crate) use primitive::PrimitiveDescriptor;
 use property_lookup::{
-    assignment_target_key, best_path_suggestion, evaluate_expr_with_lookup_diagnostic,
+    assignment_target_key, assignment_target_key_with_env, best_path_suggestion, evaluate_expr_with_lookup_diagnostic,
     for_iter_values, parse_color_in_env_with_lookup_diagnostic,
     set_lookup_color, set_lookup_vec2,
 };

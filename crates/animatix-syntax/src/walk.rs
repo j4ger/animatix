@@ -271,7 +271,7 @@ pub fn find_assignment_mut<'a>(
             target, property: prop, ..
         } = stmt
         {
-            if target.last().is_some_and(|t| t == actor) && prop == property {
+            if target.last().and_then(|t| t.as_static_str()).is_some_and(|t| t == actor) && prop == property {
                 return Some(stmt);
             }
         }

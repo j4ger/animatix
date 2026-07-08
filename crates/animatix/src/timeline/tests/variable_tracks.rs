@@ -99,7 +99,7 @@ fn test_keyframe_scoped_variables_injected_into_frame_env() {
             },
             Stmt::Always {
                 body: vec![Stmt::Assignment {
-                    target: vec!["tracker".to_string()],
+                    target: vec![crate::ast::TargetSegment::Static("tracker".to_string())],
                     property: "at".to_string(),
                     value: Expr::Tuple(vec![
                         Expr::Binary(

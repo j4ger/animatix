@@ -74,6 +74,18 @@ impl fmt::Display for DisplayStmt<'_> {
                 }
                 write!(f, " }}")
             }
+            ModifierIrStmt::AssignIndexed {
+                base,
+                index: _,
+                property,
+                value,
+            } => write!(
+                f,
+                "assign {}[<expr>].{} = {}",
+                base,
+                property,
+                DisplayExpr(value)
+            ),
             ModifierIrStmt::Noop => write!(f, "noop"),
         }
     }

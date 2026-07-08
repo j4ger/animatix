@@ -6,7 +6,7 @@
 //! re-serialization) for write-back instead.
 
 use std::collections::HashMap;
-use crate::ast::{ByteSpan, InlineItem, Stmt};
+use crate::ast::{ByteSpan, InlineItem, Stmt, TargetSegment};
 
 /// Index mapping actor labels + property names to their source byte spans.
 ///
@@ -110,8 +110,8 @@ impl SourceIndex {
                     ..
                 } => {
                     // target is a path like ["container", "child"]
-                    // The actor label is the last segment
-                    if let Some(actor) = target.last() {
+                    // The actor label is the last segment (always Static)
+                    if let Some(TargetSegment::Static(actor)) = target.last() {
                         self.assignments.insert(
                             (actor.clone(), property.clone()),
                             *span,
@@ -120,7 +120,7 @@ impl SourceIndex {
                 }
                 Stmt::ReactiveBinding { target, property, value_span, .. } => {
                     // Reactive bindings are indexed like assignments
-                    if let Some(actor) = target.last() {
+                    if let Some(TargetSegment::Static(actor)) = target.last() {
                         self.assignments.insert(
                             (actor.clone(), property.clone()),
                             value_span.unwrap_or_default(),
@@ -217,7 +217,7 @@ mod tests {
     #[test]
     fn source_index_indexes_assignments() {
         let stmts = vec![Stmt::Assignment {
-            target: vec!["btn".to_string()],
+            target: vec![TargetSegment::Static("btn".to_string())],
             property: "color".to_string(),
             value: Expr::Ident("blue".to_string()),
             modifiers: vec![],
@@ -268,7 +268,10 @@ mod tests {
     fn source_index_handles_nested_paths() {
         // btn.inner.color = red
         let stmts = vec![Stmt::Assignment {
-            target: vec!["btn".to_string(), "inner".to_string()],
+            target: vec![
+                TargetSegment::Static("btn".to_string()),
+                TargetSegment::Static("inner".to_string()),
+            ],
             property: "color".to_string(),
             value: Expr::Ident("red".to_string()),
             modifiers: vec![],
@@ -313,7 +316,7 @@ mod tests {
     fn source_index_from_stmt_assignment_panics_on_none_value_span() {
         // Assignment with None value_span should not panic - it just won't be indexed
         let stmts = vec![Stmt::Assignment {
-            target: vec!["btn".to_string()],
+            target: vec![TargetSegment::Static("btn".to_string())],
             property: "color".to_string(),
             value: Expr::Ident("red".to_string()),
             modifiers: vec![],

@@ -1,4 +1,4 @@
-use crate::ast::{BinaryOp, Expr, MatchPattern, Stmt};
+use crate::ast::{BinaryOp, Expr, MatchPattern, Stmt, TargetSegment};
 use crate::timeline::Value;
 
 use super::types::{
@@ -58,11 +58,39 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
             property,
             value,
             ..
-        } => Ok(ModifierIrStmt::Assign {
-            target: target.clone(),
-            property: property.clone(),
-            value: compile_modifier_expr(value),
-        }),
+        } => {
+            // Check if any segment is Indexed — if so, emit AssignIndexed.
+            // The last segment (property) is always Static; for runtime-indexed
+            // targets like `bars[i].color` we extract the Indexed segment's base
+            // and compile the index expression for frame-time evaluation.
+            let indexed_seg = target.iter().find(|s| matches!(s, TargetSegment::Indexed { .. }));
+            if let Some(TargetSegment::Indexed { base, index }) = indexed_seg {
+                Ok(ModifierIrStmt::AssignIndexed {
+                    base: base.clone(),
+                    index: compile_expr(index).ok_or(
+                        IrLowerError::UnsupportedStatement(
+                            "runtime index expression in target",
+                        ),
+                    )?,
+                    property: property.clone(),
+                    value: compile_modifier_expr(value),
+                })
+            } else {
+                // All-static fast path: join static segments for the target key.
+                let static_target: Vec<String> = target
+                    .iter()
+                    .map(|s| match s {
+                        TargetSegment::Static(t) => t.clone(),
+                        _ => unreachable!(), // filtered above
+                    })
+                    .collect();
+                Ok(ModifierIrStmt::Assign {
+                    target: static_target,
+                    property: property.clone(),
+                    value: compile_modifier_expr(value),
+                })
+            }
+        },
         Stmt::LetDecl {
             name,
             value,

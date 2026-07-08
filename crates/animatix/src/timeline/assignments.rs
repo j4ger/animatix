@@ -9,6 +9,7 @@ use super::{
     push_unknown_target_path_diagnostic, resolve_position_binding_with_lookup_diagnostic,
     set_track_position_binding,
 };
+use crate::ast::TargetSegment;
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
 use crate::primitives::{AssignmentCtx, find_primitive};
 use crate::renderer::error::RenderError;
@@ -28,7 +29,7 @@ impl Timeline {
     /// - If not, walks the hierarchy: finds `"g"`, checks if `"vec"` is its child,
     ///   and returns `"vec"` as the resolved track key.
     /// - Returns `None` if the path cannot be resolved.
-    fn resolve_hierarchical_target(&self, target: &[String]) -> Option<String> {
+    fn resolve_hierarchical_target(&self, target: &[TargetSegment]) -> Option<String> {
         if target.is_empty() {
             return None;
         }
@@ -42,12 +43,13 @@ impl Timeline {
             return None;
         }
 
-        // Walk the hierarchy
-        let mut current = target[0].clone();
+        // Walk the hierarchy — all segments must be static at build time.
+        let mut current = target[0].label_str().to_string();
         for segment in &target[1..] {
+            let seg_str = segment.label_str();
             let track = self.tracks.get(&current)?;
-            if track.children.contains(segment) {
-                current = segment.clone();
+            if track.children.contains(&seg_str.to_string()) {
+                current = seg_str.to_string();
             } else {
                 return None;
             }
@@ -57,7 +59,7 @@ impl Timeline {
     }
     pub(super) fn process_assignment_statement(
         &mut self,
-        target: &[String],
+        target: &[TargetSegment],
         property: &str,
         value: &super::Expr,
         modifiers: &[super::Modifier],
@@ -74,7 +76,7 @@ impl Timeline {
             return;
         }
         let eval_env = self.build_eval_env(time_ms as u64);
-        let assignment_subject = format!("{}.{}", target.join("."), property);
+        let assignment_subject = format!("{}.{}", assignment_target_key(target), property);
         let ParsedTimingModifiers {
             duration_ms,
             delay_ms,
@@ -93,7 +95,7 @@ impl Timeline {
         let instant_delayed = delay_ms > 0.0 && duration_ms == 0.0;
 
         // ── Scene-level property (background_color) ──
-        if target.len() == 1 && target[0] == "scene" {
+        if target.len() == 1 && target[0].label_str() == "scene" {
             if property == "background_color" {
                 let Some(target_color) = parse_color_in_env_with_lookup_diagnostic(
                     "scene",
@@ -123,7 +125,7 @@ impl Timeline {
         // ── Resolve target track ──
         // ── Variable field assignment (e.g., `p.x = 30` where `p` is a variable holding an Object)
         if target.len() == 1 {
-            let var_name = &target[0];
+            let var_name = target[0].label_str();
             // Check if this variable exists as a variable track holding an Object value
             if let Some(current) = self
                 .variable_tracks
@@ -149,7 +151,7 @@ impl Timeline {
                     // Update the Object's field (immutable update via with_field)
                     let new_obj = current.with_field(property, eval_val);
                     self.variable_tracks
-                        .entry(var_name.clone())
+                        .entry(var_name.to_string())
                         .or_default()
                         .keyframes
                         .insert(time_ms as u64, new_obj);

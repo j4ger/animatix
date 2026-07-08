@@ -1,5 +1,5 @@
 use super::{Environment, EvalError, Value, evaluate_expr, resolve_color_in_env};
-use crate::ast::Expr;
+use crate::ast::{Expr, TargetSegment, array_actor_label};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 
 pub(crate) fn parse_numeric_vec2(expr: &Expr, env: &Environment) -> Option<[f32; 2]> {
@@ -9,8 +9,39 @@ pub(crate) fn parse_numeric_vec2(expr: &Expr, env: &Environment) -> Option<[f32;
     }
 }
 
-pub(crate) fn assignment_target_key(target: &[String]) -> String {
-    target.join(".")
+/// Build a joined dot-separated key from target segments, using the base label
+/// for Indexed segments (e.g. `bars[i].color` → `"bars.color"`).
+///
+/// For all-Static targets this is equivalent to the static key.
+/// For Indexed targets, the runtime index is not resolved — use
+/// [`assignment_target_key_with_env`] for frame-time resolution.
+pub(crate) fn assignment_target_key(target: &[TargetSegment]) -> String {
+    target
+        .iter()
+        .map(|s| s.label_str())
+        .collect::<Vec<&str>>()
+        .join(".")
+}
+
+/// Build a target key at frame time, evaluating any Indexed segments against
+/// the environment. Static segments are copied as-is; Indexed segments evaluate
+/// the index expression, producing `{base}__{index}`.
+pub(crate) fn assignment_target_key_with_env(
+    target: &[TargetSegment],
+    env: &Environment,
+) -> Result<String, EvalError> {
+    let mut parts = Vec::with_capacity(target.len());
+    for seg in target {
+        match seg {
+            TargetSegment::Static(s) => parts.push(s.clone()),
+            TargetSegment::Indexed { base, index } => {
+                let idx_val = evaluate_expr(index, env)?;
+                let n = idx_val.as_num() as usize;
+                parts.push(array_actor_label(base, n));
+            }
+        }
+    }
+    Ok(parts.join("."))
 }
 
 pub(crate) fn push_unknown_lookup_path_diagnostic(
@@ -208,4 +239,71 @@ pub(crate) fn set_lookup_color(env: &mut Environment, key: &str, value: [f64; 4]
     env.set(&format!("{}.g", key), Value::Num(value[1]));
     env.set(&format!("{}.b", key), Value::Num(value[2]));
     env.set(&format!("{}.a", key), Value::Num(value[3]));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::{Expr, TargetSegment};
+    use crate::timeline::{Environment, Value};
+
+    #[test]
+    fn test_assignment_target_key_with_env_indexed() {
+        // Given: bars[i] with i=2 in the environment
+        let target = vec![
+            TargetSegment::Indexed {
+                base: "bars".to_string(),
+                index: Box::new(Expr::Ident("i".to_string())),
+            },
+        ];
+        let mut env = Environment::new();
+        env.set("i", Value::Num(2.0));
+
+        let key = assignment_target_key_with_env(&target, &env).unwrap();
+        // Should resolve to "bars__2" using array_actor_label
+        assert_eq!(key, "bars__2");
+    }
+
+    #[test]
+    fn test_assignment_target_key_with_env_static() {
+        // All-static segments should produce the same result as assignment_target_key
+        let target = vec![
+            TargetSegment::Static("container".to_string()),
+            TargetSegment::Static("child".to_string()),
+        ];
+        let env = Environment::new();
+        let key = assignment_target_key_with_env(&target, &env).unwrap();
+        assert_eq!(key, "container.child");
+    }
+
+    #[test]
+    #[test]
+    fn test_assignment_target_key_static() {
+        // All-static path must produce the same key as before
+        let target = vec![
+            TargetSegment::Static("bars__0".to_string()),
+            TargetSegment::Static("color".to_string()),
+        ];
+        assert_eq!(assignment_target_key(&target), "bars__0.color");
+    }
+
+    #[test]
+    fn test_assignment_target_key_indexed() {
+        // Indexed segments must NOT panic; they return the base label
+        let target = vec![
+            TargetSegment::Indexed {
+                base: "bars".to_string(),
+                index: Box::new(Expr::Ident("selected".to_string())),
+            },
+            TargetSegment::Static("color".to_string()),
+        ];
+        assert_eq!(assignment_target_key(&target), "bars.color");
+    }
+
+    #[test]
+    fn test_array_actor_label_shared() {
+        // Verify that the shared function is used consistently
+        assert_eq!(crate::ast::array_actor_label("bars", 0), "bars__0");
+        assert_eq!(crate::ast::array_actor_label("dots", 42), "dots__42");
+    }
 }

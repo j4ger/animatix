@@ -53,7 +53,7 @@ fn update_assignment(body: &mut [Stmt], actor: &str, property: &str, value: Expr
     for stmt in body.iter_mut() {
         match stmt {
             Stmt::Assignment { target, property: prop, value: val, .. }
-                if target.iter().any(|t| t == actor) && prop == property =>
+                if target.iter().any(|t| t.label_str() == actor) && prop == property =>
             {
                 *val = value;
                 return Ok(());
@@ -161,7 +161,7 @@ fn update_assignment_easing(
     for stmt in body.iter_mut() {
         match stmt {
             Stmt::Assignment { target, property: prop, modifiers, .. }
-                if target.iter().any(|t| t == actor) && prop == property =>
+                if target.iter().any(|t| t.label_str() == actor) && prop == property =>
             {
                 if let Some(existing) = modifiers.iter_mut().find(|m| m.name.as_deref() == Some("ease")) {
                     existing.value = easing_expr.clone();
@@ -266,7 +266,7 @@ fn remove_assignment_from_body(
 ) {
     body.retain(|stmt| !matches!(stmt,
         Stmt::Assignment { target, property: prop, .. }
-            if target.iter().any(|t| t == actor) && prop == property
+            if target.iter().any(|t| t.label_str() == actor) && prop == property
     ));
 }
 
@@ -297,7 +297,7 @@ pub(super) fn insert_keyframe(
     };
 
     let assignment = Stmt::Assignment {
-        target: vec![actor.into()],
+        target: vec![animatix_syntax::ast::TargetSegment::Static(actor.to_string())],
         property: source_prop.into(),
         value,
         modifiers: vec![],
@@ -470,7 +470,7 @@ fn contains_assignment(body: &[Stmt], actor: &str, property: &str) -> bool {
     for stmt in body {
         match stmt {
             Stmt::Assignment { target, property: prop, .. }
-                if target.iter().any(|t| t == actor) && prop == property =>
+                if target.iter().any(|t| t.label_str() == actor) && prop == property =>
             {
                 return true;
             }
@@ -545,7 +545,10 @@ btn.color = red"#);
             assert_eq!(*offset, Time::Seconds(1.0));
             assert_eq!(body.len(), 1);
             if let Stmt::Assignment { target, property, .. } = &body[0] {
-                assert_eq!(target, &vec!["btn".to_string()]);
+                assert_eq!(
+                    target,
+                    &vec![animatix_syntax::ast::TargetSegment::Static("btn".to_string())]
+                );
                 assert_eq!(property, "color");
             } else {
                 panic!("Expected Assignment");

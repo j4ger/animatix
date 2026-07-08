@@ -1,6 +1,6 @@
 use super::{
     ComponentEntry, Expr, HashMap, HashSet, InlineItem, InstanceActionRegistry, MatchPattern, ParamDef,
-    Property, Stmt,
+    Property, Stmt, TargetSegment,
     rewrite::rewrite_stmt,
 };
 
@@ -448,7 +448,7 @@ fn collect_labels(body: &[Stmt]) -> HashSet<String> {
                 labels.insert(label.clone());
             }
             Stmt::ReactiveBinding { target, .. } => {
-                if let Some(label) = target.first() {
+                if let Some(TargetSegment::Static(label)) = target.first() {
                     labels.insert(label.clone());
                 }
             }

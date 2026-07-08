@@ -195,7 +195,7 @@ fn test_runtime_text_recompilation() {
                 },
                 Stmt::Always {
                     body: vec![Stmt::Assignment {
-                        target: vec!["counter".to_string()],
+                        target: vec![crate::ast::TargetSegment::Static("counter".to_string())],
                         property: "text".to_string(),
                         value: Expr::Call(
                             "format".to_string(),

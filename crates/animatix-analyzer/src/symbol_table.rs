@@ -576,8 +576,10 @@ impl SymbolTable {
                 }
             }
             Stmt::Assignment { target, .. } => {
-                for label in target {
-                    self.referenced_labels.insert(label.clone());
+                for seg in target {
+                    if let TargetSegment::Static(label) = seg {
+                        self.referenced_labels.insert(label.clone());
+                    }
                 }
             }
             Stmt::Play { scene_name, .. } => {
@@ -627,8 +629,8 @@ impl SymbolTable {
                 }
             }
             Stmt::ReactiveBinding { target, .. } => {
-                for label in target {
-                    self.referenced_labels.insert(label.clone());
+                for seg in target {
+                    self.referenced_labels.insert(seg.label_str().to_string());
                 }
             }
             _ => {}

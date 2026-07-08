@@ -25,6 +25,22 @@
 
 use crate::ast::*;
 
+/// Format a slice of `TargetSegment`s as a source string.
+/// Static segments are written as-is; Indexed segments are written as
+/// `base[index_expr]` using the provided expression formatter.
+pub fn format_target_segments(segments: &[TargetSegment], format_expr: fn(&Expr) -> String) -> String {
+    segments
+        .iter()
+        .map(|s| match s {
+            TargetSegment::Static(name) => name.clone(),
+            TargetSegment::Indexed { base, index } => {
+                format!("{}[{}]", base, format_expr(index))
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(".")
+}
+
 /// Serialize a property to source text.
 pub fn format_property(prop: &Property) -> String {
     let mut s = format!("{}: {}", prop.name, format_expr(&prop.value));
@@ -514,7 +530,7 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             } else {
                 format!(
                     "{}.{} = {}",
-                    target.join("."),
+                    format_target_segments(target, format_expr),
                     property,
                     format_expr(value)
                 )
@@ -586,7 +602,7 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
         } => {
             format!(
                 "{}.{} := {}",
-                target.join("."),
+                format_target_segments(target, format_expr),
                 property,
                 format_expr(value)
             )

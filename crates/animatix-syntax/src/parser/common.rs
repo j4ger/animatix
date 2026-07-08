@@ -91,18 +91,22 @@ pub(crate) fn dotted_ident<'src>(
 // Indexed dotted identifier parser (for targets/assignments)
 // ---------------------------------------------------------------------------
 
-/// Parse a dotted path where each segment may carry an integer array index.
+/// Parse a dotted path where each segment may carry an integer array index or
+/// a runtime index expression.
 ///
-/// `dots[0].at` → `["dots__0", "at"]`
-/// `actor.prop`  → `["actor", "prop"]`
+/// `dots[0].at` → `[Static("dots__0"), Static("at")]`
+/// `actor.prop`  → `[Static("actor"), Static("prop")]`
+/// `bars[i].color` → `[Indexed { base: "bars", index: i }, Static("color")]`
 ///
-/// Only **integer-literal** indices are supported in targets; a variable index
-/// like `dots[i]` is not accepted here (use `Expr::Index` in value position).
-/// The `__{index}` encoding mirrors `resolve_array_index` in
-/// `timeline/build/process.rs`.
+/// Integer-literal indices are rewritten to `Static("label__N")` (same as before).
+/// Non-literal expressions produce `Indexed { base, index }` for frame-time resolution.
 pub(crate) fn indexed_dotted_ident<'src>(
-) -> impl Parser<'src, StrInput<'src>, Vec<String>, ParserExtra<'src>> + Clone {
-    // One segment: `ident` optionally followed by `[integer]`.
+) -> impl Parser<'src, StrInput<'src>, Vec<TargetSegment>, ParserExtra<'src>> + Clone {
+    use crate::ast::TargetSegment;
+
+    // Original integer-literal-only parser, now producing TargetSegment.
+    // `label[n]` → `Static("label__n")` for integer n.
+    // This is used for action targets (build-time only).
     let segment = ident()
         .then(
             just('[')
@@ -111,6 +115,7 @@ pub(crate) fn indexed_dotted_ident<'src>(
                         .to_slice()
                         .try_map(|s: &str, span| {
                             s.parse::<usize>()
+                                .map(|n| n)
                                 .map_err(|_| Rich::custom(span, "array index must be a non-negative integer literal"))
                         }),
                 )
@@ -118,9 +123,46 @@ pub(crate) fn indexed_dotted_ident<'src>(
                 .or_not(),
         )
         .map(|(name, idx)| match idx {
-            // Rewrite `label[n]` → `label__n` to match `resolve_array_index`.
-            Some(n) => format!("{}__{}" , name, n),
-            None => name,
+            Some(n) => TargetSegment::Static(format!("{}__{}", name, n)),
+            None => TargetSegment::Static(name),
+        });
+
+    segment
+        .separated_by(just('.').padded())
+        .at_least(1)
+        .collect::<Vec<_>>()
+}
+
+/// Version of `indexed_dotted_ident` that accepts an expression parser
+/// for runtime-indexed targets (e.g., `bars[i].color`).
+///
+/// Integer-literal indices produce `Static("label__N")`.
+/// Non-literal expressions produce `Indexed { base, index }`.
+pub(crate) fn indexed_dotted_ident_with_expr<'src>(
+    expr: ExprParser<'src>,
+) -> impl Parser<'src, StrInput<'src>, Vec<TargetSegment>, ParserExtra<'src>> + Clone {
+    use crate::ast::{Expr, TargetSegment};
+
+    let segment = ident()
+        .then(
+            just('[')
+                .ignore_then(expr)
+                .then_ignore(just(']'))
+                .or_not(),
+        )
+        .map(|(name, idx)| match idx {
+            Some(Expr::Num(n)) if n.trunc() == n && n >= 0.0 => {
+                // Integer literal: rewrite `label[n]` → `Static("label__n")`
+                TargetSegment::Static(format!("{}__{}", name, n as usize))
+            }
+            Some(e) => {
+                // Non-literal expression: runtime-indexed segment.
+                TargetSegment::Indexed {
+                    base: name,
+                    index: Box::new(e),
+                }
+            }
+            None => TargetSegment::Static(name),
         });
 
     segment

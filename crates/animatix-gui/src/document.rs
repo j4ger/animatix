@@ -864,7 +864,7 @@ mod tests {
             Stmt::RelativeKeyframe {
                 offset: Time::Seconds(2.0),
                 body: vec![Stmt::Assignment {
-                    target: vec!["box".to_string()],
+                    target: vec![animatix_syntax::ast::TargetSegment::Static("box".to_string())],
                     property: "scale".to_string(),
                     value: animatix_syntax::ast::Expr::Num(0.5),
                     modifiers: vec![],
@@ -949,7 +949,7 @@ mod tests {
             Stmt::RelativeKeyframe {
                 offset: Time::Seconds(1.0),
                 body: vec![Stmt::Assignment {
-                    target: vec!["box".to_string()],
+                    target: vec![animatix_syntax::ast::TargetSegment::Static("box".to_string())],
                     property: "scale".to_string(),
                     value: Expr::Num(0.5),
                     modifiers: vec![],
@@ -962,7 +962,7 @@ mod tests {
             Stmt::RelativeKeyframe {
                 offset: Time::Seconds(1.0),
                 body: vec![Stmt::Assignment {
-                    target: vec!["box".to_string()],
+                    target: vec![animatix_syntax::ast::TargetSegment::Static("box".to_string())],
                     property: "stroke_width".to_string(),
                     value: Expr::Num(4.0),
                     modifiers: vec![],
@@ -975,7 +975,7 @@ mod tests {
             Stmt::RelativeKeyframe {
                 offset: Time::Seconds(1.5),
                 body: vec![Stmt::Assignment {
-                    target: vec!["box".to_string()],
+                    target: vec![animatix_syntax::ast::TargetSegment::Static("box".to_string())],
                     property: "scale".to_string(),
                     value: Expr::Num(1.0),
                     modifiers: vec![],

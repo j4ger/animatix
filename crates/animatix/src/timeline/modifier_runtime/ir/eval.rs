@@ -1,4 +1,4 @@
-use crate::ast::{BinaryOp, LoopPattern, UnaryOp};
+use crate::ast::{BinaryOp, LoopPattern, UnaryOp, array_actor_label};
 use crate::timeline::env::CapturedEnv;
 use crate::timeline::{Environment, EvalError, Value};
 use super::types::{
@@ -41,6 +41,26 @@ fn execute_modifier_stmt(
         } => {
             let val = evaluate_modifier_expr(value, frame_env)?;
             let label = target.join(".");
+            overrides
+                .entry(label.clone())
+                .or_default()
+                .insert(property.clone(), val.clone());
+            crate::timeline::frame_env::apply_override_incremental(
+                frame_env, &label, property, val,
+            );
+            Ok(())
+        }
+        ModifierIrStmt::AssignIndexed {
+            base,
+            index,
+            property,
+            value,
+        } => {
+            let val = evaluate_modifier_expr(value, frame_env)?;
+            // Evaluate the runtime index against the frame environment.
+            let idx_val = evaluate_compiled_expr(index, frame_env)?;
+            let n = idx_val.as_num() as usize;
+            let label = array_actor_label(base, n);
             overrides
                 .entry(label.clone())
                 .or_default()

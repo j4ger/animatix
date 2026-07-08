@@ -8,6 +8,7 @@ mod rewrite;
 
 use crate::ast::{
     Action, ComponentDef, Expr, InlineItem, MatchPattern, Modifier, ParamDef, Property, Span, Stmt,
+    TargetSegment,
 };
 use crate::walk::walk_stmts_mut;
 use crate::parser::{parse_source, ParseError};

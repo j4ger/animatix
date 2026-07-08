@@ -419,7 +419,7 @@ pub(crate) fn resolve_array_index(
             let eval_env = build_eval_env_static(env, time_ms);
             match evaluate_expr(index_expr, &eval_env) {
                 Ok(Value::Num(n)) if n >= 0.0 && n == n.floor() => {
-                    format!("{}__{}", label, n as usize)
+                    crate::ast::array_actor_label(label, n as usize)
                 }
                 Ok(Value::Num(n)) => {
                     diagnostics.push(

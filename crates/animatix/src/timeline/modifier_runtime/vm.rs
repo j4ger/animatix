@@ -126,6 +126,8 @@ pub struct ModifierBytecodeProgram {
 pub enum VmCompileError {
     /// Encountered an unsupported expression.
     UnsupportedExpr,
+    /// Encountered an unsupported statement type (e.g., AssignIndexed).
+    UnsupportedStmt(&'static str),
 }
 
 impl fmt::Display for VmCompileError {
@@ -135,6 +137,12 @@ impl fmt::Display for VmCompileError {
                 write!(
                     f,
                     "Modifier bytecode compiler encountered unsupported IR expression"
+                )
+            }
+            VmCompileError::UnsupportedStmt(kind) => {
+                write!(
+                    f,
+                    "Modifier bytecode compiler encountered unsupported statement: {kind}"
                 )
             }
         }
@@ -196,6 +204,14 @@ impl BytecodeCompiler {
                     target: target.join("."),
                     property: property.clone(),
                 });
+            }
+            // AssignIndexed requires frame-time index evaluation that the VM
+            // does not natively support. Signal unsupported so the runtime
+            // falls back to the IR eval path (which handles AssignIndexed).
+            ModifierIrStmt::AssignIndexed { .. } => {
+                return Err(VmCompileError::UnsupportedStmt(
+                    "AssignIndexed — use IR fallback"
+                ));
             }
             ModifierIrStmt::Let { name, value } => {
                 self.compile_modifier_expr(value)?;

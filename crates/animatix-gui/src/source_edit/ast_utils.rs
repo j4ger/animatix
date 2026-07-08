@@ -67,7 +67,7 @@ pub fn keyframe_references_actor(stmt: &Stmt, actor: &str) -> bool {
     let mut found = false;
     animatix_syntax::walk::walk_stmts(std::slice::from_ref(stmt), &mut |s| {
         if let Stmt::Assignment { target, .. } = s {
-            if target.iter().any(|t| t == actor) {
+            if target.iter().any(|t| t.label_str() == actor) {
                 found = true;
             }
         }

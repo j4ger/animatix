@@ -554,6 +554,94 @@ pub enum InlineItem {
 // reactive blocks, and control flow.
 // ----------------------------------------------------------------------------
 
+/// A single segment of an assignment/reactive-binding target path.
+///
+/// - `Static("bars__0")` — a pre-resolved label (e.g. `bars[0]` → `"bars__0"`).
+/// - `Indexed { base: "bars", index: <expr> }` — a runtime-indexed segment
+///   (e.g. `bars[i]` where `i` is a per-frame `let`).
+#[derive(Clone, Debug, PartialEq)]
+pub enum TargetSegment {
+    /// A static label segment (e.g. `"container"`, `"bars__0"`).
+    Static(String),
+    /// A runtime-indexed segment (e.g. `"bars[i]"` where `i` is frame-time).
+    Indexed {
+        /// The base actor label.
+        base: String,
+        /// The runtime index expression.
+        index: Box<Expr>,
+    },
+}
+
+impl TargetSegment {
+    /// If this is a Static segment, return the label string.
+    /// For Indexed segments, returns `None`.
+    pub fn as_static_str(&self) -> Option<&str> {
+        match self {
+            TargetSegment::Static(s) => Some(s.as_str()),
+            TargetSegment::Indexed { .. } => None,
+        }
+    }
+
+    /// Return the static string, panicking if this is an Indexed segment.
+    /// Use only in build-time code where Indexed segments cannot appear.
+    pub fn expect_static(&self) -> &str {
+        match self {
+            TargetSegment::Static(s) => s.as_str(),
+            TargetSegment::Indexed { base, .. } => {
+                panic!(
+                    "expected static target segment, got Indexed(\"{}\")",
+                    base
+                )
+            }
+        }
+    }
+
+    /// Extract the "label string" from the segment for diagnostic/checking purposes.
+    /// For `Static(s)`, returns `Some(s)`; for `Indexed { base, .. }`, returns `Some(base)`.
+    /// Never returns `None` — this exists as a convenience when both variants carry a label.
+    pub fn label_str(&self) -> &str {
+        match self {
+            TargetSegment::Static(s) => s.as_str(),
+            TargetSegment::Indexed { base, .. } => base.as_str(),
+        }
+    }
+}
+
+impl std::fmt::Display for TargetSegment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TargetSegment::Static(s) => write!(f, "{}", s),
+            TargetSegment::Indexed { base, .. } => write!(f, "{}[<index>]", base),
+        }
+    }
+}
+
+/// Join static-only target segments with `"."`.
+/// Panics if any segment is `Indexed`.
+pub fn target_segments_static_key(target: &[TargetSegment]) -> String {
+    target
+        .iter()
+        .map(|s| s.expect_static())
+        .collect::<Vec<&str>>()
+        .join(".")
+}
+
+/// Build an array-indexed actor label (e.g. `bars[0]` → `"bars__0"`).
+pub fn array_actor_label(base: &str, n: usize) -> String {
+    format!("{}__{}", base, n)
+}
+
+/// If `s` matches `^(.+)__\d+$`, return the base part (the prefix before `__`).
+/// Otherwise returns `None`.
+pub fn is_array_member_label(s: &str) -> Option<&str> {
+    let (prefix, suffix) = s.rsplit_once("__")?;
+    if suffix.chars().all(|c| c.is_ascii_digit()) && !suffix.is_empty() {
+        Some(prefix)
+    } else {
+        None
+    }
+}
+
 /// Statement types for the Animatix language.
 /// Core logic units including declarations, timeline, reactive blocks, and
 /// control flow.
@@ -637,8 +725,10 @@ pub enum Stmt {
     // === Assignments ===
     /// Property assignment: `btn.color = red`
     Assignment {
-        /// Label path segments (e.g. `["container", "child"]`).
-        target: Vec<String>,
+        /// Label path segments (e.g. `[Static("container"), Static("child")]`).
+        /// When a segment has a runtime index, use `Indexed { base, index }`
+        /// (e.g. `bars[i].color = red` → `[Indexed { base: "bars", index: i }, Static("color")]`).
+        target: Vec<TargetSegment>,
         /// Property name.
         property: String,
         /// Assigned value expression.
@@ -685,7 +775,7 @@ pub enum Stmt {
     /// Desugars to an always-assignment at build time.
     ReactiveBinding {
         /// Label path segments.
-        target: Vec<String>,
+        target: Vec<TargetSegment>,
         /// Property name.
         property: String,
         /// Bound value expression.

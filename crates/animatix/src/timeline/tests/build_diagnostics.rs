@@ -26,7 +26,7 @@ fn always_overrides_keyframes_warning() {
                     span: None,
                 },
                 Stmt::Assignment {
-                    target: vec!["box1".to_string()],
+                    target: vec![crate::ast::TargetSegment::Static("box1".to_string())],
                     property: "opacity".to_string(),
                     value: Expr::Num(1.0),
                     modifiers: vec![],
@@ -39,7 +39,7 @@ fn always_overrides_keyframes_warning() {
         },
         Stmt::Always {
             body: vec![Stmt::Assignment {
-                target: vec!["box1".to_string()],
+                target: vec![crate::ast::TargetSegment::Static("box1".to_string())],
                 property: "opacity".to_string(),
                 value: Expr::Num(0.5),
                 modifiers: vec![],
@@ -69,7 +69,7 @@ fn always_overrides_keyframes_no_warning_without_track() {
     // exist in tracks, so no warning should be emitted.
     let ast = vec![Stmt::Always {
         body: vec![Stmt::Assignment {
-            target: vec!["box1".to_string()],
+            target: vec![crate::ast::TargetSegment::Static("box1".to_string())],
             property: "opacity".to_string(),
             value: Expr::Num(0.5),
             modifiers: vec![],
@@ -111,7 +111,7 @@ fn always_overrides_keyframes_no_warning_without_conflict() {
         },
         Stmt::Always {
             body: vec![Stmt::Assignment {
-                target: vec!["box1".to_string()],
+                target: vec![crate::ast::TargetSegment::Static("box1".to_string())],
                 property: "rotation".to_string(),
                 value: Expr::Num(0.5),
                 modifiers: vec![],

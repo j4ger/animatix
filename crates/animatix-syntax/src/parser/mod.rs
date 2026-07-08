@@ -562,7 +562,10 @@ mod tests {
         assert_eq!(res.len(), 1);
         // Reactive bindings are not wrapped in a default keyframe
         if let Stmt::ReactiveBinding { target, property, value, .. } = &res[0] {
-            assert_eq!(target, &["orbiter"]);
+            assert_eq!(
+                target,
+                &[TargetSegment::Static("orbiter".to_string())]
+            );
             assert_eq!(property, "at");
             // Verify it's a binary expression (tracker.at + (...))
             if let Expr::Binary(left, BinaryOp::Add, _right) = value {
@@ -968,7 +971,10 @@ mod tests {
         }).find(|s| matches!(s, Stmt::Assignment { .. }));
         assert!(stmt.is_some(), "expected Assignment stmt");
         if let Stmt::Assignment { target, property, .. } = stmt.unwrap() {
-            assert_eq!(target, &vec!["dots__0".to_string()]);
+            assert_eq!(
+                target,
+                &vec![TargetSegment::Static("dots__0".to_string())]
+            );
             assert_eq!(property, "opacity");
         }
     }
@@ -985,8 +991,60 @@ mod tests {
             other => vec![other],
         }).find(|s| matches!(s, Stmt::Assignment { .. }));
         if let Stmt::Assignment { target, property, .. } = stmt.unwrap() {
-            assert_eq!(target, &vec!["dots__1".to_string(), "at".to_string()]);
+            assert_eq!(
+                target,
+                &vec![
+                    TargetSegment::Static("dots__1".to_string()),
+                    TargetSegment::Static("at".to_string()),
+                ]
+            );
             assert_eq!(property, "x");
+        }
+    }
+
+    #[test]
+    fn parse_indexed_runtime_target() {
+        // `bars[i].color = red` inside an `always` block should produce
+        // TargetSegment::Indexed for the runtime index.
+        let src = "always { bars[i].color = red }";
+        let result = crate::parser::parse_source(src).0.unwrap();
+        let always = result.iter().find(|s| matches!(s, Stmt::Always { .. })).unwrap();
+        if let Stmt::Always { body, .. } = always {
+            let assignment = body.iter().find(|s| matches!(s, Stmt::Assignment { .. })).unwrap();
+            if let Stmt::Assignment { target, property, .. } = assignment {
+                assert_eq!(target.len(), 1, "expected exactly one target segment");
+                match &target[0] {
+                    TargetSegment::Indexed { base, .. } => {
+                        assert_eq!(base, "bars");
+                    }
+                    other => panic!("expected Indexed segment, got {:?}", other),
+                }
+                assert_eq!(property, "color");
+            } else {
+                panic!("Expected Assignment");
+            }
+        } else {
+            panic!("Expected Always");
+        }
+    }
+
+    #[test]
+    fn parse_static_indexed_target() {
+        // `bars[0].opacity = 0.5` should produce TargetSegment::Static("bars__0")
+        let src = "bars[0].opacity = 0.5";
+        let result = crate::parser::parse_source(src).0.unwrap();
+        let stmt = result.iter().find(|s| matches!(s, Stmt::Assignment { .. })).unwrap();
+        if let Stmt::Assignment { target, property, .. } = stmt {
+            assert_eq!(target.len(), 1, "expected exactly one target segment");
+            match &target[0] {
+                TargetSegment::Static(s) => {
+                    assert_eq!(s, "bars__0", "static index should resolve to '__' notation");
+                }
+                other => panic!("expected Static segment, got {:?}", other),
+            }
+            assert_eq!(property, "opacity");
+        } else {
+            panic!("Expected Assignment");
         }
     }
 }

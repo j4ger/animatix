@@ -13,7 +13,7 @@ fn test_apply_modifier_stmt_supports_conditionals_statelessly() {
             Box::new(Expr::Num(1.0)),
         ),
         then_branch: vec![Stmt::Assignment {
-            target: vec!["pulse".to_string()],
+            target: vec![crate::ast::TargetSegment::Static("pulse".to_string())],
             property: "opacity".to_string(),
             value: Expr::Num(1.0),
             modifiers: vec![],
@@ -22,7 +22,7 @@ fn test_apply_modifier_stmt_supports_conditionals_statelessly() {
             span: None,
         }],
         else_branch: Some(vec![Stmt::Assignment {
-            target: vec!["pulse".to_string()],
+            target: vec![crate::ast::TargetSegment::Static("pulse".to_string())],
             property: "opacity".to_string(),
             value: Expr::Num(0.0),
             modifiers: vec![],

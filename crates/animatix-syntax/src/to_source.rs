@@ -492,7 +492,10 @@ btn: Rect, size: (100, 200) // half-extents"#;
         let parsed = crate::parser::parser_simple().parse(source).unwrap();
         assert_eq!(parsed.len(), 1);
         if let Stmt::ReactiveBinding { target, property, .. } = &parsed[0] {
-            assert_eq!(target, &["orbiter"]);
+            assert_eq!(
+                target,
+                &[TargetSegment::Static("orbiter".to_string())]
+            );
             assert_eq!(property, "at");
         } else {
             panic!("Expected ReactiveBinding");

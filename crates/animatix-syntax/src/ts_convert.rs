@@ -396,7 +396,7 @@ impl<'a> TsConverter<'a> {
     fn convert_assignment(&mut self, node: Node) -> Stmt {
         let target_node = node.child_by_field_name("target");
         let target = target_node
-            .map(|n| self.convert_path_segments(n))
+            .map(|n| self.convert_target_segments(n))
             .unwrap_or_default();
         let value = node
             .child_by_field_name("value")
@@ -420,7 +420,7 @@ impl<'a> TsConverter<'a> {
     fn convert_reactive_binding(&mut self, node: Node) -> Stmt {
         let target_node = node.child_by_field_name("target");
         let target = target_node
-            .map(|n| self.convert_path_segments(n))
+            .map(|n| self.convert_target_segments(n))
             .unwrap_or_default();
         let value = node
             .child_by_field_name("value")
@@ -1215,6 +1215,11 @@ impl<'a> TsConverter<'a> {
         let mut segments = Vec::new();
         self.collect_path_segments(node, &mut segments);
         segments
+    }
+
+    fn convert_target_segments(&self, node: Node) -> Vec<TargetSegment> {
+        let strings = self.convert_path_segments(node);
+        strings.into_iter().map(TargetSegment::Static).collect()
     }
 
     fn collect_path_segments(&self, node: Node, segments: &mut Vec<String>) {

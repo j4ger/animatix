@@ -1,4 +1,4 @@
-use super::{Action, ComponentDef, Expr, HashMap, HashSet, InlineItem, Modifier, Property, Stmt};
+use super::{Action, ComponentDef, Expr, HashMap, HashSet, InlineItem, Modifier, Property, Stmt, TargetSegment};
 
 /// Recursively check if a statement contains any identifiers that need rewriting.
 fn stmt_needs_rewrite(
@@ -17,12 +17,18 @@ fn stmt_needs_rewrite(
                 || children.iter().any(|item| inline_item_needs_rewrite(item, root_label, known_labels, bindings))
         }
         Stmt::Assignment { target, value, modifiers, .. } => {
-            target.iter().any(|t| t == "self" || root_label == Some(t.as_str()) || known_labels.contains(t.as_str()))
+            target.iter().any(|t| match t {
+                TargetSegment::Static(s) => s == "self" || root_label == Some(s.as_str()) || known_labels.contains(s.as_str()),
+                TargetSegment::Indexed { .. } => false,
+            })
                 || expr_needs_rewrite(value, root_label, known_labels, bindings)
                 || modifiers.iter().any(|m| expr_needs_rewrite(&m.value, root_label, known_labels, bindings))
         }
         Stmt::ReactiveBinding { target, value, .. } => {
-            target.iter().any(|t| t == "self" || root_label == Some(t.as_str()) || known_labels.contains(t.as_str()))
+            target.iter().any(|t| match t {
+                TargetSegment::Static(s) => s == "self" || root_label == Some(s.as_str()) || known_labels.contains(s.as_str()),
+                TargetSegment::Indexed { .. } => false,
+            })
                 || expr_needs_rewrite(value, root_label, known_labels, bindings)
         }
         Stmt::LetDecl { value, .. } => expr_needs_rewrite(value, root_label, known_labels, bindings),
@@ -675,25 +681,36 @@ fn rewrite_label_ref(
 }
 
 fn rewrite_label_path(
-    parts: &[String],
+    parts: &[TargetSegment],
     prefix: &str,
     root_label: Option<&str>,
     known_labels: &HashSet<String>,
-) -> Vec<String> {
+) -> Vec<TargetSegment> {
     let Some((first, rest)) = parts.split_first() else {
         return Vec::new();
     };
 
-    let rewritten_first = rewrite_label_ref(first, prefix, root_label, known_labels);
+    // Only static segments are rewritten; indexed segments pass through unchanged.
+    let first_str = match first {
+        TargetSegment::Static(s) => s.as_str(),
+        TargetSegment::Indexed { .. } => return parts.to_vec(),
+    };
+    let rewritten_first = rewrite_label_ref(first_str, prefix, root_label, known_labels);
+
+    // Extract static strings from remaining segments for the self-skip check
+    let rest_static: Vec<&str> = rest.iter().filter_map(|s| match s {
+        TargetSegment::Static(s) => Some(s.as_str()),
+        TargetSegment::Indexed { .. } => None,
+    }).collect();
 
     // If the path starts with `self` followed by the root label, skip the root label
     // since `self` already resolves to the prefixed root actor.
-    let rest = if first == "self" {
-        if let Some((second, remaining)) = rest.split_first() {
-            if root_label == Some(second.as_str()) {
-                let mut result = split_rewritten_label(&rewritten_first);
+    let rest = if first_str == "self" {
+        if let Some((second, remaining)) = rest_static.split_first() {
+            if root_label == Some(second) {
+                let mut result: Vec<TargetSegment> = split_rewritten_label(&rewritten_first).into_iter().map(TargetSegment::Static).collect();
                 for seg in remaining {
-                    result.push(rewrite_path_segment(seg, prefix, root_label));
+                    result.push(TargetSegment::Static(rewrite_path_segment(seg, prefix, root_label)));
                 }
                 return result;
             }
@@ -703,9 +720,12 @@ fn rewrite_label_path(
         rest
     };
 
-    let mut rewritten = split_rewritten_label(&rewritten_first);
+    let mut rewritten: Vec<TargetSegment> = split_rewritten_label(&rewritten_first).into_iter().map(TargetSegment::Static).collect();
     for seg in rest {
-        rewritten.push(rewrite_path_segment(seg, prefix, root_label));
+        match seg {
+            TargetSegment::Static(s) => rewritten.push(TargetSegment::Static(rewrite_path_segment(s, prefix, root_label))),
+            TargetSegment::Indexed { .. } => rewritten.push(seg.clone()),
+        }
     }
     rewritten
 }

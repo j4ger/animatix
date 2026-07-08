@@ -23,7 +23,7 @@ impl Timeline {
                 modifiers,
                 ..
             } => {
-                let subject = format!("{}.{}", target.join("."), property);
+                let subject = format!("{}.{}", crate::timeline::assignment_target_key(target), property);
                 let parsed = parse_timing_modifiers(
                     modifiers,
                     ModifierHost::Assignment,
