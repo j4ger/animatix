@@ -6,7 +6,7 @@
 //! This is a lightweight, single-pass checker with no inference and no unification.
 //! Unannotated parameters (`param_type: None`) accept any value.
 
-use crate::ast::{ComponentDef, Expr, Modifier, ParamDef, Property, Stmt, TypeAnnotation};
+use crate::ast::{ComponentDef, Expr, MatchPattern, Modifier, ParamDef, Property, Stmt, TypeAnnotation};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use std::collections::HashMap;
 
@@ -126,6 +126,17 @@ impl<'a> TypeEnv<'a> {
                 arms,
                 ..
             } => {
+                // Enforce `_` wildcard arm (required by spec — Amendment 1)
+                let has_wildcard = arms.iter().any(|(pat, _)| matches!(pat, MatchPattern::Wildcard));
+                if !has_wildcard {
+                    diagnostics.push(
+                        Diagnostic::error(
+                            DiagnosticCode::MissingWildcardArm,
+                            DiagnosticPhase::Parse,
+                            "match must have a `_` wildcard arm (required for exhaustive matching)",
+                        )
+                    );
+                }
                 for (_, body) in arms {
                     for stmt in body {
                         self.check_stmt(stmt, diagnostics);

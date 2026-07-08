@@ -1198,11 +1198,11 @@
         },
         {
           "type": "SYMBOL",
-          "name": "match_literal"
+          "name": "match_range"
         },
         {
           "type": "SYMBOL",
-          "name": "match_range"
+          "name": "match_literal"
         },
         {
           "type": "SYMBOL",
@@ -1218,12 +1218,16 @@
       "type": "STRING",
       "value": "_"
     },
+    "match_num": {
+      "type": "PATTERN",
+      "value": "[0-9]+(\\.[0-9]+)?"
+    },
     "match_literal": {
       "type": "CHOICE",
       "members": [
         {
           "type": "SYMBOL",
-          "name": "number"
+          "name": "match_num"
         },
         {
           "type": "SYMBOL",
@@ -1243,7 +1247,7 @@
           "name": "low",
           "content": {
             "type": "SYMBOL",
-            "name": "match_literal"
+            "name": "match_num"
           }
         },
         {
@@ -1255,7 +1259,7 @@
           "name": "high",
           "content": {
             "type": "SYMBOL",
-            "name": "match_literal"
+            "name": "match_num"
           }
         }
       ]
@@ -2101,6 +2105,10 @@
         {
           "type": "SYMBOL",
           "name": "if_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "match_expression"
         }
       ]
     },
@@ -2973,6 +2981,10 @@
     [
       "block",
       "set_expression"
+    ],
+    [
+      "_expression",
+      "identifier"
     ]
   ],
   "precedences": [],

@@ -140,6 +140,8 @@ pub enum DiagnosticCode {
     BracedPropertySilentDrop,
     /// A Callout `target` references an actor that does not exist in the timeline.
     CalloutTargetNotFound,
+    /// A `match` expression or block is missing a required `_` wildcard arm.
+    MissingWildcardArm,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -209,6 +211,7 @@ impl fmt::Display for DiagnosticCode {
                 write!(f, "braced-property-silent-drop")
             }
             DiagnosticCode::CalloutTargetNotFound => write!(f, "callout-target-not-found"),
+            DiagnosticCode::MissingWildcardArm => write!(f, "missing-wildcard-arm"),
         }
     }
 }

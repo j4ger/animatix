@@ -415,3 +415,110 @@ let x = if true { 1 } else { 2 }
         (number))
       alternative: (expression_block
         (number)))))
+
+==================
+Match expression as property value
+==================
+
+always {
+  a.color = match v {
+    0 => red,
+    _ => blue
+  }
+}
+
+---
+
+(source_file
+  (always_block
+    (block
+      (property_assignment
+        target: (path_expression
+          base: (identifier)
+          name: (identifier))
+        value: (match_expression
+          scrutinee: (identifier)
+          (match_arm
+            pattern: (match_pattern
+              (match_literal
+                (match_num)))
+            value: (identifier))
+          (match_arm
+            pattern: (match_pattern
+              (match_wildcard))
+            value: (identifier)))))))
+
+==================
+Match expression with range pattern
+==================
+
+always {
+  a.opacity = match t {
+    0..=0 => 1.0,
+    0..=0.5 => 0.5,
+    _ => 0.0
+  }
+}
+
+---
+
+(source_file
+  (always_block
+    (block
+      (property_assignment
+        target: (path_expression
+          base: (identifier)
+          name: (identifier))
+        value: (match_expression
+          scrutinee: (identifier)
+          (match_arm
+            pattern: (match_pattern
+              (match_range
+                low: (match_num)
+                high: (match_num)))
+            value: (number))
+          (match_arm
+            pattern: (match_pattern
+              (match_range
+                low: (match_num)
+                high: (match_num)))
+            value: (number))
+          (match_arm
+            pattern: (match_pattern
+              (match_wildcard))
+            value: (number)))))))
+
+==================
+Match expression as function argument
+==================
+
+let color = match floor(t) % 2 {
+  0 => accent.danger,
+  _ => accent.primary
+}
+
+---
+
+(source_file
+  (let_declaration
+    name: (identifier)
+    value: (match_expression
+      scrutinee: (binary_expression
+        (call_expression
+          function: (identifier)
+          (argument_list
+            (identifier)))
+        (number))
+      (match_arm
+        pattern: (match_pattern
+          (match_literal
+            (match_num)))
+        value: (path_expression
+          base: (identifier)
+          name: (identifier)))
+      (match_arm
+        pattern: (match_pattern
+          (match_wildcard))
+        value: (path_expression
+          base: (identifier)
+          name: (identifier))))))

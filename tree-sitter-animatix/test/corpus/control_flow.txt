@@ -243,3 +243,73 @@ always {
       (let_declaration
         name: (identifier)
         value: (number)))))
+
+==================
+Match statement
+==================
+
+match v {
+  0 => {
+    a.color = red
+  },
+  _ => {
+    a.color = blue
+  }
+}
+
+---
+
+(source_file
+  (match_expression
+    scrutinee: (identifier)
+    (match_arm
+      pattern: (match_pattern
+        (match_literal
+          (match_num)))
+      value: (block
+        (property_assignment
+          target: (path_expression
+            base: (identifier)
+            name: (identifier))
+          value: (identifier))))
+    (match_arm
+      pattern: (match_pattern
+        (match_wildcard))
+      value: (block
+        (property_assignment
+          target: (path_expression
+            base: (identifier)
+            name: (identifier))
+          value: (identifier))))))
+
+==================
+Match statement with range
+==================
+
+match n {
+  1..=3 => {
+    a.color = green
+  },
+  _ => {}
+}
+
+---
+
+(source_file
+  (match_expression
+    scrutinee: (identifier)
+    (match_arm
+      pattern: (match_pattern
+        (match_range
+          low: (match_num)
+          high: (match_num)))
+      value: (block
+        (property_assignment
+          target: (path_expression
+            base: (identifier)
+            name: (identifier))
+          value: (identifier))))
+    (match_arm
+      pattern: (match_pattern
+        (match_wildcard))
+      value: (set_expression))))

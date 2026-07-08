@@ -131,6 +131,7 @@ pub(super) fn rewrite_stmt(
         Stmt::ActorDecl {
             is_pub,
             label,
+            array_index,
             ty,
             props,
             modifiers,
@@ -141,7 +142,7 @@ pub(super) fn rewrite_stmt(
             is_pub: *is_pub,
             is_anonymous: false,
             label: rewrite_label(label, prefix, root_label, known_labels),
-            array_index: None,
+            array_index: array_index.clone(),
             ty: ty.clone(),
             props: rewrite_properties(props, prefix, root_label, known_labels, bindings),
             modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
@@ -287,13 +288,14 @@ Stmt::Always { body, span, .. } => Stmt::Always {
         },
         Stmt::ForLoop {
             var,
+            index_var,
             iterable,
             body,
             span,
             ..
         } => Stmt::ForLoop {
             var: var.clone(),
-            index_var: None,
+            index_var: index_var.clone(),
             iterable: rewrite_expr(iterable, prefix, root_label, known_labels, bindings),
             body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
                 body.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
@@ -375,14 +377,14 @@ pub(super) fn rewrite_inline_items(
             },
             InlineItem::Labeled {
                 label,
-                array_index: _,
+                array_index,
                 ty,
                 props,
                 modifiers,
                 children,
             } => InlineItem::Labeled {
                 label: rewrite_label(label, prefix, root_label, known_labels),
-                array_index: None,
+                array_index: array_index.clone(),
                 ty: ty.clone(),
                 props: rewrite_properties(props, prefix, root_label, known_labels, bindings),
                 modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),

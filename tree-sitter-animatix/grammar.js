@@ -52,6 +52,9 @@ module.exports = grammar({
 
     // match arm value: block vs set_expression
     [$.block, $.set_expression],
+
+    // _expression ambiguity: keyword `match` vs identifier `match`
+    [$._expression, $.identifier],
   ],
 
   rules: {
@@ -260,20 +263,25 @@ module.exports = grammar({
 
     match_pattern: $ => choice(
       $.match_wildcard,
-      $.match_literal,
       $.match_range,
+      $.match_literal,
       $.match_or,
       $.match_tuple
     ),
 
     match_wildcard: $ => '_',
 
-    match_literal: $ => choice($.number, $.string, $.boolean),
+    match_num: $ => /[0-9]+(\.[0-9]+)?/,
 
+    match_literal: $ => choice($.match_num, $.string, $.boolean),
+
+    // Note: match_range uses $.match_num (regex token, not the external
+    // NUMBER scanner) so that '0..=3' doesn't have the first '.' stolen
+    // by the external scanner's decimal-point handling.
     match_range: $ => seq(
-      field('low', $.match_literal),
+      field('low', $.match_num),
       '..=',
-      field('high', $.match_literal)
+      field('high', $.match_num)
     ),
 
     match_or: $ => prec.left(seq(
@@ -452,6 +460,7 @@ module.exports = grammar({
       $.parenthesized_expression,
       $.method_call_expression,
       $.if_expression,
+      $.match_expression,
     ),
 
     path_expression: $ => prec.left(seq(

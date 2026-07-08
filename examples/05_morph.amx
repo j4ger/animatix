@@ -20,7 +20,7 @@ circle: Rect, size: (140, 140), color: accent.danger, at: (320, 360) [1s, strate
 
 // Rect → Ellipse with match strategy
 #3.5s
-rect: Ellipse, size: (160, 120), color: accent.primary, at: (640, 360) [1s, strategy: match]
+rect: Ellipse, size: (160, 120), color: accent.primary, at: (640, 360) [1s, strategy: "match"]
 
 // Diamond → Star with path arc hint
 #5s

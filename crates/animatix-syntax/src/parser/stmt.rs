@@ -184,7 +184,10 @@ pub(crate) fn parser<'src>(
                 } else {
                     let property = match path.last().unwrap() {
                         TargetSegment::Static(s) => s.clone(),
-                        _ => unreachable!("last assignment segment is always the property name (Static)"),
+                        TargetSegment::Indexed { .. } => return Err(Rich::custom(
+                            span,
+                            "array index cannot appear on the property segment (e.g. use bars[i].color, not a.b[i])",
+                        )),
                     };
                     let target = path[..path.len() - 1].to_vec();
                     let easing = common::extract_easing(&mut modifiers);
@@ -220,7 +223,10 @@ pub(crate) fn parser<'src>(
                 } else {
                     let property = match path.last().unwrap() {
                         TargetSegment::Static(s) => s.clone(),
-                        _ => unreachable!("last binding segment is always the property name (Static)"),
+                        TargetSegment::Indexed { .. } => return Err(Rich::custom(
+                            span,
+                            "array index cannot appear on the property segment (e.g. use bars[i].color, not a.b[i])",
+                        )),
                     };
                     let target = path[..path.len() - 1].to_vec();
                     Ok(Stmt::ReactiveBinding {
