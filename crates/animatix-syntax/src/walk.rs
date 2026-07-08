@@ -135,6 +135,12 @@ pub fn walk_expr(expr: &Expr, visitor: &mut dyn FnMut(&Expr)) {
             walk_expr(then, visitor);
             walk_expr(else_, visitor);
         }
+        Expr::Match(scrutinee, arms) => {
+            walk_expr(scrutinee, visitor);
+            for (_pat, arm_expr) in arms {
+                walk_expr(arm_expr, visitor);
+            }
+        }
         Expr::Construct(_, props) => {
             for prop in props {
                 walk_expr(&prop.value, visitor);
@@ -169,6 +175,9 @@ pub fn collect_stmt_bodies_mut(stmt: &mut Stmt) -> Vec<&mut Vec<Stmt>> {
             }
             bodies
         }
+        Stmt::Match { arms, .. } => {
+            arms.iter_mut().map(|(_, body)| body).collect()
+        }
         Stmt::ForLoop { body, .. } => {
             vec![body]
         }
@@ -193,6 +202,11 @@ pub fn recurse_stmt_bodies(stmt: &Stmt, f: &mut dyn FnMut(&[Stmt])) {
             f(then_branch);
             if let Some(else_body) = else_branch {
                 f(else_body);
+            }
+        }
+        Stmt::Match { arms, .. } => {
+            for (_, body) in arms {
+                f(body);
             }
         }
         Stmt::ForLoop { body, .. } => {

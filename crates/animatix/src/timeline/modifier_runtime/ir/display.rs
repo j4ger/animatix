@@ -74,6 +74,7 @@ impl fmt::Display for DisplayStmt<'_> {
                 }
                 write!(f, " }}")
             }
+            ModifierIrStmt::Noop => write!(f, "noop"),
         }
     }
 }

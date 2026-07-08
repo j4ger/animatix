@@ -234,6 +234,7 @@ impl BytecodeCompiler {
                 let end = self.instructions.len();
                 self.instructions[check_idx] = Instruction::CheckFor(var.clone(), index_var.clone(), end);
             }
+            ModifierIrStmt::Noop => {}
         }
         Ok(())
     }
@@ -418,6 +419,8 @@ impl ModifierVm {
                         BuiltinFn::Ceil => eval_ceil(&args),
                         BuiltinFn::Deg => eval_deg(&args),
                         BuiltinFn::Rad => eval_rad(&args),
+                        BuiltinFn::ListSwap => crate::timeline::eval_shared::eval_builtin_fn("list_swap", &args),
+                        BuiltinFn::ListSet => crate::timeline::eval_shared::eval_builtin_fn("list_set", &args),
                     }?;
                     self.stack.push(result);
                     self.ip += 1;

@@ -58,6 +58,13 @@ pub(crate) fn apply_override_incremental(
 impl Timeline {
     pub(super) fn build_eval_env(&self, time_ms: u64) -> Environment {
         let mut env = self.env.clone();
+        // Inject variable tracks so build-time `let` declarations can reference
+        // previously declared variables (e.g., `let a = list_swap(a, 0, 2)`).
+        for (name, track) in &self.variable_tracks {
+            if let Some(value) = track.evaluate(time_ms) {
+                env.set(name, value);
+            }
+        }
         self.inject_runtime_lookup_values(&mut env, time_ms, None, None);
         env
     }

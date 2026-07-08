@@ -122,6 +122,16 @@ impl<'a> TypeEnv<'a> {
                     }
                 }
             }
+            Stmt::Match {
+                arms,
+                ..
+            } => {
+                for (_, body) in arms {
+                    for stmt in body {
+                        self.check_stmt(stmt, diagnostics);
+                    }
+                }
+            }
             Stmt::ForLoop { body, .. } => {
                 for stmt in body {
                     self.check_stmt(stmt, diagnostics);

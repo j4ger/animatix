@@ -35,6 +35,9 @@ fn stmt_needs_rewrite(
         Stmt::Conditional { condition, .. } => {
             expr_needs_rewrite(condition, root_label, known_labels, bindings)
         }
+        Stmt::Match { scrutinee, .. } => {
+            expr_needs_rewrite(scrutinee, root_label, known_labels, bindings)
+        }
         _ => false,
     };
 
@@ -254,6 +257,26 @@ Stmt::Always { body, span, .. } => Stmt::Always {
                     branch.clone()
                 }
             }),
+            span: *span,
+        },
+        Stmt::Match {
+            scrutinee,
+            arms,
+            span,
+            ..
+        } => Stmt::Match {
+            scrutinee: rewrite_expr(scrutinee, prefix, root_label, known_labels, bindings),
+            arms: arms
+                .iter()
+                .map(|(pat, body)| {
+                    let rewritten_body = if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
+                        body.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
+                    } else {
+                        body.clone()
+                    };
+                    (pat.clone(), rewritten_body)
+                })
+                .collect(),
             span: *span,
         },
         Stmt::ForLoop {
@@ -589,6 +612,29 @@ fn rewrite_expr(
         Expr::Construct(name, props) => Expr::Construct(
             name.clone(),
             rewrite_properties(props, prefix, root_label, known_labels, bindings),
+        ),
+        Expr::Match(scrutinee, arms) => Expr::Match(
+            Box::new(rewrite_expr(
+                scrutinee,
+                prefix,
+                root_label,
+                known_labels,
+                bindings,
+            )),
+            arms.iter()
+                .map(|(pat, arm_expr)| {
+                    (
+                        pat.clone(),
+                        Box::new(rewrite_expr(
+                            arm_expr,
+                            prefix,
+                            root_label,
+                            known_labels,
+                            bindings,
+                        )),
+                    )
+                })
+                .collect(),
         ),
         Expr::Num(value) => Expr::Num(*value),
         Expr::Percent(value) => Expr::Percent(*value),

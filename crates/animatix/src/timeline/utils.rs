@@ -121,6 +121,7 @@ fn hash_expr_recursive<V: Hasher>(expr: &Expr, hasher: &mut V) {
         Expr::Method(recv, name, args) => { 13u8.hash(hasher); hash_expr_recursive(recv, hasher); name.hash(hasher); args.len().hash(hasher); for a in args { hash_expr_recursive(a, hasher); } }
         Expr::Closure(params, body) => { 14u8.hash(hasher); params.hash(hasher); hash_expr_recursive(body, hasher); }
         Expr::Conditional(c, t, e) => { 15u8.hash(hasher); hash_expr_recursive(c, hasher); hash_expr_recursive(t, hasher); hash_expr_recursive(e, hasher); }
+        Expr::Match(scrutinee, arms) => { 17u8.hash(hasher); hash_expr_recursive(scrutinee, hasher); for (_p, e) in arms { hash_expr_recursive(e, hasher); } }
         Expr::Construct(name, _) => { 16u8.hash(hasher); name.hash(hasher); }
     }
 }
@@ -241,6 +242,21 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
         // Closures capture the current override environment at creation time (lexical scope).
         Expr::Closure(args, body) => {
             Ok(Value::Closure(args.clone(), body.clone(), CapturedEnv::snapshot(env)))
+        }
+
+        Expr::Match(scrutinee, arms) => {
+            let value = evaluate_expr(scrutinee, env)?;
+            for (_pat, arm_expr) in arms {
+                if crate::timeline::build::pattern_matches(_pat, &value) {
+                    return evaluate_expr(arm_expr, env);
+                }
+            }
+            // No arm matched; emit a warning and return null (0.0)
+            tracing::warn!(
+                "match scrutinee evaluated to {:?} but no arm matched and no `_` wildcard arm was provided",
+                value
+            );
+            Ok(Value::Num(0.0))
         }
 
         Expr::Path(parts) => {

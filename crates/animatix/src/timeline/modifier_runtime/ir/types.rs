@@ -40,6 +40,10 @@ pub enum BuiltinFn {
     Deg,
     /// Convert radians to degrees.
     Rad,
+    /// Swap two elements in a list (returns new list).
+    ListSwap,
+    /// Set an element in a list (returns new list).
+    ListSet,
 }
 
 /// A compiled expression in the modifier IR.
@@ -118,6 +122,8 @@ pub enum ModifierIrStmt {
         /// Loop body statements.
         body: Vec<ModifierIrStmt>,
     },
+    /// No-op statement (used as a placeholder during lowering).
+    Noop,
 }
 
 /// A program in the modifier IR.

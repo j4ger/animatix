@@ -2,7 +2,7 @@
 //! sequence, stagger, always, for-loop, and let-decl handlers.
 
 use super::*;
-use crate::ast::{InlineItem, LoopPattern};
+use crate::ast::{InlineItem, LoopPattern, MatchPattern};
 use tracing::instrument;
 
 impl Timeline {
@@ -185,6 +185,57 @@ impl Timeline {
                                 .with_subject(name),
                             );
                         }
+                    }
+                }
+                Stmt::Match {
+                    scrutinee,
+                    arms,
+                    ..
+                } => {
+                    // Evaluate the scrutinee at build time
+                    let eval_env = self.build_eval_env(time_ms as u64);
+                    let value = match evaluate_expr(scrutinee, &eval_env) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            diagnostics.push(
+                                Diagnostic::error(
+                                    DiagnosticCode::ModuleExportEvalError,
+                                    DiagnosticPhase::Build,
+                                    format!(
+                                        "Failed to evaluate match scrutinee: {}; skipping match.",
+                                        e
+                                    ),
+                                )
+                            );
+                            continue;
+                        }
+                    };
+                    // Find the first matching arm and process its body
+                    let mut matched = false;
+                    for (pat, body) in arms {
+                        if pattern_matches(pat, &value) {
+                            self.process_body(time_ms, body, parent_label, diagnostics);
+                            matched = true;
+                            break;
+                        }
+                    }
+                    if !matched {
+                        // Check if there's a wildcard arm (should be, but emit diagnostic if not)
+                        let has_wildcard = arms.iter().any(|(pat, _)| matches!(pat, MatchPattern::Wildcard));
+                        if !has_wildcard {
+                            diagnostics.push(
+                                Diagnostic::warning(
+                                    DiagnosticCode::InvalidPropertyValue,
+                                    DiagnosticPhase::Build,
+                                    format!(
+                                        "match scrutinee evaluated to {:?} but no arm matched and no `_` wildcard arm was provided",
+                                        value
+                                    ),
+                                )
+                            );
+                        }
+                        // If wildcard exists and no arm matched, the wildcard would have caught it already.
+                        // If no wildcard, we already warned; fall through silently.
                     }
                 }
                 Stmt::Keyframe { .. } | Stmt::RelativeKeyframe { .. } | Stmt::Comment(..) | Stmt::Import { .. } | Stmt::Config { .. } | Stmt::Scene { .. } | Stmt::Play { .. } | Stmt::ComponentDef(..) | Stmt::ComponentAction { .. } | Stmt::Conditional { .. } => {}
@@ -408,4 +459,62 @@ fn build_eval_env_static(env: &Environment, time_ms: u64) -> Environment {
     let mut eval_env = env.clone();
     eval_env.set("t", Value::Num(time_ms as f64 / 1000.0));
     eval_env
+}
+
+/// Check whether a `MatchPattern` matches a `Value`.
+/// Used by both build-time `Stmt::Match` dispatch and frame-time `Expr::Match` evaluation.
+pub(crate) fn pattern_matches(pat: &MatchPattern, value: &Value) -> bool {
+    match pat {
+        MatchPattern::Wildcard => true,
+        MatchPattern::Num(n) => {
+            matches!(value, Value::Num(v) if (*v - *n).abs() < f64::EPSILON)
+        }
+        MatchPattern::Str(s) => {
+            matches!(value, Value::Str(v) if v == s)
+        }
+        MatchPattern::Bool(b) => {
+            matches!(value, Value::Bool(v) if v == b)
+        }
+        MatchPattern::Range(lo, hi) => {
+            // Both endpoints must be numeric
+            let lo_val = match lo.as_ref() {
+                MatchPattern::Num(n) => *n,
+                _ => return false,
+            };
+            let hi_val = match hi.as_ref() {
+                MatchPattern::Num(n) => *n,
+                _ => return false,
+            };
+            matches!(value, Value::Num(v) if *v >= lo_val && *v <= hi_val)
+        }
+        MatchPattern::Or(pats) => {
+            pats.iter().any(|p| pattern_matches(p, value))
+        }
+        MatchPattern::Tuple(pats) => {
+            match value {
+                Value::List(items) => {
+                    if items.len() != pats.len() {
+                        return false;
+                    }
+                    pats.iter().zip(items.iter()).all(|(p, v)| pattern_matches(p, v))
+                }
+                Value::Vec2(arr) if pats.len() == 2 => {
+                    pats.iter().zip(arr.iter()).all(|(p, v)| {
+                        pattern_matches(p, &Value::Num(*v))
+                    })
+                }
+                Value::Vec3(arr) if pats.len() == 3 => {
+                    pats.iter().zip(arr.iter()).all(|(p, v)| {
+                        pattern_matches(p, &Value::Num(*v))
+                    })
+                }
+                Value::Vec4(arr) if pats.len() == 4 => {
+                    pats.iter().zip(arr.iter()).all(|(p, v)| {
+                        pattern_matches(p, &Value::Num(*v))
+                    })
+                }
+                _ => false,
+            }
+        }
+    }
 }

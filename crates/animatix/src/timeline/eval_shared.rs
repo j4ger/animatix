@@ -328,6 +328,52 @@ pub fn eval_builtin_fn(name: &str, args: &[Value]) -> Result<Value, EvalError> {
             let x = single_num_arg(name, args)?;
             Ok(Value::Num(x.round()))
         }
+        "list_swap" => {
+            if args.len() != 3 {
+                return Err(EvalError::TypeMismatch(
+                    format!("list_swap requires 3 arguments (list, i, j), got {}", args.len())
+                ));
+            }
+            match &args[0] {
+                Value::List(items) => {
+                    let i = args[1].as_num() as usize;
+                    let j = args[2].as_num() as usize;
+                    let mut new_list = items.clone();
+                    if i >= new_list.len() || j >= new_list.len() {
+                        tracing::warn!("list_swap: index out of range (len={}, i={}, j={})", new_list.len(), i, j);
+                        return Ok(Value::List(new_list));
+                    }
+                    new_list.swap(i, j);
+                    Ok(Value::List(new_list))
+                }
+                _ => Err(EvalError::TypeMismatch(
+                    format!("list_swap requires a list as first argument, got {:?}", args[0])
+                )),
+            }
+        }
+        "list_set" => {
+            if args.len() != 3 {
+                return Err(EvalError::TypeMismatch(
+                    format!("list_set requires 3 arguments (list, i, value), got {}", args.len())
+                ));
+            }
+            match &args[0] {
+                Value::List(items) => {
+                    let i = args[1].as_num() as usize;
+                    let new_value = args[2].clone();
+                    let mut new_list = items.clone();
+                    if i >= new_list.len() {
+                        tracing::warn!("list_set: index {} out of range for list of length {}", i, new_list.len());
+                        return Ok(Value::List(new_list));
+                    }
+                    new_list[i] = new_value;
+                    Ok(Value::List(new_list))
+                }
+                _ => Err(EvalError::TypeMismatch(
+                    format!("list_set requires a list as first argument, got {:?}", args[0])
+                )),
+            }
+        }
         _ => Err(EvalError::UndefinedVariable(name.to_string())),
     }
 }

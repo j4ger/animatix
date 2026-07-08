@@ -230,6 +230,7 @@ impl<'a> TsConverter<'a> {
             "always_block" => Some(self.convert_always(node)),
             "for_block" => Some(self.convert_for_loop(node)),
             "if_expression" => Some(self.convert_if_stmt(node)),
+            "match_expression" => Some(self.convert_match_stmt(node)),
             "play_statement" => Some(self.convert_play(node)),
             "slot_marker" => Some(self.convert_slot_marker(node)),
             "slot_fill" => Some(self.convert_slot_fill(node)),
@@ -521,6 +522,140 @@ impl<'a> TsConverter<'a> {
         }
     }
 
+    fn convert_match_stmt(&mut self, node: Node) -> Stmt {
+        let scrutinee = node
+            .child_by_field_name("scrutinee")
+            .and_then(|n| self.convert_expr(n))
+            .unwrap_or(Expr::Null);
+        let arms = self.convert_match_arms(node);
+        Stmt::Match {
+            scrutinee,
+            arms,
+            span: node_span(node),
+        }
+    }
+
+    fn convert_match_expr(&mut self, node: Node) -> Option<Expr> {
+        let scrutinee = node
+            .child_by_field_name("scrutinee")
+            .and_then(|n| self.convert_expr(n))
+            .unwrap_or(Expr::Null);
+        // Expression form: each arm's value is an expression (not a block)
+        let mut arms = Vec::new();
+        let mut cursor = node.walk();
+        for child in node.named_children(&mut cursor) {
+            if child.kind() == "match_arm" {
+                let pattern = self.convert_match_pattern(child);
+                let value_node = child.child_by_field_name("value");
+                if let Some(vn) = value_node {
+                    // The value could be an expression or a block (if block, extract inner expr?)
+                    if let Some(expr) = self.convert_expr(vn) {
+                        arms.push((pattern, Box::new(expr)));
+                    }
+                }
+            }
+        }
+        Some(Expr::Match(Box::new(scrutinee), arms))
+    }
+
+    fn convert_match_arms(&mut self, node: Node) -> Vec<(MatchPattern, Vec<Stmt>)> {
+        let mut arms = Vec::new();
+        let mut cursor = node.walk();
+        for child in node.named_children(&mut cursor) {
+            if child.kind() == "match_arm" {
+                let pattern = self.convert_match_pattern(child);
+                let value_node = child.child_by_field_name("value");
+                let stmts = if let Some(vn) = value_node {
+                    if vn.kind() == "block" {
+                        self.convert_block_body(vn)
+                    } else {
+                        // Expression as value in statement context: wrap in assignment?
+                        // For now, treat as unsupported
+                        vec![]
+                    }
+                } else {
+                    vec![]
+                };
+                arms.push((pattern, stmts));
+            }
+        }
+        arms
+    }
+
+    fn convert_match_pattern(&mut self, node: Node) -> MatchPattern {
+        // A match_arm node contains a child match_pattern node.
+        let pat_node = node.child_by_field_name("pattern");
+        match pat_node {
+            Some(pat) => self.convert_single_match_pattern(pat),
+            None => MatchPattern::Wildcard,
+        }
+    }
+
+    fn convert_single_match_pattern(&mut self, node: Node) -> MatchPattern {
+        match node.kind() {
+            "match_wildcard" => MatchPattern::Wildcard,
+            "match_literal" => {
+                let mut cursor = node.walk();
+                for child in node.named_children(&mut cursor) {
+                    return self.convert_match_literal(child);
+                }
+                MatchPattern::Wildcard
+            }
+            "match_range" => {
+                let low = node.child_by_field_name("low");
+                let high = node.child_by_field_name("high");
+                match (low, high) {
+                    (Some(lo), Some(hi)) => {
+                        let lo_pat = self.convert_match_literal(lo);
+                        let hi_pat = self.convert_match_literal(hi);
+                        MatchPattern::Range(Box::new(lo_pat), Box::new(hi_pat))
+                    }
+                    _ => MatchPattern::Wildcard,
+                }
+            }
+            "match_or" => {
+                let mut pats = Vec::new();
+                let mut cursor = node.walk();
+                for child in node.named_children(&mut cursor) {
+                    pats.push(self.convert_single_match_pattern(child));
+                }
+                MatchPattern::Or(pats)
+            }
+            "match_tuple" => {
+                let mut pats = Vec::new();
+                let mut cursor = node.walk();
+                for child in node.named_children(&mut cursor) {
+                    pats.push(self.convert_single_match_pattern(child));
+                }
+                MatchPattern::Tuple(pats)
+            }
+            _ => {
+                // Fallback: try to recurse into named children
+                let mut cursor = node.walk();
+                for child in node.named_children(&mut cursor) {
+                    return self.convert_single_match_pattern(child);
+                }
+                MatchPattern::Wildcard
+            }
+        }
+    }
+
+    fn convert_match_literal(&mut self, node: Node) -> MatchPattern {
+        match node.kind() {
+            "number" => {
+                let text = self.node_text(node);
+                MatchPattern::Num(text.parse::<f64>().unwrap_or(0.0))
+            }
+            "string" => {
+                MatchPattern::Str(self.strip_quotes(self.node_text(node)).to_string())
+            }
+            "boolean" => {
+                MatchPattern::Bool(self.node_text(node) == "true")
+            }
+            _ => MatchPattern::Wildcard,
+        }
+    }
+
     fn convert_play(&mut self, node: Node) -> Stmt {
         let scene_name = node
             .child_by_field_name("scene")
@@ -633,6 +768,9 @@ impl<'a> TsConverter<'a> {
                     Box::new(then_expr),
                     Box::new(else_expr),
                 ))
+            }
+            "match_expression" => {
+                self.convert_match_expr(node)
             }
             _ => {
                 if node.is_error() {

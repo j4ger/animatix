@@ -19,6 +19,7 @@
 use super::*;
 pub(super) use keyframe_utils::{insert_end_keyframes, insert_start_keyframes, preserve_delayed_values};
 pub(super) use plot::{build_graph_axis_paths, build_plot_curve_paths, PlotCurveParams};
+pub(crate) use process::pattern_matches;
 use crate::timeline::plot::PlotCurveKind;
 
 mod actor;

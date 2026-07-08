@@ -1,9 +1,11 @@
 #![allow(clippy::approx_constant)]
 
 use animatix_syntax::ast::{
-    Action, ByteSpan, Expr, InlineItem, LoopPattern, Modifier, Property, Stmt, Time,
+    Action, ByteSpan, Expr, InlineItem, LoopPattern, MatchPattern, Modifier, Property, Stmt, Time,
     UnaryOp,
 };
+use animatix::timeline::Value;
+use animatix::timeline::eval_shared::eval_builtin_fn;
 use animatix_syntax::parser::parse_source;
 use animatix::timeline::Timeline as AnimatixTimeline;
 
@@ -1783,4 +1785,236 @@ fade-in dots[1] [300ms]
         .iter()
         .any(|e| e.targets.iter().any(|t| t == "dots__1"));
     assert!(has_target, "expected action event targeting dots__1; events: {:?}", timeline.action_events);
+}
+
+#[test]
+fn test_match_expr_parsing() {
+    // Parse a match expression and verify it produces Expr::Match
+    let src = r#"
+config {}
+#0s
+r: Rect, size:(10,10), at:(0,0)
+always {
+  r.color = match floor(t) % 2 { 0 => red, _ => blue }
+}
+"#;
+    let (ast, errors) = parse_source(src);
+    assert!(errors.is_empty(), "parse errors: {:?}", errors);
+    let ast = ast.unwrap();
+    let found_match = ast.iter().any(|stmt| {
+        stmt_contains_match_expr(stmt)
+    });
+    assert!(found_match, "expected at least one Expr::Match in AST");
+}
+
+#[test]
+fn test_match_stmt_parsing() {
+    // Parse a match statement and verify it produces Stmt::Match
+    let src = r#"
+config {}
+#0s
+match floor(t) % 3 {
+  0 => { fade-in a [300ms] },
+  1 => { fade-in b [300ms] },
+  _ => {}
+}
+"#;
+    let (ast, errors) = parse_source(src);
+    assert!(errors.is_empty(), "parse errors: {:?}", errors);
+    let ast = ast.unwrap();
+    let found_match = ast.iter().any(|stmt| {
+        find_stmt(stmt, |s| matches!(s, Stmt::Match { .. }))
+    });
+    assert!(found_match, "expected at least one Stmt::Match in AST");
+}
+
+// Helper: pattern_match_test helper since `pattern_matches` is not public
+fn test_pattern_matches(pat: &animatix_syntax::ast::MatchPattern, value: &animatix::timeline::Value) -> bool {
+    match pat {
+        MatchPattern::Wildcard => true,
+        MatchPattern::Num(n) => matches!(value, Value::Num(v) if (*v - *n).abs() < f64::EPSILON),
+        MatchPattern::Str(s) => matches!(value, Value::Str(v) if v == s),
+        MatchPattern::Bool(b) => matches!(value, Value::Bool(v) if v == b),
+        MatchPattern::Range(lo, hi) => {
+            let lo_val = match lo.as_ref() { MatchPattern::Num(n) => *n, _ => return false };
+            let hi_val = match hi.as_ref() { MatchPattern::Num(n) => *n, _ => return false };
+            matches!(value, Value::Num(v) if *v >= lo_val && *v <= hi_val)
+        }
+        MatchPattern::Or(pats) => pats.iter().any(|p| test_pattern_matches(p, value)),
+        MatchPattern::Tuple(pats) => {
+            match value {
+                Value::List(items) => {
+                    items.len() == pats.len() && pats.iter().zip(items.iter()).all(|(p, v)| test_pattern_matches(p, v))
+                }
+                _ => false,
+            }
+        }
+    }
+}
+
+#[test]
+fn test_match_pattern_wildcard() {
+    assert!(test_pattern_matches(&MatchPattern::Wildcard, &Value::Num(42.0)));
+    assert!(test_pattern_matches(&MatchPattern::Wildcard, &Value::Str("hello".to_string())));
+    assert!(test_pattern_matches(&MatchPattern::Wildcard, &Value::Bool(true)));
+}
+
+#[test]
+fn test_match_pattern_literal() {
+    assert!(test_pattern_matches(&MatchPattern::Num(0.0), &Value::Num(0.0)));
+    assert!(!test_pattern_matches(&MatchPattern::Num(1.0), &Value::Num(0.0)));
+    assert!(test_pattern_matches(&MatchPattern::Str("red".to_string()), &Value::Str("red".to_string())));
+    assert!(!test_pattern_matches(&MatchPattern::Str("blue".to_string()), &Value::Str("red".to_string())));
+    assert!(test_pattern_matches(&MatchPattern::Bool(true), &Value::Bool(true)));
+    assert!(!test_pattern_matches(&MatchPattern::Bool(true), &Value::Bool(false)));
+}
+
+#[test]
+fn test_match_pattern_range() {
+    let range = MatchPattern::Range(
+        Box::new(MatchPattern::Num(1.0)),
+        Box::new(MatchPattern::Num(3.0)),
+    );
+    assert!(test_pattern_matches(&range, &Value::Num(1.0)));
+    assert!(test_pattern_matches(&range, &Value::Num(2.0)));
+    assert!(test_pattern_matches(&range, &Value::Num(3.0)));
+    assert!(!test_pattern_matches(&range, &Value::Num(0.0)));
+    assert!(!test_pattern_matches(&range, &Value::Num(4.0)));
+}
+
+#[test]
+fn test_match_pattern_or() {
+    let or_pat = MatchPattern::Or(vec![
+        MatchPattern::Num(0.0),
+        MatchPattern::Num(2.0),
+    ]);
+    assert!(test_pattern_matches(&or_pat, &Value::Num(0.0)));
+    assert!(test_pattern_matches(&or_pat, &Value::Num(2.0)));
+    assert!(!test_pattern_matches(&or_pat, &Value::Num(1.0)));
+}
+
+#[test]
+fn test_match_pattern_tuple() {
+    let tuple_pat = MatchPattern::Tuple(vec![
+        MatchPattern::Num(0.0),
+        MatchPattern::Wildcard,
+        MatchPattern::Num(2.0),
+    ]);
+    assert!(test_pattern_matches(&tuple_pat, &Value::List(vec![
+        Value::Num(0.0),
+        Value::Num(1.0),
+        Value::Num(2.0),
+    ])));
+    assert!(!test_pattern_matches(&tuple_pat, &Value::List(vec![
+        Value::Num(0.0),
+        Value::Num(1.0),
+        Value::Num(3.0),
+    ])));
+}
+
+#[test]
+fn test_list_swap_builtin() {
+    let list = Value::List(vec![
+        Value::Num(1.0),
+        Value::Num(2.0),
+        Value::Num(3.0),
+    ]);
+    let result = eval_builtin_fn("list_swap", &[list, Value::Num(0.0), Value::Num(2.0)]).unwrap();
+    match &result {
+        Value::List(items) => {
+            assert_eq!(items.len(), 3);
+            assert_eq!(items[0], Value::Num(3.0));
+            assert_eq!(items[1], Value::Num(2.0));
+            assert_eq!(items[2], Value::Num(1.0));
+        }
+        _ => panic!("expected List, got {:?}", result),
+    }
+}
+
+#[test]
+fn test_list_set_builtin() {
+    let list = Value::List(vec![
+        Value::Num(1.0),
+        Value::Num(2.0),
+        Value::Num(3.0),
+    ]);
+    let result = eval_builtin_fn("list_set", &[list, Value::Num(1.0), Value::Num(99.0)]).unwrap();
+    match &result {
+        Value::List(items) => {
+            assert_eq!(items.len(), 3);
+            assert_eq!(items[0], Value::Num(1.0));
+            assert_eq!(items[1], Value::Num(99.0));
+            assert_eq!(items[2], Value::Num(3.0));
+        }
+        _ => panic!("expected List, got {:?}", result),
+    }
+}
+
+#[test]
+fn test_list_swap_out_of_range() {
+    let list = Value::List(vec![
+        Value::Num(1.0),
+        Value::Num(2.0),
+    ]);
+    let result = eval_builtin_fn("list_swap", &[list, Value::Num(0.0), Value::Num(99.0)]).unwrap();
+    match &result {
+        Value::List(items) => {
+            assert_eq!(items.len(), 2);
+            assert_eq!(items[0], Value::Num(1.0));
+            assert_eq!(items[1], Value::Num(2.0));
+        }
+        _ => panic!("expected List, got {:?}", result),
+    }
+}
+
+// Helper: check if a statement or any substatement contains Expr::Match
+fn stmt_contains_match_expr(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => body.iter().any(|s| stmt_contains_match_expr(s)),
+        Stmt::Always { body, .. } => body.iter().any(|s| stmt_contains_match_expr(s)),
+        Stmt::Conditional { then_branch, else_branch, .. } => {
+            then_branch.iter().any(|s| stmt_contains_match_expr(s))
+                || else_branch.as_ref().map_or(false, |b| b.iter().any(|s| stmt_contains_match_expr(s)))
+        }
+        Stmt::ForLoop { body, .. } => body.iter().any(|s| stmt_contains_match_expr(s)),
+        Stmt::Match { .. } => true,
+        Stmt::Assignment { value, .. } => {
+            let mut found = false;
+            animatix_syntax::walk::walk_expr(value, &mut |e| {
+                if matches!(e, Expr::Match(..)) {
+                    found = true;
+                }
+            });
+            found
+        }
+        _ => false,
+    }
+}
+
+// Helper: find a statement matching a predicate recursively
+fn find_stmt<F>(stmt: &Stmt, f: F) -> bool
+where
+    F: Fn(&Stmt) -> bool + Copy,
+{
+    if f(stmt) {
+        return true;
+    }
+    match stmt {
+        Stmt::Keyframe { body, .. }
+        | Stmt::RelativeKeyframe { body, .. }
+        | Stmt::Sequence { body, .. }
+        | Stmt::Stagger { body, .. }
+        | Stmt::Always { body, .. }
+        | Stmt::ForLoop { body, .. } => {
+            body.iter().any(|s| find_stmt(s, f))
+        }
+        Stmt::Conditional { then_branch, else_branch, .. } => {
+            then_branch.iter().any(|s| find_stmt(s, f))
+                || else_branch.as_ref().map_or(false, |b| b.iter().any(|s| find_stmt(s, f)))
+        }
+        Stmt::Match { arms, .. } => {
+            arms.iter().any(|(_, body)| body.iter().any(|s| find_stmt(s, f)))
+        }
+        _ => false,
+    }
 }

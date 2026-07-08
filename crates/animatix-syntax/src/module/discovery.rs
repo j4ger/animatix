@@ -112,6 +112,23 @@ pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
                 span: None,
             })
         }
+        Stmt::Match {
+            scrutinee,
+            arms,
+            ..
+        } => {
+            let arms = arms
+                .iter()
+                .map(|(pat, body)| {
+                    (pat.clone(), body.iter().filter_map(strip_imports).collect::<Vec<_>>())
+                })
+                .collect();
+            Some(Stmt::Match {
+                scrutinee: scrutinee.clone(),
+                arms,
+                span: None,
+            })
+        }
         _ => Some(stmt.clone()),
     }
 }

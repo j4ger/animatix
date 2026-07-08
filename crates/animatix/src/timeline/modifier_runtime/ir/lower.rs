@@ -1,4 +1,4 @@
-use crate::ast::{Expr, Stmt};
+use crate::ast::{BinaryOp, Expr, MatchPattern, Stmt};
 use crate::timeline::Value;
 
 use super::types::{
@@ -82,6 +82,13 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
             then_branch: lower_modifier_block(then_branch)?,
             else_branch: lower_modifier_block(else_branch.as_deref().unwrap_or(&[]))?,
         }),
+        Stmt::Match {
+            scrutinee,
+            arms,
+            ..
+        } => {
+            lower_match_stmt(scrutinee, arms)
+        }
         Stmt::Comment(..) => Err(IrLowerError::UnsupportedStatement("comment")),
         Stmt::ForLoop {
             var,
@@ -179,6 +186,8 @@ pub fn compile_expr(expr: &Expr) -> Option<CompiledExpr> {
                 "ceil" => BuiltinFn::Ceil,
                 "deg" => BuiltinFn::Deg,
                 "rad" => BuiltinFn::Rad,
+                "list_swap" => BuiltinFn::ListSwap,
+                "list_set" => BuiltinFn::ListSet,
                 _ => return None,
             };
             Some(CompiledExpr::CallBuiltin(
@@ -199,12 +208,213 @@ pub fn compile_expr(expr: &Expr) -> Option<CompiledExpr> {
         Expr::Closure(params, body) => {
             Some(CompiledExpr::Closure(params.clone(), body.clone()))
         }
+        Expr::Match(scrutinee, arms) => {
+            // Lower to nested Select expressions
+            let scrutinee_compiled = compile_expr(scrutinee)?;
+            // Build from the last arm backwards
+            let default = arms.last().map(|(_pat, arm_expr)| compile_expr(arm_expr)).unwrap_or(Some(CompiledExpr::Const(Value::Num(0.0))))?;
+            let mut result = default;
+            for (pat, arm_expr) in arms.iter().rev().skip(if arms.last().map(|(p,_)| matches!(p, MatchPattern::Wildcard)).unwrap_or(false) { 1 } else { 0 }) {
+                let arm = compile_expr(arm_expr)?;
+                let condition = pattern_to_compiled_condition(&scrutinee_compiled, pat);
+                result = CompiledExpr::Select(Box::new(condition), Box::new(arm), Box::new(result));
+            }
+            // If the last arm is wildcard, it's already the default; no extra select needed.
+            // If not, wrap with a final wildcard check (treat as default anyway).
+            Some(result)
+        }
         Expr::Construct(name, properties) => {
             let fields: Option<Vec<_>> = properties
                 .iter()
                 .map(|p| compile_expr(&p.value).map(|v| (p.name.clone(), v)))
                 .collect();
             fields.map(|f| CompiledExpr::Construct(name.clone(), f))
+        }
+    }
+}
+
+/// Lower a `Stmt::Match` to nested `ModifierIrStmt::If` statements.
+/// Builds from the last arm backwards: wildcard → else, then chain each arm.
+fn lower_match_stmt(scrutinee: &Expr, arms: &[(MatchPattern, Vec<Stmt>)]) -> Result<ModifierIrStmt, IrLowerError> {
+    let compiled_scrutinee = compile_modifier_expr(scrutinee);
+    if arms.is_empty() {
+        return Ok(ModifierIrStmt::Noop);
+    }
+
+    // Start from the last arm and build the chain backwards.
+    // If the last arm is a wildcard, it becomes the initial else branch.
+    // Otherwise, the initial else branch is empty (ModifierIrStmt::Noop).
+    let mut else_body: Vec<ModifierIrStmt> = Vec::new();
+    
+    // Determine the range to iterate in reverse
+    let has_wildcard_last = arms.last().map(|(p, _)| matches!(p, MatchPattern::Wildcard)).unwrap_or(false);
+    
+    // If the last arm is wildcard, set it as the else body and skip it in the iteration
+    let iter_arms: Vec<&(MatchPattern, Vec<Stmt>)> = if has_wildcard_last {
+        let (_, wildcard_body) = arms.last().unwrap();
+        else_body = lower_modifier_block(wildcard_body)?;
+        arms[..arms.len() - 1].iter().rev().collect()
+    } else {
+        arms.iter().rev().collect()
+    };
+
+    let mut result: Vec<ModifierIrStmt> = else_body;
+    for (pat, body) in iter_arms {
+        let body_ir = lower_modifier_block(body)?;
+        let condition = pattern_to_condition(&compiled_scrutinee, pat);
+        result = vec![ModifierIrStmt::If {
+            condition,
+            then_branch: body_ir,
+            else_branch: result,
+        }];
+    }
+
+    Ok(result.into_iter().next().unwrap_or(ModifierIrStmt::Noop))
+}
+
+/// Convert a match pattern to a condition expression (CompiledExpr) that evaluates
+/// to `1.0` (true) when the scrutinee matches the pattern.
+fn pattern_to_compiled_condition(scrutinee: &CompiledExpr, pat: &MatchPattern) -> CompiledExpr {
+    match pat {
+        MatchPattern::Wildcard => CompiledExpr::Const(Value::Num(1.0)),
+        MatchPattern::Num(n) => {
+            let rhs = CompiledExpr::Const(Value::Num(*n));
+            CompiledExpr::Binary(
+                Box::new(scrutinee.clone()),
+                BinaryOp::Eq,
+                Box::new(rhs),
+            )
+        }
+        MatchPattern::Str(s) => {
+            let rhs = CompiledExpr::Const(Value::Str(s.clone()));
+            CompiledExpr::Binary(
+                Box::new(scrutinee.clone()),
+                BinaryOp::Eq,
+                Box::new(rhs),
+            )
+        }
+        MatchPattern::Bool(b) => {
+            let rhs = CompiledExpr::Const(Value::Bool(*b));
+            CompiledExpr::Binary(
+                Box::new(scrutinee.clone()),
+                BinaryOp::Eq,
+                Box::new(rhs),
+            )
+        }
+        MatchPattern::Range(lo, hi) => {
+            let lo_val = match lo.as_ref() {
+                MatchPattern::Num(n) => *n,
+                _ => return CompiledExpr::Const(Value::Num(0.0)),
+            };
+            let hi_val = match hi.as_ref() {
+                MatchPattern::Num(n) => *n,
+                _ => return CompiledExpr::Const(Value::Num(0.0)),
+            };
+            // scrutinee >= lo AND scrutinee <= hi
+            let ge = CompiledExpr::Binary(
+                Box::new(scrutinee.clone()),
+                BinaryOp::Gte,
+                Box::new(CompiledExpr::Const(Value::Num(lo_val))),
+            );
+            let le = CompiledExpr::Binary(
+                Box::new(scrutinee.clone()),
+                BinaryOp::Lte,
+                Box::new(CompiledExpr::Const(Value::Num(hi_val))),
+            );
+            CompiledExpr::Binary(
+                Box::new(ge),
+                BinaryOp::And,
+                Box::new(le),
+            )
+        }
+        MatchPattern::Or(pats) => {
+            if pats.is_empty() {
+                return CompiledExpr::Const(Value::Num(0.0));
+            }
+            let mut result = pattern_to_compiled_condition(scrutinee, &pats[0]);
+            for p in &pats[1..] {
+                let cond = pattern_to_compiled_condition(scrutinee, p);
+                result = CompiledExpr::Binary(
+                    Box::new(result),
+                    BinaryOp::Or,
+                    Box::new(cond),
+                );
+            }
+            result
+        }
+        MatchPattern::Tuple(pats) => {
+            if pats.is_empty() {
+                return CompiledExpr::Const(Value::Num(1.0));
+            }
+            // For tuples, generate nested Index + comparisons
+            // scrutinee[0] == pat0 && scrutinee[1] == pat1 && ...
+            let mut result = pattern_to_compiled_index_condition(scrutinee, &pats[0], 0);
+            for (i, p) in pats[1..].iter().enumerate() {
+                let cond = pattern_to_compiled_index_condition(scrutinee, p, i + 1);
+                result = CompiledExpr::Binary(
+                    Box::new(result),
+                    BinaryOp::And,
+                    Box::new(cond),
+                );
+            }
+            result
+        }
+    }
+}
+
+/// Helper for tuple patterns: generate `scrutinee[i] == pat` condition.
+fn pattern_to_compiled_index_condition(scrutinee: &CompiledExpr, pat: &MatchPattern, index: usize) -> CompiledExpr {
+    let indexed = CompiledExpr::Index(
+        Box::new(scrutinee.clone()),
+        Box::new(CompiledExpr::Const(Value::Num(index as f64))),
+    );
+    match pat {
+        MatchPattern::Wildcard => CompiledExpr::Const(Value::Num(1.0)),
+        MatchPattern::Num(n) => {
+            CompiledExpr::Binary(
+                Box::new(indexed),
+                BinaryOp::Eq,
+                Box::new(CompiledExpr::Const(Value::Num(*n))),
+            )
+        }
+        MatchPattern::Str(s) => {
+            CompiledExpr::Binary(
+                Box::new(indexed),
+                BinaryOp::Eq,
+                Box::new(CompiledExpr::Const(Value::Str(s.clone()))),
+            )
+        }
+        MatchPattern::Bool(b) => {
+            CompiledExpr::Binary(
+                Box::new(indexed),
+                BinaryOp::Eq,
+                Box::new(CompiledExpr::Const(Value::Bool(*b))),
+            )
+        }
+        // Nested or/range patterns inside tuples are not common but supported
+        MatchPattern::Or(_pats) => pattern_to_compiled_condition(&indexed, pat),
+        MatchPattern::Range(..) => pattern_to_compiled_condition(&indexed, pat),
+        MatchPattern::Tuple(_) => {
+            // Nested tuple: recurse with the indexed scrutinee
+            pattern_to_compiled_condition(&indexed, pat)
+        }
+    }
+}
+
+/// Convert a match pattern to a condition `ModifierExpr` for use in `lower_match_stmt`.
+fn pattern_to_condition(scrutinee: &ModifierExpr, pat: &MatchPattern) -> ModifierExpr {
+    match scrutinee {
+        ModifierExpr::Compiled(c) => {
+            ModifierExpr::Compiled(pattern_to_compiled_condition(c, pat))
+        }
+        ModifierExpr::Unsupported(e) => {
+            // If the scrutinee is unsupported, emit a catch-all condition
+            // This means the match won't work correctly at runtime — log a warning.
+            tracing::warn!(
+                "Match scrutinee expression is unsupported in IR; match may not work correctly: {:?}",
+                e
+            );
+            ModifierExpr::Compiled(CompiledExpr::Const(Value::Num(1.0)))
         }
     }
 }

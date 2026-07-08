@@ -110,6 +110,7 @@ fn execute_modifier_stmt(
             }
             Ok(())
         }
+        ModifierIrStmt::Noop => Ok(()),
     }
 }
 
@@ -174,6 +175,8 @@ pub fn evaluate_compiled_expr(
                 BuiltinFn::Ceil => "ceil",
                 BuiltinFn::Deg => "deg",
                 BuiltinFn::Rad => "rad",
+                BuiltinFn::ListSwap => "list_swap",
+                BuiltinFn::ListSet => "list_set",
             };
             crate::timeline::eval_shared::eval_builtin_fn(name, &args)
         }

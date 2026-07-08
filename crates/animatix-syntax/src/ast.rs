@@ -154,6 +154,11 @@ pub enum Expr {
     /// Conditional expression (e.g. `if cond { a } else { b }`).
     Conditional(Box<Expr>, Box<Expr>, Box<Expr>),
 
+    // Match
+    /// Match expression (e.g. `match v { 0 => red, _ => white }`).
+    /// First matching arm's value is returned; `_` wildcard arm is required.
+    Match(Box<Expr>, Vec<(MatchPattern, Box<Expr>)>),
+
     // Type Construction (for inline morph targets)
     /// Type construction for inline morph targets (e.g. `Button, text: "OK"`).
     Construct(String, Vec<Property>),
@@ -185,6 +190,17 @@ impl Expr {
                 cond.references_ident(name)
                     || then_branch.references_ident(name)
                     || else_branch.references_ident(name)
+            }
+            Expr::Match(scrutinee, arms) => {
+                if scrutinee.references_ident(name) {
+                    return true;
+                }
+                for (_pattern, arm_expr) in arms {
+                    if arm_expr.references_ident(name) {
+                        return true;
+                    }
+                }
+                false
             }
             Expr::Construct(_, props) => props.iter().any(|p| p.value.references_ident(name)),
             // Literals never reference an identifier
@@ -431,6 +447,27 @@ pub enum LoopPattern {
     Tuple(Vec<String>),
 }
 
+/// Pattern for `match` arms.
+/// Supports a subset of Rust patterns: literals, ranges, or-patterns,
+/// tuple patterns, and the required wildcard `_`.
+#[derive(Debug, Clone, PartialEq)]
+pub enum MatchPattern {
+    /// Wildcard pattern `_` — matches any value.
+    Wildcard,
+    /// Numeric literal pattern (e.g. `0`, `3.14`).
+    Num(f64),
+    /// String literal pattern (e.g. `"hello"`).
+    Str(String),
+    /// Boolean literal pattern (`true` or `false`).
+    Bool(bool),
+    /// Range pattern `a..=b` (inclusive).
+    Range(Box<MatchPattern>, Box<MatchPattern>),
+    /// Or-pattern `pat1 | pat2 | ...`.
+    Or(Vec<MatchPattern>),
+    /// Tuple pattern `(pat1, pat2, ...)`.
+    Tuple(Vec<MatchPattern>),
+}
+
 impl std::fmt::Display for LoopPattern {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -669,6 +706,18 @@ pub enum Stmt {
         /// Optional else-branch statements.
         else_branch: Option<Vec<Stmt>>,
         /// Source span for this conditional.
+        span: Option<Span>,
+    },
+
+    /// Match block: `match e { (0, i, j) => { swap a, b }, _ => {} }`
+    /// The scrutinee is evaluated at build time (or frame time if inside `always`);
+    /// the first matching arm's body is executed. The `_` wildcard arm is required.
+    Match {
+        /// Scrutinee expression.
+        scrutinee: Expr,
+        /// List of (pattern, body_statements) arms.
+        arms: Vec<(MatchPattern, Vec<Stmt>)>,
+        /// Source span for this match.
         span: Option<Span>,
     },
 

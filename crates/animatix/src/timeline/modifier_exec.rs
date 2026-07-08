@@ -67,6 +67,22 @@ impl Timeline {
                     }
                 }
             }
+            Stmt::Match {
+                scrutinee,
+                arms,
+                ..
+            } => {
+                if let Ok(value) = evaluate_expr(scrutinee, frame_env) {
+                    for (_pat, body) in arms {
+                        if crate::timeline::build::pattern_matches(_pat, &value) {
+                            for stmt in body {
+                                self.apply_modifier_stmt(stmt, frame_env, overrides);
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
             Stmt::ForLoop { var, index_var, iterable, body, .. } => {
                 if let Ok(values) = evaluate_expr(iterable, frame_env) {
                     let items: Vec<Value> = match values {

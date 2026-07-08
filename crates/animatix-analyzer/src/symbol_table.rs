@@ -521,6 +521,13 @@ impl SymbolTable {
                     }
                 }
             }
+            Stmt::Match { arms, .. } => {
+                for (_, body) in arms {
+                    for stmt in body {
+                        self.collect_stmt(stmt);
+                    }
+                }
+            }
 
             Stmt::Scene { name, span, .. } => {
                 self.scenes.insert(name.clone(), SceneInfo {
@@ -593,6 +600,13 @@ impl SymbolTable {
                 }
                 if let Some(else_stmts) = else_branch {
                     for stmt in else_stmts {
+                        self.collect_refs_from_stmt(stmt);
+                    }
+                }
+            }
+            Stmt::Match { arms, .. } => {
+                for (_, body) in arms {
+                    for stmt in body {
                         self.collect_refs_from_stmt(stmt);
                     }
                 }
@@ -816,6 +830,7 @@ pub fn infer_expr_type(expr: &Expr) -> PropertyType {
         Expr::Method(_, _, _) => PropertyType::Any,
         Expr::Closure(_, _) => PropertyType::Any,
         Expr::Conditional(_, _, _) => PropertyType::Any,
+        Expr::Match(_, _) => PropertyType::Any,
         Expr::Construct(_, _) => PropertyType::Actor,
     }
 }

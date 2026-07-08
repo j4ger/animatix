@@ -248,6 +248,14 @@ pub fn format_expr(expr: &Expr) -> String {
                 format_expr(else_expr)
             )
         }
+        Expr::Match(scrutinee, arms) => {
+            let arms_str = arms
+                .iter()
+                .map(|(pat, expr)| format!("{} => {}", format_match_pat(pat), format_expr(expr)))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("match {} {{ {} }}", format_expr(scrutinee), arms_str)
+        }
         Expr::Construct(name, props) => {
             let inner = props
                 .iter()
@@ -255,6 +263,38 @@ pub fn format_expr(expr: &Expr) -> String {
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("{} {{ {} }}", name, inner)
+        }
+    }
+}
+
+/// Format a match pattern for display.
+pub fn format_match_pat(pat: &MatchPattern) -> String {
+    match pat {
+        MatchPattern::Wildcard => "_".to_string(),
+        MatchPattern::Num(n) => {
+            if *n == (*n as i64) as f64 {
+                format!("{}", *n as i64)
+            } else {
+                format!("{}", n)
+            }
+        }
+        MatchPattern::Str(s) => format!("{:?}", s),
+        MatchPattern::Bool(b) => format!("{}", b),
+        MatchPattern::Range(lo, hi) => {
+            format!("{}..={}", format_match_pat(lo), format_match_pat(hi))
+        }
+        MatchPattern::Or(pats) => pats
+            .iter()
+            .map(format_match_pat)
+            .collect::<Vec<_>>()
+            .join(" | "),
+        MatchPattern::Tuple(pats) => {
+            let inner = pats
+                .iter()
+                .map(format_match_pat)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("({})", inner)
         }
     }
 }
@@ -509,6 +549,31 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             let body_str = format_stmts_raw(body, depth + 1, indent_size);
             format!("{} {{\n{}\n{}}}", header, body_str, " ".repeat(indent_size * depth))
         }
+        Stmt::Match {
+            scrutinee,
+            arms,
+            ..
+        } => {
+            let arms_str = arms
+                .iter()
+                .map(|(pat, stmts)| {
+                    let body_str = format_stmts_raw(stmts, depth + 1, indent_size);
+                    format!(
+                        "{} => {{\n{}\n{}}}",
+                        format_match_pat(pat),
+                        body_str,
+                        " ".repeat(indent_size * (depth + 1))
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(",\n");
+            format!(
+                "match {} {{\n{}\n{}}}",
+                format_expr(scrutinee),
+                arms_str,
+                " ".repeat(indent_size * depth)
+            )
+        }
         Stmt::Always { body, .. } => {
             let body_str = format_stmts_raw(body, depth + 1, indent_size);
             format!("always {{\n{}\n{}}}", body_str, " ".repeat(indent_size * depth))
@@ -644,11 +709,11 @@ mod variant_coverage_guardrails {
         // Expr has exactly 17 variants as of last update.
         // If this fails, add the new variant to format_expr
         // and increment this count.
-        let arms = 17; // Num, Percent, Str, Bool, Null, Ident, Path, Index, List, Tuple, Binary, Unary, Call, Method, Closure, Conditional, Construct
+        let arms = 18; // Num, Percent, Str, Bool, Null, Ident, Path, Index, List, Tuple, Binary, Unary, Call, Method, Closure, Conditional, Match, Construct
         // Compile-time check: format_expr's match arms must be exhaustive
         // This test breaks at compile time anyway, but the count serves
         // as a searchable reminder when variants change.
-        assert_eq!(arms, 17, "Expr variant count changed — update format_expr and other match sites");
+        assert_eq!(arms, 18, "Expr variant count changed — update format_expr and other match sites");
     }
 
     /// When adding a new variant to `InlineItem`, update:
@@ -668,7 +733,7 @@ mod variant_coverage_guardrails {
     /// - `module.rs` (set_action_spans)
     #[test]
     fn format_stmt_raw_covers_all_stmt_variants() {
-        let arms = 19; // Action, LetDecl, ActorDecl, Import, Keyframe, RelativeKeyframe, Assignment, Sequence, Stagger, Always, ReactiveBinding, Conditional, ForLoop, ComponentDef, ComponentAction, Config, Scene, Play, Comment
-        assert_eq!(arms, 19, "Stmt variant count changed — update format_stmt_raw and other match sites");
+        let arms = 20; // Action, LetDecl, ActorDecl, Import, Keyframe, RelativeKeyframe, Assignment, Sequence, Stagger, Always, ReactiveBinding, Conditional, Match, ForLoop, ComponentDef, ComponentAction, Config, Scene, Play, Comment
+        assert_eq!(arms, 20, "Stmt variant count changed — update format_stmt_raw and other match sites");
     }
 }

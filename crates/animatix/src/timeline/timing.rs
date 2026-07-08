@@ -17,6 +17,7 @@ pub(crate) fn sequence_stmt_kind(stmt: &Stmt) -> &'static str {
         Stmt::Always { .. } => "always block",
         Stmt::ReactiveBinding { .. } => "reactive binding",
         Stmt::Conditional { .. } => "conditional",
+        Stmt::Match { .. } => "match",
         Stmt::ForLoop { .. } => "for loop",
         Stmt::ComponentDef(..) => "component definition",
         Stmt::ComponentAction { .. } => "component action",

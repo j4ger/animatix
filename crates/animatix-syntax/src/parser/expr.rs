@@ -265,7 +265,89 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
         .map(|(args, body)| Expr::Closure(args, Box::new(body)))
         .boxed();
 
-        choice((closure, conditional_expr, comparison))
+        // Match pattern parser (for match arms)
+        // Supports: wildcard `_`, literals (Num/Str/Bool), ranges `1..=3`,
+        // or-patterns `0 | 2`, and tuple patterns `(a, b)`.
+        let match_pat = recursive(|match_pat| {
+            let wildcard = just('_').to(MatchPattern::Wildcard).padded();
+
+            let num_pat = text::int(10)
+                .then(just('.').ignore_then(text::digits(10)).or_not())
+                .to_slice()
+                .from_str()
+                .unwrapped()
+                .map(MatchPattern::Num)
+                .padded();
+
+            let str_pat = super::common::string_literal()
+                .map(|e| match e {
+                    Expr::Str(s) => MatchPattern::Str(s),
+                    _ => unreachable!(),
+                })
+                .padded();
+
+            let bool_pat = text::keyword("true")
+                .to(MatchPattern::Bool(true))
+                .or(text::keyword("false").to(MatchPattern::Bool(false)))
+                .padded();
+
+            let literal_pat = choice((num_pat, str_pat, bool_pat)).boxed();
+
+            // Range: pat ..= pat (endpoints must be literals)
+            let range_pat = literal_pat
+                .clone()
+                .then_ignore(just("..=").padded())
+                .then(literal_pat.clone())
+                .map(|(lo, hi)| MatchPattern::Range(Box::new(lo), Box::new(hi)))
+                .boxed();
+
+            // Tuple: (pat, pat, ...)
+            let tuple_pat = match_pat
+                .clone()
+                .separated_by(just(',').padded())
+                .allow_trailing()
+                .collect::<Vec<_>>()
+                .delimited_by(just('(').padded(), just(')').padded())
+                .map(MatchPattern::Tuple)
+                .boxed();
+
+            // Atom: wildcard | literal | range | tuple
+            let atom = choice((wildcard.clone(), range_pat, tuple_pat, literal_pat)).boxed();
+
+            // Or-pattern: atom (| atom)*
+            atom.clone()
+                .foldl(
+                    just('|').padded().ignore_then(atom.clone()).repeated(),
+                    |left, right| match left {
+                        MatchPattern::Or(mut items) => {
+                            items.push(right);
+                            MatchPattern::Or(items)
+                        }
+                        other => MatchPattern::Or(vec![other, right]),
+                    },
+                )
+                .boxed()
+        });
+
+        // Match expression: match <expr> { <pat> => <expr> , ... , _ => <expr> }
+        let match_expr = text::keyword("match")
+            .ignore_then(expr.clone().padded())
+            .then(
+                match_pat
+                    .clone()
+                    .then_ignore(just("=>").padded())
+                    .then(expr.clone())
+                    .separated_by(just(',').padded())
+                    .allow_trailing()
+                    .collect::<Vec<(MatchPattern, _)>>()
+                    .delimited_by(just('{').padded(), just('}').padded()),
+            )
+            .map(|(scrutinee, arms)| {
+                Expr::Match(Box::new(scrutinee), arms.into_iter().map(|(p, e)| (p, Box::new(e))).collect())
+            })
+            .boxed();
+
+        choice((closure, conditional_expr, match_expr, comparison))
             .labelled("expression")
             .as_context()
             .boxed()

@@ -7,7 +7,7 @@ mod inline_actions;
 mod rewrite;
 
 use crate::ast::{
-    Action, ComponentDef, Expr, InlineItem, Modifier, ParamDef, Property, Span, Stmt,
+    Action, ComponentDef, Expr, InlineItem, MatchPattern, Modifier, ParamDef, Property, Span, Stmt,
 };
 use crate::walk::walk_stmts_mut;
 use crate::parser::{parse_source, ParseError};
@@ -624,6 +624,16 @@ impl ModuleGraph {
                 }
                 if let Some(else_body) = else_branch {
                     for stmt in else_body {
+                        Self::collect_module_actions_from_stmt(stmt, actions);
+                    }
+                }
+            }
+            Stmt::Match {
+                arms,
+                ..
+            } => {
+                for (_, body) in arms {
+                    for stmt in body {
                         Self::collect_module_actions_from_stmt(stmt, actions);
                     }
                 }

@@ -1,5 +1,5 @@
 use super::{
-    ComponentEntry, Expr, HashMap, HashSet, InlineItem, InstanceActionRegistry, ParamDef,
+    ComponentEntry, Expr, HashMap, HashSet, InlineItem, InstanceActionRegistry, MatchPattern, ParamDef,
     Property, Stmt,
     rewrite::rewrite_stmt,
 };
@@ -105,6 +105,26 @@ fn expand_stmt_into(
                 condition: condition.clone(),
                 then_branch: then_expanded,
                 else_branch: else_expanded,
+                span: *span,
+            });
+        }
+        Stmt::Match {
+            scrutinee,
+            arms,
+            span,
+            ..
+        } => {
+            let expanded_arms: Vec<(MatchPattern, Vec<Stmt>)> = arms
+                .iter()
+                .map(|(pat, body)| {
+                    let (expanded_body, sub_registry) = expand_statements_inner(body, components, ctx);
+                    merge_registry(registry, sub_registry);
+                    (pat.clone(), expanded_body)
+                })
+                .collect();
+            output.push(Stmt::Match {
+                scrutinee: scrutinee.clone(),
+                arms: expanded_arms,
                 span: *span,
             });
         }

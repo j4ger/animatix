@@ -458,6 +458,88 @@ pub(crate) fn parser<'src>(
             .as_context()
             .padded();
 
+        // Match statement: match <expr> { <pat> => { <stmts> }, ..., _ => {} }
+        // The match pattern parser reuses the same logic as the expression form.
+        // We inline a simplified pattern parser here since `match_pat` references
+        // itself recursively and needs to be inside the recursive block.
+        let match_pat = recursive(|match_pat| {
+            let wildcard = just('_').to(MatchPattern::Wildcard).padded();
+
+            let num_pat = text::int(10)
+                .then(just('.').ignore_then(text::digits(10)).or_not())
+                .to_slice()
+                .from_str()
+                .unwrapped()
+                .map(MatchPattern::Num)
+                .padded();
+
+            let str_pat = super::common::string_literal()
+                .map(|e| match e {
+                    Expr::Str(s) => MatchPattern::Str(s),
+                    _ => unreachable!(),
+                })
+                .padded();
+
+            let bool_pat = text::keyword("true")
+                .to(MatchPattern::Bool(true))
+                .or(text::keyword("false").to(MatchPattern::Bool(false)))
+                .padded();
+
+            let literal_pat = choice((num_pat, str_pat, bool_pat)).boxed();
+
+            let range_pat = literal_pat
+                .clone()
+                .then_ignore(just("..=").padded())
+                .then(literal_pat.clone())
+                .map(|(lo, hi)| MatchPattern::Range(Box::new(lo), Box::new(hi)))
+                .boxed();
+
+            let tuple_pat = match_pat
+                .clone()
+                .separated_by(just(',').padded())
+                .allow_trailing()
+                .collect::<Vec<_>>()
+                .delimited_by(just('(').padded(), just(')').padded())
+                .map(MatchPattern::Tuple)
+                .boxed();
+
+            let atom = choice((wildcard.clone(), range_pat, tuple_pat, literal_pat)).boxed();
+
+            atom.clone()
+                .foldl(
+                    just('|').padded().ignore_then(atom.clone()).repeated(),
+                    |left, right| match left {
+                        MatchPattern::Or(mut items) => {
+                            items.push(right);
+                            MatchPattern::Or(items)
+                        }
+                        other => MatchPattern::Or(vec![other, right]),
+                    },
+                )
+                .boxed()
+        });
+
+        let match_stmt = text::keyword("match")
+            .ignore_then(expr.clone().padded())
+            .then(
+                match_pat
+                    .clone()
+                    .then_ignore(just("=>").padded())
+                    .then(always_body.clone())
+                    .separated_by(just(',').padded())
+                    .allow_trailing()
+                    .collect::<Vec<(MatchPattern, Vec<Stmt>)>>()
+                    .delimited_by(just('{').padded(), just('}').padded()),
+            )
+            .map(|(scrutinee, arms)| Stmt::Match {
+                scrutinee,
+                arms,
+                span: None,
+            })
+            .labelled("match statement")
+            .as_context()
+            .padded();
+
         // Loop variable pattern: single ident or tuple (a, b, c)
         let loop_var_pat = ident
             .clone()
@@ -584,6 +666,7 @@ pub(crate) fn parser<'src>(
             image_stmt,
             always_stmt,
             conditional_stmt,
+            match_stmt,
             for_stmt,
             sequence_stmt,
             stagger_stmt,

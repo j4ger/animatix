@@ -238,6 +238,18 @@ fn substitute_params_in_stmt(stmt: &Stmt, bindings: &HashMap<String, Expr>) -> S
                 .map(|b| b.iter().map(|s| substitute_params_in_stmt(s, bindings)).collect()),
             span,
         },
+        Stmt::Match {
+            scrutinee,
+            arms,
+            span,
+        } => Stmt::Match {
+            scrutinee: substitute_params_in_expr(&scrutinee, bindings),
+            arms: arms
+                .iter()
+                .map(|(pat, body)| (pat.clone(), body.iter().map(|s| substitute_params_in_stmt(s, bindings)).collect()))
+                .collect(),
+            span,
+        },
         Stmt::ForLoop {
             var,
             index_var,
@@ -304,6 +316,12 @@ fn substitute_params_in_expr(expr: &Expr, bindings: &HashMap<String, Expr>) -> E
             Box::new(substitute_params_in_expr(cond, bindings)),
             Box::new(substitute_params_in_expr(then_expr, bindings)),
             Box::new(substitute_params_in_expr(else_expr, bindings)),
+        ),
+        Expr::Match(scrutinee, arms) => Expr::Match(
+            Box::new(substitute_params_in_expr(scrutinee, bindings)),
+            arms.iter()
+                .map(|(pat, expr)| (pat.clone(), Box::new(substitute_params_in_expr(expr, bindings))))
+                .collect(),
         ),
         Expr::Construct(name, props) => Expr::Construct(
             name.clone(),

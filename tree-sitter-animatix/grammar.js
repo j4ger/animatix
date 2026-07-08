@@ -49,6 +49,9 @@ module.exports = grammar({
 
     // inline_property inside inline_items vs property inside property_list (object_expression)
     [$.inline_property, $.property],
+
+    // match arm value: block vs set_expression
+    [$.block, $.set_expression],
   ],
 
   rules: {
@@ -74,6 +77,7 @@ module.exports = grammar({
       $.always_block,
       $.for_block,
       $.if_expression,
+      $.match_expression,
       $.play_statement,
       $.slot_marker,
       $.slot_fill,
@@ -234,6 +238,58 @@ module.exports = grammar({
         $.block,
         $.expression_block
       ))))
+    ),
+
+    match_expression: $ => seq(
+      'match',
+      field('scrutinee', $._expression),
+      '{',
+      optional(seq(
+        $.match_arm,
+        repeat(seq(',', $.match_arm)),
+        optional(',')
+      )),
+      '}'
+    ),
+
+    match_arm: $ => seq(
+      field('pattern', $.match_pattern),
+      '=>',
+      field('value', choice($.block, $._expression))
+    ),
+
+    match_pattern: $ => choice(
+      $.match_wildcard,
+      $.match_literal,
+      $.match_range,
+      $.match_or,
+      $.match_tuple
+    ),
+
+    match_wildcard: $ => '_',
+
+    match_literal: $ => choice($.number, $.string, $.boolean),
+
+    match_range: $ => seq(
+      field('low', $.match_literal),
+      '..=',
+      field('high', $.match_literal)
+    ),
+
+    match_or: $ => prec.left(seq(
+      $.match_pattern,
+      '|',
+      $.match_pattern
+    )),
+
+    match_tuple: $ => seq(
+      '(',
+      optional(seq(
+        $.match_pattern,
+        repeat(seq(',', $.match_pattern)),
+        optional(',')
+      )),
+      ')'
     ),
 
     expression_block: $ => seq(
