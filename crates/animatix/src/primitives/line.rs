@@ -114,10 +114,28 @@ impl Primitive for LinePrimitive {
     ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
     {
         use crate::primitives::evaluate_shape_render;
+        use crate::timeline::callout_geometry::bounds_anchor_point;
         use crate::timeline::shapes::LineState;
 
         let mut line_from = ctx.track.shape.line_from.get(ctx.time_ms, [-50.0, 0.0]);
         let mut line_to = ctx.track.shape.line_to.get(ctx.time_ms, [50.0, 0.0]);
+
+        // G6: Resolve anchor-point refs from the side-channel.
+        // Anchor refs are resolved first, then overrides may replace them.
+        if let Some((actor, anchor)) = ctx.track.shape.from_anchor.as_ref() {
+            if let Some(resolver) = ctx.target_resolver {
+                if let Some((centre, half)) = resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions) {
+                    line_from = bounds_anchor_point(*anchor, centre, half);
+                }
+            }
+        }
+        if let Some((actor, anchor)) = ctx.track.shape.to_anchor.as_ref() {
+            if let Some(resolver) = ctx.target_resolver {
+                if let Some((centre, half)) = resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions) {
+                    line_to = bounds_anchor_point(*anchor, centre, half);
+                }
+            }
+        }
 
         if let Some(overrides) = ctx.overrides {
             if let Some(Value::Vec2(from)) = overrides.get("from") {

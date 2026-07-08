@@ -140,6 +140,29 @@ impl Timeline {
                     process_action(action, time_ms, self, diagnostics, *span);
                 }
                 Stmt::LetDecl { name, value, .. } => {
+                    // G5/G6 guard: Anchor-point refs (`n0.right`) are
+                    // frame-time-resolved and cannot be used in build-time
+                    // `let` constants (transforms/bounds not resolved at build).
+                    if let crate::ast::Expr::Path(segments) = value {
+                        if segments.len() == 2 {
+                            if SceneAnchor::from_str(&segments[1]).is_some() {
+                                let msg = format!(
+                                    "'{}' references '{}' which is a frame-time anchor-point property; \
+                                     cannot resolve at build time. Use in 'always' or assignment instead.",
+                                    name, segments.join(".")
+                                );
+                                diagnostics.push(
+                                    Diagnostic::warning(
+                                        DiagnosticCode::InvalidPropertyValue,
+                                        DiagnosticPhase::Build,
+                                        msg,
+                                    )
+                                );
+                                // Fall through to evaluate (will likely fail or produce (0,0)),
+                                // which gives the user a second diagnostic for the eval failure.
+                            }
+                        }
+                    }
                     let eval_env = self.build_eval_env(time_ms as u64);
                     match evaluate_expr(value, &eval_env) {
                         Ok(val) => {

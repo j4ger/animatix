@@ -159,6 +159,44 @@ pub enum SceneAnchor {
     BottomRight,
 }
 
+impl SceneAnchor {
+    /// Parse a 9-point anchor name (the `scene.*` vocabulary) into a `SceneAnchor`.
+    /// Returns `None` for unrecognised names.
+    // Inherent `from_str` returns `Option` (not `Result`) to match the style of
+    // `CalloutPlace::from_str`; implementing the std trait would change the
+    // signature and break the pattern.
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "top_left" => Some(Self::TopLeft),
+            "top" => Some(Self::Top),
+            "top_right" => Some(Self::TopRight),
+            "left" => Some(Self::Left),
+            "center" => Some(Self::Center),
+            "right" => Some(Self::Right),
+            "bottom_left" => Some(Self::BottomLeft),
+            "bottom" => Some(Self::Bottom),
+            "bottom_right" => Some(Self::BottomRight),
+            _ => None,
+        }
+    }
+
+    /// Canonical string representation (lowercase, matches source syntax).
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::TopLeft => "top_left",
+            Self::Top => "top",
+            Self::TopRight => "top_right",
+            Self::Left => "left",
+            Self::Center => "center",
+            Self::Right => "right",
+            Self::BottomLeft => "bottom_left",
+            Self::Bottom => "bottom",
+            Self::BottomRight => "bottom_right",
+        }
+    }
+}
+
 impl Interpolate for SceneAnchor {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
         if t < 0.5 { *self } else { *other }
@@ -310,6 +348,16 @@ pub struct ShapeTracks {
     /// Pre-built vector paths for shape rendering.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub vector_paths: Option<PropertyTrack<Vec<VelloPath>>>,
+
+    // ── Actor-anchor refs for `from`/`to` (G6) ──
+    /// When set, `line_from` / `from` is resolved each frame from this
+    /// actor's world-space anchor point instead of the PropertyTrack.
+    /// `(actor_label, anchor)`.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub from_anchor: Option<(String, SceneAnchor)>,
+    /// Same as `from_anchor` but for the `to` / `line_to` endpoint.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub to_anchor: Option<(String, SceneAnchor)>,
 }
 
 // ─────────────────────────────────────────────────────────────

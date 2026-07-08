@@ -492,6 +492,37 @@ impl Timeline {
             stroke_width = 0.0;
         }
 
+        // G6: Detect actor-anchor refs in `from`/`to` property declarations.
+        // Store them in the track's side-channel so the primitive's frame-time
+        // `evaluate` method can resolve them each frame.
+        // G6: Detect actor-anchor refs in `from`/`to` property declarations.
+        // Store them in the track's side-channel so the primitive's frame-time
+        // `evaluate` method can resolve them each frame.
+        if matches!(
+            kind_id,
+            super::ActorKindId::Shape(super::ShapeKind::Line | super::ShapeKind::Arrow)
+        ) {
+            if let Some(track) = self.tracks.get_mut(label) {
+                for prop in props {
+                    if prop.name == "from" || prop.name == "to" {
+                        if let Expr::Path(segments) = &prop.value {
+                            if segments.len() == 2 {
+                                if let Some(anchor) = SceneAnchor::from_str(&segments[1]) {
+                                    if prop.name == "from" {
+                                        track.shape.from_anchor =
+                                            Some((segments[0].clone(), anchor));
+                                    } else {
+                                        track.shape.to_anchor =
+                                            Some((segments[0].clone(), anchor));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         let vello_paths = self.generate_actor_paths(
             ty,
             size,

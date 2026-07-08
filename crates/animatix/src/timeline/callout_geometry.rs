@@ -5,7 +5,7 @@
 //! tip position is computed by exactly one formula.
 
 use crate::timeline::{AnimationTrack, SceneDimensions, Timeline, TrackAccessor};
-use crate::timeline::animation_track::CalloutPlace;
+use crate::timeline::animation_track::{CalloutPlace, SceneAnchor};
 
 // -- Resolver trait --
 
@@ -144,6 +144,43 @@ pub fn derive_callout_geometry(
     }
 }
 
+// -- Public helpers (shared with G5/G6 actor-anchor-point resolution) --
+
+/// Compute the world-space point for an anchor on an actor's world-space AABB.
+///
+/// `centre` and `half` are the world-space AABB centre and half-extents
+/// (as returned by [`TargetResolver::target_bounds`]).
+///
+/// The 9-variant vocabulary mirrors [`SceneAnchor`] exactly.
+pub fn bounds_anchor_point(anchor: SceneAnchor, centre: [f32; 2], half: [f32; 2]) -> [f32; 2] {
+    match anchor {
+        SceneAnchor::TopLeft => [centre[0] - half[0], centre[1] - half[1]],
+        SceneAnchor::Top => [centre[0], centre[1] - half[1]],
+        SceneAnchor::TopRight => [centre[0] + half[0], centre[1] - half[1]],
+        SceneAnchor::Left => [centre[0] - half[0], centre[1]],
+        SceneAnchor::Center => centre,
+        SceneAnchor::Right => [centre[0] + half[0], centre[1]],
+        SceneAnchor::BottomLeft => [centre[0] - half[0], centre[1] + half[1]],
+        SceneAnchor::Bottom => [centre[0], centre[1] + half[1]],
+        SceneAnchor::BottomRight => [centre[0] + half[0], centre[1] + half[1]],
+    }
+}
+
+/// Resolve an actor's anchor point to a world-space `Vec2` at the given time.
+///
+/// Returns `None` if the actor doesn't exist or has no bounds (the actor may
+/// not have been declared yet, or its size/layout is not yet resolved).
+pub fn resolve_anchor_point(
+    timeline: &Timeline,
+    actor: &str,
+    anchor: SceneAnchor,
+    time_ms: u64,
+    scene_dimensions: SceneDimensions,
+) -> Option<[f32; 2]> {
+    let (centre, half) = timeline.target_bounds(actor, time_ms, scene_dimensions)?;
+    Some(bounds_anchor_point(anchor, centre, half))
+}
+
 // -- Private helpers --
 
 fn attach_point(place: CalloutPlace, centre: [f32; 2], half: [f32; 2]) -> [f32; 2] {
@@ -161,5 +198,47 @@ fn place_direction(place: CalloutPlace) -> [f32; 2] {
         CalloutPlace::Bottom => [0.0, 1.0],
         CalloutPlace::Left => [-1.0, 0.0],
         CalloutPlace::Right | CalloutPlace::Auto => [1.0, 0.0],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bounds_anchor_point_returns_correct_world_point() {
+        // A Rect at (200, 300) with size (40, 40): centre=(220, 320), half=(20, 20)
+        let centre = [220.0, 320.0];
+        let half = [20.0, 20.0];
+
+        assert_eq!(bounds_anchor_point(SceneAnchor::Right, centre, half), [240.0, 320.0]);
+        assert_eq!(bounds_anchor_point(SceneAnchor::Left, centre, half), [200.0, 320.0]);
+        assert_eq!(bounds_anchor_point(SceneAnchor::Top, centre, half), [220.0, 300.0]);
+        assert_eq!(bounds_anchor_point(SceneAnchor::Bottom, centre, half), [220.0, 340.0]);
+        assert_eq!(bounds_anchor_point(SceneAnchor::Center, centre, half), [220.0, 320.0]);
+        assert_eq!(bounds_anchor_point(SceneAnchor::TopLeft, centre, half), [200.0, 300.0]);
+        assert_eq!(bounds_anchor_point(SceneAnchor::TopRight, centre, half), [240.0, 300.0]);
+        assert_eq!(bounds_anchor_point(SceneAnchor::BottomLeft, centre, half), [200.0, 340.0]);
+        assert_eq!(bounds_anchor_point(SceneAnchor::BottomRight, centre, half), [240.0, 340.0]);
+    }
+
+    #[test]
+    fn scene_anchor_roundtrip() {
+        let names = [
+            (SceneAnchor::TopLeft, "top_left"),
+            (SceneAnchor::Top, "top"),
+            (SceneAnchor::TopRight, "top_right"),
+            (SceneAnchor::Left, "left"),
+            (SceneAnchor::Center, "center"),
+            (SceneAnchor::Right, "right"),
+            (SceneAnchor::BottomLeft, "bottom_left"),
+            (SceneAnchor::Bottom, "bottom"),
+            (SceneAnchor::BottomRight, "bottom_right"),
+        ];
+        for (anchor, name) in &names {
+            assert_eq!(anchor.as_str(), *name);
+            assert_eq!(SceneAnchor::from_str(name), Some(*anchor));
+        }
+        assert_eq!(SceneAnchor::from_str("invalid"), None);
     }
 }
