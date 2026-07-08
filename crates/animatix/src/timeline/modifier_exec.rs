@@ -80,15 +80,18 @@ impl Timeline {
                 arms,
                 ..
             } => {
-                if let Ok(value) = evaluate_expr(scrutinee, frame_env) {
-                    for (_pat, body) in arms {
-                        if crate::timeline::build::pattern_matches(_pat, &value) {
-                            for stmt in body {
-                                self.apply_modifier_stmt(stmt, frame_env, overrides);
+                match evaluate_expr(scrutinee, frame_env) {
+                    Ok(value) => {
+                        for (_pat, body) in arms {
+                            if crate::timeline::build::pattern_matches(_pat, &value) {
+                                for stmt in body {
+                                    self.apply_modifier_stmt(stmt, frame_env, overrides);
+                                }
+                                break;
                             }
-                            break;
                         }
                     }
+                    Err(e) => warn!("match scrutinee evaluation failed: {e}"),
                 }
             }
             Stmt::ForLoop { var, index_var, iterable, body, .. } => {

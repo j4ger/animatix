@@ -172,7 +172,7 @@ pub fn bounds_anchor_point(anchor: SceneAnchor, centre: [f32; 2], half: [f32; 2]
 /// then computes the world-space anchor point using [`bounds_anchor_point`].
 /// Returns `None` if `{actor}.at` is not in the environment.
 ///
-/// This is the lazy alternative to [`resolve_anchor_point`]: it does not
+/// This is the lazy alternative to the now-removed `resolve_anchor_point`: it does not
 /// require the `Timeline` or `TargetResolver` — just the per-frame env.
 /// Because it reads the env (which reflects `always`-block overrides),
 /// it produces up-to-date positions even when modifiers move the actor.
@@ -196,21 +196,6 @@ pub fn env_anchor_point(
         [half[0] as f32, half[1] as f32],
     );
     Some([point[0] as f64, point[1] as f64])
-}
-
-/// Resolve an actor's anchor point to a world-space `Vec2` at the given time.
-///
-/// Returns `None` if the actor doesn't exist or has no bounds (the actor may
-/// not have been declared yet, or its size/layout is not yet resolved).
-pub fn resolve_anchor_point(
-    timeline: &Timeline,
-    actor: &str,
-    anchor: SceneAnchor,
-    time_ms: u64,
-    scene_dimensions: SceneDimensions,
-) -> Option<[f32; 2]> {
-    let (centre, half) = timeline.target_bounds(actor, time_ms, scene_dimensions)?;
-    Some(bounds_anchor_point(anchor, centre, half))
 }
 
 // -- Private helpers --

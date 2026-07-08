@@ -36,8 +36,27 @@ pub(crate) fn assignment_target_key_with_env(
             TargetSegment::Static(s) => parts.push(s.clone()),
             TargetSegment::Indexed { base, index } => {
                 let idx_val = evaluate_expr(index, env)?;
-                let n = idx_val.as_num() as usize;
-                parts.push(array_actor_label(base, n));
+                match idx_val {
+                    Value::Num(n) if n >= 0.0 && n == n.floor() => {
+                        parts.push(array_actor_label(base, n as usize));
+                    }
+                    Value::Num(n) => {
+                        let msg = format!(
+                            "Array index for '{}' must be a non-negative integer, got {}",
+                            base, n
+                        );
+                        tracing::warn!("{}", msg);
+                        return Err(EvalError::TypeMismatch(msg));
+                    }
+                    other => {
+                        let msg = format!(
+                            "Array index for '{}' must evaluate to a number, got {:?}",
+                            base, other
+                        );
+                        tracing::warn!("{}", msg);
+                        return Err(EvalError::TypeMismatch(msg));
+                    }
+                }
             }
         }
     }

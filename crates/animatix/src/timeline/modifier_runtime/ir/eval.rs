@@ -60,7 +60,23 @@ fn execute_modifier_stmt(
             let val = evaluate_modifier_expr(value, frame_env)?;
             // Evaluate the runtime index against the frame environment.
             let idx_val = evaluate_compiled_expr(index, frame_env)?;
-            let n = idx_val.as_num() as usize;
+            let n = match idx_val {
+                Value::Num(n) if n >= 0.0 && n == n.floor() => n as usize,
+                Value::Num(n) => {
+                    tracing::warn!(
+                        "Array index for '{}' must be a non-negative integer, got {}",
+                        base, n
+                    );
+                    return Ok(());
+                }
+                other => {
+                    tracing::warn!(
+                        "Array index for '{}' must evaluate to a number, got {:?}",
+                        base, other
+                    );
+                    return Ok(());
+                }
+            };
             let label = array_actor_label(base, n);
             overrides
                 .entry(label.clone())
