@@ -577,8 +577,14 @@ impl SymbolTable {
             }
             Stmt::Assignment { target, .. } => {
                 for seg in target {
-                    if let TargetSegment::Static(label) = seg {
-                        self.referenced_labels.insert(label.clone());
+                    match seg {
+                        TargetSegment::Static(label) => {
+                            self.referenced_labels.insert(label.clone());
+                        }
+                        TargetSegment::Indexed { base, index } => {
+                            self.referenced_labels.insert(base.clone());
+                            self.collect_refs_from_expr(index);
+                        }
                     }
                 }
             }
@@ -631,8 +637,75 @@ impl SymbolTable {
             Stmt::ReactiveBinding { target, .. } => {
                 for seg in target {
                     self.referenced_labels.insert(seg.label_str().to_string());
+                    if let TargetSegment::Indexed { index, .. } = seg {
+                        self.collect_refs_from_expr(index);
+                    }
                 }
             }
+            _ => {}
+        }
+    }
+
+    /// Collect inline item children into the symbol table.
+    /// Walk an expression and mark any identifier references into `referenced_labels`.
+    fn collect_refs_from_expr(&mut self, expr: &Expr) {
+        match expr {
+            Expr::Ident(name) => {
+                self.referenced_labels.insert(name.clone());
+            }
+            Expr::Path(parts) => {
+                // First part is the receiver object (label reference)
+                if let Some(first) = parts.first() {
+                    self.referenced_labels.insert(first.clone());
+                }
+            }
+            Expr::Index(target, index) => {
+                self.collect_refs_from_expr(target);
+                self.collect_refs_from_expr(index);
+            }
+            Expr::Tuple(items) | Expr::List(items) => {
+                for item in items {
+                    self.collect_refs_from_expr(item);
+                }
+            }
+            Expr::Binary(left, _, right) => {
+                self.collect_refs_from_expr(left);
+                self.collect_refs_from_expr(right);
+            }
+            Expr::Unary(_, inner) => {
+                self.collect_refs_from_expr(inner);
+            }
+            Expr::Call(_, args) => {
+                for arg in args {
+                    self.collect_refs_from_expr(arg);
+                }
+            }
+            Expr::Method(receiver, _, args) => {
+                self.collect_refs_from_expr(receiver);
+                for arg in args {
+                    self.collect_refs_from_expr(arg);
+                }
+            }
+            Expr::Closure(_, body) => {
+                self.collect_refs_from_expr(body);
+            }
+            Expr::Conditional(cond, then_branch, else_branch) => {
+                self.collect_refs_from_expr(cond);
+                self.collect_refs_from_expr(then_branch);
+                self.collect_refs_from_expr(else_branch);
+            }
+            Expr::Match(scrutinee, arms) => {
+                self.collect_refs_from_expr(scrutinee);
+                for (_pat, arm_expr) in arms {
+                    self.collect_refs_from_expr(arm_expr);
+                }
+            }
+            Expr::Construct(_, props) => {
+                for prop in props {
+                    self.collect_refs_from_expr(&prop.value);
+                }
+            }
+            // Literals (Num, Percent, Str, Bool, Null) have no identifier references
             _ => {}
         }
     }
@@ -957,5 +1030,49 @@ mod tests {
         // single-segment stays Any
         let single = Expr::Path(vec!["accent".to_string()]);
         assert_eq!(infer_expr_type(&single), PropertyType::Any);
+    }
+
+    #[test]
+    fn indexed_assignment_marks_runtime_var_as_referenced() {
+        // `always { let sel = 1; bars[sel].color = red }`
+        // `sel` should be in `referenced_labels` after collect_references.
+        let stmts = vec![
+            Stmt::LetDecl {
+                is_pub: false,
+                name: "sel".to_string(),
+                value: Expr::Num(1.0),
+                span: None,
+            },
+            Stmt::Always {
+                body: vec![
+                    Stmt::Assignment {
+                        target: vec![
+                            TargetSegment::Indexed {
+                                base: "bars".to_string(),
+                                index: Box::new(Expr::Ident("sel".to_string())),
+                            },
+                            TargetSegment::Static("color".to_string()),
+                        ],
+                        property: "color".to_string(),
+                        value: Expr::Path(vec!["red".to_string()]),
+                        modifiers: vec![],
+                        easing: None,
+                        value_span: None,
+                        span: None,
+                    },
+                ],
+                span: None,
+            },
+        ];
+        let mut table = SymbolTable::build_from_ast(&stmts);
+        table.collect_references(&stmts);
+        assert!(
+            table.referenced_labels.contains("sel"),
+            "'sel' should be referenced by bars[sel].color = red"
+        );
+        assert!(
+            table.referenced_labels.contains("bars"),
+            "'bars' should be referenced as the array base"
+        );
     }
 }
