@@ -17,22 +17,22 @@ If you use Nix, `nix develop` sets up Rust, FFmpeg, Tree-sitter, and graphics de
 
 ```bash
 # Inspect parsed AST
-cargo run --bin animatix -- ast examples/showcase.amx
-cargo run --bin animatix -- ast examples/showcase.amx --compact
+cargo run --bin animatix -- ast examples/animation/16_showcase.amx
+cargo run --bin animatix -- ast examples/animation/16_showcase.amx --compact
 
 # Live preview
-cargo run --bin animatix -- render examples/showcase.amx
-cargo run --bin animatix -- render examples/showcase.amx --loop
+cargo run --bin animatix -- render examples/animation/16_showcase.amx
+cargo run --bin animatix -- render examples/animation/16_showcase.amx --loop
 
 # Frame export
-cargo run --bin animatix -- image examples/showcase.amx --time 1.5 --output frame.png
+cargo run --bin animatix -- image examples/animation/16_showcase.amx --time 1.5 --output frame.png
 
 # Video/GIF export
-cargo run --bin animatix -- video examples/showcase.amx --fps 30 --duration 5 --output demo.mp4
-cargo run --bin animatix -- gif examples/showcase.amx --fps 15 --duration 5 --output out.gif
+cargo run --bin animatix -- video examples/animation/16_showcase.amx --fps 30 --duration 5 --output demo.mp4
+cargo run --bin animatix -- gif examples/animation/16_showcase.amx --fps 15 --duration 5 --output out.gif
 
 # GUI
-cargo run --bin animatix-gui -- examples/showcase.amx
+cargo run --bin animatix-gui -- examples/animation/16_showcase.amx
 ```
 
 ### Grammar/Tooling Validation
@@ -41,7 +41,7 @@ cargo run --bin animatix-gui -- examples/showcase.amx
 cd tree-sitter-animatix
 tree-sitter generate
 tree-sitter test
-tree-sitter highlight ../examples/reactive_runtime.amx
+tree-sitter highlight ../examples/animation/06_reactive.amx
 ```
 
 ### Recommended Validation Loop
@@ -200,7 +200,7 @@ cargo clippy --all-targets -- -D warnings
 - **animatix-lsp**: Compiles, manual testing with editors
 - **animatix-gui**: Integrated with workspace tests
 
-For demo work: keep runnable demos under `examples/`, verify with both `ast` and `image`/`video`.
+For demo work: keep runnable demos under `examples/`, verify with both `ast` and `image`/`video`. Use `dogfood/` for in-progress real-content projects and grammar probes; do not move known-broken probes into `examples/`.
 
 ---
 

@@ -103,10 +103,11 @@ fn bench_full_pipeline(c: &mut Criterion) {
     // Load real example files
     let examples_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
     let showcase =
-        std::fs::read_to_string(examples_dir.join("16_showcase.amx")).unwrap_or_default();
+        std::fs::read_to_string(examples_dir.join("animation/16_showcase.amx")).unwrap_or_default();
     let components =
-        std::fs::read_to_string(examples_dir.join("09_components.amx")).unwrap_or_default();
-    let _modules = std::fs::read_to_string(examples_dir.join("10_modules.amx")).unwrap_or_default();
+        std::fs::read_to_string(examples_dir.join("components/09_components.amx")).unwrap_or_default();
+    let _modules = std::fs::read_to_string(examples_dir.join("components/10_modules.amx"))
+        .unwrap_or_default();
 
     let mut group = c.benchmark_group("full_pipeline");
 
@@ -130,7 +131,7 @@ fn bench_full_pipeline(c: &mut Criterion) {
         group.bench_function("components_full", |b| b.iter(|| full_pipeline(&components)));
     }
 
-    let modules_path = examples_dir.join("10_modules.amx");
+    let modules_path = examples_dir.join("components/10_modules.amx");
     if modules_path.exists() {
         group.bench_function("modules_full", |b| b.iter(|| full_pipeline_file(&modules_path)));
     }

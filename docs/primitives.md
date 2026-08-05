@@ -88,7 +88,7 @@ snippet: Code { code: "let velocity = x + 1", font_size: 28, at: (640, 360) }
 
 **Example:**
 ```animatix
-icon: Svg { url: "examples/vector.svg", scale: 1.5, at: (640, 600) }
+icon: Svg { url: "examples/assets/animatix-mark.svg", scale: 1.5, at: (640, 600) }
 ```
 
 Note: Missing files or invalid SVG contents report build diagnostics. Source changes require re-declaration at a keyframe (assignment not yet supported).
@@ -104,7 +104,7 @@ Note: Missing files or invalid SVG contents report build diagnostics. Source cha
 
 **Example:**
 ```animatix
-photo: Image { url: "examples/checker.png", at: (640, 360), size: (180, 180) }
+photo: Image { url: "examples/assets/checker.png", at: (640, 360), size: (180, 180) }
 ```
 
 Note: Missing files report build diagnostics. Source changes are discrete (crossfade requires manual opacity layering).
@@ -281,7 +281,7 @@ curve.func = (x) => cos(x) [2s]  // 1s to 3s
 curve.func = (x) => x^2 [1s]  // freezes at 50%, chains to x^2
 ```
 
-See `examples/24_plot_transitions.amx` for demonstrations.
+See `examples/data/24_plot_transitions.amx` for demonstrations.
 
 ## VectorField
 

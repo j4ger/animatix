@@ -41,6 +41,7 @@ themes, CI platform parity, and `StyledExt` helpers.
 | Text/Typst/Code frame-time content overrides | Open; timed assignments recompile glyph paths, but changing `text` directly inside `always` is not a supported path. |
 | Legend automatic entry extraction | Open; legend uses placeholder entries, scene scanning for color-bearing actors is not implemented. |
 | Custom action multi-target invocation | Open; custom component actions are single-target (`pulse btn, icon` is not supported). |
+| Data-dependent algorithm timelines | Open; no runtime mutable state or branching timeline, so algorithm animations must be hand-unrolled recordings. Confirmed by `dogfood/projects/sorting-visualizer`. |
 | Namespace access depth | Open; aliased imports expose one level (`alias.export_name` only). |
 | Colorscheme dotted token parser | Open; runtime/API accepts `scene.background`-style overrides, source parser does not yet. |
 
@@ -49,6 +50,7 @@ themes, CI platform parity, and `StyledExt` helpers.
 | Item | Status / Notes |
 |------|----------------|
 | Roadmap/doc reference and status consistency check | Open; add a script or link checker so future audits do not rely on manual scans. |
+| Dogfood scaffolding | Done; `dogfood/` contains project/probe templates and READMEs. First project (`sorting-visualizer`) completed; three findings fixed and remaining algorithm-timeline gap tracked above. |
 
 ---
 

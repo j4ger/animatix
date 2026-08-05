@@ -714,7 +714,7 @@ mod tests {
 
     #[test]
     fn example_component_actions_demo_parses_and_typechecks() {
-        let source = include_str!("../../../examples/09_components.amx");
+        let source = include_str!("../../../examples/components/09_components.amx");
         let (ast, errors) = crate::parser::parser_simple().parse(source).into_output_errors();
         assert!(errors.is_empty(), "Parse errors: {:?}", errors);
         let ast = ast.expect("parsed AST");

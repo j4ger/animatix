@@ -9,7 +9,7 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 - `crates/animatix-analyzer`: shared language intelligence; update for new syntax.
 - `crates/animatix-lsp`: LSP wrapper over analyzer.
 - `tree-sitter-animatix`: highlighting grammar; touch when syntax tokens change.
-- `docs`: documentation. `examples`: runnable `.amx` demos.
+- `docs`: documentation. `examples`: runnable `.amx` demos. `dogfood`: in-progress real-content projects and grammar probes.
 
 ## Workflow
 
@@ -41,7 +41,7 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
   ```bash
   bash scripts/check-parser-sync.sh
   ```
-  The script runs `cargo test -p animatix-syntax`, the tree-sitter corpus tests, and parses every `examples/*.amx` with tree-sitter, reporting failures.
+  The script runs `cargo test -p animatix-syntax`, the tree-sitter corpus tests, and parses every `.amx` under `examples/` recursively with tree-sitter, reporting failures.
 
   Known constructs that must be kept in sync (verified as of this writing):
   | PEG construct | Tree-sitter rule |

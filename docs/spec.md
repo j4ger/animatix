@@ -26,11 +26,11 @@ Use these rules when generating `.amx` files:
 | Reactive | `always` | Yes | Runtime-real | Yes | Yes | Shipped stateless reactive model |
 | Reactive | `for` | Yes | Runtime-real | Yes | Yes | Compile-time structural expansion |
 | Reactive | `loop` / `yield` / `stop` / `pause` / `resume` | Rejected | Removed | Yes | Yes | Explicitly removed |
-| Components | `pub component` instantiation | Yes | Runtime-real | Yes | Yes | Via `module.rs`; see `examples/09_components.amx` |
+| Components | `pub component` instantiation | Yes | Runtime-real | Yes | Yes | Via `module.rs`; see `examples/components/09_components.amx` |
 | Components | parameter binding + nested-label isolation | Yes | Runtime-real | Yes | Yes | Module/timeline tests |
 | Components | dotted assignment targets / rhs property lookup | Yes | Runtime-real | Yes | Yes | Nested-label writes; nonexistent targets report diagnostics |
 | Components | custom component actions | Yes | Runtime-real | Yes | Yes | `action` blocks inside components; inlined at expansion time |
-| Modules | `pub let` exports | Yes | Runtime-real | Yes | Yes | Exported values from `.amx` files; see `examples/10_modules.amx`. |
+| Modules | `pub let` exports | Yes | Runtime-real | Yes | Yes | Exported values from `.amx` files; see `examples/components/10_modules.amx`. |
 | Modules | `import ... as` namespaced imports | Yes | Runtime-real | Yes | Yes | Aliased imports create namespaces for qualified access (`theme.accent`). |
 | Modules | Re-exports (`pub let x = c.x`) | Yes | Runtime-real | Yes | Yes | Re-export chains resolved transitively through namespace imports. |
 | Expressions | literals / arithmetic / calls / paths / conditionals | Yes | Runtime-real | Yes | Yes | Stable expression core |
@@ -38,11 +38,11 @@ Use these rules when generating `.amx` files:
 | Expressions | `Expr::Method` | Yes | Runtime-real | Yes | Yes | Method dispatch: `string.length()`, `list.get(0)`, `num.abs()` |
 | Expressions | `Expr::Index` | Yes | Runtime-real | Yes | Yes | Array/vector/string index: `items[0]`, `pos[1]`, `text[0]` |
 | Expressions | `Expr::Construct` | Yes | Runtime-real | Yes | Yes | Object construction: `Point { x: 10, y: 20 }` |
-| Primitives | All shapes (`Text`, `Typst`, `Svg`, `Image`, `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Mask`, etc.) | Yes | Runtime-real | Yes | Yes | See `examples/01_shapes.amx`, `examples/13_paths.amx`, `examples/20_feature_reel.amx` |
+| Primitives | All shapes (`Text`, `Typst`, `Svg`, `Image`, `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Mask`, etc.) | Yes | Runtime-real | Yes | Yes | See `examples/basics/01_shapes.amx`, `examples/layout/13_paths.amx`, `examples/composition/20_feature_reel.amx` |
 | 3D | `Graph3D`, `Line3D`, `Polyhedron` | — | **Not supported** | — | Yes | Explicitly not planned; all rendering is 2D |
-| Primitives | `Code` | Yes | Runtime-real | Yes | Yes | See `examples/01_shapes.amx` |
-| Plotting | `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane` | Yes | Runtime-real | Yes | Yes | `PlotCurve` with `kind: cartesian|polar|parametric|implicit`. See `examples/07_plots.amx`, `examples/18_number_plane_contours.amx` |
-| Post-processing | `Filter` (blur, brightness, contrast, saturate, hue-rotate, sepia) | Yes | Runtime-real | Yes | Yes | Container primitive; renders children offscreen then applies CPU filters. See `examples/08_effects.amx` |
+| Primitives | `Code` | Yes | Runtime-real | Yes | Yes | See `examples/basics/01_shapes.amx` |
+| Plotting | `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane` | Yes | Runtime-real | Yes | Yes | `PlotCurve` with `kind: cartesian|polar|parametric|implicit`. See `examples/data/07_plots.amx`, `examples/data/18_number_plane_contours.amx` |
+| Post-processing | `Filter` (blur, brightness, contrast, saturate, hue-rotate, sepia) | Yes | Runtime-real | Yes | Yes | Container primitive; renders children offscreen then applies CPU filters. See `examples/animation/08_effects.amx` |
 | Morphing | re-declaration morphing + path/text interpolation | Yes | Runtime-real | Yes | Yes | Core morph path via re-declaration |
 | Morphing | `strategy:auto\|match\|fade`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing | Yes | Yes | |
 | Actions | Entrance: `fade-in`, `draw-in`, `wipe-in`, `reveal-in`; Motion: `move`, `shift`, `rotate`, `scale`; Exit: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`; Effects: `shake`, `pulse`, `bounce`; Reorder: `swap`, `reorder` | Yes | Runtime-real | Yes | Yes | Built-ins |
@@ -786,7 +786,7 @@ pulse.size = if (t % 1.0) < 0.5 { (120, 120) } else { (180, 180) }
 
 Model: `for` for structure, keyframes for declarative timed animation, `always` for stateless runtime behavior.
 
-**BarChart** — produces a set of rectangular bars from `data: {(key, value), ...}` lists. Supports standalone mode (pixel coords) and Graph-child mode (math coords). See `examples/fft_explain.amx`.
+**BarChart** — produces a set of rectangular bars from `data: {(key, value), ...}` lists. Supports standalone mode (pixel coords) and Graph-child mode (math coords). See `examples/projects/fft_explain.amx`.
 
 ### Built-in Variables
 
@@ -1338,7 +1338,7 @@ curve.func = (x) => cos(x) [2s]  // starts at 1s, would end at 3s
 curve.func = (x) => x^2 [1s]  // overlaps: freezes sin→cos at 50%, chains to x^2
 ```
 
-See `examples/24_plot_transitions.amx` for complete demonstrations.
+See `examples/data/24_plot_transitions.amx` for complete demonstrations.
 
 
 
@@ -1526,13 +1526,13 @@ Returns a `Value::Object` with typed fields. Field reads (`p.x`) are implemented
 
 ```bash
 # Export full timeline + 1s hold
-animatix gif examples/12_reorder.amx -o out.gif
+animatix gif examples/layout/12_reorder.amx -o out.gif
 
 # Export with a 2-second trailing hold
-animatix gif examples/12_reorder.amx -o out.gif --hold 2.0
+animatix gif examples/layout/12_reorder.amx -o out.gif --hold 2.0
 
 # Export explicit 3-second slice (hold is ignored when --duration is set)
-animatix gif examples/12_reorder.amx -o out.gif --duration 3.0
+animatix gif examples/layout/12_reorder.amx -o out.gif --duration 3.0
 ```
 
 **Parallel rendering:** Video and GIF exports render frames in parallel using all available CPU cores. Each thread gets its own GPU context and a cloned Timeline, then renders a chunk of frames. Encoding (GIF quantization / video muxing) remains sequential to preserve frame order and codec state.
@@ -1541,18 +1541,18 @@ animatix gif examples/12_reorder.amx -o out.gif --duration 3.0
 
 ```bash
 # Export to WebM with VP9
-animatix video examples/20_feature_reel.amx -o out.webm --codec vp9
+animatix video examples/composition/20_feature_reel.amx -o out.webm --codec vp9
 
 # Auto-detect WebM from output extension (auto-selects VP9)
-animatix video examples/20_feature_reel.amx -o out.webm
+animatix video examples/composition/20_feature_reel.amx -o out.webm
 
 # WebM with custom resolution and framerate
-animatix video examples/14_multiscene.amx --width 960 --height 540 --fps 24 -o out.webm
+animatix video examples/composition/14_multiscene.amx --width 960 --height 540 --fps 24 -o out.webm
 ```
 
 ```bash
 # Low-FPS quick preview
-animatix gif examples/20_feature_reel.amx -o out.gif --fps 10
+animatix gif examples/composition/20_feature_reel.amx -o out.gif --fps 10
 ```
 
 **Image export (`animatix image`):** Renders a single frame at `--time` (default 0s). No trailing hold or parallelization applies.
@@ -1565,10 +1565,10 @@ Multi-scene compositions support the same export flags. Duration is auto-detecte
 
 ```bash
 # Export a multi-scene composition
-animatix video examples/14_multiscene.amx --width 1280 --height 720
+animatix video examples/composition/14_multiscene.amx --width 1280 --height 720
 
 # GIF export with quick preview settings
-animatix gif examples/19_cross_file_scenes.amx --width 640 --height 360 --fps 10
+animatix gif examples/composition/19_cross_file_scenes.amx --width 640 --height 360 --fps 10
 ```
 
 ---

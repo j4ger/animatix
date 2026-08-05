@@ -68,14 +68,14 @@ fi
 
 # ── 3. Tree-sitter parse over all examples/*.amx ────────────────────────────
 echo ""
-echo "3. Tree-sitter parse: examples/*.amx"
+echo "3. Tree-sitter parse: examples/**/*.amx"
 echo "----------------------------------------"
 if ! command -v tree-sitter &>/dev/null; then
     echo "WARNING: tree-sitter CLI not found; skipping example parse checks"
     TS_SKIPPED=$((TS_SKIPPED + 1))
 else
     PARSE_FAIL=0
-    for f in "$EXAMPLES"/*.amx; do
+    while IFS= read -r f; do
         [ -f "$f" ] || continue
         TOTAL=$((TOTAL + 1))
         name="$(basename "$f")"
@@ -90,7 +90,7 @@ else
         else
             echo "  OK:   $name"
         fi
-    done
+    done < <(find "$EXAMPLES" -name '*.amx' | sort)
     if [ "$PARSE_FAIL" -gt 0 ]; then
         echo ""
         echo "Tree-sitter parse: $PARSE_FAIL / $TOTAL file(s) FAILED"

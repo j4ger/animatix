@@ -1,0 +1,14 @@
+// Starter entry point for a dogfood project.
+// Replace this with the real scene from the project brief.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+title: Text, text: "Dogfood Project", font_size: 56,
+  color: text.primary, anchor: scene.center, offset: (0, -40)
+
+subtitle: Text, text: "Replace this scene with the real content.",
+  font_size: 20, color: text.secondary, anchor: scene.center, offset: (0, 30)
+
+#0s
+fade-in title [600ms, ease: ease-out]
+fade-in subtitle [500ms, delay: 200ms]
