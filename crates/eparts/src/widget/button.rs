@@ -1,4 +1,4 @@
-use egui::{Color32, Response, Sense, Vec2};
+use egui::{Color32, Response, Sense, Vec2, WidgetInfo, WidgetType};
 
 use crate::tokens::spatial::{RADIUS_S, ROW_M, STROKE_WIDTH};
 use crate::tokens::theme;
@@ -173,6 +173,11 @@ impl egui::Widget for Button {
         // primary buttons (e.g. `Button::ghost("").with_icon(..)`) center the icon
         // instead of reserving phantom space for a blank label.
         let label: Option<&str> = effective_label(self.label.as_deref());
+        let accessible_label = match (label, self.tooltip) {
+            (Some(l), _) => l.to_string(),
+            (None, tip) if !tip.is_empty() => tip.to_string(),
+            _ => "Button".to_string(),
+        };
 
         let icon_font = TextRole::Body.font_id();
         let label_font = TextRole::BodyS.font_id();
@@ -464,6 +469,9 @@ impl egui::Widget for Button {
                 cb();
             }
         }
+        response.widget_info(|| {
+            WidgetInfo::labeled(WidgetType::Button, ui.is_enabled(), accessible_label.clone())
+        });
         response
     }
 }

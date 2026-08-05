@@ -4,9 +4,10 @@ use crate::app::GuiShell;
 use crate::app::commands::{
     ActorCommand, DocumentCommand, PlaybackCommand, ShellAction, ViewAction, ViewCommand,
 };
+use crate::app::components::button::Button;
 use crate::app::components::dialog::{self, DialogSpec};
-use crate::app::design_tokens::semantic::{accent, border, surface, text};
-use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
+use crate::app::design_tokens::semantic::text;
+
 use crate::app::design_tokens::typography::TextRole;
 
 struct PaletteItem {
@@ -99,20 +100,11 @@ impl GuiShell {
                     for (idx, item) in filtered.iter().enumerate() {
                         let is_selected = idx == self.ui_store.command_palette_selected;
 
-                        let resp = ui.add(
-                            egui::Button::new(
-                                egui::RichText::new(format!("{}  {}", item.icon, item.label))
-                                    .size(TextRole::Body.size())
-                                    .color(text::PRIMARY),
-                            )
-                            .fill(if is_selected {
-                                accent::PRIMARY.linear_multiply(0.15)
-                            } else {
-                                surface::WIDGET
-                            })
-                            .stroke(egui::Stroke::new(STROKE_WIDTH, border::DEFAULT))
-                            .corner_radius(RADIUS_M)
-                            .min_size(egui::vec2(ui.available_width(), sp.base.row_m)),
+                        let resp = ui.add_sized(
+                            egui::vec2(ui.available_width(), sp.base.row_m),
+                            Button::ghost(item.label.clone())
+                                .with_icon(item.icon)
+                                .active(is_selected),
                         );
                         if resp.clicked() {
                             commands.push(item.action.clone());

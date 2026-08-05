@@ -2,8 +2,9 @@
 
 use crate::app::GuiShell;
 use crate::app::commands::UndoLabel;
+use crate::app::components::button::Button;
 use crate::app::components::dialog;
-use crate::app::design_tokens::semantic::{accent, surface, text};
+use crate::app::design_tokens::semantic::text;
 use crate::app::design_tokens::typography::TextRole;
 
 impl GuiShell {
@@ -43,28 +44,13 @@ impl GuiShell {
 
             ui.horizontal(|ui| {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let replace_all = ui.add_sized(
-                        [100.0, sp.base.row_m],
-                        egui::Button::new(
-                            egui::RichText::new("Replace All")
-                                .size(TextRole::BodyS.size())
-                                .color(text::PRIMARY),
-                        )
-                        .fill(accent::PRIMARY),
-                    );
+                    let replace_all =
+                        ui.add_sized([100.0, sp.base.row_m], Button::primary("Replace All"));
                     if replace_all.clicked() {
                         self.perform_find_replace_all();
                     }
 
-                    let find_next = ui.add_sized(
-                        [90.0, sp.base.row_m],
-                        egui::Button::new(
-                            egui::RichText::new("Find Next")
-                                .size(TextRole::BodyS.size())
-                                .color(text::SECONDARY),
-                        )
-                        .fill(surface::WIDGET),
-                    );
+                    let find_next = ui.add_sized([90.0, sp.base.row_m], Button::ghost("Find Next"));
                     if find_next.clicked() {
                         self.find_next_in_editor();
                     }

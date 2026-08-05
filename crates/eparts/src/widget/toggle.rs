@@ -5,7 +5,7 @@
 
 use std::hash::{Hash, Hasher};
 
-use egui::{Color32, Pos2, Response, Sense, Stroke, StrokeKind, Vec2};
+use egui::{Color32, Pos2, Response, Sense, Stroke, StrokeKind, Vec2, WidgetInfo, WidgetType};
 
 use crate::tokens::motion::{NORMAL, STANDARD, Transition};
 use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH, STROKE_WIDTH_THICK};
@@ -23,6 +23,13 @@ pub enum Side {
     Right,
     /// Label on the left.
     Left,
+}
+
+fn non_empty_or(label: Option<&str>, fallback: &str) -> String {
+    match label {
+        Some(l) if !l.trim().is_empty() => l.to_string(),
+        _ => fallback.to_owned(),
+    }
 }
 
 // ── Checkbox ────────────────────────────────────────────────────────
@@ -175,12 +182,23 @@ impl<'a> egui::Widget for Checkbox<'a> {
             *self.value = !*self.value;
         }
 
+        let accessible_label = non_empty_or(self.label, "Checkbox");
+
         // Tooltip + principle 3 cursor
-        if !self.tooltip.is_empty() {
+        let response = if !self.tooltip.is_empty() {
             response.on_hover_cursor(egui::CursorIcon::Default).on_hover_text(self.tooltip)
         } else {
             response.on_hover_cursor(egui::CursorIcon::Default)
-        }
+        };
+        response.widget_info(|| {
+            WidgetInfo::selected(
+                WidgetType::Checkbox,
+                ui.is_enabled(),
+                *self.value,
+                accessible_label.clone(),
+            )
+        });
+        response
     }
 }
 
@@ -322,12 +340,23 @@ impl<'a, T: PartialEq + Clone + Hash> egui::Widget for Radio<'a, T> {
             *self.value = self.this_value.clone();
         }
 
+        let accessible_label = non_empty_or(self.label, "Radio");
+
         // Tooltip + principle 3 cursor
-        if !self.tooltip.is_empty() {
+        let response = if !self.tooltip.is_empty() {
             response.on_hover_cursor(egui::CursorIcon::Default).on_hover_text(self.tooltip)
         } else {
             response.on_hover_cursor(egui::CursorIcon::Default)
-        }
+        };
+        response.widget_info(|| {
+            WidgetInfo::selected(
+                WidgetType::RadioButton,
+                ui.is_enabled(),
+                selected,
+                accessible_label.clone(),
+            )
+        });
+        response
     }
 }
 
@@ -473,12 +502,23 @@ impl<'a> egui::Widget for Switch<'a> {
             *self.value = !*self.value;
         }
 
+        let accessible_label = non_empty_or(self.label, "Switch");
+
         // Tooltip + principle 3 cursor
-        if !self.tooltip.is_empty() {
+        let response = if !self.tooltip.is_empty() {
             response.on_hover_cursor(egui::CursorIcon::Default).on_hover_text(self.tooltip)
         } else {
             response.on_hover_cursor(egui::CursorIcon::Default)
-        }
+        };
+        response.widget_info(|| {
+            WidgetInfo::selected(
+                WidgetType::Checkbox,
+                ui.is_enabled(),
+                *self.value,
+                accessible_label.clone(),
+            )
+        });
+        response
     }
 }
 

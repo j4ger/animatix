@@ -40,12 +40,13 @@ use preview::fit_preview;
 use serde::{Deserialize, Serialize};
 
 use crate::app::commands::{ActionQueue, DocumentCommand, Effect, UndoLabel, ViewCommand};
+use crate::app::components::button::Button;
 use crate::app::components::dialog;
 use crate::app::components::toast::Toast;
 use crate::app::design_tokens::semantic::{accent, border, status, surface, text};
 use crate::app::design_tokens::spatial::welcome::TOP_OFFSET_FRAC as WELCOME_TOP_OFFSET_FRAC;
 use crate::app::design_tokens::spatial::{
-    RADIUS_L, RADIUS_M, RADIUS_S, ROW_L, SPACE_2, SPACE_3, SPACE_4, SPACE_5, STROKE_WIDTH, spatial,
+    RADIUS_L, RADIUS_S, ROW_L, SPACE_2, SPACE_3, SPACE_4, SPACE_5, STROKE_WIDTH, spatial,
 };
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::document::rebuild::RebuildWorker;
@@ -799,7 +800,7 @@ impl GuiShell {
                             icon_rect.center(),
                             egui::Align2::CENTER_CENTER,
                             egui_phosphor::regular::FILM_STRIP,
-                            egui::FontId::proportional(28.0), // 28px welcome icon: no TextRole
+                            TextRole::Display.font_id(),
                             accent::PRIMARY,
                         );
                         ui.add_space(sp.base.space_5 * 1.5);
@@ -807,7 +808,7 @@ impl GuiShell {
                         // Title
                         ui.label(
                             egui::RichText::new("Welcome to Animatix")
-                                .size(27.0) // 27px welcome title: no TextRole
+                                .font(TextRole::Heading.font_id())
                                 .color(text::PRIMARY)
                                 .strong(),
                         );
@@ -826,16 +827,8 @@ impl GuiShell {
                         // Primary: Create new scene
                         let new_resp = ui.add_sized(
                             egui::vec2(btn_w, sp.welcome.btn_height),
-                            egui::Button::new(
-                                egui::RichText::new(format!(
-                                    "{}  Create new scene",
-                                    egui_phosphor::regular::PLUS
-                                ))
-                                .size(TextRole::Body.size())
-                                .color(text::PRIMARY),
-                            )
-                            .fill(accent::PRIMARY)
-                            .corner_radius(RADIUS_M),
+                            Button::primary("Create new scene")
+                                .with_icon(egui_phosphor::regular::PLUS),
                         );
                         if new_resp.clicked() {
                             let path = default_file_path();
@@ -856,17 +849,8 @@ impl GuiShell {
                         // Secondary: open existing file
                         let open_resp = ui.add_sized(
                             egui::vec2(btn_w, sp.welcome.btn_height),
-                            egui::Button::new(
-                                egui::RichText::new(format!(
-                                    "{}  Open existing file",
-                                    egui_phosphor::regular::FOLDER_OPEN
-                                ))
-                                .size(TextRole::Body.size())
-                                .color(text::PRIMARY),
-                            )
-                            .fill(surface::WIDGET)
-                            .stroke(Stroke::new(STROKE_WIDTH, border::HOVER))
-                            .corner_radius(RADIUS_M),
+                            Button::ghost("Open existing file")
+                                .with_icon(egui_phosphor::regular::FOLDER_OPEN),
                         );
                         if open_resp.clicked() {
                             if let Some(path) =
@@ -881,17 +865,8 @@ impl GuiShell {
                         // Tertiary: open workspace
                         let ws_resp = ui.add_sized(
                             egui::vec2(btn_w, sp.welcome.btn_height),
-                            egui::Button::new(
-                                egui::RichText::new(format!(
-                                    "{}  Open workspace",
-                                    egui_phosphor::regular::FOLDER_NOTCH
-                                ))
-                                .size(TextRole::Body.size())
-                                .color(text::PRIMARY),
-                            )
-                            .fill(surface::WIDGET)
-                            .stroke(Stroke::new(STROKE_WIDTH, border::HOVER))
-                            .corner_radius(RADIUS_M),
+                            Button::ghost("Open workspace")
+                                .with_icon(egui_phosphor::regular::FOLDER_NOTCH),
                         );
                         if ws_resp.clicked() {
                             if let Some(path) = rfd::FileDialog::new().pick_folder() {
@@ -1107,39 +1082,21 @@ impl GuiShell {
                     .color(text::SECONDARY),
             );
             ui.add_space(SPACE_2);
-            ui.add(
-                egui::TextEdit::singleline(&mut self.ui_store.workspace_switcher_path)
-                    .desired_width(f32::INFINITY)
-                    .hint_text("/path/to/workspace"),
-            );
+            eparts::TextField::new(&mut self.ui_store.workspace_switcher_path)
+                .placeholder("/path/to/workspace")
+                .show(ui);
             ui.add_space(SPACE_3);
 
             ui.horizontal(|ui| {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let confirm = ui.add_sized(
-                        [80.0, 28.0],
-                        egui::Button::new(
-                            egui::RichText::new("Switch")
-                                .size(TextRole::BodyS.size())
-                                .color(text::PRIMARY),
-                        )
-                        .fill(accent::PRIMARY),
-                    );
+                    let confirm = ui.add_sized([80.0, 28.0], Button::primary("Switch"));
                     if confirm.clicked() {
                         let path = PathBuf::from(&self.ui_store.workspace_switcher_path);
                         commands.push_back(DocumentCommand::SwitchWorkspace(path).into());
                         body_close = true;
                     }
 
-                    let cancel = ui.add_sized(
-                        [80.0, 28.0],
-                        egui::Button::new(
-                            egui::RichText::new("Cancel")
-                                .size(TextRole::BodyS.size())
-                                .color(text::SECONDARY),
-                        )
-                        .fill(surface::WIDGET),
-                    );
+                    let cancel = ui.add_sized([80.0, 28.0], Button::ghost("Cancel"));
                     if cancel.clicked() {
                         body_close = true;
                     }
@@ -1191,15 +1148,7 @@ impl GuiShell {
                     // Save button
                     let save = ui.add_sized(
                         [90.0, ROW_L],
-                        egui::Button::new(
-                            egui::RichText::new(format!(
-                                "{}  Save",
-                                egui_phosphor::regular::FLOPPY_DISK
-                            ))
-                            .size(TextRole::BodyS.size())
-                            .color(text::PRIMARY),
-                        )
-                        .fill(accent::PRIMARY),
+                        Button::primary("Save").with_icon(egui_phosphor::regular::FLOPPY_DISK),
                     );
                     if save.clicked() {
                         // Keep the dialog open if saving fails so unsaved edits are not lost.
@@ -1223,15 +1172,7 @@ impl GuiShell {
                     // Discard button
                     let discard = ui.add_sized(
                         [90.0, ROW_L],
-                        egui::Button::new(
-                            egui::RichText::new(format!(
-                                "{}  Discard",
-                                egui_phosphor::regular::TRASH
-                            ))
-                            .size(TextRole::BodyS.size())
-                            .color(text::SECONDARY),
-                        )
-                        .fill(surface::WIDGET),
+                        Button::danger("Discard").with_icon(egui_phosphor::regular::TRASH),
                     );
                     if discard.clicked() {
                         // Mark document as no longer dirty, then execute pending
@@ -1246,15 +1187,7 @@ impl GuiShell {
                     }
 
                     // Cancel button
-                    let cancel = ui.add_sized(
-                        [90.0, ROW_L],
-                        egui::Button::new(
-                            egui::RichText::new("Cancel")
-                                .size(TextRole::BodyS.size())
-                                .color(text::SECONDARY),
-                        )
-                        .fill(surface::WIDGET),
-                    );
+                    let cancel = ui.add_sized([90.0, ROW_L], Button::ghost("Cancel"));
                     if cancel.clicked() {
                         self.ui_store.unsaved_changes.close();
                         body_close = true;

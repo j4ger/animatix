@@ -2,8 +2,9 @@ use egui::{Color32, Frame, Margin, RichText, ScrollArea, Stroke, Vec2};
 
 use crate::app::components::anim;
 use crate::app::design_tokens::motion;
-use crate::app::design_tokens::semantic::{accent, status, surface, text};
+use crate::app::design_tokens::semantic::status;
 use crate::app::design_tokens::spatial::ROW_S;
+use crate::app::design_tokens::typography::TextRole;
 use crate::app::design_tokens::util::lerp_color;
 use crate::cell_editor::{Cell, CellDiagnostic, CellEditorState};
 use crate::highlighting::highlight_source;
@@ -46,17 +47,6 @@ fn diagnostic_border_color(index: usize, state: &CellEditorState) -> Option<Colo
         None
     }
 }
-
-// ── Palette ──────────────────────────────────────────────────────────────
-
-const KEYFRAME_BG: Color32 = Color32::from_rgb(28, 31, 38);
-const KEYFRAME_BG_HIGHLIGHT: Color32 = Color32::from_rgb(44, 42, 34);
-const KEYFRAME_HEADER_BG: Color32 = Color32::from_rgb(24, 27, 33);
-
-const CODE_BG: Color32 = Color32::from_rgb(22, 25, 32);
-const CODE_BG_HIGHLIGHT: Color32 = Color32::from_rgb(36, 40, 50);
-
-// (ghost-button palette removed — using clean header_btn instead)
 
 // ── Public API ───────────────────────────────────────────────────────────
 
@@ -130,6 +120,7 @@ fn header_btn(ui: &mut egui::Ui, icon: &'static str, tooltip: &'static str) -> b
     let size = Vec2::splat(ROW_S);
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
 
+    let theme = eparts::theme(ui);
     let t = anim::animate_toward(
         ui.ctx(),
         response.id,
@@ -142,15 +133,15 @@ fn header_btn(ui: &mut egui::Ui, icon: &'static str, tooltip: &'static str) -> b
     );
 
     let bg = if response.is_pointer_button_down_on() {
-        surface::ACTIVE
+        theme.surface.active
     } else {
-        lerp_color(Color32::TRANSPARENT, surface::HOVER, t)
+        lerp_color(Color32::TRANSPARENT, theme.surface.hover, t)
     };
 
     let icon_color = if response.is_pointer_button_down_on() {
-        text::PRIMARY
+        theme.text.primary
     } else {
-        lerp_color(text::MUTED, text::PRIMARY, t)
+        lerp_color(theme.text.muted, theme.text.primary, t)
     };
 
     if bg != Color32::TRANSPARENT {
@@ -161,7 +152,7 @@ fn header_btn(ui: &mut egui::Ui, icon: &'static str, tooltip: &'static str) -> b
         rect.center(),
         egui::Align2::CENTER_CENTER,
         icon,
-        egui::FontId::new(12.0, egui::FontFamily::Proportional),
+        TextRole::BodyS.font_id(),
         icon_color,
     );
 
@@ -204,14 +195,15 @@ fn render_code_cell(
     state: &mut CellEditorState,
     source_changed: &mut bool,
 ) -> egui::Response {
+    let theme = eparts::theme(ui);
     let expanded = cell.is_expanded(index, &state.collapsed_cells);
     let bg = if highlighted {
-        CODE_BG_HIGHLIGHT
+        theme.surface.surface
     } else {
-        CODE_BG
+        theme.surface.panel
     };
     let border_color = if state.focused_cell == Some(index) {
-        Some(accent::PRIMARY)
+        Some(theme.accent.primary)
     } else {
         diagnostic_border_color(index, state)
     };
@@ -246,11 +238,13 @@ fn render_code_cell(
                         // Code type icon + label
                         ui.label(
                             RichText::new(egui_phosphor::regular::CODE)
-                                .size(12.0)
-                                .color(text::MUTED),
+                                .size(TextRole::BodyS.size())
+                                .color(theme.text.muted),
                         );
                         ui.label(
-                            RichText::new(format!("Code {index}")).size(11.0).color(text::MUTED),
+                            RichText::new(format!("Code {index}"))
+                                .size(TextRole::Micro.size())
+                                .color(theme.text.muted),
                         );
 
                         // Right-aligned actions
@@ -368,15 +362,16 @@ fn render_keyframe_cell(
     on_scrub_to_time: &mut dyn FnMut(f64),
     source_changed: &mut bool,
 ) -> egui::Response {
+    let theme = eparts::theme(ui);
     let time_s = cell.time_s().unwrap_or(0.0);
     let expanded = cell.is_expanded(index, &state.collapsed_cells);
     let bg = if highlighted {
-        KEYFRAME_BG_HIGHLIGHT
+        theme.surface.surface
     } else {
-        KEYFRAME_BG
+        theme.surface.panel
     };
     let border_color = if state.focused_cell == Some(index) {
-        Some(accent::PRIMARY)
+        Some(theme.accent.primary)
     } else {
         diagnostic_border_color(index, state)
     };
@@ -397,7 +392,7 @@ fn render_keyframe_cell(
                 ui.vertical(|ui| {
                     // ── Header bar ──────────────────────────────
                     Frame::new()
-                        .fill(KEYFRAME_HEADER_BG)
+                        .fill(theme.surface.base)
                         .inner_margin(Margin::symmetric(10, 5))
                         .show(ui, |ui| {
                             ui.set_min_height(26.0);
@@ -424,8 +419,8 @@ fn render_keyframe_cell(
                                 // Keyframe type icon
                                 ui.label(
                                     RichText::new(egui_phosphor::regular::FILM_STRIP)
-                                        .size(12.0)
-                                        .color(text::MUTED),
+                                        .size(TextRole::BodyS.size())
+                                        .color(theme.text.muted),
                                 );
 
                                 // Editable timestamp
@@ -583,16 +578,17 @@ fn render_timestamp_editor(
         _ => return,
     };
 
+    let theme = eparts::theme(ui);
     let is_editing = state.editing_timestamp_cell == Some(cell_index);
 
     if is_editing {
         let mut edited = raw_ts.clone();
         let ts_response = ui.add(
             egui::TextEdit::singleline(&mut edited)
-                .font(egui::FontId::monospace(16.0))
+                .font(TextRole::Mono.font_id())
                 .desired_width(100.0)
                 .frame(Frame::NONE)
-                .text_color(accent::PRIMARY),
+                .text_color(theme.accent.primary),
         );
 
         if ts_response.changed() {
@@ -622,8 +618,12 @@ fn render_timestamp_editor(
     } else {
         let display = cell.display_timestamp().unwrap_or_else(|| raw_ts.clone());
         let label_response = ui.add(
-            egui::Label::new(RichText::new(display).monospace().size(16.0).color(accent::PRIMARY))
-                .sense(egui::Sense::click()),
+            egui::Label::new(
+                RichText::new(display)
+                    .font(TextRole::Mono.font_id())
+                    .color(theme.accent.primary),
+            )
+            .sense(egui::Sense::click()),
         );
         if label_response.clicked() {
             state.editing_timestamp_cell = Some(cell_index);
@@ -649,7 +649,7 @@ fn track_focus(index: usize, response: &egui::Response, state: &mut CellEditorSt
 /// diagnostic span.  Error diagnostics get red waves, warnings get amber waves.
 fn draw_wavy_underlines(ui: &egui::Ui, diags: &[CellDiagnostic], text_rect: egui::Rect) {
     let painter = ui.painter();
-    let font_id = egui::FontId::new(14.0, egui::FontFamily::Monospace);
+    let font_id = TextRole::Mono.font_id();
 
     // Get monospace metrics for position calculation
     let char_width = ui.fonts_mut(|f| f.glyph_width(&font_id, 'm'));
@@ -696,6 +696,7 @@ fn draw_wavy_underlines(ui: &egui::Ui, diags: &[CellDiagnostic], text_rect: egui
 // ── Divider between cells ────────────────────────────────────────────────
 
 fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
+    let theme = eparts::theme(ui);
     let available = ui.available_width();
     let height = 36.0; // taller for breathing room
     let (rect, response) =
@@ -716,12 +717,22 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
 
     // ── Divider line (always visible, brightens on hover) ──
     if left < right {
-        let line_a = egui::lerp(20.0..=80.0, t) as u8;
+        let line_color = if t > 0.0 {
+            theme.border.strong
+        } else {
+            theme.border.default
+        };
+        let line_a = egui::lerp(120.0..=220.0, t) as u8;
         ui.painter().line_segment(
             [egui::pos2(left, y), egui::pos2(right, y)],
             Stroke::new(
                 egui::lerp(1.0..=1.5, t),
-                Color32::from_rgba_premultiplied(100, 108, 125, line_a),
+                Color32::from_rgba_premultiplied(
+                    line_color.r(),
+                    line_color.g(),
+                    line_color.b(),
+                    line_a,
+                ),
             ),
         );
     }
@@ -745,8 +756,8 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
     let pressed = response.is_pointer_button_down_on();
 
     // Background (always visible — no alpha tricks)
-    let bg_idle = Color32::from_rgb(32, 36, 44);
-    let bg_hover = Color32::from_rgb(50, 55, 66);
+    let bg_idle = theme.surface.widget;
+    let bg_hover = theme.surface.hover;
     let bg = if pressed {
         status::WARNING
     } else {
@@ -756,17 +767,19 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
     // Border (subtle idle, stronger hover)
     let border = if pressed {
         status::WARNING
+    } else if btn_t > 0.0 {
+        theme.border.strong
     } else {
-        let border_a = egui::lerp(40.0..=100.0, btn_t) as u8;
-        Color32::from_rgba_premultiplied(120, 130, 150, border_a)
+        theme.border.default
     };
 
     // Icon color
     let icon = if pressed {
-        Color32::from_rgb(24, 27, 33)
+        theme.text.on_accent
+    } else if btn_t > 0.0 {
+        theme.text.primary
     } else {
-        let icon_a = egui::lerp(100.0..=220.0, btn_t) as u8;
-        Color32::from_rgba_premultiplied(200, 205, 215, icon_a)
+        theme.text.secondary
     };
 
     ui.painter().rect_filled(btn_rect, 6.0, bg);
@@ -777,7 +790,7 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
         center,
         egui::Align2::CENTER_CENTER,
         egui_phosphor::regular::PLUS,
-        egui::FontId::new(14.0, egui::FontFamily::Proportional),
+        TextRole::Body.font_id(),
         icon,
     );
 

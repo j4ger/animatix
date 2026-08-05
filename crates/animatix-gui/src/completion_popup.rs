@@ -1,9 +1,10 @@
 //! Completion popup widget for the code editor.
 
 use animatix_analyzer::{CompletionItem, CompletionKind};
-use egui::{self, Color32, CornerRadius, FontFamily, FontId, Key, Pos2, Rect, Stroke, Vec2};
+use egui::{self, Color32, CornerRadius, Key, Pos2, Rect, Stroke, Vec2};
 
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, ROW_M};
+use crate::app::design_tokens::typography::TextRole;
 
 /// State for the completion popup.
 pub struct CompletionPopup {
@@ -161,17 +162,9 @@ impl CompletionPopup {
 
         // Draw popup background
         let popup_rect = Rect::from_min_size(popup_pos, Vec2::new(popup_width, popup_height));
-        // Semantic completion colors are intentionally hardcoded to match syntax highlighting.
-        let bg_color = if ui.visuals().dark_mode {
-            Color32::from_rgb(40, 44, 52)
-        } else {
-            Color32::from_rgb(255, 255, 255)
-        };
-        let border_color = if ui.visuals().dark_mode {
-            Color32::from_rgb(60, 65, 75)
-        } else {
-            Color32::from_rgb(200, 200, 200)
-        };
+        let t = eparts::theme(ui);
+        let bg_color = t.surface.surface;
+        let border_color = t.border.default;
 
         ui.painter()
             .rect_filled(popup_rect, CornerRadius::same(RADIUS_M as u8), bg_color);
@@ -196,13 +189,7 @@ impl CompletionPopup {
 
                 // Highlight selected item
                 if is_selected {
-                    // Semantic completion colors are intentionally hardcoded to match syntax
-                    // highlighting.
-                    let highlight_color = if ui.visuals().dark_mode {
-                        Color32::from_rgb(60, 65, 75)
-                    } else {
-                        Color32::from_rgb(220, 230, 240)
-                    };
+                    let highlight_color = t.surface.hover;
                     ui.painter().rect_filled(
                         item_rect,
                         CornerRadius::same(RADIUS_S as u8),
@@ -235,38 +222,30 @@ impl CompletionPopup {
                     icon_pos,
                     egui::Align2::LEFT_CENTER,
                     icon,
-                    FontId::new(11.0, FontFamily::Monospace),
+                    TextRole::Micro.font_id(),
                     icon_color,
                 );
 
                 // Draw label
                 let label_pos = item_rect.left_center() + Vec2::new(24.0, -6.0);
-                let label_color = if ui.visuals().dark_mode {
-                    Color32::from_rgb(235, 219, 178)
-                } else {
-                    Color32::from_rgb(60, 60, 60)
-                };
+                let label_color = t.text.primary;
                 ui.painter().text(
                     label_pos,
                     egui::Align2::LEFT_CENTER,
                     &item.label,
-                    FontId::new(13.0, FontFamily::Proportional),
+                    TextRole::BodyS.font_id(),
                     label_color,
                 );
 
                 // Draw detail (if any)
                 if let Some(detail) = &item.detail {
                     let detail_pos = item_rect.right_center() + Vec2::new(-8.0, -6.0);
-                    let detail_color = if ui.visuals().dark_mode {
-                        Color32::from_rgb(146, 131, 116)
-                    } else {
-                        Color32::from_rgb(150, 150, 150)
-                    };
+                    let detail_color = t.text.secondary;
                     ui.painter().text(
                         detail_pos,
                         egui::Align2::RIGHT_CENTER,
                         detail,
-                        FontId::new(11.0, FontFamily::Proportional),
+                        TextRole::Micro.font_id(),
                         detail_color,
                     );
                 }
