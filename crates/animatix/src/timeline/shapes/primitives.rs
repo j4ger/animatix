@@ -34,5 +34,4 @@ mod tests {
         assert!(crate::primitives::PATH.uses_custom_path());
         assert!(!crate::primitives::RECT.uses_custom_path());
     }
-
 }

@@ -1,8 +1,8 @@
-use animatix::timeline::filter::FilterBackend;
+use animatix::composition::Composition;
 use animatix::renderer::core::RendererCore;
 use animatix::renderer::filter_backend::GpuFilterBackend;
 use animatix::renderer::transition::TransitionCompositor;
-use animatix::composition::Composition;
+use animatix::timeline::filter::FilterBackend;
 use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 use kurbo::Rect;
 
@@ -129,8 +129,7 @@ impl PreviewSurface {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                | wgpu::TextureUsages::COPY_SRC,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         });
         let composite_view = composite_texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -174,11 +173,14 @@ impl PreviewSurface {
     ) -> Result<(), String> {
         // Evaluate with filter backend so Filter actors render correctly
         // in the GUI preview (unified with export path).
-        if self.filter_backend_dimensions != Some(self.dimensions) || self.filter_backend.is_none() {
-            self.filter_backend = Some(GpuFilterBackend::new(device.clone(), queue.clone(), self.dimensions)?);
+        if self.filter_backend_dimensions != Some(self.dimensions) || self.filter_backend.is_none()
+        {
+            self.filter_backend =
+                Some(GpuFilterBackend::new(device.clone(), queue.clone(), self.dimensions)?);
             self.filter_backend_dimensions = Some(self.dimensions);
         }
-        let mut fb: Option<&mut dyn animatix::timeline::filter::FilterBackend> = self.filter_backend.as_mut().map(|b| b as _);
+        let mut fb: Option<&mut dyn animatix::timeline::filter::FilterBackend> =
+            self.filter_backend.as_mut().map(|b| b as _);
         let scene = timeline.evaluate_with_debug(time_s, self.dimensions, debug_options, &mut fb);
         self.hit_regions = timeline.hit_regions();
 
@@ -310,53 +312,96 @@ impl PreviewSurface {
             let to_scene = composition.scenes.get(&blend.to_scene);
 
             if let (Some(from), Some(to)) = (from_scene, to_scene) {
-                let to_start = composition
-                    .scene_start_times
-                    .get(&blend.to_scene)
-                    .copied()
-                    .unwrap_or(0.0);
+                let to_start =
+                    composition.scene_start_times.get(&blend.to_scene).copied().unwrap_or(0.0);
                 let to_local = global_time_s - to_start;
 
                 // Lazy-init compositor
                 if self.compositor.is_none() {
-                    self.compositor = Some(TransitionCompositor::new(device).map_err(|e| e.to_string())?);
+                    self.compositor =
+                        Some(TransitionCompositor::new(device).map_err(|e| e.to_string())?);
                 }
-                let compositor = self.compositor.as_ref()
+                let compositor = self
+                    .compositor
+                    .as_ref()
                     .ok_or_else(|| "Compositor not initialized".to_string())?;
 
-                let render_view = self.render_view.as_ref()
+                let render_view = self
+                    .render_view
+                    .as_ref()
                     .ok_or_else(|| "Preview render view is not initialized".to_string())?;
-                let render_view_b = self.render_view_b.as_ref()
+                let render_view_b = self
+                    .render_view_b
+                    .as_ref()
                     .ok_or_else(|| "Preview render view b is not initialized".to_string())?;
-                let composite_view = self.composite_view.as_ref()
+                let composite_view = self
+                    .composite_view
+                    .as_ref()
                     .ok_or_else(|| "Preview composite view is not initialized".to_string())?;
 
                 // Render from scene to render_texture, then drop scene_a
                 {
-                    if self.filter_backend_dimensions != Some(self.dimensions) || self.filter_backend_from.is_none() {
-                        self.filter_backend_from = Some(GpuFilterBackend::new(device.clone(), queue.clone(), self.dimensions)?);
+                    if self.filter_backend_dimensions != Some(self.dimensions)
+                        || self.filter_backend_from.is_none()
+                    {
+                        self.filter_backend_from = Some(GpuFilterBackend::new(
+                            device.clone(),
+                            queue.clone(),
+                            self.dimensions,
+                        )?);
                         self.filter_backend_dimensions = Some(self.dimensions);
                     }
-                    let mut fb_from_opt: Option<&mut dyn animatix::timeline::filter::FilterBackend> = self.filter_backend_from.as_mut().map(|b| b as _);
-                    let scene_a = from.timeline.evaluate_with_debug(local_time_s, self.dimensions, debug_options, &mut fb_from_opt);
+                    let mut fb_from_opt: Option<
+                        &mut dyn animatix::timeline::filter::FilterBackend,
+                    > = self.filter_backend_from.as_mut().map(|b| b as _);
+                    let scene_a = from.timeline.evaluate_with_debug(
+                        local_time_s,
+                        self.dimensions,
+                        debug_options,
+                        &mut fb_from_opt,
+                    );
                     let mut from_hit_regions = from.timeline.hit_regions();
-                    self.renderer.render_vello_scene(
-                        device, queue, render_view,
-                        self.dimensions.width, self.dimensions.height, &scene_a,
-                    ).map_err(|e| e.to_string())?;
+                    self.renderer
+                        .render_vello_scene(
+                            device,
+                            queue,
+                            render_view,
+                            self.dimensions.width,
+                            self.dimensions.height,
+                            &scene_a,
+                        )
+                        .map_err(|e| e.to_string())?;
 
                     // Render to scene to render_texture_b
-                    if self.filter_backend_dimensions != Some(self.dimensions) || self.filter_backend_to.is_none() {
-                        self.filter_backend_to = Some(GpuFilterBackend::new(device.clone(), queue.clone(), self.dimensions)?);
+                    if self.filter_backend_dimensions != Some(self.dimensions)
+                        || self.filter_backend_to.is_none()
+                    {
+                        self.filter_backend_to = Some(GpuFilterBackend::new(
+                            device.clone(),
+                            queue.clone(),
+                            self.dimensions,
+                        )?);
                         self.filter_backend_dimensions = Some(self.dimensions);
                     }
-                    let mut fb_to_opt: Option<&mut dyn animatix::timeline::filter::FilterBackend> = self.filter_backend_to.as_mut().map(|b| b as _);
-                    let scene_b = to.timeline.evaluate_with_debug(to_local, self.dimensions, debug_options, &mut fb_to_opt);
+                    let mut fb_to_opt: Option<&mut dyn animatix::timeline::filter::FilterBackend> =
+                        self.filter_backend_to.as_mut().map(|b| b as _);
+                    let scene_b = to.timeline.evaluate_with_debug(
+                        to_local,
+                        self.dimensions,
+                        debug_options,
+                        &mut fb_to_opt,
+                    );
                     let to_hit_regions = to.timeline.hit_regions();
-                    self.renderer.render_vello_scene(
-                        device, queue, render_view_b,
-                        self.dimensions.width, self.dimensions.height, &scene_b,
-                    ).map_err(|e| e.to_string())?;
+                    self.renderer
+                        .render_vello_scene(
+                            device,
+                            queue,
+                            render_view_b,
+                            self.dimensions.width,
+                            self.dimensions.height,
+                            &scene_b,
+                        )
+                        .map_err(|e| e.to_string())?;
 
                     // Merge hit regions: from scene first, then to scene (to scene is on top)
                     from_hit_regions.extend(to_hit_regions);
@@ -364,21 +409,25 @@ impl PreviewSurface {
                 }
 
                 // Composite both scenes
-                compositor.render(
-                    device,
-                    queue,
-                    render_view,
-                    render_view_b,
-                    composite_view,
-                    self.dimensions.width,
-                    self.dimensions.height,
-                    blend.progress as f32,
-                    &blend.id,
-                    blend.easing,
-                ).map_err(|e| e.to_string())?;
+                compositor
+                    .render(
+                        device,
+                        queue,
+                        render_view,
+                        render_view_b,
+                        composite_view,
+                        self.dimensions.width,
+                        self.dimensions.height,
+                        blend.progress as f32,
+                        &blend.id,
+                        blend.easing,
+                    )
+                    .map_err(|e| e.to_string())?;
 
                 // Copy composite result to sample texture
-                let composite_texture = self.composite_texture.as_ref()
+                let composite_texture = self
+                    .composite_texture
+                    .as_ref()
                     .ok_or_else(|| "Composite texture not initialized".to_string())?;
                 self.copy_texture_to_sample(device, queue, composite_texture)?;
             } else {

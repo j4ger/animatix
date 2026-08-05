@@ -333,18 +333,22 @@ impl Timeline {
         }
 
         if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
-            track.style.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
+            track
+                .style
+                .opacity
+                .ensure(1.0)
+                .add_keyframe(0, self.default_opacity, Easing::Linear);
         }
 
         if let Some(track_color) = initial_track_color {
             if delay_ms > 0.0 && duration_ms == 0.0 {
                 preserve_instant_delayed_value(&mut track.style.color, t_start_ms);
             }
-            track
-                .style
-                .color
-                .ensure(DEFAULT_WHITE)
-                .add_keyframe(t_start_ms, track_color, Easing::Linear);
+            track.style.color.ensure(DEFAULT_WHITE).add_keyframe(
+                t_start_ms,
+                track_color,
+                Easing::Linear,
+            );
         }
 
         if let Some((binding, position)) = resolve_position_binding_with_lookup_diagnostic(
@@ -427,7 +431,11 @@ impl Timeline {
             easing,
         );
         track.text.line_height.ensure(1.2).add_keyframe(t_end_ms, line_height, easing);
-        track.text.letter_spacing.ensure(0.0).add_keyframe(t_end_ms, letter_spacing, easing);
+        track
+            .text
+            .letter_spacing
+            .ensure(0.0)
+            .add_keyframe(t_end_ms, letter_spacing, easing);
         track.text.word_spacing.ensure(0.0).add_keyframe(t_end_ms, word_spacing, easing);
         track.text.text_max_width.ensure(0.0).add_keyframe(t_end_ms, max_width, easing);
         track.text.text_align.ensure("left".to_string()).add_keyframe(
@@ -495,20 +503,15 @@ impl Timeline {
         // Store font metrics on the track for baseline alignment
         // Metrics are set at t_end_ms (when new text appears).
         // For animated transitions, the metrics don't interpolate (text changes discretely).
-        track.set_metrics(
-            t_end_ms,
-            compiled.ascent,
-            compiled.descent,
-            compiled.baseline_offset,
-        );
+        track.set_metrics(t_end_ms, compiled.ascent, compiled.descent, compiled.baseline_offset);
 
         if duration_ms > 0.0 {
             let start_val = track.evaluate_text_paths(t_start_ms);
-            track
-                .text
-                .text_paths
-                .ensure(Vec::new())
-                .add_keyframe(t_start_ms, start_val, Easing::Linear);
+            track.text.text_paths.ensure(Vec::new()).add_keyframe(
+                t_start_ms,
+                start_val,
+                Easing::Linear,
+            );
             let start_size = track.geometry.size.get(t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
             let start_layout_size =
                 track.layout_size_get(t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
@@ -534,12 +537,16 @@ impl Timeline {
                 Easing::Linear,
             );
         }
-        track.text.text_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths, easing);
         track
-            .geometry
-            .size
-            .ensure(DEFAULT_LAYOUT_HALF_SIZE)
-            .add_keyframe(t_end_ms, new_half_size, easing);
+            .text
+            .text_paths
+            .ensure(Vec::new())
+            .add_keyframe(t_end_ms, new_paths, easing);
+        track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+            t_end_ms,
+            new_half_size,
+            easing,
+        );
         track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
             t_end_ms,
             new_half_size,

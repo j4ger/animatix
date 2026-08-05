@@ -3,12 +3,14 @@
 //! Provides single-timeline and multi-scene composition image rendering
 //! to PNG files using the `image` crate.
 
+use std::sync::atomic::{AtomicBool, AtomicU32};
+
+use tracing::info;
+
 use crate::composition::Composition;
 use crate::renderer::encode::ExportError;
 use crate::renderer::offscreen::OffscreenRenderer;
 use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
-use std::sync::atomic::{AtomicBool, AtomicU32};
-use tracing::info;
 
 // ---------------------------------------------------------------------------
 // Public API: single-timeline image
@@ -62,7 +64,14 @@ pub fn render_image_timeline_with_debug(
     debug_options: DebugRenderOptions,
 ) -> Result<(), ExportError> {
     pollster::block_on(render_image_async(
-        timeline, width, height, time, output_file, debug_options, None, None,
+        timeline,
+        width,
+        height,
+        time,
+        output_file,
+        debug_options,
+        None,
+        None,
     ))
 }
 
@@ -79,7 +88,14 @@ pub fn render_image_timeline_with_progress(
     cancel: Option<&AtomicBool>,
 ) -> Result<(), ExportError> {
     pollster::block_on(render_image_async(
-        timeline, width, height, time, output_file, debug_options, progress, cancel,
+        timeline,
+        width,
+        height,
+        time,
+        output_file,
+        debug_options,
+        progress,
+        cancel,
     ))
 }
 
@@ -108,11 +124,13 @@ pub(super) async fn render_image_async(
             SceneDimensions { width, height },
             debug_options,
         )
-        .map_err(|e| ExportError::FrameRender { frame: 0, message: e })?;
+        .map_err(|e| ExportError::FrameRender {
+            frame: 0,
+            message: e,
+        })?;
     let img = image::RgbaImage::from_raw(frame.width, frame.height, frame.rgba)
         .ok_or_else(|| ExportError::ImageEncode("Failed to create image buffer".into()))?;
-    img.save(output_file)
-        .map_err(|e| ExportError::ImageEncode(format!("{e:?}")))?;
+    img.save(output_file).map_err(|e| ExportError::ImageEncode(format!("{e:?}")))?;
     info!("Image saved to {}", output_file.display());
     Ok(())
 }
@@ -167,55 +185,54 @@ pub(super) async fn render_image_composition_async(
 
     let dims = SceneDimensions { width, height };
 
-    let frame = if let Some(blend) = transition_blend {
-        let from_scene = composition
-            .scenes
-            .get(&blend.from_scene)
-            .ok_or_else(|| ExportError::FrameRender {
-                frame: 0,
-                message: format!(
-                    "From scene '{}' not found in composition",
-                    blend.from_scene
-                ),
+    let frame =
+        if let Some(blend) = transition_blend {
+            let from_scene = composition.scenes.get(&blend.from_scene).ok_or_else(|| {
+                ExportError::FrameRender {
+                    frame: 0,
+                    message: format!("From scene '{}' not found in composition", blend.from_scene),
+                }
             })?;
-        let to_scene = composition
-            .scenes
-            .get(&blend.to_scene)
-            .ok_or_else(|| ExportError::FrameRender {
-                frame: 0,
-                message: format!("To scene '{}' not found in composition", blend.to_scene),
+            let to_scene = composition.scenes.get(&blend.to_scene).ok_or_else(|| {
+                ExportError::FrameRender {
+                    frame: 0,
+                    message: format!("To scene '{}' not found in composition", blend.to_scene),
+                }
             })?;
-        renderer
-            .render_transition(
-                &from_scene.timeline,
-                blend.from_local,
-                &to_scene.timeline,
-                blend.to_local,
-                blend.progress as f32,
-                blend.id.clone(),
-                blend.easing,
-                dims,
-                debug_options,
-            )
-            .map_err(|e| ExportError::FrameRender { frame: 0, message: e })?
-    } else {
-        let scene = composition
-            .scenes
-            .get(&scene_name)
-            .ok_or_else(|| ExportError::FrameRender {
-                frame: 0,
-                message: format!("Scene '{}' not found in composition", scene_name),
-            })?;
+            renderer
+                .render_transition(
+                    &from_scene.timeline,
+                    blend.from_local,
+                    &to_scene.timeline,
+                    blend.to_local,
+                    blend.progress as f32,
+                    blend.id.clone(),
+                    blend.easing,
+                    dims,
+                    debug_options,
+                )
+                .map_err(|e| ExportError::FrameRender {
+                    frame: 0,
+                    message: e,
+                })?
+        } else {
+            let scene =
+                composition.scenes.get(&scene_name).ok_or_else(|| ExportError::FrameRender {
+                    frame: 0,
+                    message: format!("Scene '{}' not found in composition", scene_name),
+                })?;
 
-        renderer
-            .render_timeline_with_debug(&scene.timeline, local_time_s, dims, debug_options)
-            .map_err(|e| ExportError::FrameRender { frame: 0, message: e })?
-    };
+            renderer
+                .render_timeline_with_debug(&scene.timeline, local_time_s, dims, debug_options)
+                .map_err(|e| ExportError::FrameRender {
+                    frame: 0,
+                    message: e,
+                })?
+        };
 
     let img = image::RgbaImage::from_raw(frame.width, frame.height, frame.rgba)
         .ok_or_else(|| ExportError::ImageEncode("Failed to create image buffer".into()))?;
-    img.save(output_file)
-        .map_err(|e| ExportError::ImageEncode(format!("{e:?}")))?;
+    img.save(output_file).map_err(|e| ExportError::ImageEncode(format!("{e:?}")))?;
     info!("Image saved to {}", output_file.display());
     Ok(())
 }

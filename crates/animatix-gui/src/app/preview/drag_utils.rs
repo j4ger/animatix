@@ -3,14 +3,13 @@
 
 use std::collections::HashSet;
 
+use animatix::timeline::{PositionBinding, TrackAccessor};
 use egui::Pos2;
 
 use crate::app::commands::{DocumentCommand, PropertyEdit, PropertyValue};
-use crate::app::design_tokens::semantic::accent;
-use crate::app::design_tokens::semantic::status;
+use crate::app::design_tokens::semantic::{accent, status};
 use crate::app::preview::context::PreviewContext;
 use crate::app::preview::{ActorProps, DragState};
-use animatix::timeline::{PositionBinding, TrackAccessor};
 
 // ─── Helper 1: Body hit testing ─────────────────────────────────────────────
 

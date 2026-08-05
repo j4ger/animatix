@@ -1,13 +1,12 @@
-use crate::easing::Easing;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
+pub use super::dispatch::{AnimationTrack, TrackFieldMut, TrackFieldRef};
 use super::property_track::{Interpolate, PropertyTrack};
+use crate::easing::Easing;
 use crate::renderer::types::{TextPath, VelloPath};
 use crate::timeline::morph::MorphOptions;
 use crate::timeline::shapes::ShapeType;
-
-pub use super::dispatch::{AnimationTrack, TrackFieldRef, TrackFieldMut};
-
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
 
 /// Default half-size for layout bounds (`[50.0, 50.0]`).
 pub const DEFAULT_LAYOUT_HALF_SIZE: [f32; 2] = [50.0, 50.0];
@@ -83,23 +82,23 @@ impl CalloutPlace {
     #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
-            "right"  => Some(Self::Right),
-            "left"   => Some(Self::Left),
-            "top" | "above"  => Some(Self::Top),
+            "right" => Some(Self::Right),
+            "left" => Some(Self::Left),
+            "top" | "above" => Some(Self::Top),
             "bottom" | "below" => Some(Self::Bottom),
-            "auto"   => Some(Self::Auto),
-            _        => None,
+            "auto" => Some(Self::Auto),
+            _ => None,
         }
     }
 
     /// Canonical string representation (lowercase, matches source syntax).
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::Right  => "right",
-            Self::Left   => "left",
-            Self::Top    => "top",
+            Self::Right => "right",
+            Self::Left => "left",
+            Self::Top => "top",
             Self::Bottom => "bottom",
-            Self::Auto   => "auto",
+            Self::Auto => "auto",
         }
     }
 }
@@ -243,11 +242,54 @@ impl Interpolate for PositionBinding {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
         match (*self, *other) {
             (Self::Absolute, Self::Absolute) => Self::Absolute,
-            (Self::SceneAnchor { anchor, offset: start_offset }, Self::SceneAnchor { anchor: other_anchor, offset: end_offset }) if anchor == other_anchor => Self::SceneAnchor { anchor, offset: start_offset.interpolate(&end_offset, t) },
-            (Self::ScenePercent { x: start_x, y: start_y, offset: start_offset }, Self::ScenePercent { x: end_x, y: end_y, offset: end_offset }) => Self::ScenePercent { x: start_x.interpolate(&end_x, t), y: start_y.interpolate(&end_y, t), offset: start_offset.interpolate(&end_offset, t) },
-            (Self::ContainerDefault { anchor }, Self::ContainerDefault { anchor: other_anchor }) if anchor == other_anchor => Self::ContainerDefault { anchor },
-            (Self::ContainerPercent { x: x1, y: y1 }, Self::ContainerPercent { x: x2, y: y2 }) => Self::ContainerPercent { x: x1.interpolate(&x2, t), y: y1.interpolate(&y2, t) },
-            _ => { if t < 0.5 { *self } else { *other } }
+            (
+                Self::SceneAnchor {
+                    anchor,
+                    offset: start_offset,
+                },
+                Self::SceneAnchor {
+                    anchor: other_anchor,
+                    offset: end_offset,
+                },
+            ) if anchor == other_anchor => Self::SceneAnchor {
+                anchor,
+                offset: start_offset.interpolate(&end_offset, t),
+            },
+            (
+                Self::ScenePercent {
+                    x: start_x,
+                    y: start_y,
+                    offset: start_offset,
+                },
+                Self::ScenePercent {
+                    x: end_x,
+                    y: end_y,
+                    offset: end_offset,
+                },
+            ) => Self::ScenePercent {
+                x: start_x.interpolate(&end_x, t),
+                y: start_y.interpolate(&end_y, t),
+                offset: start_offset.interpolate(&end_offset, t),
+            },
+            (
+                Self::ContainerDefault { anchor },
+                Self::ContainerDefault {
+                    anchor: other_anchor,
+                },
+            ) if anchor == other_anchor => Self::ContainerDefault { anchor },
+            (Self::ContainerPercent { x: x1, y: y1 }, Self::ContainerPercent { x: x2, y: y2 }) => {
+                Self::ContainerPercent {
+                    x: x1.interpolate(&x2, t),
+                    y: y1.interpolate(&y2, t),
+                }
+            },
+            _ => {
+                if t < 0.5 {
+                    *self
+                } else {
+                    *other
+                }
+            },
         }
     }
 }
@@ -258,8 +300,6 @@ impl Interpolate for Option<crate::timeline::image::SceneImage> {
         if t < 0.5 { self.clone() } else { other.clone() }
     }
 }
-
-
 
 // ─────────────────────────────────────────────────────────────
 // FilterTracks sub-struct
@@ -300,7 +340,10 @@ pub struct HighlightTracks {
     /// Highlight corner radius for equation fragments.
     pub highlight_radius: Option<PropertyTrack<f32>>,
     /// Highlight blend mode for equation fragments (non-animated configuration).
-    #[cfg_attr(feature = "serde", serde(skip, default = "HighlightTracks::default_blend"))]
+    #[cfg_attr(
+        feature = "serde",
+        serde(skip, default = "HighlightTracks::default_blend")
+    )]
     pub highlight_blend: vello::peniko::Mix,
 }
 
@@ -485,9 +528,7 @@ pub struct GeometryTracks {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::timeline::actor_kind::{
-        ActorKindId, ShapeKind, actor_kind_registry,
-    };
+    use crate::timeline::actor_kind::{ActorKindId, ShapeKind, actor_kind_registry};
     use crate::timeline::property_registry::ActorField;
     use crate::timeline::property_track::TrackAccessor;
 
@@ -510,11 +551,7 @@ mod tests {
 
         for sk in &shape_kinds {
             let kind = ActorKindId::Shape(*sk);
-            assert!(
-                registered.contains(&kind),
-                "ActorKindMeta missing for ShapeKind::{:?}",
-                sk
-            );
+            assert!(registered.contains(&kind), "ActorKindMeta missing for ShapeKind::{:?}", sk);
         }
 
         // Non-shape kinds
@@ -541,11 +578,7 @@ mod tests {
         ];
 
         for kind in &non_shapes {
-            assert!(
-                registered.contains(kind),
-                "ActorKindMeta missing for {:?}",
-                kind
-            );
+            assert!(registered.contains(kind), "ActorKindMeta missing for {:?}", kind);
         }
     }
 
@@ -582,14 +615,15 @@ mod tests {
                 meta.type_name
             );
             assert_eq!(
-                parsed.unwrap(), meta.kind,
+                parsed.unwrap(),
+                meta.kind,
                 "ActorKindId::from_type_name({:?}) returned {:?}, expected {:?}",
-                meta.type_name, parsed, meta.kind
+                meta.type_name,
+                parsed,
+                meta.kind
             );
         }
     }
-
-
 
     #[test]
     fn test_interpolation() {
@@ -629,52 +663,72 @@ mod tests {
     // ────────────────────────────────────────────────────────
 
     /// Helper: create a track with a keyframe added to a specific field.
-    fn create_track_with_f32_keyframe(field: ActorField, time_ms: u64, value: f32) -> AnimationTrack {
+    fn create_track_with_f32_keyframe(
+        field: ActorField,
+        time_ms: u64,
+        value: f32,
+    ) -> AnimationTrack {
         let mut track = AnimationTrack::new("test".to_string());
         if let Some(mut f) = track.field_mut(field) {
             match &mut f {
                 TrackFieldMut::F32(opt) => {
                     opt.ensure(0.0).add_keyframe(time_ms, value, Easing::Linear);
-                }
+                },
                 _ => panic!("Expected F32 track"),
             }
         }
         track
     }
 
-    fn create_track_with_vec4_keyframe(field: ActorField, time_ms: u64, value: [f32; 4]) -> AnimationTrack {
+    fn create_track_with_vec4_keyframe(
+        field: ActorField,
+        time_ms: u64,
+        value: [f32; 4],
+    ) -> AnimationTrack {
         let mut track = AnimationTrack::new("test".to_string());
         if let Some(mut f) = track.field_mut(field) {
             match &mut f {
                 TrackFieldMut::Vec4(opt) => {
                     opt.ensure(value).add_keyframe(time_ms, value, Easing::Linear);
-                }
+                },
                 _ => panic!("Expected Vec4 track"),
             }
         }
         track
     }
 
-    fn create_track_with_vec2_keyframe(field: ActorField, time_ms: u64, value: [f32; 2]) -> AnimationTrack {
+    fn create_track_with_vec2_keyframe(
+        field: ActorField,
+        time_ms: u64,
+        value: [f32; 2],
+    ) -> AnimationTrack {
         let mut track = AnimationTrack::new("test".to_string());
         if let Some(mut f) = track.field_mut(field) {
             match &mut f {
                 TrackFieldMut::Vec2(opt) => {
                     opt.ensure(value).add_keyframe(time_ms, value, Easing::Linear);
-                }
+                },
                 _ => panic!("Expected Vec2 track"),
             }
         }
         track
     }
 
-    fn create_track_with_string_keyframe(field: ActorField, time_ms: u64, value: &str) -> AnimationTrack {
+    fn create_track_with_string_keyframe(
+        field: ActorField,
+        time_ms: u64,
+        value: &str,
+    ) -> AnimationTrack {
         let mut track = AnimationTrack::new("test".to_string());
         if let Some(mut f) = track.field_mut(field) {
             match &mut f {
                 TrackFieldMut::String(opt) => {
-                    opt.ensure(value.to_string()).add_keyframe(time_ms, value.to_string(), Easing::Linear);
-                }
+                    opt.ensure(value.to_string()).add_keyframe(
+                        time_ms,
+                        value.to_string(),
+                        Easing::Linear,
+                    );
+                },
                 _ => panic!("Expected String track"),
             }
         }
@@ -686,7 +740,10 @@ mod tests {
         let track = create_track_with_f32_keyframe(ActorField::Ascent, 0, 10.0);
         let rf = track.field_ref(ActorField::Ascent).unwrap();
         assert!(matches!(rf, TrackFieldRef::F32(_)));
-        assert_eq!(rf.evaluate_value(0), Some(super::super::property_engine::PropertyValue::F32(10.0)));
+        assert_eq!(
+            rf.evaluate_value(0),
+            Some(super::super::property_engine::PropertyValue::F32(10.0))
+        );
     }
 
     #[test]
@@ -705,7 +762,8 @@ mod tests {
 
     #[test]
     fn test_field_ref_highlight_color_returns_vec4() {
-        let track = create_track_with_vec4_keyframe(ActorField::HighlightColor, 0, [1.0, 0.0, 0.0, 1.0]);
+        let track =
+            create_track_with_vec4_keyframe(ActorField::HighlightColor, 0, [1.0, 0.0, 0.0, 1.0]);
         let rf = track.field_ref(ActorField::HighlightColor).unwrap();
         assert!(matches!(rf, TrackFieldRef::Vec4(_)));
     }
@@ -860,31 +918,39 @@ mod tests {
     #[test]
     fn test_max_keyframe_time_with_transform() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.geometry.transform.ensure([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
-            .add_keyframe(5000, [2.0, 0.0, 0.0, 2.0, 100.0, 200.0], Easing::Linear);
+        track.geometry.transform.ensure([1.0, 0.0, 0.0, 1.0, 0.0, 0.0]).add_keyframe(
+            5000,
+            [2.0, 0.0, 0.0, 2.0, 100.0, 200.0],
+            Easing::Linear,
+        );
         assert_eq!(track.max_keyframe_time(), Some(5000));
     }
 
     #[test]
     fn test_max_keyframe_time_with_highlight_color() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0])
-            .add_keyframe(3000, [1.0, 0.0, 0.0, 0.5], Easing::Linear);
+        track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(
+            3000,
+            [1.0, 0.0, 0.0, 0.5],
+            Easing::Linear,
+        );
         assert_eq!(track.max_keyframe_time(), Some(3000));
     }
 
     #[test]
     fn test_max_keyframe_time_with_filter_blur() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.filter.filter_blur.ensure(0.0)
-            .add_keyframe(2000, 5.0, Easing::Linear);
+        track.filter.filter_blur.ensure(0.0).add_keyframe(2000, 5.0, Easing::Linear);
         assert_eq!(track.max_keyframe_time(), Some(2000));
     }
 
     #[test]
     fn test_max_keyframe_time_with_filter_brightness() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.filter.filter_brightness.ensure(1.0)
+        track
+            .filter
+            .filter_brightness
+            .ensure(1.0)
             .add_keyframe(1500, 2.0, Easing::Linear);
         assert_eq!(track.max_keyframe_time(), Some(1500));
     }
@@ -893,8 +959,16 @@ mod tests {
     fn test_max_keyframe_time_returns_max_across_all_fields() {
         let mut track = AnimationTrack::new("test".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
-        track.geometry.position.ensure([0.0, 0.0]).add_keyframe(5000, [100.0, 100.0], Easing::Linear);
-        track.highlight.highlight_opacity.ensure(0.0).add_keyframe(3000, 0.8, Easing::Linear);
+        track.geometry.position.ensure([0.0, 0.0]).add_keyframe(
+            5000,
+            [100.0, 100.0],
+            Easing::Linear,
+        );
+        track
+            .highlight
+            .highlight_opacity
+            .ensure(0.0)
+            .add_keyframe(3000, 0.8, Easing::Linear);
         assert_eq!(track.max_keyframe_time(), Some(5000));
     }
 
@@ -907,8 +981,11 @@ mod tests {
     #[test]
     fn test_has_any_keyframes_returns_true_for_highlight_fields() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0])
-            .add_keyframe(1000, [1.0, 0.0, 0.0, 0.5], Easing::Linear);
+        track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(
+            1000,
+            [1.0, 0.0, 0.0, 0.5],
+            Easing::Linear,
+        );
         assert!(track.has_any_keyframes());
     }
 
@@ -1067,8 +1144,6 @@ mod tests {
         assert!(track.interpolation_segment(1000).is_none());
     }
 
-
-
     // ────────────────────────────────────────────────────────
     // 4.8: Registry-driven iteration tests
     // ────────────────────────────────────────────────────────
@@ -1086,7 +1161,11 @@ mod tests {
     fn test_has_any_keyframes_iterates_through_all_registry_fields() {
         let mut track = AnimationTrack::new("test".to_string());
         // Put a keyframe on a field that might have been missed
-        track.highlight.highlight_padding.ensure(4.0).add_keyframe(500, 8.0, Easing::Linear);
+        track
+            .highlight
+            .highlight_padding
+            .ensure(4.0)
+            .add_keyframe(500, 8.0, Easing::Linear);
         assert!(track.has_any_keyframes());
     }
 
@@ -1136,7 +1215,10 @@ mod tests {
         let track = create_track_with_vec4_keyframe(ActorField::Color, 0, [1.0, 0.0, 0.0, 1.0]);
         let rf = track.field_ref(ActorField::Color).unwrap();
         let val = rf.evaluate_value(0);
-        assert_eq!(val, Some(super::super::property_engine::PropertyValue::Color([1.0, 0.0, 0.0, 1.0])));
+        assert_eq!(
+            val,
+            Some(super::super::property_engine::PropertyValue::Color([1.0, 0.0, 0.0, 1.0]))
+        );
     }
 
     #[test]
@@ -1309,7 +1391,10 @@ mod tests {
         assert_eq!(track.geometry.size.get(0, [50.0, 50.0]), [50.0, 50.0]);
         assert_eq!(track.shape.line_from.get(0, [-50.0, 0.0]), [-50.0, 0.0]);
         assert_eq!(track.shape.line_to.get(0, [50.0, 0.0]), [50.0, 0.0]);
-        assert_eq!(track.shape.arc_angles.get(0, [0.0, std::f32::consts::PI]), [0.0, std::f32::consts::PI]);
+        assert_eq!(
+            track.shape.arc_angles.get(0, [0.0, std::f32::consts::PI]),
+            [0.0, std::f32::consts::PI]
+        );
         assert_eq!(track.style.color.get(0, [1.0, 1.0, 1.0, 1.0]), [1.0, 1.0, 1.0, 1.0]);
         assert_eq!(track.shape.shape_type.get(0, ShapeType::Rect), ShapeType::Rect);
         assert_eq!(track.style.opacity.get(0, 1.0), 1.0);

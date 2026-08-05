@@ -18,7 +18,8 @@ always {
   echo.size = (pulse.size.x / 3, pulse.size.x / 3)
   echo.at = orbiter.at
 }
-"#.to_string()
+"#
+    .to_string()
 }
 
 fn bench_build_time(c: &mut Criterion) {

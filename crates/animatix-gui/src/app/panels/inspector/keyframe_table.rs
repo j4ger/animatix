@@ -7,17 +7,16 @@ use animatix_syntax::easing::Easing;
 use egui::Vec2;
 
 use crate::app::commands::{ActionQueue, KeyframeCommand, PlaybackCommand};
-use crate::app::design_tokens::semantic::status;
-use crate::app::design_tokens::semantic::surface;
-use crate::app::design_tokens::semantic::text;
-use crate::app::design_tokens::spatial::{spatial, RADIUS_S, STROKE_WIDTH};
+use crate::app::design_tokens::semantic::{status, surface, text};
+use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;
 
 // ─── Data Structures ──────────────────────────────────────────────────────
 
 struct PropertyTrackInfo {
     name: &'static str,
-    keyframes: Vec<(u64, String, animatix_syntax::easing::Easing)>, // time_ms, formatted_value, easing
+    keyframes: Vec<(u64, String, animatix_syntax::easing::Easing)>, /* time_ms, formatted_value,
+                                                                     * easing */
 }
 
 struct TrackGroup {
@@ -447,10 +446,11 @@ fn format_value(value: &PropertyValue, name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use animatix::timeline::ActorKindId;
     use animatix::timeline::property_track::PropertyTrack;
     use animatix_syntax::easing::Easing;
+
+    use super::*;
 
     fn make_track(kind: ActorKindId) -> AnimationTrack {
         let mut track = AnimationTrack::new("test".to_string());

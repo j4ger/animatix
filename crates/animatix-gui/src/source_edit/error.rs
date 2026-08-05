@@ -41,7 +41,11 @@ pub enum SourceEditError {
 
     /// No keyframe exists at the requested time for the given actor/property.
     #[error("no keyframe for '{actor}.{property}' at {time_s}s")]
-    KeyframeNotFound { actor: String, property: String, time_s: f64 },
+    KeyframeNotFound {
+        actor: String,
+        property: String,
+        time_s: f64,
+    },
 
     /// Nothing was found to rename.
     #[error("nothing to rename from '{old_label}'")]

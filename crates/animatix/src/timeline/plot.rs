@@ -8,13 +8,13 @@
 //!
 //! Instead, `func` transitions use a **side-channel** pattern:
 //!
-//! - [`FuncTransition`] records a time range, easing, and the `from`/`to`
-//!   [`FuncSource`] closures in a parallel `Vec` on `AnimationTrack`.
-//! - At frame time, [`sample_procedural_plot_at`] checks for active
-//!   transitions and blends the *outputs* of the two sources at each
-//!   sample point, rather than interpolating the sources themselves.
-//! - [`FuncSource::Blend`] captures a mid-flight snap when the transition
-//!   is frozen mid-progress (used for combined transitions).
+//! - [`FuncTransition`] records a time range, easing, and the `from`/`to` [`FuncSource`] closures
+//!   in a parallel `Vec` on `AnimationTrack`.
+//! - At frame time, [`sample_procedural_plot_at`] checks for active transitions and blends the
+//!   *outputs* of the two sources at each sample point, rather than interpolating the sources
+//!   themselves.
+//! - [`FuncSource::Blend`] captures a mid-flight snap when the transition is frozen mid-progress
+//!   (used for combined transitions).
 //!
 //! This pattern is intentional. Future property types whose values cannot
 //! implement `Interpolate` (e.g., AST nodes, resource handles) should use
@@ -26,41 +26,42 @@
 //! The plotting functions in this module use recursive midpoint subdivision to
 //! sample mathematical curves at adaptive resolution. The algorithm works as follows:
 //!
-//! 1. **Recursive Midpoint Subdivision**: Start with two endpoints of a segment.
-//!    Compute the midpoint and compare it against a linear interpolation between endpoints.
-//!    If the deviation exceeds `tolerance`, subdivide both halves recursively.
+//! 1. **Recursive Midpoint Subdivision**: Start with two endpoints of a segment. Compute the
+//!    midpoint and compare it against a linear interpolation between endpoints. If the deviation
+//!    exceeds `tolerance`, subdivide both halves recursively.
 //!
-//! 2. **Coarse-to-Fine Refinement**: Begin with coarse sampling and refine only where
-//!    the curve deviates significantly from a straight line. This captures detail where
-//!    needed while avoiding unnecessary computation in flat regions.
+//! 2. **Coarse-to-Fine Refinement**: Begin with coarse sampling and refine only where the curve
+//!    deviates significantly from a straight line. This captures detail where needed while avoiding
+//!    unnecessary computation in flat regions.
 //!
-//! 3. **Maximum Depth Cap**: Subdivision stops when reaching `max_depth` to prevent
-//!    infinite recursion and control computational cost. The minimum segment size is
-//!    thus `(total_range) / 2^max_depth`.
+//! 3. **Maximum Depth Cap**: Subdivision stops when reaching `max_depth` to prevent infinite
+//!    recursion and control computational cost. The minimum segment size is thus `(total_range) /
+//!    2^max_depth`.
 //!
-//! 4. **Discontinuity Handling**: When detecting steep jumps (asymptotes, discontinuities),
-//!    inject a NaN point so Vello's path renderer breaks the stroke. This prevents
-//!    erroneous straight-line connections across gaps.
+//! 4. **Discontinuity Handling**: When detecting steep jumps (asymptotes, discontinuities), inject
+//!    a NaN point so Vello's path renderer breaks the stroke. This prevents erroneous straight-line
+//!    connections across gaps.
 //!
-//! 5. **Visibility Culling**: Segments whose y-coordinates (and x-coordinates for
-//!    parametric/polar) lie entirely outside the visible region with margin are culled
-//!    with NaN separators, skipping unnecessary evaluation.
+//! 5. **Visibility Culling**: Segments whose y-coordinates (and x-coordinates for parametric/polar)
+//!    lie entirely outside the visible region with margin are culled with NaN separators, skipping
+//!    unnecessary evaluation.
 //!
 //! 6. **Tolerance-Accuracy Tradeoff**: The `tolerance` parameter (squared distance threshold)
-//!    controls how much deviation is acceptable before subdividing. Lower values produce
-//!    more accurate curves but require more samples; higher values improve performance
-//!    at the cost of accuracy.
+//!    controls how much deviation is acceptable before subdividing. Lower values produce more
+//!    accurate curves but require more samples; higher values improve performance at the cost of
+//!    accuracy.
 //!
 //! The three sampling functions (`cartesian`, `polar`, `parametric`) share this core
 //! algorithm but differ in how they map mathematical coordinates to screen space.
 
 use std::collections::HashMap;
-use super::{CapturedEnv, Environment, EvalError, Value, evaluate_expr};
-use crate::ast::Expr;
-use crate::easing::{Easing, apply_easing};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+
+use super::{CapturedEnv, Environment, EvalError, Value, evaluate_expr};
+use crate::ast::Expr;
+use crate::easing::{Easing, apply_easing};
 
 // ─────────────────────────────────────────────────────────────
 // Plot curve kind
@@ -96,20 +97,19 @@ impl PlotCurveKind {
 /// Source of a function for a `PlotCurve` `func` transition.
 ///
 /// This type is part of the **side-channel pattern** for non-interpolatable
-/// properties — see [`AnimationTrack::func_transitions`](crate::timeline::dispatch::AnimationTrack::func_transitions)
+/// properties — see
+/// [`AnimationTrack::func_transitions`](crate::timeline::dispatch::AnimationTrack::func_transitions)
 /// in `dispatch.rs` and the module-level documentation for the full
 /// explanation of why closures cannot use `PropertyTrack<T>`.
 ///
 /// A `FuncSource` is either:
-/// - [`Raw`](FuncSource::Raw): a user-authored closure `(x) => expr`, stored
-///   as argument names and an [`Expr`] body. This is the steady-state form
-///   used when no transition is in progress.
-/// - [`Blend`](FuncSource::Blend): a frozen mid-transition snapshot captured
-///   when a second `func` transition begins before the first has finished.
-///   Rather than discarding in-progress blending state, the evaluator
-///   snapshots the current `(from, to, progress)` into a `Blend` node and
-///   uses it as the `from` for the next transition. This allows cascading
-///   function transitions without visual discontinuities.
+/// - [`Raw`](FuncSource::Raw): a user-authored closure `(x) => expr`, stored as argument names and
+///   an [`Expr`] body. This is the steady-state form used when no transition is in progress.
+/// - [`Blend`](FuncSource::Blend): a frozen mid-transition snapshot captured when a second `func`
+///   transition begins before the first has finished. Rather than discarding in-progress blending
+///   state, the evaluator snapshots the current `(from, to, progress)` into a `Blend` node and uses
+///   it as the `from` for the next transition. This allows cascading function transitions without
+///   visual discontinuities.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum FuncSource {
@@ -146,15 +146,14 @@ impl FuncSource {
 ///
 /// ## Lifecycle
 ///
-/// 1. The build stage appends a new `FuncTransition` whenever it encounters
-///    a `func = <expr> [easing, duration]` keyframe on a `PlotCurve`.
-/// 2. At frame evaluation time, `sample_procedural_plot_at` iterates
-///    `func_transitions` and calls [`active_at`] to find the transition
-///    covering the current time.
-/// 3. If one is active, both `from` and `to` are evaluated at each sample
-///    point and the outputs are lerped by the eased progress value.
-/// 4. [`is_complete_at`] identifies the last completed transition so its
-///    `to` source serves as the static baseline between transitions.
+/// 1. The build stage appends a new `FuncTransition` whenever it encounters a `func = <expr>
+///    [easing, duration]` keyframe on a `PlotCurve`.
+/// 2. At frame evaluation time, `sample_procedural_plot_at` iterates `func_transitions` and calls
+///    [`active_at`] to find the transition covering the current time.
+/// 3. If one is active, both `from` and `to` are evaluated at each sample point and the outputs are
+///    lerped by the eased progress value.
+/// 4. [`is_complete_at`] identifies the last completed transition so its `to` source serves as the
+///    static baseline between transitions.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct FuncTransition {
@@ -204,7 +203,7 @@ pub fn resolve_func_source(
             captures.merge_into(&mut local_env);
             local_env.set_binding(name, Value::Num(arg_val));
             evaluate_expr(body, &local_env).map(|v| v.as_num())
-        }
+        },
         FuncSource::Blend { .. } => {
             let flat = flatten_blend(source);
             let mut sum = 0.0;
@@ -212,7 +211,7 @@ pub fn resolve_func_source(
                 sum += weight * resolve_func_source(src, env, arg_name, arg_val)?;
             }
             Ok(sum)
-        }
+        },
     }
 }
 
@@ -235,7 +234,7 @@ pub fn resolve_func_source_vec2(
                 Value::Vec2(arr) => arr,
                 other => [other.as_num(), f64::NAN],
             })
-        }
+        },
         FuncSource::Blend { .. } => {
             let flat = flatten_blend(source);
             let mut sum_x = 0.0;
@@ -246,7 +245,7 @@ pub fn resolve_func_source_vec2(
                 sum_y += weight * vy;
             }
             Ok([sum_x, sum_y])
-        }
+        },
     }
 }
 
@@ -291,7 +290,7 @@ pub(crate) fn eval_source_scalar(
                 result
             });
             val.as_num()
-        }
+        },
         FuncSource::Blend { .. } => {
             let flat = flatten_blend(source);
             let mut sum = 0.0;
@@ -300,7 +299,7 @@ pub(crate) fn eval_source_scalar(
                 sum += weight * eval_source_scalar(src, env, arg_name, x, &mut cache);
             }
             sum
-        }
+        },
     }
 }
 
@@ -320,8 +319,7 @@ fn eval_source_vec2(
                 // Inject captured variables on first evaluation for this t
                 captures.merge_into(env);
                 env.set_binding(name, Value::Num(t));
-                let result = evaluate_expr(body, env)
-                    .unwrap_or(Value::Vec2([f64::NAN, f64::NAN]));
+                let result = evaluate_expr(body, env).unwrap_or(Value::Vec2([f64::NAN, f64::NAN]));
                 env.clear_bindings();
                 cache.insert(key, result.clone());
                 result
@@ -330,7 +328,7 @@ fn eval_source_vec2(
                 Value::Vec2(arr) => arr,
                 _ => [f64::NAN, f64::NAN],
             }
-        }
+        },
         FuncSource::Blend { .. } => {
             let flat = flatten_blend(source);
             let mut sum_x = 0.0;
@@ -342,7 +340,7 @@ fn eval_source_vec2(
                 sum_y += weight * vy;
             }
             [sum_x, sum_y]
-        }
+        },
     }
 }
 
@@ -361,7 +359,7 @@ fn eval_scalar(
             let fv = eval_source_scalar(from, env, arg_name, x, from_cache);
             let tv = eval_source_scalar(to, env, arg_name, x, to_cache);
             fv + (tv - fv) * progress
-        }
+        },
     }
 }
 
@@ -380,7 +378,7 @@ fn eval_vec2(
             let [fx, fy] = eval_source_vec2(from, env, arg_name, t, from_cache);
             let [tx, ty] = eval_source_vec2(to, env, arg_name, t, to_cache);
             [fx + (tx - fx) * progress, fy + (ty - fy) * progress]
-        }
+        },
     }
 }
 
@@ -392,9 +390,7 @@ fn eval_vec2(
 pub(crate) fn blend_depth(source: &FuncSource) -> usize {
     match source {
         FuncSource::Raw(..) => 0,
-        FuncSource::Blend { from, to, .. } => {
-            1 + blend_depth(from).max(blend_depth(to))
-        }
+        FuncSource::Blend { from, to, .. } => 1 + blend_depth(from).max(blend_depth(to)),
     }
 }
 
@@ -408,7 +404,11 @@ pub(crate) fn blend_depth(source: &FuncSource) -> usize {
 pub(crate) fn flatten_blend(source: &FuncSource) -> Vec<(f64, &FuncSource)> {
     match source {
         FuncSource::Raw(..) => vec![(1.0, source)],
-        FuncSource::Blend { from, to, frozen_progress } => {
+        FuncSource::Blend {
+            from,
+            to,
+            frozen_progress,
+        } => {
             let mut result = Vec::new();
             // from contributes with weight (1 - frozen_progress)
             for (w, s) in flatten_blend(from) {
@@ -419,7 +419,7 @@ pub(crate) fn flatten_blend(source: &FuncSource) -> Vec<(f64, &FuncSource)> {
                 result.push((w * frozen_progress, s));
             }
             result
-        }
+        },
     }
 }
 
@@ -460,7 +460,8 @@ pub(crate) fn sample_recursive_cartesian(
     let margin_x = p_size[0] * 2.0;
     let min_screen_x = -(p_size[0] / 2.0) - margin_x;
     let max_screen_x = (p_size[0] / 2.0) + margin_x;
-    if (p0.x < min_screen_x && p1.x < min_screen_x) || (p0.x > max_screen_x && p1.x > max_screen_x) {
+    if (p0.x < min_screen_x && p1.x < min_screen_x) || (p0.x > max_screen_x && p1.x > max_screen_x)
+    {
         pts.push(kurbo::Point::new(f64::NAN, f64::NAN));
         return;
     }
@@ -482,9 +483,8 @@ pub(crate) fn sample_recursive_cartesian(
     let math_y = eval_scalar(func, env, arg_name, mid_t, from_cache, to_cache);
     let math_x = mid_t;
 
-    let (screen_x, screen_y) = math_to_screen_padded(
-        math_x, math_y, p_x_domain, p_y_domain, p_size, padding,
-    );
+    let (screen_x, screen_y) =
+        math_to_screen_padded(math_x, math_y, p_x_domain, p_y_domain, p_size, padding);
 
     let p_mid = kurbo::Point::new(screen_x, screen_y);
 
@@ -494,14 +494,42 @@ pub(crate) fn sample_recursive_cartesian(
 
     if dist_sq > tolerance || depth < 3 {
         sample_recursive_cartesian(
-            min_t, mid_t, p0, p_mid, depth + 1, max_depth, tolerance,
-            env, arg_name, func, p_x_domain, p_y_domain, p_size, padding,
-            from_cache, to_cache, pts,
+            min_t,
+            mid_t,
+            p0,
+            p_mid,
+            depth + 1,
+            max_depth,
+            tolerance,
+            env,
+            arg_name,
+            func,
+            p_x_domain,
+            p_y_domain,
+            p_size,
+            padding,
+            from_cache,
+            to_cache,
+            pts,
         );
         sample_recursive_cartesian(
-            mid_t, max_t, p_mid, p1, depth + 1, max_depth, tolerance,
-            env, arg_name, func, p_x_domain, p_y_domain, p_size, padding,
-            from_cache, to_cache, pts,
+            mid_t,
+            max_t,
+            p_mid,
+            p1,
+            depth + 1,
+            max_depth,
+            tolerance,
+            env,
+            arg_name,
+            func,
+            p_x_domain,
+            p_y_domain,
+            p_size,
+            padding,
+            from_cache,
+            to_cache,
+            pts,
         );
     } else {
         pts.push(p1);
@@ -564,9 +592,8 @@ pub(crate) fn sample_recursive_polar(
     let math_x = math_r * mid_t.cos();
     let math_y = math_r * mid_t.sin();
 
-    let (screen_x, screen_y) = math_to_screen_padded(
-        math_x, math_y, p_x_domain, p_y_domain, p_size, padding,
-    );
+    let (screen_x, screen_y) =
+        math_to_screen_padded(math_x, math_y, p_x_domain, p_y_domain, p_size, padding);
 
     let p_mid = kurbo::Point::new(screen_x, screen_y);
 
@@ -576,14 +603,42 @@ pub(crate) fn sample_recursive_polar(
 
     if dist_sq > tolerance || depth < 3 {
         sample_recursive_polar(
-            min_t, mid_t, p0, p_mid, depth + 1, max_depth, tolerance,
-            env, arg_name, func, p_x_domain, p_y_domain, p_size, padding,
-            from_cache, to_cache, pts,
+            min_t,
+            mid_t,
+            p0,
+            p_mid,
+            depth + 1,
+            max_depth,
+            tolerance,
+            env,
+            arg_name,
+            func,
+            p_x_domain,
+            p_y_domain,
+            p_size,
+            padding,
+            from_cache,
+            to_cache,
+            pts,
         );
         sample_recursive_polar(
-            mid_t, max_t, p_mid, p1, depth + 1, max_depth, tolerance,
-            env, arg_name, func, p_x_domain, p_y_domain, p_size, padding,
-            from_cache, to_cache, pts,
+            mid_t,
+            max_t,
+            p_mid,
+            p1,
+            depth + 1,
+            max_depth,
+            tolerance,
+            env,
+            arg_name,
+            func,
+            p_x_domain,
+            p_y_domain,
+            p_size,
+            padding,
+            from_cache,
+            to_cache,
+            pts,
         );
     } else {
         pts.push(p1);
@@ -649,9 +704,8 @@ pub(crate) fn sample_recursive_parametric(
         return;
     }
 
-    let (screen_x, screen_y) = math_to_screen_padded(
-        math_x, math_y, p_x_domain, p_y_domain, p_size, padding,
-    );
+    let (screen_x, screen_y) =
+        math_to_screen_padded(math_x, math_y, p_x_domain, p_y_domain, p_size, padding);
 
     let p_mid = kurbo::Point::new(screen_x, screen_y);
 
@@ -661,14 +715,42 @@ pub(crate) fn sample_recursive_parametric(
 
     if dist_sq > tolerance || depth < 3 {
         sample_recursive_parametric(
-            min_t, mid_t, p0, p_mid, depth + 1, max_depth, tolerance,
-            env, arg_name, func, p_x_domain, p_y_domain, p_size, padding,
-            from_cache, to_cache, pts,
+            min_t,
+            mid_t,
+            p0,
+            p_mid,
+            depth + 1,
+            max_depth,
+            tolerance,
+            env,
+            arg_name,
+            func,
+            p_x_domain,
+            p_y_domain,
+            p_size,
+            padding,
+            from_cache,
+            to_cache,
+            pts,
         );
         sample_recursive_parametric(
-            mid_t, max_t, p_mid, p1, depth + 1, max_depth, tolerance,
-            env, arg_name, func, p_x_domain, p_y_domain, p_size, padding,
-            from_cache, to_cache, pts,
+            mid_t,
+            max_t,
+            p_mid,
+            p1,
+            depth + 1,
+            max_depth,
+            tolerance,
+            env,
+            arg_name,
+            func,
+            p_x_domain,
+            p_y_domain,
+            p_size,
+            padding,
+            from_cache,
+            to_cache,
+            pts,
         );
     } else {
         pts.push(p1);
@@ -693,8 +775,16 @@ pub(crate) fn math_to_screen_padded(
     let shift_y = (padding[2] - padding[3]) / 2.0;
     let x_range = x_domain[1] - x_domain[0];
     let y_range = y_domain[1] - y_domain[0];
-    let norm_x = if x_range.abs() > f64::EPSILON { (math_x - x_domain[0]) / x_range } else { 0.5 };
-    let norm_y = if y_range.abs() > f64::EPSILON { (math_y - y_domain[0]) / y_range } else { 0.5 };
+    let norm_x = if x_range.abs() > f64::EPSILON {
+        (math_x - x_domain[0]) / x_range
+    } else {
+        0.5
+    };
+    let norm_y = if y_range.abs() > f64::EPSILON {
+        (math_y - y_domain[0]) / y_range
+    } else {
+        0.5
+    };
     let screen_x = shift_x + (norm_x - 0.5) * plot_w;
     let screen_y = shift_y + (0.5 - norm_y) * plot_h;
     (screen_x, screen_y)
@@ -744,7 +834,7 @@ pub(crate) fn eval_implicit_source(
                 Ok(Value::Num(n)) => n,
                 _ => f64::NAN,
             }
-        }
+        },
         FuncSource::Blend { .. } => {
             let flat = flatten_blend(source);
             let mut sum = 0.0;
@@ -752,7 +842,7 @@ pub(crate) fn eval_implicit_source(
                 sum += weight * eval_implicit_source(src, env, x, y);
             }
             sum
-        }
+        },
     }
 }
 
@@ -842,14 +932,10 @@ pub fn build_implicit_plot_path_from_source(
                 2 => {
                     path.move_to(intersections[0].1);
                     path.line_to(intersections[1].1);
-                }
+                },
                 4 => {
-                    let center = eval_implicit_source(
-                        source,
-                        env,
-                        (x0 + x1) * 0.5,
-                        (y0 + y1) * 0.5,
-                    );
+                    let center =
+                        eval_implicit_source(source, env, (x0 + x1) * 0.5, (y0 + y1) * 0.5);
                     let center_positive = center >= 0.0;
                     let edge = |idx: usize| {
                         intersections
@@ -877,8 +963,8 @@ pub fn build_implicit_plot_path_from_source(
                             path.line_to(b);
                         }
                     }
-                }
-                0 => {}
+                },
+                0 => {},
                 1 | 3 => {
                     tracing::debug!(
                         "Implicit plot: degenerate cell with {} intersections at ({}, {})",
@@ -886,7 +972,7 @@ pub fn build_implicit_plot_path_from_source(
                         xi,
                         yi
                     );
-                }
+                },
                 n => {
                     tracing::warn!(
                         "Implicit plot: unexpected {} intersections in cell ({}, {})",
@@ -894,7 +980,7 @@ pub fn build_implicit_plot_path_from_source(
                         xi,
                         yi
                     );
-                }
+                },
             }
         }
     }
@@ -904,7 +990,10 @@ pub fn build_implicit_plot_path_from_source(
 
 /// Legacy wrapper that builds an implicit plot path from raw args/body.
 /// Creates a `FuncSource::Raw` and delegates to [`build_implicit_plot_path_from_source`].
-#[deprecated(since = "0.5.0", note = "use build_implicit_plot_path_from_source instead")]
+#[deprecated(
+    since = "0.5.0",
+    note = "use build_implicit_plot_path_from_source instead"
+)]
 #[allow(dead_code)] // Legacy public API shim; kept for backward compatibility.
 pub fn build_implicit_plot_path(
     env: &mut Environment,
@@ -916,19 +1005,9 @@ pub fn build_implicit_plot_path(
     resolution: usize,
     padding: &[f64; 4],
 ) -> kurbo::BezPath {
-    let source = FuncSource::Raw(
-        arg_names.to_vec(),
-        body.clone(),
-        CapturedEnv::default(),
-    );
+    let source = FuncSource::Raw(arg_names.to_vec(), body.clone(), CapturedEnv::default());
     build_implicit_plot_path_from_source(
-        env,
-        &source,
-        p_x_domain,
-        p_y_domain,
-        p_size,
-        resolution,
-        padding,
+        env, &source, p_x_domain, p_y_domain, p_size, resolution, padding,
     )
 }
 
@@ -1030,10 +1109,7 @@ pub fn sample_procedural_plot_at(
         PlotFuncRef::Blended { from, to, progress }
     } else {
         // Use the last completed transition's target, or the declaration func.
-        let last_complete = transitions
-            .iter()
-            .rev()
-            .find(|t| t.is_complete_at(time_ms));
+        let last_complete = transitions.iter().rev().find(|t| t.is_complete_at(time_ms));
         match last_complete {
             Some(t) => PlotFuncRef::Single(&t.to),
             None => PlotFuncRef::Single(&decl_source),
@@ -1067,13 +1143,11 @@ pub fn sample_procedural_plot_at(
         // blended transitions for implicit plots.
         let implicit_source = match func_ref {
             PlotFuncRef::Single(src) => src.clone(),
-            PlotFuncRef::Blended { from, to, progress } => {
-                FuncSource::Blend {
-                    from: Box::new(from.clone()),
-                    to: Box::new(to.clone()),
-                    frozen_progress: progress,
-                }
-            }
+            PlotFuncRef::Blended { from, to, progress } => FuncSource::Blend {
+                from: Box::new(from.clone()),
+                to: Box::new(to.clone()),
+                frozen_progress: progress,
+            },
         };
         let path = build_implicit_plot_path_from_source(
             env,
@@ -1112,32 +1186,40 @@ pub fn sample_procedural_plot_at(
             let y = eval_scalar(&func_ref, env, &arg_name, min_t, &mut from_cache, &mut to_cache);
             (min_t, y)
         } else if plot.kind == PlotCurveKind::Parametric {
-            let [x, y] = eval_vec2(&func_ref, env, &arg_name, min_t, &mut from_cache, &mut to_cache);
+            let [x, y] =
+                eval_vec2(&func_ref, env, &arg_name, min_t, &mut from_cache, &mut to_cache);
             (x, y)
         } else {
             let r = eval_scalar(&func_ref, env, &arg_name, min_t, &mut from_cache, &mut to_cache);
             (r * min_t.cos(), r * min_t.sin())
         };
         let (start_screen_x, start_screen_y) = math_to_screen_padded(
-            start_math_x, start_math_y,
-            &plot.p_x_domain, &plot.p_y_domain,
-            &plot.p_size, &plot.padding,
+            start_math_x,
+            start_math_y,
+            &plot.p_x_domain,
+            &plot.p_y_domain,
+            &plot.p_size,
+            &plot.padding,
         );
 
         let (end_math_x, end_math_y) = if plot.kind == PlotCurveKind::Cartesian {
             let y = eval_scalar(&func_ref, env, &arg_name, max_t, &mut from_cache, &mut to_cache);
             (max_t, y)
         } else if plot.kind == PlotCurveKind::Parametric {
-            let [x, y] = eval_vec2(&func_ref, env, &arg_name, max_t, &mut from_cache, &mut to_cache);
+            let [x, y] =
+                eval_vec2(&func_ref, env, &arg_name, max_t, &mut from_cache, &mut to_cache);
             (x, y)
         } else {
             let r = eval_scalar(&func_ref, env, &arg_name, max_t, &mut from_cache, &mut to_cache);
             (r * max_t.cos(), r * max_t.sin())
         };
         let (end_screen_x, end_screen_y) = math_to_screen_padded(
-            end_math_x, end_math_y,
-            &plot.p_x_domain, &plot.p_y_domain,
-            &plot.p_size, &plot.padding,
+            end_math_x,
+            end_math_y,
+            &plot.p_x_domain,
+            &plot.p_y_domain,
+            &plot.p_size,
+            &plot.padding,
         );
 
         let p0 = kurbo::Point::new(start_screen_x, start_screen_y);
@@ -1147,27 +1229,63 @@ pub fn sample_procedural_plot_at(
 
         if plot.kind == PlotCurveKind::Cartesian {
             sample_recursive_cartesian(
-                min_t, max_t, p0, p1, 0, actual_max_depth, actual_tolerance,
-                env, &arg_name, &func_ref,
-                &plot.p_x_domain, &plot.p_y_domain, &plot.p_size,
+                min_t,
+                max_t,
+                p0,
+                p1,
+                0,
+                actual_max_depth,
+                actual_tolerance,
+                env,
+                &arg_name,
+                &func_ref,
+                &plot.p_x_domain,
+                &plot.p_y_domain,
+                &plot.p_size,
                 &plot.padding,
-                &mut from_cache, &mut to_cache, &mut pts,
+                &mut from_cache,
+                &mut to_cache,
+                &mut pts,
             );
         } else if plot.kind == PlotCurveKind::Polar {
             sample_recursive_polar(
-                min_t, max_t, p0, p1, 0, actual_max_depth, actual_tolerance,
-                env, &arg_name, &func_ref,
-                &plot.p_x_domain, &plot.p_y_domain, &plot.p_size,
+                min_t,
+                max_t,
+                p0,
+                p1,
+                0,
+                actual_max_depth,
+                actual_tolerance,
+                env,
+                &arg_name,
+                &func_ref,
+                &plot.p_x_domain,
+                &plot.p_y_domain,
+                &plot.p_size,
                 &plot.padding,
-                &mut from_cache, &mut to_cache, &mut pts,
+                &mut from_cache,
+                &mut to_cache,
+                &mut pts,
             );
         } else {
             sample_recursive_parametric(
-                min_t, max_t, p0, p1, 0, actual_max_depth, actual_tolerance,
-                env, &arg_name, &func_ref,
-                &plot.p_x_domain, &plot.p_y_domain, &plot.p_size,
+                min_t,
+                max_t,
+                p0,
+                p1,
+                0,
+                actual_max_depth,
+                actual_tolerance,
+                env,
+                &arg_name,
+                &func_ref,
+                &plot.p_x_domain,
+                &plot.p_y_domain,
+                &plot.p_size,
                 &plot.padding,
-                &mut from_cache, &mut to_cache, &mut pts,
+                &mut from_cache,
+                &mut to_cache,
+                &mut pts,
             );
         }
 
@@ -1265,9 +1383,6 @@ mod tests {
 
         // domain centre maps to x = (20 - 0) / 2 = 10
         let (sx, _) = math_to_screen_padded(0.0, 0.0, &x_domain, &y_domain, &p_size, &padding);
-        assert!(
-            (sx - 10.0).abs() < 1e-10,
-            "expected sx=10 with left-only padding, got {sx}"
-        );
+        assert!((sx - 10.0).abs() < 1e-10, "expected sx=10 with left-only padding, got {sx}");
     }
 }

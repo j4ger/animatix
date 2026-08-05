@@ -1,8 +1,9 @@
-use super::{FileTreeEntry, MAX_TREE_DEPTH, MAX_TREE_ENTRIES};
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+use super::{FileTreeEntry, MAX_TREE_DEPTH, MAX_TREE_ENTRIES};
 
 pub(super) fn workspace_root_for(file_path: &Path) -> PathBuf {
     for ancestor in file_path.ancestors() {
@@ -48,17 +49,26 @@ fn collect_tree_entries(
         Err(err) => {
             tracing::debug!("failed to read directory '{}': {}", dir.display(), err);
             return;
-        }
+        },
     };
 
-    let mut children: Vec<_> = read_dir.filter_map(Result::ok).collect();
-    children.sort_by(|a, b| match (a.path().is_dir(), b.path().is_dir()) {
+    let mut children: Vec<_> = read_dir
+        .filter_map(Result::ok)
+        .map(|entry| {
+            let is_dir = entry
+                .file_type()
+                .map(|file_type| file_type.is_dir())
+                .unwrap_or_else(|_| entry.path().is_dir());
+            (entry, is_dir)
+        })
+        .collect();
+    children.sort_by(|a, b| match (a.1, b.1) {
         (true, false) => Ordering::Less,
         (false, true) => Ordering::Greater,
-        _ => a.file_name().cmp(&b.file_name()),
+        _ => a.0.file_name().cmp(&b.0.file_name()),
     });
 
-    for child in children {
+    for (child, is_dir) in children {
         if *remaining == 0 {
             return;
         }
@@ -74,7 +84,6 @@ fn collect_tree_entries(
             }
         }
 
-        let is_dir = path.is_dir();
         entries.push(FileTreeEntry {
             path: path.clone(),
             name: name.to_string(),

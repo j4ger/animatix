@@ -334,7 +334,8 @@ mod tests {
 
     #[test]
     fn handle_set_selected_keyframes_populates_store() {
-        let mut ui_store = crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        let mut ui_store =
+            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
         let triples = vec![
             ("Actor1".into(), "position".into(), 1000u64),
             ("Actor2".into(), "rotation".into(), 2000u64),
@@ -345,7 +346,8 @@ mod tests {
 
     #[test]
     fn handle_set_selected_keyframes_replaces_previous() {
-        let mut ui_store = crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        let mut ui_store =
+            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
         let first = vec![("A".into(), "p".into(), 1u64)];
         let _ = handle_set_selected_keyframes(&mut ui_store, first);
         let second = vec![("B".into(), "q".into(), 2u64)];

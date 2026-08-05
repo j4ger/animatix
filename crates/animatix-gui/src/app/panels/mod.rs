@@ -5,19 +5,16 @@
 //! canvas interaction. `shell/` owns modal dialogs and floating overlays.
 
 pub mod behavior;
-pub(crate) mod editor_model;
 pub mod inspector;
-pub(crate) mod preview_model;
-pub(crate) mod sidebar_model;
-pub(crate) mod timeline_model;
 pub mod timeline_panel;
 
 pub mod editor;
 pub mod preview_panel;
 pub mod sidebar;
 
-pub use crate::app::commands::{PropertyEdit, PropertyValue};
 use animatix::primitives;
+
+pub use crate::app::commands::{PropertyEdit, PropertyValue};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum SidebarTab {
@@ -74,21 +71,24 @@ mod tests {
 
     #[test]
     fn nice_tick_interval_normal_range() {
-        // visible_range=100.0, target_ticks=10 → raw=10 → magnitude=10 → normalized=1 → nice_mul=1 → 10.0
+        // visible_range=100.0, target_ticks=10 → raw=10 → magnitude=10 → normalized=1 → nice_mul=1
+        // → 10.0
         let interval = nice_tick_interval(100.0, 10.0);
         assert!((interval - 10.0).abs() < 0.001);
     }
 
     #[test]
     fn nice_tick_interval_rounds_to_two() {
-        // visible_range=50.0, target_ticks=10 → raw=5 → magnitude=1 → normalized=5 → nice_mul=5 → 5.0
+        // visible_range=50.0, target_ticks=10 → raw=5 → magnitude=1 → normalized=5 → nice_mul=5 →
+        // 5.0
         let interval = nice_tick_interval(50.0, 10.0);
         assert!((interval - 5.0).abs() < 0.001);
     }
 
     #[test]
     fn nice_tick_interval_small_values() {
-        // visible_range=0.5, target_ticks=10 → raw=0.05 → magnitude=0.01 → normalized=5 → nice_mul=5 → 0.05
+        // visible_range=0.5, target_ticks=10 → raw=0.05 → magnitude=0.01 → normalized=5 →
+        // nice_mul=5 → 0.05
         let interval = nice_tick_interval(0.5, 10.0);
         assert!(interval > 0.0);
         assert!((interval / 0.01 - 5.0).abs() < 0.001 || (interval / 0.05 - 1.0).abs() < 0.001);
@@ -108,7 +108,8 @@ mod tests {
 
     #[test]
     fn nice_tick_interval_large_range_gives_round_numbers() {
-        // visible_range=10000.0, target_ticks=10 → raw=1000 → magnitude=100 → normalized=10 → nice_mul=10 → 1000.0
+        // visible_range=10000.0, target_ticks=10 → raw=1000 → magnitude=100 → normalized=10 →
+        // nice_mul=10 → 1000.0
         let interval = nice_tick_interval(10000.0, 10.0);
         assert!((interval - 1000.0).abs() < 0.001);
     }

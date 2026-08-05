@@ -41,7 +41,13 @@ impl BuiltinAction for WipeIn {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         for target in &action.targets {
-            if !super::ensure_vector_reveal_target(timeline, target, &action.verb, diagnostics, None) {
+            if !super::ensure_vector_reveal_target(
+                timeline,
+                target,
+                &action.verb,
+                diagnostics,
+                None,
+            ) {
                 continue;
             }
 
@@ -147,13 +153,13 @@ mod tests {
                     name: "size".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(160.0), Expr::Num(80.0)]),
                     value_span: None,
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
                 Property {
                     name: "at".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(320.0), Expr::Num(240.0)]),
                     value_span: None,
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
             ],
             modifiers: vec![],
@@ -196,16 +202,19 @@ mod tests {
     }
 
     fn action_stmt(verb: &str, target: &str, duration_s: f64) -> Stmt {
-        Stmt::Action(Action {
-            verb: verb.to_string(),
-            targets: vec![target.to_string()],
-            args: vec![],
-            modifiers: vec![Modifier {
-                name: None,
-                value: Expr::Ident(format!("{duration_s}s")),
-            }],
-            byte_span: None,
-        }, None)
+        Stmt::Action(
+            Action {
+                verb: verb.to_string(),
+                targets: vec![target.to_string()],
+                args: vec![],
+                modifiers: vec![Modifier {
+                    name: None,
+                    value: Expr::Ident(format!("{duration_s}s")),
+                }],
+                byte_span: None,
+            },
+            None,
+        )
     }
 
     #[test]
@@ -243,26 +252,25 @@ mod tests {
                     children: vec![],
                     span: None,
                 },
-                Stmt::Action(Action {
-                    verb: "fade-in".to_string(),
-                    targets: vec!["headline".to_string()],
-                    args: vec![],
-                    modifiers: vec![Modifier {
-                        name: None,
-                        value: Expr::Ident("1s".to_string()),
-                    }],
-                    byte_span: None,
-                }, None),
+                Stmt::Action(
+                    Action {
+                        verb: "fade-in".to_string(),
+                        targets: vec!["headline".to_string()],
+                        args: vec![],
+                        modifiers: vec![Modifier {
+                            name: None,
+                            value: Expr::Ident("1s".to_string()),
+                        }],
+                        byte_span: None,
+                    },
+                    None,
+                ),
             ],
             span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report
-            .output
-            .tracks
-            .get("headline")
-            .expect("headline track");
+        let track = report.output.tracks.get("headline").expect("headline track");
 
         assert_eq!(track.style.opacity.get(0, 1.0), 0.0);
         assert!(track.style.opacity.get(500, 1.0) > 0.0);

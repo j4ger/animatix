@@ -3,6 +3,7 @@
 //! The worker receives source text snapshots, runs `DocumentSession::rebuild()`
 //! on a background thread, and sends the result back for acceptance on the UI thread.
 
+use std::path::PathBuf;
 use std::thread;
 use std::time::Instant;
 
@@ -13,7 +14,6 @@ use crate::app::document::version::{
     CancellationSource, CancellationToken, SourceEpoch, SourceHash,
 };
 use crate::document::DocumentSession;
-use std::path::PathBuf;
 
 /// Token identifying a specific rebuild request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -53,25 +53,37 @@ impl RebuildWorker {
         let (req_tx, req_rx) = crossbeam_channel::unbounded::<RebuildRequest>();
         let (res_tx, res_rx) = crossbeam_channel::bounded::<RebuildResponse>(4);
 
-        let handle = thread::Builder::new()
-            .name("animatix-rebuild".into())
-            .spawn(move || {
-                Self::worker_loop(req_rx, res_tx);
-            })
-            .expect("failed to spawn rebuild worker thread");
+        let handle = thread::Builder::new().name("animatix-rebuild".into()).spawn(move || {
+            Self::worker_loop(req_rx, res_tx);
+        });
 
-        Self {
-            request_tx: Some(req_tx),
-            response_rx: res_rx,
-            cancel_source: CancellationSource::new(),
-            next_token: 0,
-            handle: Some(handle),
+        match handle {
+            Ok(handle) => Self {
+                request_tx: Some(req_tx),
+                response_rx: res_rx,
+                cancel_source: CancellationSource::new(),
+                next_token: 0,
+                handle: Some(handle),
+            },
+            Err(err) => {
+                tracing::error!("Failed to spawn rebuild worker thread: {err}");
+                Self {
+                    request_tx: None,
+                    response_rx: res_rx,
+                    cancel_source: CancellationSource::new(),
+                    next_token: 0,
+                    handle: None,
+                }
+            },
         }
     }
 
     /// Submit a rebuild request. Previous requests with lower tokens are
     /// automatically cancelled.
-    pub fn submit(&mut self, source: &crate::app::stores::SourceStore) -> RebuildToken {
+    pub fn submit(
+        &mut self,
+        source: &crate::app::stores::SourceStore,
+    ) -> Result<RebuildToken, String> {
         use std::hash::{Hash, Hasher};
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         source.text().hash(&mut hasher);
@@ -89,9 +101,13 @@ impl RebuildWorker {
             cancellation: self.cancel_source.token(),
         };
 
-        let _ = self.request_tx.as_ref().unwrap().send(request);
+        let Some(tx) = self.request_tx.as_ref() else {
+            return Err("rebuild worker is not running".to_string());
+        };
 
-        RebuildToken(self.next_token)
+        tx.send(request)
+            .map_err(|err| format!("Failed to submit rebuild request: {err}"))?;
+        Ok(RebuildToken(self.next_token))
     }
 
     /// Poll for completed rebuild responses. Returns all available responses.
@@ -190,14 +206,12 @@ impl RebuildWorker {
 
 impl Drop for RebuildWorker {
     fn drop(&mut self) {
-        // Cancel any in-flight rebuild so the worker exits its current work quickly
+        // Cancel any in-flight rebuild and close the request channel.
+        // The worker thread is deliberately detached: joining here could block
+        // app shutdown while a long rebuild is not cancellation-aware.
         self.cancel_source.cancel(self.next_token + 1);
-        // Take the sender, dropping it closes the channel → worker loop exits
         self.request_tx.take();
-        // Join the worker thread
-        if let Some(handle) = self.handle.take() {
-            let _ = handle.join();
-        }
+        self.handle.take();
     }
 }
 
@@ -218,8 +232,22 @@ mod tests {
         let editor = EditorBuffer::new(&doc.file_path, doc.source_text.clone());
         let source = SourceStore::new(doc, editor);
 
-        let token = worker.submit(&source);
+        let token = worker.submit(&source).expect("submit should succeed");
         assert!(token.0 > 0, "submit should return a token with positive value");
+    }
+
+    #[test]
+    fn submit_reports_error_when_worker_is_not_running() {
+        let mut worker = RebuildWorker::start();
+        worker.request_tx = None;
+
+        let doc =
+            DocumentSession::from_source(std::path::PathBuf::from("test.amx"), "#0s\n".to_string())
+                .expect("create session");
+        let editor = EditorBuffer::new(&doc.file_path, doc.source_text.clone());
+        let source = SourceStore::new(doc, editor);
+
+        assert!(worker.submit(&source).is_err());
     }
 
     #[test]
@@ -232,7 +260,7 @@ mod tests {
         let editor = EditorBuffer::new(&doc.file_path, doc.source_text.clone());
         let source = SourceStore::new(doc, editor);
 
-        let _token = worker.submit(&source);
+        let _token = worker.submit(&source).expect("submit should succeed");
 
         // Drop the worker — this should not deadlock
         drop(worker);

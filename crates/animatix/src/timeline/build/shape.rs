@@ -25,26 +25,26 @@ impl Timeline {
             VectorShapeState::Line(line) => {
                 line.line_from = line_from;
                 line.line_to = line_to;
-            }
+            },
             VectorShapeState::Arrow(arrow) => {
                 arrow.from = line_from;
                 arrow.to = line_to;
-            }
+            },
             VectorShapeState::Callout(callout) => {
                 callout.from = line_from;
                 callout.to = line_to;
-            }
+            },
             VectorShapeState::Ellipse(ellipse) => {
                 ellipse.arc_angles = arc_angles;
-            }
-            _ => {}
+            },
+            _ => {},
         }
         apply_vector_shape_defaults(ty, &mut vector_shape_state);
 
         for prop in props {
             let prop_subject = format!("{}.{}", ty, prop.name);
             match prop.name.as_str() {
-                "at" | "anchor" | "offset" => {}
+                "at" | "anchor" | "offset" => {},
                 "size" => {
                     let size_val = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -56,7 +56,7 @@ impl Timeline {
                     if let Value::Vec2([w, h]) = size_val {
                         *vector_shape_state.size_mut() = [w as f32 / 2.0, h as f32 / 2.0];
                     }
-                }
+                },
                 _ => {
                     let _ = apply_vector_shape_property(
                         ty,
@@ -67,7 +67,7 @@ impl Timeline {
                         &prop_subject,
                         &mut vector_shape_state,
                     );
-                }
+                },
             }
         }
 

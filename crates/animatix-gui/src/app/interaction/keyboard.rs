@@ -63,7 +63,10 @@ pub enum KeyboardAction {
     SetPivotTool,
 
     // Nudge (arrow keys with context-dependent step size)
-    NudgeSelected { dx: f32, dy: f32 },
+    NudgeSelected {
+        dx: f32,
+        dy: f32,
+    },
 
     // Editor / insertion palette
     EditSync,
@@ -535,17 +538,15 @@ pub fn tooltip_with_shortcut(label: &str, action: &KeyboardAction, ctx: &Context
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use egui::Key;
+
+    use super::*;
 
     #[test]
     fn shortcut_for_save_returns_ctrl_s() {
         let registry = ShortcutRegistry::new();
         let shortcut = registry.shortcut_for(&KeyboardAction::Save);
-        assert!(
-            shortcut.is_some(),
-            "Expected a registered shortcut for KeyboardAction::Save"
-        );
+        assert!(shortcut.is_some(), "Expected a registered shortcut for KeyboardAction::Save");
         let shortcut = shortcut.unwrap();
         assert_eq!(shortcut.modifiers, egui::Modifiers::COMMAND);
         assert_eq!(shortcut.logical_key, Key::S);

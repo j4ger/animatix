@@ -1,21 +1,17 @@
 //! Find / Replace dialog for the source editor.
 
-use crate::app::components::dialog;
 use crate::app::GuiShell;
 use crate::app::commands::UndoLabel;
-use crate::app::design_tokens::semantic::accent;
-use crate::app::design_tokens::semantic::surface;
-
-use crate::app::design_tokens::semantic::text;
-
+use crate::app::components::dialog;
+use crate::app::design_tokens::semantic::{accent, surface, text};
 use crate::app::design_tokens::typography::TextRole;
 
 impl GuiShell {
     pub(crate) fn find_replace_ui(&mut self, ui: &mut egui::Ui) {
         let sp = crate::app::design_tokens::spatial::spatial(ui);
 
-        let spec = dialog::DialogSpec::new("find_replace", [420.0, 160.0])
-            .with_min_size([380.0, 140.0]);
+        let spec =
+            dialog::DialogSpec::new("find_replace", [420.0, 160.0]).with_min_size([380.0, 140.0]);
 
         let open = dialog::modal(ui, &spec, |ui, _dc| -> bool {
             let close = dialog::title_row(ui, "Find & Replace");
@@ -23,57 +19,57 @@ impl GuiShell {
             ui.separator();
             ui.add_space(sp.base.space_3);
 
-                ui.label(
-                    egui::RichText::new("Find").size(TextRole::BodyS.size()).color(text::SECONDARY),
-                );
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.ui_store.find_query)
-                        .desired_width(f32::INFINITY)
-                        .hint_text("Search term…"),
-                );
-                ui.add_space(sp.base.space_2);
+            ui.label(
+                egui::RichText::new("Find").size(TextRole::BodyS.size()).color(text::SECONDARY),
+            );
+            ui.add(
+                egui::TextEdit::singleline(&mut self.ui_store.find_query)
+                    .desired_width(f32::INFINITY)
+                    .hint_text("Search term…"),
+            );
+            ui.add_space(sp.base.space_2);
 
-                ui.label(
-                    egui::RichText::new("Replace with")
-                        .size(TextRole::BodyS.size())
-                        .color(text::SECONDARY),
-                );
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.ui_store.replace_query)
-                        .desired_width(f32::INFINITY)
-                        .hint_text("Replacement…"),
-                );
-                ui.add_space(sp.base.space_3);
+            ui.label(
+                egui::RichText::new("Replace with")
+                    .size(TextRole::BodyS.size())
+                    .color(text::SECONDARY),
+            );
+            ui.add(
+                egui::TextEdit::singleline(&mut self.ui_store.replace_query)
+                    .desired_width(f32::INFINITY)
+                    .hint_text("Replacement…"),
+            );
+            ui.add_space(sp.base.space_3);
 
-                ui.horizontal(|ui| {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let replace_all = ui.add_sized(
-                            [100.0, sp.base.row_m],
-                            egui::Button::new(
-                                egui::RichText::new("Replace All")
-                                    .size(TextRole::BodyS.size())
-                                    .color(text::PRIMARY),
-                            )
-                            .fill(accent::PRIMARY),
-                        );
-                        if replace_all.clicked() {
-                            self.perform_find_replace_all();
-                        }
+            ui.horizontal(|ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let replace_all = ui.add_sized(
+                        [100.0, sp.base.row_m],
+                        egui::Button::new(
+                            egui::RichText::new("Replace All")
+                                .size(TextRole::BodyS.size())
+                                .color(text::PRIMARY),
+                        )
+                        .fill(accent::PRIMARY),
+                    );
+                    if replace_all.clicked() {
+                        self.perform_find_replace_all();
+                    }
 
-                        let find_next = ui.add_sized(
-                            [90.0, sp.base.row_m],
-                            egui::Button::new(
-                                egui::RichText::new("Find Next")
-                                    .size(TextRole::BodyS.size())
-                                    .color(text::SECONDARY),
-                            )
-                            .fill(surface::WIDGET),
-                        );
-                        if find_next.clicked() {
-                            self.find_next_in_editor();
-                        }
-                    });
+                    let find_next = ui.add_sized(
+                        [90.0, sp.base.row_m],
+                        egui::Button::new(
+                            egui::RichText::new("Find Next")
+                                .size(TextRole::BodyS.size())
+                                .color(text::SECONDARY),
+                        )
+                        .fill(surface::WIDGET),
+                    );
+                    if find_next.clicked() {
+                        self.find_next_in_editor();
+                    }
                 });
+            });
 
             close
         });

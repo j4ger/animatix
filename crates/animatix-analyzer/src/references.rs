@@ -4,7 +4,11 @@ use tree_sitter::Tree;
 
 /// Find all references to a symbol name in a file.
 /// Returns a list of (start_line, start_col, end_line, end_col) ranges.
-pub fn find_references(tree: Option<&Tree>, source: &str, symbol_name: &str) -> Vec<(usize, usize, usize, usize)> {
+pub fn find_references(
+    tree: Option<&Tree>,
+    source: &str,
+    symbol_name: &str,
+) -> Vec<(usize, usize, usize, usize)> {
     let mut refs = Vec::new();
 
     if let Some(tree) = tree {
@@ -23,8 +27,7 @@ fn collect_references(
 ) {
     let node = cursor.node();
 
-    if node.kind() == "identifier"
-        && node.utf8_text(source.as_bytes()).unwrap_or("") == symbol_name
+    if node.kind() == "identifier" && node.utf8_text(source.as_bytes()).unwrap_or("") == symbol_name
     {
         refs.push((
             node.start_position().row,

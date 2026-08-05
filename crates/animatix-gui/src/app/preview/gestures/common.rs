@@ -16,10 +16,7 @@ pub(crate) struct GestureFrame {
 
 /// Shared drag-end lifecycle for all non-marquee handlers.
 /// Must be called exactly once per drag end to preserve source-flush behavior.
-pub(crate) fn finish_drag(
-    ctx: &mut PreviewContext,
-    old_drag_state: super::super::DragState,
-) {
+pub(crate) fn finish_drag(ctx: &mut PreviewContext, old_drag_state: super::super::DragState) {
     // Finalize keyframes for move/scale/rotate
     super::super::drag_utils::finalize_drag_keyframes(&old_drag_state, ctx);
 

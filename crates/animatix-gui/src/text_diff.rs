@@ -21,11 +21,8 @@ pub fn diff_text(old: &str, new: &str) -> Vec<TextEdit> {
     let old_chars: Vec<(usize, char)> = old.char_indices().collect();
     let new_chars: Vec<(usize, char)> = new.char_indices().collect();
 
-    let prefix_chars = old_chars
-        .iter()
-        .zip(&new_chars)
-        .take_while(|((_, a), (_, b))| a == b)
-        .count();
+    let prefix_chars =
+        old_chars.iter().zip(&new_chars).take_while(|((_, a), (_, b))| a == b).count();
 
     let mut suffix_chars = 0usize;
     while prefix_chars + suffix_chars < old_chars.len()
@@ -36,20 +33,14 @@ pub fn diff_text(old: &str, new: &str) -> Vec<TextEdit> {
         suffix_chars += 1;
     }
 
-    let start_byte = old_chars
-        .get(prefix_chars)
-        .map(|(byte, _)| *byte)
-        .unwrap_or(old.len());
+    let start_byte = old_chars.get(prefix_chars).map(|(byte, _)| *byte).unwrap_or(old.len());
     let end_byte = if suffix_chars == 0 {
         old.len()
     } else {
         old_chars[old_chars.len() - suffix_chars].0
     };
 
-    let new_start_byte = new_chars
-        .get(prefix_chars)
-        .map(|(byte, _)| *byte)
-        .unwrap_or(new.len());
+    let new_start_byte = new_chars.get(prefix_chars).map(|(byte, _)| *byte).unwrap_or(new.len());
     let new_end_byte = if suffix_chars == 0 {
         new.len()
     } else {
@@ -75,11 +66,14 @@ mod tests {
     #[test]
     fn replaces_middle_span() {
         let edits = diff_text("hello world", "hello brave world");
-        assert_eq!(edits, vec![TextEdit {
-            start_byte: 6,
-            end_byte: 6,
-            replacement: "brave ".to_string(),
-        }]);
+        assert_eq!(
+            edits,
+            vec![TextEdit {
+                start_byte: 6,
+                end_byte: 6,
+                replacement: "brave ".to_string(),
+            }]
+        );
     }
 
     #[test]

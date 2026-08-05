@@ -51,11 +51,11 @@ impl BuiltinAction for FadeOut {
 
             let start_opacity = track.style.opacity.get(t_start_ms, 1.0);
             if duration_ms > 0.0 {
-                track
-                    .style
-                    .opacity
-                    .ensure(1.0)
-                    .add_keyframe(t_start_ms, start_opacity, Easing::Linear);
+                track.style.opacity.ensure(1.0).add_keyframe(
+                    t_start_ms,
+                    start_opacity,
+                    Easing::Linear,
+                );
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
                 super::ensure_guard_keyframe(&mut track.style.opacity, guard_time, 1.0);
@@ -109,26 +109,25 @@ mod tests {
             time: Time::Seconds(0.0),
             body: vec![
                 text_decl("headline"),
-                Stmt::Action(Action {
-                    verb: "fade-out".to_string(),
-                    targets: vec!["headline".to_string()],
-                    args: vec![],
-                    modifiers: vec![Modifier {
-                        name: None,
-                        value: Expr::Ident("1s".to_string()),
-                    }],
-                    byte_span: None,
-                }, None),
+                Stmt::Action(
+                    Action {
+                        verb: "fade-out".to_string(),
+                        targets: vec!["headline".to_string()],
+                        args: vec![],
+                        modifiers: vec![Modifier {
+                            name: None,
+                            value: Expr::Ident("1s".to_string()),
+                        }],
+                        byte_span: None,
+                    },
+                    None,
+                ),
             ],
             span: None,
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report
-            .output
-            .tracks
-            .get("headline")
-            .expect("headline track");
+        let track = report.output.tracks.get("headline").expect("headline track");
 
         assert_eq!(track.style.opacity.get(0, 1.0), 1.0);
         assert!(track.style.opacity.get(500, 1.0) < 1.0);

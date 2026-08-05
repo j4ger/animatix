@@ -115,23 +115,11 @@ fn test_legend_multiple_colors() {
 
     // Each entry should have a color (the placeholder colors)
     // Series A: red
-    assert_eq!(
-        entries[0].1,
-        [1.0, 0.0, 0.0, 1.0],
-        "Series A should be red"
-    );
+    assert_eq!(entries[0].1, [1.0, 0.0, 0.0, 1.0], "Series A should be red");
     // Series B: green
-    assert_eq!(
-        entries[1].1,
-        [0.0, 1.0, 0.0, 1.0],
-        "Series B should be green"
-    );
+    assert_eq!(entries[1].1, [0.0, 1.0, 0.0, 1.0], "Series B should be green");
     // Series C: blue
-    assert_eq!(
-        entries[2].1,
-        [0.0, 0.0, 1.0, 1.0],
-        "Series C should be blue"
-    );
+    assert_eq!(entries[2].1, [0.0, 0.0, 1.0, 1.0], "Series C should be blue");
 
     // Evaluate at time 0 — verify it doesn't panic with multiple colors
     let dims = SceneDimensions {
@@ -183,7 +171,7 @@ fn test_legend_render_commands_produced() {
         match cmd {
             RenderCommand::Paths { paths } => {
                 assert_eq!(paths.len(), 1, "each command should contain 1 path");
-            }
+            },
             _ => panic!("Command {} should be Paths variant", i),
         }
     }

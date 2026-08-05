@@ -7,9 +7,10 @@
 //! Highlight colour switches between `border::HOVER` (idle hover) and
 //! `accent::PRIMARY` while the handle is being dragged.
 
-use crate::tokens::spatial::{RADIUS_S, SPACE_2, STROKE_WIDTH};
-use crate::{spatial};
 use egui::{CornerRadius, CursorIcon, Id, Rect, Sense, Ui, Vec2};
+
+use crate::spatial;
+use crate::tokens::spatial::{RADIUS_S, SPACE_2, STROKE_WIDTH};
 
 // ── Public API ─────────────────────────────────────────────────────────────────
 
@@ -67,7 +68,11 @@ pub struct ResizeHandle {
 impl ResizeHandle {
     /// Create a new resize handle with the given id and axis.
     pub fn new(id: impl Into<Id>, axis: ResizeAxis) -> Self {
-        Self { id: id.into(), axis, hit_pad: SPACE_2 }
+        Self {
+            id: id.into(),
+            axis,
+            hit_pad: SPACE_2,
+        }
     }
 
     /// Set the extra padding (px) added to the visual width to enlarge the
@@ -121,18 +126,13 @@ impl ResizeHandle {
             ResizeAxis::Vertical => [visual_rect.left_center(), visual_rect.right_center()],
         };
 
-        ui.painter().line_segment(
-            line_endpoints,
-            egui::Stroke::new(line_width, stroke_color),
-        );
+        ui.painter()
+            .line_segment(line_endpoints, egui::Stroke::new(line_width, stroke_color));
 
         // ── Paint a faint background highlight while dragging ──────────────
         if is_dragged {
-            ui.painter().rect_filled(
-                rect,
-                CornerRadius::same(RADIUS_S as u8),
-                t.accent.faint,
-            );
+            ui.painter()
+                .rect_filled(rect, CornerRadius::same(RADIUS_S as u8), t.accent.faint);
         }
 
         // ── Cursor ─────────────────────────────────────────────────────────

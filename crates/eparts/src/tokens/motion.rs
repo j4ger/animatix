@@ -140,11 +140,7 @@ mod tests {
         // At 20% of exit, STANDARD leaves openness at ~0.86.
         // A front-loaded curve (DECELERATE) would drop to ~0.5, stalling.
         let openness_at_20pct = 1.0 - STANDARD.sample(0.2);
-        assert!(
-            openness_at_20pct > 0.8,
-            "Exit drops too fast at start: {}",
-            openness_at_20pct
-        );
+        assert!(openness_at_20pct > 0.8, "Exit drops too fast at start: {}", openness_at_20pct);
 
         // Full sample reaches exactly 1.0
         let sample_1 = STANDARD.sample(1.0);
@@ -157,8 +153,7 @@ mod tests {
 /// A user's motion-preference policy.
 ///
 /// - `Full` — animations play at their defined durations (default).
-/// - `Reduced` — all animations resolve to [`INSTANT`] (0.0 s), snapping
-///   values immediately.
+/// - `Reduced` — all animations resolve to [`INSTANT`] (0.0 s), snapping values immediately.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum MotionPreference {
     /// Play animations normally.
@@ -201,4 +196,3 @@ pub fn resolve_duration(pref: MotionPreference, transition: Transition) -> f32 {
         MotionPreference::Full => transition.duration,
     }
 }
-

@@ -5,10 +5,11 @@ use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
 use crate::primitives::{ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, Primitive};
 use crate::timeline::image::load_image;
-use crate::timeline::preserve_instant_delayed_value;
 use crate::timeline::property_lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
+use crate::timeline::{
+    AnimationTrack, Environment, SceneDimensions, Value, preserve_instant_delayed_value,
+};
 
 /// The `Image` primitive.
 pub struct ImagePrimitive;

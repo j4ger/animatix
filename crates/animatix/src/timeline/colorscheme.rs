@@ -11,11 +11,12 @@
 //!
 //! Colorscheme resolution is build-time, not frame-time, for deterministic preview/export.
 
+use std::collections::BTreeMap;
+
 use crate::ast::{Expr, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::timeline::env::{Environment, Value};
 use crate::timeline::utils::parse_color;
-use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// Built-in colorscheme presets.
@@ -65,7 +66,7 @@ impl BuiltInColorscheme {
                     [1.0, 0.46, 0.54, 1.0],
                     [0.98, 0.83, 0.44, 1.0],
                 ]
-            }
+            },
             Self::DefaultLight => {
                 colors.insert("scene.background".to_string(), [0.97, 0.98, 1.0, 1.0]);
                 colors.insert("text.primary".to_string(), [0.08, 0.1, 0.14, 1.0]);
@@ -88,7 +89,7 @@ impl BuiltInColorscheme {
                     [0.84, 0.29, 0.35, 1.0],
                     [0.86, 0.62, 0.12, 1.0],
                 ]
-            }
+            },
             Self::EditorialDark => {
                 colors.insert("scene.background".to_string(), [0.04, 0.06, 0.09, 1.0]);
                 colors.insert("text.primary".to_string(), [0.97, 0.98, 1.0, 1.0]);
@@ -111,7 +112,7 @@ impl BuiltInColorscheme {
                     [1.0, 0.46, 0.54, 1.0],
                     [0.98, 0.83, 0.44, 1.0],
                 ]
-            }
+            },
         };
 
         let name = match self {

@@ -1,15 +1,20 @@
-use crate::error::GuiError;
-use animatix_syntax::ast::{Expr, Stmt};
-use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
-use animatix::composition::{BuildTarget, Composition};
-use animatix_syntax::module::{ActionTemplate, ComponentEntry, ModuleError, ModuleGraph, Namespace};
-use animatix_syntax::source_index::SourceIndex;
-use animatix::timeline::{AnimationTrack, SceneDimensions, Timeline, TimelineIndex};
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
 use std::fs;
 use std::hash::{Hash, Hasher};
+use std::io::Write;
 use std::path::{Path, PathBuf};
+
+use animatix::composition::{BuildTarget, Composition};
+use animatix::timeline::{AnimationTrack, SceneDimensions, Timeline, TimelineIndex};
+use animatix_syntax::ast::{Expr, Stmt};
+use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use animatix_syntax::module::{
+    ActionTemplate, ComponentEntry, ModuleError, ModuleGraph, Namespace,
+};
+use animatix_syntax::source_index::SourceIndex;
+
+use crate::error::GuiError;
 
 /// Result of loading and parsing a program.
 pub struct LoadedProgramResult {
@@ -59,8 +64,10 @@ pub struct DocumentSession {
 
 impl DocumentSession {
     pub fn load(file_path: PathBuf) -> Result<Self, GuiError> {
-        let source_text = fs::read_to_string(&file_path)
-            .map_err(|err| GuiError::Io { path: file_path.clone(), source: err })?;
+        let source_text = fs::read_to_string(&file_path).map_err(|err| GuiError::Io {
+            path: file_path.clone(),
+            source: err,
+        })?;
 
         let mut document = Self {
             file_path,
@@ -186,19 +193,15 @@ impl DocumentSession {
 
     pub fn reload_from_disk(&mut self) -> Result<(), GuiError> {
         let path = self.file_path.clone();
-        self.source_text = fs::read_to_string(&path)
-            .map_err(|err| GuiError::Io { path, source: err })?;
+        self.source_text =
+            fs::read_to_string(&path).map_err(|err| GuiError::Io { path, source: err })?;
         self.is_dirty = false;
-        if let Err(e) = self.rebuild() {
-            tracing::warn!("Document reload rebuild failed: {}", e);
-        }
         Ok(())
     }
 
     pub fn save_to_disk(&mut self) -> Result<(), GuiError> {
         let path = self.file_path.clone();
-        fs::write(&path, &self.source_text)
-            .map_err(|err| GuiError::Io { path, source: err })?;
+        atomic_write(&path, &self.source_text)?;
         self.is_dirty = false;
         Ok(())
     }
@@ -208,7 +211,9 @@ impl DocumentSession {
         let mut hasher = DefaultHasher::new();
         self.source_text.hash(&mut hasher);
         let source_hash = hasher.finish();
-        if source_hash == self.last_source_hash && (self.timeline.is_some() || self.composition.is_some()) {
+        if source_hash == self.last_source_hash
+            && (self.timeline.is_some() || self.composition.is_some())
+        {
             return Ok(());
         }
 
@@ -233,8 +238,10 @@ impl DocumentSession {
                 self.diagnostics = diagnostics_from_module_error(&err, &self.file_path);
                 self.duration_s = 0.1;
                 self.scene_dimensions = SceneDimensions::default();
-                return Err(GuiError::Build { message: err_string });
-            }
+                return Err(GuiError::Build {
+                    message: err_string,
+                });
+            },
         };
 
         // Build source index from raw (non-expanded) statements
@@ -265,10 +272,7 @@ impl DocumentSession {
             .map(|t| t.plot_path_cache.clone())
             .or_else(|| {
                 self.composition.as_ref().and_then(|c| {
-                    c.scenes
-                        .values()
-                        .next()
-                        .map(|s| s.timeline.plot_path_cache.clone())
+                    c.scenes.values().next().map(|s| s.timeline.plot_path_cache.clone())
                 })
             })
             .unwrap_or_default();
@@ -279,12 +283,22 @@ impl DocumentSession {
         let old_modifier_data: Option<(u64, Vec<_>, Vec<_>)> = self
             .timeline
             .as_ref()
-            .map(|t| (t.modifier_hash, t.modifier_programs.clone(), t.modifier_bytecode_programs.clone()))
+            .map(|t| {
+                (
+                    t.modifier_hash,
+                    t.modifier_programs.clone(),
+                    t.modifier_bytecode_programs.clone(),
+                )
+            })
             .or_else(|| {
                 self.composition.as_ref().and_then(|c| {
                     c.scenes.values().next().map(|s| {
                         let t = &s.timeline;
-                        (t.modifier_hash, t.modifier_programs.clone(), t.modifier_bytecode_programs.clone())
+                        (
+                            t.modifier_hash,
+                            t.modifier_programs.clone(),
+                            t.modifier_bytecode_programs.clone(),
+                        )
                     })
                 })
             });
@@ -302,7 +316,7 @@ impl DocumentSession {
                 self.timeline = Some(timeline);
                 self.composition = None;
                 self.active_scene = None;
-            }
+            },
             BuildTarget::MultiScene(mut composition) => {
                 if self
                     .active_scene
@@ -323,7 +337,7 @@ impl DocumentSession {
                 }
                 self.timeline = None;
                 self.composition = Some(composition);
-            }
+            },
         }
 
         // Build timeline index from source text (bi-directional sync)
@@ -339,7 +353,11 @@ impl DocumentSession {
     /// Apply a successful background rebuild output to this session.
     /// Carries forward caches (plot_path_cache, modifier programs) from the
     /// current session since the background worker started from a fresh session.
-    pub fn apply_rebuild_output(&mut self, output: crate::app::document::rebuild_output::RebuildOutput, source_hash: u64) {
+    pub fn apply_rebuild_output(
+        &mut self,
+        output: crate::app::document::rebuild_output::RebuildOutput,
+        source_hash: u64,
+    ) {
         // Phase 6.4: Preserve plot path cache across rebuilds.
         let old_plot_cache = self
             .timeline
@@ -347,10 +365,7 @@ impl DocumentSession {
             .map(|t| t.plot_path_cache.clone())
             .or_else(|| {
                 self.composition.as_ref().and_then(|c| {
-                    c.scenes
-                        .values()
-                        .next()
-                        .map(|s| s.timeline.plot_path_cache.clone())
+                    c.scenes.values().next().map(|s| s.timeline.plot_path_cache.clone())
                 })
             })
             .unwrap_or_default();
@@ -432,7 +447,10 @@ impl DocumentSession {
     }
 
     /// Apply a failed background rebuild output to this session.
-    pub fn apply_rebuild_failure(&mut self, failure: &crate::app::document::rebuild_output::RebuildFailure) {
+    pub fn apply_rebuild_failure(
+        &mut self,
+        failure: &crate::app::document::rebuild_output::RebuildFailure,
+    ) {
         self.last_rebuild_error = Some(failure.error.clone());
         // Mirror the error arm of rebuild(): clear built state
         self.raw_statements = None;
@@ -454,12 +472,14 @@ impl DocumentSession {
     /// Skips component expansion when the component registry hasn't changed.
     fn load_program(&mut self) -> Result<LoadedProgramResult, ModuleError> {
         let mut graph = if self.use_tree_sitter {
-            self.cached_module_graph.take().unwrap_or_else(ModuleGraph::new_with_tree_sitter)
+            self.cached_module_graph
+                .take()
+                .unwrap_or_else(ModuleGraph::new_with_tree_sitter)
         } else {
             self.cached_module_graph.take().unwrap_or_default()
         };
-        let mut program = graph
-            .load_program_with_source(&self.file_path, Some(&self.source_text))?;
+        let mut program =
+            graph.load_program_with_source(&self.file_path, Some(&self.source_text))?;
         let type_diagnostics = program.typecheck();
 
         // Hash the component registry to detect changes.
@@ -476,10 +496,15 @@ impl DocumentSession {
         };
 
         // Skip expansion if components haven't changed and we have cached results.
-        let expanded_statements = if component_hash == self.last_component_hash
-            && self.cached_expanded.is_some()
-        {
-            self.cached_expanded.clone().unwrap()
+        let expanded_statements = if component_hash == self.last_component_hash {
+            if let Some(expanded) = self.cached_expanded.clone() {
+                expanded
+            } else {
+                let expanded = program.expand_components();
+                self.cached_expanded = Some(expanded.clone());
+                self.last_component_hash = component_hash;
+                expanded
+            }
         } else {
             let expanded = program.expand_components();
             self.cached_expanded = Some(expanded.clone());
@@ -506,8 +531,9 @@ impl DocumentSession {
     /// Collect all audio segments from the timeline or composition, resolving
     /// relative source paths relative to the document's directory.
     pub fn all_audio_segments(&self) -> Vec<animatix::timeline::AudioSegment> {
-        use animatix::timeline::AudioSegment;
         use std::path::Path;
+
+        use animatix::timeline::AudioSegment;
 
         let doc_dir = self.file_path.parent().unwrap_or(Path::new(""));
 
@@ -549,13 +575,13 @@ impl DocumentSession {
 
     /// Find the absolute time of the keyframe immediately before `time_s`.
     pub fn prev_keyframe_time(&self, time_s: f64) -> f64 {
-        let keyframes = timeline_keyframe_times_s(self.active_timeline(), self.composition.as_ref(), self.active_scene.as_deref());
+        let keyframes = timeline_keyframe_times_s(
+            self.active_timeline(),
+            self.composition.as_ref(),
+            self.active_scene.as_deref(),
+        );
         if !keyframes.is_empty() {
-            return keyframes
-                .into_iter()
-                .rev()
-                .find(|t| *t <= time_s)
-                .unwrap_or(0.0);
+            return keyframes.into_iter().rev().find(|t| *t <= time_s).unwrap_or(0.0);
         }
 
         self.timeline_index
@@ -584,7 +610,9 @@ impl DocumentSession {
     /// For single-scene documents, returns a reference directly.
     /// For compositions, resolves the active scene (or falls back to
     /// declaration order / entry scene).
-    pub fn active_timeline_ref(&self) -> Option<crate::app::document::active_timeline::ActiveTimelineRef<'_>> {
+    pub fn active_timeline_ref(
+        &self,
+    ) -> Option<crate::app::document::active_timeline::ActiveTimelineRef<'_>> {
         use crate::app::document::active_timeline::{ActiveSceneId, ActiveTimelineRef};
 
         if let Some(timeline) = self.timeline.as_ref() {
@@ -609,10 +637,7 @@ impl DocumentSession {
                     .first()
                     .and_then(|name| composition.scenes.get(name).map(|s| (name.as_str(), s)))
             })
-
-            .or_else(|| {
-                composition.scenes.iter().next().map(|(name, s)| (name.as_str(), s))
-            })?;
+            .or_else(|| composition.scenes.iter().next().map(|(name, s)| (name.as_str(), s)))?;
 
         Some(ActiveTimelineRef {
             id: ActiveSceneId::Scene(scene_name.to_string()),
@@ -627,7 +652,9 @@ impl DocumentSession {
     /// Returns a mutable `ActiveTimelineMut` for editing the active scene.
     /// For single-scene documents, returns the sole timeline mutably.
     /// For compositions, resolves the active scene similarly.
-    pub fn active_timeline_mut(&mut self) -> Option<crate::app::document::active_timeline::ActiveTimelineMut<'_>> {
+    pub fn active_timeline_mut(
+        &mut self,
+    ) -> Option<crate::app::document::active_timeline::ActiveTimelineMut<'_>> {
         use crate::app::document::active_timeline::{ActiveSceneId, ActiveTimelineMut};
 
         if let Some(timeline) = self.timeline.as_mut() {
@@ -642,16 +669,8 @@ impl DocumentSession {
         let scene_name = self
             .active_scene
             .clone()
-            .or_else(|| {
-                composition
-                    .declaration_order
-                    .first()
-                    .cloned()
-            })
-
-            .or_else(|| {
-                composition.scenes.keys().next().cloned()
-            })?;
+            .or_else(|| composition.declaration_order.first().cloned())
+            .or_else(|| composition.scenes.keys().next().cloned())?;
 
         if !composition.scenes.contains_key(&scene_name) {
             return None;
@@ -667,9 +686,10 @@ impl DocumentSession {
     /// Resolve an export target for the given scope.
     /// For single-scene documents, always returns the timeline.
     /// For compositions, returns the whole composition or active scene timeline.
-    pub fn export_target(&self, scope: crate::app::document::export_target::ExportScope)
-        -> Option<crate::app::document::export_target::ExportTargetRef<'_>>
-    {
+    pub fn export_target(
+        &self,
+        scope: crate::app::document::export_target::ExportScope,
+    ) -> Option<crate::app::document::export_target::ExportTargetRef<'_>> {
         use crate::app::document::export_target::{ExportScope, ExportTargetRef};
 
         match scope {
@@ -680,7 +700,7 @@ impl DocumentSession {
                     duration_s: tr.duration_s,
                     dimensions: tr.dimensions,
                 })
-            }
+            },
             ExportScope::WholeComposition => {
                 let composition = self.composition.as_ref()?;
                 Some(ExportTargetRef::Composition {
@@ -688,7 +708,7 @@ impl DocumentSession {
                     duration_s: composition.global_duration_s.max(0.1),
                     dimensions: self.scene_dimensions,
                 })
-            }
+            },
         }
     }
 
@@ -727,7 +747,7 @@ fn document_scene_dimensions(ast: &[Stmt]) -> SceneDimensions {
                             width: width.round() as u32,
                             height: height.round() as u32,
                         })
-                    }
+                    },
                     _ => None,
                 }
             }),
@@ -745,13 +765,7 @@ pub fn timeline_duration_seconds(
     composition: Option<&Composition>,
 ) -> f64 {
     if let Some(timeline) = timeline {
-        timeline
-            .tracks()
-            .values()
-            .map(track_max_ms)
-            .max()
-            .unwrap_or(0) as f64
-            / 1000.0
+        timeline.tracks().values().map(track_max_ms).max().unwrap_or(0) as f64 / 1000.0
     } else {
         composition.map(|c| c.global_duration_s).unwrap_or(0.0)
     }
@@ -793,24 +807,55 @@ pub fn default_file_path() -> PathBuf {
 /// Other module errors become a single `SourceLoadFailure` diagnostic.
 fn diagnostics_from_module_error(err: &ModuleError, file_path: &Path) -> Vec<Diagnostic> {
     match err {
-        ModuleError::ParseErrors(parse_errors) => parse_errors
-            .iter()
-            .map(|e| e.to_diagnostic().with_path(file_path))
-            .collect(),
-        _ => vec![Diagnostic::error(
-            DiagnosticCode::SourceLoadFailure,
-            DiagnosticPhase::Parse,
-            err.to_string(),
-        )
-        .with_path(file_path)],
+        ModuleError::ParseErrors(parse_errors) => {
+            parse_errors.iter().map(|e| e.to_diagnostic().with_path(file_path)).collect()
+        },
+        _ => vec![
+            Diagnostic::error(
+                DiagnosticCode::SourceLoadFailure,
+                DiagnosticPhase::Parse,
+                err.to_string(),
+            )
+            .with_path(file_path),
+        ],
     }
+}
+
+fn atomic_write(path: &Path, contents: &str) -> Result<(), GuiError> {
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let file_name = path.file_name().and_then(|name| name.to_str()).unwrap_or("animatix");
+    let temp_path = parent.join(format!(".{file_name}.{}.tmp", std::process::id()));
+
+    let write_result = (|| -> std::io::Result<()> {
+        let mut file = fs::File::create(&temp_path)?;
+        file.write_all(contents.as_bytes())?;
+        file.sync_all()?;
+        drop(file);
+
+        #[cfg(windows)]
+        if path.exists() {
+            fs::remove_file(path)?;
+        }
+
+        fs::rename(&temp_path, path)
+    })();
+
+    if write_result.is_err() {
+        let _ = fs::remove_file(&temp_path);
+    }
+    write_result.map_err(|err| GuiError::Io {
+        path: path.to_path_buf(),
+        source: err,
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use animatix_syntax::ast::{Property, Time};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    use animatix_syntax::ast::{Property, Time};
+
+    use super::*;
 
     fn temp_project_dir(name: &str) -> Result<PathBuf, GuiError> {
         let unique = SystemTime::now()
@@ -823,15 +868,24 @@ mod tests {
             std::process::id(),
             unique
         ));
-        fs::create_dir_all(&dir).map_err(|err| GuiError::Io { path: dir.clone(), source: err })?;
+        fs::create_dir_all(&dir).map_err(|err| GuiError::Io {
+            path: dir.clone(),
+            source: err,
+        })?;
         Ok(dir)
     }
 
     fn write_file(path: &Path, contents: &str) -> Result<(), GuiError> {
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(|err| GuiError::Io { path: parent.to_path_buf(), source: err })?;
+            fs::create_dir_all(parent).map_err(|err| GuiError::Io {
+                path: parent.to_path_buf(),
+                source: err,
+            })?;
         }
-        fs::write(path, contents).map_err(|err| GuiError::Io { path: path.to_path_buf(), source: err })?;
+        fs::write(path, contents).map_err(|err| GuiError::Io {
+            path: path.to_path_buf(),
+            source: err,
+        })?;
         Ok(())
     }
 
@@ -853,7 +907,7 @@ mod tests {
                             animatix_syntax::ast::Expr::Num(100.0),
                         ]),
                         value_span: None,
-                    trailing_comment: None,
+                        trailing_comment: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -864,7 +918,9 @@ mod tests {
             Stmt::RelativeKeyframe {
                 offset: Time::Seconds(2.0),
                 body: vec![Stmt::Assignment {
-                    target: vec![animatix_syntax::ast::TargetSegment::Static("box".to_string())],
+                    target: vec![animatix_syntax::ast::TargetSegment::Static(
+                        "box".to_string(),
+                    )],
                     property: "scale".to_string(),
                     value: animatix_syntax::ast::Expr::Num(0.5),
                     modifiers: vec![],
@@ -887,7 +943,7 @@ mod tests {
                 name: "resolution".to_string(),
                 value: Expr::Tuple(vec![Expr::Num(1280.0), Expr::Num(720.0)]),
                 value_span: None,
-            trailing_comment: None,
+                trailing_comment: None,
             }],
             span: None,
         }];
@@ -938,7 +994,7 @@ mod tests {
                         name: "size".to_string(),
                         value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
                         value_span: None,
-                    trailing_comment: None,
+                        trailing_comment: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -949,7 +1005,9 @@ mod tests {
             Stmt::RelativeKeyframe {
                 offset: Time::Seconds(1.0),
                 body: vec![Stmt::Assignment {
-                    target: vec![animatix_syntax::ast::TargetSegment::Static("box".to_string())],
+                    target: vec![animatix_syntax::ast::TargetSegment::Static(
+                        "box".to_string(),
+                    )],
                     property: "scale".to_string(),
                     value: Expr::Num(0.5),
                     modifiers: vec![],
@@ -962,7 +1020,9 @@ mod tests {
             Stmt::RelativeKeyframe {
                 offset: Time::Seconds(1.0),
                 body: vec![Stmt::Assignment {
-                    target: vec![animatix_syntax::ast::TargetSegment::Static("box".to_string())],
+                    target: vec![animatix_syntax::ast::TargetSegment::Static(
+                        "box".to_string(),
+                    )],
                     property: "stroke_width".to_string(),
                     value: Expr::Num(4.0),
                     modifiers: vec![],
@@ -975,7 +1035,9 @@ mod tests {
             Stmt::RelativeKeyframe {
                 offset: Time::Seconds(1.5),
                 body: vec![Stmt::Assignment {
-                    target: vec![animatix_syntax::ast::TargetSegment::Static("box".to_string())],
+                    target: vec![animatix_syntax::ast::TargetSegment::Static(
+                        "box".to_string(),
+                    )],
                     property: "scale".to_string(),
                     value: Expr::Num(1.0),
                     modifiers: vec![],
@@ -1017,7 +1079,8 @@ pub component MetricCard(title: "Default") {
     badge.color = red
 }
 "#,
-        ).unwrap();
+        )
+        .unwrap();
 
         write_file(
             &entry,
@@ -1027,7 +1090,8 @@ import "./components.amx"
 
 card: MetricCard, title: "Latency"
 "#,
-        ).unwrap();
+        )
+        .unwrap();
 
         let document = DocumentSession::load(entry).expect("document should rebuild");
         let timeline = document.timeline.as_ref().expect("timeline should exist");
@@ -1069,7 +1133,8 @@ title: Text, text: "Welcome"
 #0s
 graph: Rect, size: (400, 400)
 "#,
-        ).unwrap();
+        )
+        .unwrap();
 
         let document = DocumentSession::load(entry).expect("document should rebuild");
         assert!(document.is_composition());
@@ -1095,7 +1160,8 @@ pub component MetricCard(title: "One") {
     title_text: Text { text: title }
 }
 "#,
-        ).unwrap();
+        )
+        .unwrap();
 
         write_file(
             &second,
@@ -1104,7 +1170,8 @@ pub component MetricCard(title: "Two") {
     title_text: Text { text: title }
 }
 "#,
-        ).unwrap();
+        )
+        .unwrap();
 
         write_file(
             &entry,
@@ -1114,32 +1181,24 @@ import "./second.amx"
 
 card: MetricCard
 "#,
-        ).unwrap();
+        )
+        .unwrap();
 
         let mut document = DocumentSession::from_error(entry.clone());
         document.source_text = fs::read_to_string(&entry)
             .unwrap_or_else(|_| panic!("failed to read test file: {:?}", &entry));
 
-        let error = document
-            .rebuild()
-            .expect_err("duplicate exports should fail");
+        let error = document.rebuild().expect_err("duplicate exports should fail");
 
         assert!(error.to_string().contains("Duplicate component export 'MetricCard'"));
         assert!(document.expanded_statements.is_none());
         assert!(document.timeline.is_none());
         assert_eq!(document.diagnostics.len(), 1);
         let diagnostic = &document.diagnostics[0];
-        assert_eq!(
-            diagnostic.severity,
-            animatix_syntax::diagnostics::DiagnosticSeverity::Error
-        );
+        assert_eq!(diagnostic.severity, animatix_syntax::diagnostics::DiagnosticSeverity::Error);
         assert_eq!(diagnostic.phase, DiagnosticPhase::Parse);
         assert_eq!(diagnostic.code, DiagnosticCode::SourceLoadFailure);
-        assert!(
-            diagnostic
-                .message
-                .contains("Duplicate component export 'MetricCard'")
-        );
+        assert!(diagnostic.message.contains("Duplicate component export 'MetricCard'"));
         assert_eq!(diagnostic.location.path.as_ref(), Some(&entry));
         assert!(
             document
@@ -1162,37 +1221,43 @@ card: MetricCard
             r#"
 scene: Rect, size: (100, 100)
 "#,
-        ).unwrap();
+        )
+        .unwrap();
 
         let mut document =
             DocumentSession::load(entry.clone()).expect("valid document should load");
         document.set_source_text("scene: Rect {".to_string());
 
-        let error = document
-            .rebuild()
-            .expect_err("invalid source should fail rebuild");
+        let error = document.rebuild().expect_err("invalid source should fail rebuild");
 
         assert!(!error.to_string().is_empty());
         assert!(document.expanded_statements.is_none());
         assert!(document.timeline.is_none());
         assert_eq!(document.diagnostics.len(), 1);
         let diagnostic = &document.diagnostics[0];
-        assert_eq!(
-            diagnostic.severity,
-            animatix_syntax::diagnostics::DiagnosticSeverity::Error
-        );
+        assert_eq!(diagnostic.severity, animatix_syntax::diagnostics::DiagnosticSeverity::Error);
         assert_eq!(diagnostic.phase, DiagnosticPhase::Parse);
         assert_eq!(diagnostic.code, DiagnosticCode::ParseError);
-        assert!(
-            !diagnostic.message.is_empty(),
-            "parse error message should not be empty"
-        );
+        assert!(!diagnostic.message.is_empty(), "parse error message should not be empty");
         assert!(diagnostic.location.line.is_some());
         assert!(diagnostic.location.column.is_some());
         assert_eq!(diagnostic.location.path.as_ref(), Some(&entry));
         assert!(document.last_rebuild_error.is_some());
         assert_eq!(document.duration_s, 0.1);
         assert_eq!(document.scene_dimensions, SceneDimensions::default());
+    }
+
+    #[test]
+    fn atomic_write_replaces_existing_file() {
+        let dir = temp_project_dir("document_atomic_write").unwrap();
+        let entry = dir.join("scene.amx");
+        std::fs::write(&entry, "old").unwrap();
+
+        atomic_write(&entry, "new").unwrap();
+
+        assert_eq!(std::fs::read_to_string(&entry).unwrap(), "new");
+        let temp_path = dir.join(format!(".scene.amx.{}.tmp", std::process::id()));
+        assert!(!temp_path.exists());
     }
 
     #[test]

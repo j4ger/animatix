@@ -1,6 +1,7 @@
-use crate::app::design_tokens::semantic::diagnostic as diag;
 use animatix_syntax::diagnostics::Diagnostic;
 use eparts::widget::diagnostics::{DiagnosticEntry, DiagnosticTarget};
+
+use crate::app::design_tokens::semantic::diagnostic as diag;
 
 /// Thin wrapper around `animatix_syntax::diagnostics::Diagnostic` so we can
 /// implement the foreign `eparts::DiagnosticEntry` trait without violating

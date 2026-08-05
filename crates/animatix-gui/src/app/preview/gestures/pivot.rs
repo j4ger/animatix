@@ -4,19 +4,24 @@
 
 use crate::app::commands::{DragEvent, ShellAction};
 use crate::app::design_tokens::spatial::preview::HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS;
-use crate::app::preview::DragState;
-use crate::app::preview::drag_utils;
 use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
+use crate::app::preview::{DragState, drag_utils};
 
 pub(crate) struct PivotGesture;
 
 impl GestureHandler for PivotGesture {
-    fn handle(&mut self, gesture: &Gesture, ctx: &mut crate::app::preview::context::PreviewContext, preview_rect: egui::Rect) -> GestureResult {
+    fn handle(
+        &mut self,
+        gesture: &Gesture,
+        ctx: &mut crate::app::preview::context::PreviewContext,
+        preview_rect: egui::Rect,
+    ) -> GestureResult {
         match gesture {
             Gesture::DragStart { pos, .. } => {
                 // Only handle Pivot or Select tool mode
                 match *ctx.tool_mode {
-                    crate::app::preview::ToolMode::Pivot | crate::app::preview::ToolMode::Select => {},
+                    crate::app::preview::ToolMode::Pivot
+                    | crate::app::preview::ToolMode::Select => {},
                     _ => return GestureResult::Ignored,
                 }
 
@@ -86,8 +91,7 @@ impl GestureHandler for PivotGesture {
                     let sin = (-p.rotation).sin();
                     let local_dx = dx * cos - dy * sin;
                     let local_dy = dx * sin + dy * cos;
-                    ctx
-                        .pivot_offsets
+                    ctx.pivot_offsets
                         .insert(actor, [start_offset[0] + local_dx, start_offset[1] + local_dy]);
                 }
 

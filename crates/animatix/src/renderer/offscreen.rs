@@ -1,7 +1,7 @@
-use crate::timeline::filter::FilterBackend;
 use super::core::RendererCore;
 use super::filter_backend::GpuFilterBackend;
 use super::transition::TransitionCompositor;
+use crate::timeline::filter::FilterBackend;
 use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
 /// A single frame rendered to CPU-accessible RGBA memory.
@@ -67,7 +67,8 @@ impl OffscreenRenderer {
             .await
             .map_err(|err| format!("Failed to create device: {err}"))?;
 
-        let core = RendererCore::new(&device, &queue).map_err(|e| format!("Renderer init failed: {e}"))?;
+        let core =
+            RendererCore::new(&device, &queue).map_err(|e| format!("Renderer init failed: {e}"))?;
 
         Ok(Self {
             device,
@@ -119,18 +120,17 @@ impl OffscreenRenderer {
         // Evaluate timeline with filter backend support.
         // Reuse cached backend if dimensions match, otherwise recreate.
         if self.filter_backend_dimensions != Some(dimensions) {
-            self.filter_backend = Some(GpuFilterBackend::new(
-                self.device.clone(),
-                self.queue.clone(),
-                dimensions,
-            )?);
+            self.filter_backend =
+                Some(GpuFilterBackend::new(self.device.clone(), self.queue.clone(), dimensions)?);
             self.filter_backend_dimensions = Some(dimensions);
         }
         let filter_backend = self.filter_backend.as_mut().unwrap();
         let mut fb: Option<&mut dyn crate::timeline::filter::FilterBackend> = Some(filter_backend);
         let scene = timeline.evaluate_with_debug(time_s, dimensions, debug_options, &mut fb);
 
-        let output_view = self.output_view.as_ref()
+        let output_view = self
+            .output_view
+            .as_ref()
             .ok_or_else(|| "Missing offscreen output view".to_string())?;
 
         self.core
@@ -183,11 +183,17 @@ impl OffscreenRenderer {
 
         let mut fb = None;
         let scene = timeline.evaluate_with_debug(time_s, dimensions, debug_options, &mut fb);
-        let view_a = self.view_a.as_ref()
-            .ok_or_else(|| "Missing offscreen view_a".to_string())?;
+        let view_a = self.view_a.as_ref().ok_or_else(|| "Missing offscreen view_a".to_string())?;
 
         self.core
-            .render_vello_scene(&self.device, &self.queue, view_a, dimensions.width, dimensions.height, &scene)
+            .render_vello_scene(
+                &self.device,
+                &self.queue,
+                view_a,
+                dimensions.width,
+                dimensions.height,
+                &scene,
+            )
             .map_err(|e| e.to_string())?;
 
         self.texture_a.as_ref().ok_or_else(|| "Missing offscreen texture_a".to_string())
@@ -210,11 +216,17 @@ impl OffscreenRenderer {
 
         let mut fb = None;
         let scene = timeline.evaluate_with_debug(time_s, dimensions, debug_options, &mut fb);
-        let view_b = self.view_b.as_ref()
-            .ok_or_else(|| "Missing offscreen view_b".to_string())?;
+        let view_b = self.view_b.as_ref().ok_or_else(|| "Missing offscreen view_b".to_string())?;
 
         self.core
-            .render_vello_scene(&self.device, &self.queue, view_b, dimensions.width, dimensions.height, &scene)
+            .render_vello_scene(
+                &self.device,
+                &self.queue,
+                view_b,
+                dimensions.width,
+                dimensions.height,
+                &scene,
+            )
             .map_err(|e| e.to_string())?;
 
         self.texture_b.as_ref().ok_or_else(|| "Missing offscreen texture_b".to_string())
@@ -242,61 +254,88 @@ impl OffscreenRenderer {
 
         // Lazy-init compositor
         if self.compositor.is_none() {
-            self.compositor = Some(TransitionCompositor::new(&self.device).map_err(|e| e.to_string())?);
+            self.compositor =
+                Some(TransitionCompositor::new(&self.device).map_err(|e| e.to_string())?);
         }
-        let compositor = self.compositor.as_ref().ok_or_else(|| "Missing compositor".to_string())?;
+        let compositor =
+            self.compositor.as_ref().ok_or_else(|| "Missing compositor".to_string())?;
 
         // Render from scene to texture_a, then drop scene_a before creating scene_b
         // to avoid holding both large vello::Scene objects simultaneously.
         {
             let mut fb = None;
-            let scene_a = from_timeline.evaluate_with_debug(from_time, dimensions, debug_options, &mut fb);
-            let view_a = self.view_a.as_ref()
-                .ok_or_else(|| "Missing offscreen view_a".to_string())?;
+            let scene_a =
+                from_timeline.evaluate_with_debug(from_time, dimensions, debug_options, &mut fb);
+            let view_a =
+                self.view_a.as_ref().ok_or_else(|| "Missing offscreen view_a".to_string())?;
             self.core
-                .render_vello_scene(&self.device, &self.queue, view_a, dimensions.width, dimensions.height, &scene_a)
+                .render_vello_scene(
+                    &self.device,
+                    &self.queue,
+                    view_a,
+                    dimensions.width,
+                    dimensions.height,
+                    &scene_a,
+                )
                 .map_err(|e| e.to_string())?;
         }
 
         // Render to scene to texture_b
         {
             let mut fb = None;
-            let scene_b = to_timeline.evaluate_with_debug(to_time, dimensions, debug_options, &mut fb);
-            let view_b = self.view_b.as_ref()
-                .ok_or_else(|| "Missing offscreen view_b".to_string())?;
+            let scene_b =
+                to_timeline.evaluate_with_debug(to_time, dimensions, debug_options, &mut fb);
+            let view_b =
+                self.view_b.as_ref().ok_or_else(|| "Missing offscreen view_b".to_string())?;
             self.core
-                .render_vello_scene(&self.device, &self.queue, view_b, dimensions.width, dimensions.height, &scene_b)
+                .render_vello_scene(
+                    &self.device,
+                    &self.queue,
+                    view_b,
+                    dimensions.width,
+                    dimensions.height,
+                    &scene_b,
+                )
                 .map_err(|e| e.to_string())?;
         }
 
         // Composite to output_texture
-        let output_view = self.output_view.as_ref()
+        let output_view = self
+            .output_view
+            .as_ref()
             .ok_or_else(|| "Missing offscreen output view".to_string())?;
-        let view_a = self.view_a.as_ref()
-            .ok_or_else(|| "Missing offscreen view_a".to_string())?;
-        let view_b = self.view_b.as_ref()
-            .ok_or_else(|| "Missing offscreen view_b".to_string())?;
-        compositor.render(
-            &self.device,
-            &self.queue,
-            view_a,
-            view_b,
-            output_view,
-            dimensions.width,
-            dimensions.height,
-            progress,
-            &transition_id,
-            easing,
-        ).map_err(|e| e.to_string())?;
+        let view_a = self.view_a.as_ref().ok_or_else(|| "Missing offscreen view_a".to_string())?;
+        let view_b = self.view_b.as_ref().ok_or_else(|| "Missing offscreen view_b".to_string())?;
+        compositor
+            .render(
+                &self.device,
+                &self.queue,
+                view_a,
+                view_b,
+                output_view,
+                dimensions.width,
+                dimensions.height,
+                progress,
+                &transition_id,
+                easing,
+            )
+            .map_err(|e| e.to_string())?;
 
         self.readback_output(dimensions)
     }
 
     /// Copy the output texture to the output buffer and read back CPU-visible RGBA data.
-    pub fn readback_output(&mut self, dimensions: SceneDimensions) -> Result<RenderedFrame, String> {
-        let output_texture = self.output_texture.as_ref()
+    pub fn readback_output(
+        &mut self,
+        dimensions: SceneDimensions,
+    ) -> Result<RenderedFrame, String> {
+        let output_texture = self
+            .output_texture
+            .as_ref()
             .ok_or_else(|| "Missing offscreen output texture".to_string())?;
-        let output_buffer = self.output_buffer.as_ref()
+        let output_buffer = self
+            .output_buffer
+            .as_ref()
             .ok_or_else(|| "Missing offscreen output buffer".to_string())?;
 
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -473,7 +512,14 @@ mod tests {
         };
 
         let timeline = Timeline::new();
-        let result = renderer.render_timeline(&timeline, 0.0, SceneDimensions { width: 0, height: 0 });
+        let result = renderer.render_timeline(
+            &timeline,
+            0.0,
+            SceneDimensions {
+                width: 0,
+                height: 0,
+            },
+        );
         assert!(result.is_err(), "zero dimensions should error");
         assert!(result.unwrap_err().contains("greater than zero"), "should give clear error");
     }
@@ -497,7 +543,10 @@ mod tests {
         timeline.tracks.insert("test".to_string(), track);
         timeline.root_nodes.push("test".to_string());
 
-        let dimensions = SceneDimensions { width: 100, height: 100 };
+        let dimensions = SceneDimensions {
+            width: 100,
+            height: 100,
+        };
         let frame = renderer.render_timeline(&timeline, 0.0, dimensions);
 
         assert!(frame.is_ok(), "render should produce a frame: {:?}", frame.err());
@@ -514,7 +563,10 @@ mod tests {
             Err(_) => return, // Skip if no GPU
         };
 
-        let dimensions = SceneDimensions { width: 200, height: 200 };
+        let dimensions = SceneDimensions {
+            width: 200,
+            height: 200,
+        };
 
         // First render may fail on some GPU configs; we just verify no panic
         let timeline = Timeline::new();

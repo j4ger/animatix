@@ -1,13 +1,14 @@
+use std::path::{Path, PathBuf};
+
 use animatix::composition::BuildTarget;
-use animatix_syntax::diagnostics::{format_diagnostic, format_diagnostic_with_source, Diagnostic, DiagnosticCode, DiagnosticPhase};
-use animatix_syntax::module::ModuleGraph;
 use animatix::renderer;
 use animatix::timeline::DebugRenderOptions;
+use animatix_syntax::diagnostics::{
+    Diagnostic, DiagnosticCode, DiagnosticPhase, format_diagnostic, format_diagnostic_with_source,
+};
+use animatix_syntax::module::ModuleGraph;
 use clap::{Parser as ClapParser, Subcommand, ValueEnum};
-use std::path::Path;
-use std::path::PathBuf;
-use tracing::{error, info};
-use tracing::warn;
+use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
 #[derive(ClapParser, Debug)]
@@ -97,7 +98,8 @@ enum Commands {
         #[arg(long)]
         duration: Option<f32>,
 
-        /// Seconds to hold the last frame after the last animation ends. Applied only when --duration is omitted.
+        /// Seconds to hold the last frame after the last animation ends. Applied only when
+        /// --duration is omitted.
         #[arg(long, default_value_t = 1.0)]
         hold: f32,
 
@@ -117,7 +119,8 @@ enum Commands {
         #[arg(long, default_value = "auto")]
         codec: renderer::VideoCodec,
 
-        /// libx264 preset: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow
+        /// libx264 preset: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower,
+        /// veryslow
         #[arg(long, default_value = "medium")]
         preset: renderer::H264Preset,
     },
@@ -143,7 +146,8 @@ enum Commands {
         #[arg(long)]
         duration: Option<f32>,
 
-        /// Seconds to hold the last frame after the last animation ends. Applied only when --duration is omitted.
+        /// Seconds to hold the last frame after the last animation ends. Applied only when
+        /// --duration is omitted.
         #[arg(long, default_value_t = 1.0)]
         hold: f32,
 
@@ -218,11 +222,11 @@ fn load_and_build(input: &Path) -> (BuildTarget, Vec<animatix_syntax::diagnostic
         Ok(mut program) => {
             let diagnostics = program.typecheck();
             (program.expand_components(), program.namespaces, diagnostics)
-        }
+        },
         Err(e) => {
             error!("Error: {}", e);
             std::process::exit(1);
-        }
+        },
     };
 
     let report = BuildTarget::from_ast(&ast, &namespaces, Some(input));
@@ -234,7 +238,12 @@ fn load_and_build(input: &Path) -> (BuildTarget, Vec<animatix_syntax::diagnostic
 
 /// Resolves export duration for a `BuildTarget` (single or multi-scene).
 #[cfg(feature = "video")]
-fn resolve_duration(duration: Option<f32>, target: &BuildTarget, hold: f32, min_duration: f32) -> f32 {
+fn resolve_duration(
+    duration: Option<f32>,
+    target: &BuildTarget,
+    hold: f32,
+    min_duration: f32,
+) -> f32 {
     duration.unwrap_or_else(|| {
         let d = target.duration_s() as f32 + hold.max(0.0);
         d.max(min_duration)
@@ -268,7 +277,7 @@ fn run_render_smoke(target: &BuildTarget) -> Result<(), String> {
             renderer
                 .render_timeline_with_debug(timeline, 0.0, dims, DebugRenderOptions::default())
                 .map_err(|e| e.to_string())?;
-        }
+        },
         BuildTarget::MultiScene(composition) => {
             if !composition.has_scenes() {
                 return Err("Composition has no scenes to render".into());
@@ -310,7 +319,7 @@ fn run_render_smoke(target: &BuildTarget) -> Result<(), String> {
                     )
                     .map_err(|e| e.to_string())?;
             }
-        }
+        },
     }
 
     Ok(())
@@ -356,7 +365,11 @@ fn main() {
             let output_file = output.unwrap_or_else(|| default_output_file("gif"));
             info!(
                 "Output configuration: {}x{} at {} FPS for {:.2}s -> {}",
-                width, height, fps, effective_duration, output_file.display()
+                width,
+                height,
+                fps,
+                effective_duration,
+                output_file.display()
             );
             let result = match &target {
                 BuildTarget::MultiScene(comp) => renderer::render_gif_composition_with_settings(
@@ -366,7 +379,11 @@ fn main() {
                     fps,
                     effective_duration,
                     &output_file,
-                    DebugRenderOptions { compute_hit_regions: false, draw_bounds: debug_bounds, ..Default::default() },
+                    DebugRenderOptions {
+                        compute_hit_regions: false,
+                        draw_bounds: debug_bounds,
+                        ..Default::default()
+                    },
                     renderer::ExportSettings {
                         max_render_threads: threads,
                         ..Default::default()
@@ -379,7 +396,11 @@ fn main() {
                     fps,
                     effective_duration,
                     &output_file,
-                    DebugRenderOptions { compute_hit_regions: false, draw_bounds: debug_bounds, ..Default::default() },
+                    DebugRenderOptions {
+                        compute_hit_regions: false,
+                        draw_bounds: debug_bounds,
+                        ..Default::default()
+                    },
                     renderer::ExportSettings {
                         max_render_threads: threads,
                         ..Default::default()
@@ -390,7 +411,7 @@ fn main() {
                 error!("Error: {e}");
                 std::process::exit(1);
             }
-        }
+        },
 
         #[cfg(feature = "video")]
         Commands::Video {
@@ -412,7 +433,11 @@ fn main() {
             let output_file = output.unwrap_or_else(|| default_output_file("mp4"));
             info!(
                 "Output configuration: {}x{} at {} FPS for {:.2}s -> {}",
-                width, height, fps, effective_duration, output_file.display()
+                width,
+                height,
+                fps,
+                effective_duration,
+                output_file.display()
             );
             let result = match &target {
                 BuildTarget::MultiScene(comp) => renderer::render_video_composition_with_settings(
@@ -422,7 +447,11 @@ fn main() {
                     fps,
                     effective_duration,
                     &output_file,
-                    DebugRenderOptions { compute_hit_regions: false, draw_bounds: debug_bounds, ..Default::default() },
+                    DebugRenderOptions {
+                        compute_hit_regions: false,
+                        draw_bounds: debug_bounds,
+                        ..Default::default()
+                    },
                     renderer::ExportSettings {
                         max_render_threads: threads,
                         video_codec: codec,
@@ -437,20 +466,24 @@ fn main() {
                         fps,
                         effective_duration,
                         &output_file,
-                        DebugRenderOptions { compute_hit_regions: false, draw_bounds: debug_bounds, ..Default::default() },
+                        DebugRenderOptions {
+                            compute_hit_regions: false,
+                            draw_bounds: debug_bounds,
+                            ..Default::default()
+                        },
                         renderer::ExportSettings {
                             max_render_threads: threads,
                             video_codec: codec,
                             h264_preset: preset,
                         },
                     )
-                }
+                },
             };
             if let Err(e) = result {
                 error!("Error: {e}");
                 std::process::exit(1);
             }
-        }
+        },
 
         Commands::Ast {
             input,
@@ -463,7 +496,7 @@ fn main() {
                 Err(e) => {
                     error!("Error: {}", e);
                     std::process::exit(1);
-                }
+                },
             };
             if compact {
                 println!("{:?}", ast);
@@ -472,9 +505,7 @@ fn main() {
                     println!("{:#?}", stmt);
                 }
             }
-        }
-
-
+        },
 
         Commands::Image {
             input,
@@ -487,33 +518,30 @@ fn main() {
             info!("Rendering Animatix image: {}", input.display());
             let output_file =
                 output.unwrap_or_else(|| PathBuf::from(format!("animatix_{}s.png", time)));
-            info!(
-                "Output image: {}x{} at {}s -> {}",
-                width, height, time, output_file.display()
-            );
+            info!("Output image: {}x{} at {}s -> {}", width, height, time, output_file.display());
             let (target, _) = load_and_build(&input);
             let result = match &target {
-                BuildTarget::MultiScene(comp) => renderer::render_image_composition(
-                    comp,
-                    width,
-                    height,
-                    time,
-                    &output_file,
-                ),
+                BuildTarget::MultiScene(comp) => {
+                    renderer::render_image_composition(comp, width, height, time, &output_file)
+                },
                 BuildTarget::SingleScene(timeline) => renderer::render_image_timeline_with_debug(
                     timeline.clone(),
                     width,
                     height,
                     time,
                     &output_file,
-                    DebugRenderOptions { compute_hit_regions: false, draw_bounds: debug_bounds, ..Default::default() },
+                    DebugRenderOptions {
+                        compute_hit_regions: false,
+                        draw_bounds: debug_bounds,
+                        ..Default::default()
+                    },
                 ),
             };
             if let Err(e) = result {
                 error!("Error: {e}");
                 std::process::exit(1);
             }
-        }
+        },
 
         Commands::Check {
             file,
@@ -526,7 +554,7 @@ fn main() {
                     Err(e) => {
                         error!("Cannot read from stdin: {}", e);
                         std::process::exit(1);
-                    }
+                    },
                 };
                 (source, "-".to_string())
             } else {
@@ -535,7 +563,7 @@ fn main() {
                     Err(e) => {
                         error!("Cannot read {}: {}", file, e);
                         std::process::exit(1);
-                    }
+                    },
                 };
                 (source, file.clone())
             };
@@ -546,16 +574,20 @@ fn main() {
                 Ok(mut program) => {
                     let diagnostics = program.typecheck();
                     (program.expand_components(), program.namespaces, diagnostics)
-                }
+                },
                 Err(e) => {
                     error!("Error: {}", e);
                     std::process::exit(1);
-                }
+                },
             };
             let report = BuildTarget::from_ast(
                 &ast,
                 &namespaces,
-                if file_label == "-" { None } else { Some(std::path::Path::new(&file_label)) },
+                if file_label == "-" {
+                    None
+                } else {
+                    Some(std::path::Path::new(&file_label))
+                },
             );
             let mut diagnostics = type_diagnostics;
             diagnostics.extend(report.diagnostics);
@@ -573,7 +605,11 @@ fn main() {
             // Run semantic analysis (mirrors lint command behavior)
             let analyzer = animatix_analyzer::Analyzer::new_with_path(
                 &source,
-                if file_label == "-" { None } else { Some(std::path::PathBuf::from(&file_label)) },
+                if file_label == "-" {
+                    None
+                } else {
+                    Some(std::path::PathBuf::from(&file_label))
+                },
             );
             let lint_config = animatix_analyzer::LintConfig::from_source(&source);
             let semantic = analyzer.diagnostics_with_config(&lint_config);
@@ -583,10 +619,8 @@ fn main() {
                     if diagnostics.is_empty() && semantic.is_empty() {
                         println!(r#"{{"passed":true}}"#);
                     } else {
-                        let mut errors: Vec<String> = diagnostics
-                            .iter()
-                            .map(diagnostic_to_json)
-                            .collect();
+                        let mut errors: Vec<String> =
+                            diagnostics.iter().map(diagnostic_to_json).collect();
                         for diag in &semantic {
                             let line = diag.line.to_string();
                             let col = diag.col.to_string();
@@ -601,17 +635,14 @@ fn main() {
                                 severity,
                             ));
                         }
-                        println!(
-                            r#"{{"passed":false,"errors":[{}]}}"#,
-                            errors.join(",")
-                        );
+                        println!(r#"{{"passed":false,"errors":[{}]}}"#, errors.join(","));
                         if diagnostics.iter().any(|d| d.is_error())
                             || semantic.iter().any(|d| d.is_error())
                         {
                             std::process::exit(1);
                         }
                     }
-                }
+                },
                 OutputFormat::Text => {
                     if diagnostics.is_empty() && semantic.is_empty() {
                         println!("{}: OK (no diagnostics)", file_label);
@@ -628,11 +659,15 @@ fn main() {
                             std::process::exit(1);
                         }
                     }
-                }
+                },
             }
-        }
+        },
 
-        Commands::Fmt { paths, check, indent } => {
+        Commands::Fmt {
+            paths,
+            check,
+            indent,
+        } => {
             let config = animatix_syntax::formatter::FormatConfig {
                 indent_size: indent,
                 ..Default::default()
@@ -665,11 +700,17 @@ fn main() {
                 error!("Some files are not formatted. Run 'animatix fmt' to fix.");
                 std::process::exit(1);
             }
-        }
+        },
 
-        Commands::Lint { paths, format, deny_warnings, config } => {
+        Commands::Lint {
+            paths,
+            format,
+            deny_warnings,
+            config,
+        } => {
             // Load lint config from file if specified
-            let file_config = config.as_ref()
+            let file_config = config
+                .as_ref()
                 .map(|p| animatix_analyzer::LintConfig::from_file(p))
                 .unwrap_or_default();
 
@@ -696,10 +737,11 @@ fn main() {
                             error!("{}: Failed to read: {}", file.display(), e);
                             total_errors += 1;
                             continue;
-                        }
+                        },
                     };
 
-                    let analyzer = animatix_analyzer::Analyzer::new_with_path(&source, Some(file.clone()));
+                    let analyzer =
+                        animatix_analyzer::Analyzer::new_with_path(&source, Some(file.clone()));
                     // Merge inline config with file config
                     let mut config = animatix_analyzer::LintConfig::from_source(&source);
                     config.merge(&file_config);
@@ -711,7 +753,7 @@ fn main() {
                                 for diag in &diagnostics {
                                     println!("{}:{}", file.display(), diag);
                                 }
-                            }
+                            },
                             OutputFormat::Json => {
                                 for diag in &diagnostics {
                                     all_diagnostics.push(serde_json::json!({
@@ -723,7 +765,7 @@ fn main() {
                                         "message": diag.message,
                                     }));
                                 }
-                            }
+                            },
                         }
 
                         total_errors += diagnostics.iter().filter(|d| d.is_error()).count();
@@ -735,18 +777,18 @@ fn main() {
             match format {
                 OutputFormat::Json => {
                     println!("{}", serde_json::to_string_pretty(&all_diagnostics).unwrap());
-                }
+                },
                 OutputFormat::Text => {
                     if total_errors > 0 || total_warnings > 0 {
                         println!("\n{} error(s), {} warning(s)", total_errors, total_warnings);
                     }
-                }
+                },
             }
 
             if total_errors > 0 || (deny_warnings && total_warnings > 0) {
                 std::process::exit(1);
             }
-        }
+        },
     }
 }
 
@@ -754,11 +796,14 @@ fn main() {
 ///
 /// If `check` is true, only checks if the file is formatted (doesn't modify).
 /// Returns Ok(()) if the file is already formatted or was formatted successfully.
-fn format_file(path: &Path, formatter: &animatix_syntax::formatter::Formatter, check: bool) -> Result<(), String> {
+fn format_file(
+    path: &Path,
+    formatter: &animatix_syntax::formatter::Formatter,
+    check: bool,
+) -> Result<(), String> {
     use animatix_syntax::chumsky::Parser;
 
-    let source = std::fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read: {}", e))?;
+    let source = std::fs::read_to_string(path).map_err(|e| format!("Failed to read: {}", e))?;
 
     let stmts = animatix_syntax::parser::parser_simple()
         .parse(&source)
@@ -773,8 +818,7 @@ fn format_file(path: &Path, formatter: &animatix_syntax::formatter::Formatter, c
         }
     } else {
         if source != formatted {
-            std::fs::write(path, &formatted)
-                .map_err(|e| format!("Failed to write: {}", e))?;
+            std::fs::write(path, &formatted).map_err(|e| format!("Failed to write: {}", e))?;
             info!("Formatted: {}", path.display());
         }
     }
@@ -794,7 +838,7 @@ fn escape_json(s: &str) -> String {
             '\t' => result.push_str("\\t"),
             c if c.is_control() => {
                 result.push_str(&format!("\\u{:04x}", c as u32));
-            }
+            },
             c => result.push(c),
         }
     }

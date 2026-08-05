@@ -8,9 +8,7 @@ impl Timeline {
 
     pub(super) fn apply_colorscheme(&mut self, colorscheme: ResolvedColorscheme) {
         colorscheme.seed_environment(&mut self.env);
-        let background = colorscheme
-            .color("scene.background")
-            .unwrap_or([0.0, 0.0, 0.0, 1.0]);
+        let background = colorscheme.color("scene.background").unwrap_or([0.0, 0.0, 0.0, 1.0]);
         let mut bg_track = PropertyTrack::new(background);
         bg_track.add_keyframe(0, background, Easing::Linear);
         self.background_color = bg_track;
@@ -19,7 +17,11 @@ impl Timeline {
 
     // === Colorscheme Declaration Parsing ===
 
-    pub(super) fn load_colorscheme_declarations(&mut self, ast: &[Stmt], diagnostics: &mut Vec<Diagnostic>) {
+    pub(super) fn load_colorscheme_declarations(
+        &mut self,
+        ast: &[Stmt],
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
         let mut schemes: std::collections::HashMap<String, ResolvedColorscheme> =
             std::collections::HashMap::new();
         let mut inheritance_edges: std::collections::HashMap<String, String> =
@@ -98,10 +100,7 @@ impl Timeline {
                 Diagnostic::error(
                     DiagnosticCode::ColorschemeInheritanceCycle,
                     DiagnosticPhase::Build,
-                    format!(
-                        "Colorscheme inheritance cycle detected involving '{}'.",
-                        name
-                    ),
+                    format!("Colorscheme inheritance cycle detected involving '{}'.", name),
                 )
                 .with_subject(name),
             );

@@ -17,42 +17,17 @@
 //! roles on top of eparts semantic roles).
 
 // ── Density API — re-exported from eparts ────────────────────────────────────
-pub use eparts::tokens::spatial::{Density, density, density_from_ctx, set_density};
-
+// Corner radii
+// Row heights
 // ── Generic tokens — individually re-exported from eparts ─────────────────────
 // Individual re-exports (rather than `pub use …::spatial;`) are required
 // so that local submodules like `dialog` can resolve `super::SPACE_4`.
 
-// Spacing scale
-pub use eparts::tokens::spatial::SPACE_0;
-pub use eparts::tokens::spatial::SPACE_1;
-pub use eparts::tokens::spatial::SPACE_2;
-pub use eparts::tokens::spatial::SPACE_3;
-pub use eparts::tokens::spatial::SPACE_4;
-pub use eparts::tokens::spatial::SPACE_5;
-pub use eparts::tokens::spatial::SPACE_6;
-pub use eparts::tokens::spatial::SPACE_7;
-pub use eparts::tokens::spatial::SPACE_8;
-
-// Row heights
-pub use eparts::tokens::spatial::ROW_L;
-pub use eparts::tokens::spatial::ROW_M;
-pub use eparts::tokens::spatial::ROW_S;
-pub use eparts::tokens::spatial::ROW_XS;
-
-// Stroke widths
-pub use eparts::tokens::spatial::STROKE_WIDTH;
-pub use eparts::tokens::spatial::STROKE_WIDTH_THICK;
-pub use eparts::tokens::spatial::STROKE_WIDTH_THIN;
-
-// Corner radii
-pub use eparts::tokens::spatial::RADIUS_L;
-pub use eparts::tokens::spatial::RADIUS_M;
-pub use eparts::tokens::spatial::RADIUS_S;
-pub use eparts::tokens::spatial::RADIUS_XL;
-
-// Reusable component submodule
-pub use eparts::tokens::spatial::component;
+pub use eparts::tokens::spatial::{
+    Density, RADIUS_L, RADIUS_M, RADIUS_S, RADIUS_XL, ROW_L, ROW_M, ROW_S, ROW_XS, SPACE_0,
+    SPACE_1, SPACE_2, SPACE_3, SPACE_4, SPACE_5, SPACE_6, SPACE_7, SPACE_8, STROKE_WIDTH,
+    STROKE_WIDTH_THICK, STROKE_WIDTH_THIN, component, density, density_from_ctx, set_density,
+};
 
 // ── GUI Spatial resolver ─────────────────────────────────────────────────────
 //
@@ -271,9 +246,10 @@ pub mod welcome {
 pub mod dialog {
     // Generic dialog metrics live in eparts (used by the dialog widget);
     // re-export them so existing paths still resolve.
-    pub use eparts::tokens::spatial::dialog::{INNER_MARGIN, SCREEN_MARGIN, MAX_VIEWPORT_FRAC, SLIDE_PX};
-
     use eparts::tokens::spatial::SPACE_4;
+    pub use eparts::tokens::spatial::dialog::{
+        INNER_MARGIN, MAX_VIEWPORT_FRAC, SCREEN_MARGIN, SLIDE_PX,
+    };
 
     /// Gap between columns in multi-column layouts (scaling spacing, 8px).
     pub const COL_GAP: f32 = SPACE_4;
@@ -387,10 +363,7 @@ mod tests {
             s.timeline.playback_strip_height,
             (timeline::PLAYBACK_STRIP_HEIGHT * 0.875).round()
         );
-        assert_eq!(
-            s.timeline.label_col_width,
-            (timeline::LABEL_COL_WIDTH * 0.875).round()
-        );
+        assert_eq!(s.timeline.label_col_width, (timeline::LABEL_COL_WIDTH * 0.875).round());
 
         // inspector chrome must shrink
         assert!(s.inspector.row_height < inspector::ROW_HEIGHT);

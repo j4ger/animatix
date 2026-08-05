@@ -113,17 +113,22 @@ impl<'a> TextField<'a> {
         let inner_margin = s.space_3;
         let radius = CornerRadius::same(RADIUS_M as u8);
 
-        let (outer_rect, outer_resp) = ui.allocate_exact_size(
-            egui::vec2(desired_width, row_height),
-            egui::Sense::hover(),
-        );
+        let (outer_rect, outer_resp) =
+            ui.allocate_exact_size(egui::vec2(desired_width, row_height), egui::Sense::hover());
 
         if !ui.is_rect_visible(outer_rect) {
-            return TextFieldResponse { response: outer_resp, changed: false };
+            return TextFieldResponse {
+                response: outer_resp,
+                changed: false,
+            };
         }
 
         // Initial slot for text color (focus resolved after rendering).
-        let fg = if !self.enabled { t.input.disabled.fg } else { t.input.normal.fg };
+        let fg = if !self.enabled {
+            t.input.disabled.fg
+        } else {
+            t.input.normal.fg
+        };
 
         // Reserve background + border shape slots BEFORE rendering the text
         // content so they paint behind it. egui appends shapes in call order,
@@ -131,9 +136,8 @@ impl<'a> TextField<'a> {
         let painter = ui.painter_at(outer_rect);
         let bg_idx = painter.add(egui::Shape::Noop);
         let border_idx = painter.add(egui::Shape::Noop);
-        let mut child_ui = ui.new_child(
-            egui::UiBuilder::new().max_rect(outer_rect.shrink(inner_margin)),
-        );
+        let mut child_ui =
+            ui.new_child(egui::UiBuilder::new().max_rect(outer_rect.shrink(inner_margin)));
 
         let mut cleared = false;
         let mut had_focus = false;
@@ -153,8 +157,12 @@ impl<'a> TextField<'a> {
                     .margin(Margin::ZERO)
                     .desired_width(f32::INFINITY);
 
-                if self.password { te = te.password(true); }
-                if let Some(ref ph) = self.placeholder { te = te.hint_text(ph.as_str()); }
+                if self.password {
+                    te = te.password(true);
+                }
+                if let Some(ref ph) = self.placeholder {
+                    te = te.hint_text(ph.as_str());
+                }
 
                 let te_resp = ui.add(te);
                 had_focus = te_resp.has_focus();
@@ -164,9 +172,9 @@ impl<'a> TextField<'a> {
                 }
 
                 if show_clear {
-                    let btn = egui::Button::new(
-                        egui::RichText::new("✕").size(10.0).color(t.text.muted),
-                    ).frame(false);
+                    let btn =
+                        egui::Button::new(egui::RichText::new("✕").size(10.0).color(t.text.muted))
+                            .frame(false);
                     if ui.add(btn).clicked() {
                         cleared = true;
                     }
@@ -174,7 +182,9 @@ impl<'a> TextField<'a> {
             });
         });
 
-        if cleared { self.buf.clear(); }
+        if cleared {
+            self.buf.clear();
+        }
 
         let is_hovered = outer_resp.hovered();
         let active_slot = if !self.enabled {
@@ -189,10 +199,7 @@ impl<'a> TextField<'a> {
             t.input.normal
         };
 
-        painter.set(
-            bg_idx,
-            egui::epaint::RectShape::filled(outer_rect, radius, active_slot.bg),
-        );
+        painter.set(bg_idx, egui::epaint::RectShape::filled(outer_rect, radius, active_slot.bg));
         painter.set(
             border_idx,
             egui::epaint::RectShape::stroke(
@@ -203,7 +210,10 @@ impl<'a> TextField<'a> {
             ),
         );
 
-        TextFieldResponse { response: outer_resp, changed: cleared }
+        TextFieldResponse {
+            response: outer_resp,
+            changed: cleared,
+        }
     }
 }
 
@@ -299,9 +309,8 @@ impl<'a> NumberField<'a> {
         let bg_idx = painter.add(egui::Shape::Noop);
         let border_idx = painter.add(egui::Shape::Noop);
 
-        let mut child_ui = ui.new_child(
-            egui::UiBuilder::new().max_rect(outer_rect.shrink(inner_margin)),
-        );
+        let mut child_ui =
+            ui.new_child(egui::UiBuilder::new().max_rect(outer_rect.shrink(inner_margin)));
 
         let mut dv = DragValue::new(self.value).speed(self.speed.unwrap_or(0.5) as f64);
 
@@ -333,10 +342,7 @@ impl<'a> NumberField<'a> {
             t.input.normal
         };
 
-        painter.set(
-            bg_idx,
-            egui::epaint::RectShape::filled(outer_rect, radius, slot.bg),
-        );
+        painter.set(bg_idx, egui::epaint::RectShape::filled(outer_rect, radius, slot.bg));
         painter.set(
             border_idx,
             egui::epaint::RectShape::stroke(

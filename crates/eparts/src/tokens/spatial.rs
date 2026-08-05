@@ -14,7 +14,6 @@ pub const SPACE_6: f32 = 16.0;
 pub const SPACE_7: f32 = 24.0;
 pub const SPACE_8: f32 = 32.0;
 
-
 // ── Row heights ──
 pub const ROW_XS: f32 = 18.0;
 pub const ROW_S: f32 = 20.0;
@@ -69,8 +68,7 @@ pub mod menu {
 
 // ── Dialog layout constants (generic, used by dialog widget) ──
 pub mod dialog {
-    use super::SPACE_5;
-    use super::SPACE_7;
+    use super::{SPACE_5, SPACE_7};
 
     /// Inner margin applied around all dialog content (12px).
     pub const INNER_MARGIN: f32 = SPACE_5;
@@ -92,10 +90,10 @@ use egui::Context;
 
 /// A user's display-density preference.
 ///
-/// - `Default` — 1.0×; all tokens resolve to their base const values
-///   (byte-identical to the pre-refactor behaviour).
-/// - `Compact` — 0.875×; spacing, row-heights, toggle and component dims
-///   are multiplied by 0.875 and rounded to whole logical pixels.
+/// - `Default` — 1.0×; all tokens resolve to their base const values (byte-identical to the
+///   pre-refactor behaviour).
+/// - `Compact` — 0.875×; spacing, row-heights, toggle and component dims are multiplied by 0.875
+///   and rounded to whole logical pixels.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Density {
     /// Standard density (1.0×).
@@ -319,4 +317,3 @@ mod tests {
         assert_eq!(density_from_ctx(&ctx), Density::Default);
     }
 }
-

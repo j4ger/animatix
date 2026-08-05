@@ -26,8 +26,8 @@ impl Timeline {
     ///
     /// For a path like `["g", "vec"]`:
     /// - First checks if a track named `"g.vec"` exists directly.
-    /// - If not, walks the hierarchy: finds `"g"`, checks if `"vec"` is its child,
-    ///   and returns `"vec"` as the resolved track key.
+    /// - If not, walks the hierarchy: finds `"g"`, checks if `"vec"` is its child, and returns
+    ///   `"vec"` as the resolved track key.
     /// - Returns `None` if the path cannot be resolved.
     fn resolve_hierarchical_target(&self, target: &[TargetSegment]) -> Option<String> {
         if target.is_empty() {
@@ -203,7 +203,8 @@ impl Timeline {
                 }
                 mark_track_manual_position(track, t_start_ms);
                 if duration_ms > 0.0 {
-                    let start_binding = track.geometry.position_binding.get(t_start_ms, default_binding);
+                    let start_binding =
+                        track.geometry.position_binding.get(t_start_ms, default_binding);
                     track.geometry.position_binding.ensure(default_binding).add_keyframe(
                         t_start_ms,
                         start_binding,
@@ -231,7 +232,11 @@ impl Timeline {
             } else if instant_delayed {
                 preserve_instant_delayed_value(&mut track.geometry.position, t_start_ms);
             }
-            track.geometry.position.ensure(default_pos).add_keyframe(t_end_ms, target_pos, easing);
+            track
+                .geometry
+                .position
+                .ensure(default_pos)
+                .add_keyframe(t_end_ms, target_pos, easing);
             return;
         }
 
@@ -287,30 +292,30 @@ impl Timeline {
                         .with_subject(&assignment_subject),
                     );
                     return;
-                }
+                },
                 ActorKindId::PlotCurve => {
                     // Evaluate RHS to a closure.
-            let closure_val = match evaluate_expr(value, &eval_env) {
-                Ok(v) => v,
-                Err(e) => {
-                    diagnostics.push(
-                        Diagnostic::error(
-                            DiagnosticCode::InvalidPlotFunc,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "Failed to evaluate func assignment on '{}': {}",
-                                target_key, e
-                            ),
-                        )
-                        .with_subject(&assignment_subject),
-                    );
-                    return;
-                }
-            };
-            let (to_args, to_body) = match closure_val {
-                Value::Closure(args, body, _) => (args, *body),
-                _ => {
-                    diagnostics.push(
+                    let closure_val = match evaluate_expr(value, &eval_env) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            diagnostics.push(
+                                Diagnostic::error(
+                                    DiagnosticCode::InvalidPlotFunc,
+                                    DiagnosticPhase::Build,
+                                    format!(
+                                        "Failed to evaluate func assignment on '{}': {}",
+                                        target_key, e
+                                    ),
+                                )
+                                .with_subject(&assignment_subject),
+                            );
+                            return;
+                        },
+                    };
+                    let (to_args, to_body) = match closure_val {
+                        Value::Closure(args, body, _) => (args, *body),
+                        _ => {
+                            diagnostics.push(
                         Diagnostic::error(
                             DiagnosticCode::InvalidPlotFunc,
                             DiagnosticPhase::Build,
@@ -321,42 +326,41 @@ impl Timeline {
                         )
                         .with_subject(&assignment_subject),
                     );
-                    return;
-                }
-            };
+                            return;
+                        },
+                    };
 
-            // Determine "from" source:
-            //   - If there's an active transition, record-and-chain: freeze current blend
-            //   - Else use last completed transition's `to`, or the declaration func
-            let from_source = if let Some(active) = track.func_transitions.last() {
-                if time_ms as u64 >= active.start_ms && time_ms as u64 <= active.end_ms {
-                    // Record-and-chain: freeze current blend state
-                    let progress =
-                        if active.end_ms > active.start_ms {
-                            ((time_ms as u64 - active.start_ms) as f64
-                                / (active.end_ms - active.start_ms) as f64)
-                                .clamp(0.0, 1.0)
+                    // Determine "from" source:
+                    //   - If there's an active transition, record-and-chain: freeze current blend
+                    //   - Else use last completed transition's `to`, or the declaration func
+                    let from_source = if let Some(active) = track.func_transitions.last() {
+                        if time_ms as u64 >= active.start_ms && time_ms as u64 <= active.end_ms {
+                            // Record-and-chain: freeze current blend state
+                            let progress = if active.end_ms > active.start_ms {
+                                ((time_ms as u64 - active.start_ms) as f64
+                                    / (active.end_ms - active.start_ms) as f64)
+                                    .clamp(0.0, 1.0)
+                            } else {
+                                1.0
+                            };
+                            FuncSource::Blend {
+                                from: Box::new(active.from.clone()),
+                                to: Box::new(active.to.clone()),
+                                frozen_progress: progress,
+                            }
                         } else {
-                            1.0
-                        };
-                    FuncSource::Blend {
-                        from: Box::new(active.from.clone()),
-                        to: Box::new(active.to.clone()),
-                        frozen_progress: progress,
-                    }
-                } else {
-                    // Last transition completed, use its `to`
-                    active.to.clone()
-                }
-            } else if let Some(plot) = track.procedural_plot.as_ref() {
-                // No prior transitions, use declaration func
-                FuncSource::Raw(
-                    plot.func_args.clone(),
-                    plot.func_body.clone(),
-                    plot.extra_captures.clone(),
-                )
-            } else {
-                diagnostics.push(
+                            // Last transition completed, use its `to`
+                            active.to.clone()
+                        }
+                    } else if let Some(plot) = track.procedural_plot.as_ref() {
+                        // No prior transitions, use declaration func
+                        FuncSource::Raw(
+                            plot.func_args.clone(),
+                            plot.func_body.clone(),
+                            plot.extra_captures.clone(),
+                        )
+                    } else {
+                        diagnostics.push(
                     Diagnostic::error(
                         DiagnosticCode::InvalidPlotFunc,
                         DiagnosticPhase::Build,
@@ -367,38 +371,36 @@ impl Timeline {
                     )
                     .with_subject(&assignment_subject),
                 );
-                return;
-            };
+                        return;
+                    };
 
-            // Validate same arity
-            if from_source.arity() != to_args.len() {
-                diagnostics.push(
-                    Diagnostic::error(
-                        DiagnosticCode::InvalidPlotFunc,
-                        DiagnosticPhase::Build,
-                        format!(
-                            "func transition on '{}' must keep the same arity ",
-                            target_key
-                        ),
-                    )
-                    .with_subject(&assignment_subject),
-                );
-                return;
-            }
+                    // Validate same arity
+                    if from_source.arity() != to_args.len() {
+                        diagnostics.push(
+                            Diagnostic::error(
+                                DiagnosticCode::InvalidPlotFunc,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "func transition on '{}' must keep the same arity ",
+                                    target_key
+                                ),
+                            )
+                            .with_subject(&assignment_subject),
+                        );
+                        return;
+                    }
 
-            // Push FuncTransition
-            track.func_transitions.push(
-                crate::timeline::plot::FuncTransition {
-                    start_ms: t_start_ms,
-                    end_ms: t_end_ms,
-                    easing,
-                    from: from_source,
-                    to: FuncSource::Raw(to_args, to_body, CapturedEnv::default()),
+                    // Push FuncTransition
+                    track.func_transitions.push(crate::timeline::plot::FuncTransition {
+                        start_ms: t_start_ms,
+                        end_ms: t_end_ms,
+                        easing,
+                        from: from_source,
+                        to: FuncSource::Raw(to_args, to_body, CapturedEnv::default()),
+                    });
+                    return; // func is not a registry property; do not fall through
                 },
-            );
-                return; // func is not a registry property; do not fall through
-                }
-                _ => {}
+                _ => {},
             }
         }
 
@@ -462,7 +464,8 @@ impl Timeline {
                                     easing,
                                 );
                             }
-                            // Scale tick label positions (Text children named {label}_tick_x_N / _tick_y_N)
+                            // Scale tick label positions (Text children named {label}_tick_x_N /
+                            // _tick_y_N)
                             if child_track.kind == super::ActorKindId::Text
                                 && (child_label.contains("_tick_x_")
                                     || child_label.contains("_tick_y_"))
@@ -515,7 +518,8 @@ impl Timeline {
                     diagnostics,
                 );
 
-                // For Line actors, `color` assignment also sets `stroke_color` (Line is stroke-only)
+                // For Line actors, `color` assignment also sets `stroke_color` (Line is
+                // stroke-only)
                 if property == "color"
                     && track.kind == super::ActorKindId::Shape(super::ShapeKind::Line)
                 {
@@ -667,11 +671,11 @@ fn handle_size_assignment(
 
     if has_duration {
         let start_val = track.geometry.size.get(t_start_ms, default_size);
-        track
-            .geometry
-            .size
-            .ensure(default_size)
-            .add_keyframe(t_start_ms, start_val, Easing::Linear);
+        track.geometry.size.ensure(default_size).add_keyframe(
+            t_start_ms,
+            start_val,
+            Easing::Linear,
+        );
         if let Some(layout_start) = track.layout_size_get(t_start_ms) {
             track.ensure_layout_size(default_size).add_keyframe(
                 t_start_ms,
@@ -683,7 +687,11 @@ fn handle_size_assignment(
         preserve_instant_delayed_value(&mut track.geometry.size, t_start_ms);
         preserve_instant_delayed_value(&mut track.geometry.layout_size, t_start_ms);
     }
-    track.geometry.size.ensure(default_size).add_keyframe(t_end_ms, target_size, easing);
+    track
+        .geometry
+        .size
+        .ensure(default_size)
+        .add_keyframe(t_end_ms, target_size, easing);
     track
         .ensure_layout_size(default_size)
         .add_keyframe(t_end_ms, target_size, easing);
@@ -719,11 +727,11 @@ pub(crate) fn recompile_text_at_assignment(
     } else if instant_delayed {
         preserve_instant_delayed_value(&mut track.text.text_content, t_start_ms);
     }
-    track
-        .text
-        .text_content
-        .ensure(String::new())
-        .add_keyframe(t_end_ms, target_text.clone(), easing);
+    track.text.text_content.ensure(String::new()).add_keyframe(
+        t_end_ms,
+        target_text.clone(),
+        easing,
+    );
 
     let text_kind = match track.kind {
         super::ActorKindId::Text => crate::renderer::text::TextKind::Text,
@@ -761,11 +769,11 @@ pub(crate) fn recompile_text_at_assignment(
 
     if duration_ms > 0.0 {
         let start_val = track.evaluate_text_paths(t_start_ms);
-        track
-            .text
-            .text_paths
-            .ensure(Vec::new())
-            .add_keyframe(t_start_ms, start_val, Easing::Linear);
+        track.text.text_paths.ensure(Vec::new()).add_keyframe(
+            t_start_ms,
+            start_val,
+            Easing::Linear,
+        );
         let start_size = track.geometry.size.get(t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
         let start_layout_size =
             track.layout_size_get(t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
@@ -796,9 +804,19 @@ pub(crate) fn recompile_text_at_assignment(
     let (ascent, descent, baseline_offset) = match text_kind {
         crate::renderer::text::TextKind::Text => {
             match crate::renderer::text::compile_text(
-                &target_text, font_size, typst_color_for_metrics, &font_family,
-                font_ctx, font_weight, &font_style, line_height,
-                letter_spacing, word_spacing, 0.0, "left", "visible",
+                &target_text,
+                font_size,
+                typst_color_for_metrics,
+                &font_family,
+                font_ctx,
+                font_weight,
+                &font_style,
+                line_height,
+                letter_spacing,
+                word_spacing,
+                0.0,
+                "left",
+                "visible",
             ) {
                 Ok(frame) => {
                     let m = crate::renderer::text::extract_glyphs_with_metrics(&frame);
@@ -809,9 +827,19 @@ pub(crate) fn recompile_text_at_assignment(
         },
         crate::renderer::text::TextKind::Typst => {
             match crate::renderer::text::compile_typst(
-                &target_text, font_size, typst_color_for_metrics, &font_family,
-                font_ctx, font_weight, &font_style, line_height,
-                letter_spacing, word_spacing, 0.0, "left", "visible",
+                &target_text,
+                font_size,
+                typst_color_for_metrics,
+                &font_family,
+                font_ctx,
+                font_weight,
+                &font_style,
+                line_height,
+                letter_spacing,
+                word_spacing,
+                0.0,
+                "left",
+                "visible",
             ) {
                 Ok(frame) => {
                     let m = crate::renderer::text::extract_glyphs_with_metrics(&frame);
@@ -822,9 +850,19 @@ pub(crate) fn recompile_text_at_assignment(
         },
         crate::renderer::text::TextKind::Code => {
             match crate::renderer::text::compile_code(
-                &target_text, font_size, typst_color_for_metrics, &font_family,
-                font_ctx, font_weight, &font_style, line_height,
-                letter_spacing, word_spacing, 0.0, "left", "visible",
+                &target_text,
+                font_size,
+                typst_color_for_metrics,
+                &font_family,
+                font_ctx,
+                font_weight,
+                &font_style,
+                line_height,
+                letter_spacing,
+                word_spacing,
+                0.0,
+                "left",
+                "visible",
             ) {
                 Ok(frame) => {
                     let m = crate::renderer::text::extract_glyphs_with_metrics(&frame);
@@ -835,8 +873,14 @@ pub(crate) fn recompile_text_at_assignment(
         },
         crate::renderer::text::TextKind::Math => {
             match crate::renderer::text::compile_math(
-                &target_text, font_size, typst_color_for_metrics, &font_family,
-                font_ctx, 0.0, "left", "visible",
+                &target_text,
+                font_size,
+                typst_color_for_metrics,
+                &font_family,
+                font_ctx,
+                0.0,
+                "left",
+                "visible",
             ) {
                 Ok(frame) => {
                     let m = crate::renderer::text::extract_glyphs_with_metrics(&frame);
@@ -852,11 +896,11 @@ pub(crate) fn recompile_text_at_assignment(
         .text_paths
         .ensure(Vec::new())
         .add_keyframe(t_end_ms, new_paths.to_vec(), easing);
-    track
-        .geometry
-        .size
-        .ensure(DEFAULT_LAYOUT_HALF_SIZE)
-        .add_keyframe(t_end_ms, new_half_size, easing);
+    track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+        t_end_ms,
+        new_half_size,
+        easing,
+    );
     track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
         t_end_ms,
         new_half_size,
@@ -945,15 +989,33 @@ fn rebuild_vector_paths(
 
             let padding = env
                 .get(&format!("{}_padding", label))
-                .and_then(|v| if let Value::Vec4(p) = v { Some(p) } else { None })
+                .and_then(|v| {
+                    if let Value::Vec4(p) = v {
+                        Some(p)
+                    } else {
+                        None
+                    }
+                })
                 .unwrap_or([0.0; 4]);
             let x_scale = env
                 .get(&format!("{}_x_scale", label))
-                .and_then(|v| if let Value::Str(s) = v { Some(crate::timeline::build::utils::ScaleType::from_str(&s)) } else { None })
+                .and_then(|v| {
+                    if let Value::Str(s) = v {
+                        Some(crate::timeline::build::utils::ScaleType::from_str(&s))
+                    } else {
+                        None
+                    }
+                })
                 .unwrap_or(crate::timeline::build::utils::ScaleType::Linear);
             let y_scale = env
                 .get(&format!("{}_y_scale", label))
-                .and_then(|v| if let Value::Str(s) = v { Some(crate::timeline::build::utils::ScaleType::from_str(&s)) } else { None })
+                .and_then(|v| {
+                    if let Value::Str(s) = v {
+                        Some(crate::timeline::build::utils::ScaleType::from_str(&s))
+                    } else {
+                        None
+                    }
+                })
                 .unwrap_or(crate::timeline::build::utils::ScaleType::Linear);
 
             let new_paths = build_graph_axis_paths(
@@ -979,7 +1041,11 @@ fn rebuild_vector_paths(
             } else if t_end_ms > 0 {
                 preserve_instant_delayed_value(&mut track.shape.vector_paths, t_end_ms);
             }
-            track.shape.vector_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths, easing);
+            track
+                .shape
+                .vector_paths
+                .ensure(Vec::new())
+                .add_keyframe(t_end_ms, new_paths, easing);
             return;
         }
     }
@@ -1062,19 +1128,19 @@ fn rebuild_vector_paths(
 
     if has_duration {
         let start_paths = track.evaluate_vector_paths(t_start_ms);
-        track
-            .shape
-            .vector_paths
-            .ensure(Vec::new())
-            .add_keyframe(t_start_ms, start_paths, Easing::Linear);
+        track.shape.vector_paths.ensure(Vec::new()).add_keyframe(
+            t_start_ms,
+            start_paths,
+            Easing::Linear,
+        );
     } else if t_end_ms > 0 {
         preserve_instant_delayed_value(&mut track.shape.vector_paths, t_end_ms);
     }
-    track
-        .shape
-        .vector_paths
-        .ensure(Vec::new())
-        .add_keyframe(t_end_ms, vec![target_vello_path], easing);
+    track.shape.vector_paths.ensure(Vec::new()).add_keyframe(
+        t_end_ms,
+        vec![target_vello_path],
+        easing,
+    );
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1111,11 +1177,11 @@ fn scale_plot_curve_paths(
 
     if has_duration {
         let start_paths = track.evaluate_vector_paths(t_start_ms);
-        track
-            .shape
-            .vector_paths
-            .ensure(Vec::new())
-            .add_keyframe(t_start_ms, start_paths, Easing::Linear);
+        track.shape.vector_paths.ensure(Vec::new()).add_keyframe(
+            t_start_ms,
+            start_paths,
+            Easing::Linear,
+        );
     } else if t_end_ms > 0 {
         preserve_instant_delayed_value(&mut track.shape.vector_paths, t_end_ms);
     }

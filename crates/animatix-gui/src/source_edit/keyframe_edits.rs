@@ -2,13 +2,12 @@
 
 use animatix_syntax::ast::{ComponentDef, Expr, Stmt, Time};
 
-use super::apply::time_to_seconds;
-use super::apply::canonical_to_source;
+use super::SourceEditError;
+use super::apply::{canonical_to_source, time_to_seconds};
 use super::ast_utils::{
     adjust_following_relative_keyframe, find_keyframe_insertion_point,
     wrap_leading_decls_in_zero_keyframe,
 };
-use super::SourceEditError;
 
 // ---------------------------------------------------------------------------
 // MergeKeyframe
@@ -31,14 +30,14 @@ pub(super) fn merge_keyframe(
                 if (current_time - time_s).abs() < 0.001 {
                     return update_assignment(body, actor, source_prop, value);
                 }
-            }
+            },
             Stmt::RelativeKeyframe { offset, body, .. } => {
                 current_time += time_to_seconds(offset);
                 if (current_time - time_s).abs() < 0.001 {
                     return update_assignment(body, actor, source_prop, value);
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 
@@ -49,15 +48,23 @@ pub(super) fn merge_keyframe(
     })
 }
 
-fn update_assignment(body: &mut [Stmt], actor: &str, property: &str, value: Expr) -> Result<(), SourceEditError> {
+fn update_assignment(
+    body: &mut [Stmt],
+    actor: &str,
+    property: &str,
+    value: Expr,
+) -> Result<(), SourceEditError> {
     for stmt in body.iter_mut() {
         match stmt {
-            Stmt::Assignment { target, property: prop, value: val, .. }
-                if target.iter().any(|t| t.label_str() == actor) && prop == property =>
-            {
+            Stmt::Assignment {
+                target,
+                property: prop,
+                value: val,
+                ..
+            } if target.iter().any(|t| t.label_str() == actor) && prop == property => {
                 *val = value;
                 return Ok(());
-            }
+            },
             Stmt::Keyframe { body, .. }
             | Stmt::RelativeKeyframe { body, .. }
             | Stmt::Sequence { body, .. }
@@ -68,8 +75,12 @@ fn update_assignment(body: &mut [Stmt], actor: &str, property: &str, value: Expr
                 if let Ok(()) = update_assignment(body, actor, property, value.clone()) {
                     return Ok(());
                 }
-            }
-            Stmt::Conditional { then_branch, else_branch, .. } => {
+            },
+            Stmt::Conditional {
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 if let Ok(()) = update_assignment(then_branch, actor, property, value.clone()) {
                     return Ok(());
                 }
@@ -78,13 +89,13 @@ fn update_assignment(body: &mut [Stmt], actor: &str, property: &str, value: Expr
                         return Ok(());
                     }
                 }
-            }
+            },
             Stmt::ForLoop { body, .. } => {
                 if let Ok(()) = update_assignment(body, actor, property, value.clone()) {
                     return Ok(());
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
     Err(SourceEditError::PropertyNotFound {
@@ -119,7 +130,7 @@ pub(super) fn set_keyframe_easing(
             // will handle; for now fall back to linear in source edits.
             let _ = cp;
             "linear"
-        }
+        },
     };
     let easing_expr = animatix_syntax::ast::Expr::Ident(easing_name.to_string());
 
@@ -133,14 +144,14 @@ pub(super) fn set_keyframe_easing(
                 if (current_time - time_s).abs() < 0.001 {
                     return update_assignment_easing(body, actor, source_prop, &easing_expr);
                 }
-            }
+            },
             Stmt::RelativeKeyframe { offset, body, .. } => {
                 current_time += time_to_seconds(offset);
                 if (current_time - time_s).abs() < 0.001 {
                     return update_assignment_easing(body, actor, source_prop, &easing_expr);
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 
@@ -160,10 +171,15 @@ fn update_assignment_easing(
 ) -> Result<(), SourceEditError> {
     for stmt in body.iter_mut() {
         match stmt {
-            Stmt::Assignment { target, property: prop, modifiers, .. }
-                if target.iter().any(|t| t.label_str() == actor) && prop == property =>
-            {
-                if let Some(existing) = modifiers.iter_mut().find(|m| m.name.as_deref() == Some("ease")) {
+            Stmt::Assignment {
+                target,
+                property: prop,
+                modifiers,
+                ..
+            } if target.iter().any(|t| t.label_str() == actor) && prop == property => {
+                if let Some(existing) =
+                    modifiers.iter_mut().find(|m| m.name.as_deref() == Some("ease"))
+                {
                     existing.value = easing_expr.clone();
                 } else {
                     modifiers.push(animatix_syntax::ast::Modifier {
@@ -172,7 +188,7 @@ fn update_assignment_easing(
                     });
                 }
                 return Ok(());
-            }
+            },
             Stmt::Keyframe { body, .. }
             | Stmt::RelativeKeyframe { body, .. }
             | Stmt::Sequence { body, .. }
@@ -183,9 +199,14 @@ fn update_assignment_easing(
                 if let Ok(()) = update_assignment_easing(body, actor, property, easing_expr) {
                     return Ok(());
                 }
-            }
-            Stmt::Conditional { then_branch, else_branch, .. } => {
-                if let Ok(()) = update_assignment_easing(then_branch, actor, property, easing_expr) {
+            },
+            Stmt::Conditional {
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                if let Ok(()) = update_assignment_easing(then_branch, actor, property, easing_expr)
+                {
                     return Ok(());
                 }
                 if let Some(else_b) = else_branch {
@@ -193,13 +214,13 @@ fn update_assignment_easing(
                         return Ok(());
                     }
                 }
-            }
+            },
             Stmt::ForLoop { body, .. } => {
                 if let Ok(()) = update_assignment_easing(body, actor, property, easing_expr) {
                     return Ok(());
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
     Err(SourceEditError::PropertyNotFound {
@@ -231,7 +252,7 @@ pub(super) fn delete_keyframe(
                 } else {
                     (false, false)
                 }
-            }
+            },
             Stmt::RelativeKeyframe { offset, body, .. } => {
                 current_time += time_to_seconds(offset);
                 if (current_time - time_s).abs() < 0.001 {
@@ -240,7 +261,7 @@ pub(super) fn delete_keyframe(
                 } else {
                     (false, false)
                 }
-            }
+            },
             _ => (false, false),
         };
 
@@ -259,15 +280,13 @@ pub(super) fn delete_keyframe(
     })
 }
 
-fn remove_assignment_from_body(
-    body: &mut Vec<Stmt>,
-    actor: &str,
-    property: &str,
-) {
-    body.retain(|stmt| !matches!(stmt,
-        Stmt::Assignment { target, property: prop, .. }
-            if target.iter().any(|t| t.label_str() == actor) && prop == property
-    ));
+fn remove_assignment_from_body(body: &mut Vec<Stmt>, actor: &str, property: &str) {
+    body.retain(|stmt| {
+        !matches!(stmt,
+            Stmt::Assignment { target, property: prop, .. }
+                if target.iter().any(|t| t.label_str() == actor) && prop == property
+        )
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -297,7 +316,9 @@ pub(super) fn insert_keyframe(
     };
 
     let assignment = Stmt::Assignment {
-        target: vec![animatix_syntax::ast::TargetSegment::Static(actor.to_string())],
+        target: vec![animatix_syntax::ast::TargetSegment::Static(
+            actor.to_string(),
+        )],
         property: source_prop.into(),
         value,
         modifiers: vec![],
@@ -324,7 +345,6 @@ pub(super) fn insert_keyframe(
     stmts.insert(insert_idx, keyframe);
     Ok(())
 }
-
 
 // ---------------------------------------------------------------------------
 // MoveKeyframeTime
@@ -353,7 +373,7 @@ pub(super) fn move_keyframe_time(
                     found_idx = Some(i);
                     found_old_time = current_time;
                 }
-            }
+            },
             Stmt::RelativeKeyframe { offset, body, .. } => {
                 current_time += time_to_seconds(offset);
                 if (current_time - old_time_s).abs() < 0.001
@@ -362,18 +382,20 @@ pub(super) fn move_keyframe_time(
                     found_idx = Some(i);
                     found_old_time = current_time;
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 
     let idx = match found_idx {
         Some(i) => i,
-        None => return Err(SourceEditError::KeyframeNotFound {
-            actor: actor.to_string(),
-            property: property.to_string(),
-            time_s: old_time_s,
-        }),
+        None => {
+            return Err(SourceEditError::KeyframeNotFound {
+                actor: actor.to_string(),
+                property: property.to_string(),
+                time_s: old_time_s,
+            });
+        },
     };
 
     let delta_s = new_time_s - found_old_time;
@@ -384,7 +406,8 @@ pub(super) fn move_keyframe_time(
     // Pre-compute flash indices before any mutation.
     let mut flash_indices = Vec::new();
     if matches!(stmts[idx], Stmt::RelativeKeyframe { .. })
-        && idx + 1 < stmts.len() && matches!(stmts[idx + 1], Stmt::RelativeKeyframe { .. })
+        && idx + 1 < stmts.len()
+        && matches!(stmts[idx + 1], Stmt::RelativeKeyframe { .. })
     {
         flash_indices.push(idx + 1);
     }
@@ -412,7 +435,7 @@ pub(super) fn move_keyframe_time(
             } else {
                 Time::Seconds(new_time_s)
             };
-        }
+        },
         Stmt::RelativeKeyframe { offset, .. } => {
             // For relative keyframes, adjust this offset by delta_s
             let new_offset_s = time_to_seconds(offset) + delta_s;
@@ -426,7 +449,11 @@ pub(super) fn move_keyframe_time(
             };
             // Adjust next relative keyframe's offset to compensate
             if idx + 1 < stmts.len() {
-                if let Stmt::RelativeKeyframe { offset: next_offset, .. } = &mut stmts[idx + 1] {
+                if let Stmt::RelativeKeyframe {
+                    offset: next_offset,
+                    ..
+                } = &mut stmts[idx + 1]
+                {
                     let next_offset_s = time_to_seconds(next_offset) - delta_s;
                     if next_offset_s >= 0.001 {
                         *next_offset = if next_offset_s < 1.0 {
@@ -437,7 +464,7 @@ pub(super) fn move_keyframe_time(
                     }
                 }
             }
-        }
+        },
         _ => return Err(SourceEditError::InvalidKeyframeTime { time_s: new_time_s }),
     }
 
@@ -469,11 +496,13 @@ pub(super) fn move_keyframe_time(
 fn contains_assignment(body: &[Stmt], actor: &str, property: &str) -> bool {
     for stmt in body {
         match stmt {
-            Stmt::Assignment { target, property: prop, .. }
-                if target.iter().any(|t| t.label_str() == actor) && prop == property =>
-            {
+            Stmt::Assignment {
+                target,
+                property: prop,
+                ..
+            } if target.iter().any(|t| t.label_str() == actor) && prop == property => {
                 return true;
-            }
+            },
             Stmt::Keyframe { body, .. }
             | Stmt::RelativeKeyframe { body, .. }
             | Stmt::Sequence { body, .. }
@@ -484,8 +513,12 @@ fn contains_assignment(body: &[Stmt], actor: &str, property: &str) -> bool {
                 if contains_assignment(body, actor, property) {
                     return true;
                 }
-            }
-            Stmt::Conditional { then_branch, else_branch, .. } => {
+            },
+            Stmt::Conditional {
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 if contains_assignment(then_branch, actor, property) {
                     return true;
                 }
@@ -494,13 +527,13 @@ fn contains_assignment(body: &[Stmt], actor: &str, property: &str) -> bool {
                         return true;
                     }
                 }
-            }
+            },
             Stmt::ForLoop { body, .. } => {
                 if contains_assignment(body, actor, property) {
                     return true;
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
     false
@@ -512,22 +545,28 @@ fn contains_assignment(body: &[Stmt], actor: &str, property: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::super::apply::{SourceEdit, apply_edit};
     use animatix_syntax::ast::{Expr, Stmt, Time};
     use animatix_syntax::parser::parser_simple;
     use chumsky::Parser;
 
+    use super::super::apply::{SourceEdit, apply_edit};
+
     fn parse(source: &str) -> Vec<Stmt> {
-        parser_simple().parse(source).into_result().expect("failed to parse test source")
+        parser_simple()
+            .parse(source)
+            .into_result()
+            .expect("failed to parse test source")
     }
 
     #[test]
     fn insert_keyframe_block() {
-        let mut stmts = parse(r#"#0s
+        let mut stmts = parse(
+            r#"#0s
 btn: Rect, size: (100, 200)
 
 #2s
-btn.color = red"#);
+btn.color = red"#,
+        );
         let edit = SourceEdit::InsertKeyframe {
             actor: "btn".into(),
             property: "color".into(),
@@ -544,10 +583,15 @@ btn.color = red"#);
         if let Stmt::RelativeKeyframe { offset, body, .. } = &stmts[2] {
             assert_eq!(*offset, Time::Seconds(1.0));
             assert_eq!(body.len(), 1);
-            if let Stmt::Assignment { target, property, .. } = &body[0] {
+            if let Stmt::Assignment {
+                target, property, ..
+            } = &body[0]
+            {
                 assert_eq!(
                     target,
-                    &vec![animatix_syntax::ast::TargetSegment::Static("btn".to_string())]
+                    &vec![animatix_syntax::ast::TargetSegment::Static(
+                        "btn".to_string()
+                    )]
                 );
                 assert_eq!(property, "color");
             } else {
@@ -562,8 +606,10 @@ btn.color = red"#);
     fn insert_keyframe_wraps_declarations_in_zero_keyframe() {
         // No keyframes at all — inserting a relative keyframe must wrap the
         // top-level declarations in a single #0s so they don't get shifted.
-        let mut stmts = parse(r#"btn: Rect, size: (100, 200)
-circle: Ellipse, radius: 50"#);
+        let mut stmts = parse(
+            r#"btn: Rect, size: (100, 200)
+circle: Ellipse, radius: 50"#,
+        );
 
         let edit = SourceEdit::InsertKeyframe {
             actor: "btn".into(),
@@ -596,11 +642,13 @@ circle: Ellipse, radius: 50"#);
     #[test]
     fn insert_keyframe_adjusts_subsequent_relative_offset() {
         // Inserting between #0s and #+1s should adjust the #+1s offset to #+500ms
-        let mut stmts = parse(r#"#0s
+        let mut stmts = parse(
+            r#"#0s
 btn: Rect, size: (100, 200)
 
 #+1s
-btn.color = red"#);
+btn.color = red"#,
+        );
 
         let edit = SourceEdit::InsertKeyframe {
             actor: "btn".into(),
@@ -631,12 +679,14 @@ btn.color = red"#);
 
     #[test]
     fn merge_keyframe_updates_existing_assignment() {
-        let mut stmts = parse(r#"#0s
+        let mut stmts = parse(
+            r#"#0s
 btn: Rect, size: (100, 200)
 
 #1s
 btn.color = red
-btn.position = (10, 20)"#);
+btn.position = (10, 20)"#,
+        );
 
         let edit = SourceEdit::MergeKeyframe {
             actor: "btn".into(),
@@ -649,7 +699,10 @@ btn.position = (10, 20)"#);
         let mut found = false;
         if let Stmt::Keyframe { body, .. } = &stmts[1] {
             for stmt in body {
-                if let Stmt::Assignment { property, value, .. } = stmt {
+                if let Stmt::Assignment {
+                    property, value, ..
+                } = stmt
+                {
                     if property == "color" {
                         assert_eq!(*value, Expr::Ident("blue".into()));
                         found = true;
@@ -662,11 +715,13 @@ btn.position = (10, 20)"#);
 
     #[test]
     fn merge_keyframe_uses_relative_time() {
-        let mut stmts = parse(r#"#0s
+        let mut stmts = parse(
+            r#"#0s
 btn: Rect, size: (100, 200)
 
 #+500ms
-btn.color = red"#);
+btn.color = red"#,
+        );
 
         let edit = SourceEdit::MergeKeyframe {
             actor: "btn".into(),
@@ -689,14 +744,16 @@ btn.color = red"#);
 
     #[test]
     fn move_keyframe_time_absolute() {
-        let mut stmts = parse(r#"#0s
+        let mut stmts = parse(
+            r#"#0s
 btn: Rect, size: (100, 200)
 
 #2s
 btn.color = red
 
 #+2s
-btn.color = blue"#);
+btn.color = blue"#,
+        );
 
         let edit = SourceEdit::MoveKeyframeTime {
             actor: "btn".into(),
@@ -724,14 +781,16 @@ btn.color = blue"#);
 
     #[test]
     fn move_keyframe_time_relative() {
-        let mut stmts = parse(r#"#0s
+        let mut stmts = parse(
+            r#"#0s
 btn: Rect, size: (100, 200)
 
 #+2s
 btn.color = red
 
 #+3s
-btn.color = blue"#);
+btn.color = blue"#,
+        );
 
         let edit = SourceEdit::MoveKeyframeTime {
             actor: "btn".into(),
@@ -759,11 +818,13 @@ btn.color = blue"#);
 
     #[test]
     fn move_keyframe_time_no_change() {
-        let mut stmts = parse(r#"#0s
+        let mut stmts = parse(
+            r#"#0s
 btn: Rect, size: (100, 200)
 
 #2s
-btn.color = red"#);
+btn.color = red"#,
+        );
 
         let edit = SourceEdit::MoveKeyframeTime {
             actor: "btn".into(),
@@ -783,11 +844,13 @@ btn.color = red"#);
 
     #[test]
     fn move_keyframe_time_not_found() {
-        let mut stmts = parse(r#"#0s
+        let mut stmts = parse(
+            r#"#0s
 btn: Rect, size: (100, 200)
 
 #2s
-btn.color = red"#);
+btn.color = red"#,
+        );
 
         let edit = SourceEdit::MoveKeyframeTime {
             actor: "btn".into(),
@@ -800,11 +863,13 @@ btn.color = red"#);
 
     #[test]
     fn move_keyframe_time_wrong_actor() {
-        let mut stmts = parse(r#"#0s
+        let mut stmts = parse(
+            r#"#0s
 btn: Rect, size: (100, 200)
 
 #2s
-btn.color = red"#);
+btn.color = red"#,
+        );
 
         let edit = SourceEdit::MoveKeyframeTime {
             actor: "other".into(),

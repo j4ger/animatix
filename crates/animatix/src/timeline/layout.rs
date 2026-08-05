@@ -5,35 +5,41 @@
 //! It is evaluated once when a layout container (Row, Col, Grid, Stack) is applied,
 //! and does not re-sample when animated tracks change later.
 //!
-//! 1. **Declaration-time measure**: Layout-managed children publish their local
-//!    half-extents into a dedicated layout-size track. Authored shapes seed this from
-//!    declared geometry; text, math, code, image, and SVG seed it from measured
-//!    or intrinsic bounds.
+//! 1. **Declaration-time measure**: Layout-managed children publish their local half-extents into a
+//!    dedicated layout-size track. Authored shapes seed this from declared geometry; text, math,
+//!    code, image, and SVG seed it from measured or intrinsic bounds.
 //!
-//! 2. **Container placement**: Containers (Row, Col, Grid, Stack) consume child
-//!    half-extents and place children deterministically based on declared order,
-//!    gap, padding, and alignment. Placement is frozen at declaration time.
+//! 2. **Container placement**: Containers (Row, Col, Grid, Stack) consume child half-extents and
+//!    place children deterministically based on declared order, gap, padding, and alignment.
+//!    Placement is frozen at declaration time.
 //!
-//! 3. **Authored `at` opts out**: A child with an authored `at` value is skipped
-//!    by container placement; the author takes full responsibility for its position.
+//! 3. **Authored `at` opts out**: A child with an authored `at` value is skipped by container
+//!    placement; the author takes full responsibility for its position.
 //!
-//! 4. **Root default**: Root layout containers that are layout-managed with no `at`
-//!    default to scene center (0, 0).
+//! 4. **Root default**: Root layout containers that are layout-managed with no `at` default to
+//!    scene center (0, 0).
 //!
-//! 5. **Visual transforms independent**: Visual transforms (scale, rotation) do
-//!    not affect layout size under the current contract; they are purely presentational.
+//! 5. **Visual transforms independent**: Visual transforms (scale, rotation) do not affect layout
+//!    size under the current contract; they are purely presentational.
 //!
-//! 6. **No sampled relayout**: When layout-size or `position` tracks animate later, layout
-//!    does not re-evaluate. This is a deliberate trade-off for predictability.
+//! 6. **No sampled relayout**: When layout-size or `position` tracks animate later, layout does not
+//!    re-evaluate. This is a deliberate trade-off for predictability.
 
 use std::collections::BTreeMap;
 
-use super::{AnimationTrack, ContainerLayoutChild, Diagnostic, Easing, PlacementMode, Timeline, TrackAccessor};
-use crate::renderer::text::TextKind;
-use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
 use tracing::warn;
 
-use super::taffy_layout::{compute_taffy_linear_layout, compute_taffy_linear_layout_with_baselines, compute_taffy_linear_layout_with_specs, compute_taffy_grid_layout, compute_taffy_grid_layout_with_specs, ChildSizeSpec, SizeConstraints};
+use super::taffy_layout::{
+    ChildSizeSpec, SizeConstraints, compute_taffy_grid_layout,
+    compute_taffy_grid_layout_with_specs, compute_taffy_linear_layout,
+    compute_taffy_linear_layout_with_baselines, compute_taffy_linear_layout_with_specs,
+};
+use super::{
+    AnimationTrack, ContainerLayoutChild, Diagnostic, Easing, PlacementMode, Timeline,
+    TrackAccessor,
+};
+use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
+use crate::renderer::text::TextKind;
 
 /// Represents a child's layout-relevant size at a specific point in time.
 #[derive(Clone, Debug)]
@@ -57,15 +63,18 @@ pub(crate) fn compute_stack_layout(children: &[ChildExtent], align: &str) -> Vec
     // - "start":  children are shifted toward negative X/Y (top-left)
     // - "center": children stay at origin (default)
     // - "end":    children are shifted toward positive X/Y (bottom-right)
-    children.iter().map(|child| {
-        // Use the child's own half-size to position relative to origin
-        // "start" aligns to top-left, "center" at origin, "end" aligns to bottom-right
-        match align {
-            "start" => [-child.half_size[0], -child.half_size[1]],
-            "end" => [child.half_size[0], child.half_size[1]],
-            _ => [0.0, 0.0], // center
-        }
-    }).collect()
+    children
+        .iter()
+        .map(|child| {
+            // Use the child's own half-size to position relative to origin
+            // "start" aligns to top-left, "center" at origin, "end" aligns to bottom-right
+            match align {
+                "start" => [-child.half_size[0], -child.half_size[1]],
+                "end" => [child.half_size[0], child.half_size[1]],
+                _ => [0.0, 0.0], // center
+            }
+        })
+        .collect()
 }
 
 /// Pure layout computation for Row/Col containers using Taffy.
@@ -80,8 +89,16 @@ fn compute_linear_layout(
     child_baselines: &[f32],
 ) -> Vec<[f32; 2]> {
     compute_linear_layout_with_specs_inner(
-        children, is_row, gap, padding, align, metadata, child_baselines,
-        &[], &[], [0.0, 0.0],
+        children,
+        is_row,
+        gap,
+        padding,
+        align,
+        metadata,
+        child_baselines,
+        &[],
+        &[],
+        [0.0, 0.0],
     )
 }
 
@@ -107,14 +124,26 @@ fn compute_linear_layout_with_specs_inner(
     let output = if size_specs.is_empty() && constraints.is_empty() {
         // Legacy path: no specs
         compute_taffy_linear_layout_with_baselines(
-            children, layout_type, gap, padding, align,
-            child_baselines, &metadata.vertical_align,
+            children,
+            layout_type,
+            gap,
+            padding,
+            align,
+            child_baselines,
+            &metadata.vertical_align,
         )
     } else {
         compute_taffy_linear_layout_with_specs(
-            children, layout_type, gap, padding, align,
-            child_baselines, &metadata.vertical_align,
-            size_specs, constraints, parent_content_size,
+            children,
+            layout_type,
+            gap,
+            padding,
+            align,
+            child_baselines,
+            &metadata.vertical_align,
+            size_specs,
+            constraints,
+            parent_content_size,
         )
     };
     output.positions.into_iter().map(|r| r.position).collect()
@@ -128,9 +157,7 @@ fn compute_grid_layout(
     padding: [f32; 4],
     cols: usize,
 ) -> Vec<[f32; 2]> {
-    compute_grid_layout_with_specs_inner(
-        children, gap, padding, cols, &[], &[], [0.0, 0.0],
-    )
+    compute_grid_layout_with_specs_inner(children, gap, padding, cols, &[], &[], [0.0, 0.0])
 }
 
 /// Like `compute_grid_layout` but supports size specs and constraints.
@@ -147,7 +174,13 @@ fn compute_grid_layout_with_specs_inner(
         compute_taffy_grid_layout(children, gap, padding, cols)
     } else {
         compute_taffy_grid_layout_with_specs(
-            children, gap, padding, cols, size_specs, constraints, parent_content_size,
+            children,
+            gap,
+            padding,
+            cols,
+            size_specs,
+            constraints,
+            parent_content_size,
         )
     };
     output.positions.into_iter().map(|r| r.position).collect()
@@ -181,24 +214,44 @@ pub(crate) fn compute_container_size_with_specs(
         };
         let output = if size_specs.is_empty() && constraints.is_empty() {
             compute_taffy_linear_layout(
-                children, layout_type, metadata.gap, metadata.padding, &metadata.align,
+                children,
+                layout_type,
+                metadata.gap,
+                metadata.padding,
+                &metadata.align,
             )
         } else {
             compute_taffy_linear_layout_with_specs(
-                children, layout_type, metadata.gap, metadata.padding, &metadata.align,
-                &[], "center", size_specs, constraints, parent_content_size,
+                children,
+                layout_type,
+                metadata.gap,
+                metadata.padding,
+                &metadata.align,
+                &[],
+                "center",
+                size_specs,
+                constraints,
+                parent_content_size,
             )
         };
         output.container_size
     } else if is_grid {
         let output = if size_specs.is_empty() && constraints.is_empty() {
             compute_taffy_grid_layout(
-                children, metadata.gap, metadata.padding, metadata.cols.unwrap_or(1).max(1),
+                children,
+                metadata.gap,
+                metadata.padding,
+                metadata.cols.unwrap_or(1).max(1),
             )
         } else {
             compute_taffy_grid_layout_with_specs(
-                children, metadata.gap, metadata.padding, metadata.cols.unwrap_or(1).max(1),
-                size_specs, constraints, parent_content_size,
+                children,
+                metadata.gap,
+                metadata.padding,
+                metadata.cols.unwrap_or(1).max(1),
+                size_specs,
+                constraints,
+                parent_content_size,
             )
         };
         output.container_size
@@ -208,9 +261,7 @@ pub(crate) fn compute_container_size_with_specs(
     }
 }
 
-use super::LayoutEngine;
-
-use super::ContainerMetadata;
+use super::{ContainerMetadata, LayoutEngine};
 
 /// Cached layout computation result for a single container.
 #[derive(Clone, Debug)]
@@ -249,8 +300,12 @@ impl LayoutEngine {
         child_baselines: &[f32],
     ) -> Vec<[f32; 2]> {
         Self::compute_positions_with_specs(
-            metadata, children, child_baselines,
-            &[], &[], [0.0, 0.0],
+            metadata,
+            children,
+            child_baselines,
+            &[],
+            &[],
+            [0.0, 0.0],
         )
     }
 
@@ -277,23 +332,45 @@ impl LayoutEngine {
         } else if is_grid {
             if size_specs.is_empty() && constraints.is_empty() {
                 compute_grid_layout(
-                    children, metadata.gap, metadata.padding, metadata.cols.unwrap_or(1).max(1),
+                    children,
+                    metadata.gap,
+                    metadata.padding,
+                    metadata.cols.unwrap_or(1).max(1),
                 )
             } else {
                 compute_grid_layout_with_specs_inner(
-                    children, metadata.gap, metadata.padding, metadata.cols.unwrap_or(1).max(1),
-                    size_specs, constraints, parent_content_size,
+                    children,
+                    metadata.gap,
+                    metadata.padding,
+                    metadata.cols.unwrap_or(1).max(1),
+                    size_specs,
+                    constraints,
+                    parent_content_size,
                 )
             }
         } else {
             if size_specs.is_empty() && constraints.is_empty() {
                 compute_linear_layout(
-                    children, is_row, metadata.gap, metadata.padding, &metadata.align, metadata, child_baselines,
+                    children,
+                    is_row,
+                    metadata.gap,
+                    metadata.padding,
+                    &metadata.align,
+                    metadata,
+                    child_baselines,
                 )
             } else {
                 compute_linear_layout_with_specs_inner(
-                    children, is_row, metadata.gap, metadata.padding, &metadata.align, metadata, child_baselines,
-                    size_specs, constraints, parent_content_size,
+                    children,
+                    is_row,
+                    metadata.gap,
+                    metadata.padding,
+                    &metadata.align,
+                    metadata,
+                    child_baselines,
+                    size_specs,
+                    constraints,
+                    parent_content_size,
                 )
             }
         }
@@ -327,10 +404,8 @@ impl LayoutEngine {
             .collect();
 
         // Build fingerprint for cache lookup
-        let fingerprints: Vec<([f32; 2], u8)> = child_extents
-            .iter()
-            .map(|c| (c.half_size, c.placement_mode as u8))
-            .collect();
+        let fingerprints: Vec<([f32; 2], u8)> =
+            child_extents.iter().map(|c| (c.half_size, c.placement_mode as u8)).collect();
 
         // Check cache — use container label from first child's parent context.
         // We key on the child labels themselves to detect structural changes.
@@ -347,14 +422,11 @@ impl LayoutEngine {
         // Sample child baselines for baseline alignment
         let child_baselines: Vec<f32> = layout_children
             .iter()
-            .map(|child| {
-                tracks.get(&child.label)
-                    .map(|t| t.baseline_get(time_ms))
-                    .unwrap_or(0.0)
-            })
+            .map(|child| tracks.get(&child.label).map(|t| t.baseline_get(time_ms)).unwrap_or(0.0))
             .collect();
 
-        let positions = Self::compute_positions_with_baselines(metadata, &child_extents, &child_baselines);
+        let positions =
+            Self::compute_positions_with_baselines(metadata, &child_extents, &child_baselines);
 
         // Build result BTreeMap, only including LayoutManaged children
         let mut result = BTreeMap::new();
@@ -476,20 +548,26 @@ impl Timeline {
         if props.existing_max_width > 0.0 && props.existing_max_width <= available_width {
             tracing::debug!(
                 "Width propagation: child '{}' has explicit max_width={}, not overriding with available_width={}",
-                child_label, props.existing_max_width, available_width
+                child_label,
+                props.existing_max_width,
+                available_width
             );
             return;
         }
 
-        let effective_max_width = if props.existing_max_width > 0.0 && props.existing_max_width < available_width {
-            props.existing_max_width
-        } else {
-            available_width
-        };
+        let effective_max_width =
+            if props.existing_max_width > 0.0 && props.existing_max_width < available_width {
+                props.existing_max_width
+            } else {
+                available_width
+            };
 
         tracing::debug!(
             "Width propagation: recompiling text '{}' with max_width={} (container width={}, existing={})",
-            child_label, effective_max_width, available_width, props.existing_max_width
+            child_label,
+            effective_max_width,
+            available_width,
+            props.existing_max_width
         );
 
         // Re-compile text with wrapping
@@ -501,61 +579,55 @@ impl Timeline {
         );
 
         let result = match props.text_kind {
-            TextKind::Text => {
-                crate::renderer::text::compile_text(
-                    &props.content,
-                    props.font_size,
-                    typst_color,
-                    &props.font_family,
-                    self.font_context.as_ref(),
-                    props.font_weight,
-                    &props.font_style,
-                    props.line_height,
-                    props.letter_spacing,
-                    props.word_spacing,
-                    effective_max_width,
-                    &props.text_align,
-                    &props.overflow,
-                )
-            }
-            TextKind::Typst => {
-                crate::renderer::text::compile_typst(
-                    &props.content,
-                    props.font_size,
-                    typst_color,
-                    &props.font_family,
-                    self.font_context.as_ref(),
-                    props.font_weight,
-                    &props.font_style,
-                    props.line_height,
-                    props.letter_spacing,
-                    props.word_spacing,
-                    effective_max_width,
-                    &props.text_align,
-                    &props.overflow,
-                )
-            }
-            TextKind::Code => {
-                crate::renderer::text::compile_code(
-                    &props.content,
-                    props.font_size,
-                    typst_color,
-                    &props.font_family,
-                    self.font_context.as_ref(),
-                    props.font_weight,
-                    &props.font_style,
-                    props.line_height,
-                    props.letter_spacing,
-                    props.word_spacing,
-                    effective_max_width,
-                    &props.text_align,
-                    &props.overflow,
-                )
-            }
+            TextKind::Text => crate::renderer::text::compile_text(
+                &props.content,
+                props.font_size,
+                typst_color,
+                &props.font_family,
+                self.font_context.as_ref(),
+                props.font_weight,
+                &props.font_style,
+                props.line_height,
+                props.letter_spacing,
+                props.word_spacing,
+                effective_max_width,
+                &props.text_align,
+                &props.overflow,
+            ),
+            TextKind::Typst => crate::renderer::text::compile_typst(
+                &props.content,
+                props.font_size,
+                typst_color,
+                &props.font_family,
+                self.font_context.as_ref(),
+                props.font_weight,
+                &props.font_style,
+                props.line_height,
+                props.letter_spacing,
+                props.word_spacing,
+                effective_max_width,
+                &props.text_align,
+                &props.overflow,
+            ),
+            TextKind::Code => crate::renderer::text::compile_code(
+                &props.content,
+                props.font_size,
+                typst_color,
+                &props.font_family,
+                self.font_context.as_ref(),
+                props.font_weight,
+                &props.font_style,
+                props.line_height,
+                props.letter_spacing,
+                props.word_spacing,
+                effective_max_width,
+                &props.text_align,
+                &props.overflow,
+            ),
             TextKind::Math => {
                 // Math shouldn't reach here at build time, but handle gracefully
                 return;
-            }
+            },
         };
 
         let frame = match result {
@@ -563,10 +635,12 @@ impl Timeline {
             Err(e) => {
                 tracing::warn!(
                     "Width propagation: failed to recompile text '{}' with max_width={}: {}",
-                    child_label, effective_max_width, e
+                    child_label,
+                    effective_max_width,
+                    e
                 );
                 return;
-            }
+            },
         };
 
         let compiled = crate::renderer::text::extract_glyphs_with_metrics(&frame);
@@ -574,7 +648,8 @@ impl Timeline {
 
         tracing::debug!(
             "Width propagation: text '{}' remeasured to half_size={:?}",
-            child_label, new_half_size
+            child_label,
+            new_half_size
         );
 
         let Some(track) = self.tracks.get_mut(child_label) else {
@@ -582,13 +657,25 @@ impl Timeline {
         };
 
         // Update max_width track
-        track.text.text_max_width.ensure(0.0).add_keyframe(time_ms, effective_max_width, Easing::Linear);
+        track.text.text_max_width.ensure(0.0).add_keyframe(
+            time_ms,
+            effective_max_width,
+            Easing::Linear,
+        );
 
         // Update text_paths, size, layout_size, and metrics tracks
-        track.text.text_paths.ensure(Vec::new()).add_keyframe(time_ms, compiled.glyphs, Easing::Linear);
-        track.geometry.size.ensure(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
+        track.text.text_paths.ensure(Vec::new()).add_keyframe(
+            time_ms,
+            compiled.glyphs,
+            Easing::Linear,
+        );
+        track
+            .geometry
+            .size
+            .ensure(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
             .add_keyframe(time_ms, new_half_size, Easing::Linear);
-        track.ensure_layout_size(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
+        track
+            .ensure_layout_size(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
             .add_keyframe(time_ms, new_half_size, Easing::Linear);
         track.set_metrics(time_ms, compiled.ascent, compiled.descent, compiled.baseline_offset);
     }
@@ -606,23 +693,23 @@ impl Timeline {
             super::LayoutType::Row => {
                 // Row: unbounded width per child (unless child has explicit max_width)
                 f32::MAX
-            }
+            },
             super::LayoutType::Col => {
                 // Col: container width minus horizontal padding
                 let avail = container_size[0] - padding_h;
                 avail.max(1.0) // ensure at least 1px to avoid degenerate layout
-            }
+            },
             super::LayoutType::Grid => {
                 // Grid: per-cell width = (container_width - padding - gaps) / cols
                 let cols = metadata.cols.unwrap_or(1).max(1);
                 let total_gaps = metadata.gap[0] * (cols - 1) as f32;
                 let avail = (container_size[0] - padding_h - total_gaps) / cols as f32;
                 avail.max(1.0)
-            }
+            },
             super::LayoutType::Stack => {
                 // Stack: no meaningful width constraint
                 f32::MAX
-            }
+            },
         }
     }
 
@@ -649,13 +736,16 @@ impl Timeline {
                 continue;
             };
 
-            let available_width = self.compute_available_width(container_size, &metadata, child_index);
+            let available_width =
+                self.compute_available_width(container_size, &metadata, child_index);
 
             if available_width >= f32::MAX - 1.0 {
                 // Row or Stack: unbounded, no wrapping needed
                 tracing::debug!(
                     "Width propagation: child '{}' in {} '{}' has unbounded width, skipping",
-                    child_label, metadata.layout_type.as_str(), container_label
+                    child_label,
+                    metadata.layout_type.as_str(),
+                    container_label
                 );
                 continue;
             }
@@ -777,9 +867,17 @@ impl Timeline {
                 let max_h = track.geometry.max_height.get(time_ms, f32::INFINITY);
                 constraints.push(SizeConstraints {
                     min_width: if min_w > 0.0 { Some(min_w) } else { None },
-                    max_width: if !max_w.is_infinite() && !max_w.is_nan() { Some(max_w) } else { None },
+                    max_width: if !max_w.is_infinite() && !max_w.is_nan() {
+                        Some(max_w)
+                    } else {
+                        None
+                    },
                     min_height: if min_h > 0.0 { Some(min_h) } else { None },
-                    max_height: if !max_h.is_infinite() && !max_h.is_nan() { Some(max_h) } else { None },
+                    max_height: if !max_h.is_infinite() && !max_h.is_nan() {
+                        Some(max_h)
+                    } else {
+                        None
+                    },
                 });
             } else {
                 size_specs.push(None);
@@ -824,11 +922,7 @@ impl Timeline {
         // Sample child baselines for baseline alignment
         let child_baselines: Vec<f32> = children
             .iter()
-            .map(|cl| {
-                self.tracks.get(&cl.label)
-                    .map(|t| t.baseline_get(t_ms))
-                    .unwrap_or(0.0)
-            })
+            .map(|cl| self.tracks.get(&cl.label).map(|t| t.baseline_get(t_ms)).unwrap_or(0.0))
             .collect();
 
         // Collect size specs and constraints for phase 7
@@ -838,21 +932,31 @@ impl Timeline {
         // Use the parent container's own layout_size as the content box for percentage resolution.
         // For the container itself, we may need to do a two-pass: first compute the container size
         // without percentage children, then resolve percentages against it.
-        let parent_content_size = self.tracks.get(container_label)
+        let parent_content_size = self
+            .tracks
+            .get(container_label)
             .and_then(|t| t.layout_size_last())
             .map(|s| [s[0] * 2.0, s[1] * 2.0])
             .unwrap_or([0.0, 0.0]);
 
         let positions = LayoutEngine::compute_positions_with_specs(
-            &metadata, &child_extents, &child_baselines,
-            &size_specs, &constraints, parent_content_size,
+            &metadata,
+            &child_extents,
+            &child_baselines,
+            &size_specs,
+            &constraints,
+            parent_content_size,
         );
 
         // Write positions to tracks, only for LayoutManaged children
         for (i, child) in children.iter().enumerate() {
             if child.placement_mode == PlacementMode::LayoutManaged {
                 if let Some(track) = self.tracks.get_mut(&child.label) {
-                    track.geometry.position.ensure([0.0, 0.0]).add_keyframe(t_ms, positions[i], Easing::Linear);
+                    track.geometry.position.ensure([0.0, 0.0]).add_keyframe(
+                        t_ms,
+                        positions[i],
+                        Easing::Linear,
+                    );
                 }
             }
         }

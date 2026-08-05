@@ -9,6 +9,12 @@
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use animatix::timeline::SceneDimensions;
+    use animatix_syntax::ast::Stmt;
+
     use crate::app::PreviewPaneState;
     use crate::app::commands::Effect;
     use crate::app::handlers::*;
@@ -16,10 +22,6 @@ mod tests {
     use crate::app::preview::DragState;
     use crate::document::DocumentSession;
     use crate::editor::EditorBuffer;
-    use animatix::timeline::SceneDimensions;
-    use animatix_syntax::ast::Stmt;
-    use std::collections::HashSet;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     // ── Test helpers (no filesystem needed) ────────────────────────────
 
@@ -46,6 +48,7 @@ mod tests {
             HashSet::new(),
             vec![],
             std::path::PathBuf::from(".test_persistence.ron"),
+            None,
             None,
         )
     }

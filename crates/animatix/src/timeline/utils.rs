@@ -4,13 +4,14 @@
 //! Built-ins (sin, cos, lerp, rand, format) resolve through the environment.
 //! Closures evaluate against a clone of the caller environment with parameter bindings added.
 
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+
 use crate::ast::{Expr, Time};
 use crate::timeline::animation_track::SceneAnchor;
 use crate::timeline::callout_geometry::env_anchor_point;
 use crate::timeline::env::{CapturedEnv, Environment, EvalError, Value};
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
 
 // Thread-local expression evaluation cache.
 //
@@ -53,9 +54,8 @@ fn env_hash(env: &Environment) -> u64 {
         ptr.hash(&mut hasher);
     }
     // Hash override entries (skip NativeFn which can't be hashed)
-    let mut entries: Vec<(&String, &Value)> = env.overrides.iter()
-        .filter(|(_, v)| !matches!(v, Value::NativeFn(_)))
-        .collect();
+    let mut entries: Vec<(&String, &Value)> =
+        env.overrides.iter().filter(|(_, v)| !matches!(v, Value::NativeFn(_))).collect();
     entries.sort_by(|(a, _), (b, _)| a.cmp(b));
     for (key, value) in entries {
         key.hash(&mut hasher);
@@ -72,17 +72,56 @@ fn env_hash(env: &Environment) -> u64 {
 /// Hash a Value (skipping NativeFn which can't be hashed).
 fn hash_value<V: Hasher>(value: &Value, hasher: &mut V) {
     match value {
-        Value::Num(n) => { 0u8.hash(hasher); n.to_bits().hash(hasher); }
-        Value::Str(s) => { 1u8.hash(hasher); s.hash(hasher); }
-        Value::Bool(b) => { 2u8.hash(hasher); b.hash(hasher); }
-        Value::Vec2(v) => { 3u8.hash(hasher); v[0].to_bits().hash(hasher); v[1].to_bits().hash(hasher); }
-        Value::Vec3(v) => { 4u8.hash(hasher); for x in v { x.to_bits().hash(hasher); } }
-        Value::Vec4(v) => { 5u8.hash(hasher); for x in v { x.to_bits().hash(hasher); } }
-        Value::Color(c) => { 6u8.hash(hasher); for x in c { x.to_bits().hash(hasher); } }
-        Value::List(items) => { 7u8.hash(hasher); items.len().hash(hasher); }
-        Value::Object(name, _) => { 8u8.hash(hasher); name.hash(hasher); }
-        Value::NativeFn(_) => { 9u8.hash(hasher); } // pointer identity
-        Value::Closure(params, _, _) => { 10u8.hash(hasher); params.hash(hasher); }
+        Value::Num(n) => {
+            0u8.hash(hasher);
+            n.to_bits().hash(hasher);
+        },
+        Value::Str(s) => {
+            1u8.hash(hasher);
+            s.hash(hasher);
+        },
+        Value::Bool(b) => {
+            2u8.hash(hasher);
+            b.hash(hasher);
+        },
+        Value::Vec2(v) => {
+            3u8.hash(hasher);
+            v[0].to_bits().hash(hasher);
+            v[1].to_bits().hash(hasher);
+        },
+        Value::Vec3(v) => {
+            4u8.hash(hasher);
+            for x in v {
+                x.to_bits().hash(hasher);
+            }
+        },
+        Value::Vec4(v) => {
+            5u8.hash(hasher);
+            for x in v {
+                x.to_bits().hash(hasher);
+            }
+        },
+        Value::Color(c) => {
+            6u8.hash(hasher);
+            for x in c {
+                x.to_bits().hash(hasher);
+            }
+        },
+        Value::List(items) => {
+            7u8.hash(hasher);
+            items.len().hash(hasher);
+        },
+        Value::Object(name, _) => {
+            8u8.hash(hasher);
+            name.hash(hasher);
+        },
+        Value::NativeFn(_) => {
+            9u8.hash(hasher);
+        }, // pointer identity
+        Value::Closure(params, _, _) => {
+            10u8.hash(hasher);
+            params.hash(hasher);
+        },
     }
 }
 
@@ -107,24 +146,102 @@ fn expr_hash(expr: &Expr) -> u64 {
 
 fn hash_expr_recursive<V: Hasher>(expr: &Expr, hasher: &mut V) {
     match expr {
-        Expr::Num(n) => { 0u8.hash(hasher); n.to_bits().hash(hasher); }
-        Expr::Percent(n) => { 1u8.hash(hasher); n.to_bits().hash(hasher); }
-        Expr::Str(s) => { 2u8.hash(hasher); s.hash(hasher); }
-        Expr::Bool(b) => { 3u8.hash(hasher); b.hash(hasher); }
-        Expr::Null => { 4u8.hash(hasher); }
-        Expr::Ident(s) => { 5u8.hash(hasher); s.hash(hasher); }
-        Expr::Path(parts) => { 6u8.hash(hasher); parts.hash(hasher); }
-        Expr::Index(a, b) => { 7u8.hash(hasher); hash_expr_recursive(a, hasher); hash_expr_recursive(b, hasher); }
-        Expr::Tuple(items) => { 8u8.hash(hasher); items.len().hash(hasher); for e in items { hash_expr_recursive(e, hasher); } }
-        Expr::List(items) => { 9u8.hash(hasher); items.len().hash(hasher); for e in items { hash_expr_recursive(e, hasher); } }
-        Expr::Binary(a, op, b) => { 10u8.hash(hasher); hash_expr_recursive(a, hasher); format!("{:?}", op).hash(hasher); hash_expr_recursive(b, hasher); }
-        Expr::Unary(op, e) => { 11u8.hash(hasher); format!("{:?}", op).hash(hasher); hash_expr_recursive(e, hasher); }
-        Expr::Call(name, args) => { 12u8.hash(hasher); name.hash(hasher); args.len().hash(hasher); for a in args { hash_expr_recursive(a, hasher); } }
-        Expr::Method(recv, name, args) => { 13u8.hash(hasher); hash_expr_recursive(recv, hasher); name.hash(hasher); args.len().hash(hasher); for a in args { hash_expr_recursive(a, hasher); } }
-        Expr::Closure(params, body) => { 14u8.hash(hasher); params.hash(hasher); hash_expr_recursive(body, hasher); }
-        Expr::Conditional(c, t, e) => { 15u8.hash(hasher); hash_expr_recursive(c, hasher); hash_expr_recursive(t, hasher); hash_expr_recursive(e, hasher); }
-        Expr::Match(scrutinee, arms) => { 17u8.hash(hasher); hash_expr_recursive(scrutinee, hasher); for (_p, e) in arms { hash_expr_recursive(e, hasher); } }
-        Expr::Construct(name, _) => { 16u8.hash(hasher); name.hash(hasher); }
+        Expr::Num(n) => {
+            0u8.hash(hasher);
+            n.to_bits().hash(hasher);
+        },
+        Expr::Percent(n) => {
+            1u8.hash(hasher);
+            n.to_bits().hash(hasher);
+        },
+        Expr::Str(s) => {
+            2u8.hash(hasher);
+            s.hash(hasher);
+        },
+        Expr::Bool(b) => {
+            3u8.hash(hasher);
+            b.hash(hasher);
+        },
+        Expr::Null => {
+            4u8.hash(hasher);
+        },
+        Expr::Ident(s) => {
+            5u8.hash(hasher);
+            s.hash(hasher);
+        },
+        Expr::Path(parts) => {
+            6u8.hash(hasher);
+            parts.hash(hasher);
+        },
+        Expr::Index(a, b) => {
+            7u8.hash(hasher);
+            hash_expr_recursive(a, hasher);
+            hash_expr_recursive(b, hasher);
+        },
+        Expr::Tuple(items) => {
+            8u8.hash(hasher);
+            items.len().hash(hasher);
+            for e in items {
+                hash_expr_recursive(e, hasher);
+            }
+        },
+        Expr::List(items) => {
+            9u8.hash(hasher);
+            items.len().hash(hasher);
+            for e in items {
+                hash_expr_recursive(e, hasher);
+            }
+        },
+        Expr::Binary(a, op, b) => {
+            10u8.hash(hasher);
+            hash_expr_recursive(a, hasher);
+            format!("{:?}", op).hash(hasher);
+            hash_expr_recursive(b, hasher);
+        },
+        Expr::Unary(op, e) => {
+            11u8.hash(hasher);
+            format!("{:?}", op).hash(hasher);
+            hash_expr_recursive(e, hasher);
+        },
+        Expr::Call(name, args) => {
+            12u8.hash(hasher);
+            name.hash(hasher);
+            args.len().hash(hasher);
+            for a in args {
+                hash_expr_recursive(a, hasher);
+            }
+        },
+        Expr::Method(recv, name, args) => {
+            13u8.hash(hasher);
+            hash_expr_recursive(recv, hasher);
+            name.hash(hasher);
+            args.len().hash(hasher);
+            for a in args {
+                hash_expr_recursive(a, hasher);
+            }
+        },
+        Expr::Closure(params, body) => {
+            14u8.hash(hasher);
+            params.hash(hasher);
+            hash_expr_recursive(body, hasher);
+        },
+        Expr::Conditional(c, t, e) => {
+            15u8.hash(hasher);
+            hash_expr_recursive(c, hasher);
+            hash_expr_recursive(t, hasher);
+            hash_expr_recursive(e, hasher);
+        },
+        Expr::Match(scrutinee, arms) => {
+            17u8.hash(hasher);
+            hash_expr_recursive(scrutinee, hasher);
+            for (_p, e) in arms {
+                hash_expr_recursive(e, hasher);
+            }
+        },
+        Expr::Construct(name, _) => {
+            16u8.hash(hasher);
+            name.hash(hasher);
+        },
     }
 }
 
@@ -144,19 +261,17 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
         Expr::Num(_) | Expr::Percent(_) | Expr::Str(_) | Expr::Bool(_) | Expr::Null => {
             // Literals are cheap — evaluate directly without caching
             return evaluate_expr_inner(expr, env);
-        }
+        },
         _ => {
             let expr_h = expr_hash(expr);
             let env_h = env_hash(env);
             (expr_h as usize, env_h)
-        }
+        },
     };
 
     // Check cache
     {
-        let hit = EVAL_CACHE.with(|cache| {
-            cache.borrow().get(&cache_key).cloned()
-        });
+        let hit = EVAL_CACHE.with(|cache| cache.borrow().get(&cache_key).cloned());
         if let Some(value) = hit {
             return Ok(value);
         }
@@ -179,9 +294,9 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
         Expr::Bool(b) => Ok(Value::Bool(*b)),
         Expr::Null => Ok(Value::Num(0.0)),
 
-        Expr::Ident(name) => env
-            .get(name)
-            .ok_or_else(|| EvalError::UndefinedVariable(name.clone())),
+        Expr::Ident(name) => {
+            env.get(name).ok_or_else(|| EvalError::UndefinedVariable(name.clone()))
+        },
 
         Expr::Tuple(items) => {
             if items.len() == 2 {
@@ -205,19 +320,20 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
                     items.iter().map(|item| evaluate_expr(item, env)).collect();
                 Ok(Value::List(values?))
             }
-        }
+        },
 
         Expr::List(items) => {
-            let vals: Vec<Value> = items.iter().map(|i| evaluate_expr(i, env)).collect::<Result<Vec<Value>, _>>()?;
+            let vals: Vec<Value> =
+                items.iter().map(|i| evaluate_expr(i, env)).collect::<Result<Vec<Value>, _>>()?;
             Ok(Value::List(vals))
-        }
+        },
         Expr::Call(func, args) => evaluate_call(func, args, env),
 
         Expr::Binary(left, op, right) => {
             let l_val = evaluate_expr(left, env)?;
             let r_val = evaluate_expr(right, env)?;
             super::eval_shared::eval_binary_op(l_val, op, r_val)
-        }
+        },
 
         Expr::Unary(op, inner) => {
             let v = evaluate_expr(inner, env)?.as_num();
@@ -229,9 +345,9 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
                     } else {
                         0.0
                     }
-                }
+                },
             }))
-        }
+        },
 
         Expr::Conditional(cond, then_branch, else_branch) => {
             if evaluate_expr(cond, env)?.as_num() != 0.0 {
@@ -239,12 +355,12 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
             } else {
                 evaluate_expr(else_branch, env)
             }
-        }
+        },
 
         // Closures capture the current override environment at creation time (lexical scope).
         Expr::Closure(args, body) => {
             Ok(Value::Closure(args.clone(), body.clone(), CapturedEnv::snapshot(env)))
-        }
+        },
 
         Expr::Match(scrutinee, arms) => {
             let value = evaluate_expr(scrutinee, env)?;
@@ -259,7 +375,7 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
                 value
             );
             Ok(Value::Num(0.0))
-        }
+        },
 
         Expr::Path(parts) => {
             let dotted = parts.join(".");
@@ -283,51 +399,51 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
             }
             // Multi-part path: try walking through object fields.
             if parts.len() > 1 {
-                let base = env.get(&parts[0])
-                    .ok_or(EvalError::UndefinedVariable(parts[0].clone()))?;
+                let base =
+                    env.get(&parts[0]).ok_or(EvalError::UndefinedVariable(parts[0].clone()))?;
                 let mut current = base;
                 for segment in &parts[1..] {
                     match current {
                         Value::Object(_, fields) => {
-                            current = fields.get(segment.as_str())
+                            current = fields
+                                .get(segment.as_str())
                                 .ok_or_else(|| EvalError::UndefinedVariable(dotted.clone()))?
                                 .clone();
-                        }
+                        },
                         _ => return Err(EvalError::UndefinedVariable(dotted)),
                     }
                 }
                 return Ok(current);
             }
             Err(EvalError::UndefinedVariable(dotted))
-        }
+        },
 
         Expr::Method(receiver, name, args) => {
             let receiver_val = evaluate_expr(receiver, env)?;
             evaluate_method(receiver_val, name, args, env)
-        }
+        },
 
         Expr::Index(container, index) => {
             let container_val = evaluate_expr(container, env)?;
             let index_val = evaluate_expr(index, env)?;
             let idx = index_val.as_num() as usize;
             match container_val {
-                Value::List(items) => items
-                    .get(idx)
-                    .cloned()
-                    .ok_or_else(|| EvalError::TypeMismatch(format!(
+                Value::List(items) => items.get(idx).cloned().ok_or_else(|| {
+                    EvalError::TypeMismatch(format!(
                         "Index {} out of bounds for list of length {}",
                         idx,
                         items.len()
-                    ))),
-                Value::Str(s) => s
-                    .chars()
-                    .nth(idx)
-                    .map(|c| Value::Str(c.to_string()))
-                    .ok_or_else(|| EvalError::TypeMismatch(format!(
-                        "Index {} out of bounds for string of length {}",
-                        idx,
-                        s.len()
-                    ))),
+                    ))
+                }),
+                Value::Str(s) => {
+                    s.chars().nth(idx).map(|c| Value::Str(c.to_string())).ok_or_else(|| {
+                        EvalError::TypeMismatch(format!(
+                            "Index {} out of bounds for string of length {}",
+                            idx,
+                            s.len()
+                        ))
+                    })
+                },
                 Value::Vec2(v) => match idx {
                     0 => Ok(Value::Num(v[0])),
                     1 => Ok(Value::Num(v[1])),
@@ -365,12 +481,9 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
                         idx
                     ))),
                 },
-                other => Err(EvalError::TypeMismatch(format!(
-                    "Cannot index into {:?}",
-                    other
-                ))),
+                other => Err(EvalError::TypeMismatch(format!("Cannot index into {:?}", other))),
             }
-        }
+        },
 
         Expr::Construct(name, properties) => {
             let mut fields = std::collections::HashMap::new();
@@ -379,17 +492,15 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
                 fields.insert(prop.name.clone(), value);
             }
             Ok(Value::Object(name.clone(), fields))
-        }
+        },
     }
 }
 
 /// Evaluate a function call.
 fn evaluate_call(func: &str, args: &[Expr], env: &Environment) -> Result<Value, EvalError> {
     // Fast-path: evaluate arguments once into Values
-    let arg_values: Vec<Value> = args
-        .iter()
-        .map(|arg| evaluate_expr(arg, env))
-        .collect::<Result<Vec<_>, _>>()?;
+    let arg_values: Vec<Value> =
+        args.iter().map(|arg| evaluate_expr(arg, env)).collect::<Result<Vec<_>, _>>()?;
 
     // Fast-path: known builtins go through eval_shared
     if let Ok(val) = super::eval_shared::eval_builtin_fn(func, &arg_values) {
@@ -399,9 +510,7 @@ fn evaluate_call(func: &str, args: &[Expr], env: &Environment) -> Result<Value, 
     // Look up the function in the environment
     if let Some(val) = env.get(func) {
         match val {
-            Value::NativeFn(native_func) => {
-                native_func(&arg_values, env)
-            }
+            Value::NativeFn(native_func) => native_func(&arg_values, env),
             // Closures evaluate against the captured (lexical) environment,
             // then bind parameters on top. Free variables resolve to their
             // values at creation time, not call time.
@@ -439,7 +548,7 @@ fn evaluate_call(func: &str, args: &[Expr], env: &Environment) -> Result<Value, 
                 }
 
                 evaluate_expr(&body, &child_env)
-            }
+            },
             _ => Err(EvalError::NotCallable(func.to_string())),
         }
     } else {
@@ -470,7 +579,7 @@ pub(crate) fn eval_method_dispatch(
                 ));
             }
             Ok(Value::Num(s.len() as f64))
-        }
+        },
         (Value::Str(s), "split") => {
             if args.len() != 1 {
                 return Err(EvalError::TypeMismatch(
@@ -478,12 +587,10 @@ pub(crate) fn eval_method_dispatch(
                 ));
             }
             let delim = args[0].as_str();
-            let parts: Vec<Value> = s
-                .split(&delim)
-                .map(|part| Value::Str(part.to_string()))
-                .collect();
+            let parts: Vec<Value> =
+                s.split(&delim).map(|part| Value::Str(part.to_string())).collect();
             Ok(Value::List(parts))
-        }
+        },
         (Value::Str(s), "contains") => {
             if args.len() != 1 {
                 return Err(EvalError::TypeMismatch(
@@ -492,7 +599,7 @@ pub(crate) fn eval_method_dispatch(
             }
             let substr = args[0].as_str();
             Ok(Value::Num(if s.contains(&substr) { 1.0 } else { 0.0 }))
-        }
+        },
         (Value::Str(s), "trim") => {
             if !args.is_empty() {
                 return Err(EvalError::TypeMismatch(
@@ -500,7 +607,7 @@ pub(crate) fn eval_method_dispatch(
                 ));
             }
             Ok(Value::Str(s.trim().to_string()))
-        }
+        },
         (Value::Str(s), "starts_with") => {
             if args.len() != 1 {
                 return Err(EvalError::TypeMismatch(
@@ -509,7 +616,7 @@ pub(crate) fn eval_method_dispatch(
             }
             let prefix = args[0].as_str();
             Ok(Value::Num(if s.starts_with(&prefix) { 1.0 } else { 0.0 }))
-        }
+        },
         (Value::Str(s), "ends_with") => {
             if args.len() != 1 {
                 return Err(EvalError::TypeMismatch(
@@ -518,7 +625,7 @@ pub(crate) fn eval_method_dispatch(
             }
             let suffix = args[0].as_str();
             Ok(Value::Num(if s.ends_with(&suffix) { 1.0 } else { 0.0 }))
-        }
+        },
         (Value::List(items), "length") => {
             if !args.is_empty() {
                 return Err(EvalError::TypeMismatch(
@@ -526,7 +633,7 @@ pub(crate) fn eval_method_dispatch(
                 ));
             }
             Ok(Value::Num(items.len() as f64))
-        }
+        },
         (Value::List(items), "get") => {
             if args.len() != 1 {
                 return Err(EvalError::TypeMismatch(
@@ -534,17 +641,14 @@ pub(crate) fn eval_method_dispatch(
                 ));
             }
             let idx = args[0].as_num() as usize;
-            items
-                .get(idx)
-                .cloned()
-                .ok_or_else(|| {
-                    EvalError::TypeMismatch(format!(
-                        "Index {} out of bounds for list of length {}",
-                        idx,
-                        items.len()
-                    ))
-                })
-        }
+            items.get(idx).cloned().ok_or_else(|| {
+                EvalError::TypeMismatch(format!(
+                    "Index {} out of bounds for list of length {}",
+                    idx,
+                    items.len()
+                ))
+            })
+        },
         (Value::List(items), "contains") => {
             if args.len() != 1 {
                 return Err(EvalError::TypeMismatch(
@@ -553,44 +657,34 @@ pub(crate) fn eval_method_dispatch(
             }
             let item = args[0].clone();
             Ok(Value::Num(if items.contains(&item) { 1.0 } else { 0.0 }))
-        }
+        },
         (Value::Num(n), "abs") => {
             if !args.is_empty() {
-                return Err(EvalError::TypeMismatch(
-                    "Num.abs() takes no arguments".to_string(),
-                ));
+                return Err(EvalError::TypeMismatch("Num.abs() takes no arguments".to_string()));
             }
             Ok(Value::Num(n.abs()))
-        }
+        },
         (Value::Num(n), "floor") => {
             if !args.is_empty() {
-                return Err(EvalError::TypeMismatch(
-                    "Num.floor() takes no arguments".to_string(),
-                ));
+                return Err(EvalError::TypeMismatch("Num.floor() takes no arguments".to_string()));
             }
             Ok(Value::Num(n.floor()))
-        }
+        },
         (Value::Num(n), "ceil") => {
             if !args.is_empty() {
-                return Err(EvalError::TypeMismatch(
-                    "Num.ceil() takes no arguments".to_string(),
-                ));
+                return Err(EvalError::TypeMismatch("Num.ceil() takes no arguments".to_string()));
             }
             Ok(Value::Num(n.ceil()))
-        }
+        },
         (Value::Num(n), "round") => {
             if !args.is_empty() {
-                return Err(EvalError::TypeMismatch(
-                    "Num.round() takes no arguments".to_string(),
-                ));
+                return Err(EvalError::TypeMismatch("Num.round() takes no arguments".to_string()));
             }
             Ok(Value::Num(n.round()))
-        }
-        (receiver, name) => Err(EvalError::UnsupportedMethod(format!(
-            "{}.{}()",
-            format_value(&receiver),
-            name
-        ))),
+        },
+        (receiver, name) => {
+            Err(EvalError::UnsupportedMethod(format!("{}.{}()", format_value(&receiver), name)))
+        },
     }
 }
 
@@ -603,10 +697,8 @@ fn evaluate_method(
     env: &Environment,
 ) -> Result<Value, EvalError> {
     // Evaluate arguments first
-    let arg_values: Vec<Value> = args
-        .iter()
-        .map(|arg| evaluate_expr(arg, env))
-        .collect::<Result<Vec<_>, _>>()?;
+    let arg_values: Vec<Value> =
+        args.iter().map(|arg| evaluate_expr(arg, env)).collect::<Result<Vec<_>, _>>()?;
 
     // Call shared dispatch
     match eval_method_dispatch(receiver.clone(), name, &arg_values, env) {
@@ -622,7 +714,7 @@ fn evaluate_method(
             }
             // Not an Object field access, return the original error
             Err(EvalError::UnsupportedMethod(msg))
-        }
+        },
         Err(e) => Err(e),
     }
 }
@@ -636,7 +728,7 @@ fn format_value(value: &Value) -> String {
             } else {
                 format!("{}", n)
             }
-        }
+        },
         Value::Str(s) => s.clone(),
         Value::Bool(b) => b.to_string(),
         Value::Vec2(t) => format!("({}, {})", t[0], t[1]),
@@ -690,10 +782,7 @@ pub fn resolve_color_in_env(expr: &Expr, env: &Environment) -> Result<Option<[f3
 
 /// Parse a color expression in the given environment, falling back to a default gray.
 pub fn parse_color_in_env(expr: &Expr, env: &Environment) -> [f32; 4] {
-    resolve_color_in_env(expr, env)
-        .ok()
-        .flatten()
-        .unwrap_or([0.8, 0.8, 0.8, 1.0])
+    resolve_color_in_env(expr, env).ok().flatten().unwrap_or([0.8, 0.8, 0.8, 1.0])
 }
 
 /// Convert a `Time` value to milliseconds.
@@ -706,12 +795,14 @@ pub fn time_to_ms(time: &Time) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use chumsky::Parser;
+
     use super::*;
     use crate::ast::BinaryOp;
     use crate::timeline::load_standard_library;
     use crate::timeline::property_track::TrackAccessor;
-    use chumsky::Parser;
-    use std::collections::HashMap;
 
     #[test]
     fn test_evaluate_closure() {
@@ -739,11 +830,8 @@ mod tests {
     fn test_evaluate_method_string_length() {
         let mut env = Environment::new();
         env.set("text", Value::Str("hello".to_string()));
-        let expr = Expr::Method(
-            Box::new(Expr::Ident("text".to_string())),
-            "length".to_string(),
-            vec![],
-        );
+        let expr =
+            Expr::Method(Box::new(Expr::Ident("text".to_string())), "length".to_string(), vec![]);
 
         let result = evaluate_expr(&expr, &env).unwrap();
         assert_eq!(result.as_num(), 5.0);
@@ -771,11 +859,8 @@ mod tests {
     fn test_evaluate_method_list_length() {
         let mut env = Environment::new();
         env.set("items", Value::List(vec![Value::Num(1.0), Value::Num(2.0)]));
-        let expr = Expr::Method(
-            Box::new(Expr::Ident("items".to_string())),
-            "length".to_string(),
-            vec![],
-        );
+        let expr =
+            Expr::Method(Box::new(Expr::Ident("items".to_string())), "length".to_string(), vec![]);
 
         let result = evaluate_expr(&expr, &env).unwrap();
         assert_eq!(result.as_num(), 2.0);
@@ -803,11 +888,8 @@ mod tests {
         fields.insert("y".to_string(), Value::Num(20.0));
         env.set("point", Value::Object("Point".to_string(), fields));
 
-        let expr = Expr::Method(
-            Box::new(Expr::Ident("point".to_string())),
-            "x".to_string(),
-            vec![],
-        );
+        let expr =
+            Expr::Method(Box::new(Expr::Ident("point".to_string())), "x".to_string(), vec![]);
 
         let result = evaluate_expr(&expr, &env).unwrap();
         assert_eq!(result.as_num(), 10.0);
@@ -819,11 +901,8 @@ mod tests {
         let fields = HashMap::new();
         env.set("point", Value::Object("Point".to_string(), fields));
 
-        let expr = Expr::Method(
-            Box::new(Expr::Ident("point".to_string())),
-            "z".to_string(),
-            vec![],
-        );
+        let expr =
+            Expr::Method(Box::new(Expr::Ident("point".to_string())), "z".to_string(), vec![]);
 
         let result = evaluate_expr(&expr, &env);
         assert!(result.is_err());
@@ -834,11 +913,7 @@ mod tests {
     fn test_evaluate_method_num_abs() {
         let mut env = Environment::new();
         env.set("x", Value::Num(-42.5));
-        let expr = Expr::Method(
-            Box::new(Expr::Ident("x".to_string())),
-            "abs".to_string(),
-            vec![],
-        );
+        let expr = Expr::Method(Box::new(Expr::Ident("x".to_string())), "abs".to_string(), vec![]);
 
         let result = evaluate_expr(&expr, &env).unwrap();
         assert_eq!(result.as_num(), 42.5);
@@ -847,11 +922,8 @@ mod tests {
     #[test]
     fn test_evaluate_method_unsupported() {
         let env = Environment::new();
-        let expr = Expr::Method(
-            Box::new(Expr::Ident("graph".to_string())),
-            "plot".to_string(),
-            vec![],
-        );
+        let expr =
+            Expr::Method(Box::new(Expr::Ident("graph".to_string())), "plot".to_string(), vec![]);
 
         let result = evaluate_expr(&expr, &env);
         assert!(result.is_err());
@@ -861,10 +933,8 @@ mod tests {
     fn test_evaluate_index_on_list() {
         let mut env = Environment::new();
         env.set("items", Value::List(vec![Value::Num(10.0), Value::Num(20.0), Value::Num(30.0)]));
-        let expr = Expr::Index(
-            Box::new(Expr::Ident("items".to_string())),
-            Box::new(Expr::Num(1.0)),
-        );
+        let expr =
+            Expr::Index(Box::new(Expr::Ident("items".to_string())), Box::new(Expr::Num(1.0)));
 
         let result = evaluate_expr(&expr, &env).unwrap();
         assert_eq!(result.as_num(), 20.0);
@@ -874,10 +944,7 @@ mod tests {
     fn test_evaluate_index_on_vec2() {
         let mut env = Environment::new();
         env.set("pos", Value::Vec2([100.0, 200.0]));
-        let expr = Expr::Index(
-            Box::new(Expr::Ident("pos".to_string())),
-            Box::new(Expr::Num(0.0)),
-        );
+        let expr = Expr::Index(Box::new(Expr::Ident("pos".to_string())), Box::new(Expr::Num(0.0)));
 
         let result = evaluate_expr(&expr, &env).unwrap();
         assert_eq!(result.as_num(), 100.0);
@@ -887,10 +954,7 @@ mod tests {
     fn test_evaluate_index_on_string() {
         let mut env = Environment::new();
         env.set("text", Value::Str("hello".to_string()));
-        let expr = Expr::Index(
-            Box::new(Expr::Ident("text".to_string())),
-            Box::new(Expr::Num(1.0)),
-        );
+        let expr = Expr::Index(Box::new(Expr::Ident("text".to_string())), Box::new(Expr::Num(1.0)));
 
         let result = evaluate_expr(&expr, &env).unwrap();
         assert_eq!(result.as_str(), "e");
@@ -900,10 +964,8 @@ mod tests {
     fn test_evaluate_index_out_of_bounds() {
         let mut env = Environment::new();
         env.set("items", Value::List(vec![Value::Num(10.0)]));
-        let expr = Expr::Index(
-            Box::new(Expr::Ident("items".to_string())),
-            Box::new(Expr::Num(5.0)),
-        );
+        let expr =
+            Expr::Index(Box::new(Expr::Ident("items".to_string())), Box::new(Expr::Num(5.0)));
 
         let result = evaluate_expr(&expr, &env);
         assert!(result.is_err());
@@ -936,7 +998,7 @@ mod tests {
                 assert_eq!(name, "Point");
                 assert_eq!(fields.get("x").unwrap().as_num(), 10.0);
                 assert_eq!(fields.get("y").unwrap().as_num(), 20.0);
-            }
+            },
             other => panic!("Expected Object, got: {:?}", other),
         }
     }
@@ -987,14 +1049,8 @@ mod tests {
 
     #[test]
     fn test_parse_color() {
-        assert_eq!(
-            parse_color(&Expr::Ident("red".to_string())),
-            [1.0, 0.0, 0.0, 1.0]
-        );
-        assert_eq!(
-            parse_color(&Expr::Ident("unknown".to_string())),
-            [0.8, 0.8, 0.8, 1.0]
-        );
+        assert_eq!(parse_color(&Expr::Ident("red".to_string())), [1.0, 0.0, 0.0, 1.0]);
+        assert_eq!(parse_color(&Expr::Ident("unknown".to_string())), [0.8, 0.8, 0.8, 1.0]);
         assert_eq!(parse_color(&Expr::Num(1.0)), [0.8, 0.8, 0.8, 1.0]);
     }
 
@@ -1088,10 +1144,7 @@ mod tests {
                 "format".to_string(),
                 vec![
                     Expr::Str("sin(π/2) = {}".to_string()),
-                    Expr::Call(
-                        "sin".to_string(),
-                        vec![Expr::Num(std::f64::consts::FRAC_PI_2)],
-                    ),
+                    Expr::Call("sin".to_string(), vec![Expr::Num(std::f64::consts::FRAC_PI_2)]),
                 ],
             ),
             &env,
@@ -1163,11 +1216,7 @@ mod tests {
 
         // Basic modulo: 10 % 3 = 1
         let result = evaluate_expr(
-            &Expr::Binary(
-                Box::new(Expr::Num(10.0)),
-                BinaryOp::Mod,
-                Box::new(Expr::Num(3.0)),
-            ),
+            &Expr::Binary(Box::new(Expr::Num(10.0)), BinaryOp::Mod, Box::new(Expr::Num(3.0))),
             &env,
         )
         .unwrap_or(Value::Num(0.0));
@@ -1175,11 +1224,7 @@ mod tests {
 
         // Modulo with division: 7 % 2 = 1
         let result = evaluate_expr(
-            &Expr::Binary(
-                Box::new(Expr::Num(7.0)),
-                BinaryOp::Mod,
-                Box::new(Expr::Num(2.0)),
-            ),
+            &Expr::Binary(Box::new(Expr::Num(7.0)), BinaryOp::Mod, Box::new(Expr::Num(2.0))),
             &env,
         )
         .unwrap_or(Value::Num(0.0));
@@ -1314,17 +1359,9 @@ mod tests {
         // Vec3 addition: (1, 2, 3) + (4, 5, 6) = (5, 7, 9)
         let result = evaluate_expr(
             &Expr::Binary(
-                Box::new(Expr::Tuple(vec![
-                    Expr::Num(1.0),
-                    Expr::Num(2.0),
-                    Expr::Num(3.0),
-                ])),
+                Box::new(Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0)])),
                 BinaryOp::Add,
-                Box::new(Expr::Tuple(vec![
-                    Expr::Num(4.0),
-                    Expr::Num(5.0),
-                    Expr::Num(6.0),
-                ])),
+                Box::new(Expr::Tuple(vec![Expr::Num(4.0), Expr::Num(5.0), Expr::Num(6.0)])),
             ),
             &env,
         )
@@ -1336,11 +1373,7 @@ mod tests {
             &Expr::Binary(
                 Box::new(Expr::Num(2.0)),
                 BinaryOp::Mul,
-                Box::new(Expr::Tuple(vec![
-                    Expr::Num(1.0),
-                    Expr::Num(2.0),
-                    Expr::Num(3.0),
-                ])),
+                Box::new(Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0)])),
             ),
             &env,
         )
@@ -1407,14 +1440,10 @@ mod tests {
         load_standard_library(&mut env);
 
         // rand() should return a value between 0 and 1
-        let result = evaluate_expr(&Expr::Call("rand".to_string(), vec![]), &env)
-            .unwrap_or(Value::Num(0.0));
+        let result =
+            evaluate_expr(&Expr::Call("rand".to_string(), vec![]), &env).unwrap_or(Value::Num(0.0));
         let val = result.as_num();
-        assert!(
-            (0.0..1.0).contains(&val),
-            "rand() should return value in [0, 1), got {}",
-            val
-        );
+        assert!((0.0..1.0).contains(&val), "rand() should return value in [0, 1), got {}", val);
 
         // rand() with expressions: rand() * 100 should be in [0, 100)
         let result = evaluate_expr(
@@ -1427,11 +1456,7 @@ mod tests {
         )
         .unwrap_or(Value::Num(0.0));
         let val = result.as_num();
-        assert!(
-            (0.0..100.0).contains(&val),
-            "rand() * 100 should be in [0, 100), got {}",
-            val
-        );
+        assert!((0.0..100.0).contains(&val), "rand() * 100 should be in [0, 100), got {}", val);
     }
 
     #[test]
@@ -1490,8 +1515,14 @@ mod tests {
         let val1 = evaluate_expr(&expr1, &timeline.env).unwrap();
         let val2 = evaluate_expr(&expr2, &timeline.env).unwrap();
 
-        let n1 = match val1 { Value::Num(n) => n, _ => panic!("expected num") };
-        let n2 = match val2 { Value::Num(n) => n, _ => panic!("expected num") };
+        let n1 = match val1 {
+            Value::Num(n) => n,
+            _ => panic!("expected num"),
+        };
+        let n2 = match val2 {
+            Value::Num(n) => n,
+            _ => panic!("expected num"),
+        };
 
         assert_ne!(n1, n2, "different seeds should produce different values");
     }

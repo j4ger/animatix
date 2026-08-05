@@ -291,8 +291,12 @@ pub fn handle_align_actors(
     if let Some(timeline) = document_store.source.document.active_timeline() {
         for (actor, rect) in &rects[1..] {
             if let Some(track) = timeline.get_track(actor) {
-                let pos =
-                    track.geometry.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+                let pos = track
+                    .geometry
+                    .position
+                    .as_ref()
+                    .map(|p| p.evaluate(time_ms))
+                    .unwrap_or([0.0, 0.0]);
                 let new_pos = match alignment {
                     Align::Left => [ref_value as f32 + (pos[0] - rect.x0 as f32), pos[1]],
                     Align::Center => [
@@ -388,8 +392,9 @@ pub fn handle_distribute_actors(
         Axis::Vertical => rects.sort_by(|a, b| f64::total_cmp(&a.1.y0, &b.1.y0)),
     }
 
-    let first = rects.first().unwrap();
-    let last = rects.last().unwrap();
+    let (Some(first), Some(last)) = (rects.first(), rects.last()) else {
+        return vec![];
+    };
     let (start, end) = match axis {
         Axis::Horizontal => (first.1.x0, last.1.x1),
         Axis::Vertical => (first.1.y0, last.1.y1),
@@ -405,8 +410,12 @@ pub fn handle_distribute_actors(
     if let Some(timeline) = document_store.source.document.active_timeline() {
         for (i, (actor, rect)) in rects.iter().enumerate() {
             if let Some(track) = timeline.get_track(actor) {
-                let pos =
-                    track.geometry.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+                let pos = track
+                    .geometry
+                    .position
+                    .as_ref()
+                    .map(|p| p.evaluate(time_ms))
+                    .unwrap_or([0.0, 0.0]);
                 let target = start + step * i as f64;
                 let new_pos = match axis {
                     Axis::Horizontal => [target as f32 + (pos[0] - rect.x0 as f32), pos[1]],

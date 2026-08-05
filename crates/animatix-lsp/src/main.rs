@@ -3,10 +3,11 @@
 //! This binary provides language intelligence (completions, diagnostics, hover, go-to-definition)
 //! to external editors like VS Code and Neovim via the Language Server Protocol.
 
-use animatix_analyzer::{Analyzer, Workspace};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+
+use animatix_analyzer::{Analyzer, Workspace};
 use tokio::sync::Mutex;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
@@ -115,9 +116,7 @@ impl Backend {
                 let severity = match d.severity {
                     animatix_analyzer::DiagnosticSeverity::Error => DiagnosticSeverity::ERROR,
                     animatix_analyzer::DiagnosticSeverity::Warning => DiagnosticSeverity::WARNING,
-                    animatix_analyzer::DiagnosticSeverity::Info => {
-                        DiagnosticSeverity::INFORMATION
-                    }
+                    animatix_analyzer::DiagnosticSeverity::Info => DiagnosticSeverity::INFORMATION,
                     animatix_analyzer::DiagnosticSeverity::Hint => DiagnosticSeverity::HINT,
                 };
 
@@ -214,26 +213,29 @@ impl LanguageServer for Backend {
             analyzer.completions_at(position.line as usize, position.character as usize)
         };
 
-        let lsp_items: Vec<CompletionItem> = items.into_iter().map(|item| {
-            let kind = match item.kind {
-                animatix_analyzer::CompletionKind::Keyword => CompletionItemKind::KEYWORD,
-                animatix_analyzer::CompletionKind::Type => CompletionItemKind::TYPE_PARAMETER,
-                animatix_analyzer::CompletionKind::Property => CompletionItemKind::PROPERTY,
-                animatix_analyzer::CompletionKind::Label => CompletionItemKind::VARIABLE,
-                animatix_analyzer::CompletionKind::Action => CompletionItemKind::FUNCTION,
-                animatix_analyzer::CompletionKind::Value => CompletionItemKind::VALUE,
-                animatix_analyzer::CompletionKind::Snippet => CompletionItemKind::SNIPPET,
-            };
+        let lsp_items: Vec<CompletionItem> = items
+            .into_iter()
+            .map(|item| {
+                let kind = match item.kind {
+                    animatix_analyzer::CompletionKind::Keyword => CompletionItemKind::KEYWORD,
+                    animatix_analyzer::CompletionKind::Type => CompletionItemKind::TYPE_PARAMETER,
+                    animatix_analyzer::CompletionKind::Property => CompletionItemKind::PROPERTY,
+                    animatix_analyzer::CompletionKind::Label => CompletionItemKind::VARIABLE,
+                    animatix_analyzer::CompletionKind::Action => CompletionItemKind::FUNCTION,
+                    animatix_analyzer::CompletionKind::Value => CompletionItemKind::VALUE,
+                    animatix_analyzer::CompletionKind::Snippet => CompletionItemKind::SNIPPET,
+                };
 
-            CompletionItem {
-                label: item.label,
-                kind: Some(kind),
-                detail: item.detail,
-                documentation: item.documentation.map(Documentation::String),
-                insert_text: item.insert_text,
-                ..Default::default()
-            }
-        }).collect();
+                CompletionItem {
+                    label: item.label,
+                    kind: Some(kind),
+                    detail: item.detail,
+                    documentation: item.documentation.map(Documentation::String),
+                    insert_text: item.insert_text,
+                    ..Default::default()
+                }
+            })
+            .collect();
 
         Ok(Some(CompletionResponse::Array(lsp_items)))
     }
@@ -252,10 +254,7 @@ impl LanguageServer for Backend {
 
         Ok(hover_info.map(|info| {
             let range = info.range.map(|(sl, sc, el, ec)| {
-                Range::new(
-                    Position::new(sl as u32, sc as u32),
-                    Position::new(el as u32, ec as u32),
-                )
+                Range::new(Position::new(sl as u32, sc as u32), Position::new(el as u32, ec as u32))
             });
 
             Hover {
@@ -281,17 +280,21 @@ impl LanguageServer for Backend {
             let Some(analyzer) = analyzers.get(&uri) else {
                 return Ok(None);
             };
-            analyzer.definition_at(workspace.as_deref(), position.line as usize, position.character as usize)
+            analyzer.definition_at(
+                workspace.as_deref(),
+                position.line as usize,
+                position.character as usize,
+            )
         };
 
         Ok(location.map(|loc| {
-            let target_uri = loc.file.map(|f| {
-                Url::parse(&format!("file://{}", f)).unwrap_or_else(|_| {
-                    Url::parse("file:///unknown").unwrap()
+            let target_uri = loc
+                .file
+                .map(|f| {
+                    Url::parse(&format!("file://{}", f))
+                        .unwrap_or_else(|_| Url::parse("file:///unknown").unwrap())
                 })
-            }).unwrap_or_else(|| {
-                params.text_document_position_params.text_document.uri.clone()
-            });
+                .unwrap_or_else(|| params.text_document_position_params.text_document.uri.clone());
 
             GotoDefinitionResponse::Scalar(Location {
                 uri: target_uri,
@@ -316,30 +319,33 @@ impl LanguageServer for Backend {
             analyzer.document_symbols()
         };
 
-        let lsp_symbols: Vec<SymbolInformation> = symbols.into_iter().map(|sym| {
-            let kind = match sym.kind {
-                animatix_analyzer::SymbolKind::Actor => SymbolKind::VARIABLE,
-                animatix_analyzer::SymbolKind::Variable => SymbolKind::VARIABLE,
-                animatix_analyzer::SymbolKind::Component => SymbolKind::CLASS,
-                animatix_analyzer::SymbolKind::Block => SymbolKind::NAMESPACE,
-            };
+        let lsp_symbols: Vec<SymbolInformation> = symbols
+            .into_iter()
+            .map(|sym| {
+                let kind = match sym.kind {
+                    animatix_analyzer::SymbolKind::Actor => SymbolKind::VARIABLE,
+                    animatix_analyzer::SymbolKind::Variable => SymbolKind::VARIABLE,
+                    animatix_analyzer::SymbolKind::Component => SymbolKind::CLASS,
+                    animatix_analyzer::SymbolKind::Block => SymbolKind::NAMESPACE,
+                };
 
-            #[allow(deprecated)]
-            SymbolInformation {
-                name: sym.name,
-                kind,
-                location: Location {
-                    uri: params.text_document.uri.clone(),
-                    range: Range::new(
-                        Position::new(sym.line as u32, sym.col as u32),
-                        Position::new(sym.line as u32, sym.col as u32),
-                    ),
-                },
-                tags: None,
-                deprecated: None,
-                container_name: None,
-            }
-        }).collect();
+                #[allow(deprecated)]
+                SymbolInformation {
+                    name: sym.name,
+                    kind,
+                    location: Location {
+                        uri: params.text_document.uri.clone(),
+                        range: Range::new(
+                            Position::new(sym.line as u32, sym.col as u32),
+                            Position::new(sym.line as u32, sym.col as u32),
+                        ),
+                    },
+                    tags: None,
+                    deprecated: None,
+                    container_name: None,
+                }
+            })
+            .collect();
 
         Ok(Some(DocumentSymbolResponse::Flat(lsp_symbols)))
     }
@@ -370,9 +376,8 @@ impl LanguageServer for Backend {
                     name: sym.name,
                     kind,
                     location: Location {
-                        uri: Url::parse(uri).unwrap_or_else(|_| {
-                            Url::parse("file:///unknown").unwrap()
-                        }),
+                        uri: Url::parse(uri)
+                            .unwrap_or_else(|_| Url::parse("file:///unknown").unwrap()),
                         range: Range::new(
                             Position::new(sym.line as u32, sym.col as u32),
                             Position::new(sym.line as u32, sym.col as u32),
@@ -401,8 +406,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
 
-        let symbol_name = analyzer
-            .symbol_at(position.line as usize, position.character as usize);
+        let symbol_name = analyzer.symbol_at(position.line as usize, position.character as usize);
 
         let Some(symbol_name) = symbol_name else {
             return Ok(None);
@@ -460,10 +464,7 @@ impl LanguageServer for Backend {
         let last_char = lines.last().map(|l| l.len()).unwrap_or(0) as u32;
 
         Ok(Some(vec![TextEdit {
-            range: Range::new(
-                Position::new(0, 0),
-                Position::new(last_line, last_char),
-            ),
+            range: Range::new(Position::new(0, 0), Position::new(last_line, last_char)),
             new_text: formatted,
         }]))
     }

@@ -1,10 +1,12 @@
 //! Go-to-definition provider.
 
+use std::path::Path;
+
+use tree_sitter::Tree;
+
+use crate::Workspace;
 use crate::symbol_table::SymbolTable;
 use crate::types::Location;
-use crate::Workspace;
-use std::path::Path;
-use tree_sitter::Tree;
 
 /// Find the definition location of a symbol at a cursor position.
 pub fn definition_at(

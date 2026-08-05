@@ -3,13 +3,11 @@
 //! All widgets are theme-driven, use the builder pattern, and implement
 //! `egui::Widget` where sensible. Icons come from `egui_phosphor`.
 
-use crate::theme;
-use crate::tokens::spatial::{
-    spatial,
-    RADIUS_M, RADIUS_S, STROKE_WIDTH,
-};
-use crate::tokens::typography::TextRole;
 use egui::{Align2, Color32, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2, Widget};
+
+use crate::theme;
+use crate::tokens::spatial::{RADIUS_M, RADIUS_S, STROKE_WIDTH, spatial};
+use crate::tokens::typography::TextRole;
 
 // ── Skeleton (G2) ──────────────────────────────────────────────────
 
@@ -31,7 +29,9 @@ pub struct Skeleton {
 
 impl Default for Skeleton {
     fn default() -> Self {
-        Self { size: Vec2::new(100.0, 16.0) }
+        Self {
+            size: Vec2::new(100.0, 16.0),
+        }
     }
 }
 
@@ -133,8 +133,8 @@ impl Widget for ProgressBar {
 
         // Fill.
         let fill_width = (rect.width() * self.fraction).clamp(0.0, rect.width());
-        let fill_rect = Rect::from_min_size(rect.min, Vec2::new(fill_width, rect.height()))
-            .intersect(rect);
+        let fill_rect =
+            Rect::from_min_size(rect.min, Vec2::new(fill_width, rect.height())).intersect(rect);
         ui.painter().rect_filled(fill_rect, radius, t.accent.primary);
 
         // Label.
@@ -207,12 +207,10 @@ impl Widget for Badge {
         let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
         let radius = rect.height() / 2.0;
 
-        ui.painter()
-            .rect_filled(rect, radius as u8, t.overlay.badge_bg);
+        ui.painter().rect_filled(rect, radius as u8, t.overlay.badge_bg);
 
         let text_color = self.color.unwrap_or(t.accent.primary);
-        ui.painter()
-            .galley(rect.center() - galley.size() * 0.5, galley, text_color);
+        ui.painter().galley(rect.center() - galley.size() * 0.5, galley, text_color);
 
         response
     }
@@ -287,8 +285,7 @@ impl Widget for Tag {
             Stroke::new(STROKE_WIDTH, border_color),
             StrokeKind::Inside,
         );
-        ui.painter()
-            .galley(rect.center() - galley.size() * 0.5, galley, text_color);
+        ui.painter().galley(rect.center() - galley.size() * 0.5, galley, text_color);
 
         response
     }
@@ -346,35 +343,23 @@ impl Widget for Alert {
         let t = theme(ui);
         let s = spatial(ui);
         let (icon, color, bg) = match self.level {
-            AlertLevel::Info => (
-                egui_phosphor::regular::INFO,
-                t.status.info,
-                t.accent.faint,
-            ),
-            AlertLevel::Success => (
-                egui_phosphor::regular::CHECK,
-                t.status.success,
-                t.status.success_faint,
-            ),
-            AlertLevel::Warning => (
-                egui_phosphor::regular::WARNING,
-                t.status.warning,
-                t.status.warning_subtle,
-            ),
-            AlertLevel::Error => (
-                egui_phosphor::regular::X_CIRCLE,
-                t.status.error,
-                t.status.error_faint,
-            ),
+            AlertLevel::Info => (egui_phosphor::regular::INFO, t.status.info, t.accent.faint),
+            AlertLevel::Success => {
+                (egui_phosphor::regular::CHECK, t.status.success, t.status.success_faint)
+            },
+            AlertLevel::Warning => {
+                (egui_phosphor::regular::WARNING, t.status.warning, t.status.warning_subtle)
+            },
+            AlertLevel::Error => {
+                (egui_phosphor::regular::X_CIRCLE, t.status.error, t.status.error_faint)
+            },
         };
 
         let icon_font = TextRole::BodyS.font_id();
         let title_font = TextRole::Body.font_id();
         let body_font = TextRole::BodyS.font_id();
 
-        let icon_galley =
-            ui.painter()
-                .layout_no_wrap(icon.to_string(), icon_font.clone(), color);
+        let icon_galley = ui.painter().layout_no_wrap(icon.to_string(), icon_font.clone(), color);
         let title_galley = self
             .title
             .as_ref()
@@ -413,27 +398,19 @@ impl Widget for Alert {
         } else {
             rect.center().y
         };
-        ui.painter().text(
-            Pos2::new(icon_x, icon_y),
-            Align2::CENTER_CENTER,
-            icon,
-            icon_font,
-            color,
-        );
+        ui.painter()
+            .text(Pos2::new(icon_x, icon_y), Align2::CENTER_CENTER, icon, icon_font, color);
 
         // Text.
         let text_x = rect.min.x + pad + bar_w + spacing + icon_w;
         if let Some(ref tg) = title_galley {
             let title_y = rect.min.y + pad;
-            ui.painter()
-                .galley(Pos2::new(text_x, title_y), tg.clone(), t.text.primary);
+            ui.painter().galley(Pos2::new(text_x, title_y), tg.clone(), t.text.primary);
             let body_y = title_y + tg.size().y + spacing;
-            ui.painter()
-                .galley(Pos2::new(text_x, body_y), body_galley, t.text.primary);
+            ui.painter().galley(Pos2::new(text_x, body_y), body_galley, t.text.primary);
         } else {
             let text_y = rect.center().y - body_galley.size().y / 2.0;
-            ui.painter()
-                .galley(Pos2::new(text_x, text_y), body_galley, t.text.primary);
+            ui.painter().galley(Pos2::new(text_x, text_y), body_galley, t.text.primary);
         }
 
         response
@@ -461,9 +438,7 @@ mod tests {
 
     #[test]
     fn skeleton_width_height() {
-        let s = Skeleton::new(Vec2::new(40.0, 10.0))
-            .width(120.0)
-            .height(32.0);
+        let s = Skeleton::new(Vec2::new(40.0, 10.0)).width(120.0).height(32.0);
         assert_eq!(s.size, Vec2::new(120.0, 32.0));
     }
 
@@ -526,9 +501,7 @@ mod tests {
 
     #[test]
     fn tag_removable_and_color() {
-        let t = Tag::new("rust")
-            .removable(true)
-            .color(Color32::from_rgb(100, 200, 100));
+        let t = Tag::new("rust").removable(true).color(Color32::from_rgb(100, 200, 100));
         assert!(t.removable);
         assert_eq!(t.color, Some(Color32::from_rgb(100, 200, 100)));
     }

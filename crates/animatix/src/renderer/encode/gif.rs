@@ -3,14 +3,17 @@
 //! Provides single-timeline and multi-scene composition GIF encoding
 //! using the `image` crate's GIF encoder with parallel frame rendering.
 
-use crate::composition::Composition;
-use crate::renderer::encode::ExportError;
-use crate::renderer::encode::video::adaptive_thread_count;
-use crate::renderer::render_pipeline::{render_frames_streaming, render_frames_streaming_composition};
-use crate::renderer::encode::ExportSettings;
-use crate::timeline::{DebugRenderOptions, Timeline};
 use std::sync::atomic::{AtomicBool, AtomicU32};
+
 use tracing::info;
+
+use crate::composition::Composition;
+use crate::renderer::encode::video::adaptive_thread_count;
+use crate::renderer::encode::{ExportError, ExportSettings};
+use crate::renderer::render_pipeline::{
+    render_frames_streaming, render_frames_streaming_composition,
+};
+use crate::timeline::{DebugRenderOptions, Timeline};
 
 // ---------------------------------------------------------------------------
 // Public API: single-timeline GIF
@@ -72,7 +75,16 @@ pub fn render_gif_timeline_with_settings(
     settings: ExportSettings,
 ) -> Result<(), ExportError> {
     pollster::block_on(render_gif_async(
-        timeline, width, height, fps, duration, output_file, debug_options, settings, None, None,
+        timeline,
+        width,
+        height,
+        fps,
+        duration,
+        output_file,
+        debug_options,
+        settings,
+        None,
+        None,
     ))
 }
 
@@ -91,7 +103,16 @@ pub fn render_gif_timeline_with_progress(
     cancel: Option<&AtomicBool>,
 ) -> Result<(), ExportError> {
     pollster::block_on(render_gif_async(
-        timeline, width, height, fps, duration, output_file, debug_options, settings, progress, cancel,
+        timeline,
+        width,
+        height,
+        fps,
+        duration,
+        output_file,
+        debug_options,
+        settings,
+        progress,
+        cancel,
     ))
 }
 
@@ -141,12 +162,11 @@ pub(super) async fn render_gif_async(
         progress,
         cancel,
         |frame, scene_frame| {
-            let img = image::RgbaImage::from_raw(
-                scene_frame.width,
-                scene_frame.height,
-                scene_frame.rgba,
-            )
-            .ok_or_else(|| ExportError::ImageEncode("Failed to create image buffer".into()))?;
+            let img =
+                image::RgbaImage::from_raw(scene_frame.width, scene_frame.height, scene_frame.rgba)
+                    .ok_or_else(|| {
+                        ExportError::ImageEncode("Failed to create image buffer".into())
+                    })?;
 
             encoder
                 .encode_frame(image::Frame::from_parts(
@@ -287,12 +307,11 @@ pub(super) async fn render_gif_composition_async(
         progress,
         cancel,
         |frame, scene_frame| {
-            let img = image::RgbaImage::from_raw(
-                scene_frame.width,
-                scene_frame.height,
-                scene_frame.rgba,
-            )
-            .ok_or_else(|| ExportError::ImageEncode("Failed to create image buffer".into()))?;
+            let img =
+                image::RgbaImage::from_raw(scene_frame.width, scene_frame.height, scene_frame.rgba)
+                    .ok_or_else(|| {
+                        ExportError::ImageEncode("Failed to create image buffer".into())
+                    })?;
 
             encoder
                 .encode_frame(image::Frame::from_parts(

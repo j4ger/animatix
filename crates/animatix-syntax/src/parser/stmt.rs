@@ -28,10 +28,13 @@
 //! * `comment` — `// ...`
 //! * `block_comment_reject` — rejects `/* */` with a clear diagnostic
 
-use crate::ast::*;
 use chumsky::input::MapExtra;
 use chumsky::prelude::*;
-use super::common::{self, ExprParser, InlineItemsParser, ModifiersParser, ParserExtra, PropertyParser, StrInput};
+
+use super::common::{
+    self, ExprParser, InlineItemsParser, ModifiersParser, ParserExtra, PropertyParser, StrInput,
+};
+use crate::ast::*;
 
 /// Build the recursive statement parser.
 ///

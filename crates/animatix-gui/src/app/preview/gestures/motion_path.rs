@@ -7,9 +7,8 @@
 
 use crate::app::commands::{DocumentCommand, DragEvent, PropertyEdit, PropertyValue, ShellAction};
 use crate::app::design_tokens::spatial::preview::HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS;
-use crate::app::preview::DragState;
-use crate::app::preview::drag_utils;
 use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
+use crate::app::preview::{DragState, drag_utils};
 
 pub(crate) struct MotionPathGesture;
 
@@ -108,8 +107,7 @@ impl GestureHandler for MotionPathGesture {
 
                 // Finalize (MotionPath is a no-op in finalize_drag_keyframes)
                 drag_utils::finalize_drag_keyframes(&old_drag_state, ctx);
-                ctx.commands
-                    .push_back(ShellAction::Drag(DragEvent::DragEnded));
+                ctx.commands.push_back(ShellAction::Drag(DragEvent::DragEnded));
 
                 *ctx.drag_state = DragState::None;
 

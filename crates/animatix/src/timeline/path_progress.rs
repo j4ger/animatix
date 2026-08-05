@@ -26,8 +26,18 @@ pub fn trim_path_by_progress(path: &BezPath, progress: f64) -> BezPath {
 
     // Count segments (lines and curves). MoveTo elements start new segments
     // but are not themselves drawable segments.
-    let segment_count = elements.iter().filter(|e| matches!(e, kurbo::PathEl::LineTo(_) | kurbo::PathEl::QuadTo(_, _) | kurbo::PathEl::CurveTo(_, _, _))).count();
-    
+    let segment_count = elements
+        .iter()
+        .filter(|e| {
+            matches!(
+                e,
+                kurbo::PathEl::LineTo(_)
+                    | kurbo::PathEl::QuadTo(_, _)
+                    | kurbo::PathEl::CurveTo(_, _, _)
+            )
+        })
+        .count();
+
     if segment_count == 0 {
         return path.clone();
     }
@@ -42,8 +52,10 @@ pub fn trim_path_by_progress(path: &BezPath, progress: f64) -> BezPath {
             kurbo::PathEl::MoveTo(p) => {
                 // Save the move-to; emit it when we emit the first segment
                 pending_move_to = Some(*p);
-            }
-            seg @ (kurbo::PathEl::LineTo(_) | kurbo::PathEl::QuadTo(_, _) | kurbo::PathEl::CurveTo(_, _, _)) => {
+            },
+            seg @ (kurbo::PathEl::LineTo(_)
+            | kurbo::PathEl::QuadTo(_, _)
+            | kurbo::PathEl::CurveTo(_, _, _)) => {
                 if segments_collected < target {
                     if let Some(pt) = pending_move_to.take() {
                         result.move_to(pt);
@@ -56,12 +68,12 @@ pub fn trim_path_by_progress(path: &BezPath, progress: f64) -> BezPath {
                     }
                     segments_collected += 1;
                 }
-            }
+            },
             kurbo::PathEl::ClosePath => {
                 if segments_collected > 0 {
                     result.close_path();
                 }
-            }
+            },
         }
     }
 

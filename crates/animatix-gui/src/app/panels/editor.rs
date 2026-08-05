@@ -1,9 +1,10 @@
 //! Editor panel: source code editor with diagnostics and scrub-to commands.
 
+use animatix_syntax::diagnostics::Diagnostic;
+
 use crate::app::commands::{ActionQueue, PlaybackCommand};
 use crate::app::panels::panel_frame;
 use crate::editor::EditorBuffer;
-use animatix_syntax::diagnostics::Diagnostic;
 
 pub(crate) struct EditorContext<'a> {
     pub editor: &'a mut EditorBuffer,

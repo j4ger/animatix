@@ -249,5 +249,9 @@ fn conflicting_at_and_anchor_warning() {
     let has_warning = report.diagnostics.iter().any(|d| {
         d.code == animatix_syntax::diagnostics::DiagnosticCode::ConflictingPositionBinding
     });
-    assert!(has_warning, "Expected ConflictingPositionBinding warning, got: {:?}", report.diagnostics);
+    assert!(
+        has_warning,
+        "Expected ConflictingPositionBinding warning, got: {:?}",
+        report.diagnostics
+    );
 }

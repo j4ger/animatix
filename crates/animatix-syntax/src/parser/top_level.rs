@@ -4,9 +4,10 @@
 //! These parsers handle constructs that appear at the top level of a `.amx` file:
 //! scene declarations, keyframes, config blocks, and `play` transitions.
 
-use crate::ast::*;
 use chumsky::prelude::*;
+
 use super::common::{self, ModifiersParser, PropertyParser};
+use crate::ast::*;
 
 /// Build the top-level parser combining all top-level constructs.
 ///
@@ -32,15 +33,16 @@ pub(crate) fn parser<'src>(
 
     let config_stmt = text::keyword("config")
         .ignore_then(config_props)
-        .map(|settings| Stmt::Config { settings, span: None })
+        .map(|settings| Stmt::Config {
+            settings,
+            span: None,
+        })
         .labelled("config")
         .as_context()
         .padded();
 
     // --- Scene reference ---
-    let scene_ref = dotted_ident
-        .clone()
-        .map(|parts: Vec<String>| parts.join("."));
+    let scene_ref = dotted_ident.clone().map(|parts: Vec<String>| parts.join("."));
 
     // `play SceneName [modifier, ...]` — scene-level transition statement
     let play_stmt = text::keyword("play")
@@ -49,7 +51,11 @@ pub(crate) fn parser<'src>(
         .then(modifiers.clone())
         .map(|(scene_name, mods)| {
             let transition = parse_transition_from_modifiers(&mods);
-            Stmt::Play { scene_name, transition, span: None }
+            Stmt::Play {
+                scene_name,
+                transition,
+                span: None,
+            }
         })
         .labelled("play statement")
         .padded();
@@ -74,9 +80,17 @@ pub(crate) fn parser<'src>(
         .then(stmt.clone().repeated().collect::<Vec<_>>())
         .map(|((is_relative, t), body)| {
             if is_relative.is_some() {
-                Stmt::RelativeKeyframe { offset: t, body, span: None }
+                Stmt::RelativeKeyframe {
+                    offset: t,
+                    body,
+                    span: None,
+                }
             } else {
-                Stmt::Keyframe { time: t, body, span: None }
+                Stmt::Keyframe {
+                    time: t,
+                    body,
+                    span: None,
+                }
             }
         })
         .labelled("keyframe")
@@ -111,10 +125,9 @@ pub(crate) fn parser<'src>(
 ///
 /// If any `Stmt::Scene` markers exist in the parsed output:
 ///   - Everything before the first scene is the shared prelude.
-///   - Each scene marker starts a new scene; its body accumulates
-///     all subsequent statements until the next scene marker or EOF.
-///   - A `config { ... }` immediately after a scene marker is absorbed
-///     as that scene's config.
+///   - Each scene marker starts a new scene; its body accumulates all subsequent statements until
+///     the next scene marker or EOF.
+///   - A `config { ... }` immediately after a scene marker is absorbed as that scene's config.
 ///   - `play` statements belong to the current scene's body.
 ///
 /// If no scene markers exist, the output is returned unmodified
@@ -130,15 +143,30 @@ pub fn group_scenes(flat: Vec<Stmt>) -> Vec<Stmt> {
 
     for stmt in flat {
         match stmt {
-            Stmt::Scene { name, config: _, body: _, span } => {
+            Stmt::Scene {
+                name,
+                config: _,
+                body: _,
+                span,
+            } => {
                 // Finish previous scene if any
                 if let Some(scene) = current_scene.take() {
                     result.push(scene);
                 }
-                current_scene = Some(Stmt::Scene { name, config: vec![], body: vec![], span });
-            }
+                current_scene = Some(Stmt::Scene {
+                    name,
+                    config: vec![],
+                    body: vec![],
+                    span,
+                });
+            },
             Stmt::Config { .. } => {
-                if let Some(Stmt::Scene { ref mut config, ref body, .. }) = current_scene {
+                if let Some(Stmt::Scene {
+                    ref mut config,
+                    ref body,
+                    ..
+                }) = current_scene
+                {
                     // Absorb config into the scene only if both config and body
                     // are still empty (config must be the first thing after the scene name).
                     if config.is_empty() && body.is_empty() {
@@ -155,7 +183,7 @@ pub fn group_scenes(flat: Vec<Stmt>) -> Vec<Stmt> {
                     // Prelude config — keep in result
                     result.push(stmt);
                 }
-            }
+            },
             other => {
                 if let Some(Stmt::Scene { ref mut body, .. }) = current_scene {
                     body.push(other);
@@ -163,7 +191,7 @@ pub fn group_scenes(flat: Vec<Stmt>) -> Vec<Stmt> {
                     // Prelude statements (imports, pub lets, etc.)
                     result.push(other);
                 }
-            }
+            },
         }
     }
 
@@ -192,14 +220,14 @@ pub(crate) fn parse_transition_from_modifiers(
                 if crate::transition_registry::find(name).is_some() {
                     transition_id = Some(name.clone());
                 }
-            }
+            },
             (None, Expr::Ident(name)) if name.ends_with("ms") => {
                 if let Ok(ms) = name.trim_end_matches("ms").parse::<u64>() {
                     if duration_ms == 0 {
                         duration_ms = ms;
                     }
                 }
-            }
+            },
             (None, Expr::Ident(name))
                 if name.ends_with('s') && !name.starts_with(|c: char| c.is_alphabetic()) =>
             {
@@ -208,8 +236,8 @@ pub(crate) fn parse_transition_from_modifiers(
                         duration_ms = (s * 1000.0) as u64;
                     }
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 

@@ -10,21 +10,17 @@
 
 use std::collections::HashSet;
 
-use egui::{Color32, Pos2, RichText, Vec2};
-
 use animatix::timeline::{
-    lookup_property, AnimationTrack, PropertyValue, SceneDimensions, Timeline,
+    AnimationTrack, PropertyValue, SceneDimensions, Timeline, lookup_property,
 };
+use egui::{Color32, Pos2, RichText, Vec2};
 
 use super::PropertyViewMode;
 use crate::app::commands::{
     ActionQueue, ActorCommand, DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue,
 };
 use crate::app::components::layout;
-use crate::app::design_tokens::semantic::accent;
-use crate::app::design_tokens::semantic::status;
-use crate::app::design_tokens::semantic::surface;
-use crate::app::design_tokens::semantic::text;
+use crate::app::design_tokens::semantic::{accent, status, surface, text};
 use crate::app::design_tokens::spatial::spatial;
 use crate::app::design_tokens::typography::TextRole;
 
@@ -279,9 +275,9 @@ pub(crate) fn render_property_spreadsheet(
                         // Get the value at current time
                         let value_text = get_property_value_display(track, prop_name, time_ms);
                         let has_animated_track = has_property_track(track, prop_name);
-                        let field = lookup_property(prop_name).map(|s| s.field);
-                        let has_keyframes = field.is_some()
-                            && animatix::timeline::property_has_keyframes(track, field.unwrap());
+                        let has_keyframes = lookup_property(prop_name).is_some_and(|s| {
+                            animatix::timeline::property_has_keyframes(track, s.field)
+                        });
 
                         let value_color = if has_keyframes {
                             status::WARNING

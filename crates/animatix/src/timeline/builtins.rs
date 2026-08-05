@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use super::{Environment, EvalError, Value};
-use crate::easing::{apply_easing, Easing};
+use crate::easing::{Easing, apply_easing};
 
 fn expect_arg_count(name: &str, args: &[Value], expected: usize) -> Result<(), EvalError> {
     if args.len() != expected {
@@ -172,30 +172,14 @@ pub fn load_standard_library(env: &mut Environment) {
     register_num3!(env, "lerp", |start, end, t| start + (end - start) * t);
 
     // Easing helper functions — each takes a progress t in [0,1] and returns eased t
-    register_num1!(env, "ease_linear", |t| {
-        apply_easing(t as f32, Easing::Linear) as f64
-    });
-    register_num1!(env, "ease_in", |t| {
-        apply_easing(t as f32, Easing::EaseIn) as f64
-    });
-    register_num1!(env, "ease_out", |t| {
-        apply_easing(t as f32, Easing::EaseOut) as f64
-    });
-    register_num1!(env, "ease_in_out", |t| {
-        apply_easing(t as f32, Easing::EaseInOut) as f64
-    });
-    register_num1!(env, "bounce", |t| {
-        apply_easing(t as f32, Easing::Bounce) as f64
-    });
-    register_num1!(env, "elastic", |t| {
-        apply_easing(t as f32, Easing::Elastic) as f64
-    });
-    register_num1!(env, "back", |t| {
-        apply_easing(t as f32, Easing::Back) as f64
-    });
-    register_num1!(env, "expo", |t| {
-        apply_easing(t as f32, Easing::Expo) as f64
-    });
+    register_num1!(env, "ease_linear", |t| { apply_easing(t as f32, Easing::Linear) as f64 });
+    register_num1!(env, "ease_in", |t| { apply_easing(t as f32, Easing::EaseIn) as f64 });
+    register_num1!(env, "ease_out", |t| { apply_easing(t as f32, Easing::EaseOut) as f64 });
+    register_num1!(env, "ease_in_out", |t| { apply_easing(t as f32, Easing::EaseInOut) as f64 });
+    register_num1!(env, "bounce", |t| { apply_easing(t as f32, Easing::Bounce) as f64 });
+    register_num1!(env, "elastic", |t| { apply_easing(t as f32, Easing::Elastic) as f64 });
+    register_num1!(env, "back", |t| { apply_easing(t as f32, Easing::Back) as f64 });
+    register_num1!(env, "expo", |t| { apply_easing(t as f32, Easing::Expo) as f64 });
 
     // Composable interpolation helpers
     env.set(
@@ -207,16 +191,16 @@ pub fn load_standard_library(env: &mut Environment) {
                 _ => {
                     return Err(EvalError::TypeMismatch(
                         "lerp_vec2 expects start as Vec2".to_string(),
-                    ))
-                }
+                    ));
+                },
             };
             let end = match &args[1] {
                 Value::Vec2(v) => *v,
                 _ => {
                     return Err(EvalError::TypeMismatch(
                         "lerp_vec2 expects end as Vec2".to_string(),
-                    ))
-                }
+                    ));
+                },
             };
             let t = expect_num("lerp_vec2", &args[2])?;
             Ok(Value::Vec2([
@@ -235,16 +219,16 @@ pub fn load_standard_library(env: &mut Environment) {
                 _ => {
                     return Err(EvalError::TypeMismatch(
                         "lerp_color expects start as Color".to_string(),
-                    ))
-                }
+                    ));
+                },
             };
             let end = match &args[1] {
                 Value::Color(c) => *c,
                 _ => {
                     return Err(EvalError::TypeMismatch(
                         "lerp_color expects end as Color".to_string(),
-                    ))
-                }
+                    ));
+                },
             };
             let t = expect_num("lerp_color", &args[2])?;
             Ok(Value::Color([
@@ -256,10 +240,7 @@ pub fn load_standard_library(env: &mut Environment) {
         })),
     );
 
-    env.set(
-        "rand",
-        Value::NativeFn(Arc::new(|_args, _env| Ok(Value::Num(fastrand::f64())))),
-    );
+    env.set("rand", Value::NativeFn(Arc::new(|_args, _env| Ok(Value::Num(fastrand::f64())))));
 
     // Deterministic pseudo-random using splitmix64 hash.
     // Same seed always produces the same value in [0, 1).
@@ -295,10 +276,8 @@ pub fn load_standard_library(env: &mut Environment) {
             match (&args[0], &args[1], &args[2]) {
                 (Value::Num(r), Value::Num(g), Value::Num(b)) => {
                     Ok(Value::Color([*r / 255.0, *g / 255.0, *b / 255.0, 1.0]))
-                }
-                _ => Err(EvalError::TypeMismatch(
-                    "rgb expects 3 numbers".to_string(),
-                )),
+                },
+                _ => Err(EvalError::TypeMismatch("rgb expects 3 numbers".to_string())),
             }
         })),
     );
@@ -310,10 +289,8 @@ pub fn load_standard_library(env: &mut Environment) {
             match (&args[0], &args[1], &args[2], &args[3]) {
                 (Value::Num(r), Value::Num(g), Value::Num(b), Value::Num(a)) => {
                     Ok(Value::Color([*r, *g, *b, *a]))
-                }
-                _ => Err(EvalError::TypeMismatch(
-                    "rgba expects 4 numbers".to_string(),
-                )),
+                },
+                _ => Err(EvalError::TypeMismatch("rgba expects 4 numbers".to_string())),
             }
         })),
     );
@@ -322,10 +299,7 @@ pub fn load_standard_library(env: &mut Environment) {
         "vec2",
         Value::NativeFn(Arc::new(|args, _env| {
             expect_arg_count("vec2", args, 2)?;
-            Ok(Value::Vec2([
-                expect_num("vec2", &args[0])?,
-                expect_num("vec2", &args[1])?,
-            ]))
+            Ok(Value::Vec2([expect_num("vec2", &args[0])?, expect_num("vec2", &args[1])?]))
         })),
     );
 

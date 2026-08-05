@@ -1,8 +1,9 @@
+use egui::{Pos2, Rect, Response, Ui};
+
 use super::DragState;
 use super::context::PreviewContext;
 use super::gesture::{Gesture, GestureHandler, GestureResult, PointerButton};
 use super::gestures::common::GestureFrame;
-use egui::{Pos2, Rect, Response, Ui};
 
 pub struct GestureRouter;
 
@@ -23,7 +24,8 @@ impl GestureRouter {
         let is_active_reorder = matches!(ctx.drag_state, DragState::Reorder { .. });
         let is_active_marquee = ctx.selection.marquee_start.is_some();
         let is_active_vertex = matches!(ctx.drag_state, DragState::EditVertices { .. });
-        let is_active_callout = matches!(ctx.drag_state, DragState::CalloutLabel { .. } | DragState::CalloutTip { .. });
+        let is_active_callout =
+            matches!(ctx.drag_state, DragState::CalloutLabel { .. } | DragState::CalloutTip { .. });
         let is_drag_started = response.drag_started();
 
         // Build per-frame gesture frame
@@ -59,15 +61,42 @@ impl GestureRouter {
             }
         };
 
-        if is_active_pivot { route_active(&mut super::gestures::pivot::PivotGesture); return; }
-        if is_active_rotate { route_active(&mut super::gestures::rotate::RotateGesture); return; }
-        if is_active_scale { route_active(&mut super::gestures::scale::ScaleGesture); return; }
-        if is_active_motion_path { route_active(&mut super::gestures::motion_path::MotionPathGesture); return; }
-        if is_active_marquee { route_active(&mut super::gestures::marquee::MarqueeGesture); return; }
-        if is_active_vertex { route_active(&mut super::gestures::vertex::VertexGesture); return; }
-        if is_active_callout { route_active(&mut super::gestures::callout::CalloutGesture); return; }
-        if is_active_reorder { route_active(&mut super::gestures::reorder::ReorderGesture); return; }
-        if is_active_move { route_active(&mut super::gestures::move_actor::MoveActorGesture); return; }
+        if is_active_pivot {
+            route_active(&mut super::gestures::pivot::PivotGesture);
+            return;
+        }
+        if is_active_rotate {
+            route_active(&mut super::gestures::rotate::RotateGesture);
+            return;
+        }
+        if is_active_scale {
+            route_active(&mut super::gestures::scale::ScaleGesture);
+            return;
+        }
+        if is_active_motion_path {
+            route_active(&mut super::gestures::motion_path::MotionPathGesture);
+            return;
+        }
+        if is_active_marquee {
+            route_active(&mut super::gestures::marquee::MarqueeGesture);
+            return;
+        }
+        if is_active_vertex {
+            route_active(&mut super::gestures::vertex::VertexGesture);
+            return;
+        }
+        if is_active_callout {
+            route_active(&mut super::gestures::callout::CalloutGesture);
+            return;
+        }
+        if is_active_reorder {
+            route_active(&mut super::gestures::reorder::ReorderGesture);
+            return;
+        }
+        if is_active_move {
+            route_active(&mut super::gestures::move_actor::MoveActorGesture);
+            return;
+        }
 
         // ── Drag start: try extracted start handlers in priority order ──
         if is_drag_started {
@@ -79,22 +108,58 @@ impl GestureRouter {
                     modifiers: frame.modifiers,
                 };
                 let mut pivot_handler = super::gestures::pivot::PivotGesture;
-                if pivot_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
+                if pivot_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed
+                {
+                    return;
+                }
                 let mut rotate_handler = super::gestures::rotate::RotateGesture;
-                if rotate_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
+                if rotate_handler.handle(&start_gesture, ctx, preview_rect)
+                    == GestureResult::Claimed
+                {
+                    return;
+                }
                 let mut scale_handler = super::gestures::scale::ScaleGesture;
-                if scale_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
+                if scale_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed
+                {
+                    return;
+                }
                 let mut motion_handler = super::gestures::motion_path::MotionPathGesture;
-                if motion_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
+                if motion_handler.handle(&start_gesture, ctx, preview_rect)
+                    == GestureResult::Claimed
+                {
+                    return;
+                }
                 let mut vertex_handler = super::gestures::vertex::VertexGesture;
-                if vertex_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
+                if vertex_handler.handle(&start_gesture, ctx, preview_rect)
+                    == GestureResult::Claimed
+                {
+                    return;
+                }
                 let mut callout_handler = super::gestures::callout::CalloutGesture;
-                if callout_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
+                if callout_handler.handle(&start_gesture, ctx, preview_rect)
+                    == GestureResult::Claimed
+                {
+                    return;
+                }
                 let mut move_handler = super::gestures::move_actor::MoveActorGesture;
-                if move_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
+                if move_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed
+                {
+                    return;
+                }
                 let mut reorder_handler = super::gestures::reorder::ReorderGesture;
-                if reorder_handler.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
-                if super::gestures::marquee::MarqueeGesture.handle(&start_gesture, ctx, preview_rect) == GestureResult::Claimed { return; }
+                if reorder_handler.handle(&start_gesture, ctx, preview_rect)
+                    == GestureResult::Claimed
+                {
+                    return;
+                }
+                if super::gestures::marquee::MarqueeGesture.handle(
+                    &start_gesture,
+                    ctx,
+                    preview_rect,
+                ) == GestureResult::Claimed
+                {
+                    return;
+                }
             }
         }
     }

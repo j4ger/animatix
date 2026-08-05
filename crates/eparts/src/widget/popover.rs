@@ -10,18 +10,16 @@
 //!
 //! # Design decisions
 //!
-//! * **State lives in `egui::Memory`**, keyed by the popover's `Id`.  No
-//!   retained widget instance holds open/closed state.
-//! * **Overlay coordination**: on open the popover registers itself with
-//!   [`push_overlay`] at [`OverlayLayer::Popover`] priority; on close it
-//!   calls [`remove_overlay`].
-//! * **Dismissal** uses [`escape_pressed`] and [`clicked_outside`] — only the
-//!   topmost overlay consumes the event.
-//! * **Focus restore**: on open the previously-focused `egui::Id` is saved
-//!   to Memory; on full close `ctx.memory.request_focus(saved_id)` is called.
-//! * **Theming**: every colour comes from `tokens::semantic` roles
-//!   (`surface::floating_card_bg`, `border::DEFAULT`, `RADIUS_M`,
-//!   `overlay::shadow_direct`).
+//! * **State lives in `egui::Memory`**, keyed by the popover's `Id`.  No retained widget instance
+//!   holds open/closed state.
+//! * **Overlay coordination**: on open the popover registers itself with [`push_overlay`] at
+//!   [`OverlayLayer::Popover`] priority; on close it calls [`remove_overlay`].
+//! * **Dismissal** uses [`escape_pressed`] and [`clicked_outside`] — only the topmost overlay
+//!   consumes the event.
+//! * **Focus restore**: on open the previously-focused `egui::Id` is saved to Memory; on full close
+//!   `ctx.memory.request_focus(saved_id)` is called.
+//! * **Theming**: every colour comes from `tokens::semantic` roles (`surface::floating_card_bg`,
+//!   `border::DEFAULT`, `RADIUS_M`, `overlay::shadow_direct`).
 //!
 //! # Usage
 //!
@@ -44,7 +42,8 @@
 
 use egui::{Context, CornerRadius, Id, Order, Pos2, Rect, Response, Ui};
 
-use crate::{spatial, tokens::spatial::{RADIUS_M, STROKE_WIDTH}};
+use crate::spatial;
+use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::widget::overlay::{
     OverlayLayer, clicked_outside, escape_pressed, is_topmost, push_overlay, remove_overlay,
 };
@@ -227,15 +226,12 @@ impl Popover {
         let closing_key = closing_key(self.id);
 
         // ── Read current state ────────────────────────────────────────────
-        let mut is_open: bool = ctx
-            .data(|d| d.get_temp::<bool>(is_open_key).unwrap_or(false));
-        let mut is_closing: bool = ctx
-            .data(|d| d.get_temp::<bool>(closing_key).unwrap_or(false));
+        let mut is_open: bool = ctx.data(|d| d.get_temp::<bool>(is_open_key).unwrap_or(false));
+        let mut is_closing: bool = ctx.data(|d| d.get_temp::<bool>(closing_key).unwrap_or(false));
 
         // ── Detect external control: if the caller has written the open
         //    state at least once, they own the toggle logic.
-        let externally_controlled: bool = ctx
-            .data(|d| d.get_temp::<bool>(is_open_key).is_some());
+        let externally_controlled: bool = ctx.data(|d| d.get_temp::<bool>(is_open_key).is_some());
 
         if externally_controlled {
             if !is_open && is_closing {
@@ -261,11 +257,7 @@ impl Popover {
         }
 
         // ── Dismissal: Escape (only topmost) ──────────────────────────────
-        if is_open
-            && !is_closing
-            && is_topmost(ctx, self.id)
-            && escape_pressed(ctx, self.id)
-        {
+        if is_open && !is_closing && is_topmost(ctx, self.id) && escape_pressed(ctx, self.id) {
             is_open = false;
             is_closing = true;
             ctx.data_mut(|d| {
@@ -288,9 +280,7 @@ impl Popover {
             );
 
             let area_id = self.id.with("__area");
-            let area = egui::Area::new(area_id)
-                .fixed_pos(anchor_pos)
-                .order(Order::Foreground);
+            let area = egui::Area::new(area_id).fixed_pos(anchor_pos).order(Order::Foreground);
 
             let inner = area.show(ctx, |ui| {
                 if let Some(mw) = self.max_width {
@@ -356,10 +346,7 @@ fn finish_close(
     // request focus via Memory. Nesting `ctx.memory_mut` inside `ctx.data_mut`
     // would deadlock because data lives inside Memory (same RwLock).
     let saved = ctx.data_mut(|d| {
-        let saved = d
-            .get_temp::<Option<Id>>(prev_focus_key)
-            .as_ref()
-            .and_then(|o| *o);
+        let saved = d.get_temp::<Option<Id>>(prev_focus_key).as_ref().and_then(|o| *o);
         d.remove::<bool>(opened_key);
         d.remove::<bool>(closing_key);
         d.remove::<Option<Id>>(prev_focus_key);
@@ -442,10 +429,10 @@ fn popover_frame(t: &crate::tokens::theme::Theme) -> egui::Frame {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use egui::Sense;
 
-    use crate::widget::overlay::{push_overlay, remove_overlay, is_topmost, OverlayLayer};
+    use super::*;
+    use crate::widget::overlay::{OverlayLayer, is_topmost, push_overlay, remove_overlay};
 
     // ── Builder API ──────────────────────────────────────────────────────
 

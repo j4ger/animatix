@@ -3,22 +3,17 @@
 //! Multi-property graph editor with color-coded curves.
 //! Supports float, Vec2 (X/Y components), and Color (RGBA channels).
 
-use crate::app::commands::ActionQueue;
-use crate::app::design_tokens::semantic::accent;
-use crate::app::design_tokens::semantic::border;
-use crate::app::design_tokens::semantic::canvas;
-use crate::app::design_tokens::semantic::curve;
-use crate::app::design_tokens::semantic::status;
-use crate::app::design_tokens::semantic::surface;
-use crate::app::design_tokens::semantic::text;
-use crate::app::design_tokens::spatial::{spatial, RADIUS_M, RADIUS_S, STROKE_WIDTH};
-use crate::app::design_tokens::typography::TextRole;
 use animatix::timeline::{
     AnimationTrack, ValueType, property_keyframe_easing, property_keyframe_times,
     read_property_value,
 };
 use animatix_syntax::easing::Easing;
 use egui::{Color32, Pos2, Sense, Stroke, Vec2};
+
+use crate::app::commands::ActionQueue;
+use crate::app::design_tokens::semantic::{accent, border, canvas, curve, status, surface, text};
+use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, STROKE_WIDTH, spatial};
+use crate::app::design_tokens::typography::TextRole;
 
 /// Information about a single curve to render.
 #[derive(Debug, Clone)]
@@ -178,7 +173,7 @@ pub fn render_multi_fcurve(
         ui.data(|d| d.get_temp(visibility_id).unwrap_or_default());
     for curve in &curves {
         visibility.entry(curve.label.clone()).or_insert(true);
-   }
+    }
 
     let legend_height = 18.0f32;
     let legend_rect = egui::Rect::from_min_max(

@@ -2,12 +2,12 @@
 
 use animatix_syntax::ast::{Action, Expr, Modifier, Stmt, Time};
 
-use super::ast_utils::{
-    adjust_following_relative_keyframe, append_to_keyframe_at_time,
-    find_keyframe_insertion_point, find_prev_keyframe_time, keyframe_style_before,
-    wrap_leading_decls_in_zero_keyframe, KeyframeStyle,
-};
 use super::SourceEditError;
+use super::ast_utils::{
+    KeyframeStyle, adjust_following_relative_keyframe, append_to_keyframe_at_time,
+    find_keyframe_insertion_point, find_prev_keyframe_time, keyframe_style_before,
+    wrap_leading_decls_in_zero_keyframe,
+};
 
 /// Tolerance for matching an existing keyframe (50ms).
 const TIME_EPSILON_S: f64 = 0.05;
@@ -72,7 +72,7 @@ pub(super) fn insert_action(
             // Following relative keyframes must be adjusted because
             // their base time changed.
             adjust_following_relative_keyframe(stmts, insert_idx + 1, delta_s);
-        }
+        },
         KeyframeStyle::Relative => {
             let offset = if delta_s < 1.0 {
                 Time::Milliseconds((delta_s * 1000.0).round() as u64)
@@ -89,7 +89,7 @@ pub(super) fn insert_action(
                     span: None,
                 },
             );
-        }
+        },
     }
     Ok(())
 }
@@ -113,10 +113,10 @@ pub(super) fn resize_action(
         match kf {
             Stmt::Keyframe { time, .. } => {
                 current_time = time_to_seconds(time);
-            }
+            },
             Stmt::RelativeKeyframe { offset, .. } => {
                 current_time += time_to_seconds(offset);
-            }
+            },
             _ => continue,
         }
 
@@ -184,10 +184,11 @@ fn time_to_seconds(time: &Time) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::super::apply::{apply_edit, SourceEdit};
     use animatix_syntax::ast::{Expr, Modifier, Stmt, Time};
     use animatix_syntax::parser::parser_simple;
     use chumsky::Parser;
+
+    use super::super::apply::{SourceEdit, apply_edit};
 
     fn parse(source: &str) -> Vec<Stmt> {
         parser_simple()
@@ -299,10 +300,7 @@ box: Rect
 box.color = red"#,
         );
         // Insert at 2.02s (within 50ms of #2s)
-        assert!(apply_edit(
-            &mut stmts,
-            make_edit("fade-out", &["box"], 2.02)
-        ).is_ok());
+        assert!(apply_edit(&mut stmts, make_edit("fade-out", &["box"], 2.02)).is_ok());
 
         // Should NOT create a new keyframe
         assert_eq!(stmts.len(), 2);
@@ -330,10 +328,7 @@ box.color = red
 box.size = (50, 50)"#,
         );
         // Insert at 1.5s (between #+1s and #+1s)
-        assert!(apply_edit(
-            &mut stmts,
-            make_edit("fade-in", &["box"], 1.5)
-        ).is_ok());
+        assert!(apply_edit(&mut stmts, make_edit("fade-in", &["box"], 1.5)).is_ok());
 
         // The new keyframe should be relative because the one before it was relative
         if let Stmt::RelativeKeyframe { offset, .. } = &stmts[2] {
@@ -364,9 +359,7 @@ box.color = red"#,
         assert_eq!(stmts.len(), 2);
         if let Stmt::Keyframe { body, .. } = &stmts[1] {
             assert_eq!(body.len(), 2);
-            assert!(matches!(&body[0],
-                Stmt::Assignment { .. }
-            ));
+            assert!(matches!(&body[0], Stmt::Assignment { .. }));
             assert!(matches!(
                 &body[1],
                 Stmt::Action(action, _) if action.verb == "fade-in"
@@ -532,7 +525,7 @@ fade-in box [1s]"#,
         let edit = SourceEdit::ResizeAction {
             verb: "fade-in".into(),
             targets: vec!["box".into()],
-            old_start_s: 5.0,  // Wrong time
+            old_start_s: 5.0, // Wrong time
             new_start_s: 5.0,
             new_duration_s: 2.0,
         };

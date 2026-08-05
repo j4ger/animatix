@@ -1,7 +1,8 @@
 use egui::{Id, Rect, Response, Sense, Vec2};
 
+use crate::spatial;
 use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
-use crate::{spatial, tokens::typography::TextRole};
+use crate::tokens::typography::TextRole;
 
 /// A stateful pill-style tab bar.
 ///
@@ -91,8 +92,7 @@ impl<'a> TabBar<'a> {
         let tab_w = if self.tabs.is_empty() {
             0.0
         } else {
-            (available - gap * (self.tabs.len().saturating_sub(1)) as f32)
-                / self.tabs.len() as f32
+            (available - gap * (self.tabs.len().saturating_sub(1)) as f32) / self.tabs.len() as f32
         };
 
         let (bar_rect, bar_response) =
@@ -106,10 +106,10 @@ impl<'a> TabBar<'a> {
         for (idx, label) in self.tabs.iter().enumerate() {
             let is_active = *self.selected_index == idx;
             let x = bar_rect.min.x + idx as f32 * (tab_w + gap);
-            let tab_rect = Rect::from_min_size(egui::pos2(x, bar_rect.min.y), Vec2::new(tab_w, tab_h));
+            let tab_rect =
+                Rect::from_min_size(egui::pos2(x, bar_rect.min.y), Vec2::new(tab_w, tab_h));
 
-            let response =
-                ui.interact(tab_rect, self.id.with(("tab", idx)), Sense::click());
+            let response = ui.interact(tab_rect, self.id.with(("tab", idx)), Sense::click());
 
             let slot = if is_active {
                 &t.tab.active
@@ -169,9 +169,7 @@ mod tests {
     #[test]
     fn builder_sets_height_and_gap() {
         let mut idx = 0;
-        let bar = TabBar::new("test", &mut idx, &["A", "B"])
-            .height(48.0)
-            .gap(8.0);
+        let bar = TabBar::new("test", &mut idx, &["A", "B"]).height(48.0).gap(8.0);
         assert_eq!(bar.height, 48.0);
         assert_eq!(bar.gap, 8.0);
     }

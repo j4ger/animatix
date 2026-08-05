@@ -24,7 +24,10 @@ always {
 
 fn bench_modifier_evaluation(c: &mut Criterion) {
     let timeline = build_timeline_with_modifiers();
-    let dims = animatix::timeline::SceneDimensions { width: 1920, height: 1080 };
+    let dims = animatix::timeline::SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
 
     c.bench_function("modifier_evaluate_at_0s", |b| {
         b.iter(|| {

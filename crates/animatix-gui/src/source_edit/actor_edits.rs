@@ -1,18 +1,21 @@
 //! Edits related to actors: property changes, insertion, reordering, reparenting, and renaming.
 
 use animatix_syntax::ast::{ComponentDef, Expr, InlineItem, Property, Stmt};
-
 use animatix_syntax::walk::{walk_inline_items_mut, walk_stmts_mut};
 
-use super::apply::{find_actor_decl_mut, find_assignment_mut, find_prop_mut};
-use super::apply::canonical_to_source;
 use super::SourceEditError;
+use super::apply::{canonical_to_source, find_actor_decl_mut, find_assignment_mut, find_prop_mut};
 
 // ---------------------------------------------------------------------------
 // SetProperty
 // ---------------------------------------------------------------------------
 
-pub(super) fn set_property(stmts: &mut [Stmt], actor: &str, property: &str, value: Expr) -> Result<(), SourceEditError> {
+pub(super) fn set_property(
+    stmts: &mut [Stmt],
+    actor: &str,
+    property: &str,
+    value: Expr,
+) -> Result<(), SourceEditError> {
     let source_prop = canonical_to_source(property);
 
     // 1. Try to find an ActorDecl and update its property.
@@ -24,7 +27,9 @@ pub(super) fn set_property(stmts: &mut [Stmt], actor: &str, property: &str, valu
     }
 
     // 2. Try to find an Assignment statement and update its value.
-    if let Some(Stmt::Assignment { value: val, .. }) = find_assignment_mut(stmts, actor, source_prop) {
+    if let Some(Stmt::Assignment { value: val, .. }) =
+        find_assignment_mut(stmts, actor, source_prop)
+    {
         *val = value;
         return Ok(());
     }
@@ -39,11 +44,18 @@ pub(super) fn set_property(stmts: &mut [Stmt], actor: &str, property: &str, valu
 // InsertProperty
 // ---------------------------------------------------------------------------
 
-pub(super) fn insert_property(stmts: &mut [Stmt], actor: &str, property: &str, value: Expr) -> Result<(), SourceEditError> {
+pub(super) fn insert_property(
+    stmts: &mut [Stmt],
+    actor: &str,
+    property: &str,
+    value: Expr,
+) -> Result<(), SourceEditError> {
     let source_prop = canonical_to_source(property);
 
-    let actor_decl = find_actor_decl_mut(stmts, actor)
-        .ok_or_else(|| SourceEditError::ActorNotFound { actor: actor.to_string() })?;
+    let actor_decl =
+        find_actor_decl_mut(stmts, actor).ok_or_else(|| SourceEditError::ActorNotFound {
+            actor: actor.to_string(),
+        })?;
 
     // Check if property already exists
     if find_prop_mut(actor_decl, source_prop).is_some() {
@@ -70,7 +82,9 @@ pub(super) fn insert_property(stmts: &mut [Stmt], actor: &str, property: &str, v
         });
         Ok(())
     } else {
-        Err(SourceEditError::ActorNotFound { actor: actor.to_string() })
+        Err(SourceEditError::ActorNotFound {
+            actor: actor.to_string(),
+        })
     }
 }
 
@@ -78,11 +92,17 @@ pub(super) fn insert_property(stmts: &mut [Stmt], actor: &str, property: &str, v
 // RemoveProperty
 // ---------------------------------------------------------------------------
 
-pub(super) fn remove_property(stmts: &mut [Stmt], actor: &str, property: &str) -> Result<(), SourceEditError> {
+pub(super) fn remove_property(
+    stmts: &mut [Stmt],
+    actor: &str,
+    property: &str,
+) -> Result<(), SourceEditError> {
     let source_prop = canonical_to_source(property);
 
-    let actor_decl = find_actor_decl_mut(stmts, actor)
-        .ok_or_else(|| SourceEditError::ActorNotFound { actor: actor.to_string() })?;
+    let actor_decl =
+        find_actor_decl_mut(stmts, actor).ok_or_else(|| SourceEditError::ActorNotFound {
+            actor: actor.to_string(),
+        })?;
 
     if let Stmt::ActorDecl { props, .. } = actor_decl {
         let before = props.len();
@@ -112,10 +132,11 @@ pub(super) fn insert_actor(
 ) -> Result<(), SourceEditError> {
     if let Some(container_label) = container {
         // Insert as a child of the specified container
-        let container_decl = find_actor_decl_mut(stmts, container_label)
-            .ok_or_else(|| SourceEditError::ContainerNotFound {
+        let container_decl = find_actor_decl_mut(stmts, container_label).ok_or_else(|| {
+            SourceEditError::ContainerNotFound {
                 container: container_label.to_string(),
-            })?;
+            }
+        })?;
         if let Stmt::ActorDecl { children, .. } = container_decl {
             children.push(InlineItem::Labeled {
                 label: label.into(),
@@ -152,11 +173,18 @@ pub(super) fn insert_actor(
 // ReorderContainerChildren
 // ---------------------------------------------------------------------------
 
-pub(super) fn reorder_container_children(stmts: &mut [Stmt], container: &str, new_order: Vec<String>) -> Result<(), SourceEditError> {
-    let Stmt::ActorDecl { children, .. } = find_actor_decl_mut(stmts, container)
-        .ok_or_else(|| SourceEditError::ContainerNotFound {
-            container: container.to_string(),
-        })? else {
+pub(super) fn reorder_container_children(
+    stmts: &mut [Stmt],
+    container: &str,
+    new_order: Vec<String>,
+) -> Result<(), SourceEditError> {
+    let Stmt::ActorDecl { children, .. } =
+        find_actor_decl_mut(stmts, container).ok_or_else(|| {
+            SourceEditError::ContainerNotFound {
+                container: container.to_string(),
+            }
+        })?
+    else {
         return Err(SourceEditError::ContainerNotFound {
             container: container.to_string(),
         });
@@ -169,7 +197,7 @@ pub(super) fn reorder_container_children(stmts: &mut [Stmt], container: &str, ne
         match &item {
             InlineItem::Labeled { label, .. } if new_order.iter().any(|l| l == label) => {
                 labeled.insert(label.clone(), item);
-            }
+            },
             _ => remaining.push(item),
         }
     }
@@ -191,15 +219,22 @@ pub(super) fn reorder_container_children(stmts: &mut [Stmt], container: &str, ne
 // Reparent
 // ---------------------------------------------------------------------------
 
-pub(super) fn reparent_actor(stmts: &mut Vec<Stmt>, actor: &str, new_parent: Option<&str>) -> Result<(), SourceEditError> {
+pub(super) fn reparent_actor(
+    stmts: &mut Vec<Stmt>,
+    actor: &str,
+    new_parent: Option<&str>,
+) -> Result<(), SourceEditError> {
     // 1. Find and extract the actor from its current location.
     let extracted = extract_inline_item(stmts, actor);
     let item = if let Some(item) = extracted {
         item
     } else {
         // Actor not found as an inline child — try top-level Stmt.
-        let idx = stmts.iter().position(|s| stmt_has_label(s, actor))
-            .ok_or_else(|| SourceEditError::ActorNotFound { actor: actor.to_string() })?;
+        let idx = stmts.iter().position(|s| stmt_has_label(s, actor)).ok_or_else(|| {
+            SourceEditError::ActorNotFound {
+                actor: actor.to_string(),
+            }
+        })?;
         let stmt = stmts.remove(idx);
         let item = stmt_to_inline_item(stmt);
         return insert_under_parent(stmts, item, new_parent);
@@ -208,26 +243,29 @@ pub(super) fn reparent_actor(stmts: &mut Vec<Stmt>, actor: &str, new_parent: Opt
     insert_under_parent(stmts, item, new_parent)
 }
 
-fn insert_under_parent(stmts: &mut Vec<Stmt>, item: InlineItem, new_parent: Option<&str>) -> Result<(), SourceEditError> {
+fn insert_under_parent(
+    stmts: &mut Vec<Stmt>,
+    item: InlineItem,
+    new_parent: Option<&str>,
+) -> Result<(), SourceEditError> {
     match new_parent {
         None => {
             // Make top-level — anonymous items need a deterministic label.
             let index = stmts.len();
             stmts.push(inline_item_to_stmt(item, index));
             Ok(())
-        }
+        },
         Some(parent_label) => {
-            let parent_stmt = find_actor_decl_mut(stmts, parent_label)
-                .ok_or_else(|| SourceEditError::ParentNotFound {
+            let parent_stmt = find_actor_decl_mut(stmts, parent_label).ok_or_else(|| {
+                SourceEditError::ParentNotFound {
                     parent: parent_label.to_string(),
-                })?;
+                }
+            })?;
             match parent_stmt {
-                Stmt::ActorDecl { ty, children, .. }
-                    if is_container_type(ty) =>
-                {
+                Stmt::ActorDecl { ty, children, .. } if is_container_type(ty) => {
                     children.push(item);
                     Ok(())
-                }
+                },
                 _ => {
                     // Target is not a container — wrap both in a new Group.
                     // First, extract the target actor too.
@@ -236,7 +274,9 @@ fn insert_under_parent(stmts: &mut Vec<Stmt>, item: InlineItem, new_parent: Opti
                         target
                     } else {
                         // Target is top-level
-                        let idx = stmts.iter().position(|s| stmt_has_label(s, parent_label))
+                        let idx = stmts
+                            .iter()
+                            .position(|s| stmt_has_label(s, parent_label))
                             .ok_or_else(|| SourceEditError::ParentNotFound {
                                 parent: parent_label.to_string(),
                             })?;
@@ -254,9 +294,9 @@ fn insert_under_parent(stmts: &mut Vec<Stmt>, item: InlineItem, new_parent: Opti
                     };
                     stmts.push(inline_item_to_stmt(group, stmts.len()));
                     Ok(())
-                }
+                },
             }
-        }
+        },
     }
 }
 
@@ -270,15 +310,28 @@ fn stmt_has_label(stmt: &Stmt, label: &str) -> bool {
 
 fn stmt_to_inline_item(stmt: Stmt) -> InlineItem {
     match stmt {
-        Stmt::ActorDecl { is_anonymous: true, ty, props, modifiers, children, .. } => {
-            InlineItem::Anonymous {
-                ty,
-                props,
-                modifiers,
-                children,
-            }
-        }
-        Stmt::ActorDecl { label, ty, props, modifiers, children, array_index, .. } => InlineItem::Labeled {
+        Stmt::ActorDecl {
+            is_anonymous: true,
+            ty,
+            props,
+            modifiers,
+            children,
+            ..
+        } => InlineItem::Anonymous {
+            ty,
+            props,
+            modifiers,
+            children,
+        },
+        Stmt::ActorDecl {
+            label,
+            ty,
+            props,
+            modifiers,
+            children,
+            array_index,
+            ..
+        } => InlineItem::Labeled {
             label,
             array_index,
             ty,
@@ -287,31 +340,46 @@ fn stmt_to_inline_item(stmt: Stmt) -> InlineItem {
             children,
         },
         other => {
-            tracing::warn!("stmt_to_inline_item: non-ActorDecl statement discarded: {:?}", std::mem::discriminant(&other));
+            tracing::warn!(
+                "stmt_to_inline_item: non-ActorDecl statement discarded: {:?}",
+                std::mem::discriminant(&other)
+            );
             InlineItem::Anonymous {
                 ty: "Group".into(),
                 props: vec![],
                 modifiers: vec![],
                 children: vec![],
             }
-        }
+        },
     }
 }
 
 fn inline_item_to_stmt(item: InlineItem, index: usize) -> Stmt {
     match item {
-        InlineItem::ForLoop { var, index_var, iterable, body } => {
-            Stmt::ForLoop {
-                var,
-                index_var,
-                iterable,
-                body: body.into_iter().enumerate()
-                    .map(|(i, item)| inline_item_to_stmt(item, i))
-                    .collect(),
-                span: None,
-            }
-        }
-        InlineItem::Labeled { label, ty, props, modifiers, children, array_index } => Stmt::ActorDecl {
+        InlineItem::ForLoop {
+            var,
+            index_var,
+            iterable,
+            body,
+        } => Stmt::ForLoop {
+            var,
+            index_var,
+            iterable,
+            body: body
+                .into_iter()
+                .enumerate()
+                .map(|(i, item)| inline_item_to_stmt(item, i))
+                .collect(),
+            span: None,
+        },
+        InlineItem::Labeled {
+            label,
+            ty,
+            props,
+            modifiers,
+            children,
+            array_index,
+        } => Stmt::ActorDecl {
             is_pub: false,
             is_anonymous: false,
             label,
@@ -322,7 +390,12 @@ fn inline_item_to_stmt(item: InlineItem, index: usize) -> Stmt {
             children,
             span: None,
         },
-        InlineItem::Anonymous { ty, props, modifiers, children } => Stmt::ActorDecl {
+        InlineItem::Anonymous {
+            ty,
+            props,
+            modifiers,
+            children,
+        } => Stmt::ActorDecl {
             is_pub: false,
             is_anonymous: true,
             label: format!("__anon_root_{}", index),
@@ -357,7 +430,7 @@ fn inline_item_to_stmt(item: InlineItem, index: usize) -> Stmt {
                 children: vec![],
                 span: None,
             }
-        }
+        },
     }
 }
 
@@ -374,7 +447,7 @@ fn extract_inline_item(stmts: &mut [Stmt], label: &str) -> Option<InlineItem> {
                         return Some(extracted);
                     }
                 }
-            }
+            },
             Stmt::Keyframe { body, .. }
             | Stmt::RelativeKeyframe { body, .. }
             | Stmt::Sequence { body, .. }
@@ -385,8 +458,12 @@ fn extract_inline_item(stmts: &mut [Stmt], label: &str) -> Option<InlineItem> {
                 if let Some(extracted) = extract_inline_item(body, label) {
                     return Some(extracted);
                 }
-            }
-            Stmt::Conditional { then_branch, else_branch, .. } => {
+            },
+            Stmt::Conditional {
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 if let Some(extracted) = extract_inline_item(then_branch, label) {
                     return Some(extracted);
                 }
@@ -395,13 +472,13 @@ fn extract_inline_item(stmts: &mut [Stmt], label: &str) -> Option<InlineItem> {
                         return Some(extracted);
                     }
                 }
-            }
+            },
             Stmt::ForLoop { body, .. } => {
                 if let Some(extracted) = extract_inline_item(body, label) {
                     return Some(extracted);
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
     None
@@ -409,7 +486,9 @@ fn extract_inline_item(stmts: &mut [Stmt], label: &str) -> Option<InlineItem> {
 
 fn extract_from_inline_item(item: &mut InlineItem, label: &str) -> Option<InlineItem> {
     match item {
-        InlineItem::Labeled { children, .. } | InlineItem::Anonymous { children, .. } | InlineItem::ForLoop { body: children, .. } => {
+        InlineItem::Labeled { children, .. }
+        | InlineItem::Anonymous { children, .. }
+        | InlineItem::ForLoop { body: children, .. } => {
             if let Some(idx) = children.iter().position(|c| inline_item_has_label(c, label)) {
                 return Some(children.remove(idx));
             }
@@ -419,7 +498,7 @@ fn extract_from_inline_item(item: &mut InlineItem, label: &str) -> Option<Inline
                 }
             }
             None
-        }
+        },
         InlineItem::SlotFill { items, .. } => {
             if let Some(idx) = items.iter().position(|c| inline_item_has_label(c, label)) {
                 return Some(items.remove(idx));
@@ -430,7 +509,7 @@ fn extract_from_inline_item(item: &mut InlineItem, label: &str) -> Option<Inline
                 }
             }
             None
-        }
+        },
         InlineItem::SlotMarker => None,
     }
 }
@@ -453,36 +532,36 @@ pub(crate) fn rename_all_references(stmts: &mut [Stmt], old_label: &str, new_lab
 /// Uses `walk_stmts_mut` for recursive statement traversal and
 /// `walk_inline_items_mut` for inline item children of ActorDecl nodes.
 fn rename_in_stmt(stmts: &mut [Stmt], old_label: &str, new_label: &str) {
-    walk_stmts_mut(stmts, &mut |stmt| {
-        match stmt {
-            Stmt::ActorDecl { label, children, .. } => {
-                if label == old_label {
-                    *label = new_label.to_string();
-                }
-                walk_inline_items_mut(children, &mut |item| {
-                    if let InlineItem::Labeled { label, .. } = item {
-                        if label == old_label {
-                            *label = new_label.to_string();
-                        }
-                    }
-                });
+    walk_stmts_mut(stmts, &mut |stmt| match stmt {
+        Stmt::ActorDecl {
+            label, children, ..
+        } => {
+            if label == old_label {
+                *label = new_label.to_string();
             }
-            Stmt::Assignment { target, .. } => {
-                for part in target.iter_mut() {
-                    if part.label_str() == old_label {
-                        *part = animatix_syntax::ast::TargetSegment::Static(new_label.to_string());
+            walk_inline_items_mut(children, &mut |item| {
+                if let InlineItem::Labeled { label, .. } = item {
+                    if label == old_label {
+                        *label = new_label.to_string();
                     }
                 }
-            }
-            Stmt::Action(action, _) => {
-                for t in action.targets.iter_mut() {
-                    if t == old_label {
-                        *t = new_label.to_string();
-                    }
+            });
+        },
+        Stmt::Assignment { target, .. } => {
+            for part in target.iter_mut() {
+                if part.label_str() == old_label {
+                    *part = animatix_syntax::ast::TargetSegment::Static(new_label.to_string());
                 }
             }
-            _ => {}
-        }
+        },
+        Stmt::Action(action, _) => {
+            for t in action.targets.iter_mut() {
+                if t == old_label {
+                    *t = new_label.to_string();
+                }
+            }
+        },
+        _ => {},
     });
 }
 
@@ -503,10 +582,11 @@ pub(super) fn insert_snippet(
 ) -> Result<(), SourceEditError> {
     // If a container is specified, insert as children of that container.
     if let Some(container_label) = container {
-        let container_decl = find_actor_decl_mut(stmts, container_label)
-            .ok_or_else(|| SourceEditError::ContainerNotFound {
+        let container_decl = find_actor_decl_mut(stmts, container_label).ok_or_else(|| {
+            SourceEditError::ContainerNotFound {
                 container: container_label.to_string(),
-            })?;
+            }
+        })?;
         if let Stmt::ActorDecl { children, .. } = container_decl {
             // Convert top-level stmts to inline items and append.
             for stmt in fragment {
@@ -553,7 +633,9 @@ pub(super) fn delete_actor(stmts: &mut Vec<Stmt>, label: &str) -> Result<(), Sou
     if delete_actor_recursive(stmts, label) {
         Ok(())
     } else {
-        Err(SourceEditError::ActorNotFound { actor: label.to_string() })
+        Err(SourceEditError::ActorNotFound {
+            actor: label.to_string(),
+        })
     }
 }
 
@@ -561,7 +643,10 @@ pub(super) fn delete_actor(stmts: &mut Vec<Stmt>, label: &str) -> Result<(), Sou
 /// Returns true if the actor was found and removed.
 fn delete_actor_recursive(stmts: &mut Vec<Stmt>, label: &str) -> bool {
     // Try top-level first
-    if let Some(pos) = stmts.iter().position(|s| matches!(s, Stmt::ActorDecl { label: l, .. } if l == label)) {
+    if let Some(pos) = stmts
+        .iter()
+        .position(|s| matches!(s, Stmt::ActorDecl { label: l, .. } if l == label))
+    {
         stmts.remove(pos);
         return true;
     }
@@ -572,7 +657,7 @@ fn delete_actor_recursive(stmts: &mut Vec<Stmt>, label: &str) -> bool {
                 if delete_from_inline_items(children, label) {
                     return true;
                 }
-            }
+            },
             Stmt::Keyframe { body, .. }
             | Stmt::RelativeKeyframe { body, .. }
             | Stmt::Sequence { body, .. }
@@ -582,13 +667,17 @@ fn delete_actor_recursive(stmts: &mut Vec<Stmt>, label: &str) -> bool {
                 if delete_actor_recursive(body, label) {
                     return true;
                 }
-            }
+            },
             Stmt::ComponentDef(def, _) => {
                 if delete_actor_recursive(&mut def.body, label) {
                     return true;
                 }
-            }
-            Stmt::Conditional { then_branch, else_branch, .. } => {
+            },
+            Stmt::Conditional {
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 if delete_actor_recursive(then_branch, label) {
                     return true;
                 }
@@ -597,13 +686,13 @@ fn delete_actor_recursive(stmts: &mut Vec<Stmt>, label: &str) -> bool {
                         return true;
                     }
                 }
-            }
+            },
             Stmt::ForLoop { body, .. } => {
                 if delete_actor_recursive(body, label) {
                     return true;
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
     false
@@ -618,17 +707,18 @@ fn delete_from_inline_items(items: &mut Vec<InlineItem>, label: &str) -> bool {
     for item in items.iter_mut() {
         match item {
             InlineItem::Anonymous { children, .. }
-            | InlineItem::Labeled { children, .. } | InlineItem::ForLoop { body: children, .. } => {
+            | InlineItem::Labeled { children, .. }
+            | InlineItem::ForLoop { body: children, .. } => {
                 if delete_from_inline_items(children, label) {
                     return true;
                 }
-            }
+            },
             InlineItem::SlotFill { items, .. } => {
                 if delete_from_inline_items(items, label) {
                     return true;
                 }
-            }
-            InlineItem::SlotMarker => {}
+            },
+            InlineItem::SlotMarker => {},
         }
     }
     false
@@ -640,20 +730,27 @@ fn delete_from_inline_items(items: &mut Vec<InlineItem>, label: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::super::apply::{find_actor_decl_mut, find_assignment_mut, find_prop_mut};
-    use super::super::apply::{SourceEdit, apply_edit};
     use animatix_syntax::ast::{ComponentDef, Expr, InlineItem, Property, Stmt};
     use animatix_syntax::parser::parser_simple;
     use chumsky::Parser;
 
+    use super::super::apply::{
+        SourceEdit, apply_edit, find_actor_decl_mut, find_assignment_mut, find_prop_mut,
+    };
+
     fn parse(source: &str) -> Vec<Stmt> {
-        parser_simple().parse(source).into_result().expect("failed to parse test source")
+        parser_simple()
+            .parse(source)
+            .into_result()
+            .expect("failed to parse test source")
     }
 
     #[test]
     fn set_existing_property() {
-        let mut stmts = parse(r#"#0s
-btn: Rect, size: (100, 200), color: red"#);
+        let mut stmts = parse(
+            r#"#0s
+btn: Rect, size: (100, 200), color: red"#,
+        );
         let edit = SourceEdit::SetProperty {
             actor: "btn".into(),
             property: "color".into(),
@@ -668,8 +765,10 @@ btn: Rect, size: (100, 200), color: red"#);
 
     #[test]
     fn set_property_uses_canonical_name() {
-        let mut stmts = parse(r#"#0s
-btn: Rect, at: (100, 200)"#);
+        let mut stmts = parse(
+            r#"#0s
+btn: Rect, at: (100, 200)"#,
+        );
         let edit = SourceEdit::SetProperty {
             actor: "btn".into(),
             property: "position".into(),
@@ -679,16 +778,15 @@ btn: Rect, at: (100, 200)"#);
 
         let actor = find_actor_decl_mut(&mut stmts, "btn").expect("actor 'btn' should exist");
         let prop = find_prop_mut(actor, "at").expect("property 'at' should exist");
-        assert_eq!(
-            prop.value,
-            Expr::Tuple(vec![Expr::Num(150.0), Expr::Num(250.0)])
-        );
+        assert_eq!(prop.value, Expr::Tuple(vec![Expr::Num(150.0), Expr::Num(250.0)]));
     }
 
     #[test]
     fn set_assignment_value() {
-        let mut stmts = parse(r#"#2s
-btn.color = red"#);
+        let mut stmts = parse(
+            r#"#2s
+btn.color = red"#,
+        );
         let edit = SourceEdit::SetProperty {
             actor: "btn".into(),
             property: "color".into(),
@@ -696,8 +794,8 @@ btn.color = red"#);
         };
         assert!(apply_edit(&mut stmts, edit).is_ok());
 
-        let assignment = find_assignment_mut(&mut stmts, "btn", "color"
-        ).expect("assignment 'btn.color' should exist");
+        let assignment = find_assignment_mut(&mut stmts, "btn", "color")
+            .expect("assignment 'btn.color' should exist");
         if let Stmt::Assignment { value, .. } = assignment {
             assert_eq!(*value, Expr::Ident("blue".into()));
         } else {
@@ -707,8 +805,10 @@ btn.color = red"#);
 
     #[test]
     fn insert_new_property() {
-        let mut stmts = parse(r#"#0s
-btn: Rect, size: (100, 200)"#);
+        let mut stmts = parse(
+            r#"#0s
+btn: Rect, size: (100, 200)"#,
+        );
         let edit = SourceEdit::InsertProperty {
             actor: "btn".into(),
             property: "color".into(),
@@ -723,8 +823,10 @@ btn: Rect, size: (100, 200)"#);
 
     #[test]
     fn insert_property_returns_false_if_already_exists() {
-        let mut stmts = parse(r#"#0s
-btn: Rect, size: (100, 200)"#);
+        let mut stmts = parse(
+            r#"#0s
+btn: Rect, size: (100, 200)"#,
+        );
         let edit = SourceEdit::InsertProperty {
             actor: "btn".into(),
             property: "size".into(),
@@ -740,14 +842,12 @@ btn: Rect, size: (100, 200)"#);
         let edit = SourceEdit::InsertActor {
             ty: "Ellipse".into(),
             label: "circle1".into(),
-            props: vec![
-                Property {
-                    name: "at".into(),
-                    value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
-                    value_span: None,
-                    trailing_comment: None,
-                },
-            ],
+            props: vec![Property {
+                name: "at".into(),
+                value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+                value_span: None,
+                trailing_comment: None,
+            }],
             container: None,
             time_s: 0.0,
         };
@@ -767,27 +867,28 @@ btn: Rect, size: (100, 200)"#);
 
     #[test]
     fn insert_actor_into_container() {
-        let mut stmts = parse(r#"row1: Row, gap: 8 {
+        let mut stmts = parse(
+            r#"row1: Row, gap: 8 {
   btn: Rect, size: (100, 200)
-}"#);
+}"#,
+        );
         let edit = SourceEdit::InsertActor {
             ty: "Ellipse".into(),
             label: "circle1".into(),
-            props: vec![
-                Property {
-                    name: "at".into(),
-                    value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
-                    value_span: None,
-                    trailing_comment: None,
-                },
-            ],
+            props: vec![Property {
+                name: "at".into(),
+                value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+                value_span: None,
+                trailing_comment: None,
+            }],
             container: Some("row1".into()),
             time_s: 0.0,
         };
         assert!(apply_edit(&mut stmts, edit).is_ok());
 
         // Find the container and verify it has the new child
-        let container = find_actor_decl_mut(&mut stmts, "row1").expect("container 'row1' should exist");
+        let container =
+            find_actor_decl_mut(&mut stmts, "row1").expect("container 'row1' should exist");
         if let Stmt::ActorDecl { children, .. } = container {
             assert_eq!(children.len(), 2);
             if let InlineItem::Labeled { label, ty, .. } = &children[1] {
@@ -803,12 +904,14 @@ btn: Rect, size: (100, 200)"#);
 
     #[test]
     fn rename_actor_and_references() {
-        let mut stmts = parse(r#"#0s
+        let mut stmts = parse(
+            r#"#0s
 btn: Rect, size: (100, 200)
 
 #1s
 btn.color = blue
-btn.position = (200, 100)"#);
+btn.position = (200, 100)"#,
+        );
 
         let edit = SourceEdit::RenameActor {
             old_label: "btn".into(),
@@ -817,7 +920,8 @@ btn.position = (200, 100)"#);
         let _ = apply_edit(&mut stmts, edit);
 
         // Actor decl should be renamed
-        let actor = find_actor_decl_mut(&mut stmts, "my_box").expect("renamed actor 'my_box' should exist");
+        let actor =
+            find_actor_decl_mut(&mut stmts, "my_box").expect("renamed actor 'my_box' should exist");
         if let Stmt::ActorDecl { label, .. } = actor {
             assert_eq!(label, "my_box");
         } else {
@@ -833,8 +937,14 @@ btn.position = (200, 100)"#);
         fn walk(stmts: &[Stmt], found_color: &mut bool, found_position: &mut bool) {
             for stmt in stmts {
                 match stmt {
-                    Stmt::Assignment { target, property, .. } => {
-                        if target.last() == Some(&animatix_syntax::ast::TargetSegment::Static("my_box".to_string())) {
+                    Stmt::Assignment {
+                        target, property, ..
+                    } => {
+                        if target.last()
+                            == Some(&animatix_syntax::ast::TargetSegment::Static(
+                                "my_box".to_string(),
+                            ))
+                        {
                             if property == "color" {
                                 *found_color = true;
                             }
@@ -843,10 +953,13 @@ btn.position = (200, 100)"#);
                             }
                         }
                         assert!(
-                            target.last() != Some(&animatix_syntax::ast::TargetSegment::Static("btn".to_string())),
+                            target.last()
+                                != Some(&animatix_syntax::ast::TargetSegment::Static(
+                                    "btn".to_string()
+                                )),
                             "Old reference 'btn' should have been renamed"
                         );
-                    }
+                    },
                     Stmt::Keyframe { body, .. }
                     | Stmt::RelativeKeyframe { body, .. }
                     | Stmt::Sequence { body, .. }
@@ -854,36 +967,44 @@ btn.position = (200, 100)"#);
                     | Stmt::Always { body, .. }
                     | Stmt::ComponentAction { body, .. } => {
                         walk(body, found_color, found_position);
-                    }
+                    },
                     Stmt::ComponentDef(ComponentDef { body, .. }, _) => {
                         walk(body, found_color, found_position);
-                    }
-                    Stmt::Conditional { then_branch, else_branch, .. } => {
+                    },
+                    Stmt::Conditional {
+                        then_branch,
+                        else_branch,
+                        ..
+                    } => {
                         walk(then_branch, found_color, found_position);
                         if let Some(else_b) = else_branch {
                             walk(else_b, found_color, found_position);
                         }
-                    }
+                    },
                     Stmt::ForLoop { body, .. } => {
                         walk(body, found_color, found_position);
-                    }
+                    },
                     Stmt::ActorDecl { children, .. } => {
                         walk_inline(children, found_color, found_position);
-                    }
-                    _ => {}
+                    },
+                    _ => {},
                 }
             }
         }
         fn walk_inline(items: &[InlineItem], _found_color: &mut bool, _found_position: &mut bool) {
             for item in items {
                 match item {
-                    InlineItem::Labeled { children, .. } | InlineItem::Anonymous { children, .. } | InlineItem::ForLoop { body: children, .. } => {
+                    InlineItem::Labeled { children, .. }
+                    | InlineItem::Anonymous { children, .. }
+                    | InlineItem::ForLoop { body: children, .. } => {
                         walk_inline(children, _found_color, _found_position);
-                    }
-                    InlineItem::SlotFill { items: slot_items, .. } => {
+                    },
+                    InlineItem::SlotFill {
+                        items: slot_items, ..
+                    } => {
                         walk_inline(slot_items, _found_color, _found_position);
-                    }
-                    _ => {}
+                    },
+                    _ => {},
                 }
             }
         }
@@ -897,19 +1018,17 @@ btn.position = (200, 100)"#);
         use animatix_syntax::ast::{Expr, Property, Stmt};
 
         let mut stmts = vec![];
-        let fragment = vec![
-            Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "title".into(),
-                array_index: None,
-                ty: "Text".into(),
-                props: vec![Property::new("content", Expr::Str("Hello".into()))],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            },
-        ];
+        let fragment = vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "title".into(),
+            array_index: None,
+            ty: "Text".into(),
+            props: vec![Property::new("content", Expr::Str("Hello".into()))],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }];
         let result = super::insert_snippet(&mut stmts, fragment, None, None);
         assert!(result.is_ok());
         assert_eq!(stmts.len(), 1);
@@ -924,22 +1043,21 @@ btn.position = (200, 100)"#);
     fn insert_snippet_into_keyframe() {
         use animatix_syntax::ast::{Stmt, Time};
 
-        let mut stmts = vec![
-            Stmt::Keyframe {
-                time: Time::Seconds(0.0),
-                body: vec![],
-                span: None,
-            },
-        ];
-        let fragment = vec![
-            Stmt::Action(animatix_syntax::ast::Action {
+        let mut stmts = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![],
+            span: None,
+        }];
+        let fragment = vec![Stmt::Action(
+            animatix_syntax::ast::Action {
                 verb: "fade-in".into(),
                 targets: vec!["title".into()],
                 args: vec![],
                 modifiers: vec![],
                 byte_span: None,
-            }, None),
-        ];
+            },
+            None,
+        )];
         let result = super::insert_snippet(&mut stmts, fragment, Some(0.0), None);
         assert!(result.is_ok());
         if let Stmt::Keyframe { body, .. } = &stmts[0] {
@@ -953,32 +1071,28 @@ btn.position = (200, 100)"#);
     fn insert_snippet_into_container() {
         use animatix_syntax::ast::Stmt;
 
-        let mut stmts = vec![
-            Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "container".into(),
-                array_index: None,
-                ty: "Row".into(),
-                props: vec![],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            },
-        ];
-        let fragment = vec![
-            Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "child".into(),
-                array_index: None,
-                ty: "Text".into(),
-                props: vec![],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            },
-        ];
+        let mut stmts = vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "container".into(),
+            array_index: None,
+            ty: "Row".into(),
+            props: vec![],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }];
+        let fragment = vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "child".into(),
+            array_index: None,
+            ty: "Text".into(),
+            props: vec![],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }];
         let result = super::insert_snippet(&mut stmts, fragment, None, Some("container"));
         assert!(result.is_ok());
         if let Stmt::ActorDecl { children, .. } = &stmts[0] {
@@ -990,8 +1104,10 @@ btn.position = (200, 100)"#);
 
     #[test]
     fn remove_existing_property() {
-        let mut stmts = parse(r#"#0s
-callout: Callout, target: box1, place: right"#);
+        let mut stmts = parse(
+            r#"#0s
+callout: Callout, target: box1, place: right"#,
+        );
         let edit = SourceEdit::RemoveProperty {
             actor: "callout".into(),
             property: "target".into(),
@@ -1006,8 +1122,10 @@ callout: Callout, target: box1, place: right"#);
 
     #[test]
     fn remove_property_actor_not_found() {
-        let mut stmts = parse(r#"#0s
-box1: Rect, size: (100, 100)"#);
+        let mut stmts = parse(
+            r#"#0s
+box1: Rect, size: (100, 100)"#,
+        );
         let edit = SourceEdit::RemoveProperty {
             actor: "missing".into(),
             property: "size".into(),
@@ -1017,8 +1135,10 @@ box1: Rect, size: (100, 100)"#);
 
     #[test]
     fn remove_property_not_found_on_actor() {
-        let mut stmts = parse(r#"#0s
-box1: Rect, size: (100, 100)"#);
+        let mut stmts = parse(
+            r#"#0s
+box1: Rect, size: (100, 100)"#,
+        );
         let edit = SourceEdit::RemoveProperty {
             actor: "box1".into(),
             property: "color".into(),
@@ -1029,10 +1149,12 @@ box1: Rect, size: (100, 100)"#);
     #[test]
     fn remove_property_does_not_touch_assignments() {
         // Keyframed assignments should remain untouched
-        let mut stmts = parse(r#"#0s
+        let mut stmts = parse(
+            r#"#0s
 callout: Callout, target: box1
 #1s
-callout.target = box2"#);
+callout.target = box2"#,
+        );
         let edit = SourceEdit::RemoveProperty {
             actor: "callout".into(),
             property: "target".into(),

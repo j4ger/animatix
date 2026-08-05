@@ -48,7 +48,7 @@ impl Timeline {
                         initial_size[0] = w as f32 / 2.0;
                         initial_size[1] = h as f32 / 2.0;
                     }
-                }
+                },
                 "radius" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -59,7 +59,7 @@ impl Timeline {
                     .unwrap_or(Value::Num(0.0));
                     let r = v.as_num() as f32;
                     initial_size = [r, r];
-                }
+                },
                 "x_domain" => {
                     match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -68,10 +68,14 @@ impl Timeline {
                         &prop_subject,
                     ) {
                         Some(Value::Vec2([min, max])) => x_domain = [min, max],
-                        Some(v) => tracing::warn!("{}: 'x_domain' expects a (min, max) tuple, got {:?}", prop_subject, v),
-                        None => {} // eval error already reported as a diagnostic
+                        Some(v) => tracing::warn!(
+                            "{}: 'x_domain' expects a (min, max) tuple, got {:?}",
+                            prop_subject,
+                            v
+                        ),
+                        None => {}, // eval error already reported as a diagnostic
                     }
-                }
+                },
                 "y_domain" => {
                     match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -80,10 +84,14 @@ impl Timeline {
                         &prop_subject,
                     ) {
                         Some(Value::Vec2([min, max])) => y_domain = [min, max],
-                        Some(v) => tracing::warn!("{}: 'y_domain' expects a (min, max) tuple, got {:?}", prop_subject, v),
-                        None => {} // eval error already reported as a diagnostic
+                        Some(v) => tracing::warn!(
+                            "{}: 'y_domain' expects a (min, max) tuple, got {:?}",
+                            prop_subject,
+                            v
+                        ),
+                        None => {}, // eval error already reported as a diagnostic
                     }
-                }
+                },
                 "t_domain" => {
                     match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -92,10 +100,14 @@ impl Timeline {
                         &prop_subject,
                     ) {
                         Some(Value::Vec2([min, max])) => t_domain = [min, max],
-                        Some(v) => tracing::warn!("{}: 't_domain' expects a (min, max) tuple, got {:?}", prop_subject, v),
-                        None => {} // eval error already reported as a diagnostic
+                        Some(v) => tracing::warn!(
+                            "{}: 't_domain' expects a (min, max) tuple, got {:?}",
+                            prop_subject,
+                            v
+                        ),
+                        None => {}, // eval error already reported as a diagnostic
                     }
-                }
+                },
                 "func" => {
                     match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -103,11 +115,17 @@ impl Timeline {
                         diagnostics,
                         &prop_subject,
                     ) {
-                        Some(Value::Closure(args, body, captures)) => func = Some((args, body, captures)),
-                        Some(v) => tracing::warn!("{}: 'func' expects a closure, got {:?}", prop_subject, v),
-                        None => {} // eval error already reported as a diagnostic
+                        Some(Value::Closure(args, body, captures)) => {
+                            func = Some((args, body, captures))
+                        },
+                        Some(v) => tracing::warn!(
+                            "{}: 'func' expects a closure, got {:?}",
+                            prop_subject,
+                            v
+                        ),
+                        None => {}, // eval error already reported as a diagnostic
                     }
-                }
+                },
                 "tolerance" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -117,7 +135,7 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(0.0));
                     tolerance = v.as_num();
-                }
+                },
                 "max_depth" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -127,7 +145,7 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(0.0));
                     max_depth = v.as_num();
-                }
+                },
                 "resolution" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -137,24 +155,33 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(96.0));
                     resolution = v.as_num();
-                }
+                },
                 "kind" => {
-                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(&prop.value, &initial_eval_env, diagnostics, &prop_subject) {
+                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    ) {
                         if let Some(k) = PlotCurveKind::from_str(&v.as_str().to_lowercase()) {
                             kind = Some(k);
                         } else {
-                            diagnostics.push(Diagnostic::warning(
-                                DiagnosticCode::InvalidPropertyValue,
-                                DiagnosticPhase::Build,
-                                format!("Invalid plot kind: '{}'", v.as_str()),
-                            ).with_subject(&prop_subject));
+                            diagnostics.push(
+                                Diagnostic::warning(
+                                    DiagnosticCode::InvalidPropertyValue,
+                                    DiagnosticPhase::Build,
+                                    format!("Invalid plot kind: '{}'", v.as_str()),
+                                )
+                                .with_subject(&prop_subject),
+                            );
                         }
                     }
-                }
+                },
                 "at" => at_expr = Some(prop.value.clone()),
                 "anchor" => anchor_expr = Some(prop.value.clone()),
                 "offset" => offset_expr = Some(prop.value.clone()),
-                _ => {} // Non-plot properties (color, opacity, etc.) are handled by the general actor pipeline.
+                _ => {}, /* Non-plot properties (color, opacity, etc.) are handled by the general
+                          * actor pipeline. */
             }
         }
 
@@ -199,19 +226,27 @@ impl Timeline {
             x_scale: props
                 .iter()
                 .find(|p| p.name == "x_scale")
-                .and_then(|p| evaluate_expr_with_lookup_diagnostic(
-                    &p.value, &initial_eval_env, diagnostics,
-                    &format!("{}.x_scale", label),
-                ))
+                .and_then(|p| {
+                    evaluate_expr_with_lookup_diagnostic(
+                        &p.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &format!("{}.x_scale", label),
+                    )
+                })
                 .map(|v| super::utils::ScaleType::from_str(&v.as_str()))
                 .unwrap_or(super::utils::ScaleType::Linear),
             y_scale: props
                 .iter()
                 .find(|p| p.name == "y_scale")
-                .and_then(|p| evaluate_expr_with_lookup_diagnostic(
-                    &p.value, &initial_eval_env, diagnostics,
-                    &format!("{}.y_scale", label),
-                ))
+                .and_then(|p| {
+                    evaluate_expr_with_lookup_diagnostic(
+                        &p.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &format!("{}.y_scale", label),
+                    )
+                })
                 .map(|v| super::utils::ScaleType::from_str(&v.as_str()))
                 .unwrap_or(super::utils::ScaleType::Linear),
             align: None,
@@ -263,17 +298,35 @@ impl Timeline {
         let p_padding = self
             .env
             .get(&format!("{}_padding", parent_label))
-            .and_then(|v| if let Value::Vec4(p) = v { Some(p) } else { None })
+            .and_then(|v| {
+                if let Value::Vec4(p) = v {
+                    Some(p)
+                } else {
+                    None
+                }
+            })
             .unwrap_or([0.0; 4]);
         let p_x_scale = self
             .env
             .get(&format!("{}_x_scale", parent_label))
-            .and_then(|v| if let Value::Str(s) = v { Some(super::utils::ScaleType::from_str(&s)) } else { None })
+            .and_then(|v| {
+                if let Value::Str(s) = v {
+                    Some(super::utils::ScaleType::from_str(&s))
+                } else {
+                    None
+                }
+            })
             .unwrap_or(super::utils::ScaleType::Linear);
         let p_y_scale = self
             .env
             .get(&format!("{}_y_scale", parent_label))
-            .and_then(|v| if let Value::Str(s) = v { Some(super::utils::ScaleType::from_str(&s)) } else { None })
+            .and_then(|v| {
+                if let Value::Str(s) = v {
+                    Some(super::utils::ScaleType::from_str(&s))
+                } else {
+                    None
+                }
+            })
             .unwrap_or(super::utils::ScaleType::Linear);
 
         props
@@ -300,13 +353,14 @@ impl Timeline {
 
                 let ctx = super::utils::GraphContext::new(
                     super::utils::GraphScaleConfig::new(x_domain, y_domain, p_x_scale, p_y_scale),
-                    super::utils::GraphGeometry::new(p_size, [parent_pos[0] as f64, parent_pos[1] as f64], p_padding),
+                    super::utils::GraphGeometry::new(
+                        p_size,
+                        [parent_pos[0] as f64, parent_pos[1] as f64],
+                        p_padding,
+                    ),
                 );
                 let [screen_x, screen_y] = super::utils::graph_math_to_screen(
-                    mx,
-                    my,
-                    &ctx.scale,
-                    &ctx.geo,
+                    mx, my, &ctx.scale, &ctx.geo,
                     false, // absolute coordinates for actor properties
                 );
 

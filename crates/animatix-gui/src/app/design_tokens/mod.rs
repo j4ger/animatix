@@ -30,7 +30,6 @@
 /// Raw palette — bridge to eparts where primitive.rs now lives.
 /// Also provides the `p::*` alias used by semantic.rs app-specific submodules.
 pub use eparts::tokens::primitive;
-
 pub use eparts::tokens::{motion, typography, util};
 pub mod semantic;
 pub mod spatial;

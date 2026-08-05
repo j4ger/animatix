@@ -2,8 +2,8 @@ use super::registry::{ActionParam, ActionSignature, BuiltinAction, base_timing_p
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
-use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::actor_kind::ActorKindId;
+use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
 fn highlight_timing_params() -> Vec<ActionParam> {
@@ -56,8 +56,12 @@ fn parse_blend_mode(s: &str) -> vello::peniko::Mix {
 /// is highlighted, sibling Fragments are automatically unhighlighted so that
 /// only one Fragment (or one group via multi-target) is highlighted at a time.
 fn find_equation_parent(timeline: &Timeline, fragment: &str) -> Option<String> {
-    timeline.tracks.iter()
-        .find(|(_, t)| t.kind == ActorKindId::Equation && t.children.contains(&fragment.to_string()))
+    timeline
+        .tracks
+        .iter()
+        .find(|(_, t)| {
+            t.kind == ActorKindId::Equation && t.children.contains(&fragment.to_string())
+        })
         .map(|(k, _)| k.clone())
 }
 
@@ -97,18 +101,17 @@ impl BuiltinAction for Highlight {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         // Parse optional color modifier (default: white [1,1,1,1])
-        let color = action
-            .modifiers
-            .iter()
-            .find(|m| m.name.as_deref() == Some("color"))
-            .and_then(|m| {
-                crate::timeline::evaluate_expr(&m.value, &timeline.env)
-                    .ok()
-                    .map(|v| {
+        let color =
+            action
+                .modifiers
+                .iter()
+                .find(|m| m.name.as_deref() == Some("color"))
+                .and_then(|m| {
+                    crate::timeline::evaluate_expr(&m.value, &timeline.env).ok().map(|v| {
                         let c = v.as_color();
                         [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32]
                     })
-            });
+                });
 
         // Parse optional blend modifier (default: "difference")
         let blend = action
@@ -156,29 +159,29 @@ impl BuiltinAction for Highlight {
 
             // Set highlight color keyframe if specified
             if let Some(c) = color {
-                track
-                    .highlight
-                    .highlight_color
-                    .ensure([1.0, 1.0, 1.0, 1.0])
-                    .add_keyframe(t_start_ms, c, Easing::Linear);
+                track.highlight.highlight_color.ensure([1.0, 1.0, 1.0, 1.0]).add_keyframe(
+                    t_start_ms,
+                    c,
+                    Easing::Linear,
+                );
             }
 
             // Set highlight padding keyframe if specified
             if let Some(p) = padding {
-                track
-                    .highlight
-                    .highlight_padding
-                    .ensure(4.0)
-                    .add_keyframe(t_start_ms, p, Easing::Linear);
+                track.highlight.highlight_padding.ensure(4.0).add_keyframe(
+                    t_start_ms,
+                    p,
+                    Easing::Linear,
+                );
             }
 
             // Set highlight radius keyframe if specified
             if let Some(r) = radius {
-                track
-                    .highlight
-                    .highlight_radius
-                    .ensure(2.0)
-                    .add_keyframe(t_start_ms, r, Easing::Linear);
+                track.highlight.highlight_radius.ensure(2.0).add_keyframe(
+                    t_start_ms,
+                    r,
+                    Easing::Linear,
+                );
             }
 
             // Set blend mode (non-animated configuration value)
@@ -186,11 +189,11 @@ impl BuiltinAction for Highlight {
 
             // Animate highlight opacity: 0 → 1
             let start_opacity = track.highlight.highlight_opacity.get(t_start_ms, 0.0);
-            track
-                .highlight
-                .highlight_opacity
-                .ensure(0.0)
-                .add_keyframe(t_start_ms, start_opacity, Easing::Linear);
+            track.highlight.highlight_opacity.ensure(0.0).add_keyframe(
+                t_start_ms,
+                start_opacity,
+                Easing::Linear,
+            );
             track
                 .highlight
                 .highlight_opacity
@@ -227,16 +230,16 @@ impl BuiltinAction for Highlight {
         for (sibling, t_start, t_end) in siblings_to_unhighlight {
             if let Some(track) = timeline.tracks.get_mut(&sibling) {
                 let start_opacity = track.highlight.highlight_opacity.get(t_start, 1.0);
-                track
-                    .highlight
-                    .highlight_opacity
-                    .ensure(0.0)
-                    .add_keyframe(t_start, start_opacity, Easing::Linear);
-                track
-                    .highlight
-                    .highlight_opacity
-                    .ensure(0.0)
-                    .add_keyframe(t_end, 0.0, Easing::Linear);
+                track.highlight.highlight_opacity.ensure(0.0).add_keyframe(
+                    t_start,
+                    start_opacity,
+                    Easing::Linear,
+                );
+                track.highlight.highlight_opacity.ensure(0.0).add_keyframe(
+                    t_end,
+                    0.0,
+                    Easing::Linear,
+                );
             }
         }
     }
@@ -288,11 +291,11 @@ impl BuiltinAction for Unhighlight {
 
             // Animate highlight opacity: current → 0
             let start_opacity = track.highlight.highlight_opacity.get(t_start_ms, 1.0);
-            track
-                .highlight
-                .highlight_opacity
-                .ensure(0.0)
-                .add_keyframe(t_start_ms, start_opacity, Easing::Linear);
+            track.highlight.highlight_opacity.ensure(0.0).add_keyframe(
+                t_start_ms,
+                start_opacity,
+                Easing::Linear,
+            );
             track
                 .highlight
                 .highlight_opacity
@@ -312,31 +315,29 @@ mod tests {
     fn make_equation_with_fragment() -> Vec<Stmt> {
         vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
-            body: vec![
-                Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "eq".to_string(),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "eq".to_string(),
+                array_index: None,
+                ty: "Equation".to_string(),
+                props: vec![],
+                modifiers: vec![],
+                children: vec![InlineItem::Labeled {
+                    label: "f1".to_string(),
                     array_index: None,
-                    ty: "Equation".to_string(),
-                    props: vec![],
-                    modifiers: vec![],
-                    children: vec![InlineItem::Labeled {
-                        label: "f1".to_string(),
-                        array_index: None,
-                        ty: "Fragment".to_string(),
-                        props: vec![Property {
-                            name: "content".to_string(),
-                            value: Expr::Str("x^2".to_string()),
-                            value_span: None,
-                            trailing_comment: None,
-                        }],
-                        modifiers: vec![],
-                        children: vec![],
+                    ty: "Fragment".to_string(),
+                    props: vec![Property {
+                        name: "content".to_string(),
+                        value: Expr::Str("x^2".to_string()),
+                        value_span: None,
+                        trailing_comment: None,
                     }],
-                    span: None,
-                },
-            ],
+                    modifiers: vec![],
+                    children: vec![],
+                }],
+                span: None,
+            }],
             span: None,
         }]
     }
@@ -464,7 +465,10 @@ mod tests {
     }
 
     /// Helper: count opacity keyframes for a track by label.
-    fn opacity_keyframe_count(report: &crate::diagnostics::BuildReport<Timeline>, label: &str) -> usize {
+    fn opacity_keyframe_count(
+        report: &crate::diagnostics::BuildReport<Timeline>,
+        label: &str,
+    ) -> usize {
         report
             .output
             .tracks
@@ -582,13 +586,25 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
         // f2 should have 2 keyframes (0 → 1)
-        assert_eq!(opacity_keyframe_count(&report, "f2"), 2, "f2 should have 2 opacity keyframes (highlight in)");
+        assert_eq!(
+            opacity_keyframe_count(&report, "f2"),
+            2,
+            "f2 should have 2 opacity keyframes (highlight in)"
+        );
 
         // f1 should have 2 keyframes (current opacity at t_start → 0)
-        assert_eq!(opacity_keyframe_count(&report, "f1"), 2, "f1 should have 2 opacity keyframes (unhighlight sibling)");
+        assert_eq!(
+            opacity_keyframe_count(&report, "f1"),
+            2,
+            "f1 should have 2 opacity keyframes (unhighlight sibling)"
+        );
 
         // f3 should have 2 keyframes (current opacity at t_start → 0)
-        assert_eq!(opacity_keyframe_count(&report, "f3"), 2, "f3 should have 2 opacity keyframes (unhighlight sibling)");
+        assert_eq!(
+            opacity_keyframe_count(&report, "f3"),
+            2,
+            "f3 should have 2 opacity keyframes (unhighlight sibling)"
+        );
 
         assert!(
             report
@@ -624,11 +640,23 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
         // f1 and f2 should be highlighted (2 keyframes each: 0 → 1)
-        assert_eq!(opacity_keyframe_count(&report, "f1"), 2, "f1 should have 2 opacity keyframes (highlight in)");
-        assert_eq!(opacity_keyframe_count(&report, "f2"), 2, "f2 should have 2 opacity keyframes (highlight in)");
+        assert_eq!(
+            opacity_keyframe_count(&report, "f1"),
+            2,
+            "f1 should have 2 opacity keyframes (highlight in)"
+        );
+        assert_eq!(
+            opacity_keyframe_count(&report, "f2"),
+            2,
+            "f2 should have 2 opacity keyframes (highlight in)"
+        );
 
         // f3 should be unhighlighted (2 keyframes: current → 0)
-        assert_eq!(opacity_keyframe_count(&report, "f3"), 2, "f3 should have 2 opacity keyframes (unhighlight sibling)");
+        assert_eq!(
+            opacity_keyframe_count(&report, "f3"),
+            2,
+            "f3 should have 2 opacity keyframes (unhighlight sibling)"
+        );
 
         assert!(
             report
@@ -664,14 +692,30 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
         // fA1 should be highlighted
-        assert_eq!(opacity_keyframe_count(&report, "fA1"), 2, "fA1 should have 2 opacity keyframes (highlight in)");
+        assert_eq!(
+            opacity_keyframe_count(&report, "fA1"),
+            2,
+            "fA1 should have 2 opacity keyframes (highlight in)"
+        );
 
         // fA2 should be unhighlighted (sibling in same Equation)
-        assert_eq!(opacity_keyframe_count(&report, "fA2"), 2, "fA2 should have 2 opacity keyframes (unhighlight sibling)");
+        assert_eq!(
+            opacity_keyframe_count(&report, "fA2"),
+            2,
+            "fA2 should have 2 opacity keyframes (unhighlight sibling)"
+        );
 
         // fB1 and fB2 should be UNTOUCHED (different Equation)
-        assert_eq!(opacity_keyframe_count(&report, "fB1"), 0, "fB1 should have NO opacity keyframes");
-        assert_eq!(opacity_keyframe_count(&report, "fB2"), 0, "fB2 should have NO opacity keyframes");
+        assert_eq!(
+            opacity_keyframe_count(&report, "fB1"),
+            0,
+            "fB1 should have NO opacity keyframes"
+        );
+        assert_eq!(
+            opacity_keyframe_count(&report, "fB2"),
+            0,
+            "fB2 should have NO opacity keyframes"
+        );
 
         assert!(
             report
@@ -716,10 +760,14 @@ mod tests {
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
-        let unsupported_key_warnings = report.diagnostics.iter().filter(|d| {
-            d.code == animatix_syntax::diagnostics::DiagnosticCode::UnsupportedModifierKey
-                && d.severity == crate::diagnostics::DiagnosticSeverity::Warning
-        }).count();
+        let unsupported_key_warnings = report
+            .diagnostics
+            .iter()
+            .filter(|d| {
+                d.code == animatix_syntax::diagnostics::DiagnosticCode::UnsupportedModifierKey
+                    && d.severity == crate::diagnostics::DiagnosticSeverity::Warning
+            })
+            .count();
         assert_eq!(
             unsupported_key_warnings, 0,
             "highlight with color/blend should not produce UnsupportedModifierKey warnings; got: {:?}",

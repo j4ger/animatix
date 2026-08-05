@@ -100,7 +100,10 @@ impl FullscreenBlitPipeline {
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Animatix Fullscreen Blit Shader"),
-            source: wgpu::ShaderSource::Wgsl(Cow::Owned(format!("{}\n{}", FULLSCREEN_BLIT_VS, FULLSCREEN_BLIT_FS))),
+            source: wgpu::ShaderSource::Wgsl(Cow::Owned(format!(
+                "{}\n{}",
+                FULLSCREEN_BLIT_VS, FULLSCREEN_BLIT_FS
+            ))),
         });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -168,41 +171,41 @@ impl FullscreenBlitPipeline {
         queue.write_buffer(&self.alpha_buffer, 0, bytemuck::bytes_of(&alpha));
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Animatix Fullscreen Blit Bind Group"),
-                layout: &self.bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::Sampler(&self.sampler),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::TextureView(src_view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: self.alpha_buffer.as_entire_binding(),
-                    },
-                ],
-            });
+            label: Some("Animatix Fullscreen Blit Bind Group"),
+            layout: &self.bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Sampler(&self.sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(src_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: self.alpha_buffer.as_entire_binding(),
+                },
+            ],
+        });
 
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("Animatix Fullscreen Blit Pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: dst_view,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Load,
-                            store: wgpu::StoreOp::Store,
-                        },
-                        depth_slice: None,
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                    multiview_mask: None,
-                });
+                label: Some("Animatix Fullscreen Blit Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: dst_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
 
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, &bind_group, &[]);
@@ -211,7 +214,8 @@ impl FullscreenBlitPipeline {
     }
 
     /// Blit `src_view` into `dst_view` with the given alpha. Both must be RGBA8Unorm.
-    /// Creates its own encoder and submits immediately; for batching use [`Self::blit_with_encoder`].
+    /// Creates its own encoder and submits immediately; for batching use
+    /// [`Self::blit_with_encoder`].
     pub fn blit(
         &self,
         device: &wgpu::Device,
@@ -223,9 +227,18 @@ impl FullscreenBlitPipeline {
         alpha: f32,
     ) {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Animatix Fullscreen Blit Encoder"),
-            });
-        self.blit_with_encoder(device, queue, &mut encoder, src_view, dst_view, width, height, alpha);
+            label: Some("Animatix Fullscreen Blit Encoder"),
+        });
+        self.blit_with_encoder(
+            device,
+            queue,
+            &mut encoder,
+            src_view,
+            dst_view,
+            width,
+            height,
+            alpha,
+        );
         queue.submit(std::iter::once(encoder.finish()));
     }
 }

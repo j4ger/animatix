@@ -1,7 +1,7 @@
 //! Filter system — backend trait and CPU-based image processing.
 
-use crate::timeline::image::SceneImage;
 use crate::timeline::SceneDimensions;
+use crate::timeline::image::SceneImage;
 
 /// A GPU texture that should be composited after the main Vello scene render.
 /// Used by the zero-readback filter compositing path.
@@ -62,7 +62,9 @@ pub trait FilterBackend: Send {
         sepia: f32,
         alpha: f32,
     ) -> Result<(), String> {
-        let _ = (scene, dimensions, blur, brightness, contrast, saturate, hue_rotate, sepia, alpha);
+        let _ = (
+            scene, dimensions, blur, brightness, contrast, saturate, hue_rotate, sepia, alpha,
+        );
         Err("zero-readback filter compositing is not supported by this backend".to_string())
     }
 
@@ -239,9 +241,24 @@ fn hue_matrix(angle: f32) -> [[f32; 4]; 4] {
     let lg = 0.7152;
     let lb = 0.0722;
     [
-        [lr + cos_a * (1.0 - lr) + sin_a * (-lr), lg + cos_a * (-lg) + sin_a * (-lg), lb + cos_a * (-lb) + sin_a * (1.0 - lb), 0.0],
-        [lr + cos_a * (-lr) + sin_a * 0.143, lg + cos_a * (1.0 - lg) + sin_a * 0.140, lb + cos_a * (-lb) + sin_a * (-0.283), 0.0],
-        [lr + cos_a * (-lr) + sin_a * (-(1.0 - lr)), lg + cos_a * (-lg) + sin_a * lg, lb + cos_a * (1.0 - lb) + sin_a * lb, 0.0],
+        [
+            lr + cos_a * (1.0 - lr) + sin_a * (-lr),
+            lg + cos_a * (-lg) + sin_a * (-lg),
+            lb + cos_a * (-lb) + sin_a * (1.0 - lb),
+            0.0,
+        ],
+        [
+            lr + cos_a * (-lr) + sin_a * 0.143,
+            lg + cos_a * (1.0 - lg) + sin_a * 0.140,
+            lb + cos_a * (-lb) + sin_a * (-0.283),
+            0.0,
+        ],
+        [
+            lr + cos_a * (-lr) + sin_a * (-(1.0 - lr)),
+            lg + cos_a * (-lg) + sin_a * lg,
+            lb + cos_a * (1.0 - lb) + sin_a * lb,
+            0.0,
+        ],
         [0.0, 0.0, 0.0, 1.0],
     ]
 }

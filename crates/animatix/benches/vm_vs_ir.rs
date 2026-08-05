@@ -40,7 +40,10 @@ echo: Ellipse, size: (40, 40), color: accent.warning, at: pulse.at
 fn bench_modifier_overhead(c: &mut Criterion) {
     let reactive = build_reactive_timeline();
     let static_tl = build_static_timeline();
-    let dims = SceneDimensions { width: 1920, height: 1080 };
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
 
     c.bench_function("reactive_evaluate_100frames", |b| {
         b.iter(|| {

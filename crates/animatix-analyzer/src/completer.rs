@@ -1,7 +1,8 @@
 //! Context-aware completion provider.
 
-use crate::symbol_table::{SymbolTable, LabelKind};
-use tree_sitter::{Tree, Point};
+use tree_sitter::{Point, Tree};
+
+use crate::symbol_table::{LabelKind, SymbolTable};
 
 /// A completion item to suggest to the user.
 #[derive(Debug, Clone)]
@@ -61,28 +62,35 @@ pub fn completions_at(
                     items.extend(label_completions(symbols));
                     items.extend(type_completions(symbols));
                     items.extend(action_completions(symbols));
-                }
+                },
                 CompletionContext::TypePosition => {
                     items.extend(type_completions(symbols));
-                }
+                },
                 CompletionContext::PropertyBlock { actor_type } => {
                     items.extend(property_completions(symbols, actor_type.as_deref()));
                     items.extend(value_completions());
-                }
+                },
                 CompletionContext::ActionTarget => {
                     items.extend(label_completions(symbols));
-                }
+                },
                 CompletionContext::ModifierList => {
                     items.extend(modifier_completions());
-                }
-                CompletionContext::PropertyValue { property_name, actor_type } => {
-                    items.extend(value_for_property(&property_name, actor_type.as_deref(), symbols));
-                }
+                },
+                CompletionContext::PropertyValue {
+                    property_name,
+                    actor_type,
+                } => {
+                    items.extend(value_for_property(
+                        &property_name,
+                        actor_type.as_deref(),
+                        symbols,
+                    ));
+                },
                 CompletionContext::Unknown => {
                     items.extend(keyword_completions(symbols));
                     items.extend(label_completions(symbols));
                     items.extend(type_completions(symbols));
-                }
+                },
             }
         }
     } else {
@@ -130,24 +138,24 @@ impl CompletionContext {
                 "property_list" => {
                     let actor_type = find_actor_type(parent, source);
                     return CompletionContext::PropertyBlock { actor_type };
-                }
+                },
 
                 // After ":" in actor declaration
                 "actor_declaration" => {
                     if is_after_colon(node, source) {
                         return CompletionContext::TypePosition;
                     }
-                }
+                },
 
                 // After action verb
                 "action_invocation" => {
                     return CompletionContext::ActionTarget;
-                }
+                },
 
                 // Inside modifier list
                 "modifier_list" | "modifier" => {
                     return CompletionContext::ModifierList;
-                }
+                },
 
                 // Property value context
                 "property" => {
@@ -159,9 +167,9 @@ impl CompletionContext {
                             actor_type,
                         };
                     }
-                }
+                },
 
-                _ => {}
+                _ => {},
             }
         }
 
@@ -283,78 +291,90 @@ pub fn all_snippets() -> Vec<CompletionItem> {
 
 /// Keyword completions with documentation.
 fn keyword_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
-    symbols.keywords.iter().map(|kw| {
-        let doc = match kw.as_str() {
-            "let" => Some("Declare a variable: let name = value"),
-            "import" => Some("Import another file: import \"path\""),
-            "always" => Some("Reactive block that runs continuously"),
-            "if" => Some("Conditional: if condition { ... }"),
-            "else" => Some("Else branch: if ... { } else { }"),
-            "for" => Some("Loop: for item in collection { ... }"),
-            "in" => Some("Used in for loops"),
-            "pub" => Some("Make visible to other files"),
-            "component" => Some("Define a reusable component"),
-            "sequence" => Some("Run actions in sequence"),
-            "stagger" => Some("Stagger actions with delay"),
-            _ => None,
-        };
-        CompletionItem {
-            label: kw.clone(),
-            kind: CompletionKind::Keyword,
-            detail: Some("Keyword".to_string()),
-            documentation: doc.map(|s| s.to_string()),
-            insert_text: None,
-        }
-    }).collect()
+    symbols
+        .keywords
+        .iter()
+        .map(|kw| {
+            let doc = match kw.as_str() {
+                "let" => Some("Declare a variable: let name = value"),
+                "import" => Some("Import another file: import \"path\""),
+                "always" => Some("Reactive block that runs continuously"),
+                "if" => Some("Conditional: if condition { ... }"),
+                "else" => Some("Else branch: if ... { } else { }"),
+                "for" => Some("Loop: for item in collection { ... }"),
+                "in" => Some("Used in for loops"),
+                "pub" => Some("Make visible to other files"),
+                "component" => Some("Define a reusable component"),
+                "sequence" => Some("Run actions in sequence"),
+                "stagger" => Some("Stagger actions with delay"),
+                _ => None,
+            };
+            CompletionItem {
+                label: kw.clone(),
+                kind: CompletionKind::Keyword,
+                detail: Some("Keyword".to_string()),
+                documentation: doc.map(|s| s.to_string()),
+                insert_text: None,
+            }
+        })
+        .collect()
 }
 
 /// Type completions with documentation.
 fn type_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
-    symbols.types.iter().map(|ty| {
-        let doc = match ty.as_str() {
-            "Text" => Some("Text element with content and styling"),
-            "Typst" => Some("Typst document with markup support"),
-            "Code" => Some("Code block with syntax highlighting"),
-            "Svg" => Some("SVG image element"),
-            "Image" => Some("Raster image element"),
-            "Rect" => Some("Rectangle shape"),
-            "Ellipse" => Some("Ellipse, circle, arc, or dot"),
-            "Line" => Some("Line segment or arrow"),
-            "Polygon" => Some("Polygon or regular polygon"),
-            "Path" => Some("SVG path element"),
-            "Graph" => Some("Function graph"),
-            "PlotCurve" => Some("Plot curve with configurable sampling kind"),
-            "Button" => Some("Interactive button element"),
-            _ => None,
-        };
-        CompletionItem {
-            label: ty.clone(),
-            kind: CompletionKind::Type,
-            detail: Some("Type".to_string()),
-            documentation: doc.map(|s| s.to_string()),
-            insert_text: None,
-        }
-    }).collect()
+    symbols
+        .types
+        .iter()
+        .map(|ty| {
+            let doc = match ty.as_str() {
+                "Text" => Some("Text element with content and styling"),
+                "Typst" => Some("Typst document with markup support"),
+                "Code" => Some("Code block with syntax highlighting"),
+                "Svg" => Some("SVG image element"),
+                "Image" => Some("Raster image element"),
+                "Rect" => Some("Rectangle shape"),
+                "Ellipse" => Some("Ellipse, circle, arc, or dot"),
+                "Line" => Some("Line segment or arrow"),
+                "Polygon" => Some("Polygon or regular polygon"),
+                "Path" => Some("SVG path element"),
+                "Graph" => Some("Function graph"),
+                "PlotCurve" => Some("Plot curve with configurable sampling kind"),
+                "Button" => Some("Interactive button element"),
+                _ => None,
+            };
+            CompletionItem {
+                label: ty.clone(),
+                kind: CompletionKind::Type,
+                detail: Some("Type".to_string()),
+                documentation: doc.map(|s| s.to_string()),
+                insert_text: None,
+            }
+        })
+        .collect()
 }
 
 /// Label completions (actor names, let bindings).
 fn label_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
-    symbols.labels.iter().map(|(name, info)| {
-        let detail = match info.kind {
-            LabelKind::Actor => info.ty.as_ref().map(|t| format!("Actor: {}", t)),
-            LabelKind::Let => Some("Variable".to_string()),
-            LabelKind::For => Some("Loop variable".to_string()),
-            LabelKind::Always => Some("Always block".to_string()),
-            LabelKind::Component => Some("Component".to_string()),
-        };
-        CompletionItem {
-            label: name.clone(),
-            kind: CompletionKind::Label,
-            detail,
-            documentation: None,
-            insert_text: None,
-        }
-    }).collect()
+    symbols
+        .labels
+        .iter()
+        .map(|(name, info)| {
+            let detail = match info.kind {
+                LabelKind::Actor => info.ty.as_ref().map(|t| format!("Actor: {}", t)),
+                LabelKind::Let => Some("Variable".to_string()),
+                LabelKind::For => Some("Loop variable".to_string()),
+                LabelKind::Always => Some("Always block".to_string()),
+                LabelKind::Component => Some("Component".to_string()),
+            };
+            CompletionItem {
+                label: name.clone(),
+                kind: CompletionKind::Label,
+                detail,
+                documentation: None,
+                insert_text: None,
+            }
+        })
+        .collect()
 }
 
 /// Property completions for a given actor type.
@@ -377,7 +397,9 @@ fn property_completions(symbols: &SymbolTable, actor_type: Option<&str>) -> Vec<
     }
 
     // Also suggest common properties
-    for prop in &["position", "anchor", "offset", "scale", "rotation", "opacity", "color"] {
+    for prop in &[
+        "position", "anchor", "offset", "scale", "rotation", "opacity", "color",
+    ] {
         if !items.iter().any(|i| &i.label == prop) {
             let doc = property_documentation(prop);
             items.push(CompletionItem {
@@ -406,7 +428,9 @@ pub fn property_documentation(name: &str) -> Option<&str> {
         "content" => Some("Text content"),
         "font_size" => Some("Font size in pixels"),
         "font_family" => Some("Font family name"),
-        "font_weight" => Some("Font weight: 100-900, or named (normal=400, bold=700, light=300, medium=500, semibold=600, black=900)"),
+        "font_weight" => Some(
+            "Font weight: 100-900, or named (normal=400, bold=700, light=300, medium=500, semibold=600, black=900)",
+        ),
         "font_style" => Some("Font style: 'normal' or 'italic'"),
         "line_height" => Some("Line height multiplier (default 1.2)"),
         "letter_spacing" => Some("Letter spacing in points (default 0)"),
@@ -432,31 +456,35 @@ pub fn property_documentation(name: &str) -> Option<&str> {
 
 /// Action completions with documentation.
 fn action_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
-    symbols.actions.iter().map(|action| {
-        let doc = match action.as_str() {
-            "fade-in" => Some("Fade in from transparent"),
-            "draw-in" => Some("Draw in (like handwriting)"),
-            "wipe-in" => Some("Wipe in from edge"),
-            "fade-out" => Some("Fade out to transparent"),
-            "wipe-out" => Some("Wipe out to edge"),
-            "reveal-out" => Some("Reveal out (reverse draw)"),
-            "draw-out" => Some("Draw out (reverse handwriting)"),
-            "move" => Some("Move to position: move target to (x, y)"),
-            "shift" => Some("Shift by offset: shift target by (dx, dy)"),
-            "rotate" => Some("Rotate: rotate target by 90"),
-            "scale" => Some("Scale: scale target to 2"),
-            "persist" => Some("Persist actor across scene boundary: persist actor"),
-            "remove" => Some("Fade out and stop persisting: remove actor [duration]"),
-            _ => None,
-        };
-        CompletionItem {
-            label: action.clone(),
-            kind: CompletionKind::Action,
-            detail: Some("Action".to_string()),
-            documentation: doc.map(|s| s.to_string()),
-            insert_text: None,
-        }
-    }).collect()
+    symbols
+        .actions
+        .iter()
+        .map(|action| {
+            let doc = match action.as_str() {
+                "fade-in" => Some("Fade in from transparent"),
+                "draw-in" => Some("Draw in (like handwriting)"),
+                "wipe-in" => Some("Wipe in from edge"),
+                "fade-out" => Some("Fade out to transparent"),
+                "wipe-out" => Some("Wipe out to edge"),
+                "reveal-out" => Some("Reveal out (reverse draw)"),
+                "draw-out" => Some("Draw out (reverse handwriting)"),
+                "move" => Some("Move to position: move target to (x, y)"),
+                "shift" => Some("Shift by offset: shift target by (dx, dy)"),
+                "rotate" => Some("Rotate: rotate target by 90"),
+                "scale" => Some("Scale: scale target to 2"),
+                "persist" => Some("Persist actor across scene boundary: persist actor"),
+                "remove" => Some("Fade out and stop persisting: remove actor [duration]"),
+                _ => None,
+            };
+            CompletionItem {
+                label: action.clone(),
+                kind: CompletionKind::Action,
+                detail: Some("Action".to_string()),
+                documentation: doc.map(|s| s.to_string()),
+                insert_text: None,
+            }
+        })
+        .collect()
 }
 
 /// Modifier completions.
@@ -541,7 +569,7 @@ fn value_for_property(
                     documentation: None,
                     insert_text: None,
                 }));
-            }
+            },
             animatix_syntax::ast::TypeAnnotation::Vec2 => {
                 items.push(CompletionItem {
                     label: "(0, 0)".to_string(),
@@ -550,7 +578,7 @@ fn value_for_property(
                     documentation: Some("2D vector (x, y)".to_string()),
                     insert_text: Some("(${1:x}, ${2:y})".to_string()),
                 });
-            }
+            },
             animatix_syntax::ast::TypeAnnotation::Vec4 => {
                 items.push(CompletionItem {
                     label: "(0, 0, 0, 0)".to_string(),
@@ -559,7 +587,7 @@ fn value_for_property(
                     documentation: Some("4D vector (x, y, z, w)".to_string()),
                     insert_text: Some("(${1:x}, ${2:y}, ${3:z}, ${4:w})".to_string()),
                 });
-            }
+            },
             animatix_syntax::ast::TypeAnnotation::Color => {
                 items.extend(["red", "blue", "green", "yellow", "white", "black"].iter().map(
                     |v| CompletionItem {
@@ -577,7 +605,7 @@ fn value_for_property(
                     documentation: Some("RGB color: rgb(r, g, b)".to_string()),
                     insert_text: Some("rgb(${1:255}, ${2:255}, ${3:255})".to_string()),
                 });
-            }
+            },
             animatix_syntax::ast::TypeAnnotation::Str => {
                 items.push(CompletionItem {
                     label: "\"\"".to_string(),
@@ -586,7 +614,7 @@ fn value_for_property(
                     documentation: Some("String literal".to_string()),
                     insert_text: Some("\"${1:text}\"".to_string()),
                 });
-            }
+            },
             animatix_syntax::ast::TypeAnnotation::Num => {
                 items.extend(["0", "1", "0.5"].iter().map(|v| CompletionItem {
                     label: v.to_string(),
@@ -595,8 +623,8 @@ fn value_for_property(
                     documentation: None,
                     insert_text: None,
                 }));
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 
@@ -612,16 +640,18 @@ fn value_for_property(
                         documentation: None,
                         insert_text: Some(format!("\"{}\"", v)),
                     }));
-                }
+                },
                 "text_align" => {
-                    items.extend(["left", "center", "right", "justify"].iter().map(|v| CompletionItem {
-                        label: v.to_string(),
-                        kind: CompletionKind::Value,
-                        detail: Some("Alignment".to_string()),
-                        documentation: None,
-                        insert_text: Some(format!("\"{}\"", v)),
+                    items.extend(["left", "center", "right", "justify"].iter().map(|v| {
+                        CompletionItem {
+                            label: v.to_string(),
+                            kind: CompletionKind::Value,
+                            detail: Some("Alignment".to_string()),
+                            documentation: None,
+                            insert_text: Some(format!("\"{}\"", v)),
+                        }
                     }));
-                }
+                },
                 "anchor" => {
                     items.extend(
                         [
@@ -644,7 +674,7 @@ fn value_for_property(
                             insert_text: Some(format!("\"{}\"", v)),
                         }),
                     );
-                }
+                },
                 "opacity" | "scale" => {
                     items.extend([0.0, 0.25, 0.5, 0.75, 1.0].iter().map(|v| CompletionItem {
                         label: format!("{}", v),
@@ -653,8 +683,8 @@ fn value_for_property(
                         documentation: None,
                         insert_text: None,
                     }));
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
     }
@@ -675,7 +705,8 @@ mod tests {
         let symbols = SymbolTable::build_from_ast(&[]);
         let items = completions_at(&symbols, None, source, 0, 0);
 
-        let keywords: Vec<_> = items.iter()
+        let keywords: Vec<_> = items
+            .iter()
             .filter(|i| i.kind == CompletionKind::Keyword)
             .map(|i| i.label.as_str())
             .collect();
@@ -691,7 +722,8 @@ mod tests {
         let symbols = SymbolTable::build_from_ast(&[]);
         let items = completions_at(&symbols, None, source, 0, 0);
 
-        let types: Vec<_> = items.iter()
+        let types: Vec<_> = items
+            .iter()
             .filter(|i| i.kind == CompletionKind::Type)
             .map(|i| i.label.as_str())
             .collect();
@@ -707,7 +739,8 @@ mod tests {
         let symbols = SymbolTable::build_from_ast(&[]);
         let items = completions_at(&symbols, None, source, 0, 0);
 
-        let snippets: Vec<_> = items.iter()
+        let snippets: Vec<_> = items
+            .iter()
             .filter(|i| i.kind == CompletionKind::Snippet)
             .map(|i| i.label.as_str())
             .collect();
@@ -723,7 +756,8 @@ mod tests {
         let symbols = SymbolTable::build_from_ast(&[]);
         let items = completions_at(&symbols, None, source, 0, 0);
 
-        let actions: Vec<_> = items.iter()
+        let actions: Vec<_> = items
+            .iter()
             .filter(|i| i.kind == CompletionKind::Action)
             .map(|i| i.label.as_str())
             .collect();

@@ -1,8 +1,10 @@
 use super::*;
 use crate::ast::Expr;
 use crate::easing::Easing;
-use crate::timeline::plot::{blend_depth, flatten_blend, FuncSource, FuncTransition, PlotCurveKind, ProceduralPlot,
-    resolve_func_source, sample_procedural_plot_at};
+use crate::timeline::plot::{
+    FuncSource, FuncTransition, PlotCurveKind, ProceduralPlot, blend_depth, flatten_blend,
+    resolve_func_source, sample_procedural_plot_at,
+};
 
 // ─────────────────────────────────────────────────────────────
 // Helpers
@@ -13,11 +15,7 @@ use crate::timeline::plot::{blend_depth, flatten_blend, FuncSource, FuncTransiti
 /// diagnostics and the timeline.
 fn build_from_source(source: &str) -> crate::diagnostics::BuildReport<crate::timeline::Timeline> {
     let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(
-        parse_errors.is_empty(),
-        "Parse errors: {:?}",
-        parse_errors
-    );
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
     let ast = ast.expect("parsed AST");
     Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new())
 }
@@ -96,25 +94,14 @@ fn basic_func_transition_cartesian() {
         report.diagnostics
     );
 
-    let track = report
-        .output
-        .get_track("curve")
-        .expect("curve track should exist");
+    let track = report.output.get_track("curve").expect("curve track should exist");
 
-    assert_eq!(
-        track.func_transitions.len(),
-        1,
-        "Expected exactly 1 FuncTransition"
-    );
+    assert_eq!(track.func_transitions.len(), 1, "Expected exactly 1 FuncTransition");
 
     let t = &track.func_transitions[0];
     assert_eq!(t.start_ms, 2000, "start_ms should be 2000 (2s)");
     assert_eq!(t.end_ms, 3000, "end_ms should be 3000 (2s + 1s)");
-    assert_eq!(
-        t.easing,
-        Easing::Linear,
-        "default easing should be Linear"
-    );
+    assert_eq!(t.easing, Easing::Linear, "default easing should be Linear");
 
     // from and to should both have arity 1.
     assert_eq!(t.from.arity(), 1, "from arity should be 1");
@@ -122,8 +109,7 @@ fn basic_func_transition_cartesian() {
 
     // from should evaluate to sin(x) — verify at x = 1.0.
     let env = stdlib_env();
-    let from_val = resolve_func_source(&t.from, &env, "x", 1.0)
-        .expect("resolve from");
+    let from_val = resolve_func_source(&t.from, &env, "x", 1.0).expect("resolve from");
     assert!(
         (from_val - 1.0_f64.sin()).abs() < 1e-9,
         "from at x=1.0 should be sin(1.0), got {}",
@@ -131,8 +117,7 @@ fn basic_func_transition_cartesian() {
     );
 
     // to should evaluate to cos(x) — verify at x = 1.0.
-    let to_val = resolve_func_source(&t.to, &env, "x", 1.0)
-        .expect("resolve to");
+    let to_val = resolve_func_source(&t.to, &env, "x", 1.0).expect("resolve to");
     assert!(
         (to_val - 1.0_f64.cos()).abs() < 1e-9,
         "to at x=1.0 should be cos(1.0), got {}",
@@ -153,15 +138,18 @@ fn blend_at_half_progress() {
 
     // Manually construct a Blend node with frozen_progress = 0.5.
     let blend = FuncSource::Blend {
-        from: Box::new(FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default())),
+        from: Box::new(FuncSource::Raw(
+            vec!["x".to_string()],
+            sin_x_expr(),
+            CapturedEnv::default(),
+        )),
         to: Box::new(FuncSource::Raw(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default())),
         frozen_progress: 0.5,
     };
 
     // Verify blending for several x values.
     for x in [0.0_f64, 0.5, 1.0, std::f64::consts::PI / 4.0, 2.0] {
-        let result = resolve_func_source(&blend, &env, "x", x)
-            .expect("resolve blend");
+        let result = resolve_func_source(&blend, &env, "x", x).expect("resolve blend");
         let expected = 0.5 * x.sin() + 0.5 * x.cos();
         assert!(
             (result - expected).abs() < 1e-9,
@@ -203,7 +191,8 @@ fn blend_at_half_progress() {
     };
 
     // At time_ms = 2500, progress is 0.5, so output ≈ 0.5*sin(x) + 0.5*cos(x).
-    let paths_mid = sample_procedural_plot_at(&plot, &mut env, 2500, std::slice::from_ref(&transition));
+    let paths_mid =
+        sample_procedural_plot_at(&plot, &mut env, 2500, std::slice::from_ref(&transition));
     assert!(!paths_mid.is_empty(), "Expected output paths at mid-transition");
     assert!(
         !paths_mid[0].path.elements().is_empty(),
@@ -211,7 +200,8 @@ fn blend_at_half_progress() {
     );
 
     // Before the transition, output should be pure sin(x).
-    let paths_before = sample_procedural_plot_at(&plot, &mut env, 1000, std::slice::from_ref(&transition));
+    let paths_before =
+        sample_procedural_plot_at(&plot, &mut env, 1000, std::slice::from_ref(&transition));
     assert!(!paths_before.is_empty(), "Expected output paths before transition");
 
     // After the transition, output should be pure cos(x).
@@ -248,10 +238,7 @@ fn record_and_chain_overlapping_transitions() {
         report.diagnostics
     );
 
-    let track = report
-        .output
-        .get_track("curve")
-        .expect("curve track should exist");
+    let track = report.output.get_track("curve").expect("curve track should exist");
 
     assert_eq!(
         track.func_transitions.len(),
@@ -263,17 +250,19 @@ fn record_and_chain_overlapping_transitions() {
     // is processed while the first is still active (t=2s, first runs 1s–3s).
     let second = &track.func_transitions[1];
     match &second.from {
-        FuncSource::Blend { frozen_progress, .. } => {
+        FuncSource::Blend {
+            frozen_progress, ..
+        } => {
             // At t=2s the first transition (1s–3s) is at progress 0.5.
             assert!(
                 (frozen_progress - 0.5).abs() < 1e-9,
                 "Expected frozen_progress ≈ 0.5, got {}",
                 frozen_progress
             );
-        }
+        },
         FuncSource::Raw(..) => {
             panic!("Expected FuncSource::Blend for the second transition's from, got Raw");
-        }
+        },
     }
 }
 
@@ -308,10 +297,7 @@ fn cascading_transitions() {
         report.diagnostics
     );
 
-    let track = report
-        .output
-        .get_track("curve")
-        .expect("curve track should exist");
+    let track = report.output.get_track("curve").expect("curve track should exist");
 
     assert_eq!(
         track.func_transitions.len(),
@@ -339,7 +325,10 @@ fn cascading_transitions() {
 
     // Verify the third transition's frozen_progress.  At t=2.5s the second
     // transition (2s–3s) is at progress 0.5.
-    if let FuncSource::Blend { frozen_progress, .. } = &track.func_transitions[2].from {
+    if let FuncSource::Blend {
+        frozen_progress, ..
+    } = &track.func_transitions[2].from
+    {
         assert!(
             (frozen_progress - 0.5).abs() < 1e-9,
             "Third transition's frozen_progress should be ≈ 0.5, got {}",
@@ -388,16 +377,9 @@ fn polar_mode_transition() {
         report.diagnostics
     );
 
-    let track = report
-        .output
-        .get_track("curve")
-        .expect("curve track should exist");
+    let track = report.output.get_track("curve").expect("curve track should exist");
 
-    assert_eq!(
-        track.func_transitions.len(),
-        1,
-        "Expected 1 FuncTransition for polar mode"
-    );
+    assert_eq!(track.func_transitions.len(), 1, "Expected 1 FuncTransition for polar mode");
 
     let t = &track.func_transitions[0];
     assert_eq!(t.start_ms, 2000, "start_ms should be 2000");
@@ -414,8 +396,7 @@ fn polar_mode_transition() {
 
     // Sample at mid-transition and verify non-empty output.
     let mut env = stdlib_env();
-    let paths =
-        sample_procedural_plot_at(plot, &mut env, 2500, &track.func_transitions);
+    let paths = sample_procedural_plot_at(plot, &mut env, 2500, &track.func_transitions);
     assert!(!paths.is_empty(), "Expected output paths for polar mid-transition");
     assert!(
         !paths[0].path.elements().is_empty(),
@@ -449,16 +430,9 @@ fn parametric_mode_transition() {
         report.diagnostics
     );
 
-    let track = report
-        .output
-        .get_track("curve")
-        .expect("curve track should exist");
+    let track = report.output.get_track("curve").expect("curve track should exist");
 
-    assert_eq!(
-        track.func_transitions.len(),
-        1,
-        "Expected 1 FuncTransition for parametric mode"
-    );
+    assert_eq!(track.func_transitions.len(), 1, "Expected 1 FuncTransition for parametric mode");
 
     let t = &track.func_transitions[0];
     assert_eq!(t.start_ms, 2000, "start_ms should be 2000");
@@ -471,16 +445,11 @@ fn parametric_mode_transition() {
         .procedural_plot
         .as_ref()
         .expect("parametric curve should have a procedural_plot");
-    assert_eq!(
-        plot.kind,
-        PlotCurveKind::Parametric,
-        "plot kind should be Parametric"
-    );
+    assert_eq!(plot.kind, PlotCurveKind::Parametric, "plot kind should be Parametric");
 
     // Sample at mid-transition and verify non-empty output.
     let mut env = stdlib_env();
-    let paths =
-        sample_procedural_plot_at(plot, &mut env, 2500, &track.func_transitions);
+    let paths = sample_procedural_plot_at(plot, &mut env, 2500, &track.func_transitions);
     assert!(!paths.is_empty(), "Expected output paths for parametric mid-transition");
     assert!(
         !paths[0].path.elements().is_empty(),
@@ -509,20 +478,15 @@ fn invalid_arity_emits_diagnostic() {
     "#;
     let report = build_from_source(source);
 
-    let has_invalid_func = report
-        .diagnostics
-        .iter()
-        .any(|d| d.code == DiagnosticCode::InvalidPlotFunc);
+    let has_invalid_func =
+        report.diagnostics.iter().any(|d| d.code == DiagnosticCode::InvalidPlotFunc);
     assert!(
         has_invalid_func,
         "Expected InvalidPlotFunc diagnostic for arity mismatch, got: {:?}",
         report.diagnostics
     );
 
-    let track = report
-        .output
-        .get_track("curve")
-        .expect("curve track should still exist");
+    let track = report.output.get_track("curve").expect("curve track should still exist");
     assert!(
         track.func_transitions.is_empty(),
         "No FuncTransition should be created when arity mismatches"
@@ -551,15 +515,9 @@ fn static_plot_no_transitions() {
         report.diagnostics
     );
 
-    let track = report
-        .output
-        .get_track("curve")
-        .expect("curve track should exist");
+    let track = report.output.get_track("curve").expect("curve track should exist");
 
-    assert!(
-        track.func_transitions.is_empty(),
-        "Static plot should have no FuncTransitions"
-    );
+    assert!(track.func_transitions.is_empty(), "Static plot should have no FuncTransitions");
 
     assert!(
         track.procedural_plot.is_some(),
@@ -679,16 +637,9 @@ fn adaptive_quality_reduces_depth_for_blends() {
         .collect();
     assert!(errors.is_empty(), "Unexpected build errors: {:?}", errors);
 
-    let track = report
-        .output
-        .get_track("curve")
-        .expect("curve track should exist");
+    let track = report.output.get_track("curve").expect("curve track should exist");
 
-    assert_eq!(
-        track.func_transitions.len(),
-        3,
-        "Expected 3 FuncTransitions for 3-deep blend"
-    );
+    assert_eq!(track.func_transitions.len(), 3, "Expected 3 FuncTransitions for 3-deep blend");
 
     // Verify the from of the third transition is a nested Blend (depth >= 2).
     let third_from = &track.func_transitions[2].from;
@@ -776,7 +727,8 @@ fn quality_factor_calculation() {
     // - depth 2: from=Blend(Raw,Raw) (depth 1), to=Raw (depth 0) → quality_factor = 0.75
     let qf2 = compute_qf(1, 0);
     assert!((qf2 - 0.75).abs() < 1e-12, "depth 2: expected 0.75, got {}", qf2);
-    // - depth 3: from=Blend(Blend(Raw,Raw),Raw) (depth 2), to=Raw (depth 0) → quality_factor = 0.5625
+    // - depth 3: from=Blend(Blend(Raw,Raw),Raw) (depth 2), to=Raw (depth 0) → quality_factor =
+    //   0.5625
     let qf3 = compute_qf(2, 0);
     assert!((qf3 - 0.5625).abs() < 1e-12, "depth 3: expected 0.5625, got {}", qf3);
     // - depth 4: depth 3 blend vs Raw → quality_factor = 0.421875
@@ -809,10 +761,7 @@ fn implicit_transition_simple() {
         report.diagnostics
     );
 
-    let track = report
-        .output
-        .get_track("curve")
-        .expect("curve track should exist");
+    let track = report.output.get_track("curve").expect("curve track should exist");
 
     assert_eq!(
         track.func_transitions.len(),
@@ -831,11 +780,7 @@ fn implicit_transition_simple() {
         .expect("curve should have a procedural_plot")
         .clone();
 
-    assert_eq!(
-        plot.kind,
-        PlotCurveKind::Implicit,
-        "Plot kind should be Implicit"
-    );
+    assert_eq!(plot.kind, PlotCurveKind::Implicit, "Plot kind should be Implicit");
 
     // Before transition: pure circle contour.
     let paths_before = sample_procedural_plot_at(&plot, &mut env, 1000, &track.func_transitions);
@@ -889,7 +834,11 @@ fn implicit_blend_at_half() {
     // At (0,0): circle gives -1, line gives 0; blend at 0.5 → -0.5.
     let circle_val = eval_implicit_source(&circle, &mut env, 0.0, 0.0);
     let line_val = eval_implicit_source(&line, &mut env, 0.0, 0.0);
-    assert!((circle_val - (-1.0)).abs() < 1e-9, "circle at (0,0) should be -1, got {}", circle_val);
+    assert!(
+        (circle_val - (-1.0)).abs() < 1e-9,
+        "circle at (0,0) should be -1, got {}",
+        circle_val
+    );
     assert!((line_val - 0.0).abs() < 1e-9, "line at (0,0) should be 0, got {}", line_val);
 
     let blended = FuncSource::Blend {
@@ -953,10 +902,7 @@ fn implicit_cascading() {
         report.diagnostics
     );
 
-    let track = report
-        .output
-        .get_track("curve")
-        .expect("curve track should exist");
+    let track = report.output.get_track("curve").expect("curve track should exist");
 
     assert_eq!(
         track.func_transitions.len(),
@@ -981,7 +927,10 @@ fn implicit_cascading() {
     );
 
     // At t=2s the first transition (1s–3s) is at progress 0.5.
-    if let FuncSource::Blend { frozen_progress, .. } = &track.func_transitions[1].from {
+    if let FuncSource::Blend {
+        frozen_progress, ..
+    } = &track.func_transitions[1].from
+    {
         assert!(
             (frozen_progress - 0.5).abs() < 1e-9,
             "Second transition frozen_progress should be ≈ 0.5, got {}",
@@ -1059,11 +1008,7 @@ fn flatten_blend_single_level() {
 
     // Weights should be (1-0.4)=0.6 for from and 0.4 for to
     for (w, _) in &flat {
-        assert!(
-            (*w - 0.6).abs() < 1e-12 || (*w - 0.4).abs() < 1e-12,
-            "Unexpected weight {}",
-            w
-        );
+        assert!((*w - 0.6).abs() < 1e-12 || (*w - 0.4).abs() < 1e-12, "Unexpected weight {}", w);
     }
     let total_weight: f64 = flat.iter().map(|(w, _)| w).sum();
     assert!(
@@ -1085,8 +1030,7 @@ fn flatten_blend_single_level() {
 fn flatten_blend_nested_depth_2() {
     let a = FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
     let b = FuncSource::Raw(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default());
-    let c = FuncSource::Raw(vec!["x".to_string()], Expr::Num(0.5),
-        CapturedEnv::default());
+    let c = FuncSource::Raw(vec!["x".to_string()], Expr::Num(0.5), CapturedEnv::default());
 
     // Inner: blend(B, C, p=0.3)
     let inner = FuncSource::Blend {
@@ -1122,12 +1066,7 @@ fn flatten_blend_nested_depth_2() {
     let mut expected_sorted = expected_weights.to_vec();
     expected_sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
     for (got, expected) in flat_weights.iter().zip(expected_sorted.iter()) {
-        assert!(
-            (got - expected).abs() < 1e-12,
-            "Expected weight {}, got {}",
-            expected,
-            got
-        );
+        assert!((got - expected).abs() < 1e-12, "Expected weight {}, got {}", expected, got);
     }
 }
 
@@ -1141,10 +1080,8 @@ fn flatten_blend_nested_depth_2() {
 fn flatten_blend_nested_depth_3() {
     let a = FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
     let b = FuncSource::Raw(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default());
-    let c = FuncSource::Raw(vec!["x".to_string()], Expr::Num(0.5),
-        CapturedEnv::default());
-    let d = FuncSource::Raw(vec!["x".to_string()], Expr::Num(1.0),
-        CapturedEnv::default());
+    let c = FuncSource::Raw(vec!["x".to_string()], Expr::Num(0.5), CapturedEnv::default());
+    let d = FuncSource::Raw(vec!["x".to_string()], Expr::Num(1.0), CapturedEnv::default());
 
     // Inner: blend(C, D, r=0.2)
     let inner = FuncSource::Blend {
@@ -1187,12 +1124,7 @@ fn flatten_blend_nested_depth_3() {
     let mut expected_sorted = expected_weights.to_vec();
     expected_sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
     for (got, expected) in flat_weights.iter().zip(expected_sorted.iter()) {
-        assert!(
-            (got - expected).abs() < 1e-12,
-            "Expected weight {}, got {}",
-            expected,
-            got
-        );
+        assert!((got - expected).abs() < 1e-12, "Expected weight {}, got {}", expected, got);
     }
 }
 
@@ -1255,15 +1187,15 @@ fn resolve_func_source_nested_blend() {
 /// a depth-2 nested blend.
 #[test]
 fn eval_source_scalar_nested_blend() {
-    use crate::timeline::plot::eval_source_scalar;
     use std::collections::HashMap;
+
+    use crate::timeline::plot::eval_source_scalar;
 
     let mut env = stdlib_env();
 
     let a = FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
     let b = FuncSource::Raw(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default());
-    let c = FuncSource::Raw(vec!["x".to_string()], Expr::Num(42.0),
-        CapturedEnv::default());
+    let c = FuncSource::Raw(vec!["x".to_string()], Expr::Num(42.0), CapturedEnv::default());
 
     // Inner: blend(B, C, 0.25)
     let inner = FuncSource::Blend {
@@ -1322,11 +1254,8 @@ fn eval_implicit_source_nested_blend() {
         crate::ast::BinaryOp::Add,
         Box::new(Expr::Ident("y".to_string())),
     );
-    let sum_src = FuncSource::Raw(
-        vec!["x".to_string(), "y".to_string()],
-        sum_expr,
-        CapturedEnv::default(),
-    );
+    let sum_src =
+        FuncSource::Raw(vec!["x".to_string(), "y".to_string()], sum_expr, CapturedEnv::default());
 
     // Inner: blend(circle, line, 0.4)
     let inner = FuncSource::Blend {
@@ -1348,11 +1277,7 @@ fn eval_implicit_source_nested_blend() {
     // Formula: circle*(1-0.4)*(1-0.7) + line*0.4*(1-0.7) + sum*0.7
     //        = -1*0.6*0.3 + 0*0.4*0.3 + 0*0.7 = -0.18
     let result = eval_implicit_source(&outer, &mut env, 0.0, 0.0);
-    assert!(
-        (result - (-0.18)).abs() < 1e-9,
-        "At (0,0): expected -0.18, got {}",
-        result
-    );
+    assert!((result - (-0.18)).abs() < 1e-9, "At (0,0): expected -0.18, got {}", result);
 
     // At (1, 1):
     // circle(1,1) = 1, line(1,1) = 0, sum(1,1) = 2
@@ -1360,11 +1285,7 @@ fn eval_implicit_source_nested_blend() {
     // outer = 0.6*0.3 + 2*0.7 = 0.18 + 1.4 = 1.58
     // Formula: 1*0.6*0.3 + 0*0.4*0.3 + 2*0.7 = 0.18 + 1.4 = 1.58
     let result = eval_implicit_source(&outer, &mut env, 1.0, 1.0);
-    assert!(
-        (result - 1.58).abs() < 1e-9,
-        "At (1,1): expected 1.58, got {}",
-        result
-    );
+    assert!((result - 1.58).abs() < 1e-9, "At (1,1): expected 1.58, got {}", result);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1432,8 +1353,7 @@ fn depth_4_nested_blend_parity() {
     //          = 0.0105*sin(1) + 0.0945*cos(1) + 0.245 + 0.7 - 0.45
     //          = 0.0105*sin(1) + 0.0945*cos(1) + 0.495
     let x = 1.0;
-    let result = resolve_func_source(&l4, &env, "x", x)
-        .expect("depth-4 blend should resolve");
+    let result = resolve_func_source(&l4, &env, "x", x).expect("depth-4 blend should resolve");
     let expected = 0.0105 * x.sin() + 0.0945 * x.cos() + 0.495;
     assert!(
         (result - expected).abs() < 1e-9,
@@ -1447,9 +1367,8 @@ fn depth_4_nested_blend_parity() {
     use std::collections::HashMap;
     let mut local_env = stdlib_env();
     let mut cache = HashMap::new();
-    let result2 = crate::timeline::plot::eval_source_scalar(
-        &l4, &mut local_env, "x", x, &mut cache,
-    );
+    let result2 =
+        crate::timeline::plot::eval_source_scalar(&l4, &mut local_env, "x", x, &mut cache);
     assert!(
         (result2 - expected).abs() < 1e-9,
         "eval_source_scalar at x={}: expected {}, got {}",

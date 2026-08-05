@@ -1,6 +1,7 @@
+use kurbo::{Affine, BezPath, Point, Shape};
+
 use super::error::RenderError;
 pub use super::types::TextPath;
-use kurbo::{Affine, BezPath, Point, Shape};
 
 // ─────────────────────────────────────────────────────────────
 // Text metrics for the plain-text fast path
@@ -29,20 +30,20 @@ pub struct CompiledText {
     pub glyphs: Vec<TextPath>,
     /// Font ascent in scene units (points), i.e. distance from baseline to top of em.
     pub ascent: f32,
-    /// Font descent in scene units (points), i.e. distance from baseline to bottom of em (negative).
+    /// Font descent in scene units (points), i.e. distance from baseline to bottom of em
+    /// (negative).
     pub descent: f32,
     /// Offset of the baseline from the text's center (0, 0) after centering.
     /// A positive value means the baseline is above the center.
     pub baseline_offset: f32,
 }
 
-use typst::World;
 use typst::foundations::{Bytes, Datetime};
 use typst::layout::{Frame, FrameItem, Transform};
 use typst::syntax::{FileId, Source, VirtualPath};
 use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
-use typst::{Library, LibraryExt};
+use typst::{Library, LibraryExt, World};
 
 // ─────────────────────────────────────────────────────────────
 // Persistent font database (FontContext)
@@ -72,7 +73,10 @@ impl FontContext {
     pub fn new() -> Self {
         let mut db = fontdb::Database::new();
         db.load_system_fonts();
-        Self { db, text_fast_path: true }
+        Self {
+            db,
+            text_fast_path: true,
+        }
     }
 
     /// Create a new font context with fast path explicitly enabled/disabled.
@@ -398,7 +402,12 @@ fn typst_par_leading_rule(line_height: f32) -> String {
 }
 
 /// Build a Typst wrapping preamble string for max_width, text_align, and overflow.
-fn typst_wrapping_preamble(max_width: f32, text_align: &str, overflow: &str, inner_content: &str) -> String {
+fn typst_wrapping_preamble(
+    max_width: f32,
+    text_align: &str,
+    overflow: &str,
+    inner_content: &str,
+) -> String {
     let mut inner = String::new();
 
     // Text alignment
@@ -406,7 +415,7 @@ fn typst_wrapping_preamble(max_width: f32, text_align: &str, overflow: &str, inn
         "center" => inner.push_str("#set align(center); "),
         "right" => inner.push_str("#set align(right); "),
         "justify" => inner.push_str("#set align(justify); "),
-        _ => {} // "left" is default
+        _ => {}, // "left" is default
     }
 
     // Overflow
@@ -490,7 +499,6 @@ pub fn compile_math(
 
     let markup = typst_wrapping_preamble(max_width, text_align, overflow, &base_markup);
 
-
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
     let world = TypstWorld::with_fonts(source, &[&text_font, DEFAULT_MATH_FONT_FAMILY], font_ctx)?;
     let document: typst::layout::PagedDocument = typst::compile(&world).output.map_err(|_| {
@@ -533,7 +541,6 @@ pub fn compile_typst(
         typst_markup
     );
     let markup = typst_wrapping_preamble(max_width, text_align, overflow, &base_markup);
-
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
     let world = TypstWorld::with_fonts(source, &[&font, DEFAULT_MATH_FONT_FAMILY], font_ctx)?;
@@ -617,7 +624,6 @@ pub fn compile_code(
         escaped
     );
     let markup = typst_wrapping_preamble(max_width, text_align, overflow, &base_markup);
-
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
     let world = TypstWorld::with_fonts(source, &[&font], font_ctx)?;
@@ -952,10 +958,27 @@ fn walk_frame_for_shapes(
 /// and no newlines (single-line only).
 pub fn is_plain_text(content: &str) -> bool {
     !content.contains('\n')
-        && !content.chars().any(|c| matches!(
-            c, '*' | '_' | '$' | '\\' | '#' | '<' | '>' | '~'
-            | '`' | '[' | ']' | '(' | ')' | '{' | '}' | '/' | '@'
-        ))
+        && !content.chars().any(|c| {
+            matches!(
+                c,
+                '*' | '_'
+                    | '$'
+                    | '\\'
+                    | '#'
+                    | '<'
+                    | '>'
+                    | '~'
+                    | '`'
+                    | '['
+                    | ']'
+                    | '('
+                    | ')'
+                    | '{'
+                    | '}'
+                    | '/'
+                    | '@'
+            )
+        })
 }
 
 /// Returns `true` iff the string contains only characters in Latin script ranges
@@ -1056,10 +1079,7 @@ pub fn compile_text_fast(
         };
 
         // Get advance width in font units, then scale to scene units
-        let raw_advance = face
-            .glyph_hor_advance(glyph_id)
-            .unwrap_or(0)
-            as f32;
+        let raw_advance = face.glyph_hor_advance(glyph_id).unwrap_or(0) as f32;
         let mut advance = raw_advance * font_scale;
 
         // Apply letter spacing
@@ -1121,7 +1141,6 @@ pub fn compile_text_fast(
         baseline_offset,
     })
 }
-
 
 /// Compile plain text into glyph paths with word wrapping (fast path).
 ///
@@ -1201,7 +1220,8 @@ pub fn compile_text_fast_wrapped(
         #[allow(dead_code)] // Reserved for debug/annotation use
         text: String,
         width: f64, // total advance in scene coords
-        glyphs: Vec<(ttf_parser::GlyphId, f64, f64)>, // (glyph_id, advance, x_offset at build time)
+        glyphs: Vec<(ttf_parser::GlyphId, f64, f64)>, /* (glyph_id, advance, x_offset at build
+                     * time) */
     }
 
     let mut word_infos: Vec<WordInfo> = Vec::with_capacity(words.len());
@@ -1227,7 +1247,8 @@ pub fn compile_text_fast_wrapped(
                 // Kerning — use only the first horizontal subtable to avoid double-kerning
                 if let Some(prev) = prev_gid {
                     if let Some(table) = kern_tables {
-                        if let Some(subtable) = table.subtables.into_iter().find(|st| st.horizontal) {
+                        if let Some(subtable) = table.subtables.into_iter().find(|st| st.horizontal)
+                        {
                             if let Some(kern) = subtable.glyphs_kerning(prev, gid) {
                                 total_width += (kern as f64) * font_scale as f64;
                             }
@@ -1259,22 +1280,34 @@ pub fn compile_text_fast_wrapped(
 
     // Greedy word-wrap: pack words into lines
     struct LineInfo {
-        words: Vec<usize>,          // indices into word_infos
+        words: Vec<usize>, // indices into word_infos
         total_width: f64,
     }
 
     let mut lines: Vec<LineInfo> = Vec::new();
-    let mut current_line = LineInfo { words: Vec::new(), total_width: 0.0 };
+    let mut current_line = LineInfo {
+        words: Vec::new(),
+        total_width: 0.0,
+    };
     let wrap_threshold = max_width as f64;
 
     for (wi_idx, wi) in word_infos.iter().enumerate() {
         // Add space before this word (except first word on the line)
-        let space_needed = if current_line.words.is_empty() { 0.0 } else { space_advance };
+        let space_needed = if current_line.words.is_empty() {
+            0.0
+        } else {
+            space_advance
+        };
 
-        if current_line.total_width + space_needed + wi.width > wrap_threshold && !current_line.words.is_empty() {
+        if current_line.total_width + space_needed + wi.width > wrap_threshold
+            && !current_line.words.is_empty()
+        {
             // Start new line
             lines.push(current_line);
-            current_line = LineInfo { words: Vec::new(), total_width: 0.0 };
+            current_line = LineInfo {
+                words: Vec::new(),
+                total_width: 0.0,
+            };
         }
 
         if !current_line.words.is_empty() {
@@ -1320,7 +1353,7 @@ pub fn compile_text_fast_wrapped(
             "center" => (wrap_threshold - line_width) / 2.0,
             "right" => wrap_threshold - line_width,
             "justify" => 0.0, // handled per-word below
-            _ => 0.0, // left
+            _ => 0.0,         // left
         };
 
         let is_last_line = line_idx == truncated_lines.len() - 1;
@@ -1348,8 +1381,12 @@ pub fn compile_text_fast_wrapped(
                 let mut builder = PathBuilder(BezPath::new());
                 if face.outline_glyph(*gid, &mut builder).is_some() {
                     let path = builder.0;
-                    let scale_affine = Affine::scale_non_uniform(font_scale as f64, -font_scale as f64);
-                    let translate = Affine::translate(kurbo::Vec2::new(x_curr + x_offset + glyph_x_offset, y_curr));
+                    let scale_affine =
+                        Affine::scale_non_uniform(font_scale as f64, -font_scale as f64);
+                    let translate = Affine::translate(kurbo::Vec2::new(
+                        x_curr + x_offset + glyph_x_offset,
+                        y_curr,
+                    ));
                     let final_affine = translate * scale_affine;
 
                     let mut final_path = path;
@@ -1367,7 +1404,10 @@ pub fn compile_text_fast_wrapped(
         }
 
         // Add ellipsis for overflow: "ellipsis" on last visible line if truncated
-        if overflow == "ellipsis" && line_idx == truncated_lines.len() - 1 && lines.len() > truncated_lines.len() {
+        if overflow == "ellipsis"
+            && line_idx == truncated_lines.len() - 1
+            && lines.len() > truncated_lines.len()
+        {
             // Append ellipsis glyph "\u{2026}" if available
             if let Some(ellipsis_gid) = face.glyph_index('\u{2026}') {
                 // Use period '.' as fallback
@@ -1378,8 +1418,10 @@ pub fn compile_text_fast_wrapped(
                     let mut builder = PathBuilder(BezPath::new());
                     if face.outline_glyph(gid, &mut builder).is_some() {
                         let path = builder.0;
-                        let scale_affine = Affine::scale_non_uniform(font_scale as f64, -font_scale as f64);
-                        let translate = Affine::translate(kurbo::Vec2::new(x_curr + x_offset, y_curr));
+                        let scale_affine =
+                            Affine::scale_non_uniform(font_scale as f64, -font_scale as f64);
+                        let translate =
+                            Affine::translate(kurbo::Vec2::new(x_curr + x_offset, y_curr));
                         let final_affine = translate * scale_affine;
                         let mut final_path = path;
                         final_path.apply_affine(final_affine);
@@ -1536,7 +1578,12 @@ impl TextCompiler {
         {
             tracing::debug!(
                 "TextCompiler: using fast path for '{}' (family={}, size={}, max_width={}, text_align={}, overflow={})",
-                content, font_family, font_size, max_width, text_align, overflow
+                content,
+                font_family,
+                font_size,
+                max_width,
+                text_align,
+                overflow
             );
             let compiled = if max_width > 0.0 {
                 tracing::debug!("TextCompiler: wrapping at {}pt", max_width);
@@ -1576,7 +1623,10 @@ impl TextCompiler {
         // Fall back to Typst path
         tracing::debug!(
             "TextCompiler: using Typst path for '{}' (kind={:?}, plain={}, latin={}, fast_path={})",
-            content, kind, is_plain_text(content), content.chars().all(|c| (c as u32) <= 0x017F),
+            content,
+            kind,
+            is_plain_text(content),
+            content.chars().all(|c| (c as u32) <= 0x017F),
             self.text_fast_path
         );
 
@@ -1602,7 +1652,16 @@ impl TextCompiler {
                 text_align,
                 overflow,
             )?,
-            TextKind::Math => compile_math(content, font_size, typst_color, font_family, font_ctx, max_width, text_align, overflow)?,
+            TextKind::Math => compile_math(
+                content,
+                font_size,
+                typst_color,
+                font_family,
+                font_ctx,
+                max_width,
+                text_align,
+                overflow,
+            )?,
             TextKind::Code => compile_code(
                 content,
                 font_size,
@@ -1694,20 +1753,23 @@ mod tests {
         let family = "Open Sans";
 
         // Verify the bundled font is available
-        assert!(font_ctx.load_face(family, 400.0, "normal").is_some(),
-            "Open Sans font should be loadable");
+        assert!(
+            font_ctx.load_face(family, 400.0, "normal").is_some(),
+            "Open Sans font should be loadable"
+        );
 
         let compiled = compile_text_fast(
             "Hello",
             family,
-            400.0,  // weight
-            "normal",  // style
-            48.0,   // size
-            [1.0, 1.0, 1.0, 1.0],  // white
-            0.0,    // letter_spacing
-            0.0,    // word_spacing
+            400.0,                // weight
+            "normal",             // style
+            48.0,                 // size
+            [1.0, 1.0, 1.0, 1.0], // white
+            0.0,                  // letter_spacing
+            0.0,                  // word_spacing
             &font_ctx,
-            ).expect("fast path should succeed");
+        )
+        .expect("fast path should succeed");
 
         // Should produce at least one glyph path per character
         assert!(!compiled.glyphs.is_empty(), "Should produce glyph paths");
@@ -1723,20 +1785,23 @@ mod tests {
         let family = "Open Sans";
 
         // Bold weight should also resolve
-        assert!(font_ctx.load_face(family, 700.0, "normal").is_some(),
-            "Open Sans bold should be loadable");
+        assert!(
+            font_ctx.load_face(family, 700.0, "normal").is_some(),
+            "Open Sans bold should be loadable"
+        );
 
         let compiled = compile_text_fast(
             "Bold Text",
             family,
-            700.0,  // bold
+            700.0, // bold
             "normal",
             48.0,
             [1.0, 1.0, 1.0, 1.0],
             0.0,
             0.0,
             &font_ctx,
-            ).expect("bold fast path should succeed");
+        )
+        .expect("bold fast path should succeed");
 
         assert!(!compiled.glyphs.is_empty(), "Bold text should produce glyph paths");
     }
@@ -1752,18 +1817,29 @@ mod tests {
         let color = [1.0, 1.0, 1.0, 1.0];
 
         // Fast path
-        let fast_compiled = compile_text_fast(
-            text, family, 400.0, "normal", size, color, 0.0, 0.0, &font_ctx,
-            ).expect("fast path should succeed");
+        let fast_compiled =
+            compile_text_fast(text, family, 400.0, "normal", size, color, 0.0, 0.0, &font_ctx)
+                .expect("fast path should succeed");
         let fast_paths = fast_compiled.glyphs;
 
         // Typst path
         let typst_color = typst::visualize::Color::from_u8(255, 255, 255, 255);
         let frame = compile_text(
-            text, size, typst_color, family, &font_ctx,
-            400.0, "normal", 1.2, 0.0, 0.0,
-            0.0, "left", "visible",
-        ).expect("Typst path should succeed");
+            text,
+            size,
+            typst_color,
+            family,
+            &font_ctx,
+            400.0,
+            "normal",
+            1.2,
+            0.0,
+            0.0,
+            0.0,
+            "left",
+            "visible",
+        )
+        .expect("Typst path should succeed");
         let typst_paths = extract_glyphs(&frame);
 
         assert!(!fast_paths.is_empty(), "Fast path should produce paths");
@@ -1781,12 +1857,16 @@ mod tests {
         assert!(
             half_w_diff < 30.0,
             "Width mismatch: fast={:.3}, typst={:.3}, diff={:.3}",
-            fast_bbox[0] * 2.0, typst_bbox[0] * 2.0, half_w_diff * 2.0
+            fast_bbox[0] * 2.0,
+            typst_bbox[0] * 2.0,
+            half_w_diff * 2.0
         );
         assert!(
             half_h_diff < 30.0,
             "Height mismatch: fast={:.3}, typst={:.3}, diff={:.3}",
-            fast_bbox[1] * 2.0, typst_bbox[1] * 2.0, half_h_diff * 2.0
+            fast_bbox[1] * 2.0,
+            typst_bbox[1] * 2.0,
+            half_h_diff * 2.0
         );
     }
 
@@ -1796,33 +1876,46 @@ mod tests {
         let mut compiler = TextCompiler::new();
         compiler.text_fast_path = true;
 
-        let paths1 = compiler.compile(
-            "Cache Test",
-            "Open Sans",
-            24.0, 400.0, "normal", 1.2, 0.0, 0.0,
-            [1.0, 1.0, 1.0, 1.0],
-            TextKind::Text,
-            &font_ctx,
-            0.0,
-            "left",
-            "visible",
-            ).expect("first compile should succeed");
+        let paths1 = compiler
+            .compile(
+                "Cache Test",
+                "Open Sans",
+                24.0,
+                400.0,
+                "normal",
+                1.2,
+                0.0,
+                0.0,
+                [1.0, 1.0, 1.0, 1.0],
+                TextKind::Text,
+                &font_ctx,
+                0.0,
+                "left",
+                "visible",
+            )
+            .expect("first compile should succeed");
 
-        let paths2 = compiler.compile(
-            "Cache Test",
-            "Open Sans",
-            24.0, 400.0, "normal", 1.2, 0.0, 0.0,
-            [1.0, 1.0, 1.0, 1.0],
-            TextKind::Text,
-            &font_ctx,
-            0.0,
-            "left",
-            "visible",
-            ).expect("second compile should succeed (cache hit)");
+        let paths2 = compiler
+            .compile(
+                "Cache Test",
+                "Open Sans",
+                24.0,
+                400.0,
+                "normal",
+                1.2,
+                0.0,
+                0.0,
+                [1.0, 1.0, 1.0, 1.0],
+                TextKind::Text,
+                &font_ctx,
+                0.0,
+                "left",
+                "visible",
+            )
+            .expect("second compile should succeed (cache hit)");
 
         // Same Arc should be returned (cache hit)
-        assert_eq!(paths1.as_ptr(), paths2.as_ptr(),
-            "Cache should return the same Arc pointer");
+        assert_eq!(paths1.as_ptr(), paths2.as_ptr(), "Cache should return the same Arc pointer");
     }
 
     #[test]
@@ -1832,17 +1925,24 @@ mod tests {
         compiler.text_fast_path = true;
 
         // Text with asterisk should route to Typst (not fast path)
-        let paths = compiler.compile(
-            "Hello *World*",
-            "Open Sans",
-            24.0, 400.0, "normal", 1.2, 0.0, 0.0,
-            [1.0, 1.0, 1.0, 1.0],
-            TextKind::Text,
-            &font_ctx,
-            0.0,
-            "left",
-            "visible",
-            ).expect("Typst fallback should succeed");
+        let paths = compiler
+            .compile(
+                "Hello *World*",
+                "Open Sans",
+                24.0,
+                400.0,
+                "normal",
+                1.2,
+                0.0,
+                0.0,
+                [1.0, 1.0, 1.0, 1.0],
+                TextKind::Text,
+                &font_ctx,
+                0.0,
+                "left",
+                "visible",
+            )
+            .expect("Typst fallback should succeed");
 
         assert!(!paths.is_empty(), "Should produce glyph paths via Typst");
     }
@@ -1854,17 +1954,24 @@ mod tests {
         compiler.text_fast_path = true;
 
         // Non-Latin text should route to Typst
-        let _paths = compiler.compile(
-            "中文测试",
-            "Open Sans",
-            24.0, 400.0, "normal", 1.2, 0.0, 0.0,
-            [1.0, 1.0, 1.0, 1.0],
-            TextKind::Text,
-            &font_ctx,
-            0.0,
-            "left",
-            "visible",
-            ).expect("Typst path for non-Latin should succeed");
+        let _paths = compiler
+            .compile(
+                "中文测试",
+                "Open Sans",
+                24.0,
+                400.0,
+                "normal",
+                1.2,
+                0.0,
+                0.0,
+                [1.0, 1.0, 1.0, 1.0],
+                TextKind::Text,
+                &font_ctx,
+                0.0,
+                "left",
+                "visible",
+            )
+            .expect("Typst path for non-Latin should succeed");
 
         // Even though Typst may not render CJK with Open Sans (the bundled mock font
         // has no .notdef outline for unavailable characters), the compilation itself
@@ -1878,20 +1985,27 @@ mod tests {
     fn fast_path_disabled_via_config_falls_back() {
         let font_ctx = test_font_ctx();
         let mut compiler = TextCompiler::new();
-        compiler.text_fast_path = false;  // disabled
+        compiler.text_fast_path = false; // disabled
 
         // Plain text should still compile via Typst
-        let paths = compiler.compile(
-            "Plain Text",
-            "Open Sans",
-            24.0, 400.0, "normal", 1.2, 0.0, 0.0,
-            [1.0, 1.0, 1.0, 1.0],
-            TextKind::Text,
-            &font_ctx,
-            0.0,
-            "left",
-            "visible",
-            ).expect("Typst fallback should succeed when fast path disabled");
+        let paths = compiler
+            .compile(
+                "Plain Text",
+                "Open Sans",
+                24.0,
+                400.0,
+                "normal",
+                1.2,
+                0.0,
+                0.0,
+                [1.0, 1.0, 1.0, 1.0],
+                TextKind::Text,
+                &font_ctx,
+                0.0,
+                "left",
+                "visible",
+            )
+            .expect("Typst fallback should succeed when fast path disabled");
 
         assert!(!paths.is_empty(), "Should produce glyph paths");
     }
@@ -1903,17 +2017,24 @@ mod tests {
         compiler.text_fast_path = true;
 
         // Even plain text should use Typst for Code kind
-        let paths = compiler.compile(
-            "fn main()",
-            "Open Sans",
-            24.0, 400.0, "normal", 1.2, 0.0, 0.0,
-            [1.0, 1.0, 1.0, 1.0],
-            TextKind::Code,  // Code kind → always Typst
-            &font_ctx,
-            0.0,
-            "left",
-            "visible",
-            ).expect("Code kind should compile via Typst");
+        let paths = compiler
+            .compile(
+                "fn main()",
+                "Open Sans",
+                24.0,
+                400.0,
+                "normal",
+                1.2,
+                0.0,
+                0.0,
+                [1.0, 1.0, 1.0, 1.0],
+                TextKind::Code, // Code kind → always Typst
+                &font_ctx,
+                0.0,
+                "left",
+                "visible",
+            )
+            .expect("Code kind should compile via Typst");
 
         assert!(!paths.is_empty(), "Should produce glyph paths");
     }
@@ -1924,15 +2045,31 @@ mod tests {
         let font_ctx = test_font_ctx();
 
         let compiled_no_spacing = compile_text_fast(
-            "AB", "Open Sans", 400.0, "normal", 48.0,
-            [1.0; 4], 0.0, 0.0, &font_ctx,
-        ).unwrap();
+            "AB",
+            "Open Sans",
+            400.0,
+            "normal",
+            48.0,
+            [1.0; 4],
+            0.0,
+            0.0,
+            &font_ctx,
+        )
+        .unwrap();
         let paths_no_spacing = compiled_no_spacing.glyphs;
 
         let compiled_with_spacing = compile_text_fast(
-            "AB", "Open Sans", 400.0, "normal", 48.0,
-            [1.0; 4], 10.0, 0.0, &font_ctx,  // 10pt letter spacing
-        ).unwrap();
+            "AB",
+            "Open Sans",
+            400.0,
+            "normal",
+            48.0,
+            [1.0; 4],
+            10.0,
+            0.0,
+            &font_ctx, // 10pt letter spacing
+        )
+        .unwrap();
         let paths_with_spacing = compiled_with_spacing.glyphs;
 
         let bbox_no = measure_text_paths(&paths_no_spacing);
@@ -1942,7 +2079,8 @@ mod tests {
         assert!(
             bbox_with[0] > bbox_no[0],
             "Letter spacing should increase width: no_spacing={:.3}, with_spacing={:.3}",
-            bbox_no[0], bbox_with[0]
+            bbox_no[0],
+            bbox_with[0]
         );
     }
 
@@ -1963,9 +2101,17 @@ mod tests {
     fn compile_text_fast_empty_string() {
         let font_ctx = test_font_ctx();
         let compiled = compile_text_fast(
-            "", "Open Sans", 400.0, "normal", 48.0,
-            [1.0; 4], 0.0, 0.0, &font_ctx,
-        ).unwrap();
+            "",
+            "Open Sans",
+            400.0,
+            "normal",
+            48.0,
+            [1.0; 4],
+            0.0,
+            0.0,
+            &font_ctx,
+        )
+        .unwrap();
 
         assert!(compiled.glyphs.is_empty(), "Empty string should produce no paths");
         assert!(compiled.ascent == 0.0, "Empty string should have zero ascent");
@@ -1977,17 +2123,35 @@ mod tests {
         let font_ctx = test_font_ctx();
         let text = "Hello world this is a long string that should wrap";
         let compiled_single = compile_text_fast(
-            text, "Open Sans", 400.0, "normal", 24.0,
-            [1.0; 4], 0.0, 0.0, &font_ctx,
-        ).unwrap();
+            text,
+            "Open Sans",
+            400.0,
+            "normal",
+            24.0,
+            [1.0; 4],
+            0.0,
+            0.0,
+            &font_ctx,
+        )
+        .unwrap();
         let paths_single = compiled_single.glyphs;
 
         // With a narrow max_width, wrapping should produce more glyphs due to vertical layout
         let compiled_wrapped = compile_text_fast_wrapped(
-            text, "Open Sans", 400.0, "normal", 24.0,
-            [1.0; 4], 0.0, 0.0, &font_ctx,
-            50.0, "left", "visible",
-        ).unwrap();
+            text,
+            "Open Sans",
+            400.0,
+            "normal",
+            24.0,
+            [1.0; 4],
+            0.0,
+            0.0,
+            &font_ctx,
+            50.0,
+            "left",
+            "visible",
+        )
+        .unwrap();
         let paths_wrapped = compiled_wrapped.glyphs;
 
         // Wrapped text should produce glyphs
@@ -2001,7 +2165,8 @@ mod tests {
         assert!(
             wrapped_bbox[1] > single_bbox[1],
             "Wrapped text should be taller (multi-line): single_h={:.3}, wrapped_h={:.3}",
-            single_bbox[1], wrapped_bbox[1]
+            single_bbox[1],
+            wrapped_bbox[1]
         );
     }
 
@@ -2012,26 +2177,56 @@ mod tests {
 
         // Left-aligned: first glyph starts near x = -max_width/2
         let compiled_left = compile_text_fast_wrapped(
-            text, "Open Sans", 400.0, "normal", 24.0,
-            [1.0; 4], 0.0, 0.0, &font_ctx,
-            200.0, "left", "visible",
-        ).unwrap();
+            text,
+            "Open Sans",
+            400.0,
+            "normal",
+            24.0,
+            [1.0; 4],
+            0.0,
+            0.0,
+            &font_ctx,
+            200.0,
+            "left",
+            "visible",
+        )
+        .unwrap();
         let paths_left = compiled_left.glyphs;
 
         // Center-aligned
         let compiled_center = compile_text_fast_wrapped(
-            text, "Open Sans", 400.0, "normal", 24.0,
-            [1.0; 4], 0.0, 0.0, &font_ctx,
-            200.0, "center", "visible",
-        ).unwrap();
+            text,
+            "Open Sans",
+            400.0,
+            "normal",
+            24.0,
+            [1.0; 4],
+            0.0,
+            0.0,
+            &font_ctx,
+            200.0,
+            "center",
+            "visible",
+        )
+        .unwrap();
         let paths_center = compiled_center.glyphs;
 
         // Right-aligned
         let compiled_right = compile_text_fast_wrapped(
-            text, "Open Sans", 400.0, "normal", 24.0,
-            [1.0; 4], 0.0, 0.0, &font_ctx,
-            200.0, "right", "visible",
-        ).unwrap();
+            text,
+            "Open Sans",
+            400.0,
+            "normal",
+            24.0,
+            [1.0; 4],
+            0.0,
+            0.0,
+            &font_ctx,
+            200.0,
+            "right",
+            "visible",
+        )
+        .unwrap();
         let paths_right = compiled_right.glyphs;
 
         assert!(!paths_left.is_empty());
@@ -2047,7 +2242,8 @@ mod tests {
         assert!(
             (bbox_left[0] - bbox_center[0]).abs() < 1.0,
             "Left and center widths should match: left={:.3}, center={:.3}",
-            bbox_left[0], bbox_center[0]
+            bbox_left[0],
+            bbox_center[0]
         );
     }
 
@@ -2058,22 +2254,41 @@ mod tests {
         let text = "NoWrapTest";
 
         let compiled_normal = compile_text_fast(
-            text, "Open Sans", 400.0, "normal", 24.0,
-            [1.0; 4], 0.0, 0.0, &font_ctx,
-        ).unwrap();
+            text,
+            "Open Sans",
+            400.0,
+            "normal",
+            24.0,
+            [1.0; 4],
+            0.0,
+            0.0,
+            &font_ctx,
+        )
+        .unwrap();
         let paths_normal = compiled_normal.glyphs;
 
         // Wrapping with very large max_width (effectively no wrap) should match single-line
         let compiled_wide = compile_text_fast_wrapped(
-            text, "Open Sans", 400.0, "normal", 24.0,
-            [1.0; 4], 0.0, 0.0, &font_ctx,
-            10000.0, "left", "visible",
-        ).unwrap();
+            text,
+            "Open Sans",
+            400.0,
+            "normal",
+            24.0,
+            [1.0; 4],
+            0.0,
+            0.0,
+            &font_ctx,
+            10000.0,
+            "left",
+            "visible",
+        )
+        .unwrap();
         let paths_wide = compiled_wide.glyphs;
 
         // Both should produce the same number of glyphs
         assert_eq!(
-            paths_normal.len(), paths_wide.len(),
+            paths_normal.len(),
+            paths_wide.len(),
             "No-wrap and wide-wrap should produce same glyph count"
         );
 
@@ -2083,12 +2298,14 @@ mod tests {
         assert!(
             (bbox_normal[0] - bbox_wide[0]).abs() < 0.5,
             "Widths should match: normal={:.3}, wide={:.3}",
-            bbox_normal[0], bbox_wide[0]
+            bbox_normal[0],
+            bbox_wide[0]
         );
         assert!(
             (bbox_normal[1] - bbox_wide[1]).abs() < 0.5,
             "Heights should match: normal={:.3}, wide={:.3}",
-            bbox_normal[1], bbox_wide[1]
+            bbox_normal[1],
+            bbox_wide[1]
         );
     }
 }

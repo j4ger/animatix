@@ -10,20 +10,19 @@ pub mod property_popup;
 pub mod selection;
 pub mod time_lens;
 
-use super::DEFAULT_PREVIEW_SIZE;
-use crate::app::design_tokens::semantic::accent;
-use crate::app::design_tokens::semantic::accent::hover as accent_hover;
-use crate::app::design_tokens::semantic::overlay::{badge_bg, tooltip_bg};
-use crate::app::design_tokens::semantic::status;
-use crate::app::design_tokens::semantic::status::warning_subtle as amber_subtle;
-use crate::app::design_tokens::semantic::surface;
-use crate::app::design_tokens::semantic::text;
-use crate::app::design_tokens::semantic::text::faint as text_faint;
-use crate::app::design_tokens::spatial::STROKE_WIDTH;
-use crate::app::design_tokens::typography::TextRole;
+use std::collections::HashSet;
+
 use animatix::timeline::{PlacementMode, SceneDimensions, Timeline, TrackAccessor};
 use egui::{Color32, Pos2, Stroke, Vec2};
-use std::collections::HashSet;
+
+use super::DEFAULT_PREVIEW_SIZE;
+use crate::app::design_tokens::semantic::accent::hover as accent_hover;
+use crate::app::design_tokens::semantic::overlay::{badge_bg, tooltip_bg};
+use crate::app::design_tokens::semantic::status::warning_subtle as amber_subtle;
+use crate::app::design_tokens::semantic::text::faint as text_faint;
+use crate::app::design_tokens::semantic::{accent, status, surface, text};
+use crate::app::design_tokens::spatial::STROKE_WIDTH;
+use crate::app::design_tokens::typography::TextRole;
 
 // ─── Preview Transform ──────────────────────────────────────────────────────
 
@@ -302,15 +301,12 @@ pub(super) fn pivot_world(props: &ActorProps) -> [f32; 2] {
     ]
 }
 
-use crate::app::design_tokens::spatial::preview::CROSS_SIZE as PREVIEW_CROSS_SIZE;
-use crate::app::design_tokens::spatial::preview::DASH_LEN as PREVIEW_DASH_LEN;
-use crate::app::design_tokens::spatial::preview::GAP_LEN as PREVIEW_GAP_LEN;
-use crate::app::design_tokens::spatial::preview::HANDLE_SIZE as PREVIEW_HANDLE_SIZE;
-use crate::app::design_tokens::spatial::preview::MIN_ZOOM as PREVIEW_MIN_ZOOM;
-use crate::app::design_tokens::spatial::preview::ROTATION_HIT_BUFFER as PREVIEW_ROTATION_HIT_BUFFER;
-use crate::app::design_tokens::spatial::preview::ROTATION_OFFSET as PREVIEW_ROTATION_OFFSET;
-use crate::app::design_tokens::spatial::preview::ROTATION_RADIUS as PREVIEW_ROTATION_RADIUS;
-use crate::app::design_tokens::spatial::preview::VERTEX_HIT_BUFFER as PREVIEW_VERTEX_HIT_BUFFER;
+use crate::app::design_tokens::spatial::preview::{
+    CROSS_SIZE as PREVIEW_CROSS_SIZE, DASH_LEN as PREVIEW_DASH_LEN, GAP_LEN as PREVIEW_GAP_LEN,
+    HANDLE_SIZE as PREVIEW_HANDLE_SIZE, MIN_ZOOM as PREVIEW_MIN_ZOOM,
+    ROTATION_HIT_BUFFER as PREVIEW_ROTATION_HIT_BUFFER, ROTATION_OFFSET as PREVIEW_ROTATION_OFFSET,
+    ROTATION_RADIUS as PREVIEW_ROTATION_RADIUS, VERTEX_HIT_BUFFER as PREVIEW_VERTEX_HIT_BUFFER,
+};
 
 const SELECTION_COLOR: Color32 = accent::PRIMARY;
 
@@ -594,7 +590,8 @@ pub(super) fn draw_selection_overlay(
             }
         }
 
-        // Rotation handle: on the line from centre to above top-edge, offset by PREVIEW_ROTATION_OFFSET
+        // Rotation handle: on the line from centre to above top-edge, offset by
+        // PREVIEW_ROTATION_OFFSET
         let rot_world = rotation_handle_world(p);
         let rot_screen =
             scene_to_screen(rot_world, preview_rect, scene_dimensions, desired, zoom, pan);
@@ -1096,7 +1093,11 @@ pub(super) fn draw_callout_handles(
 ) {
     let r = PREVIEW_HANDLE_SIZE * 0.7 * pixels_per_point;
     // Tip: diamond
-    let tip_color = if active_tip { accent_hover() } else { text::PRIMARY };
+    let tip_color = if active_tip {
+        accent_hover()
+    } else {
+        text::PRIMARY
+    };
     let tip_pts = [
         Pos2::new(tip_screen.x, tip_screen.y - r * 1.4),
         Pos2::new(tip_screen.x + r * 1.4, tip_screen.y),
@@ -1107,7 +1108,11 @@ pub(super) fn draw_callout_handles(
         painter.line_segment([tip_pts[i], tip_pts[(i + 1) % 4]], Stroke::new(1.5, tip_color));
     }
     // Label: circle
-    let lbl_color = if active_label { accent_hover() } else { text::PRIMARY };
+    let lbl_color = if active_label {
+        accent_hover()
+    } else {
+        text::PRIMARY
+    };
     painter.circle_filled(label_screen, r, lbl_color);
     painter.circle_stroke(label_screen, r, Stroke::new(STROKE_WIDTH, SELECTION_COLOR));
 }
@@ -1122,12 +1127,25 @@ pub(super) fn draw_callout_place_handles(
     pixels_per_point: f32,
 ) {
     use animatix::timeline::animation_track::CalloutPlace;
-    let places = [CalloutPlace::Top, CalloutPlace::Bottom, CalloutPlace::Left, CalloutPlace::Right];
+    let places = [
+        CalloutPlace::Top,
+        CalloutPlace::Bottom,
+        CalloutPlace::Left,
+        CalloutPlace::Right,
+    ];
     let r = PREVIEW_HANDLE_SIZE * 0.55 * pixels_per_point;
     for (i, screen) in place_screens.iter().enumerate() {
         let active = active_place.map(|p| p == places[i]).unwrap_or(false);
-        let fill = if active { accent_hover() } else { surface::WIDGET };
-        let stroke_color = if active { accent_hover() } else { SELECTION_COLOR };
+        let fill = if active {
+            accent_hover()
+        } else {
+            surface::WIDGET
+        };
+        let stroke_color = if active {
+            accent_hover()
+        } else {
+            SELECTION_COLOR
+        };
         painter.circle_filled(*screen, r, fill);
         painter.circle_stroke(*screen, r, Stroke::new(STROKE_WIDTH, stroke_color));
     }
@@ -1151,7 +1169,16 @@ pub(super) fn callout_place_handle_screens(
         [c[0] - h[0], c[1]], // Left
         [c[0] + h[0], c[1]], // Right
     ];
-    points.map(|p| scene_to_screen(kurbo::Point::new(p[0] as f64, p[1] as f64), preview_rect, scene_dimensions, desired, zoom, pan))
+    points.map(|p| {
+        scene_to_screen(
+            kurbo::Point::new(p[0] as f64, p[1] as f64),
+            preview_rect,
+            scene_dimensions,
+            desired,
+            zoom,
+            pan,
+        )
+    })
 }
 
 /// Draw the standoff drag handle on the callout tail (at `from` scene position).
@@ -1162,7 +1189,11 @@ pub(super) fn draw_callout_standoff_handle(
     pixels_per_point: f32,
 ) {
     let r = PREVIEW_HANDLE_SIZE * 0.6 * pixels_per_point;
-    let fill = if active { accent_hover() } else { surface::WIDGET };
+    let fill = if active {
+        accent_hover()
+    } else {
+        surface::WIDGET
+    };
     painter.circle_filled(standoff_screen, r, fill);
     painter.circle_stroke(standoff_screen, r, Stroke::new(STROKE_WIDTH, SELECTION_COLOR));
 }

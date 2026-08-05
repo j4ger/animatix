@@ -1,7 +1,7 @@
+use super::rewrite::rewrite_stmt;
 use super::{
-    ComponentEntry, Expr, HashMap, HashSet, InlineItem, InstanceActionRegistry, MatchPattern, ParamDef,
-    Property, Stmt, TargetSegment,
-    rewrite::rewrite_stmt,
+    ComponentEntry, Expr, HashMap, HashSet, InlineItem, InstanceActionRegistry, MatchPattern,
+    ParamDef, Property, Stmt, TargetSegment,
 };
 
 /// Maximum nesting depth for component expansion before reporting a cycle error.
@@ -52,7 +52,9 @@ fn expand_stmt_into(
     ctx: &mut ExpansionCtx,
 ) {
     match stmt {
-        Stmt::Keyframe { time, body, span, .. } => {
+        Stmt::Keyframe {
+            time, body, span, ..
+        } => {
             let (expanded_body, sub_registry) = expand_statements_inner(body, components, ctx);
             merge_registry(registry, sub_registry);
             output.push(Stmt::Keyframe {
@@ -60,8 +62,10 @@ fn expand_stmt_into(
                 body: expanded_body,
                 span: *span,
             });
-        }
-        Stmt::RelativeKeyframe { offset, body, span, .. } => {
+        },
+        Stmt::RelativeKeyframe {
+            offset, body, span, ..
+        } => {
             let (expanded_body, sub_registry) = expand_statements_inner(body, components, ctx);
             merge_registry(registry, sub_registry);
             output.push(Stmt::RelativeKeyframe {
@@ -69,7 +73,7 @@ fn expand_stmt_into(
                 body: expanded_body,
                 span: *span,
             });
-        }
+        },
         Stmt::Always { body, span, .. } => {
             let (expanded_body, sub_registry) = expand_statements_inner(body, components, ctx);
             merge_registry(registry, sub_registry);
@@ -77,8 +81,15 @@ fn expand_stmt_into(
                 body: expanded_body,
                 span: *span,
             });
-        }
-        Stmt::ReactiveBinding { target, property, value, value_span, span, .. } => {
+        },
+        Stmt::ReactiveBinding {
+            target,
+            property,
+            value,
+            value_span,
+            span,
+            ..
+        } => {
             output.push(Stmt::ReactiveBinding {
                 target: target.clone(),
                 property: property.clone(),
@@ -86,7 +97,7 @@ fn expand_stmt_into(
                 value_span: *value_span,
                 span: *span,
             });
-        }
+        },
         Stmt::Conditional {
             condition,
             then_branch,
@@ -94,7 +105,8 @@ fn expand_stmt_into(
             span,
             ..
         } => {
-            let (then_expanded, then_registry) = expand_statements_inner(then_branch, components, ctx);
+            let (then_expanded, then_registry) =
+                expand_statements_inner(then_branch, components, ctx);
             merge_registry(registry, then_registry);
             let else_expanded = else_branch.as_ref().map(|branch| {
                 let (expanded, sub_registry) = expand_statements_inner(branch, components, ctx);
@@ -107,7 +119,7 @@ fn expand_stmt_into(
                 else_branch: else_expanded,
                 span: *span,
             });
-        }
+        },
         Stmt::Match {
             scrutinee,
             arms,
@@ -117,7 +129,8 @@ fn expand_stmt_into(
             let expanded_arms: Vec<(MatchPattern, Vec<Stmt>)> = arms
                 .iter()
                 .map(|(pat, body)| {
-                    let (expanded_body, sub_registry) = expand_statements_inner(body, components, ctx);
+                    let (expanded_body, sub_registry) =
+                        expand_statements_inner(body, components, ctx);
                     merge_registry(registry, sub_registry);
                     (pat.clone(), expanded_body)
                 })
@@ -127,7 +140,7 @@ fn expand_stmt_into(
                 arms: expanded_arms,
                 span: *span,
             });
-        }
+        },
         Stmt::ForLoop {
             var,
             index_var,
@@ -145,7 +158,7 @@ fn expand_stmt_into(
                 body: expanded_body,
                 span: *span,
             });
-        }
+        },
         Stmt::Sequence { body, span, .. } => {
             let (expanded_body, sub_registry) = expand_statements_inner(body, components, ctx);
             merge_registry(registry, sub_registry);
@@ -153,8 +166,13 @@ fn expand_stmt_into(
                 body: expanded_body,
                 span: *span,
             });
-        }
-        Stmt::Stagger { modifiers, body, span, .. } => {
+        },
+        Stmt::Stagger {
+            modifiers,
+            body,
+            span,
+            ..
+        } => {
             let (expanded_body, sub_registry) = expand_statements_inner(body, components, ctx);
             merge_registry(registry, sub_registry);
             output.push(Stmt::Stagger {
@@ -162,10 +180,10 @@ fn expand_stmt_into(
                 body: expanded_body,
                 span: *span,
             });
-        }
+        },
         // ComponentAction is NOT emitted into output; it's collected during instance expansion
-        Stmt::ComponentAction { .. } => {}
-        Stmt::ComponentDef(..) => {}
+        Stmt::ComponentAction { .. } => {},
+        Stmt::ComponentDef(..) => {},
         Stmt::ActorDecl {
             is_pub,
             label,
@@ -178,9 +196,8 @@ fn expand_stmt_into(
             ..
         } => {
             if let Some(component) = components.get(ty) {
-                let (instance_stmts, instance_registry) = expand_component_instance(
-                    label, props, children, component, components, ctx,
-                );
+                let (instance_stmts, instance_registry) =
+                    expand_component_instance(label, props, children, component, components, ctx);
                 merge_registry(registry, instance_registry);
                 output.extend(instance_stmts);
             } else {
@@ -197,15 +214,12 @@ fn expand_stmt_into(
                     span: *span,
                 });
             }
-        }
+        },
         _ => output.push(stmt.clone()),
     }
 }
 
-fn merge_registry(
-    target: &mut InstanceActionRegistry,
-    source: InstanceActionRegistry,
-) {
+fn merge_registry(target: &mut InstanceActionRegistry, source: InstanceActionRegistry) {
     for (label, actions) in source {
         target.insert(label, actions);
     }
@@ -254,7 +268,8 @@ fn expand_inline_items(
                         }
                     }
                 } else {
-                    let expanded_children = expand_inline_items(children, components, registry, ctx);
+                    let expanded_children =
+                        expand_inline_items(children, components, registry, ctx);
                     result.push(InlineItem::Labeled {
                         label: label.clone(),
                         array_index: array_index.clone(),
@@ -264,7 +279,7 @@ fn expand_inline_items(
                         children: expanded_children,
                     });
                 }
-            }
+            },
             InlineItem::Anonymous {
                 ty,
                 props,
@@ -274,7 +289,12 @@ fn expand_inline_items(
                 if let Some(component) = components.get(ty) {
                     let anon_label = ctx.next_anon_label();
                     let (instance_stmts, instance_registry) = expand_component_instance(
-                        &anon_label, props, children, component, components, ctx,
+                        &anon_label,
+                        props,
+                        children,
+                        component,
+                        components,
+                        ctx,
                     );
                     merge_registry(registry, instance_registry);
                     for stmt in instance_stmts {
@@ -283,7 +303,8 @@ fn expand_inline_items(
                         }
                     }
                 } else {
-                    let expanded_children = expand_inline_items(children, components, registry, ctx);
+                    let expanded_children =
+                        expand_inline_items(children, components, registry, ctx);
                     result.push(InlineItem::Anonymous {
                         ty: ty.clone(),
                         props: props.clone(),
@@ -291,7 +312,7 @@ fn expand_inline_items(
                         children: expanded_children,
                     });
                 }
-            }
+            },
             InlineItem::ForLoop {
                 var,
                 index_var,
@@ -305,7 +326,7 @@ fn expand_inline_items(
                     iterable: iterable.clone(),
                     body: expanded_body,
                 });
-            }
+            },
             InlineItem::SlotMarker => result.push(InlineItem::SlotMarker),
             InlineItem::SlotFill { slot, items } => {
                 let expanded = expand_inline_items(items, components, registry, ctx);
@@ -313,7 +334,7 @@ fn expand_inline_items(
                     slot: slot.clone(),
                     items: expanded,
                 });
-            }
+            },
         }
     }
     result
@@ -355,7 +376,8 @@ fn expand_component_instance(
         tracing::error!(
             "Component expansion depth limit ({}) reached at '{}'. \
              Possible circular component reference.",
-            MAX_EXPANSION_DEPTH, instance_label
+            MAX_EXPANSION_DEPTH,
+            instance_label
         );
         return (Vec::new(), InstanceActionRegistry::new());
     }
@@ -379,13 +401,7 @@ fn expand_component_instance(
     let rewritten = resolved
         .iter()
         .map(|stmt| {
-            rewrite_stmt(
-                stmt,
-                instance_label,
-                root_label.as_deref(),
-                &known_labels,
-                &bindings,
-            )
+            rewrite_stmt(stmt, instance_label, root_label.as_deref(), &known_labels, &bindings)
         })
         .collect::<Vec<_>>();
 
@@ -394,7 +410,9 @@ fn expand_component_instance(
     let filtered: Vec<Stmt> = rewritten
         .into_iter()
         .filter_map(|stmt| match &stmt {
-            Stmt::ComponentAction { name, params, body, .. } => {
+            Stmt::ComponentAction {
+                name, params, body, ..
+            } => {
                 instance_actions.insert(
                     name.clone(),
                     crate::module::ActionTemplate {
@@ -403,7 +421,7 @@ fn expand_component_instance(
                     },
                 );
                 None
-            }
+            },
             _ => Some(stmt),
         })
         .collect();
@@ -435,39 +453,34 @@ fn component_bindings(params: &[ParamDef], instance_props: &[Property]) -> HashM
 
 fn first_labeled_stmt(body: &[Stmt]) -> Option<String> {
     for stmt in body {
-        if let Stmt::ActorDecl { label, .. } = stmt { return Some(label.clone()) }
+        if let Stmt::ActorDecl { label, .. } = stmt {
+            return Some(label.clone());
+        }
     }
     None
 }
 
 fn collect_labels(body: &[Stmt]) -> HashSet<String> {
     let mut labels = HashSet::new();
-    crate::walk::walk_stmts(body, &mut |stmt| {
-        match stmt {
-            Stmt::ActorDecl { label, .. } => {
+    crate::walk::walk_stmts(body, &mut |stmt| match stmt {
+        Stmt::ActorDecl { label, .. } => {
+            labels.insert(label.clone());
+        },
+        Stmt::ReactiveBinding { target, .. } => {
+            if let Some(TargetSegment::Static(label)) = target.first() {
                 labels.insert(label.clone());
             }
-            Stmt::ReactiveBinding { target, .. } => {
-                if let Some(TargetSegment::Static(label)) = target.first() {
-                    labels.insert(label.clone());
-                }
-            }
-            _ => {}
-        }
+        },
+        _ => {},
     });
     labels
 }
 
 fn has_slot_marker(children: &[InlineItem]) -> bool {
-    children
-        .iter()
-        .any(|item| matches!(item, InlineItem::SlotMarker))
+    children.iter().any(|item| matches!(item, InlineItem::SlotMarker))
 }
 
-fn resolve_slots(
-    stmts: &[Stmt],
-    slot_fills: &HashMap<String, Vec<InlineItem>>,
-) -> Vec<Stmt> {
+fn resolve_slots(stmts: &[Stmt], slot_fills: &HashMap<String, Vec<InlineItem>>) -> Vec<Stmt> {
     stmts
         .iter()
         .map(|stmt| match stmt {
@@ -515,7 +528,7 @@ fn resolve_slots(
                 } else {
                     stmt.clone()
                 }
-            }
+            },
             _ => stmt.clone(),
         })
         .collect()
@@ -524,7 +537,6 @@ fn resolve_slots(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::parser_simple;
 
     #[test]
     fn test_expand_preserves_forloop_index_var() {
@@ -538,20 +550,32 @@ mod tests {
         // Find the ForLoop
         let for_stmt = expanded.iter().find(|s| matches!(s, Stmt::ForLoop { .. })).unwrap();
         if let Stmt::ForLoop { index_var, .. } = for_stmt {
-            assert_eq!(index_var.as_deref(), Some("k"), "index_var must be preserved through expansion");
+            assert_eq!(
+                index_var.as_deref(),
+                Some("k"),
+                "index_var must be preserved through expansion"
+            );
         } else {
             panic!("Expected ForLoop");
         }
         // Find `a[k]` ActorDecl inside the ForLoop body
         if let Stmt::ForLoop { body, .. } = for_stmt {
             let act = body.iter().find_map(|s| {
-                if let Stmt::ActorDecl { array_index: Some(Expr::Ident(name)), .. } = s {
+                if let Stmt::ActorDecl {
+                    array_index: Some(Expr::Ident(name)),
+                    ..
+                } = s
+                {
                     Some(name.clone())
                 } else {
                     None
                 }
             });
-            assert_eq!(act.as_deref(), Some("k"), "array_index must be preserved through expansion");
+            assert_eq!(
+                act.as_deref(),
+                Some("k"),
+                "array_index must be preserved through expansion"
+            );
         }
     }
 }

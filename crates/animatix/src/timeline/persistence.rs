@@ -11,24 +11,23 @@
 //!
 //! - [`CarryBag`] — bag holding snapshot entries keyed by actor label.
 //! - [`CarryEntry`] — a single snapshotted actor plus its recursive subtree.
-//! - [`Timeline::compute_carry_bag`] — snapshots all `persistent == true`
-//!   actors and their children at a given time.
-//! - [`snapshot_track_at`] — collapses all keyframes of a single track to a
-//!   single frame at `t=0` sampled at `time_ms`.
+//! - [`Timeline::compute_carry_bag`] — snapshots all `persistent == true` actors and their children
+//!   at a given time.
+//! - [`snapshot_track_at`] — collapses all keyframes of a single track to a single frame at `t=0`
+//!   sampled at `time_ms`.
 
 use std::collections::BTreeMap;
-use crate::diagnostics::Diagnostic;
-use crate::easing::Easing;
-use crate::timeline::{
-    AnimationTrack, PlacementMode, PositionBinding, SceneDimensions, Timeline,
-    animation_track::{
-        FilterTracks, GeometryTracks, HighlightTracks, ShapeTracks, StyleTracks, TextTracks,
-    },
-    property_track::{PropertyTrack, TrackAccessor},
-};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+
+use crate::diagnostics::Diagnostic;
+use crate::easing::Easing;
+use crate::timeline::animation_track::{
+    FilterTracks, GeometryTracks, HighlightTracks, ShapeTracks, StyleTracks, TextTracks,
+};
+use crate::timeline::property_track::{PropertyTrack, TrackAccessor};
+use crate::timeline::{AnimationTrack, PlacementMode, PositionBinding, SceneDimensions, Timeline};
 
 // ---------------------------------------------------------------------------
 // CarryBag
@@ -69,8 +68,8 @@ fn collect_persistent_entries(
     ancestors_are_persistent: bool,
     entries: &mut BTreeMap<String, CarryEntry>,
 ) {
-    let is_persistent = timeline.persistence_flags.get(label).copied().unwrap_or(false)
-        || ancestors_are_persistent;
+    let is_persistent =
+        timeline.persistence_flags.get(label).copied().unwrap_or(false) || ancestors_are_persistent;
 
     if !is_persistent {
         return;
@@ -92,8 +91,7 @@ fn collect_persistent_entries(
     }
 
     let track = snapshot_track_at(
-        timeline.tracks.get(label)
-            .expect("persistent entry must exist in tracks"),
+        timeline.tracks.get(label).expect("persistent entry must exist in tracks"),
         time_ms,
     );
 
@@ -123,7 +121,8 @@ impl Timeline {
         let mut entries = BTreeMap::new();
 
         // Collect labels whose persistence flag is set.
-        let persistent_labels: Vec<String> = self.persistence_flags
+        let persistent_labels: Vec<String> = self
+            .persistence_flags
             .iter()
             .filter(|(_, persistent)| **persistent)
             .map(|(label, _)| label.clone())
@@ -442,10 +441,10 @@ fn collapse_property_track_inner<T: crate::timeline::property_track::Interpolate
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::timeline::{Timeline, dispatch::AnimationTrack};
-    use crate::timeline::property_track::TrackAccessor;
-    use crate::timeline::CapturedEnv;
     use crate::easing::Easing;
+    use crate::timeline::dispatch::AnimationTrack;
+    use crate::timeline::property_track::TrackAccessor;
+    use crate::timeline::{CapturedEnv, Timeline};
 
     fn make_timeline_with_persistent_actors() -> Timeline {
         let mut timeline = Timeline::new();
@@ -458,8 +457,16 @@ mod tests {
 
         // Create a child actor
         let mut child = AnimationTrack::new("child1".to_string());
-        child.geometry.position.ensure([0.0, 0.0]).add_keyframe(0, [0.0, 0.0], Easing::Linear);
-        child.geometry.position.ensure([0.0, 0.0]).add_keyframe(500, [100.0, 50.0], Easing::Linear);
+        child
+            .geometry
+            .position
+            .ensure([0.0, 0.0])
+            .add_keyframe(0, [0.0, 0.0], Easing::Linear);
+        child
+            .geometry
+            .position
+            .ensure([0.0, 0.0])
+            .add_keyframe(500, [100.0, 50.0], Easing::Linear);
         timeline.tracks.insert("child1".to_string(), child);
 
         // Set up parent-child relationship
@@ -490,8 +497,16 @@ mod tests {
     #[test]
     fn snapshot_collapses_position_to_single_keyframe() {
         let mut track = AnimationTrack::new("test".to_string());
-        track.geometry.position.ensure([0.0, 0.0]).add_keyframe(0, [0.0, 0.0], Easing::Linear);
-        track.geometry.position.ensure([0.0, 0.0]).add_keyframe(1000, [200.0, 100.0], Easing::Linear);
+        track
+            .geometry
+            .position
+            .ensure([0.0, 0.0])
+            .add_keyframe(0, [0.0, 0.0], Easing::Linear);
+        track.geometry.position.ensure([0.0, 0.0]).add_keyframe(
+            1000,
+            [200.0, 100.0],
+            Easing::Linear,
+        );
 
         let snapshot = snapshot_track_at(&track, 500);
         let pos_track = snapshot.geometry.position.unwrap();
@@ -530,8 +545,16 @@ mod tests {
             start_ms: 0,
             end_ms: 1000,
             easing: Easing::Linear,
-            from: crate::timeline::plot::FuncSource::Raw(vec![], crate::ast::Expr::Num(0.0), CapturedEnv::default()),
-            to: crate::timeline::plot::FuncSource::Raw(vec![], crate::ast::Expr::Num(1.0), CapturedEnv::default()),
+            from: crate::timeline::plot::FuncSource::Raw(
+                vec![],
+                crate::ast::Expr::Num(0.0),
+                CapturedEnv::default(),
+            ),
+            to: crate::timeline::plot::FuncSource::Raw(
+                vec![],
+                crate::ast::Expr::Num(1.0),
+                CapturedEnv::default(),
+            ),
         });
         let snapshot = snapshot_track_at(&track, 0);
         assert!(snapshot.func_transitions.is_empty());
@@ -569,8 +592,14 @@ mod tests {
         let track = AnimationTrack::new("test".to_string());
         let snapshot = snapshot_track_at(&track, 0);
         // No property tracks should have keyframes
-        assert!(snapshot.style.opacity.is_none() || snapshot.style.opacity.unwrap().keyframes.is_empty());
-        assert!(snapshot.geometry.position.is_none() || snapshot.geometry.position.unwrap().keyframes.is_empty());
+        assert!(
+            snapshot.style.opacity.is_none()
+                || snapshot.style.opacity.unwrap().keyframes.is_empty()
+        );
+        assert!(
+            snapshot.geometry.position.is_none()
+                || snapshot.geometry.position.unwrap().keyframes.is_empty()
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -594,8 +623,8 @@ mod tests {
         assert!(entry.persistent);
 
         // The snapshot should have opacity ≈ 0.75 (interpolated at 500ms between 1.0 and 0.5)
-        let opacity = entry.track.style.opacity.as_ref()
-            .expect("snapshot should have opacity track");
+        let opacity =
+            entry.track.style.opacity.as_ref().expect("snapshot should have opacity track");
         assert_eq!(opacity.keyframes.len(), 1);
         let (_, (val, _)) = opacity.keyframes.iter().next().unwrap();
         assert!((*val - 0.75).abs() < 1e-6);
@@ -611,7 +640,11 @@ mod tests {
         let child_entry = entry.children.get("child1").expect("child1 should be in carry bag");
 
         // child1 should be snapshotted at 500ms: position = [100.0, 50.0]
-        let pos_track = child_entry.track.geometry.position.as_ref()
+        let pos_track = child_entry
+            .track
+            .geometry
+            .position
+            .as_ref()
             .expect("child snapshot should have position track");
         assert_eq!(pos_track.keyframes.len(), 1);
         let (_, (val, _)) = pos_track.keyframes.iter().next().unwrap();
@@ -659,11 +692,7 @@ mod tests {
 
         let bag = timeline.compute_carry_bag(0, true);
         let entry = bag.entries.get("circle").expect("circle should be in bag");
-        assert_eq!(
-            entry.auto_color_slot,
-            Some(0),
-            "auto_color_slot must be carried"
-        );
+        assert_eq!(entry.auto_color_slot, Some(0), "auto_color_slot must be carried");
     }
 
     #[test]
@@ -775,10 +804,7 @@ mod tests {
 
         let carried = dest.tracks.get("curve").expect("curve must be carried");
         assert_eq!(carried.kind, crate::timeline::ActorKindId::PlotCurve);
-        assert!(
-            carried.procedural_plot.is_some(),
-            "procedural_plot must survive carry"
-        );
+        assert!(carried.procedural_plot.is_some(), "procedural_plot must survive carry");
     }
 
     #[test]
@@ -790,7 +816,11 @@ mod tests {
         timeline.tracks.insert("parent".to_string(), parent);
 
         let mut child = AnimationTrack::new("child".to_string());
-        child.geometry.position.ensure([0.0, 0.0]).add_keyframe(0, [10.0, 20.0], Easing::Linear);
+        child
+            .geometry
+            .position
+            .ensure([0.0, 0.0])
+            .add_keyframe(0, [10.0, 20.0], Easing::Linear);
         timeline.tracks.insert("child".to_string(), child);
 
         // Only parent is persistent; child should be carried because it's a descendant
@@ -827,7 +857,11 @@ mod tests {
         assert_eq!(entry.children.len(), 1);
 
         // Opacity should be ≈ 0.75 (interpolated at 500ms).
-        let opacity = entry.track.style.opacity.as_ref()
+        let opacity = entry
+            .track
+            .style
+            .opacity
+            .as_ref()
             .expect("opacity track must survive round-trip");
         let (_, (val, _)) = opacity.keyframes.iter().next().unwrap();
         assert!((*val - 0.75).abs() < 1e-4, "opacity expected ≈0.75, got {}", val);

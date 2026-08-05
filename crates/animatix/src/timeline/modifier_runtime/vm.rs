@@ -1,57 +1,54 @@
-use super::ir::
-{BuiltinFn, CompiledExpr, ModifierExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides,
- apply_binary_op, eval_abs, eval_atan2, eval_ceil, eval_clamp, eval_cos, eval_deg, eval_exp, eval_floor,
- eval_format, eval_lerp, eval_log, eval_max, eval_min, eval_rad, eval_sin, eval_sqrt, eval_tan,
- make_vec_value,
+use std::fmt;
+
+use super::ir::{
+    BuiltinFn, CompiledExpr, ModifierExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides,
+    apply_binary_op, eval_abs, eval_atan2, eval_ceil, eval_clamp, eval_cos, eval_deg, eval_exp,
+    eval_floor, eval_format, eval_lerp, eval_log, eval_max, eval_min, eval_rad, eval_sin,
+    eval_sqrt, eval_tan, make_vec_value,
 };
 use crate::ast::{BinaryOp, Expr, LoopPattern};
 use crate::timeline::animation_track::SceneAnchor;
 use crate::timeline::callout_geometry::env_anchor_point;
 use crate::timeline::env::CapturedEnv;
 use crate::timeline::{Environment, EvalError, Value};
-use std::fmt;
 
 /// Bind a loop pattern to a value in the frame environment.
 /// Handles both single variables and tuple destructuring.
-fn bind_loop_var_vm(
-    frame_env: &mut Environment,
-    pat: &LoopPattern,
-    value: Value,
-) {
+fn bind_loop_var_vm(frame_env: &mut Environment, pat: &LoopPattern, value: Value) {
     match pat {
         LoopPattern::Single(name) => {
             frame_env.set(name, value);
-        }
+        },
         LoopPattern::Tuple(names) => {
             match value {
                 Value::List(items) => {
                     for (name, item) in names.iter().zip(items.into_iter()) {
                         frame_env.set(name, item);
                     }
-                }
+                },
                 Value::Vec2([x, y]) if names.len() == 2 => {
                     frame_env.set(&names[0], Value::Num(x));
                     frame_env.set(&names[1], Value::Num(y));
-                }
+                },
                 Value::Vec3([x, y, z]) if names.len() == 3 => {
                     frame_env.set(&names[0], Value::Num(x));
                     frame_env.set(&names[1], Value::Num(y));
                     frame_env.set(&names[2], Value::Num(z));
-                }
+                },
                 Value::Vec4([x, y, z, w]) if names.len() == 4 => {
                     frame_env.set(&names[0], Value::Num(x));
                     frame_env.set(&names[1], Value::Num(y));
                     frame_env.set(&names[2], Value::Num(z));
                     frame_env.set(&names[3], Value::Num(w));
-                }
+                },
                 _ => {
                     // If we can't destructure, bind the whole value to the first variable
                     if let Some(name) = names.first() {
                         frame_env.set(name, value);
                     }
-                }
+                },
             }
-        }
+        },
     }
 }
 
@@ -144,17 +141,11 @@ impl fmt::Display for VmCompileError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             VmCompileError::UnsupportedExpr => {
-                write!(
-                    f,
-                    "Modifier bytecode compiler encountered unsupported IR expression"
-                )
-            }
+                write!(f, "Modifier bytecode compiler encountered unsupported IR expression")
+            },
             VmCompileError::UnsupportedStmt(kind) => {
-                write!(
-                    f,
-                    "Modifier bytecode compiler encountered unsupported statement: {kind}"
-                )
-            }
+                write!(f, "Modifier bytecode compiler encountered unsupported statement: {kind}")
+            },
         }
     }
 }
@@ -214,19 +205,17 @@ impl BytecodeCompiler {
                     target: target.join("."),
                     property: property.clone(),
                 });
-            }
+            },
             // AssignIndexed requires frame-time index evaluation that the VM
             // does not natively support. Signal unsupported so the runtime
             // falls back to the IR eval path (which handles AssignIndexed).
             ModifierIrStmt::AssignIndexed { .. } => {
-                return Err(VmCompileError::UnsupportedStmt(
-                    "AssignIndexed — use IR fallback"
-                ));
-            }
+                return Err(VmCompileError::UnsupportedStmt("AssignIndexed — use IR fallback"));
+            },
             ModifierIrStmt::Let { name, value } => {
                 self.compile_modifier_expr(value)?;
                 self.instructions.push(Instruction::StoreEnv(name.clone()));
-            }
+            },
             ModifierIrStmt::If {
                 condition,
                 then_branch,
@@ -247,20 +236,30 @@ impl BytecodeCompiler {
                 let end = self.instructions.len();
                 self.instructions[jump_if_false_idx] = Instruction::JumpIfFalse(else_start);
                 self.instructions[jump_idx] = Instruction::Jump(end);
-            }
-            ModifierIrStmt::For { var, index_var, iterable, body } => {
+            },
+            ModifierIrStmt::For {
+                var,
+                index_var,
+                iterable,
+                body,
+            } => {
                 self.compile_expr(iterable)?;
                 self.instructions.push(Instruction::BeginFor(var.clone(), index_var.clone()));
                 let check_idx = self.instructions.len();
-                self.instructions.push(Instruction::CheckFor(var.clone(), index_var.clone(), usize::MAX));
+                self.instructions.push(Instruction::CheckFor(
+                    var.clone(),
+                    index_var.clone(),
+                    usize::MAX,
+                ));
                 for stmt in body {
                     self.compile_stmt(stmt)?;
                 }
                 self.instructions.push(Instruction::Jump(check_idx));
                 let end = self.instructions.len();
-                self.instructions[check_idx] = Instruction::CheckFor(var.clone(), index_var.clone(), end);
-            }
-            ModifierIrStmt::Noop => {}
+                self.instructions[check_idx] =
+                    Instruction::CheckFor(var.clone(), index_var.clone(), end);
+            },
+            ModifierIrStmt::Noop => {},
         }
         Ok(())
     }
@@ -277,28 +276,28 @@ impl BytecodeCompiler {
             CompiledExpr::Const(value) => {
                 let idx = self.add_const(value.clone());
                 self.instructions.push(Instruction::LoadConst(idx));
-            }
+            },
             CompiledExpr::LoadEnv(name) => {
                 self.instructions.push(Instruction::LoadEnv(name.clone()));
-            }
+            },
             CompiledExpr::MakeVec(items) => {
                 for item in items {
                     self.compile_expr(item)?;
                 }
                 self.instructions.push(Instruction::MakeVec(items.len()));
-            }
+            },
             CompiledExpr::Unary(op, expr) => {
                 self.compile_expr(expr)?;
                 self.instructions.push(match op {
                     crate::ast::UnaryOp::Neg => Instruction::UnaryNeg,
                     crate::ast::UnaryOp::Not => Instruction::UnaryNot,
                 });
-            }
+            },
             CompiledExpr::Binary(left, op, right) => {
                 self.compile_expr(left)?;
                 self.compile_expr(right)?;
                 self.instructions.push(Instruction::Binary(op.clone()));
-            }
+            },
             CompiledExpr::Select(condition, then_expr, else_expr) => {
                 self.compile_expr(condition)?;
                 let jump_if_false_idx = self.instructions.len();
@@ -311,33 +310,31 @@ impl BytecodeCompiler {
                 let end = self.instructions.len();
                 self.instructions[jump_if_false_idx] = Instruction::JumpIfFalse(else_start);
                 self.instructions[jump_idx] = Instruction::Jump(end);
-            }
+            },
             CompiledExpr::CallBuiltin(builtin, args) => {
                 for arg in args {
                     self.compile_expr(arg)?;
                 }
-                self.instructions
-                    .push(Instruction::CallBuiltin(builtin.clone(), args.len()));
-            }
+                self.instructions.push(Instruction::CallBuiltin(builtin.clone(), args.len()));
+            },
             CompiledExpr::Index(container, index) => {
                 self.compile_expr(container)?;
                 self.compile_expr(index)?;
                 self.instructions.push(Instruction::Index);
-            }
+            },
             CompiledExpr::Method(receiver, name, args) => {
                 self.compile_expr(receiver)?;
                 for arg in args {
                     self.compile_expr(arg)?;
                 }
-                self.instructions
-                    .push(Instruction::CallMethod(name.clone(), args.len()));
-            }
+                self.instructions.push(Instruction::CallMethod(name.clone(), args.len()));
+            },
             CompiledExpr::Closure(params, body) => {
                 self.instructions.push(Instruction::MakeClosure {
                     params: params.clone(),
                     body: body.clone(),
                 });
-            }
+            },
             CompiledExpr::Construct(type_name, fields) => {
                 let field_names: Vec<String> = fields.iter().map(|(n, _)| n.clone()).collect();
                 for (_, field_expr) in fields {
@@ -347,13 +344,13 @@ impl BytecodeCompiler {
                     type_name: type_name.clone(),
                     fields: field_names,
                 });
-            }
+            },
             CompiledExpr::AnchorLookup { actor, anchor } => {
                 self.instructions.push(Instruction::AnchorLookup {
                     actor: actor.clone(),
                     anchor: *anchor,
                 });
-            }
+            },
         }
         Ok(())
     }
@@ -382,25 +379,28 @@ impl ModifierVm {
         while self.ip < program.instructions.len() {
             match &program.instructions[self.ip] {
                 Instruction::LoadConst(index) => {
-                    let value = program.constants.get(*index)
-                        .ok_or_else(|| EvalError::TypeMismatch(
-                            format!("LoadConst index {} out of bounds (pool size {})", index, program.constants.len())
-                        ))?;
+                    let value = program.constants.get(*index).ok_or_else(|| {
+                        EvalError::TypeMismatch(format!(
+                            "LoadConst index {} out of bounds (pool size {})",
+                            index,
+                            program.constants.len()
+                        ))
+                    })?;
                     self.stack.push(value.clone());
                     self.ip += 1;
-                }
+                },
                 Instruction::LoadEnv(name) => {
                     let value = frame_env
                         .get(name)
                         .ok_or_else(|| EvalError::UndefinedVariable(name.clone()))?;
                     self.stack.push(value);
                     self.ip += 1;
-                }
+                },
                 Instruction::StoreEnv(name) => {
                     let value = self.pop()?;
                     frame_env.set(name, value);
                     self.ip += 1;
-                }
+                },
                 Instruction::MakeVec(len) => {
                     let mut values = Vec::with_capacity(*len);
                     for _ in 0..*len {
@@ -409,24 +409,23 @@ impl ModifierVm {
                     values.reverse();
                     self.stack.push(make_vec_value(values));
                     self.ip += 1;
-                }
+                },
                 Instruction::UnaryNeg => {
                     let value = self.pop()?;
                     self.stack.push(Value::Num(-value.as_num()));
                     self.ip += 1;
-                }
+                },
                 Instruction::UnaryNot => {
                     let value = self.pop()?;
-                    self.stack
-                        .push(Value::Num(if value.as_num() == 0.0 { 1.0 } else { 0.0 }));
+                    self.stack.push(Value::Num(if value.as_num() == 0.0 { 1.0 } else { 0.0 }));
                     self.ip += 1;
-                }
+                },
                 Instruction::Binary(op) => {
                     let right = self.pop()?;
                     let left = self.pop()?;
                     self.stack.push(apply_binary_op(left, op, right)?);
                     self.ip += 1;
-                }
+                },
                 Instruction::CallBuiltin(builtin, arity) => {
                     let mut args = Vec::with_capacity(*arity);
                     for _ in 0..*arity {
@@ -451,34 +450,37 @@ impl ModifierVm {
                         BuiltinFn::Ceil => eval_ceil(&args),
                         BuiltinFn::Deg => eval_deg(&args),
                         BuiltinFn::Rad => eval_rad(&args),
-                        BuiltinFn::ListSwap => crate::timeline::eval_shared::eval_builtin_fn("list_swap", &args),
-                        BuiltinFn::ListSet => crate::timeline::eval_shared::eval_builtin_fn("list_set", &args),
+                        BuiltinFn::ListSwap => {
+                            crate::timeline::eval_shared::eval_builtin_fn("list_swap", &args)
+                        },
+                        BuiltinFn::ListSet => {
+                            crate::timeline::eval_shared::eval_builtin_fn("list_set", &args)
+                        },
                     }?;
                     self.stack.push(result);
                     self.ip += 1;
-                }
+                },
                 Instruction::Index => {
                     let index_val = self.pop()?;
                     let container_val = self.pop()?;
                     let idx = index_val.as_num() as usize;
                     let result = match container_val {
-                        Value::List(items) => items
-                            .get(idx)
-                            .cloned()
-                            .ok_or_else(|| EvalError::TypeMismatch(format!(
+                        Value::List(items) => items.get(idx).cloned().ok_or_else(|| {
+                            EvalError::TypeMismatch(format!(
                                 "Index {} out of bounds for list of length {}",
                                 idx,
                                 items.len()
-                            ))),
-                        Value::Str(s) => s
-                            .chars()
-                            .nth(idx)
-                            .map(|c| Value::Str(c.to_string()))
-                            .ok_or_else(|| EvalError::TypeMismatch(format!(
-                                "Index {} out of bounds for string of length {}",
-                                idx,
-                                s.len()
-                            ))),
+                            ))
+                        }),
+                        Value::Str(s) => {
+                            s.chars().nth(idx).map(|c| Value::Str(c.to_string())).ok_or_else(|| {
+                                EvalError::TypeMismatch(format!(
+                                    "Index {} out of bounds for string of length {}",
+                                    idx,
+                                    s.len()
+                                ))
+                            })
+                        },
                         Value::Vec2(v) => match idx {
                             0 => Ok(Value::Num(v[0])),
                             1 => Ok(Value::Num(v[1])),
@@ -516,14 +518,13 @@ impl ModifierVm {
                                 idx
                             ))),
                         },
-                        other => Err(EvalError::TypeMismatch(format!(
-                            "Cannot index into {:?}",
-                            other
-                        ))),
+                        other => {
+                            Err(EvalError::TypeMismatch(format!("Cannot index into {:?}", other)))
+                        },
                     }?;
                     self.stack.push(result);
                     self.ip += 1;
-                }
+                },
                 Instruction::CallMethod(name, arity) => {
                     let mut args = Vec::with_capacity(*arity);
                     for _ in 0..*arity {
@@ -534,12 +535,14 @@ impl ModifierVm {
                     let result = super::ir::eval_method(receiver, name, &args, frame_env)?;
                     self.stack.push(result);
                     self.ip += 1;
-                }
+                },
                 Instruction::JumpIfFalse(target) => {
                     if *target >= program.instructions.len() {
-                        return Err(EvalError::TypeMismatch(
-                            format!("JumpIfFalse target {} out of bounds ({} instructions)", target, program.instructions.len())
-                        ));
+                        return Err(EvalError::TypeMismatch(format!(
+                            "JumpIfFalse target {} out of bounds ({} instructions)",
+                            target,
+                            program.instructions.len()
+                        )));
                     }
                     let cond = self.pop()?;
                     if cond.as_num() == 0.0 {
@@ -547,15 +550,17 @@ impl ModifierVm {
                     } else {
                         self.ip += 1;
                     }
-                }
+                },
                 Instruction::Jump(target) => {
                     if *target >= program.instructions.len() {
-                        return Err(EvalError::TypeMismatch(
-                            format!("Jump target {} out of bounds ({} instructions)", target, program.instructions.len())
-                        ));
+                        return Err(EvalError::TypeMismatch(format!(
+                            "Jump target {} out of bounds ({} instructions)",
+                            target,
+                            program.instructions.len()
+                        )));
                     }
                     self.ip = *target;
-                }
+                },
                 Instruction::BeginFor(_var, index_var) => {
                     let iterable = self.pop()?;
                     let items: Vec<Value> = match iterable {
@@ -565,13 +570,17 @@ impl ModifierVm {
                         Value::Vec4(v) => v.into_iter().map(Value::Num).collect(),
                         other => vec![other],
                     };
-                    self.loop_stack.push(LoopState { items, idx: 0, iteration_count: 0 });
+                    self.loop_stack.push(LoopState {
+                        items,
+                        idx: 0,
+                        iteration_count: 0,
+                    });
                     // Bind the index variable to 0 at start (will be updated each iteration)
                     if let Some(iv) = index_var {
                         frame_env.set(iv, Value::Num(0.0));
                     }
                     self.ip += 1;
-                }
+                },
                 Instruction::CheckFor(var, index_var, end) => {
                     let state = self.loop_stack.last_mut().ok_or_else(|| {
                         EvalError::TypeMismatch("CheckFor with no active loop".to_string())
@@ -579,7 +588,8 @@ impl ModifierVm {
                     state.iteration_count += 1;
                     if state.iteration_count > 100_000 {
                         return Err(EvalError::TypeMismatch(
-                            "for-loop exceeded 100,000 iterations — possible infinite loop".to_string()
+                            "for-loop exceeded 100,000 iterations — possible infinite loop"
+                                .to_string(),
                         ));
                     }
                     let idx = state.idx;
@@ -598,19 +608,19 @@ impl ModifierVm {
                         match var {
                             LoopPattern::Single(name) => {
                                 frame_env.overrides.remove(name);
-                            }
+                            },
                             LoopPattern::Tuple(names) => {
                                 for name in names {
                                     frame_env.overrides.remove(name);
                                 }
-                            }
+                            },
                         }
                         if let Some(iv) = index_var {
                             frame_env.overrides.remove(iv);
                         }
                         self.ip = *end;
                     }
-                }
+                },
                 Instruction::WriteOverride { target, property } => {
                     let value = self.pop()?;
                     overrides
@@ -621,21 +631,20 @@ impl ModifierVm {
                         frame_env, target, property, value,
                     );
                     self.ip += 1;
-                }
+                },
                 Instruction::MakeClosure { params, body } => {
                     let captures = CapturedEnv::snapshot(frame_env);
                     self.stack.push(Value::Closure(params.clone(), body.clone(), captures));
                     self.ip += 1;
-                }
+                },
                 Instruction::AnchorLookup { actor, anchor } => {
-                    let value = env_anchor_point(frame_env, actor, *anchor)
-                        .map(Value::Vec2)
-                        .ok_or_else(|| EvalError::UndefinedVariable(
-                            format!("{actor}.{}", anchor.as_str())
-                        ))?;
+                    let value =
+                        env_anchor_point(frame_env, actor, *anchor).map(Value::Vec2).ok_or_else(
+                            || EvalError::UndefinedVariable(format!("{actor}.{}", anchor.as_str())),
+                        )?;
                     self.stack.push(value);
                     self.ip += 1;
-                }
+                },
                 Instruction::MakeObject { type_name, fields } => {
                     let mut values: Vec<Value> = Vec::with_capacity(fields.len());
                     for _ in 0..fields.len() {
@@ -646,7 +655,7 @@ impl ModifierVm {
                         fields.iter().cloned().zip(values).collect();
                     self.stack.push(Value::Object(type_name.clone(), map));
                     self.ip += 1;
-                }
+                },
                 Instruction::Halt => break,
             }
         }
@@ -666,7 +675,7 @@ impl fmt::Display for ModifierBytecodeProgram {
             match instruction {
                 Instruction::LoadConst(const_idx) => {
                     writeln!(f, "{idx}: LoadConst {:?}", self.constants[*const_idx])?
-                }
+                },
                 Instruction::LoadEnv(name) => writeln!(f, "{idx}: LoadEnv {name}")?,
                 Instruction::StoreEnv(name) => writeln!(f, "{idx}: StoreEnv {name}")?,
                 Instruction::MakeVec(len) => writeln!(f, "{idx}: MakeVec {len}")?,
@@ -675,11 +684,11 @@ impl fmt::Display for ModifierBytecodeProgram {
                 Instruction::Binary(op) => writeln!(f, "{idx}: Binary {op:?}")?,
                 Instruction::CallBuiltin(builtin, arity) => {
                     writeln!(f, "{idx}: CallBuiltin {builtin:?} {arity}")?
-                }
+                },
                 Instruction::Index => writeln!(f, "{idx}: Index")?,
                 Instruction::CallMethod(name, arity) => {
                     writeln!(f, "{idx}: CallMethod {name} {arity}")?
-                }
+                },
                 Instruction::JumpIfFalse(target) => writeln!(f, "{idx}: JumpIfFalse {target}")?,
                 Instruction::Jump(target) => writeln!(f, "{idx}: Jump {target}")?,
                 Instruction::BeginFor(var, index_var) => {
@@ -688,7 +697,7 @@ impl fmt::Display for ModifierBytecodeProgram {
                     } else {
                         writeln!(f, "{idx}: BeginFor {var}")?;
                     }
-                }
+                },
                 Instruction::CheckFor(var, index_var, end) => {
                     if let Some(iv) = index_var {
                         writeln!(f, "{idx}: CheckFor {var} idx={iv} {end}")?;
@@ -698,16 +707,16 @@ impl fmt::Display for ModifierBytecodeProgram {
                 },
                 Instruction::AnchorLookup { actor, anchor } => {
                     writeln!(f, "{idx}: AnchorLookup {actor} {}", anchor.as_str())?
-                }
+                },
                 Instruction::WriteOverride { target, property } => {
                     writeln!(f, "{idx}: WriteOverride {target} {property}")?
-                }
+                },
                 Instruction::MakeClosure { params, body: _ } => {
                     writeln!(f, "{idx}: MakeClosure {:?}", params)?
-                }
+                },
                 Instruction::MakeObject { type_name, fields } => {
                     writeln!(f, "{idx}: MakeObject {type_name} {:?}", fields)?
-                }
+                },
                 Instruction::Halt => writeln!(f, "{idx}: Halt")?,
             }
         }

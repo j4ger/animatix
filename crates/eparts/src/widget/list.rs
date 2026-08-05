@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use egui::{Id, Sense};
 
-use crate::tokens::spatial::{density, ROW_M};
+use crate::tokens::spatial::{ROW_M, density};
 use crate::widget::input::TextField;
 use crate::widget::row::Row;
 
@@ -95,10 +95,8 @@ impl<'a> List<'a> {
             .ctx()
             .data(|d| d.get_temp::<String>(list_id.with("ta_buf")))
             .unwrap_or_default();
-        let mut ta_time: f64 = ui
-            .ctx()
-            .data(|d| d.get_temp::<f64>(list_id.with("ta_time")))
-            .unwrap_or(0.0);
+        let mut ta_time: f64 =
+            ui.ctx().data(|d| d.get_temp::<f64>(list_id.with("ta_time"))).unwrap_or(0.0);
         let now = ui.input(|i| i.time);
 
         // ── Keyboard events ─────────────────────────────────────────
@@ -107,27 +105,52 @@ impl<'a> List<'a> {
         ui.input(|i| {
             for ev in &i.events {
                 match ev {
-                    egui::Event::Key { key: egui::Key::ArrowDown, pressed: true, .. } => {
+                    egui::Event::Key {
+                        key: egui::Key::ArrowDown,
+                        pressed: true,
+                        ..
+                    } => {
                         if num_items > 0 {
-                            sel_idx = Some(sel_idx.map(|i| (i + 1).min(num_items - 1)).unwrap_or(0));
+                            sel_idx =
+                                Some(sel_idx.map(|i| (i + 1).min(num_items - 1)).unwrap_or(0));
                         }
-                    }
-                    egui::Event::Key { key: egui::Key::ArrowUp, pressed: true, .. } => {
+                    },
+                    egui::Event::Key {
+                        key: egui::Key::ArrowUp,
+                        pressed: true,
+                        ..
+                    } => {
                         if num_items > 0 {
                             sel_idx = Some(sel_idx.map(|i| i.saturating_sub(1)).unwrap_or(0));
                         }
-                    }
-                    egui::Event::Key { key: egui::Key::Home, pressed: true, .. } => {
-                        if num_items > 0 { sel_idx = Some(0); }
-                    }
-                    egui::Event::Key { key: egui::Key::End, pressed: true, .. } => {
-                        if num_items > 0 { sel_idx = Some(num_items - 1); }
-                    }
-                    egui::Event::Key { key: egui::Key::Enter, pressed: true, .. } => {
+                    },
+                    egui::Event::Key {
+                        key: egui::Key::Home,
+                        pressed: true,
+                        ..
+                    } => {
+                        if num_items > 0 {
+                            sel_idx = Some(0);
+                        }
+                    },
+                    egui::Event::Key {
+                        key: egui::Key::End,
+                        pressed: true,
+                        ..
+                    } => {
+                        if num_items > 0 {
+                            sel_idx = Some(num_items - 1);
+                        }
+                    },
+                    egui::Event::Key {
+                        key: egui::Key::Enter,
+                        pressed: true,
+                        ..
+                    } => {
                         if let Some(idx) = sel_idx {
                             action = Some(ListAction::Confirmed(idx));
                         }
-                    }
+                    },
                     egui::Event::Text(text) => {
                         if now - ta_time > timeout_secs {
                             ta_buffer.clear();
@@ -155,8 +178,8 @@ impl<'a> List<'a> {
                                 sel_idx = found;
                             }
                         }
-                    }
-                    _ => {}
+                    },
+                    _ => {},
                 }
             }
         });
@@ -167,7 +190,8 @@ impl<'a> List<'a> {
             ui.allocate_exact_size(egui::vec2(ui.available_width(), total_height), Sense::click());
 
         if outer_resp.clicked() {
-            if let Some(clicked_idx) = row_at(outer_resp.interact_pointer_pos(), outer_rect, row_h) {
+            if let Some(clicked_idx) = row_at(outer_resp.interact_pointer_pos(), outer_rect, row_h)
+            {
                 if clicked_idx < num_items {
                     sel_idx = Some(clicked_idx);
                     if action.is_none() {
@@ -179,7 +203,10 @@ impl<'a> List<'a> {
 
         if !ui.is_rect_visible(outer_rect) {
             persist_list_state(ui.ctx(), list_id, sel_idx, &ta_buffer, ta_time);
-            return ListResponse { action, selected_index: sel_idx };
+            return ListResponse {
+                action,
+                selected_index: sel_idx,
+            };
         }
 
         let painter = ui.painter_at(outer_rect);
@@ -193,15 +220,21 @@ impl<'a> List<'a> {
             let is_selected = sel_idx == Some(idx);
             let row_resp = ui.interact(row_rect, list_id.with(idx), Sense::click());
 
-            let _ = Row::new(label)
-                .height(row_h)
-                .selected(is_selected)
-                .show_in_rect(ui, row_rect, row_resp, list_id.with(idx), &painter);
+            let _ = Row::new(label).height(row_h).selected(is_selected).show_in_rect(
+                ui,
+                row_rect,
+                row_resp,
+                list_id.with(idx),
+                &painter,
+            );
         }
 
         persist_list_state(ui.ctx(), list_id, sel_idx, &ta_buffer, ta_time);
 
-        ListResponse { action, selected_index: sel_idx }
+        ListResponse {
+            action,
+            selected_index: sel_idx,
+        }
     }
 }
 
@@ -247,7 +280,11 @@ impl<'a> SearchableList<'a> {
     }
 
     /// Render the searchable list.
-    pub fn show(self, ui: &mut egui::Ui, id_source: impl std::hash::Hash) -> SearchableListResponse {
+    pub fn show(
+        self,
+        ui: &mut egui::Ui,
+        id_source: impl std::hash::Hash,
+    ) -> SearchableListResponse {
         let root_id = Id::new(id_source);
 
         // Filter + selection state in Memory.
@@ -308,11 +345,12 @@ impl<'a> SearchableList<'a> {
 
         // Map filtered index → original index.
         let confirmed_original = list_resp.action.and_then(|a| match a {
-            ListAction::Confirmed(fi) | ListAction::Clicked(fi) => filtered.get(fi).map(|(oi, _)| *oi),
+            ListAction::Confirmed(fi) | ListAction::Clicked(fi) => {
+                filtered.get(fi).map(|(oi, _)| *oi)
+            },
         });
-        let selected_original = list_resp
-            .selected_index
-            .and_then(|fi| filtered.get(fi).map(|(oi, _)| *oi));
+        let selected_original =
+            list_resp.selected_index.and_then(|fi| filtered.get(fi).map(|(oi, _)| *oi));
 
         // ── Persist filter ──────────────────────────────────────────
         ui.ctx().data_mut(|d| {
@@ -339,11 +377,19 @@ pub struct SearchableListResponse {
 
 // ── Internal helpers ─────────────────────────────────────────────────
 
-fn row_at(pointer_pos: Option<egui::Pos2>, outer_rect: egui::Rect, row_height: f32) -> Option<usize> {
+fn row_at(
+    pointer_pos: Option<egui::Pos2>,
+    outer_rect: egui::Rect,
+    row_height: f32,
+) -> Option<usize> {
     let pos = pointer_pos?;
-    if !outer_rect.contains(pos) { return None; }
+    if !outer_rect.contains(pos) {
+        return None;
+    }
     let rel_y = pos.y - outer_rect.min.y;
-    if rel_y < 0.0 { return None; }
+    if rel_y < 0.0 {
+        return None;
+    }
     Some((rel_y / row_height).floor() as usize)
 }
 
@@ -365,7 +411,11 @@ fn persist_list_state(
 
 /// Return the next index in a list of `item_count` items, or `None`.
 pub fn next_index(current: usize, item_count: usize) -> Option<usize> {
-    if current + 1 < item_count { Some(current + 1) } else { None }
+    if current + 1 < item_count {
+        Some(current + 1)
+    } else {
+        None
+    }
 }
 
 /// Return the previous index, or `None` if already at the start.
@@ -380,7 +430,11 @@ pub fn home_index(item_count: usize) -> Option<usize> {
 
 /// Return the last valid index, or `None` for an empty list.
 pub fn end_index(item_count: usize) -> Option<usize> {
-    if item_count == 0 { None } else { Some(item_count - 1) }
+    if item_count == 0 {
+        None
+    } else {
+        Some(item_count - 1)
+    }
 }
 
 /// Case-insensitive prefix match over a `&[&str]`.
@@ -393,14 +447,18 @@ pub fn type_ahead_prefix_match(prefix: &str, start: usize, items: &[&str]) -> Op
     }
     let lower = prefix.to_lowercase();
     let n = items.len();
-    if let Some((i, _)) = items[start..n].iter().enumerate().find(|(_, s)| {
-        s.to_lowercase().starts_with(&lower)
-    }) {
+    if let Some((i, _)) = items[start..n]
+        .iter()
+        .enumerate()
+        .find(|(_, s)| s.to_lowercase().starts_with(&lower))
+    {
         return Some(start + i);
     }
-    if let Some((i, _)) = items[0..start.min(n)].iter().enumerate().find(|(_, s)| {
-        s.to_lowercase().starts_with(&lower)
-    }) {
+    if let Some((i, _)) = items[0..start.min(n)]
+        .iter()
+        .enumerate()
+        .find(|(_, s)| s.to_lowercase().starts_with(&lower))
+    {
         return Some(i);
     }
     None

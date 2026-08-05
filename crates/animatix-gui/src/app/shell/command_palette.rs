@@ -1,15 +1,11 @@
 //! Command palette: Cmd+Shift+P searchable list of all commands.
 
-use crate::app::components::dialog::{DialogSpec, self};
 use crate::app::GuiShell;
-use crate::app::commands::ViewAction;
-use crate::app::commands::{ActorCommand, DocumentCommand, PlaybackCommand, ShellAction, ViewCommand};
-use crate::app::design_tokens::semantic::accent;
-use crate::app::design_tokens::semantic::border;
-use crate::app::design_tokens::semantic::surface;
-
-use crate::app::design_tokens::semantic::text;
-
+use crate::app::commands::{
+    ActorCommand, DocumentCommand, PlaybackCommand, ShellAction, ViewAction, ViewCommand,
+};
+use crate::app::components::dialog::{self, DialogSpec};
+use crate::app::design_tokens::semantic::{accent, border, surface, text};
 use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 

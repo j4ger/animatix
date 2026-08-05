@@ -16,14 +16,15 @@ impl Timeline {
                     &mut ignored_diagnostics,
                 );
                 Some(parsed.delay_ms + parsed.duration_ms)
-            }
+            },
             Stmt::Assignment {
                 target,
                 property,
                 modifiers,
                 ..
             } => {
-                let subject = format!("{}.{}", crate::timeline::assignment_target_key(target), property);
+                let subject =
+                    format!("{}.{}", crate::timeline::assignment_target_key(target), property);
                 let parsed = parse_timing_modifiers(
                     modifiers,
                     ModifierHost::Assignment,
@@ -31,7 +32,7 @@ impl Timeline {
                     &mut ignored_diagnostics,
                 );
                 Some(parsed.delay_ms + parsed.duration_ms)
-            }
+            },
             Stmt::Sequence { body, .. } => {
                 // Total duration of a nested sequence is the sum of its children's durations
                 let mut total = 0.0;
@@ -39,8 +40,10 @@ impl Timeline {
                     total += self.sequence_statement_span_ms(child)?;
                 }
                 Some(total)
-            }
-            Stmt::Stagger { modifiers, body, .. } => {
+            },
+            Stmt::Stagger {
+                modifiers, body, ..
+            } => {
                 let interval_ms = parse_stagger_interval_ms(modifiers, &mut ignored_diagnostics)?;
                 if body.is_empty() {
                     return Some(0.0);
@@ -49,7 +52,7 @@ impl Timeline {
                 let last_idx = body.len() - 1;
                 let last_span = self.sequence_statement_span_ms(&body[last_idx])?;
                 Some(interval_ms * last_idx as f64 + last_span)
-            }
+            },
             Stmt::LetDecl { .. } | Stmt::Comment(..) => Some(0.0),
             _ => None,
         }
@@ -82,7 +85,12 @@ impl Timeline {
                 continue;
             };
 
-            self.process_body(cursor_time_ms, std::slice::from_ref(stmt), parent_label, diagnostics);
+            self.process_body(
+                cursor_time_ms,
+                std::slice::from_ref(stmt),
+                parent_label,
+                diagnostics,
+            );
             cursor_time_ms += span_ms;
         }
     }
@@ -109,7 +117,12 @@ impl Timeline {
             };
 
             let stagger_time_ms = time_ms + interval_ms * index as f64;
-            self.process_body(stagger_time_ms, std::slice::from_ref(stmt), parent_label, diagnostics);
+            self.process_body(
+                stagger_time_ms,
+                std::slice::from_ref(stmt),
+                parent_label,
+                diagnostics,
+            );
         }
     }
 }

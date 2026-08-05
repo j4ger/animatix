@@ -24,10 +24,7 @@ impl Timeline {
                 child_track.parent = Some(parent.to_string());
             }
         } else {
-            let already_nested = self
-                .tracks
-                .values()
-                .any(|track| track.children.contains(&label));
+            let already_nested = self.tracks.values().any(|track| track.children.contains(&label));
 
             // No parent → root node, unless the actor already belongs to a container
             if !already_nested && !self.root_nodes.contains(&label) {

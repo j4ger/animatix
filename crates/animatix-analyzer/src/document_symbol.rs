@@ -1,8 +1,9 @@
 //! Document symbols (outline view) provider.
 
+use std::collections::HashSet;
+
 use crate::symbol_table::{LabelKind, SymbolTable};
 use crate::types::{DocumentSymbol, SymbolKind};
-use std::collections::HashSet;
 
 /// Get all document symbols for outline view.
 pub fn document_symbols(symbols: &SymbolTable) -> Vec<DocumentSymbol> {

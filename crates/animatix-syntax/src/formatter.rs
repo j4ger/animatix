@@ -8,14 +8,14 @@
 //!
 //! - **Idempotent**: formatting already-formatted code produces byte-identical output.
 //! - **Configurable**: indent size, blank line rules, trailing commas.
-//! - **AST-based**: delegates to [`format_core`](crate::format_core) for the
-//!   actual serialization, with formatting options applied on top.
+//! - **AST-based**: delegates to [`format_core`](crate::format_core) for the actual serialization,
+//!   with formatting options applied on top.
 //!
 //! # Examples
 //!
 //! ```
-//! use animatix_syntax::formatter::{Formatter, FormatConfig};
-//! use animatix_syntax::parser::{parser_simple, parser};
+//! use animatix_syntax::formatter::{FormatConfig, Formatter};
+//! use animatix_syntax::parser::{parser, parser_simple};
 //! use chumsky::Parser;
 //!
 //! let source = r#"#0s
@@ -84,10 +84,7 @@ impl Formatter {
         }
 
         let separator = "\n".repeat(1 + self.config.blank_lines_between_top_level);
-        let mut result: Vec<String> = stmts
-            .iter()
-            .map(|s| self.format_stmt(s, 0))
-            .collect();
+        let mut result: Vec<String> = stmts.iter().map(|s| self.format_stmt(s, 0)).collect();
 
         // Remove empty lines at the start
         let first_non_empty = result.iter().position(|s| !s.is_empty()).unwrap_or(result.len());
@@ -110,15 +107,13 @@ impl Formatter {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::parser::parser_simple;
     use chumsky::Parser;
 
+    use super::*;
+    use crate::parser::parser_simple;
+
     fn parse(source: &str) -> Vec<Stmt> {
-        parser_simple()
-            .parse(source)
-            .into_result()
-            .expect("failed to parse")
+        parser_simple().parse(source).into_result().expect("failed to parse")
     }
 
     #[test]
@@ -147,9 +142,8 @@ mod tests {
 
     #[test]
     fn format_container_with_children() {
-        let stmts = parse(
-            "row: Row, gap: 8 {\n  a: Rect, size: (10, 10)\n  b: Rect, size: (20, 20)\n}",
-        );
+        let stmts =
+            parse("row: Row, gap: 8 {\n  a: Rect, size: (10, 10)\n  b: Rect, size: (20, 20)\n}");
         let formatter = Formatter::default();
         let result = formatter.format(&stmts);
         assert!(result.contains("row: Row, gap: 8"));

@@ -327,9 +327,8 @@ mod tests {
         let mut diagnostics = Vec::new();
         Persist.execute(&action, 0.0, &mut timeline, &mut diagnostics);
 
-        let has_error = diagnostics.iter().any(|d| {
-            d.code == DiagnosticCode::UnsupportedActionTarget
-        });
+        let has_error =
+            diagnostics.iter().any(|d| d.code == DiagnosticCode::UnsupportedActionTarget);
         assert!(has_error, "persist on nonexistent target should emit error");
         assert!(!timeline.persistence_flags.contains_key("nonexistent"));
     }
@@ -444,38 +443,39 @@ mod tests {
 
     #[test]
     fn persist_via_build_sets_flag() {
-        let ast = vec![
-            Stmt::Keyframe {
-                time: Time::Seconds(0.0),
-                body: vec![
-                    text_decl("headline"),
-                    Stmt::Action(Action {
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![
+                text_decl("headline"),
+                Stmt::Action(
+                    Action {
                         verb: "persist".to_string(),
                         targets: vec!["headline".to_string()],
                         args: vec![],
                         modifiers: vec![],
                         byte_span: None,
-                    }, None),
-                ],
-                span: None,
-            },
-        ];
+                    },
+                    None,
+                ),
+            ],
+            span: None,
+        }];
 
-        let report = crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        assert_eq!(
-            report.output.persistence_flags.get("headline"),
-            Some(&true)
+        let report = crate::timeline::Timeline::build_with_diagnostics(
+            &ast,
+            &std::collections::HashMap::new(),
         );
+        assert_eq!(report.output.persistence_flags.get("headline"), Some(&true));
     }
 
     #[test]
     fn remove_via_build_clears_flag_and_sets_opacity() {
-        let ast = vec![
-            Stmt::Keyframe {
-                time: Time::Seconds(0.0),
-                body: vec![
-                    text_decl("headline"),
-                    Stmt::Action(Action {
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![
+                text_decl("headline"),
+                Stmt::Action(
+                    Action {
                         verb: "remove".to_string(),
                         targets: vec!["headline".to_string()],
                         args: vec![],
@@ -484,13 +484,17 @@ mod tests {
                             value: Expr::Ident("1s".to_string()),
                         }],
                         byte_span: None,
-                    }, None),
-                ],
-                span: None,
-            },
-        ];
+                    },
+                    None,
+                ),
+            ],
+            span: None,
+        }];
 
-        let report = crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+        let report = crate::timeline::Timeline::build_with_diagnostics(
+            &ast,
+            &std::collections::HashMap::new(),
+        );
         assert_eq!(
             report.output.persistence_flags.get("headline"),
             Some(&false),

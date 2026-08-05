@@ -4,10 +4,12 @@ use criterion::{Criterion, black_box, criterion_group, criterion_main};
 mod common;
 
 fn build_scene(actor_count: usize) -> Timeline {
-    let mut source = String::from(r#"config { colorscheme: "editorial-dark" }
+    let mut source = String::from(
+        r#"config { colorscheme: "editorial-dark" }
 
 #0s
-"#);
+"#,
+    );
     for i in 0..actor_count {
         source.push_str(&format!(
             "box{i}: Rect, size: (50, 50), color: accent.primary, at: ({}, {})\n",
@@ -19,7 +21,10 @@ fn build_scene(actor_count: usize) -> Timeline {
 }
 
 fn bench_scaling_no_cache(c: &mut Criterion) {
-    let dims = SceneDimensions { width: 1920, height: 1080 };
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
 
     for count in [10, 25, 50, 100, 200] {
         let timeline = build_scene(count);
@@ -30,7 +35,11 @@ fn bench_scaling_no_cache(c: &mut Criterion) {
                 black_box(timeline.evaluate_with_debug(
                     black_box(0.5),
                     dims,
-                    animatix::timeline::DebugRenderOptions { draw_bounds: true, compute_hit_regions: false, ..Default::default() },
+                    animatix::timeline::DebugRenderOptions {
+                        draw_bounds: true,
+                        compute_hit_regions: false,
+                        ..Default::default()
+                    },
                     &mut fb,
                 ));
             })

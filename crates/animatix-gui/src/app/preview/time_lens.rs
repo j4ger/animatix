@@ -4,16 +4,12 @@
 //! Ring shows keyframe dots. Drag horizontally to scrub time.
 //! Scroll wheel zooms time range. Release `T` → lens vanishes.
 
-use crate::app::design_tokens::semantic::accent;
-use crate::app::design_tokens::semantic::border;
+use egui::{Pos2, Stroke};
+
 use crate::app::design_tokens::semantic::canvas::grid_line;
-use crate::app::design_tokens::semantic::overlay;
-use crate::app::design_tokens::semantic::status;
-use crate::app::design_tokens::semantic::surface;
-use crate::app::design_tokens::semantic::text;
+use crate::app::design_tokens::semantic::{accent, border, overlay, status, surface, text};
 use crate::app::design_tokens::spatial::STROKE_WIDTH;
 use crate::app::design_tokens::typography::TextRole;
-use egui::{Pos2, Stroke};
 
 /// Radius of the time lens ring.
 const LENS_RADIUS: f32 = 60.0;

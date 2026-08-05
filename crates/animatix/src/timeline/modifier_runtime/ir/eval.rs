@@ -1,16 +1,13 @@
+use super::types::{
+    BuiltinFn, CompiledExpr, ModifierExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides,
+};
 use crate::ast::{BinaryOp, LoopPattern, UnaryOp, array_actor_label};
 use crate::timeline::callout_geometry::env_anchor_point;
 use crate::timeline::env::CapturedEnv;
 use crate::timeline::{Environment, EvalError, Value};
-use super::types::{
-    BuiltinFn, CompiledExpr, ModifierExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides,
-};
 
 /// Evaluate a modifier expression, dispatching between compiled and unsupported variants.
-pub fn evaluate_modifier_expr(
-    expr: &ModifierExpr,
-    env: &Environment,
-) -> Result<Value, EvalError> {
+pub fn evaluate_modifier_expr(expr: &ModifierExpr, env: &Environment) -> Result<Value, EvalError> {
     match expr {
         ModifierExpr::Compiled(expr) => evaluate_compiled_expr(expr, env),
         ModifierExpr::Unsupported(expr) => crate::timeline::evaluate_expr(expr, env),
@@ -50,7 +47,7 @@ fn execute_modifier_stmt(
                 frame_env, &label, property, val,
             );
             Ok(())
-        }
+        },
         ModifierIrStmt::AssignIndexed {
             base,
             index,
@@ -65,17 +62,19 @@ fn execute_modifier_stmt(
                 Value::Num(n) => {
                     tracing::warn!(
                         "Array index for '{}' must be a non-negative integer, got {}",
-                        base, n
+                        base,
+                        n
                     );
                     return Ok(());
-                }
+                },
                 other => {
                     tracing::warn!(
                         "Array index for '{}' must evaluate to a number, got {:?}",
-                        base, other
+                        base,
+                        other
                     );
                     return Ok(());
-                }
+                },
             };
             let label = array_actor_label(base, n);
             overrides
@@ -86,12 +85,12 @@ fn execute_modifier_stmt(
                 frame_env, &label, property, val,
             );
             Ok(())
-        }
+        },
         ModifierIrStmt::Let { name, value } => {
             let val = evaluate_modifier_expr(value, frame_env)?;
             frame_env.set(name, val);
             Ok(())
-        }
+        },
         ModifierIrStmt::If {
             condition,
             then_branch,
@@ -107,7 +106,7 @@ fn execute_modifier_stmt(
                 execute_modifier_stmt(stmt, frame_env, overrides)?;
             }
             Ok(())
-        }
+        },
         ModifierIrStmt::For {
             var,
             index_var,
@@ -135,27 +134,24 @@ fn execute_modifier_stmt(
             match var {
                 LoopPattern::Single(name) => {
                     frame_env.overrides.remove(name);
-                }
+                },
                 LoopPattern::Tuple(names) => {
                     for name in names {
                         frame_env.overrides.remove(name);
                     }
-                }
+                },
             }
             if let Some(iv) = index_var {
                 frame_env.overrides.remove(iv);
             }
             Ok(())
-        }
+        },
         ModifierIrStmt::Noop => Ok(()),
     }
 }
 
 /// Evaluate a compiled expression against the given environment.
-pub fn evaluate_compiled_expr(
-    expr: &CompiledExpr,
-    env: &Environment,
-) -> Result<Value, EvalError> {
+pub fn evaluate_compiled_expr(expr: &CompiledExpr, env: &Environment) -> Result<Value, EvalError> {
     match expr {
         CompiledExpr::Const(value) => Ok(value.clone()),
         CompiledExpr::LoadEnv(name) => env
@@ -168,19 +164,19 @@ pub fn evaluate_compiled_expr(
                 .map(|item| evaluate_compiled_expr(item, env))
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(make_vec_value(values))
-        }
+        },
         CompiledExpr::Unary(op, expr) => {
             let value = evaluate_compiled_expr(expr, env)?;
             match op {
                 UnaryOp::Neg => Ok(Value::Num(-value.as_num())),
                 UnaryOp::Not => Ok(Value::Num(if value.as_num() == 0.0 { 1.0 } else { 0.0 })),
             }
-        }
+        },
         CompiledExpr::Binary(left, op, right) => {
             let left = evaluate_compiled_expr(left, env)?;
             let right = evaluate_compiled_expr(right, env)?;
             apply_binary_op(left, op, right)
-        }
+        },
         CompiledExpr::Select(condition, then_expr, else_expr) => {
             let cond = evaluate_compiled_expr(condition, env)?;
             if cond.as_num() != 0.0 {
@@ -188,7 +184,7 @@ pub fn evaluate_compiled_expr(
             } else {
                 evaluate_compiled_expr(else_expr, env)
             }
-        }
+        },
         CompiledExpr::CallBuiltin(builtin, args) => {
             let args = args
                 .iter()
@@ -216,7 +212,7 @@ pub fn evaluate_compiled_expr(
                 BuiltinFn::ListSet => "list_set",
             };
             crate::timeline::eval_shared::eval_builtin_fn(name, &args)
-        }
+        },
         CompiledExpr::Index(container, index) => {
             let container_val = evaluate_compiled_expr(container, env)?;
             let index_val = evaluate_compiled_expr(index, env)?;
@@ -229,17 +225,15 @@ pub fn evaluate_compiled_expr(
                         items.len()
                     ))
                 }),
-                Value::Str(s) => s
-                    .chars()
-                    .nth(idx)
-                    .map(|c| Value::Str(c.to_string()))
-                    .ok_or_else(|| {
+                Value::Str(s) => {
+                    s.chars().nth(idx).map(|c| Value::Str(c.to_string())).ok_or_else(|| {
                         EvalError::TypeMismatch(format!(
                             "Index {} out of bounds for string of length {}",
                             idx,
                             s.len()
                         ))
-                    }),
+                    })
+                },
                 Value::Vec2(v) => match idx {
                     0 => Ok(Value::Num(v[0])),
                     1 => Ok(Value::Num(v[1])),
@@ -277,12 +271,9 @@ pub fn evaluate_compiled_expr(
                         idx
                     ))),
                 },
-                other => Err(EvalError::TypeMismatch(format!(
-                    "Cannot index into {:?}",
-                    other
-                ))),
+                other => Err(EvalError::TypeMismatch(format!("Cannot index into {:?}", other))),
             }
-        }
+        },
         CompiledExpr::Method(receiver, name, args) => {
             let receiver_val = evaluate_compiled_expr(receiver, env)?;
             let arg_values: Vec<Value> = args
@@ -290,10 +281,10 @@ pub fn evaluate_compiled_expr(
                 .map(|arg| evaluate_compiled_expr(arg, env))
                 .collect::<Result<Vec<_>, _>>()?;
             eval_method(receiver_val, name, &arg_values, env)
-        }
+        },
         CompiledExpr::Closure(params, body) => {
             Ok(Value::Closure(params.clone(), body.clone(), CapturedEnv::snapshot(env)))
-        }
+        },
         CompiledExpr::Construct(name, fields) => {
             let mut map = std::collections::HashMap::new();
             for (field_name, field_expr) in fields {
@@ -301,12 +292,10 @@ pub fn evaluate_compiled_expr(
                 map.insert(field_name.clone(), val);
             }
             Ok(Value::Object(name.clone(), map))
-        }
-        CompiledExpr::AnchorLookup { actor, anchor } => {
-            env_anchor_point(env, actor, *anchor)
-                .map(Value::Vec2)
-                .ok_or_else(|| EvalError::UndefinedVariable(format!("{actor}.{}", anchor.as_str())))
-        }
+        },
+        CompiledExpr::AnchorLookup { actor, anchor } => env_anchor_point(env, actor, *anchor)
+            .map(Value::Vec2)
+            .ok_or_else(|| EvalError::UndefinedVariable(format!("{actor}.{}", anchor.as_str()))),
     }
 }
 
@@ -421,7 +410,7 @@ fn bind_loop_var_ir(frame_env: &mut Environment, var: &LoopPattern, value: Value
     match var {
         LoopPattern::Single(name) => {
             frame_env.set(name, value);
-        }
+        },
         LoopPattern::Tuple(names) => {
             let components: Vec<Value> = match &value {
                 Value::List(items) => items.clone(),
@@ -436,6 +425,6 @@ fn bind_loop_var_ir(frame_env: &mut Environment, var: &LoopPattern, value: Value
                     frame_env.set(name, components[i].clone());
                 }
             }
-        }
+        },
     }
 }

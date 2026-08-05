@@ -1,7 +1,8 @@
-use super::VelloPath;
 use kurbo::{BezPath, Shape};
 use usvg::{Node, Options, Tree};
 use vello::peniko::Color;
+
+use super::VelloPath;
 
 /// Compute the half-size bounding box of a set of SVG paths.
 pub fn measure_svg_paths(paths: &[VelloPath]) -> [f32; 2] {
@@ -72,26 +73,26 @@ pub fn parse_svg(svg_data: &str) -> Result<Vec<VelloPath>, String> {
                         match segment {
                             usvg::tiny_skia_path::PathSegment::MoveTo(pt) => {
                                 bez_path.move_to((pt.x as f64, pt.y as f64));
-                            }
+                            },
                             usvg::tiny_skia_path::PathSegment::LineTo(pt) => {
                                 bez_path.line_to((pt.x as f64, pt.y as f64));
-                            }
+                            },
                             usvg::tiny_skia_path::PathSegment::QuadTo(p1, p2) => {
                                 bez_path.quad_to(
                                     (p1.x as f64, p1.y as f64),
                                     (p2.x as f64, p2.y as f64),
                                 );
-                            }
+                            },
                             usvg::tiny_skia_path::PathSegment::CubicTo(p1, p2, p3) => {
                                 bez_path.curve_to(
                                     (p1.x as f64, p1.y as f64),
                                     (p2.x as f64, p2.y as f64),
                                     (p3.x as f64, p3.y as f64),
                                 );
-                            }
+                            },
                             usvg::tiny_skia_path::PathSegment::Close => {
                                 bez_path.close_path();
-                            }
+                            },
                         }
                     }
 
@@ -139,9 +140,9 @@ pub fn parse_svg(svg_data: &str) -> Result<Vec<VelloPath>, String> {
                         line_cap: 0,
                         line_join: 0,
                     });
-                }
-                Node::Image(_) => {}
-                Node::Text(_) => {}
+                },
+                Node::Image(_) => {},
+                Node::Text(_) => {},
             }
         }
     }
@@ -154,7 +155,7 @@ pub fn parse_svg(svg_data: &str) -> Result<Vec<VelloPath>, String> {
 
 /// Read and parse an SVG file.
 pub fn parse_svg_file(path: &str) -> Result<Vec<VelloPath>, String> {
-    let svg_content =
-        std::fs::read_to_string(path).map_err(|error| format!("Failed to read SVG file '{path}': {error}"))?;
+    let svg_content = std::fs::read_to_string(path)
+        .map_err(|error| format!("Failed to read SVG file '{path}': {error}"))?;
     parse_svg(&svg_content)
 }

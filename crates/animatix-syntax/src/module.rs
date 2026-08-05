@@ -6,18 +6,22 @@ mod expand;
 mod inline_actions;
 mod rewrite;
 
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
+use std::{fmt, fs};
+
+use discovery::{
+    collect_component_actions, collect_component_defs, collect_imports, collect_scenes_from_stmts,
+    strip_imports,
+};
+use expand::expand_statements;
+
 use crate::ast::{
     Action, ComponentDef, Expr, InlineItem, MatchPattern, Modifier, ParamDef, Property, Span, Stmt,
     TargetSegment,
 };
+use crate::parser::{ParseError, parse_source};
 use crate::walk::walk_stmts_mut;
-use crate::parser::{parse_source, ParseError};
-use discovery::{collect_component_actions, collect_component_defs, collect_imports, collect_scenes_from_stmts, strip_imports};
-use expand::expand_statements;
-use std::collections::{HashMap, HashSet};
-use std::fmt;
-use std::fs;
-use std::path::{Path, PathBuf};
 
 /// Walk the AST and convert `Action.byte_span` into `Stmt::Action` line/col spans.
 fn set_action_spans(stmts: &mut [Stmt], source: &str) {
@@ -166,18 +170,23 @@ fn collect_pub_lets(statements: &[Stmt]) -> HashMap<String, Expr> {
 fn collect_pub_lets_inner(statements: &[Stmt], result: &mut HashMap<String, Expr>) {
     for stmt in statements {
         match stmt {
-            Stmt::LetDecl { is_pub, name, value, .. } => {
+            Stmt::LetDecl {
+                is_pub,
+                name,
+                value,
+                ..
+            } => {
                 if *is_pub {
                     result.insert(name.clone(), value.clone());
                 }
-            }
+            },
             Stmt::Keyframe { body, .. }
             | Stmt::RelativeKeyframe { body, .. }
             | Stmt::Sequence { body, .. }
             | Stmt::Stagger { body, .. } => {
                 collect_pub_lets_inner(body, result);
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 }
@@ -198,10 +207,7 @@ fn resolve_exports(
     resolved
 }
 
-fn resolve_reexport_expr(
-    expr: &Expr,
-    import_namespaces: &HashMap<String, &Namespace>,
-) -> Expr {
+fn resolve_reexport_expr(expr: &Expr, import_namespaces: &HashMap<String, &Namespace>) -> Expr {
     match expr {
         Expr::Path(segments) if !segments.is_empty() => {
             if let Some(ns) = import_namespaces.get(&segments[0]) {
@@ -212,7 +218,7 @@ fn resolve_reexport_expr(
             } else {
                 expr.clone()
             }
-        }
+        },
         _ => expr.clone(),
     }
 }
@@ -238,7 +244,7 @@ fn resolve_path_in_namespace(
                     } else {
                         None
                     }
-                }
+                },
                 _ => None,
             }
         }
@@ -289,7 +295,7 @@ impl fmt::Display for ModuleError {
         match self {
             ModuleError::FileNotFound(path) => {
                 write!(f, "File not found: {}", path.display())
-            }
+            },
             ModuleError::ParseErrors(errors) => {
                 for (i, err) in errors.iter().enumerate() {
                     if i > 0 {
@@ -316,15 +322,12 @@ impl fmt::Display for ModuleError {
                     }
                 }
                 Ok(())
-            }
+            },
             ModuleError::CycleDetected(paths) => {
-                let cycle = paths
-                    .iter()
-                    .map(|p| p.display().to_string())
-                    .collect::<Vec<_>>()
-                    .join(" -> ");
+                let cycle =
+                    paths.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(" -> ");
                 write!(f, "Circular dependency detected: {}", cycle)
-            }
+            },
             ModuleError::DuplicateComponent {
                 name,
                 first_path,
@@ -338,7 +341,7 @@ impl fmt::Display for ModuleError {
             ),
             ModuleError::IoError(e) => {
                 write!(f, "IO error: {}", e)
-            }
+            },
         }
     }
 }
@@ -440,7 +443,7 @@ impl ModuleGraph {
 
             let result = self.load_file(&import_path, visiting, source_override)?;
             all_import_ids.push(
-                    self.paths
+                self.paths
                     .get(&fs::canonicalize(&import_path).map_err(ModuleError::IoError)?)
                     .copied()
                     .expect("path was just inserted by load_file"),
@@ -469,13 +472,9 @@ impl ModuleGraph {
                 .imports
                 .iter()
                 .filter_map(|imp| {
-                    let path = Self::resolve_path(
-                        module.path.parent().unwrap_or(Path::new(".")),
-                        &imp.0,
-                    );
-                    fs::canonicalize(&path)
-                        .ok()
-                        .and_then(|p| self.paths.get(&p).copied())
+                    let path =
+                        Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
+                    fs::canonicalize(&path).ok().and_then(|p| self.paths.get(&p).copied())
                 })
                 .collect()
         } else {
@@ -488,7 +487,8 @@ impl ModuleGraph {
         self.load_entry_with_source(path, None)
     }
 
-    /// Load an entry file with optional source override and return all flattened top-level statements.
+    /// Load an entry file with optional source override and return all flattened top-level
+    /// statements.
     pub fn load_entry_with_source(
         &mut self,
         path: &Path,
@@ -520,7 +520,8 @@ impl ModuleGraph {
         self.load_program_with_source(path, None)
     }
 
-    /// Load an entry file with optional source override and return a fully resolved `LoadedProgram`.
+    /// Load an entry file with optional source override and return a fully resolved
+    /// `LoadedProgram`.
     pub fn load_program_with_source(
         &mut self,
         path: &Path,
@@ -566,10 +567,13 @@ impl ModuleGraph {
                     {
                         let resolved_exports = self.collect_resolved_exports(import_id);
                         let resolved_scenes = self.collect_resolved_scenes(import_id);
-                        namespaces.insert(alias.clone(), Namespace {
-                            exports: resolved_exports,
-                            scenes: resolved_scenes,
-                        });
+                        namespaces.insert(
+                            alias.clone(),
+                            Namespace {
+                                exports: resolved_exports,
+                                scenes: resolved_scenes,
+                            },
+                        );
                     }
                 }
             }
@@ -584,7 +588,8 @@ impl ModuleGraph {
     }
 
     /// Collect module-scoped actions from a list of statements.
-    /// Walks into keyframe / relative-keyframe / sequence / stagger / always / drive / conditional / for bodies.
+    /// Walks into keyframe / relative-keyframe / sequence / stagger / always / drive / conditional
+    /// / for bodies.
     #[doc(hidden)]
     pub fn collect_module_actions(stmts: &[Stmt]) -> HashMap<String, ActionTemplate> {
         let mut actions = HashMap::new();
@@ -594,9 +599,14 @@ impl ModuleGraph {
         actions
     }
 
-    fn collect_module_actions_from_stmt(stmt: &Stmt, actions: &mut HashMap<String, ActionTemplate>) {
+    fn collect_module_actions_from_stmt(
+        stmt: &Stmt,
+        actions: &mut HashMap<String, ActionTemplate>,
+    ) {
         match stmt {
-            Stmt::ComponentAction { name, params, body, .. } => {
+            Stmt::ComponentAction {
+                name, params, body, ..
+            } => {
                 actions.insert(
                     name.clone(),
                     ActionTemplate {
@@ -604,7 +614,7 @@ impl ModuleGraph {
                         body: body.clone(),
                     },
                 );
-            }
+            },
             Stmt::Keyframe { body, .. }
             | Stmt::RelativeKeyframe { body, .. }
             | Stmt::Sequence { body, .. }
@@ -614,7 +624,7 @@ impl ModuleGraph {
                 for stmt in body {
                     Self::collect_module_actions_from_stmt(stmt, actions);
                 }
-            }
+            },
             Stmt::Conditional {
                 then_branch,
                 else_branch,
@@ -628,18 +638,15 @@ impl ModuleGraph {
                         Self::collect_module_actions_from_stmt(stmt, actions);
                     }
                 }
-            }
-            Stmt::Match {
-                arms,
-                ..
-            } => {
+            },
+            Stmt::Match { arms, .. } => {
                 for (_, body) in arms {
                     for stmt in body {
                         Self::collect_module_actions_from_stmt(stmt, actions);
                     }
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 
@@ -654,26 +661,27 @@ impl ModuleGraph {
         let mut import_namespaces: HashMap<String, Namespace> = HashMap::new();
         for imp in &module.imports {
             if let Some(alias) = &imp.1 {
-                let import_path = Self::resolve_path(
-                    module.path.parent().unwrap_or(Path::new(".")),
-                    &imp.0,
-                );
-                if let Some(sub_id) = fs::canonicalize(&import_path)
-                    .ok()
-                    .and_then(|p| self.paths.get(&p).copied())
+                let import_path =
+                    Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
+                if let Some(sub_id) =
+                    fs::canonicalize(&import_path).ok().and_then(|p| self.paths.get(&p).copied())
                 {
                     let sub_exports = self.collect_resolved_exports(sub_id);
                     let sub_scenes = self.collect_resolved_scenes(sub_id);
-                    import_namespaces.insert(alias.clone(), Namespace { exports: sub_exports, scenes: sub_scenes });
+                    import_namespaces.insert(
+                        alias.clone(),
+                        Namespace {
+                            exports: sub_exports,
+                            scenes: sub_scenes,
+                        },
+                    );
                 }
             }
         }
 
         let raw_exports = collect_pub_lets(&module.statements);
-        let import_refs: HashMap<String, &Namespace> = import_namespaces
-            .iter()
-            .map(|(k, v)| (k.clone(), v))
-            .collect();
+        let import_refs: HashMap<String, &Namespace> =
+            import_namespaces.iter().map(|(k, v)| (k.clone(), v)).collect();
         resolve_exports(raw_exports, &import_refs)
     }
 
@@ -697,13 +705,10 @@ impl ModuleGraph {
         // These are available as "alias.SceneName" in the parent namespace.
         for imp in &module.imports {
             if let Some(alias) = &imp.1 {
-                let import_path = Self::resolve_path(
-                    module.path.parent().unwrap_or(Path::new(".")),
-                    &imp.0,
-                );
-                if let Some(sub_id) = fs::canonicalize(&import_path)
-                    .ok()
-                    .and_then(|p| self.paths.get(&p).copied())
+                let import_path =
+                    Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
+                if let Some(sub_id) =
+                    fs::canonicalize(&import_path).ok().and_then(|p| self.paths.get(&p).copied())
                 {
                     let sub_scenes = self.collect_resolved_scenes(sub_id);
                     for (name, data) in sub_scenes {
@@ -737,9 +742,8 @@ impl ModuleGraph {
                 }
                 let import_path =
                     Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
-                if let Some(import_id) = fs::canonicalize(&import_path)
-                    .ok()
-                    .and_then(|p| self.paths.get(&p).copied())
+                if let Some(import_id) =
+                    fs::canonicalize(&import_path).ok().and_then(|p| self.paths.get(&p).copied())
                 {
                     self.flatten_module_stmts(import_id, result, visited);
                 }
@@ -771,9 +775,8 @@ impl ModuleGraph {
                 }
                 let import_path =
                     Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
-                if let Some(import_id) = fs::canonicalize(&import_path)
-                    .ok()
-                    .and_then(|p| self.paths.get(&p).copied())
+                if let Some(import_id) =
+                    fs::canonicalize(&import_path).ok().and_then(|p| self.paths.get(&p).copied())
                 {
                     self.flatten_recursive(import_id, result, visited)?;
                 }
@@ -805,9 +808,8 @@ impl ModuleGraph {
             for imp in &module.imports {
                 let import_path =
                     Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
-                if let Some(import_id) = fs::canonicalize(&import_path)
-                    .ok()
-                    .and_then(|p| self.paths.get(&p).copied())
+                if let Some(import_id) =
+                    fs::canonicalize(&import_path).ok().and_then(|p| self.paths.get(&p).copied())
                 {
                     self.collect_components_recursive(import_id, entry_id, components, visited)?;
                 }
@@ -840,7 +842,6 @@ impl ModuleGraph {
 
         Ok(())
     }
-
 }
 
 impl Default for ModuleGraph {

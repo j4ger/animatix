@@ -1,3 +1,5 @@
+use eframe::egui;
+
 use super::*;
 use crate::app::audio::AudioEngine;
 use crate::app::commands::{
@@ -9,7 +11,6 @@ use crate::app::design_tokens::spatial::spatial_from_ctx;
 use crate::app::persistence::{
     clear_app_state, load_app_state, load_workspace_persistence, persistence_path, save_app_state,
 };
-use eframe::egui;
 
 pub fn run_gui(path: Option<PathBuf>) {
     let (initial_path, show_welcome) = match path {
@@ -140,10 +141,9 @@ impl AnimatixApp {
     }
 
     fn handle_keyboard_shortcuts(&mut self, ctx: &egui::Context) {
-        use crate::app::interaction::keyboard::{FocusContext, KeyboardAction};
+        use crate::app::interaction::keyboard::{FocusContext, KeyboardAction, SHORTCUT_REGISTRY};
         use crate::app::preview::{DragState, ToolMode};
         use crate::app::shell::insertion_palette::PaletteMode;
-        use crate::app::interaction::keyboard::SHORTCUT_REGISTRY;
 
         let has_selection = !self.shell.ui_store.selection.selected_actors.is_empty();
         let focus = FocusContext {
@@ -350,28 +350,34 @@ impl AnimatixApp {
                         let keyframe_mode = self.shell.ui_store.keyframe_mode;
                         let selected: Vec<String> =
                             self.shell.ui_store.selection.selected_actors.iter().cloned().collect();
-                        let nudge_data: Vec<(String, [f32; 2])> =
-                            self.shell.document_store.source.document.active_timeline()
-                                .map(|t| {
-                                    selected.iter().filter_map(|actor| {
+                        let nudge_data: Vec<(String, [f32; 2])> = self
+                            .shell
+                            .document_store
+                            .source
+                            .document
+                            .active_timeline()
+                            .map(|t| {
+                                selected
+                                    .iter()
+                                    .filter_map(|actor| {
                                         t.get_track(actor).and_then(|track| {
                                             track.geometry.position.as_ref().map(|p| {
                                                 let pos = p.evaluate(time_ms);
                                                 (actor.clone(), [pos[0] + dx, pos[1] + dy])
                                             })
                                         })
-                                    }).collect()
-                                }).unwrap_or_default();
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default();
                         for (actor, new_pos) in &nudge_data {
-                            self.shell.handle_property_edit(
-                                crate::app::panels::PropertyEdit {
-                                    time_s: None,
-                                    actor: actor.clone(),
-                                    property: "position".into(),
-                                    value: crate::app::panels::PropertyValue::Vec2(*new_pos),
-                                    create_keyframe: keyframe_mode,
-                                },
-                            );
+                            self.shell.handle_property_edit(crate::app::panels::PropertyEdit {
+                                time_s: None,
+                                actor: actor.clone(),
+                                property: "position".into(),
+                                value: crate::app::panels::PropertyValue::Vec2(*new_pos),
+                                create_keyframe: keyframe_mode,
+                            });
                         }
                     } else {
                         // No selection: left/right arrows become frame stepping
@@ -609,6 +615,12 @@ impl eframe::App for AnimatixApp {
         // Prepare frame (hot reload, playback tick, pending rebuild)
         self.shell.prepare_frame();
 
+        if let Some(err) = self.shell.workspace_store.hot_reload_error.take() {
+            self.shell.ui_store.toasts.push(crate::app::components::toast::Toast::warning(
+                format!("Hot reload unavailable: {err}"),
+            ));
+        }
+
         // Re-resolve the app theme. Periodically re-probe the OS appearance (cheap
         // amortized: every ~2s) so `Auto` follows runtime OS light/dark changes;
         // reapply only when the effective theme actually changes.
@@ -657,10 +669,15 @@ impl eframe::App for AnimatixApp {
 
         // Sync audio with playback state
         if let Some(audio_engine) = &mut self.audio_engine {
-            let segments = self.shell.document_store.source.document.all_audio_segments();
-            let time_s = self.shell.preview_store.preview.playback.current_time_s();
             let playing = self.shell.preview_store.preview.playback.is_playing;
-            audio_engine.sync(&segments, time_s, playing);
+            let segments = if playing {
+                self.shell.document_store.source.document.all_audio_segments()
+            } else {
+                Vec::new()
+            };
+            let time_s = self.shell.preview_store.preview.playback.current_time_s();
+            let playback_speed = self.shell.preview_store.preview.playback.playback_speed;
+            audio_engine.sync(&segments, time_s, playing, playback_speed);
         }
 
         // Sync preview surface (render vello, register texture)

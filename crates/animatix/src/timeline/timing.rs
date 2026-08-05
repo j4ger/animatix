@@ -35,9 +35,7 @@ pub(crate) fn push_unsupported_stagger_statement_diagnostic(
     let message = if kind == "actor declaration" {
         "Stagger blocks do not support actor declarations. Declare actors before the composition block, then reference them inside.".to_string()
     } else {
-        format!(
-            "Stagger blocks support only actions and assignments; '{kind}' is not supported."
-        )
+        format!("Stagger blocks support only actions and assignments; '{kind}' is not supported.")
     };
     diagnostics.push(
         Diagnostic::error(
@@ -220,7 +218,7 @@ pub(crate) fn parse_stagger_interval_ms(
                         Some("stagger"),
                     );
                 }
-            }
+            },
             Some("each") => {
                 if let Expr::Ident(raw) = &modifier.value {
                     if let Some(parsed_ms) = parse_duration_literal(raw) {
@@ -255,7 +253,7 @@ pub(crate) fn parse_stagger_interval_ms(
                         Some("stagger"),
                     );
                 }
-            }
+            },
             Some(other) => push_modifier_diagnostic(
                 diagnostics,
                 DiagnosticCode::UnsupportedModifierKey,
@@ -324,7 +322,7 @@ pub(crate) fn parse_timing_modifiers(
                             subject,
                         );
                     }
-                }
+                },
                 other => push_modifier_diagnostic(
                     diagnostics,
                     DiagnosticCode::InvalidModifierValue,
@@ -360,7 +358,7 @@ pub(crate) fn parse_timing_modifiers(
                             subject,
                         );
                     }
-                }
+                },
                 other => push_modifier_diagnostic(
                     diagnostics,
                     DiagnosticCode::InvalidModifierValue,
@@ -412,7 +410,7 @@ pub(crate) fn parse_timing_modifiers(
                             ),
                         }
                         saw_strategy = true;
-                    }
+                    },
                     other => push_modifier_diagnostic(
                         diagnostics,
                         DiagnosticCode::InvalidModifierValue,
@@ -424,7 +422,7 @@ pub(crate) fn parse_timing_modifiers(
                         subject,
                     ),
                 }
-            }
+            },
             Some("path_arc") => {
                 if !host.supports_morph_modifiers() {
                     push_modifier_diagnostic(
@@ -467,7 +465,7 @@ pub(crate) fn parse_timing_modifiers(
                         subject,
                     );
                 }
-            }
+            },
             Some("stretch") => {
                 if !host.supports_morph_modifiers() {
                     push_modifier_diagnostic(
@@ -494,7 +492,7 @@ pub(crate) fn parse_timing_modifiers(
                         }
                         parsed.morph_options.stretch = *value;
                         saw_stretch = true;
-                    }
+                    },
                     Expr::Ident(raw) if raw == "true" || raw == "false" => {
                         if saw_stretch {
                             push_conflicting_modifier_diagnostic(
@@ -506,7 +504,7 @@ pub(crate) fn parse_timing_modifiers(
                         }
                         parsed.morph_options.stretch = raw == "true";
                         saw_stretch = true;
-                    }
+                    },
                     other => push_modifier_diagnostic(
                         diagnostics,
                         DiagnosticCode::InvalidModifierValue,
@@ -518,14 +516,14 @@ pub(crate) fn parse_timing_modifiers(
                         subject,
                     ),
                 }
-            }
+            },
             // Action-specific effect modifiers handled directly by action execute functions.
             // These are declared in ActionSignature.modifiers and consumed by the action itself;
             // the timing parser must not warn on them. Extend this list if a new action
             // declares custom effect keys (alternative: thread ActionSignature into this fn).
             Some("intensity" | "frequency" | "color" | "blend" | "padding" | "radius") => {
                 // Valid action-effect modifiers — not timing modifiers, skip diagnostic.
-            }
+            },
             Some(name) => push_modifier_diagnostic(
                 diagnostics,
                 DiagnosticCode::UnsupportedModifierKey,
@@ -569,7 +567,7 @@ pub(crate) fn parse_timing_modifiers(
                             subject,
                         );
                     }
-                }
+                },
                 other => push_modifier_diagnostic(
                     diagnostics,
                     DiagnosticCode::InvalidModifierValue,

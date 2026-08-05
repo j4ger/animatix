@@ -95,11 +95,7 @@ pub fn expr_to_source(expr: &Expr) -> String {
 /// the AST, the entire tree is re-serialized via this function to produce the
 /// updated source text.
 pub fn stmts_to_source(stmts: &[Stmt]) -> String {
-    stmts
-        .iter()
-        .map(|s| s.to_source())
-        .collect::<Vec<_>>()
-        .join("\n\n")
+    stmts.iter().map(|s| s.to_source()).collect::<Vec<_>>().join("\n\n")
 }
 
 // ---------------------------------------------------------------------------
@@ -108,9 +104,10 @@ pub fn stmts_to_source(stmts: &[Stmt]) -> String {
 
 #[cfg(test)]
 mod tests {
+    use chumsky::Parser;
+
     use super::*;
     use crate::ast::{Expr, Stmt, Time};
-    use chumsky::Parser;
 
     const SHOWCASE_FIXTURE: &str = r#"// Animatix Showcase
 // A 5-second demonstration of layout, animation, primitives, and composition.
@@ -380,10 +377,8 @@ features: Col, anchor: scene.left {
 
     #[test]
     fn serialize_color_rgb() {
-        let expr = Expr::Call(
-            "rgb".into(),
-            vec![Expr::Num(255.0), Expr::Num(128.0), Expr::Num(0.0)],
-        );
+        let expr =
+            Expr::Call("rgb".into(), vec![Expr::Num(255.0), Expr::Num(128.0), Expr::Num(0.0)]);
         assert_eq!(expr.to_source(), "rgb(255, 128, 0)");
     }
 
@@ -446,10 +441,7 @@ btn: Rect, size: (100, 200) // half-extents"#;
         if let Stmt::Keyframe { body, .. } = &reparsed[0] {
             if let Stmt::ActorDecl { props, .. } = &body[0] {
                 let size_prop = props.iter().find(|p| p.name == "size").unwrap();
-                assert_eq!(
-                    size_prop.trailing_comment.as_deref(),
-                    Some(" half-extents")
-                );
+                assert_eq!(size_prop.trailing_comment.as_deref(), Some(" half-extents"));
             } else {
                 panic!("Expected ActorDecl");
             }
@@ -491,11 +483,11 @@ btn: Rect, size: (100, 200) // half-extents"#;
         let source = r#"orbiter.at := tracker.at + (200 * cos(3 * t), 200 * sin(3 * t))"#;
         let parsed = crate::parser::parser_simple().parse(source).unwrap();
         assert_eq!(parsed.len(), 1);
-        if let Stmt::ReactiveBinding { target, property, .. } = &parsed[0] {
-            assert_eq!(
-                target,
-                &[TargetSegment::Static("orbiter".to_string())]
-            );
+        if let Stmt::ReactiveBinding {
+            target, property, ..
+        } = &parsed[0]
+        {
+            assert_eq!(target, &[TargetSegment::Static("orbiter".to_string())]);
             assert_eq!(property, "at");
         } else {
             panic!("Expected ReactiveBinding");

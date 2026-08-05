@@ -81,8 +81,8 @@ impl Primitive for LegendPrimitive {
             return Ok(None);
         }
 
-        use vello::peniko::Color;
         use kurbo::{Rect, Shape};
+        use vello::peniko::Color;
 
         let mut commands = Vec::new();
         let swatch_size = 16.0f64;
@@ -151,8 +151,9 @@ impl Primitive for LegendPrimitive {
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
-        vec![
-            Property::new("at", Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)])),
-        ]
+        vec![Property::new(
+            "at",
+            Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
+        )]
     }
 }

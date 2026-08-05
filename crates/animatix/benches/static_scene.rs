@@ -5,10 +5,12 @@ mod common;
 
 fn build_static_scene(actor_count: usize) -> Timeline {
     // Static scene: no keyframes, no modifiers
-    let mut source = String::from(r#"config { colorscheme: "editorial-dark" }
+    let mut source = String::from(
+        r#"config { colorscheme: "editorial-dark" }
 
 #0s
-"#);
+"#,
+    );
     for i in 0..actor_count {
         source.push_str(&format!(
             "box{i}: Rect, size: (50, 50), color: accent.primary, at: ({}, {})\n",
@@ -20,7 +22,10 @@ fn build_static_scene(actor_count: usize) -> Timeline {
 }
 
 fn bench_static(c: &mut Criterion) {
-    let dims = SceneDimensions { width: 1920, height: 1080 };
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
 
     let timeline_50 = build_static_scene(50);
     c.bench_function("static_50_actors", |b| {

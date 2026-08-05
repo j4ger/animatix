@@ -20,10 +20,11 @@
 
 use egui::{Color32, CornerRadius, Id, Response, Stroke, Ui};
 
+use crate::spatial;
 use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
-use crate::{spatial, tokens::theme::theme};
-use crate::widget::popover::Popover;
+use crate::tokens::theme::theme;
 use crate::widget::input::TextField;
+use crate::widget::popover::Popover;
 
 // ── Hex helpers (pure, testable) ──────────────────────────────────────────────
 
@@ -49,14 +50,14 @@ pub fn parse_hex_color(s: &str) -> Option<Color32> {
             let g = u8::from_str_radix(&s[2..4], 16).ok()?;
             let b = u8::from_str_radix(&s[4..6], 16).ok()?;
             Some(Color32::from_rgb(r, g, b))
-        }
+        },
         8 => {
             let r = u8::from_str_radix(&s[0..2], 16).ok()?;
             let g = u8::from_str_radix(&s[2..4], 16).ok()?;
             let b = u8::from_str_radix(&s[4..6], 16).ok()?;
             let a = u8::from_str_radix(&s[6..8], 16).ok()?;
             Some(Color32::from_rgba_unmultiplied(r, g, b, a))
-        }
+        },
         _ => None,
     }
 }
@@ -111,7 +112,12 @@ impl<'a> ColorPicker<'a> {
     pub fn show(self, ui: &mut Ui) -> ColorPickerResponse {
         let t = theme(ui);
         let _s = spatial(ui);
-        let Self { id, color, show_alpha, swatches } = self;
+        let Self {
+            id,
+            color,
+            show_alpha,
+            swatches,
+        } = self;
 
         // ── Trigger: small rounded swatch button ──────────────────────────
         let swatch_size = egui::vec2(32.0, 20.0);
@@ -122,13 +128,10 @@ impl<'a> ColorPicker<'a> {
             let cr = CornerRadius::same(RADIUS_M as u8);
             // Checkerboard for transparent colours
             if color.a() < 255 {
-                painter.rect_filled(
-                    rect,
-                    cr,
-                    Color32::WHITE,
-                );
+                painter.rect_filled(rect, cr, Color32::WHITE);
                 // Simple two-tone checkerboard approximation
-                let half = egui::Rect::from_min_max(rect.min, egui::pos2(rect.center().x, rect.max.y));
+                let half =
+                    egui::Rect::from_min_max(rect.min, egui::pos2(rect.center().x, rect.max.y));
                 painter.rect_filled(half, cr, t.text.disabled);
             }
             painter.rect_filled(rect, cr, *color);
@@ -137,7 +140,12 @@ impl<'a> ColorPicker<'a> {
             } else {
                 t.border.default
             };
-            painter.rect_stroke(rect, cr, Stroke::new(STROKE_WIDTH, border_color), egui::StrokeKind::Outside);
+            painter.rect_stroke(
+                rect,
+                cr,
+                Stroke::new(STROKE_WIDTH, border_color),
+                egui::StrokeKind::Outside,
+            );
         }
 
         // ── Popover panel ─────────────────────────────────────────────────
@@ -154,7 +162,11 @@ impl<'a> ColorPicker<'a> {
         // Hex buffer stored in egui Memory (transient)
         let mut hex_buf: String = ui.ctx().data(|d| {
             d.get_temp::<String>(hex_buf_key).unwrap_or_else(|| {
-                if show_alpha { color_to_hex_rgba(*color) } else { color_to_hex_rgb(*color) }
+                if show_alpha {
+                    color_to_hex_rgba(*color)
+                } else {
+                    color_to_hex_rgb(*color)
+                }
             })
         });
 
@@ -164,7 +176,11 @@ impl<'a> ColorPicker<'a> {
             egui::color_picker::color_picker_color32(ui, color, alpha_mode);
             if *color != before {
                 changed = true;
-                hex_buf = if show_alpha { color_to_hex_rgba(*color) } else { color_to_hex_rgb(*color) };
+                hex_buf = if show_alpha {
+                    color_to_hex_rgba(*color)
+                } else {
+                    color_to_hex_rgb(*color)
+                };
             }
 
             ui.add_space(4.0);
@@ -176,8 +192,7 @@ impl<'a> ColorPicker<'a> {
                     .placeholder(if show_alpha { "#RRGGBBAA" } else { "#RRGGBB" })
                     .validate(|s| {
                         let s = s.strip_prefix('#').unwrap_or(s);
-                        matches!(s.len(), 6 | 8)
-                            && s.chars().all(|c| c.is_ascii_hexdigit())
+                        matches!(s.len(), 6 | 8) && s.chars().all(|c| c.is_ascii_hexdigit())
                     })
                     .show(ui);
                 if hex_resp.response.lost_focus() || hex_resp.response.changed() {
@@ -207,8 +222,17 @@ impl<'a> ColorPicker<'a> {
                         if ui.is_rect_visible(sr) {
                             let cr = CornerRadius::same(3);
                             ui.painter().rect_filled(sr, cr, swatch);
-                            let sc = if sresp.hovered() { t.border.strong } else { t.border.default };
-                            ui.painter().rect_stroke(sr, cr, Stroke::new(STROKE_WIDTH, sc), egui::StrokeKind::Outside);
+                            let sc = if sresp.hovered() {
+                                t.border.strong
+                            } else {
+                                t.border.default
+                            };
+                            ui.painter().rect_stroke(
+                                sr,
+                                cr,
+                                Stroke::new(STROKE_WIDTH, sc),
+                                egui::StrokeKind::Outside,
+                            );
                         }
                         if sresp.clicked() {
                             let new_color = if show_alpha {
@@ -217,7 +241,11 @@ impl<'a> ColorPicker<'a> {
                                 Color32::from_rgb(swatch.r(), swatch.g(), swatch.b())
                             };
                             *color = new_color;
-                            hex_buf = if show_alpha { color_to_hex_rgba(new_color) } else { color_to_hex_rgb(new_color) };
+                            hex_buf = if show_alpha {
+                                color_to_hex_rgba(new_color)
+                            } else {
+                                color_to_hex_rgb(new_color)
+                            };
                             changed = true;
                         }
                     }
@@ -243,7 +271,10 @@ mod tests {
     #[test]
     fn hex_rgb_round_trip() {
         let c = Color32::from_rgb(0xDE, 0xAD, 0xBE);
-        assert_eq!(parse_hex_color(&color_to_hex_rgb(c)), Some(Color32::from_rgb(0xDE, 0xAD, 0xBE)));
+        assert_eq!(
+            parse_hex_color(&color_to_hex_rgb(c)),
+            Some(Color32::from_rgb(0xDE, 0xAD, 0xBE))
+        );
     }
 
     #[test]
@@ -277,7 +308,10 @@ mod tests {
 
     #[test]
     fn hex_rgba_format() {
-        assert_eq!(color_to_hex_rgba(Color32::from_rgba_unmultiplied(255, 0, 128, 64)), "#FF008040");
+        assert_eq!(
+            color_to_hex_rgba(Color32::from_rgba_unmultiplied(255, 0, 128, 64)),
+            "#FF008040"
+        );
     }
 
     // ── Builder fields ───────────────────────────────────────────────────────

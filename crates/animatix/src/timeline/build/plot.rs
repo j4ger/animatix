@@ -6,9 +6,12 @@
 //! text/math/code path compilation, and asset loading.
 
 use std::collections::HashMap;
+
 use super::*;
 use crate::ast::{InlineItem, Property};
-use crate::timeline::plot::{build_implicit_plot_path_from_source, FuncSource, PlotCurveKind, PlotFuncRef, ProceduralPlot};
+use crate::timeline::plot::{
+    FuncSource, PlotCurveKind, PlotFuncRef, ProceduralPlot, build_implicit_plot_path_from_source,
+};
 use crate::timeline::vello_path::VelloPath;
 
 /// Data for tick labels: screen positions and math values.
@@ -79,10 +82,9 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
     let mut tolerance = params.tolerance;
     let mut max_depth = params.max_depth as usize;
     let mut resolution = params.resolution as usize;
-    params.build_quality.scale_plot_params(&mut tolerance,
-        &mut max_depth,
-        &mut resolution,
-    );
+    params
+        .build_quality
+        .scale_plot_params(&mut tolerance, &mut max_depth, &mut resolution);
 
     if let Some((args, body, _captures)) = params.func {
         let mut env_copy = params.eval_env.clone();
@@ -101,11 +103,7 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
         };
 
         if params.kind == PlotCurveKind::Implicit {
-            let source = FuncSource::Raw(
-                args.to_vec(),
-                (**body).clone(),
-                CapturedEnv::default(),
-            );
+            let source = FuncSource::Raw(args.to_vec(), (**body).clone(), CapturedEnv::default());
             let path = build_implicit_plot_path_from_source(
                 &mut env_copy,
                 &source,
@@ -136,8 +134,7 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
             });
         } else {
             env_copy.set_binding(&arg_name, Value::Num(min_t));
-            let start_eval = evaluate_expr(body, &env_copy)
-                .unwrap_or(Value::Num(f64::NAN));
+            let start_eval = evaluate_expr(body, &env_copy).unwrap_or(Value::Num(f64::NAN));
             env_copy.clear_bindings();
             let (start_math_x, start_math_y) = if params.kind == PlotCurveKind::Cartesian {
                 (min_t, start_eval.as_num())
@@ -151,14 +148,16 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                 (start_val * min_t.cos(), start_val * min_t.sin())
             };
             let (start_screen_x, start_screen_y) = crate::timeline::plot::math_to_screen_padded(
-                start_math_x, start_math_y,
-                &params.p_x_domain, &params.p_y_domain,
-                &params.p_size, &params.p_padding,
+                start_math_x,
+                start_math_y,
+                &params.p_x_domain,
+                &params.p_y_domain,
+                &params.p_size,
+                &params.p_padding,
             );
 
             env_copy.set_binding(&arg_name, Value::Num(max_t));
-            let end_eval = evaluate_expr(body, &env_copy)
-                .unwrap_or(Value::Num(f64::NAN));
+            let end_eval = evaluate_expr(body, &env_copy).unwrap_or(Value::Num(f64::NAN));
             env_copy.clear_bindings();
             let (end_math_x, end_math_y) = if params.kind == PlotCurveKind::Cartesian {
                 (max_t, end_eval.as_num())
@@ -172,9 +171,12 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                 (end_val * max_t.cos(), end_val * max_t.sin())
             };
             let (end_screen_x, end_screen_y) = crate::timeline::plot::math_to_screen_padded(
-                end_math_x, end_math_y,
-                &params.p_x_domain, &params.p_y_domain,
-                &params.p_size, &params.p_padding,
+                end_math_x,
+                end_math_y,
+                &params.p_x_domain,
+                &params.p_y_domain,
+                &params.p_size,
+                &params.p_padding,
             );
 
             let p0 = kurbo::Point::new(start_screen_x, start_screen_y);
@@ -183,34 +185,71 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
             let mut pts = vec![p0];
             // Wrap the declaration body in a PlotFuncRef::Single for the
             // refactored sampling functions. Build time always uses Single.
-            let func_source = FuncSource::Raw(args.clone(), (**body).clone(), CapturedEnv::default());
+            let func_source =
+                FuncSource::Raw(args.clone(), (**body).clone(), CapturedEnv::default());
             let plot_func = PlotFuncRef::Single(&func_source);
             let mut from_cache = HashMap::<u64, Value>::new();
             let mut to_cache = HashMap::<u64, Value>::new();
 
             if params.kind == PlotCurveKind::Cartesian {
                 sample_recursive_cartesian(
-                    min_t, max_t, p0, p1, 0, max_depth, tolerance,
-                    &mut env_copy, &arg_name, &plot_func,
-                    &params.p_x_domain, &params.p_y_domain, &params.p_size,
+                    min_t,
+                    max_t,
+                    p0,
+                    p1,
+                    0,
+                    max_depth,
+                    tolerance,
+                    &mut env_copy,
+                    &arg_name,
+                    &plot_func,
+                    &params.p_x_domain,
+                    &params.p_y_domain,
+                    &params.p_size,
                     &params.p_padding,
-                    &mut from_cache, &mut to_cache, &mut pts,
+                    &mut from_cache,
+                    &mut to_cache,
+                    &mut pts,
                 );
             } else if params.kind == PlotCurveKind::Polar {
                 sample_recursive_polar(
-                    min_t, max_t, p0, p1, 0, max_depth, tolerance,
-                    &mut env_copy, &arg_name, &plot_func,
-                    &params.p_x_domain, &params.p_y_domain, &params.p_size,
+                    min_t,
+                    max_t,
+                    p0,
+                    p1,
+                    0,
+                    max_depth,
+                    tolerance,
+                    &mut env_copy,
+                    &arg_name,
+                    &plot_func,
+                    &params.p_x_domain,
+                    &params.p_y_domain,
+                    &params.p_size,
                     &params.p_padding,
-                    &mut from_cache, &mut to_cache, &mut pts,
+                    &mut from_cache,
+                    &mut to_cache,
+                    &mut pts,
                 );
             } else {
                 sample_recursive_parametric(
-                    min_t, max_t, p0, p1, 0, max_depth, tolerance,
-                    &mut env_copy, &arg_name, &plot_func,
-                    &params.p_x_domain, &params.p_y_domain, &params.p_size,
+                    min_t,
+                    max_t,
+                    p0,
+                    p1,
+                    0,
+                    max_depth,
+                    tolerance,
+                    &mut env_copy,
+                    &arg_name,
+                    &plot_func,
+                    &params.p_x_domain,
+                    &params.p_y_domain,
+                    &params.p_size,
                     &params.p_padding,
-                    &mut from_cache, &mut to_cache, &mut pts,
+                    &mut from_cache,
+                    &mut to_cache,
+                    &mut pts,
                 );
             }
 
@@ -256,7 +295,9 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
 #[inline]
 fn normalize_axis(v: f64, min: f64, max: f64, scale: super::utils::ScaleType) -> f64 {
     if scale.is_log() {
-        if v <= 0.0 || min <= 0.0 || max <= 0.0 { return 0.5; }
+        if v <= 0.0 || min <= 0.0 || max <= 0.0 {
+            return 0.5;
+        }
         (v.ln() - min.ln()) / (max.ln() - min.ln())
     } else {
         let range = max - min;
@@ -270,7 +311,9 @@ fn normalize_axis(v: f64, min: f64, max: f64, scale: super::utils::ScaleType) ->
 /// For linear, returns ~10 evenly spaced values.
 fn generate_axis_ticks(min: f64, max: f64, scale: super::utils::ScaleType) -> Vec<f64> {
     if scale.is_log() {
-        if min <= 0.0 || max <= 0.0 { return vec![]; }
+        if min <= 0.0 || max <= 0.0 {
+            return vec![];
+        }
         let mut ticks = vec![];
         let min_exp = min.log10().floor() as i32;
         let max_exp = max.log10().ceil() as i32;
@@ -325,20 +368,18 @@ pub(crate) fn build_graph_axis_paths(
     let shift_x = (pad_left - pad_right) / 2.0;
     let shift_y = (pad_top - pad_bottom) / 2.0;
     // Padded edge positions in local screen space.
-    let left_edge  = -hw + pad_left;
-    let right_edge =  hw - pad_right;
-    let top_edge   = -hh + pad_top;
-    let bot_edge   =  hh - pad_bottom;
+    let left_edge = -hw + pad_left;
+    let right_edge = hw - pad_right;
+    let top_edge = -hh + pad_top;
+    let bot_edge = hh - pad_bottom;
 
     // Helper: map a normalised coordinate to a padded screen position.
     let norm_to_screen_x = |norm: f64| shift_x + (norm - 0.5) * plot_fw;
     let norm_to_screen_y = |norm: f64| shift_y + (0.5 - norm) * plot_fh;
-    let math_x_to_screen = |mx: f64| {
-        norm_to_screen_x(normalize_axis(mx, x_domain[0], x_domain[1], x_scale))
-    };
-    let math_y_to_screen = |my: f64| {
-        norm_to_screen_y(normalize_axis(my, y_domain[0], y_domain[1], y_scale))
-    };
+    let math_x_to_screen =
+        |mx: f64| norm_to_screen_x(normalize_axis(mx, x_domain[0], x_domain[1], x_scale));
+    let math_y_to_screen =
+        |my: f64| norm_to_screen_y(normalize_axis(my, y_domain[0], y_domain[1], y_scale));
 
     // X-axis: drawn only when y=0 is inside the y_domain (only valid for linear scale)
     let x_axis_y = if !y_scale.is_log() && y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
@@ -364,12 +405,15 @@ pub(crate) fn build_graph_axis_paths(
         paths.push(VelloPath {
             path: axis_path,
             fill: None,
-            stroke: Some((vello::peniko::Color::from_rgba8(
-                (axis_color[0] * 255.0) as u8,
-                (axis_color[1] * 255.0) as u8,
-                (axis_color[2] * 255.0) as u8,
-                (axis_color[3] * 255.0) as u8,
-            ), 2.0)),
+            stroke: Some((
+                vello::peniko::Color::from_rgba8(
+                    (axis_color[0] * 255.0) as u8,
+                    (axis_color[1] * 255.0) as u8,
+                    (axis_color[2] * 255.0) as u8,
+                    (axis_color[3] * 255.0) as u8,
+                ),
+                2.0,
+            )),
             line_cap: 0,
             line_join: 0,
         });
@@ -403,12 +447,15 @@ pub(crate) fn build_graph_axis_paths(
             paths.push(VelloPath {
                 path: grid_path,
                 fill: None,
-                stroke: Some((vello::peniko::Color::from_rgba8(
-                    (axis_color[0] * 255.0) as u8,
-                    (axis_color[1] * 255.0) as u8,
-                    (axis_color[2] * 255.0) as u8,
-                    (axis_color[3] * 255.0) as u8 / 4,
-                ), 1.0)),
+                stroke: Some((
+                    vello::peniko::Color::from_rgba8(
+                        (axis_color[0] * 255.0) as u8,
+                        (axis_color[1] * 255.0) as u8,
+                        (axis_color[2] * 255.0) as u8,
+                        (axis_color[3] * 255.0) as u8 / 4,
+                    ),
+                    1.0,
+                )),
                 line_cap: 0,
                 line_join: 0,
             });
@@ -446,12 +493,15 @@ pub(crate) fn build_graph_axis_paths(
             paths.push(VelloPath {
                 path: tick_path,
                 fill: None,
-                stroke: Some((vello::peniko::Color::from_rgba8(
-                    (axis_color[0] * 255.0) as u8,
-                    (axis_color[1] * 255.0) as u8,
-                    (axis_color[2] * 255.0) as u8,
-                    (axis_color[3] * 255.0) as u8,
-                ), 1.5)),
+                stroke: Some((
+                    vello::peniko::Color::from_rgba8(
+                        (axis_color[0] * 255.0) as u8,
+                        (axis_color[1] * 255.0) as u8,
+                        (axis_color[2] * 255.0) as u8,
+                        (axis_color[3] * 255.0) as u8,
+                    ),
+                    1.5,
+                )),
                 line_cap: 0,
                 line_join: 0,
             });
@@ -503,13 +553,17 @@ impl Timeline {
         // Graph plot-area padding [left, right, top, bottom] in pixels.
         // Pre-scan props for padding so it's available before the main match loop.
         let graph_padding: [f64; 4] = if primitive.is_graph_host() {
-            props.iter().find(|p| p.name == "padding").and_then(|p| {
-                match crate::timeline::utils::evaluate_expr(&p.value, &initial_eval_env) {
-                    Ok(Value::Vec4([l, r, t, b])) => Some([l, r, t, b]),
-                    Ok(Value::Num(n)) => Some([n, n, n, n]),
-                    _ => None,
-                }
-            }).unwrap_or([0.0; 4])
+            props
+                .iter()
+                .find(|p| p.name == "padding")
+                .and_then(|p| {
+                    match crate::timeline::utils::evaluate_expr(&p.value, &initial_eval_env) {
+                        Ok(Value::Vec4([l, r, t, b])) => Some([l, r, t, b]),
+                        Ok(Value::Num(n)) => Some([n, n, n, n]),
+                        _ => None,
+                    }
+                })
+                .unwrap_or([0.0; 4])
         } else {
             [0.0; 4]
         };
@@ -535,7 +589,7 @@ impl Timeline {
                         initial_size[0] = w as f32 / 2.0;
                         initial_size[1] = h as f32 / 2.0;
                     }
-                }
+                },
                 "radius" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -546,7 +600,7 @@ impl Timeline {
                     .unwrap_or(Value::Num(0.0));
                     let r = v.as_num() as f32;
                     initial_size = [r, r];
-                }
+                },
                 "x_domain" => {
                     match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -555,10 +609,14 @@ impl Timeline {
                         &prop_subject,
                     ) {
                         Some(Value::Vec2([min, max])) => x_domain = [min, max],
-                        Some(v) => tracing::warn!("{}: 'x_domain' expects a (min, max) tuple, got {:?}", prop_subject, v),
-                        None => {} // eval error already reported as a diagnostic
+                        Some(v) => tracing::warn!(
+                            "{}: 'x_domain' expects a (min, max) tuple, got {:?}",
+                            prop_subject,
+                            v
+                        ),
+                        None => {}, // eval error already reported as a diagnostic
                     }
-                }
+                },
                 "y_domain" => {
                     match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -567,10 +625,14 @@ impl Timeline {
                         &prop_subject,
                     ) {
                         Some(Value::Vec2([min, max])) => y_domain = [min, max],
-                        Some(v) => tracing::warn!("{}: 'y_domain' expects a (min, max) tuple, got {:?}", prop_subject, v),
-                        None => {} // eval error already reported as a diagnostic
+                        Some(v) => tracing::warn!(
+                            "{}: 'y_domain' expects a (min, max) tuple, got {:?}",
+                            prop_subject,
+                            v
+                        ),
+                        None => {}, // eval error already reported as a diagnostic
                     }
-                }
+                },
                 "t_domain" => {
                     match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -579,10 +641,14 @@ impl Timeline {
                         &prop_subject,
                     ) {
                         Some(Value::Vec2([min, max])) => t_domain = [min, max],
-                        Some(v) => tracing::warn!("{}: 't_domain' expects a (min, max) tuple, got {:?}", prop_subject, v),
-                        None => {} // eval error already reported as a diagnostic
+                        Some(v) => tracing::warn!(
+                            "{}: 't_domain' expects a (min, max) tuple, got {:?}",
+                            prop_subject,
+                            v
+                        ),
+                        None => {}, // eval error already reported as a diagnostic
                     }
-                }
+                },
                 "func" => {
                     match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -590,11 +656,17 @@ impl Timeline {
                         diagnostics,
                         &prop_subject,
                     ) {
-                        Some(Value::Closure(args, body, captures)) => func = Some((args, body, captures)),
-                        Some(v) => tracing::warn!("{}: 'func' expects a closure, got {:?}", prop_subject, v),
-                        None => {} // eval error already reported as a diagnostic
+                        Some(Value::Closure(args, body, captures)) => {
+                            func = Some((args, body, captures))
+                        },
+                        Some(v) => tracing::warn!(
+                            "{}: 'func' expects a closure, got {:?}",
+                            prop_subject,
+                            v
+                        ),
+                        None => {}, // eval error already reported as a diagnostic
                     }
-                }
+                },
                 "color" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -606,7 +678,7 @@ impl Timeline {
                     if let Value::Color(c) = v {
                         color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
                     }
-                }
+                },
                 "stroke" | "stroke_color" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -618,7 +690,7 @@ impl Timeline {
                     if let Value::Color(c) = v {
                         stroke_color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
                     }
-                }
+                },
                 "stroke_width" | "width" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -628,7 +700,7 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(0.0));
                     stroke_width = v.as_num() as f32;
-                }
+                },
                 "stroke_progress" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -640,7 +712,7 @@ impl Timeline {
                     if let Value::Num(n) = v {
                         stroke_progress = n.clamp(0.0, 1.0) as f32;
                     }
-                }
+                },
                 "tolerance" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -650,7 +722,7 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(0.0));
                     tolerance = v.as_num();
-                }
+                },
                 "max_depth" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -660,7 +732,7 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(0.0));
                     max_depth = v.as_num();
-                }
+                },
                 "resolution" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -670,7 +742,7 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(96.0));
                     resolution = v.as_num();
-                }
+                },
                 "density" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -680,7 +752,7 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(16.0));
                     density = v.as_num().max(2.0).round();
-                }
+                },
                 "levels" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -692,15 +764,19 @@ impl Timeline {
                     match v {
                         Value::List(items) => {
                             levels = items.iter().map(|item| item.as_num()).collect();
-                        }
+                        },
                         Value::Num(n) => {
                             levels.push(n);
-                        }
+                        },
                         _ => {
-                            tracing::warn!("{}: 'levels' expects a number or list of numbers, got {:?}", prop_subject, v);
-                        }
+                            tracing::warn!(
+                                "{}: 'levels' expects a number or list of numbers, got {:?}",
+                                prop_subject,
+                                v
+                            );
+                        },
                     }
-                }
+                },
                 "grid" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -710,7 +786,7 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(0.0));
                     grid = v.as_bool();
-                }
+                },
                 "ticks" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -720,7 +796,7 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(0.0));
                     ticks = v.as_bool();
-                }
+                },
                 "tick_labels" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -730,20 +806,28 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Str("auto".to_string()));
                     tick_labels = v.as_str().to_lowercase();
-                }
+                },
                 "kind" => {
-                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(&prop.value, &initial_eval_env, diagnostics, &prop_subject) {
+                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    ) {
                         if let Some(k) = PlotCurveKind::from_str(&v.as_str().to_lowercase()) {
                             kind = k;
                         } else {
-                            diagnostics.push(Diagnostic::warning(
-                                DiagnosticCode::InvalidPropertyValue,
-                                DiagnosticPhase::Build,
-                                format!("Invalid plot kind: '{}'", v.as_str()),
-                            ).with_subject(&prop_subject));
+                            diagnostics.push(
+                                Diagnostic::warning(
+                                    DiagnosticCode::InvalidPropertyValue,
+                                    DiagnosticPhase::Build,
+                                    format!("Invalid plot kind: '{}'", v.as_str()),
+                                )
+                                .with_subject(&prop_subject),
+                            );
                         }
                     }
-                }
+                },
                 "x_range" => {
                     match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -752,10 +836,14 @@ impl Timeline {
                         &prop_subject,
                     ) {
                         Some(Value::Vec3([min, max, step])) => x_range = [min, max, step],
-                        Some(v) => tracing::warn!("{}: 'x_range' expects a (min, max, step) triple, got {:?}", prop_subject, v),
-                        None => {} // eval error already reported as a diagnostic
+                        Some(v) => tracing::warn!(
+                            "{}: 'x_range' expects a (min, max, step) triple, got {:?}",
+                            prop_subject,
+                            v
+                        ),
+                        None => {}, // eval error already reported as a diagnostic
                     }
-                }
+                },
                 "y_range" => {
                     match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -764,29 +852,40 @@ impl Timeline {
                         &prop_subject,
                     ) {
                         Some(Value::Vec3([min, max, step])) => y_range = [min, max, step],
-                        Some(v) => tracing::warn!("{}: 'y_range' expects a (min, max, step) triple, got {:?}", prop_subject, v),
-                        None => {} // eval error already reported as a diagnostic
+                        Some(v) => tracing::warn!(
+                            "{}: 'y_range' expects a (min, max, step) triple, got {:?}",
+                            prop_subject,
+                            v
+                        ),
+                        None => {}, // eval error already reported as a diagnostic
                     }
-                }
+                },
                 "padding" if primitive.is_graph_host() => {
                     // Graph padding is pre-computed above; skip here to prevent
                     // falling through to the custom plot-param collector.
-                }
+                },
                 "x_scale" if primitive.is_graph_host() => {
                     if let Some(v) = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value, &initial_eval_env, diagnostics, &prop_subject,
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
                     ) {
                         x_scale = super::utils::ScaleType::from_str(&v.as_str());
                     }
-                }
+                },
                 "y_scale" if primitive.is_graph_host() => {
                     if let Some(v) = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value, &initial_eval_env, diagnostics, &prop_subject,
+                        &prop.value,
+                        &initial_eval_env,
+                        diagnostics,
+                        &prop_subject,
                     ) {
                         y_scale = super::utils::ScaleType::from_str(&v.as_str());
                     }
-                }
-                _ => {} // Non-plot properties (color, stroke, etc.) are handled by the general actor pipeline.
+                },
+                _ => {}, /* Non-plot properties (color, stroke, etc.) are handled by the general
+                          * actor pipeline. */
             }
         }
 
@@ -797,85 +896,79 @@ impl Timeline {
         let is_bar_chart = ty == "BarChart";
         if let Some((ref args, ref body, _)) = func {
             if !is_vector_field && !is_heatmap && !is_contour_set && !is_bar_chart {
-            let (expected_arity, expected_ty) = match kind {
-                PlotCurveKind::Cartesian | PlotCurveKind::Polar => (1, "number"),
-                PlotCurveKind::Parametric => (1, "vec2"),
-                PlotCurveKind::Implicit => (2, "number"),
-            };
-            if args.len() != expected_arity {
-                diagnostics.push(
-                    Diagnostic::error(
-                        DiagnosticCode::InvalidPlotFunc,
-                        DiagnosticPhase::Build,
-                        format!(
-                            "{} expects a func with {} argument(s), got {}",
-                            ty, expected_arity, args.len()
-                        ),
-                    )
-                    .with_subject(label),
-                );
-            }
-            // Type-check by evaluating with a test input.
-            let mut test_env = initial_eval_env.clone();
-            for arg in args.iter() {
-                test_env.set(arg, Value::Num(0.0));
-            }
-            if let Ok(result) = evaluate_expr(body, &test_env) {
-                let ok = matches!(
-                    (expected_ty, &result),
-                    ("number", Value::Num(_)) | ("vec2", Value::Vec2(_))
-                );
-                if !ok {
+                let (expected_arity, expected_ty) = match kind {
+                    PlotCurveKind::Cartesian | PlotCurveKind::Polar => (1, "number"),
+                    PlotCurveKind::Parametric => (1, "vec2"),
+                    PlotCurveKind::Implicit => (2, "number"),
+                };
+                if args.len() != expected_arity {
                     diagnostics.push(
                         Diagnostic::error(
                             DiagnosticCode::InvalidPlotFunc,
                             DiagnosticPhase::Build,
                             format!(
-                                "{} func should return {}, got {}",
+                                "{} expects a func with {} argument(s), got {}",
                                 ty,
-                                expected_ty,
-                                match result {
-                                    Value::Num(_) => "number".to_string(),
-                                    Value::Vec2(_) => "vec2".to_string(),
-                                    Value::Vec3(_) => "vec3".to_string(),
-                                    Value::Vec4(_) => "vec4".to_string(),
-                                    Value::Color(_) => "color".to_string(),
-                                    Value::Str(_) => "string".to_string(),
-                                    Value::List(_) => "list".to_string(),
-                                    Value::NativeFn(_) => "function".to_string(),
-                                    Value::Closure(_, _, _) => "closure".to_string(),
-                                    Value::Object(name, _) => name.clone(),
-                                    Value::Bool(_) => "bool".to_string(),
-                                }
+                                expected_arity,
+                                args.len()
                             ),
                         )
                         .with_subject(label),
                     );
                 }
-            }
+                // Type-check by evaluating with a test input.
+                let mut test_env = initial_eval_env.clone();
+                for arg in args.iter() {
+                    test_env.set(arg, Value::Num(0.0));
+                }
+                if let Ok(result) = evaluate_expr(body, &test_env) {
+                    let ok = matches!(
+                        (expected_ty, &result),
+                        ("number", Value::Num(_)) | ("vec2", Value::Vec2(_))
+                    );
+                    if !ok {
+                        diagnostics.push(
+                            Diagnostic::error(
+                                DiagnosticCode::InvalidPlotFunc,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "{} func should return {}, got {}",
+                                    ty,
+                                    expected_ty,
+                                    match result {
+                                        Value::Num(_) => "number".to_string(),
+                                        Value::Vec2(_) => "vec2".to_string(),
+                                        Value::Vec3(_) => "vec3".to_string(),
+                                        Value::Vec4(_) => "vec4".to_string(),
+                                        Value::Color(_) => "color".to_string(),
+                                        Value::Str(_) => "string".to_string(),
+                                        Value::List(_) => "list".to_string(),
+                                        Value::NativeFn(_) => "function".to_string(),
+                                        Value::Closure(_, _, _) => "closure".to_string(),
+                                        Value::Object(name, _) => name.clone(),
+                                        Value::Bool(_) => "bool".to_string(),
+                                    }
+                                ),
+                            )
+                            .with_subject(label),
+                        );
+                    }
+                }
             } // end inner if (graph host/plot_curve only validation)
         } // end func validation guard for plot_curve types only
 
         if primitive.is_graph_host() {
-            self.env
-                .set(&format!("{}_x_domain", label), Value::Vec2(x_domain));
-            self.env
-                .set(&format!("{}_y_domain", label), Value::Vec2(y_domain));
+            self.env.set(&format!("{}_x_domain", label), Value::Vec2(x_domain));
+            self.env.set(&format!("{}_y_domain", label), Value::Vec2(y_domain));
             self.env.set(
                 &format!("{}_size", label),
-                Value::Vec2([
-                    initial_size[0] as f64,
-                    initial_size[1] as f64,
-                ]),
+                Value::Vec2([initial_size[0] as f64, initial_size[1] as f64]),
             );
             // Store graph axis settings so they survive size-assignment rebuilds
             self.env.set(&format!("{}_grid", label), Value::Bool(grid));
             self.env.set(&format!("{}_ticks", label), Value::Bool(ticks));
             self.env.set(&format!("{}_tick_labels", label), Value::Str(tick_labels.clone()));
-            self.env.set(
-                &format!("{}_padding", label),
-                Value::Vec4(graph_padding),
-            );
+            self.env.set(&format!("{}_padding", label), Value::Vec4(graph_padding));
             // Store scale in env as strings so assignments.rs rebuild can read them.
             let x_scale_str = if x_scale.is_log() { "log" } else { "linear" };
             let y_scale_str = if y_scale.is_log() { "log" } else { "linear" };
@@ -883,9 +976,17 @@ impl Timeline {
             self.env.set(&format!("{}_y_scale", label), Value::Str(y_scale_str.to_string()));
 
             // Inject {label}.map as a NativeFn that converts math coords to screen coords.
-            // Captures x_domain/y_domain/graph_padding/scales (static), reads size/at from runtime env.
+            // Captures x_domain/y_domain/graph_padding/scales (static), reads size/at from runtime
+            // env.
             let map_label = label.to_string();
-            let nf = make_graph_map_fn(map_label.clone(), x_domain, y_domain, graph_padding, x_scale, y_scale);
+            let nf = make_graph_map_fn(
+                map_label.clone(),
+                x_domain,
+                y_domain,
+                graph_padding,
+                x_scale,
+                y_scale,
+            );
             self.env.set(&format!("{}.map", label), nf);
 
             // Inject {label}.map_inverse as a NativeFn that converts screen coords to math coords.
@@ -913,10 +1014,22 @@ impl Timeline {
             let label_y = tick_labels_has_axis(&tick_labels, 'y');
 
             // Use initial_size for axis paths so they match the parsed size
-            let axis_size = if size != default_size { size } else { initial_size };
+            let axis_size = if size != default_size {
+                size
+            } else {
+                initial_size
+            };
             vello_paths = build_graph_axis_paths(
-                axis_size, x_domain, y_domain, stroke_color, grid, ticks,
-                label_x || label_y, graph_padding, x_scale, y_scale,
+                axis_size,
+                x_domain,
+                y_domain,
+                stroke_color,
+                grid,
+                ticks,
+                label_x || label_y,
+                graph_padding,
+                x_scale,
+                y_scale,
             );
 
             // Compute tick label positions (same logic as build_graph_axis_paths ticks section).
@@ -945,7 +1058,11 @@ impl Timeline {
                     for &x in &x_ticks {
                         if x != 0.0 {
                             let screen_x = tick_math_x_to_screen(x);
-                            tick_label_data.x_labels.push((screen_x, axis_y + tick_label_offset, x));
+                            tick_label_data.x_labels.push((
+                                screen_x,
+                                axis_y + tick_label_offset,
+                                x,
+                            ));
                         }
                     }
                 }
@@ -959,7 +1076,11 @@ impl Timeline {
                     for &y in &y_ticks {
                         if y != 0.0 {
                             let screen_y = tick_math_y_to_screen(y);
-                            tick_label_data.y_labels.push((axis_x - tick_label_offset, screen_y, y));
+                            tick_label_data.y_labels.push((
+                                axis_x - tick_label_offset,
+                                screen_y,
+                                y,
+                            ));
                         }
                     }
                 }
@@ -971,7 +1092,11 @@ impl Timeline {
                 let mut scaled_density = density as usize;
                 let mut _max_depth = 0usize;
                 let mut _tolerance = 0.0f64;
-                self.build_quality.scale_plot_params(&mut _tolerance, &mut _max_depth, &mut scaled_density);
+                self.build_quality.scale_plot_params(
+                    &mut _tolerance,
+                    &mut _max_depth,
+                    &mut scaled_density,
+                );
                 vello_paths = build_vector_field_paths(
                     &mut eval_env,
                     args,
@@ -991,7 +1116,11 @@ impl Timeline {
                 let mut scaled_res = resolution.max(2.0).round() as usize;
                 let mut _max_depth = 0usize;
                 let mut _tolerance = 0.0f64;
-                self.build_quality.scale_plot_params(&mut _tolerance, &mut _max_depth, &mut scaled_res);
+                self.build_quality.scale_plot_params(
+                    &mut _tolerance,
+                    &mut _max_depth,
+                    &mut scaled_res,
+                );
                 vello_paths = build_heatmap_paths(
                     &mut eval_env,
                     args,
@@ -1010,7 +1139,11 @@ impl Timeline {
                 let mut scaled_res = resolution.max(8.0) as usize;
                 let mut _max_depth = 0usize;
                 let mut _tolerance = 0.0f64;
-                self.build_quality.scale_plot_params(&mut _tolerance, &mut _max_depth, &mut scaled_res);
+                self.build_quality.scale_plot_params(
+                    &mut _tolerance,
+                    &mut _max_depth,
+                    &mut scaled_res,
+                );
                 vello_paths = build_contour_set_paths(
                     &mut eval_env,
                     args,
@@ -1025,27 +1158,29 @@ impl Timeline {
                 );
             }
         } else if is_number_plane {
-            vello_paths = build_number_plane_paths(
-                size, x_domain, y_domain, x_range, y_range, stroke_color,
-            );
+            vello_paths =
+                build_number_plane_paths(size, x_domain, y_domain, x_range, y_range, stroke_color);
         } else if is_bar_chart {
             // Determine parent graph context (if any)
             let p_label = parent_label.unwrap_or("").to_string();
-            let parent_size = if let Some(Value::Vec2(sz)) = self.env.get(&format!("{}_size", p_label)) {
-                Some(sz)
-            } else {
-                None
-            };
-            let p_x_domain = if let Some(Value::Vec2(xd)) = self.env.get(&format!("{}_x_domain", p_label)) {
-                xd
-            } else {
-                x_domain
-            };
-            let p_y_domain = if let Some(Value::Vec2(yd)) = self.env.get(&format!("{}_y_domain", p_label)) {
-                yd
-            } else {
-                y_domain
-            };
+            let parent_size =
+                if let Some(Value::Vec2(sz)) = self.env.get(&format!("{}_size", p_label)) {
+                    Some(sz)
+                } else {
+                    None
+                };
+            let p_x_domain =
+                if let Some(Value::Vec2(xd)) = self.env.get(&format!("{}_x_domain", p_label)) {
+                    xd
+                } else {
+                    x_domain
+                };
+            let p_y_domain =
+                if let Some(Value::Vec2(yd)) = self.env.get(&format!("{}_y_domain", p_label)) {
+                    yd
+                } else {
+                    y_domain
+                };
 
             vello_paths = build_bar_chart_paths(
                 props,
@@ -1104,7 +1239,13 @@ impl Timeline {
             let p_padding = self
                 .env
                 .get(&format!("{}_padding", p_label))
-                .and_then(|v| if let Value::Vec4(p) = v { Some(p) } else { None })
+                .and_then(|v| {
+                    if let Value::Vec4(p) = v {
+                        Some(p)
+                    } else {
+                        None
+                    }
+                })
                 .unwrap_or([0.0; 4]);
 
             if let Some(key) = cache_key {
@@ -1158,28 +1299,25 @@ impl Timeline {
                 for prop in props {
                     // Skip known plot properties
                     match prop.name.as_str() {
-                        "kind" | "func" | "x_domain" | "y_domain" | "t_domain"
-                        | "tolerance" | "max_depth" | "resolution" | "density"
-                        | "levels" | "grid" | "ticks" | "tick_labels"
-                        | "x_range" | "y_range" | "size" | "at" | "position"
-                        | "color" | "opacity" | "stroke" | "stroke_color"
-                        | "stroke_width" | "stroke_progress" | "fill_opacity"
-                        | "radius" | "radius_x" | "radius_y"
-                        | "from" | "to" | "head_size"
-                        | "text" | "content" | "code" | "font_size" | "font_family"
-                        | "url" | "source" | "volume"
-                        | "anchor" | "offset" | "rotation" | "scale" | "transform"
-                        | "blur" | "brightness" | "contrast" | "saturate"
-                        | "hue_rotate" | "sepia" | "gap" | "padding" | "align"
-                        | "cols" | "data" | "bar_width" | "bar_colors"
-                        | "direction" | "max_value" | "show_axis" | "show_labels" => {}
+                        "kind" | "func" | "x_domain" | "y_domain" | "t_domain" | "tolerance"
+                        | "max_depth" | "resolution" | "density" | "levels" | "grid" | "ticks"
+                        | "tick_labels" | "x_range" | "y_range" | "size" | "at" | "position"
+                        | "color" | "opacity" | "stroke" | "stroke_color" | "stroke_width"
+                        | "stroke_progress" | "fill_opacity" | "radius" | "radius_x"
+                        | "radius_y" | "from" | "to" | "head_size" | "text" | "content"
+                        | "code" | "font_size" | "font_family" | "url" | "source" | "volume"
+                        | "anchor" | "offset" | "rotation" | "scale" | "transform" | "blur"
+                        | "brightness" | "contrast" | "saturate" | "hue_rotate" | "sepia"
+                        | "gap" | "padding" | "align" | "cols" | "data" | "bar_width"
+                        | "bar_colors" | "direction" | "max_value" | "show_axis"
+                        | "show_labels" => {},
                         _ => {
                             // Treat unknown numeric props as plot parameters
                             let eval_env = self.build_eval_env(time_ms as u64);
                             if let Ok(Value::Num(n)) = evaluate_expr(&prop.value, &eval_env) {
                                 plot_params.push((prop.name.clone(), n));
                             }
-                        }
+                        },
                     }
                 }
             }
@@ -1227,7 +1365,9 @@ impl Timeline {
             shape_type,
             vello_paths,
             procedural_plot,
-            tick_label_data: if primitive.is_graph_host() && (!tick_label_data.x_labels.is_empty() || !tick_label_data.y_labels.is_empty()) {
+            tick_label_data: if primitive.is_graph_host()
+                && (!tick_label_data.x_labels.is_empty() || !tick_label_data.y_labels.is_empty())
+            {
                 Some(tick_label_data)
             } else {
                 None
@@ -1305,8 +1445,8 @@ pub(crate) fn build_number_plane_paths(
             path: grid_path,
             fill: None,
             stroke: Some((grid_c, 1.0)),
-                    line_cap: 0,
-                    line_join: 0,
+            line_cap: 0,
+            line_join: 0,
         });
     }
 
@@ -1337,8 +1477,8 @@ pub(crate) fn build_number_plane_paths(
             path: axis_path,
             fill: None,
             stroke: Some((axis_c, 2.0)),
-                    line_cap: 0,
-                    line_join: 0,
+            line_cap: 0,
+            line_join: 0,
         });
     }
 
@@ -1379,8 +1519,8 @@ pub(crate) fn build_number_plane_paths(
             path: tick_path,
             fill: None,
             stroke: Some((axis_c, 1.5)),
-                    line_cap: 0,
-                    line_join: 0,
+            line_cap: 0,
+            line_join: 0,
         });
     }
 
@@ -1393,10 +1533,10 @@ fn math_to_screen(
     y_domain: [f64; 2],
     full_size: [f64; 2],
 ) -> (f64, f64) {
-    let sx = -(full_size[0] / 2.0)
-        + full_size[0] * ((x - x_domain[0]) / (x_domain[1] - x_domain[0]));
-    let sy = (full_size[1] / 2.0)
-        - full_size[1] * ((y - y_domain[0]) / (y_domain[1] - y_domain[0]));
+    let sx =
+        -(full_size[0] / 2.0) + full_size[0] * ((x - x_domain[0]) / (x_domain[1] - x_domain[0]));
+    let sy =
+        (full_size[1] / 2.0) - full_size[1] * ((y - y_domain[0]) / (y_domain[1] - y_domain[0]));
     (sx, sy)
 }
 
@@ -1412,9 +1552,7 @@ fn evaluate_scalar_field(
     let y_name = arg_names.get(1).map(String::as_str).unwrap_or("y");
     env.set_binding(x_name, Value::Num(x));
     env.set_binding(y_name, Value::Num(y));
-    evaluate_expr(body, env)
-        .unwrap_or(Value::Num(f64::NAN))
-        .as_num()
+    evaluate_expr(body, env).unwrap_or(Value::Num(f64::NAN)).as_num()
 }
 
 /// Evaluate a vector field func at (x,y), returning (dx, dy).
@@ -1616,19 +1754,10 @@ fn build_contour_set_paths(
             Box::new(crate::ast::Expr::Num(level)),
         );
 
-        let source = FuncSource::Raw(
-            arg_names.to_vec(),
-            modified_body.clone(),
-            CapturedEnv::default(),
-        );
+        let source =
+            FuncSource::Raw(arg_names.to_vec(), modified_body.clone(), CapturedEnv::default());
         let bez_path = build_implicit_plot_path_from_source(
-            env,
-            &source,
-            &x_domain,
-            &y_domain,
-            &full_size,
-            resolution,
-            &[0.0; 4],
+            env, &source, &x_domain, &y_domain, &full_size, resolution, &[0.0; 4],
         );
 
         if !bez_path.elements().is_empty() {
@@ -1696,10 +1825,13 @@ pub(crate) fn parse_bar_chart_data(
                                     diagnostics.push(Diagnostic::warning(
                                         DiagnosticCode::InvalidPropertyValue,
                                         DiagnosticPhase::Build,
-                                        format!("BarChart '{}' data key must be a number or string", label),
+                                        format!(
+                                            "BarChart '{}' data key must be a number or string",
+                                            label
+                                        ),
                                     ));
                                     continue;
-                                }
+                                },
                             };
                             let val = match &bar[1] {
                                 Expr::Num(n) => *n as f32,
@@ -1710,17 +1842,20 @@ pub(crate) fn parse_bar_chart_data(
                                         format!("BarChart '{}' data value must be a number", label),
                                     ));
                                     continue;
-                                }
+                                },
                             };
                             data.push((key_str, val));
-                        }
+                        },
                         _ => {
                             diagnostics.push(Diagnostic::warning(
                                 DiagnosticCode::InvalidPropertyValue,
                                 DiagnosticPhase::Build,
-                                format!("BarChart '{}' data entry must be a (key, value) tuple", label),
+                                format!(
+                                    "BarChart '{}' data entry must be a (key, value) tuple",
+                                    label
+                                ),
                             ));
-                        }
+                        },
                     }
                 }
             }
@@ -1747,20 +1882,21 @@ fn format_float(n: f64) -> String {
 ///
 /// # Standalone mode
 /// Bars are positioned within the chart's `size` bounds, centered on the actor.
-/// Gap between bars is auto-calculated from `(plot_width - bar_count * bar_width) / (bar_count + 1)`.
+/// Gap between bars is auto-calculated from `(plot_width - bar_count * bar_width) / (bar_count +
+/// 1)`.
 ///
 /// # Graph child mode
 /// Bars use math-coordinate mapping via `p_x_domain`, `p_y_domain`, `p_size`.
 /// Labels are in math-space but rendered as child Text tracks (handled by the caller).
 pub(crate) fn build_bar_chart_paths(
     props: &[Property],
-    size: [f32; 2],        // half-size (same convention as other plot builders)
+    size: [f32; 2], // half-size (same convention as other plot builders)
     color: [f32; 4],
     stroke_color: [f32; 4],
     stroke_width: f32,
     x_domain: [f64; 2],
     y_domain: [f64; 2],
-    parent_size: Option<[f64; 2]>,  // Some() when inside a Graph
+    parent_size: Option<[f64; 2]>, // Some() when inside a Graph
     env: &Environment,
     diagnostics: &mut Vec<Diagnostic>,
     label: &str,
@@ -1778,7 +1914,7 @@ pub(crate) fn build_bar_chart_paths(
     let mut bar_colors_auto = true;
     let mut bar_colors: Vec<[f32; 4]> = vec![];
     let mut show_axis = true;
-    let _direction = "vertical";  // Reserved for horizontal bar support
+    let _direction = "vertical"; // Reserved for horizontal bar support
     let mut max_value_auto = true;
     let mut max_value_val = 0.0f32;
 
@@ -1786,21 +1922,21 @@ pub(crate) fn build_bar_chart_paths(
         let subject = format!("{}.{}", label, prop.name);
         match prop.name.as_str() {
             "bar_width" => {
-                if let Some(v) = evaluate_expr_with_lookup_diagnostic(
-                    &prop.value, env, diagnostics, &subject,
-                ) {
+                if let Some(v) =
+                    evaluate_expr_with_lookup_diagnostic(&prop.value, env, diagnostics, &subject)
+                {
                     bar_width_val = v.as_num() as f32;
                     bar_width_auto = false;
                 }
-            }
+            },
             "gap" => {
-                if let Some(v) = evaluate_expr_with_lookup_diagnostic(
-                    &prop.value, env, diagnostics, &subject,
-                ) {
+                if let Some(v) =
+                    evaluate_expr_with_lookup_diagnostic(&prop.value, env, diagnostics, &subject)
+                {
                     gap_val = v.as_num() as f32;
                     gap_auto = false;
                 }
-            }
+            },
             "bar_colors" => {
                 let is_auto = match &prop.value {
                     Expr::Ident(s) | Expr::Str(s) => s == "auto",
@@ -1812,7 +1948,12 @@ pub(crate) fn build_bar_chart_paths(
                     let mut parsed = Vec::with_capacity(colors.len());
                     for c in colors {
                         if let Some(col) = parse_color_in_env_with_lookup_diagnostic(
-                            label, "bar_colors", c, env, diagnostics, &subject,
+                            label,
+                            "bar_colors",
+                            c,
+                            env,
+                            diagnostics,
+                            &subject,
                         ) {
                             parsed.push(col);
                         }
@@ -1827,7 +1968,7 @@ pub(crate) fn build_bar_chart_paths(
                         Ok(Some(col)) => {
                             bar_colors = vec![col];
                             bar_colors_auto = false;
-                        }
+                        },
                         Ok(None) => {
                             // expression didn't resolve to a color — fall back to auto
                             diagnostics.push(Diagnostic::warning(
@@ -1835,7 +1976,7 @@ pub(crate) fn build_bar_chart_paths(
                                 DiagnosticPhase::Build,
                                 format!("BarChart '{label}' bar_colors value is not a color; falling back to auto"),
                             ).with_subject(&subject));
-                        }
+                        },
                         Err(EvalError::UndefinedVariable(key)) => {
                             let candidate_keys = env.all_keys();
                             let suggestion = best_path_suggestion(
@@ -1855,45 +1996,51 @@ pub(crate) fn build_bar_chart_paths(
                                     ),
                                 ).with_subject(&subject),
                             );
-                            // fall back to auto (bar_colors_auto stays true, bar_colors stays empty)
-                        }
+                            // fall back to auto (bar_colors_auto stays true, bar_colors stays
+                            // empty)
+                        },
                         Err(_) => {
                             // other eval error — fall back to auto
-                        }
+                        },
                     }
                 }
-            }
+            },
             "show_axis" => {
-                if let Some(v) = evaluate_expr_with_lookup_diagnostic(
-                    &prop.value, env, diagnostics, &subject,
-                ) {
+                if let Some(v) =
+                    evaluate_expr_with_lookup_diagnostic(&prop.value, env, diagnostics, &subject)
+                {
                     show_axis = match v {
                         Value::Bool(b) => b,
                         Value::Str(s) => s == "true" || s == "1",
                         _ => {
-                            diagnostics.push(Diagnostic::warning(
-                                DiagnosticCode::InvalidPropertyValue,
-                                DiagnosticPhase::Build,
-                                format!("BarChart '{label}' show_axis expects a boolean"),
-                            ).with_subject(&subject));
+                            diagnostics.push(
+                                Diagnostic::warning(
+                                    DiagnosticCode::InvalidPropertyValue,
+                                    DiagnosticPhase::Build,
+                                    format!("BarChart '{label}' show_axis expects a boolean"),
+                                )
+                                .with_subject(&subject),
+                            );
                             true
-                        }
+                        },
                     };
                 }
-            }
+            },
             "direction" => {
                 // Parsed but not yet used; reserved for horizontal bar support
-            }
+            },
             "max_value" => {
-                if let Some(v) = evaluate_expr_with_lookup_diagnostic(
-                    &prop.value, env, diagnostics, &subject,
-                ) {
+                if let Some(v) =
+                    evaluate_expr_with_lookup_diagnostic(&prop.value, env, diagnostics, &subject)
+                {
                     let n = v.as_num() as f32;
                     max_value_val = n;
-                    if n > 0.0 { max_value_auto = false; }
+                    if n > 0.0 {
+                        max_value_auto = false;
+                    }
                 }
-            }
-            _ => {} // Non-bar-chart properties are handled by the general actor pipeline.
+            },
+            _ => {}, // Non-bar-chart properties are handled by the general actor pipeline.
         }
     }
 
@@ -1914,25 +2061,22 @@ pub(crate) fn build_bar_chart_paths(
                 // Baseline at min y
                 ph * (1.0 - (0.0 - y_domain[0]) / (y_domain[1] - y_domain[0]))
             };
-            (
-                true, pw, ph,
-                x_domain[0], x_domain[1],
-                y_domain[0], y_domain[1],
-                baseline,
-            )
+            (true, pw, ph, x_domain[0], x_domain[1], y_domain[0], y_domain[1], baseline)
         } else {
             // Standalone — pixel coordinates within size bounds
-            let plot_left = -(full_w / 2.0) + 40.0;   // margin for labels
+            let plot_left = -(full_w / 2.0) + 40.0; // margin for labels
             let plot_right = full_w / 2.0 - 20.0;
             let plot_top = -(full_h / 2.0) + 20.0;
-            let plot_bottom = full_h / 2.0 - 40.0;    // margin for labels
+            let plot_bottom = full_h / 2.0 - 40.0; // margin for labels
             (
                 false,
                 plot_right - plot_left,
                 plot_bottom - plot_top,
-                plot_left, plot_right,
-                plot_top, plot_bottom,
-                plot_bottom,  // baseline at bottom
+                plot_left,
+                plot_right,
+                plot_top,
+                plot_bottom,
+                plot_bottom, // baseline at bottom
             )
         };
 
@@ -1957,7 +2101,11 @@ pub(crate) fn build_bar_chart_paths(
     // Gap
     let n_f64 = n as f64;
     let gap = if gap_auto {
-        if n_f64 <= 1.0 { 0.0 } else { (plot_w - bw * n_f64) / (n_f64 + 1.0) }
+        if n_f64 <= 1.0 {
+            0.0
+        } else {
+            (plot_w - bw * n_f64) / (n_f64 + 1.0)
+        }
     } else if use_math_coords {
         let x_range_pixels = plot_w;
         let x_range_math = math_x1 - math_x0;
@@ -2018,7 +2166,11 @@ pub(crate) fn build_bar_chart_paths(
         let bar_x_end = bar_x_start + bw;
 
         // Bar height in screen coords
-        let val_norm = if max_val > 0.0 { *value as f64 / max_val } else { 0.0 };
+        let val_norm = if max_val > 0.0 {
+            *value as f64 / max_val
+        } else {
+            0.0
+        };
         let bar_screen_height = val_norm * plot_h;
         let bar_top_y = baseline_y - bar_screen_height;
 
@@ -2077,7 +2229,9 @@ fn make_graph_map_inverse_fn(
     y_scale: super::utils::ScaleType,
 ) -> Value {
     Value::NativeFn(std::sync::Arc::new(
-        move |args: &[Value], env: &crate::timeline::Environment| -> Result<Value, crate::timeline::EvalError> {
+        move |args: &[Value],
+              env: &crate::timeline::Environment|
+              -> Result<Value, crate::timeline::EvalError> {
             if args.len() != 2 {
                 return Err(crate::timeline::EvalError::TypeMismatch(
                     "graph.map_inverse expects 2 arguments: (screen_x, screen_y)".to_string(),
@@ -2085,15 +2239,20 @@ fn make_graph_map_inverse_fn(
             }
             let sx = match &args[0] {
                 Value::Num(n) => *n,
-                _ => return Err(crate::timeline::EvalError::TypeMismatch(
-                    "graph.map_inverse: first argument 'screen_x' must be a number".to_string(),
-                )),
+                _ => {
+                    return Err(crate::timeline::EvalError::TypeMismatch(
+                        "graph.map_inverse: first argument 'screen_x' must be a number".to_string(),
+                    ));
+                },
             };
             let sy = match &args[1] {
                 Value::Num(n) => *n,
-                _ => return Err(crate::timeline::EvalError::TypeMismatch(
-                    "graph.map_inverse: second argument 'screen_y' must be a number".to_string(),
-                )),
+                _ => {
+                    return Err(crate::timeline::EvalError::TypeMismatch(
+                        "graph.map_inverse: second argument 'screen_y' must be a number"
+                            .to_string(),
+                    ));
+                },
             };
 
             // Read size, at, padding from runtime env for animation support.
@@ -2141,7 +2300,9 @@ fn make_graph_map_fn(
     y_scale: super::utils::ScaleType,
 ) -> Value {
     Value::NativeFn(std::sync::Arc::new(
-        move |args: &[Value], env: &crate::timeline::Environment| -> Result<Value, crate::timeline::EvalError> {
+        move |args: &[Value],
+              env: &crate::timeline::Environment|
+              -> Result<Value, crate::timeline::EvalError> {
             if args.len() != 2 {
                 return Err(crate::timeline::EvalError::TypeMismatch(
                     "graph.map expects 2 arguments: (math_x, math_y)".to_string(),
@@ -2149,15 +2310,19 @@ fn make_graph_map_fn(
             }
             let mx = match &args[0] {
                 Value::Num(n) => *n,
-                _ => return Err(crate::timeline::EvalError::TypeMismatch(
-                    "graph.map: first argument 'math_x' must be a number".to_string(),
-                )),
+                _ => {
+                    return Err(crate::timeline::EvalError::TypeMismatch(
+                        "graph.map: first argument 'math_x' must be a number".to_string(),
+                    ));
+                },
             };
             let my = match &args[1] {
                 Value::Num(n) => *n,
-                _ => return Err(crate::timeline::EvalError::TypeMismatch(
-                    "graph.map: second argument 'math_y' must be a number".to_string(),
-                )),
+                _ => {
+                    return Err(crate::timeline::EvalError::TypeMismatch(
+                        "graph.map: second argument 'math_y' must be a number".to_string(),
+                    ));
+                },
             };
 
             // Read size and at from runtime env for animation support.

@@ -88,8 +88,7 @@ impl Widget for Spinner {
         }
 
         let stroke_width = (size * 0.12).clamp(1.0, 4.0);
-        ui.painter()
-            .add(Shape::line(points, egui::Stroke::new(stroke_width, color)));
+        ui.painter().add(Shape::line(points, egui::Stroke::new(stroke_width, color)));
 
         // Keep the animation running.
         ui.ctx().request_repaint();

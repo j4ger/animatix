@@ -1,6 +1,5 @@
 mod actions;
 pub(crate) mod audio;
-pub(crate) mod command_bus;
 pub(crate) mod command_handlers;
 pub(crate) mod commands;
 pub(crate) mod components;
@@ -16,41 +15,48 @@ pub(crate) mod panels;
 mod persistence;
 pub(crate) mod preview;
 mod runtime;
-pub(crate) mod services;
 pub(crate) mod shell;
 pub(crate) mod stores;
 mod utils;
 
-use crate::app::design_tokens::semantic::{accent, border, status, surface, text};
-use crate::app::design_tokens::spatial::welcome::TOP_OFFSET_FRAC as WELCOME_TOP_OFFSET_FRAC;
-use crate::app::design_tokens::spatial::{spatial, RADIUS_L, RADIUS_M, RADIUS_S, ROW_L, SPACE_2, SPACE_3, SPACE_4, SPACE_5, STROKE_WIDTH};
-use crate::app::design_tokens::typography::TextRole;
-use crate::document::{DocumentSession, default_file_path};
-use crate::editor::EditorBuffer;
-use crate::hot_reload::{HotReloader, ReloadStatus};
-use crate::preview_surface::PreviewSurface;
+use std::collections::HashSet;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+
 use animatix::timeline::SceneDimensions;
-use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_phase_summary};
+use animatix_syntax::diagnostics::{
+    Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_phase_summary,
+};
 use directories::ProjectDirs;
 use egui::{Color32, Stroke, Vec2};
 use file_tree::{build_file_tree, workspace_root_for};
-use persistence::{SettingsPersistence, WorkspacePersistence, default_tree, load_workspace_persistence, persistence_path};
+use persistence::{
+    SettingsPersistence, WorkspacePersistence, default_tree, load_workspace_persistence,
+    persistence_path,
+};
 #[cfg(test)]
 use preview::fit_preview;
+use serde::{Deserialize, Serialize};
 
 use crate::app::commands::{ActionQueue, DocumentCommand, Effect, UndoLabel, ViewCommand};
 use crate::app::components::dialog;
 use crate::app::components::toast::Toast;
+use crate::app::design_tokens::semantic::{accent, border, status, surface, text};
+use crate::app::design_tokens::spatial::welcome::TOP_OFFSET_FRAC as WELCOME_TOP_OFFSET_FRAC;
+use crate::app::design_tokens::spatial::{
+    RADIUS_L, RADIUS_M, RADIUS_S, ROW_L, SPACE_2, SPACE_3, SPACE_4, SPACE_5, STROKE_WIDTH, spatial,
+};
+use crate::app::design_tokens::typography::TextRole;
 use crate::app::document::rebuild::RebuildWorker;
 use crate::app::handlers::file;
 use crate::app::shell::insertion_palette::InsertionPalette;
 use crate::app::stores::*;
 use crate::app::utils::*;
-use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use crate::document::{DocumentSession, default_file_path};
+use crate::editor::EditorBuffer;
+use crate::hot_reload::{HotReloader, ReloadStatus};
+use crate::preview_surface::PreviewSurface;
 
 const INITIAL_WINDOW_SIZE: (f64, f64) = (1440.0, 960.0);
 const DEFAULT_PREVIEW_SIZE: SceneDimensions = SceneDimensions {
@@ -388,10 +394,13 @@ impl GuiShell {
                             self.document_store.source.document.source_text.clone(),
                         );
                         self.workspace_store.last_reload_time = Some(app_time);
-                        self.preview_store.preview.status = "File reloaded".to_string();
+                        self.preview_store.preview.status = "File reloaded; rebuilding".to_string();
                         self.preview_store.preview.error = None;
-                        self.document_store.publish_rebuild_result(
-                            self.document_store.source.document.last_rebuild_error.is_none(),
+                        self.preview_store.pending_rebuild_at = Some(
+                            std::time::Instant::now()
+                                + std::time::Duration::from_millis(
+                                    self.ui_store.rebuild_debounce_ms,
+                                ),
                         );
                     }
                 },
@@ -429,7 +438,10 @@ impl GuiShell {
             persistence.as_ref().and_then(|p| p.window_size).unwrap_or([1440.0, 960.0]);
         let window_maximized =
             persistence.as_ref().and_then(|p| p.window_maximized).unwrap_or(false);
-        let hot_reloader = HotReloader::new(&document.file_path).ok();
+        let (hot_reloader, hot_reload_error) = match HotReloader::new(&document.file_path) {
+            Ok(reloader) => (Some(reloader), None),
+            Err(err) => (None, Some(err)),
+        };
         let duration_s = document.duration_s.max(0.1);
         let mut preview = PreviewPaneState::new(duration_s, document.scene_dimensions);
         if let Some(status) = status {
@@ -468,7 +480,6 @@ impl GuiShell {
                 "compact" => eparts::Density::Compact,
                 _ => eparts::Density::Default,
             };
-            // undo_limit is on DocumentStore created below inside Self {} — skipped for now (default 100 is fine)
         }
 
         let mut shell = Self {
@@ -479,6 +490,7 @@ impl GuiShell {
                 file_tree,
                 persistence_path,
                 hot_reloader,
+                hot_reload_error,
             ),
             preview_store: PreviewStore::new(preview),
             ui_store,
@@ -488,6 +500,10 @@ impl GuiShell {
             window_size,
             window_maximized,
         };
+        if let Some(s) = persistence.as_ref().and_then(|p| p.settings.as_ref()) {
+            shell.document_store.history.undo_limit = s.undo_limit;
+        }
+
         if !is_welcome {
             shell.document_store.publish_rebuild_result(
                 error.is_none()
@@ -542,12 +558,13 @@ impl GuiShell {
         {
             self.preview_store.pending_rebuild_at = None;
             self.preview_store.preview.error = None;
-            let token = crate::app::handlers::file::handle_rebuild_submit(
+            if let Some(token) = crate::app::handlers::file::handle_rebuild_submit(
                 &mut self.rebuild_worker,
                 &mut self.document_store,
                 &mut self.preview_store,
-            );
-            self.preview_store.in_flight_rebuild = Some(token);
+            ) {
+                self.preview_store.in_flight_rebuild = Some(token);
+            }
         }
 
         // Poll for completed rebuild responses
@@ -600,11 +617,11 @@ impl GuiShell {
                             ui.add_space(SPACE_4);
                             ui.label(
                                 egui::RichText::new(format!(
-                                "No diagnostics — all clear {}",
-                                egui_phosphor::regular::CHECK_CIRCLE,
-                            ))
-                                    .size(TextRole::BodyS.size())
-                                    .color(text::MUTED),
+                                    "No diagnostics — all clear {}",
+                                    egui_phosphor::regular::CHECK_CIRCLE,
+                                ))
+                                .size(TextRole::BodyS.size())
+                                .color(text::MUTED),
                             );
                         });
                     } else if let Some(target) = components::diagnostics::diagnostics_list(
@@ -636,10 +653,8 @@ impl GuiShell {
                             self.preview_store.preview.status_severity == StatusSeverity::Error;
                         if is_error {
                             // Red accent pill + warning icon for errors
-                            let (bg_rect, _) = ui.allocate_exact_size(
-                                egui::vec2(14.0, 14.0),
-                                egui::Sense::hover(),
-                            );
+                            let (bg_rect, _) = ui
+                                .allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::hover());
                             ui.painter().rect_filled(
                                 bg_rect,
                                 RADIUS_S,
@@ -895,10 +910,6 @@ impl GuiShell {
         preview_texture_id: Option<egui::TextureId>,
         commands: &mut ActionQueue,
     ) {
-        // Create CommandBus alongside ActionQueue for incremental migration to view models.
-        // Panels will emit() into the bus once they migrate to immutable view models.
-        let mut command_bus = crate::app::command_bus::CommandBus::new();
-
         let tree = &mut self.ui_store.view.tree;
         let mut behavior = panels::behavior::WorkspaceBehavior {
             document_store: &mut self.document_store,
@@ -925,11 +936,6 @@ impl GuiShell {
             timeline_focused: &mut self.ui_store.view.timeline_focused,
         };
         tree.ui(&mut behavior, ui);
-
-        // Drain CommandBus into ActionQueue (used once panels migrate to emit()).
-        for action in command_bus.drain() {
-            commands.push_back(action);
-        }
     }
 
     fn handle_actions(&mut self, actions: ActionQueue) {
@@ -1179,6 +1185,7 @@ impl GuiShell {
             );
             ui.add_space(SPACE_5);
 
+            let mut save_failed = false;
             ui.horizontal(|ui| {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     // Save button
@@ -1195,19 +1202,22 @@ impl GuiShell {
                         .fill(accent::PRIMARY),
                     );
                     if save.clicked() {
-                        // Save first, then execute pending action
-                        let effects = file::handle_save(
-                            &mut self.document_store,
-                            &mut self.preview_store,
-                        );
-                        self.apply_effects(effects);
-                        let was_close = self.ui_store.unsaved_changes.pending_close;
-                        self.execute_unsaved_pending_action();
-                        self.ui_store.unsaved_changes.close();
-                        if was_close {
-                            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                        // Keep the dialog open if saving fails so unsaved edits are not lost.
+                        if let Err(err) = file::save_document(&mut self.document_store) {
+                            self.preview_store
+                                .preview
+                                .set_status_error(format!("Save failed: {err}"));
+                            self.ui_store.toasts.push(Toast::error(format!("Save failed: {err}")));
+                            save_failed = true;
+                        } else {
+                            let was_close = self.ui_store.unsaved_changes.pending_close;
+                            self.execute_unsaved_pending_action();
+                            self.ui_store.unsaved_changes.close();
+                            if was_close {
+                                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                            }
+                            body_close = true;
                         }
-                        body_close = true;
                     }
 
                     // Discard button
@@ -1251,6 +1261,10 @@ impl GuiShell {
                     }
                 });
             });
+
+            if save_failed {
+                return false;
+            }
 
             title_close || body_close
         });

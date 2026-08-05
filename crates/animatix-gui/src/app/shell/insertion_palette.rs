@@ -4,19 +4,10 @@ use egui::{Color32, Pos2, Rect, RichText, Stroke, Vec2};
 
 use crate::app::GuiShell;
 use crate::app::commands::UndoLabel;
-use crate::app::design_tokens::semantic::accent;
-
-use crate::app::design_tokens::semantic::border;
-
-use crate::app::design_tokens::semantic::category;
 use crate::app::design_tokens::semantic::editor::SNIPPET_BLUE;
-use crate::app::design_tokens::semantic::overlay;
-use crate::app::design_tokens::semantic::status;
-
-use crate::app::design_tokens::semantic::surface;
-
-use crate::app::design_tokens::semantic::text;
-
+use crate::app::design_tokens::semantic::{
+    accent, border, category, overlay, status, surface, text,
+};
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, RADIUS_XL, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::insertion::{InsertionContext, InsertionRequest};

@@ -55,10 +55,20 @@ impl Cell {
     }
 
     pub fn is_relative_timestamp(&self) -> bool {
-        matches!(self, Self::Keyframe { is_relative: true, .. })
+        matches!(
+            self,
+            Self::Keyframe {
+                is_relative: true,
+                ..
+            }
+        )
     }
 
-    pub fn is_expanded(&self, index: usize, collapsed_cells: &std::collections::HashSet<usize>) -> bool {
+    pub fn is_expanded(
+        &self,
+        index: usize,
+        collapsed_cells: &std::collections::HashSet<usize>,
+    ) -> bool {
         match self {
             Self::Code { expanded, .. } => *expanded,
             Self::Keyframe { .. } => !collapsed_cells.contains(&index),
@@ -66,20 +76,28 @@ impl Cell {
     }
 
     pub fn set_expanded(&mut self, expanded: bool) {
-        if let Self::Code { expanded: current, .. } = self {
+        if let Self::Code {
+            expanded: current, ..
+        } = self
+        {
             *current = expanded;
         }
     }
 
     pub fn attached_comment(&self) -> Option<&str> {
         match self {
-            Self::Keyframe { attached_comment, .. } => attached_comment.as_deref(),
+            Self::Keyframe {
+                attached_comment, ..
+            } => attached_comment.as_deref(),
             _ => None,
         }
     }
 
     pub fn set_attached_comment(&mut self, comment: Option<String>) {
-        if let Self::Keyframe { attached_comment, .. } = self {
+        if let Self::Keyframe {
+            attached_comment, ..
+        } = self
+        {
             *attached_comment = comment;
         }
     }
@@ -92,7 +110,12 @@ impl Cell {
     }
 
     pub fn toggle_timestamp_type(&mut self) {
-        if let Self::Keyframe { timestamp, is_relative, .. } = self {
+        if let Self::Keyframe {
+            timestamp,
+            is_relative,
+            ..
+        } = self
+        {
             if *is_relative {
                 if timestamp.starts_with('+') {
                     timestamp.remove(0);
@@ -116,8 +139,14 @@ impl Cell {
                     out.push('\n');
                 }
                 out
-            }
-            Self::Keyframe { timestamp, is_relative, body, attached_comment, .. } => {
+            },
+            Self::Keyframe {
+                timestamp,
+                is_relative,
+                body,
+                attached_comment,
+                ..
+            } => {
                 let mut out = String::new();
 
                 if let Some(comment) = attached_comment {
@@ -142,7 +171,7 @@ impl Cell {
                     out.push('\n');
                 }
                 out
-            }
+            },
         }
     }
 
@@ -158,9 +187,11 @@ impl Cell {
     pub fn is_empty(&self) -> bool {
         match self {
             Self::Code { body, .. } => body.trim().is_empty(),
-            Self::Keyframe { body, attached_comment, .. } => {
-                body.trim().is_empty() && attached_comment.is_none()
-            }
+            Self::Keyframe {
+                body,
+                attached_comment,
+                ..
+            } => body.trim().is_empty() && attached_comment.is_none(),
         }
     }
 
@@ -168,7 +199,11 @@ impl Cell {
     /// trailing zeros (e.g. `1.0s` → `1s`, `1.500s` → `1.5s`).
     pub fn display_timestamp(&self) -> Option<String> {
         match self {
-            Self::Keyframe { timestamp, is_relative, .. } => {
+            Self::Keyframe {
+                timestamp,
+                is_relative,
+                ..
+            } => {
                 let text = timestamp.trim_start_matches('+');
                 let seconds = parse_timestamp_seconds(text);
                 let formatted = format_duration_s(seconds);
@@ -177,7 +212,7 @@ impl Cell {
                 } else {
                     Some(formatted)
                 }
-            }
+            },
             _ => None,
         }
     }

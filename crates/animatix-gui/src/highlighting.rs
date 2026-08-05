@@ -1,13 +1,15 @@
 //! Tree-sitter based syntax highlighting for the Animatix DSL.
 
-use animatix_analyzer::Diagnostic;
-use crate::cell_editor::SemanticHighlight;
-use egui::text::LayoutJob;
-use egui::{Color32, FontId, FontFamily, TextFormat};
 use std::sync::LazyLock;
+
+use animatix_analyzer::Diagnostic;
+use egui::text::LayoutJob;
+use egui::{Color32, FontFamily, FontId, TextFormat};
 use tracing::warn;
-use tree_sitter::{Parser, Language};
-use tree_sitter_animatix::{language, HIGHLIGHTS_QUERY};
+use tree_sitter::{Language, Parser};
+use tree_sitter_animatix::{HIGHLIGHTS_QUERY, language};
+
+use crate::cell_editor::SemanticHighlight;
 
 static LANGUAGE: LazyLock<Language> = LazyLock::new(language);
 
@@ -72,19 +74,19 @@ impl HighlightColors {
             // Dark theme (Gruvbox-inspired)
             Self {
                 keyword: Color32::from_rgb(251, 73, 106),      // red
-                type_name: Color32::from_rgb(250, 189, 47),     // yellow
-                string: Color32::from_rgb(184, 187, 38),        // green
-                number: Color32::from_rgb(215, 153, 33),        // orange
-                boolean: Color32::from_rgb(215, 153, 33),       // orange
-                comment: Color32::from_rgb(146, 131, 116),      // gray
-                operator: Color32::from_rgb(168, 153, 132),     // muted gray
-                punctuation: Color32::from_rgb(189, 174, 147),  // light gray
-                variable: Color32::from_rgb(177, 98, 134),      // purple
-                property: Color32::from_rgb(131, 165, 152),     // teal
-                parameter: Color32::from_rgb(211, 134, 155),    // pink
-                function: Color32::from_rgb(254, 128, 25),      // bright orange
-                label: Color32::from_rgb(102, 153, 204),         // soft blue
-                default: Color32::from_rgb(235, 219, 178),      // light
+                type_name: Color32::from_rgb(250, 189, 47),    // yellow
+                string: Color32::from_rgb(184, 187, 38),       // green
+                number: Color32::from_rgb(215, 153, 33),       // orange
+                boolean: Color32::from_rgb(215, 153, 33),      // orange
+                comment: Color32::from_rgb(146, 131, 116),     // gray
+                operator: Color32::from_rgb(168, 153, 132),    // muted gray
+                punctuation: Color32::from_rgb(189, 174, 147), // light gray
+                variable: Color32::from_rgb(177, 98, 134),     // purple
+                property: Color32::from_rgb(131, 165, 152),    // teal
+                parameter: Color32::from_rgb(211, 134, 155),   // pink
+                function: Color32::from_rgb(254, 128, 25),     // bright orange
+                label: Color32::from_rgb(102, 153, 204),       // soft blue
+                default: Color32::from_rgb(235, 219, 178),     // light
             }
         } else {
             // Light theme
@@ -101,7 +103,7 @@ impl HighlightColors {
                 property: Color32::from_rgb(69, 133, 136),     // teal
                 parameter: Color32::from_rgb(177, 98, 134),    // pink
                 function: Color32::from_rgb(181, 101, 0),      // orange
-                label: Color32::from_rgb(51, 102, 153),         // dark blue
+                label: Color32::from_rgb(51, 102, 153),        // dark blue
                 default: Color32::from_rgb(60, 60, 60),        // dark
             }
         }
@@ -164,15 +166,18 @@ pub fn highlight_source(
                 "highlight_source: HIGHLIGHT_CONFIG initialization failed, falling back to plain text"
             );
             return plain_text_job(source, &font_id, colors.default);
-        }
+        },
     };
 
     let highlights = match highlighter.highlight(config, source.as_bytes(), None, |_| None) {
         Ok(highlights) => highlights,
         Err(e) => {
-            warn!("highlight_source: highlighter.highlight failed: {:?}, falling back to plain text", e);
+            warn!(
+                "highlight_source: highlighter.highlight failed: {:?}, falling back to plain text",
+                e
+            );
             return plain_text_job(source, &font_id, colors.default);
-        }
+        },
     };
 
     // Collect highlight spans as (start, end, color)
@@ -188,13 +193,13 @@ pub fn highlight_source(
                     .unwrap_or(colors.default);
                 highlight_spans.push((start, end, color));
                 last_end = end;
-            }
+            },
             Ok(tree_sitter_highlight::HighlightEvent::HighlightStart(highlight)) => {
                 current_highlight = Some(HIGHLIGHT_NAMES[highlight.0]);
-            }
+            },
             Ok(tree_sitter_highlight::HighlightEvent::HighlightEnd) => {
                 current_highlight = None;
-            }
+            },
             Err(_) => break,
         }
     }
@@ -211,11 +216,7 @@ pub fn highlight_source(
     if let Some(line) = highlighted_line {
         let (start, end) = line_byte_range(source, line);
         if start < end {
-            deco_ranges.push((
-                start,
-                end,
-                Color32::from_rgba_premultiplied(84, 110, 255, 45),
-            ));
+            deco_ranges.push((start, end, Color32::from_rgba_premultiplied(84, 110, 255, 45)));
         }
     }
 
@@ -228,16 +229,16 @@ pub fn highlight_source(
             let color = match sh.kind {
                 crate::cell_editor::SemanticTokenKind::ActorName => {
                     Color32::from_rgb(102, 153, 204) // blue, matching @label
-                }
+                },
                 crate::cell_editor::SemanticTokenKind::ComponentName => {
                     Color32::from_rgb(211, 134, 155) // pink
-                }
+                },
                 crate::cell_editor::SemanticTokenKind::SceneName => {
                     Color32::from_rgb(131, 165, 152) // teal
-                }
+                },
                 crate::cell_editor::SemanticTokenKind::PropertyName => {
                     Color32::from_rgb(142, 192, 124) // green
-                }
+                },
             };
             special_highlights.push((start, end, color));
         }
@@ -294,7 +295,11 @@ fn apply_background_layers(
         .filter_map(|d| {
             let start = line_col_to_byte(source, d.line, d.col);
             let end = line_col_to_byte(source, d.end_line, d.end_col);
-            if start < end { Some((start, end)) } else { None }
+            if start < end {
+                Some((start, end))
+            } else {
+                None
+            }
         })
         .collect();
 
@@ -356,16 +361,16 @@ fn apply_background_layers(
                 bg_color = Some(match d.severity {
                     animatix_analyzer::DiagnosticSeverity::Error => {
                         Color32::from_rgba_premultiplied(255, 60, 60, 55)
-                    }
+                    },
                     animatix_analyzer::DiagnosticSeverity::Warning => {
                         Color32::from_rgba_premultiplied(255, 200, 80, 75)
-                    }
+                    },
                     animatix_analyzer::DiagnosticSeverity::Info => {
                         Color32::from_rgba_premultiplied(80, 140, 255, 40)
-                    }
+                    },
                     animatix_analyzer::DiagnosticSeverity::Hint => {
                         Color32::from_rgba_premultiplied(80, 220, 140, 40)
-                    }
+                    },
                 });
                 break;
             }
@@ -541,9 +546,7 @@ fade-in title [1s]
         .unwrap();
         config.configure(HIGHLIGHT_NAMES);
 
-        let highlights = highlighter
-            .highlight(&config, source.as_bytes(), None, |_| None)
-            .unwrap();
+        let highlights = highlighter.highlight(&config, source.as_bytes(), None, |_| None).unwrap();
 
         let mut source_events = 0;
         let mut highlight_starts = 0;
@@ -554,16 +557,13 @@ fade-in title [1s]
                 Ok(tree_sitter_highlight::HighlightEvent::Source { .. }) => source_events += 1,
                 Ok(tree_sitter_highlight::HighlightEvent::HighlightStart(_)) => {
                     highlight_starts += 1
-                }
+                },
                 Ok(tree_sitter_highlight::HighlightEvent::HighlightEnd) => highlight_ends += 1,
                 Err(e) => panic!("Highlight error: {:?}", e),
             }
         }
 
-        assert!(
-            highlight_starts > 0,
-            "Expected at least some HighlightStart events, got 0"
-        );
+        assert!(highlight_starts > 0, "Expected at least some HighlightStart events, got 0");
         assert_eq!(
             highlight_starts, highlight_ends,
             "Mismatched HighlightStart/HighlightEnd count"

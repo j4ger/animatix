@@ -1,7 +1,8 @@
-use super::error::RenderError;
-use super::fullscreen_blit::FullscreenBlitPipeline;
 use vello::peniko::Color;
 use vello::{AaConfig, AaSupport, RenderParams, Renderer, RendererOptions, Scene};
+
+use super::error::RenderError;
+use super::fullscreen_blit::FullscreenBlitPipeline;
 
 /// Thin wrapper around a Vello [`Renderer`] that handles scene-to-texture rendering.
 pub struct RendererCore {
@@ -27,7 +28,10 @@ impl RendererCore {
 
         let blit = FullscreenBlitPipeline::new(device);
 
-        Ok(Self { renderer, blit: Some(blit) })
+        Ok(Self {
+            renderer,
+            blit: Some(blit),
+        })
     }
 
     /// Blit a `src_view` directly into `dst_view` without CPU readback.
@@ -61,7 +65,13 @@ impl RendererCore {
         scene: &Scene,
     ) -> Result<(), RenderError> {
         self.render_vello_scene_with_background(
-            device, queue, texture_view, width, height, scene, Color::BLACK,
+            device,
+            queue,
+            texture_view,
+            width,
+            height,
+            scene,
+            Color::BLACK,
         )
     }
 
@@ -106,15 +116,13 @@ mod tests {
             .ok()?;
         let needed_limits = wgpu::Limits::default().using_resolution(adapter.limits());
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: Some("Animatix Test Device"),
-                    required_features: wgpu::Features::empty(),
-                    required_limits: needed_limits,
-                    memory_hints: Default::default(),
-                    ..Default::default()
-                },
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                label: Some("Animatix Test Device"),
+                required_features: wgpu::Features::empty(),
+                required_limits: needed_limits,
+                memory_hints: Default::default(),
+                ..Default::default()
+            })
             .await
             .ok()?;
         Some((device, queue))

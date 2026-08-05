@@ -6,12 +6,12 @@
 //!
 //! ## Build-time vs frame-time boundary
 //!
-//! - **`Timeline::build()`** (in `build.rs`): one-time lowering pass that parses the AST,
-//!   resolves imports, expands components, creates tracks, applies layout, compiles
-//!   text/math/code paths, and loads assets.
-//! - **`Timeline::evaluate()`** (in `runtime.rs` / `scene_eval.rs`): per-frame execution
-//!   that samples tracks, runs `always` modifiers, resolves anchors/percent positions,
-//!   and emits a `vello::Scene`.
+//! - **`Timeline::build()`** (in `build.rs`): one-time lowering pass that parses the AST, resolves
+//!   imports, expands components, creates tracks, applies layout, compiles text/math/code paths,
+//!   and loads assets.
+//! - **`Timeline::evaluate()`** (in `runtime.rs` / `scene_eval.rs`): per-frame execution that
+//!   samples tracks, runs `always` modifiers, resolves anchors/percent positions, and emits a
+//!   `vello::Scene`.
 //!
 //! ## Submodule responsibilities
 //!
@@ -33,18 +33,19 @@
 //! and component expansion—not the raw parser AST.
 /// Timeline action processing (hover, click, etc.).
 pub mod actions;
+mod actor_kind;
 /// Asset loading and caching.
 #[cfg(feature = "render")]
 pub mod assets;
-pub mod callout_geometry;
-mod actor_kind;
 mod assignments;
 mod build;
 mod builtins;
+pub mod callout_geometry;
 pub mod colorscheme;
 mod declarations_text;
 /// Evaluation environment for expressions.
 pub mod env;
+pub mod eval_shared;
 /// Filter backend and CPU image processing.
 #[cfg(feature = "render")]
 pub mod filter;
@@ -55,37 +56,32 @@ pub mod kurbo_shapes;
 mod layout;
 #[cfg(feature = "render")]
 mod media;
-pub(crate) mod taffy_layout;
-pub(crate) mod modifier_runtime;
 /// Modifier statement execution (tree-walk, IR, bytecode).
 pub mod modifier_exec;
+pub(crate) mod modifier_runtime;
 /// Path morphing between vector shapes.
 pub mod morph;
-mod plot;
-pub mod eval_shared;
 pub mod path_progress;
-pub mod property_track;
+mod plot;
 mod position;
 pub(crate) mod property_engine;
 pub mod property_registry;
+pub mod property_track;
+pub(crate) mod taffy_layout;
 pub(crate) mod value_parser;
 
 // Re-export the generic property read API
 pub use dispatch::{
-    read_property_value, read_property_value_or_default,
-    property_has_keyframes, property_has_keyframe_at,
-    property_keyframe_count, property_keyframe_times,
-    property_keyframe_easing,
+    property_has_keyframe_at, property_has_keyframes, property_keyframe_count,
+    property_keyframe_easing, property_keyframe_times, read_property_value,
+    read_property_value_or_default,
 };
 pub use property_engine::PropertyValue;
-
 // Re-export property registry types for the GUI
 pub use property_registry::{
-    PropertySchema, ValueType, ActorField, PropertyFlags,
-    lookup_property, allowed_property_indices, PROPERTY_REGISTRY,
+    ActorField, PROPERTY_REGISTRY, PropertyFlags, PropertySchema, ValueType,
+    allowed_property_indices, lookup_property,
 };
-mod primitive;
-pub(crate) mod property_lookup;
 /// Frame evaluation environment construction and modifier execution.
 ///
 /// Provides [`Timeline::build_frame_env`] which assembles the per-frame
@@ -93,11 +89,13 @@ pub(crate) mod property_lookup;
 /// that drives both rendering and modifier evaluation.
 mod frame_env;
 mod index;
+/// Legend track storage.
+pub mod legend;
+mod primitive;
+pub(crate) mod property_lookup;
 #[cfg(feature = "render")]
 mod scene_eval;
 mod sequence;
-/// Legend track storage.
-pub mod legend;
 pub use legend::LegendTracks;
 
 /// Vector shape definitions and rendering.
@@ -109,61 +107,64 @@ pub mod svg;
 pub mod svg_import;
 mod timing;
 pub use timing::parse_easing_name;
-/// Field dispatch and track access for property animation.
-pub mod dispatch;
 /// Keyframed property tracks, tier sub-structs, and helpers.
 pub mod animation_track;
+/// Field dispatch and track access for property animation.
+pub mod dispatch;
+/// Scene persistence: CarryBag, CarryEntry, snapshot helpers.
+pub mod persistence;
 pub mod utils;
 /// Vello path wrapper with fill/stroke.
 pub mod vello_path;
-/// Scene persistence: CarryBag, CarryEntry, snapshot helpers.
-pub mod persistence;
 
-use crate::diagnostics::{BuildReport, Diagnostic, DiagnosticCode, DiagnosticPhase};
-pub use actor_kind::ActorKind;
 use actions::process_action;
+pub use actor_kind::ActorKind;
+pub(crate) use assignments::recompile_text_at_assignment;
+pub use builtins::load_standard_library;
 use colorscheme::{BuiltInColorscheme, ResolvedColorscheme};
 pub use env::{CapturedEnv, Environment, EvalError, Value};
-pub use builtins::load_standard_library;
-pub use index::TimelineIndex;
 #[cfg(feature = "render")]
 pub use image::load_image;
+pub use index::TimelineIndex;
 pub use kurbo_shapes::{KurboShape, morph_kurbo_shapes, morph_kurbo_shapes_default};
-pub use morph::{MorphOptions, MorphStrategy, evaluate_paths_with_options, interpolate_text_paths, interpolate_vello_paths};
-use plot::{
-    sample_recursive_cartesian, sample_recursive_parametric,
-    sample_recursive_polar,
+pub use morph::{
+    MorphOptions, MorphStrategy, evaluate_paths_with_options, interpolate_text_paths,
+    interpolate_vello_paths,
 };
+use plot::{sample_recursive_cartesian, sample_recursive_parametric, sample_recursive_polar};
+pub(crate) use position::preserve_instant_delayed_value;
+pub use position::scene_anchor_point;
 use position::{
     apply_explicit_position_binding, mark_track_manual_position,
-    preserve_discrete_position_state_before,
-    resolve_bound_position, resolve_position_binding_with_lookup_diagnostic,
-    set_track_position_binding,
+    preserve_discrete_position_state_before, resolve_bound_position,
+    resolve_position_binding_with_lookup_diagnostic, set_track_position_binding,
 };
-pub use position::scene_anchor_point;
-pub(crate) use assignments::recompile_text_at_assignment;
-pub(crate) use position::preserve_instant_delayed_value;
 pub(crate) use primitive::PrimitiveDescriptor;
 use property_lookup::{
-    assignment_target_key, assignment_target_key_with_env, best_path_suggestion, evaluate_expr_with_lookup_diagnostic,
-    for_iter_values, parse_color_in_env_with_lookup_diagnostic,
-    set_lookup_color, set_lookup_vec2,
+    assignment_target_key, assignment_target_key_with_env, best_path_suggestion,
+    evaluate_expr_with_lookup_diagnostic, for_iter_values,
+    parse_color_in_env_with_lookup_diagnostic, set_lookup_color, set_lookup_vec2,
 };
 pub(crate) use property_lookup::{
     evaluate_expr_with_lookup_diagnostic as lookup_evaluate_expr_with_lookup_diagnostic,
     parse_numeric_vec2_with_lookup_diagnostic as lookup_parse_numeric_vec2_with_lookup_diagnostic,
 };
 pub use shapes::{
-    VectorShapeState, VectorShapeStyle, apply_vector_shape_defaults,
+    ShapeType, VectorShapeState, VectorShapeStyle, apply_vector_shape_defaults,
     apply_vector_shape_property, build_shape_vello_path, build_vector_shape_vello_path,
-    extract_shape_state_values, finalize_vector_shape_state, parse_path_commands_expr, shape_type_for_actor,
-    vector_shape_uses_custom_path, ShapeType,
+    extract_shape_state_values, finalize_vector_shape_state, parse_path_commands_expr,
+    shape_type_for_actor, vector_shape_uses_custom_path,
 };
 #[cfg(feature = "svg")]
 pub use svg::parse_svg;
 #[cfg(feature = "svg")]
-pub use svg_import::{import_svg, SvgImportError};
-pub(crate) use timing::{ModifierHost, ParsedTimingModifiers, parse_timing_modifiers, config_string_value, parse_duration_literal};
+pub use svg_import::{SvgImportError, import_svg};
+pub(crate) use timing::{
+    ModifierHost, ParsedTimingModifiers, config_string_value, parse_duration_literal,
+    parse_timing_modifiers,
+};
+
+use crate::diagnostics::{BuildReport, Diagnostic, DiagnosticCode, DiagnosticPhase};
 
 // ─────────────────────────────────────────────────────────────
 // Build quality levels (Phase 6.3)
@@ -198,32 +199,32 @@ impl BuildQuality {
                 *tolerance = (*tolerance * 4.0).max(0.5);
                 *max_depth = max_depth.saturating_sub(4).max(6);
                 *resolution = (*resolution / 4).max(16);
-            }
+            },
             BuildQuality::Preview => {
                 *tolerance = (*tolerance * 2.0).max(0.5);
                 *max_depth = max_depth.saturating_sub(2).max(6);
                 *resolution = (*resolution / 2).max(16);
-            }
+            },
             BuildQuality::Production => {
                 // No scaling — use values as-is (already clamped by caller)
-            }
+            },
         }
     }
 }
-use timing::{
-    has_non_default_morph_options, parse_stagger_interval_ms,
-    push_modifier_diagnostic, push_unknown_target_path_diagnostic,
-    push_unsupported_stagger_statement_diagnostic, sequence_stmt_kind,
-};
-pub use property_track::{Interpolate, PropertyTrack, TrackAccessor, Easing};
-pub use dispatch::{AnimationTrack, TrackFieldRef, TrackFieldMut};
 pub use actor_kind::{
-    ActorCategory, ActorKindId, ActorKindMeta, ShapeKind,
-    actor_kind_registry, actor_kind_meta, actor_kind_meta_by_name,
+    ActorCategory, ActorKindId, ActorKindMeta, ShapeKind, actor_kind_meta, actor_kind_meta_by_name,
+    actor_kind_registry,
 };
 pub use animation_track::{
-    ActionCategory, ActionEvent, ResizeMode,
-    PlacementMode, PositionBinding, SceneAnchor, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
+    ActionCategory, ActionEvent, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, PlacementMode,
+    PositionBinding, ResizeMode, SceneAnchor,
+};
+pub use dispatch::{AnimationTrack, TrackFieldMut, TrackFieldRef};
+pub use property_track::{Easing, Interpolate, PropertyTrack, TrackAccessor};
+use timing::{
+    has_non_default_morph_options, parse_stagger_interval_ms, push_modifier_diagnostic,
+    push_unknown_target_path_diagnostic, push_unsupported_stagger_statement_diagnostic,
+    sequence_stmt_kind,
 };
 /// Collect all keyframe times (in seconds) across all property tracks of an
 /// `AnimationTrack`, using the property registry to discover all possible fields.
@@ -242,13 +243,14 @@ pub fn collect_all_keyframe_times(track: &AnimationTrack) -> Vec<f64> {
     times.into_iter().map(|ms| ms as f64 / 1000.0).collect()
 }
 
+use std::collections::{BTreeMap, BTreeSet};
+
 pub use utils::{evaluate_expr, parse_color, parse_color_in_env, resolve_color_in_env, time_to_ms};
 pub use vello_path::VelloPath;
 
 use crate::ast::{Expr, Modifier, Stmt};
-use crate::timeline::modifier_runtime::ir::ModifierIrProgram;
 use crate::easing::*;
-use std::collections::{BTreeMap, BTreeSet};
+use crate::timeline::modifier_runtime::ir::ModifierIrProgram;
 
 /// Layout strategy for container actors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -340,7 +342,10 @@ pub fn padding_uniform(v: f32) -> [f32; 4] {
 
 impl ContainerMetadata {
     /// Compute layout-admitted children on demand from `child_order` + tracks.
-    pub fn layout_children(&self, tracks: &BTreeMap<String, AnimationTrack>) -> Vec<ContainerLayoutChild> {
+    pub fn layout_children(
+        &self,
+        tracks: &BTreeMap<String, AnimationTrack>,
+    ) -> Vec<ContainerLayoutChild> {
         self.child_order
             .iter()
             .filter_map(|child_label| {
@@ -350,7 +355,10 @@ impl ContainerMetadata {
                 }
                 Some(ContainerLayoutChild {
                     label: child_label.clone(),
-                    placement_mode: track.geometry.placement_mode.last(PlacementMode::LayoutManaged),
+                    placement_mode: track
+                        .geometry
+                        .placement_mode
+                        .last(PlacementMode::LayoutManaged),
                 })
             })
             .collect()
@@ -364,7 +372,9 @@ impl ContainerMetadata {
 #[derive(Clone, Debug)]
 pub struct LayoutEngine {
     /// Per-container layout cache. Keyed by container child-order string.
-    pub(crate) cache: std::cell::RefCell<std::collections::HashMap<String, crate::timeline::layout::LayoutCacheEntry>>,
+    pub(crate) cache: std::cell::RefCell<
+        std::collections::HashMap<String, crate::timeline::layout::LayoutCacheEntry>,
+    >,
 }
 
 impl Default for LayoutEngine {
@@ -429,10 +439,7 @@ pub struct VariableTrack {
 impl VariableTrack {
     /// Evaluate the variable at the given time, returning the most recent keyframe value.
     pub fn evaluate(&self, time_ms: u64) -> Option<Value> {
-        self.keyframes
-            .range(..=time_ms)
-            .next_back()
-            .map(|(_, v)| v.clone())
+        self.keyframes.range(..=time_ms).next_back().map(|(_, v)| v.clone())
     }
 }
 
@@ -531,7 +538,8 @@ pub struct Timeline {
     pub action_events: Vec<crate::timeline::animation_track::ActionEvent>,
     /// Cache for static plot paths keyed by parameter hash (Phase 6.4).
     /// Survives across rebuilds when the GUI copies it from the old timeline.
-    pub plot_path_cache: std::collections::HashMap<u64, Vec<crate::timeline::vello_path::VelloPath>>,
+    pub plot_path_cache:
+        std::collections::HashMap<u64, Vec<crate::timeline::vello_path::VelloPath>>,
     /// Runtime diagnostics from frame evaluation (modifier errors, etc.).
     /// Cleared at the start of each evaluate call.
     runtime_diagnostics: std::cell::RefCell<Vec<crate::diagnostics::Diagnostic>>,
@@ -578,8 +586,8 @@ impl Clone for Timeline {
             persistence_flags: self.persistence_flags.clone(),
             text_compiler: std::cell::RefCell::new(self.text_compiler.borrow().clone()),
             frame_cache: std::cell::RefCell::new(None), // cache is not cloned
-            transform_cache: std::cell::RefCell::new(std::collections::HashMap::new()), // cache is not cloned
-            static_subtree_cache: std::cell::RefCell::new(std::collections::HashMap::new()), // cache is not cloned
+            transform_cache: std::cell::RefCell::new(std::collections::HashMap::new()), /* cache is not cloned */
+            static_subtree_cache: std::cell::RefCell::new(std::collections::HashMap::new()), /* cache is not cloned */
             scene_buffer: std::cell::RefCell::new(None), // buffer is not cloned
             hit_regions: std::cell::RefCell::new(Vec::new()),
             variable_tracks: self.variable_tracks.clone(),
@@ -599,7 +607,9 @@ impl Timeline {
     }
 
     /// Create a new empty timeline with the given font context.
-    pub fn new_with_font_context(font_context: std::sync::Arc<crate::renderer::text::FontContext>) -> Self {
+    pub fn new_with_font_context(
+        font_context: std::sync::Arc<crate::renderer::text::FontContext>,
+    ) -> Self {
         let mut bg_track = PropertyTrack::new([0.0, 0.0, 0.0, 1.0]);
         bg_track.add_keyframe(0, [0.0, 0.0, 0.0, 1.0], Easing::Linear);
         Self {
@@ -649,13 +659,7 @@ impl Timeline {
             .max()
             .unwrap_or(0)
             .max(self.background_color.max_keyframe_time_ms())
-            .max(
-                self.child_orders
-                    .values()
-                    .map(|t| t.max_keyframe_time_ms())
-                    .max()
-                    .unwrap_or(0),
-            )
+            .max(self.child_orders.values().map(|t| t.max_keyframe_time_ms()).max().unwrap_or(0))
             .max(
                 self.variable_tracks
                     .values()
@@ -708,10 +712,7 @@ impl Timeline {
 
     /// Finds the common parent container of two child labels.
     /// Returns `None` if no shared parent exists.
-    pub fn find_common_parent(&self,
-        child_a: &str,
-        child_b: &str,
-    ) -> Option<String> {
+    pub fn find_common_parent(&self, child_a: &str, child_b: &str) -> Option<String> {
         for (label, track) in &self.tracks {
             if track.children.contains(&child_a.to_string())
                 && track.children.contains(&child_b.to_string())
@@ -724,10 +725,7 @@ impl Timeline {
 
     /// Returns the effective child order for a container at the given time.
     /// Falls back to the container's authored `child_order`.
-    pub fn get_child_order(&self,
-        container_label: &str,
-        time_ms: u64,
-    ) -> Vec<String> {
+    pub fn get_child_order(&self, container_label: &str, time_ms: u64) -> Vec<String> {
         if let Some(track) = self.child_orders.get(container_label) {
             let value = track.evaluate(time_ms);
             if !value.is_empty() {
@@ -756,7 +754,10 @@ impl Timeline {
                 }
                 Some(ContainerLayoutChild {
                     label: child_label.clone(),
-                    placement_mode: track.geometry.placement_mode.last(PlacementMode::LayoutManaged),
+                    placement_mode: track
+                        .geometry
+                        .placement_mode
+                        .last(PlacementMode::LayoutManaged),
                 })
             })
             .collect()
@@ -778,7 +779,10 @@ impl Timeline {
                 Some(ChildExtent {
                     label: label.clone(),
                     half_size: track.layout_size_get(time_ms)?,
-                    placement_mode: track.geometry.placement_mode.get(time_ms, PlacementMode::LayoutManaged),
+                    placement_mode: track
+                        .geometry
+                        .placement_mode
+                        .get(time_ms, PlacementMode::LayoutManaged),
                 })
             })
             .collect();
@@ -827,11 +831,11 @@ impl Timeline {
                         result.insert(label.clone(), p1.interpolate(&p2, eased_t));
                     }
                     return result;
-                }
+                },
                 (Some((_, (order, _))), _) => {
                     // At or after a keyframe (or at the only keyframe): use it directly
                     return self.compute_layout_positions_for_order(metadata, order, time_ms);
-                }
+                },
                 (None, Some((&t, (order, easing)))) => {
                     // Before the first keyframe: interpolate from default_value to first keyframe
                     let t = (time_ms as f32 / t as f32).clamp(0.0, 1.0);
@@ -851,10 +855,10 @@ impl Timeline {
                         result.insert(label.clone(), p1.interpolate(&p2, eased_t));
                     }
                     return result;
-                }
+                },
                 (None, None) => {
                     // Empty track — should not happen, but fall through
-                }
+                },
             }
         }
 
@@ -891,7 +895,10 @@ impl Timeline {
 
     /// Check if a keyframe exists for the given actor and property at `time_ms`.
     pub fn has_keyframe_at(&self, actor: &str, property: &str, time_ms: u64) -> bool {
-        self.tracks.get(actor).map(|t| t.has_keyframe_at(property, time_ms)).unwrap_or(false)
+        self.tracks
+            .get(actor)
+            .map(|t| t.has_keyframe_at(property, time_ms))
+            .unwrap_or(false)
     }
 
     /// List all keyframe times (in ms) for the given actor and property.
@@ -1014,7 +1021,11 @@ impl Timeline {
 
     /// Returns the appropriate default color for a primitive type and property,
     /// based on the current colorscheme.
-    pub fn get_default_color(&self, primitive: &dyn crate::primitives::Primitive, property: &str) -> Option<[f32; 4]> {
+    pub fn get_default_color(
+        &self,
+        primitive: &dyn crate::primitives::Primitive,
+        property: &str,
+    ) -> Option<[f32; 4]> {
         self.colorscheme.default_color_for_primitive(primitive, property)
     }
 
@@ -1037,7 +1048,8 @@ impl Timeline {
         for node_label in &path {
             let track = self.tracks.get(node_label)?;
 
-            let placement_mode = track.geometry.placement_mode.get(time_ms, PlacementMode::LayoutManaged);
+            let placement_mode =
+                track.geometry.placement_mode.get(time_ms, PlacementMode::LayoutManaged);
             let mut base_position = track.geometry.position.get(time_ms, [0.0, 0.0]);
 
             if self.dynamic_layout {

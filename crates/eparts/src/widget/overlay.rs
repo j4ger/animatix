@@ -7,11 +7,10 @@
 //! compositor or mandatory root view — egui's [`Area`]/[`Order`] system does
 //! the actual compositing and painting.  This layer only answers two questions:
 //!
-//! 1. *Which overlay is topmost?* — so that Escape and outside-click are
-//!    consumed by exactly one overlay (the highest-priority, most-recently-opened
-//!    one).
-//! 2. *Did a dismissal event fire this frame?* — uniform helpers so every
-//!    overlay type handles Escape and click-outside identically.
+//! 1. *Which overlay is topmost?* — so that Escape and outside-click are consumed by exactly one
+//!    overlay (the highest-priority, most-recently-opened one).
+//! 2. *Did a dismissal event fire this frame?* — uniform helpers so every overlay type handles
+//!    Escape and click-outside identically.
 //!
 //! # Overlay priority (low → high)
 //!
@@ -105,9 +104,8 @@ fn overlay_registry_key() -> Id {
 /// position is moved to the end).
 pub fn push_overlay(ctx: &Context, id: Id, layer: OverlayLayer) {
     ctx.data_mut(|data| {
-        let mut registry: Vec<(Id, OverlayLayer)> = data
-            .get_temp(overlay_registry_key())
-            .unwrap_or_default();
+        let mut registry: Vec<(Id, OverlayLayer)> =
+            data.get_temp(overlay_registry_key()).unwrap_or_default();
 
         // Remove stale entry if present (moves it to end on re-push).
         registry.retain(|(existing_id, _)| *existing_id != id);
@@ -122,7 +120,9 @@ pub fn push_overlay(ctx: &Context, id: Id, layer: OverlayLayer) {
 /// closing animation).
 pub fn remove_overlay(ctx: &Context, id: Id) {
     ctx.data_mut(|data| {
-        let Some(mut registry): Option<Vec<(Id, OverlayLayer)>> = data.get_temp(overlay_registry_key()) else {
+        let Some(mut registry): Option<Vec<(Id, OverlayLayer)>> =
+            data.get_temp(overlay_registry_key())
+        else {
             return;
         };
         registry.retain(|(existing_id, _)| *existing_id != id);
@@ -136,9 +136,8 @@ pub fn remove_overlay(ctx: &Context, id: Id) {
 /// recently pushed via [`push_overlay`].
 pub fn is_topmost(ctx: &Context, id: Id) -> bool {
     ctx.data(|data| {
-        let registry: Vec<(Id, OverlayLayer)> = data
-            .get_temp(overlay_registry_key())
-            .unwrap_or_default();
+        let registry: Vec<(Id, OverlayLayer)> =
+            data.get_temp(overlay_registry_key()).unwrap_or_default();
 
         let topmost = registry.iter().max_by(|a, b| {
             // Primary: layer priority (highest wins)
@@ -190,10 +189,7 @@ pub fn escape_pressed(ctx: &Context, id: Id) -> bool {
 /// a future iteration it may gate the check behind `response.interact()`.
 pub fn clicked_outside(_ui: &Ui, content_rect: Rect, _response: &Response) -> bool {
     // Cloning pointer state — PointerState is not Copy.
-    let Some(pointer) = _ui
-        .ctx()
-        .input(|i| Some(i.pointer.clone()))
-    else {
+    let Some(pointer) = _ui.ctx().input(|i| Some(i.pointer.clone())) else {
         return false;
     };
 

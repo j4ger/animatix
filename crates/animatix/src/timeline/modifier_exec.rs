@@ -7,10 +7,14 @@
 //! statement types and optimization tiers (IR, bytecode) — while frame
 //! environment construction is relatively stable.
 
-use crate::ast::LoopPattern;
-use super::modifier_runtime::{ir, vm};
-use super::{EvalError, SceneDimensions, Stmt, Timeline, Value, assignment_target_key_with_env, evaluate_expr};
 use tracing::warn;
+
+use super::modifier_runtime::{ir, vm};
+use super::{
+    EvalError, SceneDimensions, Stmt, Timeline, Value, assignment_target_key_with_env,
+    evaluate_expr,
+};
+use crate::ast::LoopPattern;
 
 impl Timeline {
     /// Apply a single modifier statement to the frame environment.
@@ -32,30 +36,38 @@ impl Timeline {
             } => {
                 match evaluate_expr(value, frame_env) {
                     Ok(val) => {
-                        // Use the frame-time variant to handle Indexed segments (e.g. bars[i].color).
-                        // For all-Static targets this is equivalent to assignment_target_key.
+                        // Use the frame-time variant to handle Indexed segments (e.g.
+                        // bars[i].color). For all-Static targets this is
+                        // equivalent to assignment_target_key.
                         let label = match assignment_target_key_with_env(target, frame_env) {
                             Ok(l) => l,
                             Err(e) => {
                                 warn!("Modifier assignment error for {:?}.{property}: {e}", target);
                                 return;
-                            }
+                            },
                         };
                         overrides
                             .entry(label.clone())
                             .or_default()
                             .insert(property.clone(), val.clone());
-                        super::frame_env::apply_override_incremental(frame_env, &label, property, val);
-                    }
+                        super::frame_env::apply_override_incremental(
+                            frame_env, &label, property, val,
+                        );
+                    },
                     Err(e) => warn!("Modifier assignment error for {:?}.{property}: {e}", target),
                 }
-            }
-            Stmt::LetDecl { is_pub: _, name, value, .. } => {
-                match evaluate_expr(value, frame_env) {
-                    Ok(val) => { frame_env.set(name, val); }
-                    Err(e) => warn!("Modifier let-decl error for {name}: {e}"),
-                }
-            }
+            },
+            Stmt::LetDecl {
+                is_pub: _,
+                name,
+                value,
+                ..
+            } => match evaluate_expr(value, frame_env) {
+                Ok(val) => {
+                    frame_env.set(name, val);
+                },
+                Err(e) => warn!("Modifier let-decl error for {name}: {e}"),
+            },
             Stmt::Conditional {
                 condition,
                 then_branch,
@@ -74,27 +86,29 @@ impl Timeline {
                         self.apply_modifier_stmt(stmt, frame_env, overrides);
                     }
                 }
-            }
+            },
             Stmt::Match {
-                scrutinee,
-                arms,
-                ..
-            } => {
-                match evaluate_expr(scrutinee, frame_env) {
-                    Ok(value) => {
-                        for (_pat, body) in arms {
-                            if crate::timeline::build::pattern_matches(_pat, &value) {
-                                for stmt in body {
-                                    self.apply_modifier_stmt(stmt, frame_env, overrides);
-                                }
-                                break;
+                scrutinee, arms, ..
+            } => match evaluate_expr(scrutinee, frame_env) {
+                Ok(value) => {
+                    for (_pat, body) in arms {
+                        if crate::timeline::build::pattern_matches(_pat, &value) {
+                            for stmt in body {
+                                self.apply_modifier_stmt(stmt, frame_env, overrides);
                             }
+                            break;
                         }
                     }
-                    Err(e) => warn!("match scrutinee evaluation failed: {e}"),
-                }
-            }
-            Stmt::ForLoop { var, index_var, iterable, body, .. } => {
+                },
+                Err(e) => warn!("match scrutinee evaluation failed: {e}"),
+            },
+            Stmt::ForLoop {
+                var,
+                index_var,
+                iterable,
+                body,
+                ..
+            } => {
                 if let Ok(values) = evaluate_expr(iterable, frame_env) {
                     let items: Vec<Value> = match values {
                         Value::List(list) => list,
@@ -113,8 +127,8 @@ impl Timeline {
                         }
                     }
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 
@@ -148,7 +162,7 @@ fn bind_loop_var_modifier(frame_env: &mut super::Environment, var: &LoopPattern,
     match var {
         LoopPattern::Single(name) => {
             frame_env.set(name, value);
-        }
+        },
         LoopPattern::Tuple(names) => {
             let components: Vec<Value> = match &value {
                 Value::List(items) => items.clone(),
@@ -163,6 +177,6 @@ fn bind_loop_var_modifier(frame_env: &mut super::Environment, var: &LoopPattern,
                     frame_env.set(name, components[i].clone());
                 }
             }
-        }
+        },
     }
 }

@@ -10,24 +10,25 @@
 //! - `keyframe_edits` — keyframe insert/merge/delete/easing
 //! - `scene_edits` — scene reorder/play/transition/rename/add/delete/refactor
 
-mod apply;
-mod actor_edits;
-mod ast_utils;
-mod keyframe_edits;
-mod scene_edits;
 mod action_edits;
+mod actor_edits;
+mod apply;
+mod ast_utils;
 mod config_edits;
 mod error;
+mod keyframe_edits;
+mod scene_edits;
 
 // Re-export public API
-pub use apply::{apply_edit, canonical_to_source, find_actor_decl, source_to_canonical, SourceEdit};
-pub use error::SourceEditError;
 pub(crate) use actor_edits::rename_all_references;
-pub use ast_utils::{
-    find_keyframes_for_actor, keyframe_references_actor, shift_keyframe_times,
-    KeyframeStyle, keyframe_style_before, find_keyframe_insertion_point,
-    find_prev_keyframe_time, wrap_leading_decls_in_zero_keyframe,
-    adjust_following_relative_keyframe, append_to_keyframe_at_time,
-    compute_keyframe_abs_time, push_adjust_flash_time,
-    clear_adjust_flash_queue, drain_adjust_flash_queue,
+pub use apply::{
+    SourceEdit, apply_edit, canonical_to_source, find_actor_decl, source_to_canonical,
 };
+pub use ast_utils::{
+    KeyframeStyle, adjust_following_relative_keyframe, append_to_keyframe_at_time,
+    clear_adjust_flash_queue, compute_keyframe_abs_time, drain_adjust_flash_queue,
+    find_keyframe_insertion_point, find_keyframes_for_actor, find_prev_keyframe_time,
+    keyframe_references_actor, keyframe_style_before, push_adjust_flash_time, shift_keyframe_times,
+    wrap_leading_decls_in_zero_keyframe,
+};
+pub use error::SourceEditError;

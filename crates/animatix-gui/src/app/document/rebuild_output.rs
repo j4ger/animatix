@@ -1,12 +1,13 @@
 //! Owned output of a rebuild, to be converted into a `DocumentSnapshot`.
 
+use std::collections::HashMap;
+
 use animatix::composition::Composition;
 use animatix::timeline::{SceneDimensions, Timeline, TimelineIndex};
 use animatix_syntax::ast::Stmt;
 use animatix_syntax::diagnostics::Diagnostic;
 use animatix_syntax::module::{ActionTemplate, ComponentEntry, Namespace};
 use animatix_syntax::source_index::SourceIndex;
-use std::collections::HashMap;
 
 /// Successful rebuild output, owned for transfer across threads.
 pub struct RebuildOutput {

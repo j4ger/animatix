@@ -1,9 +1,11 @@
 use egui::{Color32, Response, Sense, Vec2};
 
 use crate::tokens::spatial::{RADIUS_S, ROW_M, STROKE_WIDTH};
-use crate::{density, spatial, tokens::theme, tokens::typography::TextRole};
+use crate::tokens::theme;
+use crate::tokens::typography::TextRole;
 use crate::widget::spinner::Spinner;
-use crate::widget::traits::{Size, Sizable};
+use crate::widget::traits::{Sizable, Size};
+use crate::{density, spatial};
 
 // ── Button types ──
 // eparts principle 3: default arrow cursor for buttons, pointer only for links.
@@ -182,7 +184,11 @@ impl egui::Widget for Button {
         let response = match self.variant {
             ButtonVariant::Icon => {
                 let size = Vec2::new(row_height, row_height);
-                let sense = if self.loading { Sense::hover() } else { Sense::click() };
+                let sense = if self.loading {
+                    Sense::hover()
+                } else {
+                    Sense::click()
+                };
                 let (rect, response) = ui.allocate_exact_size(size, sense);
 
                 let slot_group = &t.button.icon;
@@ -238,12 +244,11 @@ impl egui::Widget for Button {
 
                 // Principle 3: override egui's default PointingHand with Default arrow.
                 if !self.tooltip.is_empty() {
-                    response.on_hover_cursor(egui::CursorIcon::Default)
-                        .on_hover_text(self.tooltip)
+                    response.on_hover_cursor(egui::CursorIcon::Default).on_hover_text(self.tooltip)
                 } else {
                     response.on_hover_cursor(egui::CursorIcon::Default)
                 }
-            }
+            },
             ButtonVariant::Ghost => {
                 let icon_width = icon_galley.as_ref().map_or(0.0, |g| g.size().x);
                 let pad_x = self.size.pad_x_for(d);
@@ -262,7 +267,11 @@ impl egui::Widget for Button {
                     label_galley = Some(galley);
                 }
                 let size = Vec2::new(width.max(row_height), row_height);
-                let sense = if self.loading { Sense::hover() } else { Sense::click() };
+                let sense = if self.loading {
+                    Sense::hover()
+                } else {
+                    Sense::click()
+                };
                 let (rect, response) = ui.allocate_exact_size(size, sense);
 
                 let slot_group = &t.button.ghost;
@@ -340,12 +349,11 @@ impl egui::Widget for Button {
 
                 // Principle 3: override egui's default PointingHand with Default arrow.
                 if !self.tooltip.is_empty() {
-                    response.on_hover_cursor(egui::CursorIcon::Default)
-                        .on_hover_text(self.tooltip)
+                    response.on_hover_cursor(egui::CursorIcon::Default).on_hover_text(self.tooltip)
                 } else {
                     response.on_hover_cursor(egui::CursorIcon::Default)
                 }
-            }
+            },
             ButtonVariant::Primary | ButtonVariant::Danger => {
                 let slot_group = match self.variant {
                     ButtonVariant::Primary => &t.button.primary,
@@ -362,12 +370,19 @@ impl egui::Widget for Button {
                 }
                 let label_str = label;
                 if let Some(l) = label_str {
-                    let galley =
-                        ui.painter().layout_no_wrap(l.to_string(), label_font.clone(), t.text.primary);
+                    let galley = ui.painter().layout_no_wrap(
+                        l.to_string(),
+                        label_font.clone(),
+                        t.text.primary,
+                    );
                     width += galley.size().x;
                 }
                 let size = Vec2::new(width.max(row_height), row_height);
-                let sense = if self.loading { Sense::hover() } else { Sense::click() };
+                let sense = if self.loading {
+                    Sense::hover()
+                } else {
+                    Sense::click()
+                };
                 let (rect, response) = ui.allocate_exact_size(size, sense);
 
                 let slot = if self.loading || self.disabled {
@@ -438,12 +453,11 @@ impl egui::Widget for Button {
 
                 // Principle 3: override egui's default PointingHand with Default arrow.
                 if !self.tooltip.is_empty() {
-                    response.on_hover_cursor(egui::CursorIcon::Default)
-                        .on_hover_text(self.tooltip)
+                    response.on_hover_cursor(egui::CursorIcon::Default).on_hover_text(self.tooltip)
                 } else {
                     response.on_hover_cursor(egui::CursorIcon::Default)
                 }
-            }
+            },
         };
         if response.hovered() {
             if let Some(cb) = self.on_hover.take() {

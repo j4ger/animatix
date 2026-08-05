@@ -1,7 +1,7 @@
 use egui::{Color32, Id, Rect, Response, Sense, Vec2};
 
 use crate::tokens::spatial::component::ICON_SLOT_WIDTH;
-use crate::tokens::spatial::{density, spatial, ROW_M};
+use crate::tokens::spatial::{ROW_M, density, spatial};
 use crate::tokens::typography::TextRole;
 
 /// Response from a `Row`.
@@ -114,8 +114,7 @@ impl<'a> Row<'a> {
     pub fn show(self, ui: &mut egui::Ui, row_id: Id) -> RowResponse {
         let h = density(ui).scale(self.height);
         let available = ui.available_width();
-        let (row_rect, row_response) =
-            ui.allocate_exact_size(Vec2::new(available, h), self.sense);
+        let (row_rect, row_response) = ui.allocate_exact_size(Vec2::new(available, h), self.sense);
         let painter = ui.painter_at(row_rect);
         self.show_in_rect(ui, row_rect, row_response, row_id, &painter)
     }
@@ -228,18 +227,19 @@ impl<'a> Row<'a> {
             }
         });
         // Label truncation: stop at the start of the right-slot region (or row edge).
-        let check_width_pre = if self.confirmed { ICON_SLOT_WIDTH + s.space_2 } else { 0.0 };
+        let check_width_pre = if self.confirmed {
+            ICON_SLOT_WIDTH + s.space_2
+        } else {
+            0.0
+        };
         let right_slot_start = rect.max.x - s.space_2 - check_width_pre;
         let label_end_x = right_slot_start;
         let label_avail_width = (label_end_x - cursor_x).max(0.0);
         {
             let font_id = TextRole::BodyS.font_id();
-            let galley = ui.painter().layout(
-                self.label.to_owned(),
-                font_id,
-                label_color,
-                label_avail_width,
-            );
+            let galley =
+                ui.painter()
+                    .layout(self.label.to_owned(), font_id, label_color, label_avail_width);
             painter.galley(
                 egui::pos2(cursor_x, baseline_y - galley.size().y / 2.0),
                 galley,
@@ -249,8 +249,13 @@ impl<'a> Row<'a> {
 
         // right slot — render inside a scoped child confined to rect
         if let Some(right_fn) = self.right {
-            let check_width = if self.confirmed { ICON_SLOT_WIDTH + s.space_2 } else { 0.0 };
-            let right_area_width = (rect.max.x - s.space_2 - check_width - cursor_x - s.space_4).max(20.0);
+            let check_width = if self.confirmed {
+                ICON_SLOT_WIDTH + s.space_2
+            } else {
+                0.0
+            };
+            let right_area_width =
+                (rect.max.x - s.space_2 - check_width - cursor_x - s.space_4).max(20.0);
             let right_rect = Rect::from_min_size(
                 egui::pos2(cursor_x + s.space_4, rect.min.y),
                 Vec2::new(right_area_width, rect.height()),
@@ -267,7 +272,11 @@ impl<'a> Row<'a> {
                 egui::Align2::CENTER_CENTER,
                 egui_phosphor::regular::CHECK,
                 TextRole::Body.font_id(),
-                if self.is_selected { t.text.on_accent } else { t.accent.primary },
+                if self.is_selected {
+                    t.text.on_accent
+                } else {
+                    t.accent.primary
+                },
             );
         }
 
@@ -301,9 +310,7 @@ mod tests {
 
     #[test]
     fn builder_secondary_selected_and_confirmed() {
-        let row = Row::new("test")
-            .secondary_selected(true)
-            .confirmed(true);
+        let row = Row::new("test").secondary_selected(true).confirmed(true);
         assert!(row.secondary_selected);
         assert!(row.confirmed);
     }

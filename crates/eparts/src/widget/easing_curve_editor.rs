@@ -3,9 +3,11 @@
 //! Interactive cubic-bezier easing editor. Shows a small preview of the curve
 //! with draggable control points P1 and P2.
 
-use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
-use crate::{spatial, tokens::theme::theme};
 use egui::{Pos2, Rect, Sense, Stroke, Vec2};
+
+use crate::spatial;
+use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
+use crate::tokens::theme::theme;
 
 /// State for the easing curve editor widget.
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -43,7 +43,13 @@ impl BuiltinAction for DrawIn {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         for target in &action.targets {
-            if !super::ensure_vector_reveal_target(timeline, target, &action.verb, diagnostics, None) {
+            if !super::ensure_vector_reveal_target(
+                timeline,
+                target,
+                &action.verb,
+                diagnostics,
+                None,
+            ) {
                 continue;
             }
 
@@ -52,7 +58,8 @@ impl BuiltinAction for DrawIn {
                 None => continue,
             };
 
-            let is_text = matches!(track.kind, ActorKindId::Text | ActorKindId::Code | ActorKindId::Typst);
+            let is_text =
+                matches!(track.kind, ActorKindId::Text | ActorKindId::Code | ActorKindId::Typst);
 
             if is_text {
                 // Typewriter effect: animate char_progress 0→1
@@ -61,14 +68,12 @@ impl BuiltinAction for DrawIn {
                     super::ensure_guard_keyframe(&mut track.text.char_progress, guard_time, 1.0);
                 }
 
-                track.text
+                track
+                    .text
                     .char_progress
                     .ensure(1.0)
                     .add_keyframe(t_start_ms, 0.0, Easing::Linear);
-                track.text
-                    .char_progress
-                    .ensure(1.0)
-                    .add_keyframe(t_end_ms, 1.0, easing);
+                track.text.char_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
             } else {
                 if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
                     let guard_time = t_start_ms.saturating_sub(1);
@@ -76,27 +81,27 @@ impl BuiltinAction for DrawIn {
                     super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
                 }
 
-                track.style
-                    .stroke_progress
-                    .ensure(1.0)
-                    .add_keyframe(t_start_ms, 0.0, Easing::Linear);
-                track.style
+                track.style.stroke_progress.ensure(1.0).add_keyframe(
+                    t_start_ms,
+                    0.0,
+                    Easing::Linear,
+                );
+                track
+                    .style
                     .fill_opacity
                     .ensure(1.0)
                     .add_keyframe(t_start_ms, 0.0, Easing::Linear);
 
                 if duration_ms > 0.0 && t_end_ms > t_start_ms {
-                    track.style
-                        .fill_opacity
-                        .ensure(1.0)
-                        .add_keyframe(t_end_ms.saturating_sub(1), 0.0, Easing::Linear);
+                    track.style.fill_opacity.ensure(1.0).add_keyframe(
+                        t_end_ms.saturating_sub(1),
+                        0.0,
+                        Easing::Linear,
+                    );
                 }
 
                 track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
-                track.style
-                    .fill_opacity
-                    .ensure(1.0)
-                    .add_keyframe(t_end_ms, 1.0, easing);
+                track.style.fill_opacity.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
             }
         }
     }
@@ -139,7 +144,13 @@ impl BuiltinAction for RevealIn {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         for target in &action.targets {
-            if !super::ensure_vector_reveal_target(timeline, target, &action.verb, diagnostics, None) {
+            if !super::ensure_vector_reveal_target(
+                timeline,
+                target,
+                &action.verb,
+                diagnostics,
+                None,
+            ) {
                 continue;
             }
 
@@ -148,23 +159,35 @@ impl BuiltinAction for RevealIn {
                 None => continue,
             };
 
-            let has_prior_stroke = track.style.stroke_progress.as_ref().map(|t| t.keyframes.keys().any(|&k| k < t_start_ms)).unwrap_or(false);
-            let start_stroke = if has_prior_stroke { track.style.stroke_progress.get(t_start_ms, 1.0) } else { 0.0 };
+            let has_prior_stroke = track
+                .style
+                .stroke_progress
+                .as_ref()
+                .map(|t| t.keyframes.keys().any(|&k| k < t_start_ms))
+                .unwrap_or(false);
+            let start_stroke = if has_prior_stroke {
+                track.style.stroke_progress.get(t_start_ms, 1.0)
+            } else {
+                0.0
+            };
 
             if duration_ms > 0.0 {
-                track.style
-                    .stroke_progress
-                    .ensure(1.0)
-                    .add_keyframe(t_start_ms, start_stroke, Easing::Linear);
-                track.style
+                track.style.stroke_progress.ensure(1.0).add_keyframe(
+                    t_start_ms,
+                    start_stroke,
+                    Easing::Linear,
+                );
+                track
+                    .style
                     .fill_opacity
                     .ensure(1.0)
                     .add_keyframe(t_start_ms, 0.0, Easing::Linear);
                 if t_end_ms > t_start_ms {
-                    track.style
-                        .fill_opacity
-                        .ensure(1.0)
-                        .add_keyframe(t_end_ms.saturating_sub(1), 0.0, Easing::Linear);
+                    track.style.fill_opacity.ensure(1.0).add_keyframe(
+                        t_end_ms.saturating_sub(1),
+                        0.0,
+                        Easing::Linear,
+                    );
                 }
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
@@ -172,10 +195,7 @@ impl BuiltinAction for RevealIn {
                 super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
             }
 
-            track.style
-                .fill_opacity
-                .ensure(1.0)
-                .add_keyframe(t_end_ms, 1.0, Easing::Linear);
+            track.style.fill_opacity.ensure(1.0).add_keyframe(t_end_ms, 1.0, Easing::Linear);
             track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
         }
     }
@@ -218,7 +238,13 @@ impl BuiltinAction for WipeOut {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         for target in &action.targets {
-            if !super::ensure_vector_reveal_target(timeline, target, &action.verb, diagnostics, None) {
+            if !super::ensure_vector_reveal_target(
+                timeline,
+                target,
+                &action.verb,
+                diagnostics,
+                None,
+            ) {
                 continue;
             }
 
@@ -231,14 +257,16 @@ impl BuiltinAction for WipeOut {
             let start_fill = track.style.fill_opacity.get(t_start_ms, 1.0);
 
             if duration_ms > 0.0 {
-                track.style
-                    .stroke_progress
-                    .ensure(1.0)
-                    .add_keyframe(t_start_ms, start_stroke, Easing::Linear);
-                track.style
-                    .fill_opacity
-                    .ensure(1.0)
-                    .add_keyframe(t_start_ms, start_fill, Easing::Linear);
+                track.style.stroke_progress.ensure(1.0).add_keyframe(
+                    t_start_ms,
+                    start_stroke,
+                    Easing::Linear,
+                );
+                track.style.fill_opacity.ensure(1.0).add_keyframe(
+                    t_start_ms,
+                    start_fill,
+                    Easing::Linear,
+                );
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
                 super::ensure_guard_keyframe(&mut track.style.stroke_progress, guard_time, 1.0);
@@ -288,7 +316,13 @@ impl BuiltinAction for RevealOut {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         for target in &action.targets {
-            if !super::ensure_vector_reveal_target(timeline, target, &action.verb, diagnostics, None) {
+            if !super::ensure_vector_reveal_target(
+                timeline,
+                target,
+                &action.verb,
+                diagnostics,
+                None,
+            ) {
                 continue;
             }
 
@@ -300,17 +334,19 @@ impl BuiltinAction for RevealOut {
             let start_stroke = track.style.stroke_progress.get(t_start_ms, 1.0);
 
             if duration_ms > 0.0 {
-                track.style
-                    .stroke_progress
-                    .ensure(1.0)
-                    .add_keyframe(t_start_ms, start_stroke, Easing::Linear);
+                track.style.stroke_progress.ensure(1.0).add_keyframe(
+                    t_start_ms,
+                    start_stroke,
+                    Easing::Linear,
+                );
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
                 super::ensure_guard_keyframe(&mut track.style.stroke_progress, guard_time, 1.0);
                 super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
             }
 
-            track.style
+            track
+                .style
                 .fill_opacity
                 .ensure(1.0)
                 .add_keyframe(t_start_ms, 0.0, Easing::Linear);
@@ -356,7 +392,13 @@ impl BuiltinAction for DrawOut {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         for target in &action.targets {
-            if !super::ensure_vector_reveal_target(timeline, target, &action.verb, diagnostics, None) {
+            if !super::ensure_vector_reveal_target(
+                timeline,
+                target,
+                &action.verb,
+                diagnostics,
+                None,
+            ) {
                 continue;
             }
 
@@ -369,14 +411,16 @@ impl BuiltinAction for DrawOut {
             let start_fill = track.style.fill_opacity.get(t_start_ms, 1.0);
 
             if duration_ms > 0.0 {
-                track.style
-                    .stroke_progress
-                    .ensure(1.0)
-                    .add_keyframe(t_start_ms, start_stroke, Easing::Linear);
-                track.style
-                    .fill_opacity
-                    .ensure(1.0)
-                    .add_keyframe(t_start_ms, start_fill, Easing::Linear);
+                track.style.stroke_progress.ensure(1.0).add_keyframe(
+                    t_start_ms,
+                    start_stroke,
+                    Easing::Linear,
+                );
+                track.style.fill_opacity.ensure(1.0).add_keyframe(
+                    t_start_ms,
+                    start_fill,
+                    Easing::Linear,
+                );
                 track.style.fill_opacity.ensure(1.0).add_keyframe(
                     t_end_ms.saturating_sub(1),
                     start_fill,
@@ -389,10 +433,7 @@ impl BuiltinAction for DrawOut {
             }
 
             track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
-            track.style
-                .fill_opacity
-                .ensure(1.0)
-                .add_keyframe(t_end_ms, 0.0, Easing::Linear);
+            track.style.fill_opacity.ensure(1.0).add_keyframe(t_end_ms, 0.0, Easing::Linear);
         }
     }
 }
@@ -418,7 +459,7 @@ mod tests {
                         crate::ast::Expr::Num(80.0),
                     ]),
                     value_span: None,
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
                 Property {
                     name: "at".to_string(),
@@ -427,7 +468,7 @@ mod tests {
                         crate::ast::Expr::Num(240.0),
                     ]),
                     value_span: None,
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
             ],
             modifiers: vec![],
@@ -503,16 +544,19 @@ mod tests {
     }
 
     fn action_stmt(verb: &str, target: &str, duration_s: f64) -> Stmt {
-        Stmt::Action(Action {
-            verb: verb.to_string(),
-            targets: vec![target.to_string()],
-            args: vec![],
-            modifiers: vec![Modifier {
-                name: None,
-                value: crate::ast::Expr::Ident(format!("{duration_s}s")),
-            }],
-            byte_span: None,
-        }, None)
+        Stmt::Action(
+            Action {
+                verb: verb.to_string(),
+                targets: vec![target.to_string()],
+                args: vec![],
+                modifiers: vec![Modifier {
+                    name: None,
+                    value: crate::ast::Expr::Ident(format!("{duration_s}s")),
+                }],
+                byte_span: None,
+            },
+            None,
+        )
     }
 
     #[test]
@@ -579,22 +623,25 @@ mod tests {
             time: Time::Seconds(0.0),
             body: vec![
                 circle_decl("shape"),
-                Stmt::Action(Action {
-                    verb: "reveal-out".to_string(),
-                    targets: vec!["shape".to_string()],
-                    args: vec![],
-                    modifiers: vec![
-                        Modifier {
-                            name: Some("delay".to_string()),
-                            value: Expr::Ident("250ms".to_string()),
-                        },
-                        Modifier {
-                            name: None,
-                            value: Expr::Ident("0s".to_string()),
-                        },
-                    ],
-                    byte_span: None,
-                }, None),
+                Stmt::Action(
+                    Action {
+                        verb: "reveal-out".to_string(),
+                        targets: vec!["shape".to_string()],
+                        args: vec![],
+                        modifiers: vec![
+                            Modifier {
+                                name: Some("delay".to_string()),
+                                value: Expr::Ident("250ms".to_string()),
+                            },
+                            Modifier {
+                                name: None,
+                                value: Expr::Ident("0s".to_string()),
+                            },
+                        ],
+                        byte_span: None,
+                    },
+                    None,
+                ),
             ],
             span: None,
         }];
@@ -692,7 +739,10 @@ mod tests {
         // draw-in on Text should animate char_progress 0→1 instead of stroke_progress.
         let ast = vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
-            body: vec![text_decl("headline"), action_stmt("draw-in", "headline", 2.0)],
+            body: vec![
+                text_decl("headline"),
+                action_stmt("draw-in", "headline", 2.0),
+            ],
             span: None,
         }];
 
@@ -704,7 +754,11 @@ mod tests {
         assert_eq!(track.text.char_progress.get(2000, 1.0), 1.0);
         // Midpoint should be ~0.5
         let mid = track.text.char_progress.get(1000, 1.0);
-        assert!(mid > 0.0 && mid < 1.0, "char_progress at midpoint should be between 0 and 1, got {}", mid);
+        assert!(
+            mid > 0.0 && mid < 1.0,
+            "char_progress at midpoint should be between 0 and 1, got {}",
+            mid
+        );
         // No diagnostics should be emitted
         assert!(report.diagnostics.is_empty());
     }
@@ -722,8 +776,24 @@ mod tests {
         let track = report.output.tracks.get("msg").expect("msg track");
 
         // stroke_progress and fill_opacity should not have been set
-        assert!(track.style.stroke_progress.is_none() || track.style.stroke_progress.as_ref().map(|t| t.keyframes.is_empty()).unwrap_or(true));
-        assert!(track.style.fill_opacity.is_none() || track.style.fill_opacity.as_ref().map(|t| t.keyframes.is_empty()).unwrap_or(true));
+        assert!(
+            track.style.stroke_progress.is_none()
+                || track
+                    .style
+                    .stroke_progress
+                    .as_ref()
+                    .map(|t| t.keyframes.is_empty())
+                    .unwrap_or(true)
+        );
+        assert!(
+            track.style.fill_opacity.is_none()
+                || track
+                    .style
+                    .fill_opacity
+                    .as_ref()
+                    .map(|t| t.keyframes.is_empty())
+                    .unwrap_or(true)
+        );
         // Only char_progress should be tracked
         assert!(track.text.char_progress.is_some());
         assert!(!track.text.char_progress.as_ref().unwrap().keyframes.is_empty());

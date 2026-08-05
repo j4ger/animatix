@@ -1,11 +1,9 @@
-use super::property_lookup::parse_numeric_vec2;
-use super::{
-    Diagnostic, Environment, Interpolate, KurboShape, VelloPath, evaluate_expr,
-};
-use crate::ast::Expr;
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+
+use super::property_lookup::parse_numeric_vec2;
+use super::{Diagnostic, Environment, Interpolate, KurboShape, VelloPath, evaluate_expr};
+use crate::ast::Expr;
 
 /// Discriminant for the kind of geometric shape an actor represents.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -339,7 +337,7 @@ mod primitives;
 
 /// Map an actor type string to its corresponding `ShapeType`, if any.
 pub fn shape_type_for_actor(ty: &str) -> Option<ShapeType> {
-        if let Some(primitive) = crate::primitives::find_primitive(ty) {
+    if let Some(primitive) = crate::primitives::find_primitive(ty) {
         if primitive.is_shape() {
             return match ty {
                 "Rect" => Some(ShapeType::Rect),
@@ -386,7 +384,8 @@ pub fn apply_vector_shape_property(
     false
 }
 
-/// Run any post-processing / cleanup on a `VectorShapeState` after all properties have been applied.
+/// Run any post-processing / cleanup on a `VectorShapeState` after all properties have been
+/// applied.
 pub fn finalize_vector_shape_state(actor_type: &str, state: &mut VectorShapeState) {
     if let Some(primitive) = crate::primitives::find_primitive(actor_type) {
         primitive.finalize_state(state);
@@ -411,7 +410,9 @@ pub fn vector_shape_is_arrow(shape_type: ShapeType) -> bool {
 /// Extract the individual shape-state values for backward-compatible APIs.
 ///
 /// Returns `(size, line_from, line_to, arc_angles)`.
-pub fn extract_shape_state_values(state: &VectorShapeState) -> ([f32; 2], [f32; 2], [f32; 2], [f32; 2]) {
+pub fn extract_shape_state_values(
+    state: &VectorShapeState,
+) -> ([f32; 2], [f32; 2], [f32; 2], [f32; 2]) {
     let size = state.size();
     let (line_from, line_to, arc_angles) = match state {
         VectorShapeState::Line(line) => (line.line_from, line.line_to, [0.0, 0.0]),
@@ -490,14 +491,10 @@ pub fn build_arrow_path(
     let tip_length = tip_length.max(1.0) as f64;
     let half_tip_width = (tip_width.max(1.0) as f64) / 2.0;
     let base = kurbo::Point::new(tip.x - dir_x * tip_length, tip.y - dir_y * tip_length);
-    let left = kurbo::Point::new(
-        base.x + perp_x * half_tip_width,
-        base.y + perp_y * half_tip_width,
-    );
-    let right = kurbo::Point::new(
-        base.x - perp_x * half_tip_width,
-        base.y - perp_y * half_tip_width,
-    );
+    let left =
+        kurbo::Point::new(base.x + perp_x * half_tip_width, base.y + perp_y * half_tip_width);
+    let right =
+        kurbo::Point::new(base.x - perp_x * half_tip_width, base.y - perp_y * half_tip_width);
 
     path.move_to(start);
     path.line_to(base);
@@ -518,7 +515,7 @@ pub fn parse_point_list_expr(expr: &Expr, env: &Environment) -> Option<Vec<kurbo
                 points.push(kurbo::Point::new(x as f64, y as f64));
             }
             Some(points)
-        }
+        },
         _ => None,
     }
 }
@@ -544,7 +541,7 @@ pub fn parse_path_commands_expr(expr: &Expr, env: &Environment) -> Option<kurbo:
                 let x = evaluate_expr(&args[0], env).ok()?.as_num();
                 let y = evaluate_expr(&args[1], env).ok()?.as_num();
                 path.move_to((x, y));
-            }
+            },
             "line_to" => {
                 if args.len() != 2 {
                     return None;
@@ -552,7 +549,7 @@ pub fn parse_path_commands_expr(expr: &Expr, env: &Environment) -> Option<kurbo:
                 let x = evaluate_expr(&args[0], env).ok()?.as_num();
                 let y = evaluate_expr(&args[1], env).ok()?.as_num();
                 path.line_to((x, y));
-            }
+            },
             "quad_to" => {
                 if args.len() != 4 {
                     return None;
@@ -562,7 +559,7 @@ pub fn parse_path_commands_expr(expr: &Expr, env: &Environment) -> Option<kurbo:
                 let x2 = evaluate_expr(&args[2], env).ok()?.as_num();
                 let y2 = evaluate_expr(&args[3], env).ok()?.as_num();
                 path.quad_to((x1, y1), (x2, y2));
-            }
+            },
             "curve_to" => {
                 if args.len() != 6 {
                     return None;
@@ -574,13 +571,13 @@ pub fn parse_path_commands_expr(expr: &Expr, env: &Environment) -> Option<kurbo:
                 let x3 = evaluate_expr(&args[4], env).ok()?.as_num();
                 let y3 = evaluate_expr(&args[5], env).ok()?.as_num();
                 path.curve_to((x1, y1), (x2, y2), (x3, y3));
-            }
+            },
             "close" => {
                 if !args.is_empty() {
                     return None;
                 }
                 path.close_path();
-            }
+            },
             _ => return None,
         }
     }
@@ -613,7 +610,7 @@ pub fn build_shape(
                     rotation: 0.0,
                 }
             }
-        }
+        },
         ShapeType::Line => KurboShape::Line {
             p0: kurbo::Point::new(line_from[0] as f64, line_from[1] as f64),
             p1: kurbo::Point::new(line_to[0] as f64, line_to[1] as f64),
@@ -641,7 +638,9 @@ pub fn shape_fill_color(
         return None;
     }
 
-    if shape_type == ShapeType::Line || shape_type == ShapeType::Arrow { return None }
+    if shape_type == ShapeType::Line || shape_type == ShapeType::Arrow {
+        return None;
+    }
 
     Some(vello::peniko::Color::from_rgba8(
         (color[0] * 255.0) as u8,
@@ -698,15 +697,21 @@ pub fn build_vello_path(
         } else {
             None
         },
-        stroke: shape_stroke(stroke_color, stroke_width)
-            .or_else(|| if force_stroke {
-                Some((vello::peniko::Color::from_rgba8(
-                    (color[0] * 255.0) as u8,
-                    (color[1] * 255.0) as u8,
-                    (color[2] * 255.0) as u8,
-                    (color[3] * 255.0) as u8,
-                ), 1.0))
-            } else { None }),
+        stroke: shape_stroke(stroke_color, stroke_width).or_else(|| {
+            if force_stroke {
+                Some((
+                    vello::peniko::Color::from_rgba8(
+                        (color[0] * 255.0) as u8,
+                        (color[1] * 255.0) as u8,
+                        (color[2] * 255.0) as u8,
+                        (color[3] * 255.0) as u8,
+                    ),
+                    1.0,
+                ))
+            } else {
+                None
+            }
+        }),
         line_cap: 0,
         line_join: 0,
     }
@@ -753,12 +758,15 @@ pub fn build_shape_vello_path(
             to: line_to,
             head_size: 10.0,
         }),
-        _ => return VelloPath {
-            path: build_shape(shape_type, size, line_from, line_to, arc_angles).to_path_default(),
-            fill: shape_fill_color(shape_type, color, fill_opacity),
-            stroke: shape_stroke(stroke_color, stroke_width),
-            line_cap: 0,
-            line_join: 0,
+        _ => {
+            return VelloPath {
+                path: build_shape(shape_type, size, line_from, line_to, arc_angles)
+                    .to_path_default(),
+                fill: shape_fill_color(shape_type, color, fill_opacity),
+                stroke: shape_stroke(stroke_color, stroke_width),
+                line_cap: 0,
+                line_join: 0,
+            };
         },
     };
     build_vector_shape_vello_path(
@@ -798,5 +806,4 @@ mod tests {
         assert!(vector_shape_uses_custom_path(ShapeType::Path));
         assert!(!vector_shape_uses_custom_path(ShapeType::Rect));
     }
-
 }

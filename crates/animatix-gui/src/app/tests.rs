@@ -1,12 +1,14 @@
+use std::path::PathBuf;
+
+use animatix::timeline::SceneDimensions;
+use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use egui::Vec2;
+
 use super::{
     GuiShell, WorkspaceTab, default_tree, diagnostics_banner_message, diagnostics_summary_color,
     fit_preview, has_source_load_failure, preview, primary_diagnostic_phase,
 };
 use crate::app::design_tokens::semantic::status::DIAGNOSTIC_ERROR;
-use animatix::timeline::SceneDimensions;
-use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
-use egui::Vec2;
-use std::path::PathBuf;
 
 #[test]
 fn default_workspace_has_three_panes() {

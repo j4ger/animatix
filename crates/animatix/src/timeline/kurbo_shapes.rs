@@ -163,7 +163,7 @@ impl KurboShape {
         match self {
             KurboShape::Rect { x0, y0, x1, y1 } => {
                 Rect::new(*x0, *y0, *x1, *y1).into_path(tolerance)
-            }
+            },
             KurboShape::Line { p0, p1 } => Line::new(*p0, *p1).into_path(tolerance),
             KurboShape::Ellipse {
                 center,
@@ -188,7 +188,7 @@ impl KurboShape {
                     path.close_path();
                 }
                 path
-            }
+            },
             KurboShape::Path { path } => path.clone(),
         }
     }
@@ -320,8 +320,6 @@ mod tests {
         let morphed = morph_kurbo_shapes_default(&ellipse, &rect, 0.5);
         assert!(!morphed.elements().is_empty());
     }
-
-
 
     #[test]
     fn test_tolerance_parameter() {

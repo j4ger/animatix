@@ -231,11 +231,7 @@ impl TransitionCompositor {
         let eased_progress = crate::easing::apply_easing(progress, easing);
         // Update uniform buffer
         let uniforms = TransitionUniforms::new(eased_progress, transition_id);
-        queue.write_buffer(
-            &self.uniform_buffer,
-            0,
-            bytemuck::bytes_of(&uniforms),
-        );
+        queue.write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
 
         // Create bind group for this frame
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {

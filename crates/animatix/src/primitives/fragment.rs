@@ -85,11 +85,15 @@ impl Primitive for FragmentPrimitive {
                     if let Expr::Ident(name) = &prop.value {
                         if name == "auto" {
                             // Use default highlight color
-                            track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(
-                                ctx.time_ms as u64,
-                                [0.3, 0.5, 1.0, 1.0],
-                                Easing::Linear,
-                            );
+                            track
+                                .highlight
+                                .highlight_color
+                                .ensure([0.3, 0.5, 1.0, 1.0])
+                                .add_keyframe(
+                                    ctx.time_ms as u64,
+                                    [0.3, 0.5, 1.0, 1.0],
+                                    Easing::Linear,
+                                );
                             continue;
                         }
                     }
@@ -153,7 +157,8 @@ impl Primitive for FragmentPrimitive {
                     .flatten()
                     .unwrap_or([0.3, 0.5, 1.0, 1.0]);
                 if ctx.duration_ms > 0.0 {
-                    let start_val = track.highlight.highlight_color.get(ctx.t_start_ms, [0.3, 0.5, 1.0, 1.0]);
+                    let start_val =
+                        track.highlight.highlight_color.get(ctx.t_start_ms, [0.3, 0.5, 1.0, 1.0]);
                     track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(
                         ctx.t_start_ms,
                         start_val,
@@ -180,11 +185,11 @@ impl Primitive for FragmentPrimitive {
                         Easing::Linear,
                     );
                 }
-                track
-                    .highlight
-                    .highlight_opacity
-                    .ensure(0.0)
-                    .add_keyframe(ctx.t_end_ms, opacity, ctx.easing);
+                track.highlight.highlight_opacity.ensure(0.0).add_keyframe(
+                    ctx.t_end_ms,
+                    opacity,
+                    ctx.easing,
+                );
                 true
             },
             "highlight_padding" => {
@@ -200,11 +205,11 @@ impl Primitive for FragmentPrimitive {
                         Easing::Linear,
                     );
                 }
-                track
-                    .highlight
-                    .highlight_padding
-                    .ensure(4.0)
-                    .add_keyframe(ctx.t_end_ms, padding, ctx.easing);
+                track.highlight.highlight_padding.ensure(4.0).add_keyframe(
+                    ctx.t_end_ms,
+                    padding,
+                    ctx.easing,
+                );
                 true
             },
             "highlight_radius" => {
@@ -219,11 +224,11 @@ impl Primitive for FragmentPrimitive {
                         Easing::Linear,
                     );
                 }
-                track
-                    .highlight
-                    .highlight_radius
-                    .ensure(3.0)
-                    .add_keyframe(ctx.t_end_ms, radius, ctx.easing);
+                track.highlight.highlight_radius.ensure(3.0).add_keyframe(
+                    ctx.t_end_ms,
+                    radius,
+                    ctx.easing,
+                );
                 true
             },
             _ => false,

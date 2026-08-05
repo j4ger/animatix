@@ -6,22 +6,23 @@
 //! - Single-timeline and multi-scene composition video encoding
 //! - Public wrapper functions with varying levels of control
 
-use crate::ast::Stmt;
-use crate::composition::Composition;
-use crate::renderer::encode::{
-    mux_audio_segments,
-    ExportError, ExportSettings, VideoCodec,
-};
-use crate::renderer::render_pipeline::{fill_rgba_frame, render_frames_streaming, render_frames_streaming_composition};
-use crate::timeline::{AudioSegment, DebugRenderOptions, Timeline};
+use std::ffi::CString;
+use std::sync::atomic::{AtomicBool, AtomicU32};
+
 use rsmpeg::avcodec::{AVCodec, AVCodecContext};
 use rsmpeg::avformat::AVFormatContextOutput;
 use rsmpeg::avutil::{AVDictionary, AVFrame, AVRational};
 use rsmpeg::error::RsmpegError;
 use rsmpeg::swscale::SwsContext;
-use std::ffi::CString;
-use std::sync::atomic::{AtomicBool, AtomicU32};
 use tracing::info;
+
+use crate::ast::Stmt;
+use crate::composition::Composition;
+use crate::renderer::encode::{ExportError, ExportSettings, VideoCodec, mux_audio_segments};
+use crate::renderer::render_pipeline::{
+    fill_rgba_frame, render_frames_streaming, render_frames_streaming_composition,
+};
+use crate::timeline::{AudioSegment, DebugRenderOptions, Timeline};
 
 // ---------------------------------------------------------------------------
 // Public API: single-timeline video
@@ -106,7 +107,16 @@ pub fn render_video_timeline_with_settings(
     settings: ExportSettings,
 ) -> Result<(), ExportError> {
     pollster::block_on(render_video_async(
-        timeline, width, height, fps, duration, output_file, debug_options, settings, None, None,
+        timeline,
+        width,
+        height,
+        fps,
+        duration,
+        output_file,
+        debug_options,
+        settings,
+        None,
+        None,
     ))
 }
 
@@ -125,7 +135,16 @@ pub fn render_video_timeline_with_progress(
     cancel: Option<&AtomicBool>,
 ) -> Result<(), ExportError> {
     pollster::block_on(render_video_async(
-        timeline, width, height, fps, duration, output_file, debug_options, settings, progress, cancel,
+        timeline,
+        width,
+        height,
+        fps,
+        duration,
+        output_file,
+        debug_options,
+        settings,
+        progress,
+        cancel,
     ))
 }
 
@@ -167,8 +186,14 @@ fn setup_video_encoder(
 
     encode_context.set_width(width as i32);
     encode_context.set_height(height as i32);
-    encode_context.set_time_base(AVRational { num: 1, den: fps as i32 });
-    encode_context.set_framerate(AVRational { num: fps as i32, den: 1 });
+    encode_context.set_time_base(AVRational {
+        num: 1,
+        den: fps as i32,
+    });
+    encode_context.set_framerate(AVRational {
+        num: fps as i32,
+        den: 1,
+    });
     encode_context.set_pix_fmt(rsmpeg::ffi::AV_PIX_FMT_YUV420P);
 
     if format_context.oformat().flags & rsmpeg::ffi::AVFMT_GLOBALHEADER as i32 != 0 {
@@ -205,9 +230,16 @@ fn setup_video_encoder(
     let stream_time_base = format_context.streams()[stream_index as usize].time_base;
 
     let sws_context = SwsContext::get_context(
-        width as i32, height as i32, rsmpeg::ffi::AV_PIX_FMT_RGBA,
-        width as i32, height as i32, rsmpeg::ffi::AV_PIX_FMT_YUV420P,
-        rsmpeg::ffi::SWS_FAST_BILINEAR, None, None, None,
+        width as i32,
+        height as i32,
+        rsmpeg::ffi::AV_PIX_FMT_RGBA,
+        width as i32,
+        height as i32,
+        rsmpeg::ffi::AV_PIX_FMT_YUV420P,
+        rsmpeg::ffi::SWS_FAST_BILINEAR,
+        None,
+        None,
+        None,
     )
     .ok_or_else(|| ExportError::VideoEncode("Failed to create SWS context".into()))?;
 
@@ -248,7 +280,7 @@ fn finish_video_encoder(
                 format_context
                     .interleaved_write_frame(&mut packet)
                     .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-            }
+            },
             Err(RsmpegError::EncoderDrainError) | Err(RsmpegError::EncoderFlushedError) => break,
             Err(e) => return Err(ExportError::VideoEncode(format!("{e:?}"))),
         }
@@ -291,10 +323,7 @@ pub(super) async fn render_video_async(
     info!("Encoding {} frames to video...", total_frames);
 
     // Auto-detect WebM and select VP9 encoder
-    let is_webm = output_file
-        .extension()
-        .map(|e| e == "webm")
-        .unwrap_or(false);
+    let is_webm = output_file.extension().map(|e| e == "webm").unwrap_or(false);
     let settings = if is_webm && matches!(settings.video_codec, VideoCodec::Auto) {
         ExportSettings {
             video_codec: VideoCodec::Vp9,
@@ -317,7 +346,8 @@ pub(super) async fn render_video_async(
     // ------------------------------------------------------------------------
     // 2. Parallel frame rendering with streaming to encoder
     // ------------------------------------------------------------------------
-    let num_threads = adaptive_thread_count(width, height, total_frames, false, is_hw_encoder, &settings);
+    let num_threads =
+        adaptive_thread_count(width, height, total_frames, false, is_hw_encoder, &settings);
     info!("Using {num_threads} render thread(s) (adaptive).");
 
     render_frames_streaming(
@@ -351,10 +381,10 @@ pub(super) async fn render_video_async(
                         format_context
                             .interleaved_write_frame(&mut packet)
                             .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-                    }
+                    },
                     Err(RsmpegError::EncoderDrainError) | Err(RsmpegError::EncoderFlushedError) => {
                         break;
-                    }
+                    },
                     Err(e) => return Err(ExportError::VideoEncode(format!("{e:?}"))),
                 }
             }
@@ -467,10 +497,7 @@ pub(super) async fn render_video_composition_async(
     info!("Encoding {} frames to video...", total_frames);
 
     // Auto-detect WebM and select VP9 encoder
-    let is_webm = output_file
-        .extension()
-        .map(|e| e == "webm")
-        .unwrap_or(false);
+    let is_webm = output_file.extension().map(|e| e == "webm").unwrap_or(false);
     let settings = if is_webm && matches!(settings.video_codec, VideoCodec::Auto) {
         ExportSettings {
             video_codec: VideoCodec::Vp9,
@@ -525,11 +552,10 @@ pub(super) async fn render_video_composition_async(
                         format_context
                             .interleaved_write_frame(&mut packet)
                             .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-                    }
-                    Err(RsmpegError::EncoderDrainError)
-                    | Err(RsmpegError::EncoderFlushedError) => {
+                    },
+                    Err(RsmpegError::EncoderDrainError) | Err(RsmpegError::EncoderFlushedError) => {
                         break;
-                    }
+                    },
                     Err(e) => return Err(ExportError::VideoEncode(format!("{e:?}"))),
                 }
             }
@@ -579,9 +605,7 @@ pub(crate) fn adaptive_thread_count(
     match settings.max_render_threads {
         MaxRenderThreads::Fixed(n) => n.max(1),
         MaxRenderThreads::Auto => {
-            let num_cpus = std::thread::available_parallelism()
-                .map(|n| n.get())
-                .unwrap_or(4);
+            let num_cpus = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
 
             // Format-specific base caps.
             // Encoding is the bottleneck for software; hardware encoding is fast.
@@ -607,7 +631,7 @@ pub(crate) fn adaptive_thread_count(
             let duration_cap = if total_frames < 30 { 1 } else { num_cpus };
 
             format_cap.min(resolution_cap).min(duration_cap).max(1)
-        }
+        },
     }
 }
 
@@ -623,23 +647,24 @@ pub(crate) fn select_video_encoder(
     use crate::renderer::encode::VideoCodec;
     match settings.video_codec {
         VideoCodec::Libx264 => {
-            let codec = AVCodec::find_encoder_by_name(&CString::new("libx264")?).ok_or_else(
-                || ExportError::VideoEncode("Failed to find libx264 encoder".into()),
-            )?;
+            let codec = AVCodec::find_encoder_by_name(&CString::new("libx264")?)
+                .ok_or_else(|| ExportError::VideoEncode("Failed to find libx264 encoder".into()))?;
             Ok((codec, false))
-        }
+        },
         VideoCodec::H264Nvenc => {
-            let codec = AVCodec::find_encoder_by_name(&CString::new("h264_nvenc")?).ok_or_else(
-                || ExportError::VideoEncode("Failed to find h264_nvenc encoder".into()),
-            )?;
+            let codec =
+                AVCodec::find_encoder_by_name(&CString::new("h264_nvenc")?).ok_or_else(|| {
+                    ExportError::VideoEncode("Failed to find h264_nvenc encoder".into())
+                })?;
             Ok((codec, true))
-        }
+        },
         VideoCodec::H264Vaapi => {
-            let codec = AVCodec::find_encoder_by_name(&CString::new("h264_vaapi")?).ok_or_else(
-                || ExportError::VideoEncode("Failed to find h264_vaapi encoder".into()),
-            )?;
+            let codec =
+                AVCodec::find_encoder_by_name(&CString::new("h264_vaapi")?).ok_or_else(|| {
+                    ExportError::VideoEncode("Failed to find h264_vaapi encoder".into())
+                })?;
             Ok((codec, true))
-        }
+        },
         VideoCodec::Auto => {
             for (name, is_hw) in [("h264_nvenc", true), ("h264_vaapi", true)] {
                 if let Some(codec) = AVCodec::find_encoder_by_name(&CString::new(name)?) {
@@ -647,17 +672,17 @@ pub(crate) fn select_video_encoder(
                     return Ok((codec, is_hw));
                 }
             }
-            let codec = AVCodec::find_encoder_by_name(&CString::new("libx264")?).ok_or_else(
-                || ExportError::VideoEncode("Failed to find libx264 encoder".into()),
-            )?;
+            let codec = AVCodec::find_encoder_by_name(&CString::new("libx264")?)
+                .ok_or_else(|| ExportError::VideoEncode("Failed to find libx264 encoder".into()))?;
             info!("Auto-selected software encoder: libx264");
             Ok((codec, false))
-        }
+        },
         VideoCodec::Vp9 => {
-            let codec = AVCodec::find_encoder_by_name(&CString::new("libvpx-vp9")?).ok_or_else(
-                || ExportError::VideoEncode("Failed to find libvpx-vp9 encoder".into()),
-            )?;
+            let codec =
+                AVCodec::find_encoder_by_name(&CString::new("libvpx-vp9")?).ok_or_else(|| {
+                    ExportError::VideoEncode("Failed to find libvpx-vp9 encoder".into())
+                })?;
             Ok((codec, false))
-        }
+        },
     }
 }

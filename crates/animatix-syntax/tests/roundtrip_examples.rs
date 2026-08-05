@@ -5,9 +5,10 @@
 //! re-parses the result — verifying that the parser roundtrip is lossless
 //! with respect to statement count.
 
+use std::path::Path;
+
 use animatix_syntax::ast::Stmt;
 use animatix_syntax::chumsky::Parser;
-use std::path::Path;
 
 /// Recursively collect all `.amx` files under `dir`.
 fn collect_amx_files(dir: &Path) -> Vec<std::path::PathBuf> {
@@ -40,11 +41,7 @@ fn roundtrip_all_example_files() {
     );
 
     let amx_files = collect_amx_files(&examples_dir);
-    assert!(
-        !amx_files.is_empty(),
-        "no .amx files found in {}",
-        examples_dir.display()
-    );
+    assert!(!amx_files.is_empty(), "no .amx files found in {}", examples_dir.display());
 
     let mut failures: Vec<String> = Vec::new();
 
@@ -54,19 +51,16 @@ fn roundtrip_all_example_files() {
             Err(e) => {
                 failures.push(format!("{}: read error: {}", file_path.display(), e));
                 continue;
-            }
+            },
         };
 
         // Phase 1: parse the original source via parse_source (strips comments first)
-        let (parsed_opt, parse_errors) =
-            animatix_syntax::parser::parse_source(&source);
+        let (parsed_opt, parse_errors) = animatix_syntax::parser::parse_source(&source);
         let parsed: Vec<Stmt> = match parsed_opt {
             Some(stmts) if parse_errors.is_empty() => stmts,
             _ => {
-                let msg: Vec<String> = parse_errors
-                    .iter()
-                    .map(|e| format!("  {}", e.message))
-                    .collect();
+                let msg: Vec<String> =
+                    parse_errors.iter().map(|e| format!("  {}", e.message)).collect();
                 failures.push(format!(
                     "{}: parse failed ({} error(s)):\n{}",
                     file_path.display(),
@@ -74,7 +68,7 @@ fn roundtrip_all_example_files() {
                     msg.join("\n")
                 ));
                 continue;
-            }
+            },
         };
 
         let orig_count = parsed.len();
@@ -84,16 +78,11 @@ fn roundtrip_all_example_files() {
 
         // Phase 3: re-parse the serialized output
         let (reparsed_opt, reparse_errors) =
-            animatix_syntax::parser::parser_simple()
-                .parse(&serialized)
-                .into_output_errors();
+            animatix_syntax::parser::parser_simple().parse(&serialized).into_output_errors();
         let reparsed: Vec<Stmt> = match reparsed_opt {
             Some(stmts) if reparse_errors.is_empty() => stmts,
             _ => {
-                let msg: Vec<String> = reparse_errors
-                    .iter()
-                    .map(|e| format!("  {}", e))
-                    .collect();
+                let msg: Vec<String> = reparse_errors.iter().map(|e| format!("  {}", e)).collect();
                 failures.push(format!(
                     "{}: re-parse failed after serialization ({} error(s)):\n{}",
                     file_path.display(),
@@ -101,7 +90,7 @@ fn roundtrip_all_example_files() {
                     msg.join("\n")
                 ));
                 continue;
-            }
+            },
         };
 
         // Phase 4: compare statement counts
@@ -116,10 +105,6 @@ fn roundtrip_all_example_files() {
     }
 
     if !failures.is_empty() {
-        panic!(
-            "roundtrip failures for {} file(s):\n{}",
-            failures.len(),
-            failures.join("\n\n")
-        );
+        panic!("roundtrip failures for {} file(s):\n{}", failures.len(), failures.join("\n\n"));
     }
 }

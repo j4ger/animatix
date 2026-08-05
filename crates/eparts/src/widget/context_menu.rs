@@ -26,8 +26,10 @@
 
 use egui::{Align2, Color32, CornerRadius, Id, Margin, Pos2, Rect, Sense, Stroke, Ui, Vec2};
 
+use crate::tokens::spatial::{
+    RADIUS_M, RADIUS_S, SPACE_2, STROKE_WIDTH, Spatial, menu as menu_spatial,
+};
 use crate::tokens::theme;
-use crate::tokens::spatial::{RADIUS_M, RADIUS_S, SPACE_2, STROKE_WIDTH, Spatial, menu as menu_spatial};
 use crate::tokens::typography::TextRole;
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -360,7 +362,8 @@ fn render_menu_header(ui: &mut Ui, text: &str, content_width: f32, t: &theme::Th
 
 fn render_menu_separator(ui: &mut Ui, content_width: f32, t: &theme::Theme) {
     let s = crate::spatial(ui);
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(content_width, s.space_3 + 1.0), Sense::hover());
+    let (rect, _) =
+        ui.allocate_exact_size(Vec2::new(content_width, s.space_3 + 1.0), Sense::hover());
 
     let y = rect.center().y;
     ui.painter().line_segment(
@@ -380,13 +383,19 @@ mod tests {
     fn menu_entry_item_with_icon() {
         let entry = MenuEntry::item_with_icon("COPY", "Copy");
         match entry {
-            MenuEntry::Item { icon, label, shortcut, checked, enabled } => {
+            MenuEntry::Item {
+                icon,
+                label,
+                shortcut,
+                checked,
+                enabled,
+            } => {
                 assert_eq!(icon, Some("COPY"));
                 assert_eq!(label, "Copy");
                 assert!(shortcut.is_none());
                 assert!(!checked);
                 assert!(enabled);
-            }
+            },
             _ => panic!("expected Item variant"),
         }
     }
@@ -397,7 +406,7 @@ mod tests {
         match entry {
             MenuEntry::Header(label) => {
                 assert_eq!(label, "Section");
-            }
+            },
             _ => panic!("expected Header variant"),
         }
     }
@@ -406,7 +415,7 @@ mod tests {
     fn menu_entry_separator() {
         let entry = MenuEntry::separator();
         match entry {
-            MenuEntry::Separator => {}
+            MenuEntry::Separator => {},
             _ => panic!("expected Separator variant"),
         }
     }

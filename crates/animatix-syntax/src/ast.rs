@@ -173,24 +173,23 @@ impl Expr {
             Expr::Path(parts) => parts.iter().any(|p| p == name),
             Expr::Index(container, index) => {
                 container.references_ident(name) || index.references_ident(name)
-            }
+            },
             Expr::Tuple(items) => items.iter().any(|item| item.references_ident(name)),
             Expr::List(items) => items.iter().any(|item| item.references_ident(name)),
             Expr::Binary(left, _, right) => {
                 left.references_ident(name) || right.references_ident(name)
-            }
+            },
             Expr::Unary(_, expr) => expr.references_ident(name),
             Expr::Call(_, args) => args.iter().any(|arg| arg.references_ident(name)),
             Expr::Method(receiver, _, args) => {
-                receiver.references_ident(name)
-                    || args.iter().any(|arg| arg.references_ident(name))
-            }
+                receiver.references_ident(name) || args.iter().any(|arg| arg.references_ident(name))
+            },
             Expr::Closure(_, body) => body.references_ident(name),
             Expr::Conditional(cond, then_branch, else_branch) => {
                 cond.references_ident(name)
                     || then_branch.references_ident(name)
                     || else_branch.references_ident(name)
-            }
+            },
             Expr::Match(scrutinee, arms) => {
                 if scrutinee.references_ident(name) {
                     return true;
@@ -201,7 +200,7 @@ impl Expr {
                     }
                 }
                 false
-            }
+            },
             Expr::Construct(_, props) => props.iter().any(|p| p.value.references_ident(name)),
             // Literals never reference an identifier
             _ => false,
@@ -474,7 +473,7 @@ impl std::fmt::Display for LoopPattern {
             LoopPattern::Single(name) => write!(f, "{}", name),
             LoopPattern::Tuple(names) => {
                 write!(f, "({})", names.join(", "))
-            }
+            },
         }
     }
 }
@@ -557,8 +556,8 @@ pub enum InlineItem {
 /// A single segment of an assignment/reactive-binding target path.
 ///
 /// - `Static("bars__0")` — a pre-resolved label (e.g. `bars[0]` → `"bars__0"`).
-/// - `Indexed { base: "bars", index: <expr> }` — a runtime-indexed segment
-///   (e.g. `bars[i]` where `i` is a per-frame `let`).
+/// - `Indexed { base: "bars", index: <expr> }` — a runtime-indexed segment (e.g. `bars[i]` where
+///   `i` is a per-frame `let`).
 #[derive(Clone, Debug, PartialEq)]
 pub enum TargetSegment {
     /// A static label segment (e.g. `"container"`, `"bars__0"`).
@@ -588,11 +587,8 @@ impl TargetSegment {
         match self {
             TargetSegment::Static(s) => s.as_str(),
             TargetSegment::Indexed { base, .. } => {
-                panic!(
-                    "expected static target segment, got Indexed(\"{}\")",
-                    base
-                )
-            }
+                panic!("expected static target segment, got Indexed(\"{}\")", base)
+            },
         }
     }
 
@@ -619,11 +615,7 @@ impl std::fmt::Display for TargetSegment {
 /// Join static-only target segments with `"."`.
 /// Panics if any segment is `Indexed`.
 pub fn target_segments_static_key(target: &[TargetSegment]) -> String {
-    target
-        .iter()
-        .map(|s| s.expect_static())
-        .collect::<Vec<&str>>()
-        .join(".")
+    target.iter().map(|s| s.expect_static()).collect::<Vec<&str>>().join(".")
 }
 
 /// Build an array-indexed actor label (e.g. `bars[0]` → `"bars__0"`).
@@ -877,4 +869,3 @@ pub enum Stmt {
     /// Standalone comment statement.
     Comment(String, Option<Span>),
 }
-

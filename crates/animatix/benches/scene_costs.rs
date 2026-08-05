@@ -4,10 +4,12 @@ use criterion::{Criterion, black_box, criterion_group, criterion_main};
 mod common;
 
 fn build_many_actors_scene() -> Timeline {
-    let mut source = String::from(r#"config { colorscheme: "editorial-dark" }
+    let mut source = String::from(
+        r#"config { colorscheme: "editorial-dark" }
 
 #0s
-"#);
+"#,
+    );
     for i in 0..50 {
         source.push_str(&format!(
             "box{i}: Rect, size: (50, 50), color: accent.primary, at: ({}, {})\n",
@@ -19,10 +21,12 @@ fn build_many_actors_scene() -> Timeline {
 }
 
 fn build_mixed_scene() -> Timeline {
-    let mut source = String::from(r#"config { colorscheme: "editorial-dark" }
+    let mut source = String::from(
+        r#"config { colorscheme: "editorial-dark" }
 
 #0s
-"#);
+"#,
+    );
     for i in 0..20 {
         source.push_str(&format!(
             "box{i}: Rect, size: (50, 50), color: accent.primary, at: ({}, {})\n",
@@ -30,17 +34,22 @@ fn build_mixed_scene() -> Timeline {
             100 + (i % 5) * 100
         ));
     }
-    source.push_str(r#"
+    source.push_str(
+        r#"
 title: Text, content: "Hello World", font_size: 48, color: text.primary, at: (960, 400)
 subtitle: Text, content: "Subtitle text", font_size: 24, color: text.secondary, at: (960, 500)
-"#);
+"#,
+    );
     common::parse_timeline(&source)
 }
 
 fn bench_scene_costs(c: &mut Criterion) {
     let many_actors = build_many_actors_scene();
     let mixed = build_mixed_scene();
-    let dims = SceneDimensions { width: 1920, height: 1080 };
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
 
     // Benchmark the cost of cloning the scene (frame cache)
     c.bench_function("many_actors_evaluate", |b| {
@@ -56,7 +65,11 @@ fn bench_scene_costs(c: &mut Criterion) {
             black_box(many_actors.evaluate_with_debug(
                 black_box(0.5),
                 dims,
-                animatix::timeline::DebugRenderOptions { draw_bounds: true, compute_hit_regions: false, ..Default::default() },
+                animatix::timeline::DebugRenderOptions {
+                    draw_bounds: true,
+                    compute_hit_regions: false,
+                    ..Default::default()
+                },
                 &mut fb,
             ));
         })

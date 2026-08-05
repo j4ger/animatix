@@ -5,10 +5,10 @@
 //!
 //! # Relationship to other modules
 //!
-//! - [`to_source`](crate::to_source) wraps this module's functions with a
-//!   convenient trait (fixed indent = 2).
-//! - [`formatter`](crate::formatter) wraps this module's functions with
-//!   configurable indent and other formatting options.
+//! - [`to_source`](crate::to_source) wraps this module's functions with a convenient trait (fixed
+//!   indent = 2).
+//! - [`formatter`](crate::formatter) wraps this module's functions with configurable indent and
+//!   other formatting options.
 //!
 //! # Compatibility with shared walk primitives
 //!
@@ -28,14 +28,17 @@ use crate::ast::*;
 /// Format a slice of `TargetSegment`s as a source string.
 /// Static segments are written as-is; Indexed segments are written as
 /// `base[index_expr]` using the provided expression formatter.
-pub fn format_target_segments(segments: &[TargetSegment], format_expr: fn(&Expr) -> String) -> String {
+pub fn format_target_segments(
+    segments: &[TargetSegment],
+    format_expr: fn(&Expr) -> String,
+) -> String {
     segments
         .iter()
         .map(|s| match s {
             TargetSegment::Static(name) => name.clone(),
             TargetSegment::Indexed { base, index } => {
                 format!("{}[{}]", base, format_expr(index))
-            }
+            },
         })
         .collect::<Vec<_>>()
         .join(".")
@@ -85,7 +88,7 @@ pub fn format_time(t: &Time) -> String {
             } else {
                 format!("{}s", s)
             }
-        }
+        },
         Time::Milliseconds(ms) => format!("{}ms", ms),
     }
 }
@@ -124,7 +127,11 @@ pub fn op_precedence(op: &BinaryOp) -> u8 {
         BinaryOp::Pow => 5,
         BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod => 4,
         BinaryOp::Add | BinaryOp::Sub => 3,
-        BinaryOp::Eq | BinaryOp::Neq | BinaryOp::Lt | BinaryOp::Gt | BinaryOp::Lte
+        BinaryOp::Eq
+        | BinaryOp::Neq
+        | BinaryOp::Lt
+        | BinaryOp::Gt
+        | BinaryOp::Lte
         | BinaryOp::Gte => 2,
         BinaryOp::And | BinaryOp::Or => 1,
     }
@@ -173,12 +180,12 @@ pub fn format_expr(expr: &Expr) -> String {
             } else {
                 format!("{}", n)
             }
-        }
+        },
         Expr::Percent(n) => format!("{}%", n),
         Expr::Str(s) => {
             let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
             format!("\"{}\"", escaped)
-        }
+        },
         Expr::Bool(true) => "true".into(),
         Expr::Bool(false) => "false".into(),
         Expr::Null => "null".into(),
@@ -186,48 +193,36 @@ pub fn format_expr(expr: &Expr) -> String {
         Expr::Path(segs) => segs.join("."),
         Expr::Index(base, idx) => {
             format!("{}[{}]", format_expr(base), format_expr(idx))
-        }
+        },
         Expr::List(items) => {
-            let inner = items
-                .iter()
-                .map(format_expr)
-                .collect::<Vec<_>>()
-                .join(", ");
+            let inner = items.iter().map(format_expr).collect::<Vec<_>>().join(", ");
             format!("{{{}}}", inner)
-        }
+        },
         Expr::Tuple(items) => {
             if items.len() == 1 {
                 format_expr(&items[0])
             } else {
-                let inner = items
-                    .iter()
-                    .map(format_expr)
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                let inner = items.iter().map(format_expr).collect::<Vec<_>>().join(", ");
                 format!("({})", inner)
             }
-        }
+        },
         Expr::Binary(lhs, op, rhs) => {
             let lhs_str = format_expr(lhs);
             let rhs_str = format_expr(rhs);
             let lhs_out = match lhs.as_ref() {
-                Expr::Binary(_, child_op, _)
-                    if op_precedence(child_op) <= op_precedence(op) =>
-                {
+                Expr::Binary(_, child_op, _) if op_precedence(child_op) <= op_precedence(op) => {
                     format!("({})", lhs_str)
-                }
+                },
                 _ => lhs_str,
             };
             let rhs_out = match rhs.as_ref() {
-                Expr::Binary(_, child_op, _)
-                    if op_precedence(child_op) <= op_precedence(op) =>
-                {
+                Expr::Binary(_, child_op, _) if op_precedence(child_op) <= op_precedence(op) => {
                     format!("({})", rhs_str)
-                }
+                },
                 _ => rhs_str,
             };
             format!("{} {} {}", lhs_out, op.as_str(), rhs_out)
-        }
+        },
         Expr::Unary(op, expr) => {
             let inner = format_expr(expr);
             let inner_out = match expr.as_ref() {
@@ -235,27 +230,19 @@ pub fn format_expr(expr: &Expr) -> String {
                 _ => inner,
             };
             format!("{}{}", op.as_str(), inner_out)
-        }
+        },
         Expr::Call(name, args) => {
-            let inner = args
-                .iter()
-                .map(format_expr)
-                .collect::<Vec<_>>()
-                .join(", ");
+            let inner = args.iter().map(format_expr).collect::<Vec<_>>().join(", ");
             format!("{}({})", name, inner)
-        }
+        },
         Expr::Method(obj, name, args) => {
-            let inner = args
-                .iter()
-                .map(format_expr)
-                .collect::<Vec<_>>()
-                .join(", ");
+            let inner = args.iter().map(format_expr).collect::<Vec<_>>().join(", ");
             format!("{}.{}({})", format_expr(obj), name, inner)
-        }
+        },
         Expr::Closure(params, body) => {
             let params_str = params.join(", ");
             format!("({}) => {}", params_str, format_expr(body))
-        }
+        },
         Expr::Conditional(cond, then_expr, else_expr) => {
             format!(
                 "if {} {{ {} }} else {{ {} }}",
@@ -263,7 +250,7 @@ pub fn format_expr(expr: &Expr) -> String {
                 format_expr(then_expr),
                 format_expr(else_expr)
             )
-        }
+        },
         Expr::Match(scrutinee, arms) => {
             let arms_str = arms
                 .iter()
@@ -271,15 +258,11 @@ pub fn format_expr(expr: &Expr) -> String {
                 .collect::<Vec<_>>()
                 .join(", ");
             format!("match {} {{ {} }}", format_expr(scrutinee), arms_str)
-        }
+        },
         Expr::Construct(name, props) => {
-            let inner = props
-                .iter()
-                .map(format_property)
-                .collect::<Vec<_>>()
-                .join(", ");
+            let inner = props.iter().map(format_property).collect::<Vec<_>>().join(", ");
             format!("{} {{ {} }}", name, inner)
-        }
+        },
     }
 }
 
@@ -293,25 +276,17 @@ pub fn format_match_pat(pat: &MatchPattern) -> String {
             } else {
                 format!("{}", n)
             }
-        }
+        },
         MatchPattern::Str(s) => format!("{:?}", s),
         MatchPattern::Bool(b) => format!("{}", b),
         MatchPattern::Range(lo, hi) => {
             format!("{}..={}", format_match_pat(lo), format_match_pat(hi))
-        }
-        MatchPattern::Or(pats) => pats
-            .iter()
-            .map(format_match_pat)
-            .collect::<Vec<_>>()
-            .join(" | "),
+        },
+        MatchPattern::Or(pats) => pats.iter().map(format_match_pat).collect::<Vec<_>>().join(" | "),
         MatchPattern::Tuple(pats) => {
-            let inner = pats
-                .iter()
-                .map(format_match_pat)
-                .collect::<Vec<_>>()
-                .join(", ");
+            let inner = pats.iter().map(format_match_pat).collect::<Vec<_>>().join(", ");
             format!("({})", inner)
-        }
+        },
     }
 }
 
@@ -338,19 +313,11 @@ pub fn format_actor_like(
         parts.push(ty.to_string());
     }
     if !props.is_empty() {
-        let props_str = props
-            .iter()
-            .map(format_property)
-            .collect::<Vec<_>>()
-            .join(", ");
+        let props_str = props.iter().map(format_property).collect::<Vec<_>>().join(", ");
         parts.push(format!(", {}", props_str));
     }
     if !modifiers.is_empty() {
-        let mods = modifiers
-            .iter()
-            .map(format_modifier)
-            .collect::<Vec<_>>()
-            .join(", ");
+        let mods = modifiers.iter().map(format_modifier).collect::<Vec<_>>().join(", ");
         parts.push(format!(" [{}]", mods));
     }
     if !children.is_empty() {
@@ -372,7 +339,9 @@ pub fn format_inline_item(item: &InlineItem, depth: usize, indent_size: usize) -
             props,
             modifiers,
             children,
-        } => format_actor_like(None, None, true, ty, props, modifiers, children, depth, indent_size),
+        } => {
+            format_actor_like(None, None, true, ty, props, modifiers, children, depth, indent_size)
+        },
         InlineItem::Labeled {
             label,
             array_index,
@@ -402,10 +371,7 @@ pub fn format_inline_item(item: &InlineItem, depth: usize, indent_size: usize) -
                 .map(|i| format_inline_item(i, depth + 1, indent_size))
                 .collect::<Vec<_>>()
                 .join(",\n");
-            let index_str = index_var
-                .as_ref()
-                .map(|iv| format!(", {}", iv))
-                .unwrap_or_default();
+            let index_str = index_var.as_ref().map(|iv| format!(", {}", iv)).unwrap_or_default();
             format!(
                 "for {}{} in {} {{\n{}\n{}}}",
                 var,
@@ -414,7 +380,7 @@ pub fn format_inline_item(item: &InlineItem, depth: usize, indent_size: usize) -
                 body_str,
                 " ".repeat(depth * indent_size)
             )
-        }
+        },
         InlineItem::SlotMarker => "@slot".into(),
         InlineItem::SlotFill { slot, items } => {
             let items_str = items
@@ -422,25 +388,15 @@ pub fn format_inline_item(item: &InlineItem, depth: usize, indent_size: usize) -
                 .map(|i| format_inline_item(i, depth + 1, indent_size))
                 .collect::<Vec<_>>()
                 .join("\n");
-            format!(
-                "@{} {{\n{}\n{}}}",
-                slot,
-                items_str,
-                " ".repeat(indent_size * depth)
-            )
-        }
+            format!("@{} {{\n{}\n{}}}", slot, items_str, " ".repeat(indent_size * depth))
+        },
     }
 }
 
 /// Serialize a component definition.
 pub fn format_component_def(def: &ComponentDef, depth: usize, indent_size: usize) -> String {
     let pub_kw = if def.is_pub { "pub " } else { "" };
-    let params = def
-        .params
-        .iter()
-        .map(format_param_def)
-        .collect::<Vec<_>>()
-        .join(", ");
+    let params = def.params.iter().map(format_param_def).collect::<Vec<_>>().join(", ");
     let body = format_stmts_raw(&def.body, depth + 1, indent_size);
     format!(
         "{}component {}({}) {{\n{}\n{}}}",
@@ -473,11 +429,14 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
     match stmt {
         Stmt::Action(a, ..) => format_action(a),
         Stmt::LetDecl {
-            is_pub, name, value, ..
+            is_pub,
+            name,
+            value,
+            ..
         } => {
             let pub_kw = if *is_pub { "pub " } else { "" };
             format!("{}let {} = {}", pub_kw, name, format_expr(value))
-        }
+        },
         Stmt::ActorDecl {
             is_pub,
             is_anonymous,
@@ -500,12 +459,8 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
                 depth,
                 indent_size,
             );
-            if *is_pub {
-                format!("pub {}", s)
-            } else {
-                s
-            }
-        }
+            if *is_pub { format!("pub {}", s) } else { s }
+        },
         Stmt::Import { path, alias, .. } => match alias {
             Some(a) => format!(r#"import "{}" as {}"#, path, a),
             None => format!(r#"import "{}""#, path),
@@ -513,11 +468,11 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
         Stmt::Keyframe { time, body, .. } => {
             let body_str = format_stmts_raw(body, depth + 1, indent_size);
             format!("#{}\n{}", format_time(time), body_str)
-        }
+        },
         Stmt::RelativeKeyframe { offset, body, .. } => {
             let body_str = format_stmts_raw(body, depth + 1, indent_size);
             format!("#+{}\n{}", format_time(offset), body_str)
-        }
+        },
         Stmt::Assignment {
             target,
             property,
@@ -537,38 +492,28 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             };
             let mut parts = vec![assignment_str];
             if !modifiers.is_empty() {
-                let mods = modifiers
-                    .iter()
-                    .map(format_modifier)
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                let mods = modifiers.iter().map(format_modifier).collect::<Vec<_>>().join(", ");
                 parts.push(format!(" [{}]", mods));
             }
             parts.join("")
-        }
+        },
         Stmt::Sequence { body, .. } => {
             let body_str = format_stmts_raw(body, depth + 1, indent_size);
             format!("sequence {{\n{}\n{}}}", body_str, " ".repeat(indent_size * depth))
-        }
+        },
         Stmt::Stagger {
             modifiers, body, ..
         } => {
             let mut header = "stagger".to_string();
             if !modifiers.is_empty() {
-                let mods = modifiers
-                    .iter()
-                    .map(format_modifier)
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                let mods = modifiers.iter().map(format_modifier).collect::<Vec<_>>().join(", ");
                 header.push_str(&format!(" [{}]", mods));
             }
             let body_str = format_stmts_raw(body, depth + 1, indent_size);
             format!("{} {{\n{}\n{}}}", header, body_str, " ".repeat(indent_size * depth))
-        }
+        },
         Stmt::Match {
-            scrutinee,
-            arms,
-            ..
+            scrutinee, arms, ..
         } => {
             let arms_str = arms
                 .iter()
@@ -589,11 +534,11 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
                 arms_str,
                 " ".repeat(indent_size * depth)
             )
-        }
+        },
         Stmt::Always { body, .. } => {
             let body_str = format_stmts_raw(body, depth + 1, indent_size);
             format!("always {{\n{}\n{}}}", body_str, " ".repeat(indent_size * depth))
-        }
+        },
         Stmt::ReactiveBinding {
             target,
             property,
@@ -606,7 +551,7 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
                 property,
                 format_expr(value)
             )
-        }
+        },
         Stmt::Conditional {
             condition,
             then_branch,
@@ -629,7 +574,7 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
                 ));
             }
             result
-        }
+        },
         Stmt::ForLoop {
             var,
             index_var,
@@ -638,10 +583,7 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             ..
         } => {
             let body_str = format_stmts_raw(body, depth + 1, indent_size);
-            let index_str = index_var
-                .as_ref()
-                .map(|iv| format!(", {}", iv))
-                .unwrap_or_default();
+            let index_str = index_var.as_ref().map(|iv| format!(", {}", iv)).unwrap_or_default();
             format!(
                 "for {}{} in {} {{\n{}\n{}}}",
                 var,
@@ -650,16 +592,12 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
                 body_str,
                 " ".repeat(indent_size * depth)
             )
-        }
+        },
         Stmt::ComponentDef(def, ..) => format_component_def(def, depth, indent_size),
         Stmt::ComponentAction {
             name, params, body, ..
         } => {
-            let params_str = params
-                .iter()
-                .map(format_param_def)
-                .collect::<Vec<_>>()
-                .join(", ");
+            let params_str = params.iter().map(format_param_def).collect::<Vec<_>>().join(", ");
             let body_str = format_stmts_raw(body, depth + 1, indent_size);
             format!(
                 "action {}({}) {{\n{}\n{}}}",
@@ -668,28 +606,17 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
                 body_str,
                 " ".repeat(indent_size * depth)
             )
-        }
+        },
         Stmt::Config { settings, .. } => {
-            let inner = settings
-                .iter()
-                .map(format_property)
-                .collect::<Vec<_>>()
-                .join(", ");
+            let inner = settings.iter().map(format_property).collect::<Vec<_>>().join(", ");
             format!("config {{ {} }}", inner)
-        }
+        },
         Stmt::Scene {
-            name,
-            config,
-            body,
-            ..
+            name, config, body, ..
         } => {
             let mut parts = vec![format!("# {}", name)];
             if !config.is_empty() {
-                let inner = config
-                    .iter()
-                    .map(format_property)
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                let inner = config.iter().map(format_property).collect::<Vec<_>>().join(", ");
                 parts.push(format!("config {{ {} }}", inner));
             }
             if !body.is_empty() {
@@ -697,7 +624,7 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
                 parts.push(body_str);
             }
             parts.join("\n")
-        }
+        },
         Stmt::Play {
             scene_name,
             transition,
@@ -708,7 +635,7 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
                 s.push_str(&format!(" [{}]", format_transition(t)));
             }
             s
-        }
+        },
         Stmt::Comment(text, ..) => format!("//{}", text),
     }
 }
@@ -729,7 +656,10 @@ mod variant_coverage_guardrails {
         // Compile-time check: format_expr's match arms must be exhaustive
         // This test breaks at compile time anyway, but the count serves
         // as a searchable reminder when variants change.
-        assert_eq!(arms, 18, "Expr variant count changed — update format_expr and other match sites");
+        assert_eq!(
+            arms, 18,
+            "Expr variant count changed — update format_expr and other match sites"
+        );
     }
 
     /// When adding a new variant to `InlineItem`, update:
@@ -738,7 +668,10 @@ mod variant_coverage_guardrails {
     #[test]
     fn format_inline_item_covers_all_inline_item_variants() {
         let arms = 5; // Anonymous, Labeled, ForLoop, SlotMarker, SlotFill
-        assert_eq!(arms, 5, "InlineItem variant count changed — update format_inline_item and other match sites");
+        assert_eq!(
+            arms, 5,
+            "InlineItem variant count changed — update format_inline_item and other match sites"
+        );
     }
 
     /// When adding a new variant to `Stmt`, update:
@@ -750,6 +683,9 @@ mod variant_coverage_guardrails {
     #[test]
     fn format_stmt_raw_covers_all_stmt_variants() {
         let arms = 20; // Action, LetDecl, ActorDecl, Import, Keyframe, RelativeKeyframe, Assignment, Sequence, Stagger, Always, ReactiveBinding, Conditional, Match, ForLoop, ComponentDef, ComponentAction, Config, Scene, Play, Comment
-        assert_eq!(arms, 20, "Stmt variant count changed — update format_stmt_raw and other match sites");
+        assert_eq!(
+            arms, 20,
+            "Stmt variant count changed — update format_stmt_raw and other match sites"
+        );
     }
 }

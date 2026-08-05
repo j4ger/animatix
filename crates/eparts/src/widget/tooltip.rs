@@ -27,11 +27,12 @@
 //! text_tooltip(ui, ui.id().with("my_tooltip"), &response, "Hello, world!");
 //! ```
 
-use crate::tokens::theme::theme;
-use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
+use std::time::Duration;
+
 use egui::{Area, CornerRadius, Id, Margin, Order, Response, Stroke, Ui, Vec2};
 
-use std::time::Duration;
+use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
+use crate::tokens::theme::theme;
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -104,9 +105,7 @@ impl Tooltip {
             return;
         }
 
-        let mut state: State = ctx
-            .data(|d| d.get_temp::<State>(self.id))
-            .unwrap_or_default();
+        let mut state: State = ctx.data(|d| d.get_temp::<State>(self.id)).unwrap_or_default();
 
         // ── Hover tracking ────────────────────────────────────────────────
         if trigger_hovered {
@@ -129,10 +128,7 @@ impl Tooltip {
         } else {
             // Closed: require full open delay.
             trigger_hovered
-                && state
-                    .hover_start
-                    .map(|t| now - t >= open_delay_secs)
-                    .unwrap_or(false)
+                && state.hover_start.map(|t| now - t >= open_delay_secs).unwrap_or(false)
         };
 
         let in_grace = state.grace_until.map(|t| now <= t).unwrap_or(false);
@@ -156,9 +152,7 @@ impl Tooltip {
                 .min(screen_rect.max.x - est_max_width - s.space_2);
             desired_pos.y = desired_pos.y.min(screen_rect.max.y - s.space_2);
 
-            let area = Area::new(self.id.with("area"))
-                .order(Order::Tooltip)
-                .fixed_pos(desired_pos);
+            let area = Area::new(self.id.with("area")).order(Order::Tooltip).fixed_pos(desired_pos);
 
             let inner = area.show(ctx, |ui| {
                 ui.set_max_width(est_max_width);
@@ -217,9 +211,7 @@ mod tests {
 
     #[test]
     fn builder_overrides() {
-        let t = Tooltip::new(Id::new("test"))
-            .open_delay(100.0)
-            .close_delay(50.0);
+        let t = Tooltip::new(Id::new("test")).open_delay(100.0).close_delay(50.0);
         assert_eq!(t.open_delay, 100.0);
         assert_eq!(t.close_delay, 50.0);
     }

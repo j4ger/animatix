@@ -5,38 +5,36 @@
 //! ## Key types
 //!
 //! - [`AnimationTrack`] — per-actor keyframed property container.
-//! - [`TrackFieldRef`] / [`TrackFieldMut`] — type-erased references to property
-//!   tracks, enabling generic dispatch over the property registry.
+//! - [`TrackFieldRef`] / [`TrackFieldMut`] — type-erased references to property tracks, enabling
+//!   generic dispatch over the property registry.
 //!
 //! ## Free functions
 //!
 //! - [`read_property_value`] — read a property value at a given time.
-//! - [`read_property_value_or_default`] — read a property, falling back to the
-//!   schema default.
-//! - [`property_has_keyframes`] / [`property_has_keyframe_at`] — keyframe
-//!   existence checks.
-//! - [`property_keyframe_count`] / [`property_keyframe_times`] — keyframe
-//!   metadata.
+//! - [`read_property_value_or_default`] — read a property, falling back to the schema default.
+//! - [`property_has_keyframes`] / [`property_has_keyframe_at`] — keyframe existence checks.
+//! - [`property_keyframe_count`] / [`property_keyframe_times`] — keyframe metadata.
 //! - [`property_keyframe_easing`] — easing at a specific keyframe.
 
-use crate::easing::Easing;
-use super::property_track::{PropertyTrack, TrackAccessor};
-use crate::renderer::types::{TextPath, VelloPath};
-use crate::timeline::morph::MorphOptions;
-use crate::timeline::plot::{FuncTransition, ProceduralPlot};
-use crate::timeline::shapes::ShapeType;
-use crate::timeline::property_registry::{ActorField, PropertySchema};
-pub use crate::timeline::property_engine::PropertyValue;
-use super::actor_kind::{ActorKindId, ShapeKind};
-use super::morph;
-use super::animation_track::{
-    GeometryTracks, StyleTracks, FilterTracks, ShapeTracks, TextTracks, HighlightTracks,
-    PlacementMode, PositionBinding, CalloutPlace,
-};
 use std::collections::HashMap;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+
+use super::actor_kind::{ActorKindId, ShapeKind};
+use super::animation_track::{
+    CalloutPlace, FilterTracks, GeometryTracks, HighlightTracks, PlacementMode, PositionBinding,
+    ShapeTracks, StyleTracks, TextTracks,
+};
+use super::morph;
+use super::property_track::{PropertyTrack, TrackAccessor};
+use crate::easing::Easing;
+use crate::renderer::types::{TextPath, VelloPath};
+use crate::timeline::morph::MorphOptions;
+use crate::timeline::plot::{FuncTransition, ProceduralPlot};
+pub use crate::timeline::property_engine::PropertyValue;
+use crate::timeline::property_registry::{ActorField, PropertySchema};
+use crate::timeline::shapes::ShapeType;
 
 // ─────────────────────────────────────────────────────────────
 // AnimationTrack
@@ -95,8 +93,6 @@ pub struct AnimationTrack {
     #[cfg_attr(feature = "serde", serde(skip))]
     pub image: Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>,
 
-
-
     // ── Procedural plot (re-sampled at frame time) ──
     /// Procedural plot generator, re-sampled each frame.
     pub procedural_plot: Option<ProceduralPlot>,
@@ -127,13 +123,13 @@ pub struct AnimationTrack {
     ///
     /// ## How it works
     ///
-    /// 1. Parsing discovers `func = <expr> [easing, duration]` and appends
-    ///    a [`FuncTransition`] to this vector (not to a `PropertyTrack`).
-    /// 2. At each frame, [`sample_procedural_plot_at`] finds the active
-    ///    transition (if any), evaluates both `from` and `to` closure
-    ///    outputs at each sample point, and lerps the outputs.
-    /// 3. Completed transitions are detected via [`FuncTransition::is_complete_at`]
-    ///    and the last completed `to` source is used as the new baseline.
+    /// 1. Parsing discovers `func = <expr> [easing, duration]` and appends a [`FuncTransition`] to
+    ///    this vector (not to a `PropertyTrack`).
+    /// 2. At each frame, [`sample_procedural_plot_at`] finds the active transition (if any),
+    ///    evaluates both `from` and `to` closure outputs at each sample point, and lerps the
+    ///    outputs.
+    /// 3. Completed transitions are detected via [`FuncTransition::is_complete_at`] and the last
+    ///    completed `to` source is used as the new baseline.
     ///
     /// ## When to use this pattern
     ///
@@ -149,15 +145,15 @@ pub struct AnimationTrack {
     ///
     /// ## Implementation checklist for new non-interpolatable properties
     ///
-    /// 1. Define a transition struct (like [`FuncTransition`]) with
-    ///    `start_ms`, `end_ms`, `easing`, `from`, `to`.
-    /// 2. Define the source type (like [`FuncSource`]) with variants for
-    ///    raw values and mid-transition blends.
+    /// 1. Define a transition struct (like [`FuncTransition`]) with `start_ms`, `end_ms`,
+    ///    `easing`, `from`, `to`.
+    /// 2. Define the source type (like [`FuncSource`]) with variants for raw values and
+    ///    mid-transition blends.
     /// 3. Add a `Vec<YourTransition>` field to [`AnimationTrack`].
     /// 4. Include the transition end times in [`max_keyframe_time`].
     /// 5. Include non-empty transitions in [`has_any_keyframes`].
-    /// 6. At frame evaluation, find the active transition and blend
-    ///    the *outputs* of `from` and `to` by eased progress.
+    /// 6. At frame evaluation, find the active transition and blend the *outputs* of `from` and
+    ///    `to` by eased progress.
     pub func_transitions: Vec<FuncTransition>,
 
     // ── Highlight tier (sub-struct) ──
@@ -199,8 +195,6 @@ impl AnimationTrack {
             svg_paths: Vec::new(),
             #[cfg(feature = "render")]
             image: None,
-
-
 
             // Procedural plot
             procedural_plot: None,
@@ -275,14 +269,21 @@ impl AnimationTrack {
         if let Some(content_track) = &self.text.text_content {
             if !content_track.keyframes.is_empty() {
                 let current_text = content_track.evaluate(time_ms);
-                if current_text.is_empty() { return Vec::new(); }
+                if current_text.is_empty() {
+                    return Vec::new();
+                }
             }
         }
         let default_paths = PropertyTrack::new(Vec::new());
         let paths_track = self.text.text_paths.as_ref().unwrap_or(&default_paths);
         let default_morph = PropertyTrack::new(MorphOptions::default());
         let morph_track = self.style.morph_options.as_ref().unwrap_or(&default_morph);
-        let mut paths = morph::evaluate_paths_with_options(paths_track, morph_track, time_ms, morph::interpolate_text_paths);
+        let mut paths = morph::evaluate_paths_with_options(
+            paths_track,
+            morph_track,
+            time_ms,
+            morph::interpolate_text_paths,
+        );
 
         // Apply char_progress typewriter truncation
         if let Some(cp_track) = &self.text.char_progress {
@@ -302,7 +303,12 @@ impl AnimationTrack {
         let paths_track = self.shape.vector_paths.as_ref().unwrap_or(&default_paths);
         let default_morph = PropertyTrack::new(MorphOptions::default());
         let morph_track = self.style.morph_options.as_ref().unwrap_or(&default_morph);
-        morph::evaluate_paths_with_options(paths_track, morph_track, time_ms, morph::interpolate_vello_paths)
+        morph::evaluate_paths_with_options(
+            paths_track,
+            morph_track,
+            time_ms,
+            morph::interpolate_vello_paths,
+        )
     }
 
     /// Return the maximum keyframe time across all property tracks.
@@ -434,19 +440,36 @@ impl<'a> TrackFieldRef<'a> {
     pub fn evaluate_value(&self, time_ms: u64) -> Option<PropertyValue> {
         match self {
             Self::F32(opt) => opt.as_ref().map(|pt| PropertyValue::F32(pt.evaluate_copy(time_ms))),
-            Self::Vec2(opt) => opt.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate_copy(time_ms))),
-            Self::Vec4(opt) => opt.as_ref().map(|pt| PropertyValue::Color(pt.evaluate_copy(time_ms))),
-            Self::Transform(opt) => opt.as_ref().map(|pt| PropertyValue::Transform(pt.evaluate_copy(time_ms))),
+            Self::Vec2(opt) => {
+                opt.as_ref().map(|pt| PropertyValue::Vec2(pt.evaluate_copy(time_ms)))
+            },
+            Self::Vec4(opt) => {
+                opt.as_ref().map(|pt| PropertyValue::Color(pt.evaluate_copy(time_ms)))
+            },
+            Self::Transform(opt) => {
+                opt.as_ref().map(|pt| PropertyValue::Transform(pt.evaluate_copy(time_ms)))
+            },
             Self::U32(opt) => opt.as_ref().map(|pt| PropertyValue::U32(pt.evaluate_copy(time_ms))),
-            Self::ShapeType(opt) => opt.as_ref().map(|pt| PropertyValue::U32(shape_type_to_u32(pt.evaluate_copy(time_ms)))),
-            Self::PlacementMode(opt) => opt.as_ref().map(|pt| PropertyValue::PlacementMode(pt.evaluate_copy(time_ms))),
-            Self::CalloutPlace(opt) => opt.as_ref().map(|pt| PropertyValue::CalloutPlace(pt.evaluate_copy(time_ms))),
-            Self::MorphOptions(opt) => opt.as_ref().map(|pt| PropertyValue::MorphOptions(pt.evaluate_copy(time_ms))),
+            Self::ShapeType(opt) => opt
+                .as_ref()
+                .map(|pt| PropertyValue::U32(shape_type_to_u32(pt.evaluate_copy(time_ms)))),
+            Self::PlacementMode(opt) => {
+                opt.as_ref().map(|pt| PropertyValue::PlacementMode(pt.evaluate_copy(time_ms)))
+            },
+            Self::CalloutPlace(opt) => {
+                opt.as_ref().map(|pt| PropertyValue::CalloutPlace(pt.evaluate_copy(time_ms)))
+            },
+            Self::MorphOptions(opt) => {
+                opt.as_ref().map(|pt| PropertyValue::MorphOptions(pt.evaluate_copy(time_ms)))
+            },
             Self::String(opt) => opt.as_ref().map(|pt| PropertyValue::String(pt.evaluate(time_ms))),
-            Self::PointList(opt) => opt.as_ref().map(|pt| PropertyValue::PointList(pt.evaluate(time_ms))),
-            Self::CommandList(opt) => opt.as_ref().map(|pt| PropertyValue::CommandList(pt.evaluate(time_ms))),
-            Self::VectorPaths(_) | Self::TextPaths(_)
-            | Self::PositionBinding(_) => None,
+            Self::PointList(opt) => {
+                opt.as_ref().map(|pt| PropertyValue::PointList(pt.evaluate(time_ms)))
+            },
+            Self::CommandList(opt) => {
+                opt.as_ref().map(|pt| PropertyValue::CommandList(pt.evaluate(time_ms)))
+            },
+            Self::VectorPaths(_) | Self::TextPaths(_) | Self::PositionBinding(_) => None,
             #[cfg(feature = "render")]
             Self::Image(_) => None,
         }
@@ -458,20 +481,40 @@ impl<'a> TrackFieldRef<'a> {
             Self::F32(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
             Self::Vec2(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
             Self::Vec4(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-            Self::Transform(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::Transform(opt) => {
+                opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms))
+            },
             Self::String(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
             Self::U32(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-            Self::PointList(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-            Self::CommandList(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-            Self::ShapeType(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-            Self::PlacementMode(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-            Self::CalloutPlace(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-            Self::MorphOptions(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-            Self::VectorPaths(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-            Self::TextPaths(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::PointList(opt) => {
+                opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms))
+            },
+            Self::CommandList(opt) => {
+                opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms))
+            },
+            Self::ShapeType(opt) => {
+                opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms))
+            },
+            Self::PlacementMode(opt) => {
+                opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms))
+            },
+            Self::CalloutPlace(opt) => {
+                opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms))
+            },
+            Self::MorphOptions(opt) => {
+                opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms))
+            },
+            Self::VectorPaths(opt) => {
+                opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms))
+            },
+            Self::TextPaths(opt) => {
+                opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms))
+            },
             #[cfg(feature = "render")]
             Self::Image(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
-            Self::PositionBinding(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
+            Self::PositionBinding(opt) => {
+                opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms))
+            },
         }
     }
 
@@ -501,46 +544,110 @@ impl<'a> TrackFieldRef<'a> {
     /// Returns all keyframe timestamps (ms), sorted.
     pub fn keyframe_times(&self) -> Vec<u64> {
         match self {
-            Self::F32(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-            Self::Vec2(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-            Self::Vec4(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-            Self::Transform(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-            Self::String(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-            Self::U32(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-            Self::PointList(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-            Self::CommandList(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-            Self::ShapeType(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-            Self::PlacementMode(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-            Self::CalloutPlace(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-            Self::MorphOptions(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-            Self::VectorPaths(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-            Self::TextPaths(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::F32(opt) => {
+                opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
+            },
+            Self::Vec2(opt) => {
+                opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
+            },
+            Self::Vec4(opt) => {
+                opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
+            },
+            Self::Transform(opt) => {
+                opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
+            },
+            Self::String(opt) => {
+                opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
+            },
+            Self::U32(opt) => {
+                opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
+            },
+            Self::PointList(opt) => {
+                opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
+            },
+            Self::CommandList(opt) => {
+                opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
+            },
+            Self::ShapeType(opt) => {
+                opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
+            },
+            Self::PlacementMode(opt) => {
+                opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
+            },
+            Self::CalloutPlace(opt) => {
+                opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
+            },
+            Self::MorphOptions(opt) => {
+                opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
+            },
+            Self::VectorPaths(opt) => {
+                opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
+            },
+            Self::TextPaths(opt) => {
+                opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
+            },
             #[cfg(feature = "render")]
-            Self::Image(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
-            Self::PositionBinding(opt) => opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect()),
+            Self::Image(opt) => {
+                opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
+            },
+            Self::PositionBinding(opt) => {
+                opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
+            },
         }
     }
 
     /// Returns the easing at a specific keyframe time, if one exists.
     pub fn keyframe_easing(&self, time_ms: u64) -> Option<Easing> {
         match self {
-            Self::F32(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-            Self::Vec2(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-            Self::Vec4(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-            Self::Transform(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-            Self::String(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-            Self::U32(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-            Self::PointList(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-            Self::CommandList(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-            Self::ShapeType(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-            Self::PlacementMode(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-            Self::CalloutPlace(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-            Self::MorphOptions(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-            Self::VectorPaths(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-            Self::TextPaths(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::F32(opt) => {
+                opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
+            },
+            Self::Vec2(opt) => {
+                opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
+            },
+            Self::Vec4(opt) => {
+                opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
+            },
+            Self::Transform(opt) => {
+                opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
+            },
+            Self::String(opt) => {
+                opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
+            },
+            Self::U32(opt) => {
+                opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
+            },
+            Self::PointList(opt) => {
+                opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
+            },
+            Self::CommandList(opt) => {
+                opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
+            },
+            Self::ShapeType(opt) => {
+                opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
+            },
+            Self::PlacementMode(opt) => {
+                opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
+            },
+            Self::CalloutPlace(opt) => {
+                opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
+            },
+            Self::MorphOptions(opt) => {
+                opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
+            },
+            Self::VectorPaths(opt) => {
+                opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
+            },
+            Self::TextPaths(opt) => {
+                opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
+            },
             #[cfg(feature = "render")]
-            Self::Image(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
-            Self::PositionBinding(opt) => opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e)),
+            Self::Image(opt) => {
+                opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
+            },
+            Self::PositionBinding(opt) => {
+                opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
+            },
         }
     }
 }
@@ -629,9 +736,8 @@ impl AnimationTrack {
             ImageData => return None,
             PositionBinding => TrackFieldRef::PositionBinding(&self.geometry.position_binding),
             // Remaining variants without track storage
-            SvgPaths | AudioSource | AudioVolume
-            | PositionBindingGroup | VectorShapeGroup | PlotDomainGroup
-            | ContainerLayoutGroup | NoStorage => return None,
+            SvgPaths | AudioSource | AudioVolume | PositionBindingGroup | VectorShapeGroup
+            | PlotDomainGroup | ContainerLayoutGroup | NoStorage => return None,
         })
     }
 
@@ -716,23 +822,55 @@ impl AnimationTrack {
     /// used by the `_animating_*` environment flags.
     pub fn is_field_currently_animating(&self, field: ActorField, time_ms: u64) -> bool {
         self.field_ref(field).is_some_and(|f| match f {
-            TrackFieldRef::F32(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
-            TrackFieldRef::Vec2(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
-            TrackFieldRef::Vec4(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
-            TrackFieldRef::Transform(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
-            TrackFieldRef::String(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
-            TrackFieldRef::U32(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
-            TrackFieldRef::PointList(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
-            TrackFieldRef::CommandList(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
-            TrackFieldRef::ShapeType(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
-            TrackFieldRef::PlacementMode(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
-            TrackFieldRef::CalloutPlace(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
-            TrackFieldRef::MorphOptions(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
-            TrackFieldRef::VectorPaths(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
-            TrackFieldRef::TextPaths(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::F32(opt) => {
+                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
+            },
+            TrackFieldRef::Vec2(opt) => {
+                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
+            },
+            TrackFieldRef::Vec4(opt) => {
+                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
+            },
+            TrackFieldRef::Transform(opt) => {
+                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
+            },
+            TrackFieldRef::String(opt) => {
+                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
+            },
+            TrackFieldRef::U32(opt) => {
+                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
+            },
+            TrackFieldRef::PointList(opt) => {
+                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
+            },
+            TrackFieldRef::CommandList(opt) => {
+                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
+            },
+            TrackFieldRef::ShapeType(opt) => {
+                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
+            },
+            TrackFieldRef::PlacementMode(opt) => {
+                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
+            },
+            TrackFieldRef::CalloutPlace(opt) => {
+                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
+            },
+            TrackFieldRef::MorphOptions(opt) => {
+                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
+            },
+            TrackFieldRef::VectorPaths(opt) => {
+                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
+            },
+            TrackFieldRef::TextPaths(opt) => {
+                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
+            },
             #[cfg(feature = "render")]
-            TrackFieldRef::Image(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
-            TrackFieldRef::PositionBinding(opt) => opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms)),
+            TrackFieldRef::Image(opt) => {
+                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
+            },
+            TrackFieldRef::PositionBinding(opt) => {
+                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
+            },
         })
     }
 
@@ -884,7 +1022,8 @@ impl AnimationTrack {
             _ => return Vec::new(),
         };
 
-        let mut times: Vec<u64> = self.field_ref(field).map(|f| f.keyframe_times()).unwrap_or_default();
+        let mut times: Vec<u64> =
+            self.field_ref(field).map(|f| f.keyframe_times()).unwrap_or_default();
         times.sort_unstable();
         times.dedup();
         times
@@ -897,7 +1036,11 @@ impl AnimationTrack {
 
 /// Read the current value of a property from a track at the given time.
 /// Returns `None` if the property has no track (not set on this actor).
-pub fn read_property_value(track: &AnimationTrack, field: ActorField, time_ms: u64) -> Option<PropertyValue> {
+pub fn read_property_value(
+    track: &AnimationTrack,
+    field: ActorField,
+    time_ms: u64,
+) -> Option<PropertyValue> {
     track.field_ref(field).and_then(|f| f.evaluate_value(time_ms))
 }
 
@@ -933,6 +1076,10 @@ pub fn property_keyframe_times(track: &AnimationTrack, field: ActorField) -> Vec
 }
 
 /// Returns the easing at a specific keyframe time for a property.
-pub fn property_keyframe_easing(track: &AnimationTrack, field: ActorField, time_ms: u64) -> Option<Easing> {
+pub fn property_keyframe_easing(
+    track: &AnimationTrack,
+    field: ActorField,
+    time_ms: u64,
+) -> Option<Easing> {
     track.field_ref(field).and_then(|f| f.keyframe_easing(time_ms))
 }

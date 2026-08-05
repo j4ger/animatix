@@ -1,9 +1,10 @@
 //! Symbol table extraction from the AST.
 
-use animatix_syntax::ast::*;
-use animatix_syntax::to_source::ToSource;
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
+
+use animatix_syntax::ast::*;
+use animatix_syntax::to_source::ToSource;
 
 /// Expected type for a property value.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -145,164 +146,207 @@ pub struct SceneInfo {
 /// Known built-in types in the Animatix DSL.
 const BUILTIN_TYPES: &[&str] = &[
     // Shapes
-    "Rect", "Ellipse", "Line", "Arrow", "Polygon", "Path",
+    "Rect",
+    "Ellipse",
+    "Line",
+    "Arrow",
+    "Polygon",
+    "Path",
     // Text
-    "Text", "Code", "Typst",
+    "Text",
+    "Code",
+    "Typst",
     // Media
-    "Image", "Svg", "Audio",
+    "Image",
+    "Svg",
+    "Audio",
     // Plots
-    "Graph", "PlotCurve", "VectorField", "Heatmap", "ContourSet", "NumberPlane", "BarChart",
+    "Graph",
+    "PlotCurve",
+    "VectorField",
+    "Heatmap",
+    "ContourSet",
+    "NumberPlane",
+    "BarChart",
     // Containers
-    "Row", "Col", "Grid", "Stack", "Group", "Mask", "Filter",
+    "Row",
+    "Col",
+    "Grid",
+    "Stack",
+    "Group",
+    "Mask",
+    "Filter",
     // Equation / Fragment
-    "Equation", "Fragment",
+    "Equation",
+    "Fragment",
     // Annotations
-    "Callout", "Legend",
+    "Callout",
+    "Legend",
     // Built-in component (handled by component system, not a primitive)
     "Button",
 ];
 
 /// Known built-in actions.
 const BUILTIN_ACTIONS: &[&str] = &[
-    "fade-in", "draw-in", "wipe-in", "reveal-in",
-    "fade-out", "wipe-out", "reveal-out", "draw-out",
-    "move", "shift", "rotate", "scale",
-    "shake", "pulse", "bounce",
-    "highlight", "unhighlight",
-    "persist", "remove",
-    "swap", "reorder",
+    "fade-in",
+    "draw-in",
+    "wipe-in",
+    "reveal-in",
+    "fade-out",
+    "wipe-out",
+    "reveal-out",
+    "draw-out",
+    "move",
+    "shift",
+    "rotate",
+    "scale",
+    "shake",
+    "pulse",
+    "bounce",
+    "highlight",
+    "unhighlight",
+    "persist",
+    "remove",
+    "swap",
+    "reorder",
 ];
 
 /// Known keywords.
 const KEYWORDS: &[&str] = &[
-    "let", "import", "always", "if", "else", "for", "in",
-    "pub", "component", "sequence", "stagger",
+    "let",
+    "import",
+    "always",
+    "if",
+    "else",
+    "for",
+    "in",
+    "pub",
+    "component",
+    "sequence",
+    "stagger",
 ];
 
 /// Known properties per type.
 fn known_properties() -> &'static HashMap<String, Vec<String>> {
     static CACHE: OnceLock<HashMap<String, Vec<String>>> = OnceLock::new();
     CACHE.get_or_init(|| {
-    let mut map = HashMap::new();
+        let mut map = HashMap::new();
 
-    // Common properties shared by most actors
-    let common = vec![
-        "position".to_string(),
-        "anchor".to_string(),
-        "offset".to_string(),
-        "scale".to_string(),
-        "rotation".to_string(),
-        "opacity".to_string(),
-        "color".to_string(),
-        "at".to_string(),
-    ];
+        // Common properties shared by most actors
+        let common = vec![
+            "position".to_string(),
+            "anchor".to_string(),
+            "offset".to_string(),
+            "scale".to_string(),
+            "rotation".to_string(),
+            "opacity".to_string(),
+            "color".to_string(),
+            "at".to_string(),
+        ];
 
-    // Text-specific
-    let mut text_props = common.clone();
-    text_props.extend([
-        "content".to_string(),
-        "text".to_string(),
-        "font_size".to_string(),
-        "font_family".to_string(),
-        "font_weight".to_string(),
-        "font_style".to_string(),
-        "line_height".to_string(),
-        "letter_spacing".to_string(),
-        "word_spacing".to_string(),
-        "max_width".to_string(),
-        "text_align".to_string(),
-        "overflow".to_string(),
-    ]);
-    map.insert("Text".to_string(), text_props);
+        // Text-specific
+        let mut text_props = common.clone();
+        text_props.extend([
+            "content".to_string(),
+            "text".to_string(),
+            "font_size".to_string(),
+            "font_family".to_string(),
+            "font_weight".to_string(),
+            "font_style".to_string(),
+            "line_height".to_string(),
+            "letter_spacing".to_string(),
+            "word_spacing".to_string(),
+            "max_width".to_string(),
+            "text_align".to_string(),
+            "overflow".to_string(),
+        ]);
+        map.insert("Text".to_string(), text_props);
 
-    // Typst-specific (shares Text props)
-    let mut typst_props = common.clone();
-    typst_props.extend([
-        "content".to_string(),
-        "font_size".to_string(),
-        "font_family".to_string(),
-        "font_weight".to_string(),
-        "font_style".to_string(),
-        "line_height".to_string(),
-        "letter_spacing".to_string(),
-        "word_spacing".to_string(),
-        "max_width".to_string(),
-        "text_align".to_string(),
-        "overflow".to_string(),
-    ]);
-    map.insert("Typst".to_string(), typst_props);
+        // Typst-specific (shares Text props)
+        let mut typst_props = common.clone();
+        typst_props.extend([
+            "content".to_string(),
+            "font_size".to_string(),
+            "font_family".to_string(),
+            "font_weight".to_string(),
+            "font_style".to_string(),
+            "line_height".to_string(),
+            "letter_spacing".to_string(),
+            "word_spacing".to_string(),
+            "max_width".to_string(),
+            "text_align".to_string(),
+            "overflow".to_string(),
+        ]);
+        map.insert("Typst".to_string(), typst_props);
 
-    // Code-specific
-    let mut code_props = common.clone();
-    code_props.extend([
-        "code".to_string(),
-        "content".to_string(),
-        "language".to_string(),
-        "font_weight".to_string(),
-        "font_style".to_string(),
-        "line_height".to_string(),
-        "letter_spacing".to_string(),
-        "word_spacing".to_string(),
-        "max_width".to_string(),
-        "text_align".to_string(),
-        "overflow".to_string(),
-    ]);
-    map.insert("Code".to_string(), code_props);
+        // Code-specific
+        let mut code_props = common.clone();
+        code_props.extend([
+            "code".to_string(),
+            "content".to_string(),
+            "language".to_string(),
+            "font_weight".to_string(),
+            "font_style".to_string(),
+            "line_height".to_string(),
+            "letter_spacing".to_string(),
+            "word_spacing".to_string(),
+            "max_width".to_string(),
+            "text_align".to_string(),
+            "overflow".to_string(),
+        ]);
+        map.insert("Code".to_string(), code_props);
 
-    // Shape-specific (Rect, Ellipse, etc.)
-    let mut shape_props = common.clone();
-    shape_props.extend([
-        "fill".to_string(),
-        "stroke".to_string(),
-        "stroke_width".to_string(),
-        "size".to_string(),
-        "radius".to_string(),
-    ]);
-    for shape in &["Rect", "Ellipse", "Polygon"] {
-        map.insert(shape.to_string(), shape_props.clone());
-    }
+        // Shape-specific (Rect, Ellipse, etc.)
+        let mut shape_props = common.clone();
+        shape_props.extend([
+            "fill".to_string(),
+            "stroke".to_string(),
+            "stroke_width".to_string(),
+            "size".to_string(),
+            "radius".to_string(),
+        ]);
+        for shape in &["Rect", "Ellipse", "Polygon"] {
+            map.insert(shape.to_string(), shape_props.clone());
+        }
 
-    // Line
-    let mut line_props = common.clone();
-    line_props.extend([
-        "start".to_string(),
-        "end".to_string(),
-        "stroke".to_string(),
-        "stroke_width".to_string(),
-    ]);
-    map.insert("Line".to_string(), line_props);
+        // Line
+        let mut line_props = common.clone();
+        line_props.extend([
+            "start".to_string(),
+            "end".to_string(),
+            "stroke".to_string(),
+            "stroke_width".to_string(),
+        ]);
+        map.insert("Line".to_string(), line_props);
 
-    // Button
-    let mut button_props = common.clone();
-    button_props.extend([
-        "text".to_string(),
-        "size".to_string(),
-        "fill".to_string(),
-        "stroke".to_string(),
-    ]);
-    map.insert("Button".to_string(), button_props);
+        // Button
+        let mut button_props = common.clone();
+        button_props.extend([
+            "text".to_string(),
+            "size".to_string(),
+            "fill".to_string(),
+            "stroke".to_string(),
+        ]);
+        map.insert("Button".to_string(), button_props);
 
-    // Svg/Image
-    let mut media_props = common.clone();
-    media_props.extend([
-        "url".to_string(),
-        "size".to_string(),
-    ]);
-    map.insert("Svg".to_string(), media_props.clone());
-    map.insert("Image".to_string(), media_props);
+        // Svg/Image
+        let mut media_props = common.clone();
+        media_props.extend(["url".to_string(), "size".to_string()]);
+        map.insert("Svg".to_string(), media_props.clone());
+        map.insert("Image".to_string(), media_props);
 
-    // Graph types
-    let mut graph_props = common.clone();
-    graph_props.extend([
-        "x_range".to_string(),
-        "y_range".to_string(),
-        "function".to_string(),
-    ]);
-    for graph in &["Graph", "PlotCurve"] {
-        map.insert(graph.to_string(), graph_props.clone());
-    }
+        // Graph types
+        let mut graph_props = common.clone();
+        graph_props.extend([
+            "x_range".to_string(),
+            "y_range".to_string(),
+            "function".to_string(),
+        ]);
+        for graph in &["Graph", "PlotCurve"] {
+            map.insert(graph.to_string(), graph_props.clone());
+        }
 
-    map
+        map
     })
 }
 
@@ -310,92 +354,104 @@ fn known_properties() -> &'static HashMap<String, Vec<String>> {
 fn known_property_types() -> &'static HashMap<(String, String), PropertyType> {
     static CACHE: OnceLock<HashMap<(String, String), PropertyType>> = OnceLock::new();
     CACHE.get_or_init(|| {
-    let mut map = HashMap::new();
+        let mut map = HashMap::new();
 
-    // Common properties
-    for ty in &["Text", "Code", "Rect", "Ellipse", "Polygon", "Line", "Button", "Svg", "Image", "Graph", "PlotCurve"] {
-        map.insert((ty.to_string(), "position".to_string()), PropertyType::Vec2);
-        map.insert((ty.to_string(), "offset".to_string()), PropertyType::Vec2);
-        map.insert((ty.to_string(), "scale".to_string()), PropertyType::Num);
-        map.insert((ty.to_string(), "rotation".to_string()), PropertyType::Num);
-        map.insert((ty.to_string(), "opacity".to_string()), PropertyType::Num);
-        map.insert((ty.to_string(), "color".to_string()), PropertyType::Color);
-        map.insert((ty.to_string(), "at".to_string()), PropertyType::Vec2);
-    }
+        // Common properties
+        for ty in &[
+            "Text",
+            "Code",
+            "Rect",
+            "Ellipse",
+            "Polygon",
+            "Line",
+            "Button",
+            "Svg",
+            "Image",
+            "Graph",
+            "PlotCurve",
+        ] {
+            map.insert((ty.to_string(), "position".to_string()), PropertyType::Vec2);
+            map.insert((ty.to_string(), "offset".to_string()), PropertyType::Vec2);
+            map.insert((ty.to_string(), "scale".to_string()), PropertyType::Num);
+            map.insert((ty.to_string(), "rotation".to_string()), PropertyType::Num);
+            map.insert((ty.to_string(), "opacity".to_string()), PropertyType::Num);
+            map.insert((ty.to_string(), "color".to_string()), PropertyType::Color);
+            map.insert((ty.to_string(), "at".to_string()), PropertyType::Vec2);
+        }
 
-    // Text-specific
-    map.insert(("Text".to_string(), "text".to_string()), PropertyType::String);
-    map.insert(("Text".to_string(), "content".to_string()), PropertyType::String);
-    map.insert(("Text".to_string(), "font_size".to_string()), PropertyType::Num);
-    map.insert(("Text".to_string(), "font_family".to_string()), PropertyType::String);
-    map.insert(("Text".to_string(), "font_weight".to_string()), PropertyType::Num);
-    map.insert(("Text".to_string(), "font_style".to_string()), PropertyType::String);
-    map.insert(("Text".to_string(), "line_height".to_string()), PropertyType::Num);
-    map.insert(("Text".to_string(), "letter_spacing".to_string()), PropertyType::Num);
-    map.insert(("Text".to_string(), "word_spacing".to_string()), PropertyType::Num);
-    map.insert(("Text".to_string(), "max_width".to_string()), PropertyType::Num);
-    map.insert(("Text".to_string(), "text_align".to_string()), PropertyType::String);
-    map.insert(("Text".to_string(), "overflow".to_string()), PropertyType::String);
+        // Text-specific
+        map.insert(("Text".to_string(), "text".to_string()), PropertyType::String);
+        map.insert(("Text".to_string(), "content".to_string()), PropertyType::String);
+        map.insert(("Text".to_string(), "font_size".to_string()), PropertyType::Num);
+        map.insert(("Text".to_string(), "font_family".to_string()), PropertyType::String);
+        map.insert(("Text".to_string(), "font_weight".to_string()), PropertyType::Num);
+        map.insert(("Text".to_string(), "font_style".to_string()), PropertyType::String);
+        map.insert(("Text".to_string(), "line_height".to_string()), PropertyType::Num);
+        map.insert(("Text".to_string(), "letter_spacing".to_string()), PropertyType::Num);
+        map.insert(("Text".to_string(), "word_spacing".to_string()), PropertyType::Num);
+        map.insert(("Text".to_string(), "max_width".to_string()), PropertyType::Num);
+        map.insert(("Text".to_string(), "text_align".to_string()), PropertyType::String);
+        map.insert(("Text".to_string(), "overflow".to_string()), PropertyType::String);
 
-    // Typst-specific
-    map.insert(("Typst".to_string(), "content".to_string()), PropertyType::String);
-    map.insert(("Typst".to_string(), "font_size".to_string()), PropertyType::Num);
-    map.insert(("Typst".to_string(), "font_family".to_string()), PropertyType::String);
-    map.insert(("Typst".to_string(), "font_weight".to_string()), PropertyType::Num);
-    map.insert(("Typst".to_string(), "font_style".to_string()), PropertyType::String);
-    map.insert(("Typst".to_string(), "line_height".to_string()), PropertyType::Num);
-    map.insert(("Typst".to_string(), "letter_spacing".to_string()), PropertyType::Num);
-    map.insert(("Typst".to_string(), "word_spacing".to_string()), PropertyType::Num);
-    map.insert(("Typst".to_string(), "max_width".to_string()), PropertyType::Num);
-    map.insert(("Typst".to_string(), "text_align".to_string()), PropertyType::String);
-    map.insert(("Typst".to_string(), "overflow".to_string()), PropertyType::String);
+        // Typst-specific
+        map.insert(("Typst".to_string(), "content".to_string()), PropertyType::String);
+        map.insert(("Typst".to_string(), "font_size".to_string()), PropertyType::Num);
+        map.insert(("Typst".to_string(), "font_family".to_string()), PropertyType::String);
+        map.insert(("Typst".to_string(), "font_weight".to_string()), PropertyType::Num);
+        map.insert(("Typst".to_string(), "font_style".to_string()), PropertyType::String);
+        map.insert(("Typst".to_string(), "line_height".to_string()), PropertyType::Num);
+        map.insert(("Typst".to_string(), "letter_spacing".to_string()), PropertyType::Num);
+        map.insert(("Typst".to_string(), "word_spacing".to_string()), PropertyType::Num);
+        map.insert(("Typst".to_string(), "max_width".to_string()), PropertyType::Num);
+        map.insert(("Typst".to_string(), "text_align".to_string()), PropertyType::String);
+        map.insert(("Typst".to_string(), "overflow".to_string()), PropertyType::String);
 
-    // Code-specific
-    map.insert(("Code".to_string(), "code".to_string()), PropertyType::String);
-    map.insert(("Code".to_string(), "content".to_string()), PropertyType::String);
-    map.insert(("Code".to_string(), "language".to_string()), PropertyType::String);
-    map.insert(("Code".to_string(), "font_weight".to_string()), PropertyType::Num);
-    map.insert(("Code".to_string(), "font_style".to_string()), PropertyType::String);
-    map.insert(("Code".to_string(), "line_height".to_string()), PropertyType::Num);
-    map.insert(("Code".to_string(), "letter_spacing".to_string()), PropertyType::Num);
-    map.insert(("Code".to_string(), "word_spacing".to_string()), PropertyType::Num);
-    map.insert(("Code".to_string(), "max_width".to_string()), PropertyType::Num);
-    map.insert(("Code".to_string(), "text_align".to_string()), PropertyType::String);
-    map.insert(("Code".to_string(), "overflow".to_string()), PropertyType::String);
+        // Code-specific
+        map.insert(("Code".to_string(), "code".to_string()), PropertyType::String);
+        map.insert(("Code".to_string(), "content".to_string()), PropertyType::String);
+        map.insert(("Code".to_string(), "language".to_string()), PropertyType::String);
+        map.insert(("Code".to_string(), "font_weight".to_string()), PropertyType::Num);
+        map.insert(("Code".to_string(), "font_style".to_string()), PropertyType::String);
+        map.insert(("Code".to_string(), "line_height".to_string()), PropertyType::Num);
+        map.insert(("Code".to_string(), "letter_spacing".to_string()), PropertyType::Num);
+        map.insert(("Code".to_string(), "word_spacing".to_string()), PropertyType::Num);
+        map.insert(("Code".to_string(), "max_width".to_string()), PropertyType::Num);
+        map.insert(("Code".to_string(), "text_align".to_string()), PropertyType::String);
+        map.insert(("Code".to_string(), "overflow".to_string()), PropertyType::String);
 
-    // Shape-specific
-    for shape in &["Rect", "Ellipse", "Polygon"] {
-        map.insert((shape.to_string(), "fill".to_string()), PropertyType::Color);
-        map.insert((shape.to_string(), "stroke".to_string()), PropertyType::Color);
-        map.insert((shape.to_string(), "stroke_width".to_string()), PropertyType::Num);
-        map.insert((shape.to_string(), "size".to_string()), PropertyType::Vec2);
-        map.insert((shape.to_string(), "radius".to_string()), PropertyType::Num);
-    }
+        // Shape-specific
+        for shape in &["Rect", "Ellipse", "Polygon"] {
+            map.insert((shape.to_string(), "fill".to_string()), PropertyType::Color);
+            map.insert((shape.to_string(), "stroke".to_string()), PropertyType::Color);
+            map.insert((shape.to_string(), "stroke_width".to_string()), PropertyType::Num);
+            map.insert((shape.to_string(), "size".to_string()), PropertyType::Vec2);
+            map.insert((shape.to_string(), "radius".to_string()), PropertyType::Num);
+        }
 
-    // Line
-    map.insert(("Line".to_string(), "start".to_string()), PropertyType::Vec2);
-    map.insert(("Line".to_string(), "end".to_string()), PropertyType::Vec2);
-    map.insert(("Line".to_string(), "stroke".to_string()), PropertyType::Color);
-    map.insert(("Line".to_string(), "stroke_width".to_string()), PropertyType::Num);
+        // Line
+        map.insert(("Line".to_string(), "start".to_string()), PropertyType::Vec2);
+        map.insert(("Line".to_string(), "end".to_string()), PropertyType::Vec2);
+        map.insert(("Line".to_string(), "stroke".to_string()), PropertyType::Color);
+        map.insert(("Line".to_string(), "stroke_width".to_string()), PropertyType::Num);
 
-    // Button
-    map.insert(("Button".to_string(), "text".to_string()), PropertyType::String);
-    map.insert(("Button".to_string(), "size".to_string()), PropertyType::Vec2);
-    map.insert(("Button".to_string(), "fill".to_string()), PropertyType::Color);
-    map.insert(("Button".to_string(), "stroke".to_string()), PropertyType::Color);
+        // Button
+        map.insert(("Button".to_string(), "text".to_string()), PropertyType::String);
+        map.insert(("Button".to_string(), "size".to_string()), PropertyType::Vec2);
+        map.insert(("Button".to_string(), "fill".to_string()), PropertyType::Color);
+        map.insert(("Button".to_string(), "stroke".to_string()), PropertyType::Color);
 
-    // Svg/Image
-    for media in &["Svg", "Image"] {
-        map.insert((media.to_string(), "url".to_string()), PropertyType::String);
-        map.insert((media.to_string(), "size".to_string()), PropertyType::Vec2);
-    }
+        // Svg/Image
+        for media in &["Svg", "Image"] {
+            map.insert((media.to_string(), "url".to_string()), PropertyType::String);
+            map.insert((media.to_string(), "size".to_string()), PropertyType::Vec2);
+        }
 
-    // Graph
-    map.insert(("Graph".to_string(), "x_range".to_string()), PropertyType::Vec2);
-    map.insert(("Graph".to_string(), "y_range".to_string()), PropertyType::Vec2);
-    map.insert(("Graph".to_string(), "function".to_string()), PropertyType::String);
+        // Graph
+        map.insert(("Graph".to_string(), "x_range".to_string()), PropertyType::Vec2);
+        map.insert(("Graph".to_string(), "y_range".to_string()), PropertyType::Vec2);
+        map.insert(("Graph".to_string(), "function".to_string()), PropertyType::String);
 
-    map
+        map
     })
 }
 
@@ -422,96 +478,134 @@ impl SymbolTable {
     fn collect_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::LetDecl { name, span, .. } => {
-                self.labels.insert(name.clone(), LabelInfo {
-                    name: name.clone(),
-                    kind: LabelKind::Let,
-                    line: 0, // populated by Analyzer::enrich_positions from tree-sitter
-                    col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
-                    span: *span,
-                    ty: None,
-                });
-            }
+                self.labels.insert(
+                    name.clone(),
+                    LabelInfo {
+                        name: name.clone(),
+                        kind: LabelKind::Let,
+                        line: 0, // populated by Analyzer::enrich_positions from tree-sitter
+                        col: 0,  // populated by Analyzer::enrich_positions from tree-sitter
+                        span: *span,
+                        ty: None,
+                    },
+                );
+            },
 
-            Stmt::ActorDecl { label, array_index, ty, span, children, .. } => {
-                self.labels.insert(label.clone(), LabelInfo {
-                    name: label.clone(),
-                    kind: LabelKind::Actor,
-                    line: 0, // populated by Analyzer::enrich_positions from tree-sitter
-                    col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
-                    span: *span,
-                    ty: Some(ty.clone()),
-                });
+            Stmt::ActorDecl {
+                label,
+                array_index,
+                ty,
+                span,
+                children,
+                ..
+            } => {
+                self.labels.insert(
+                    label.clone(),
+                    LabelInfo {
+                        name: label.clone(),
+                        kind: LabelKind::Actor,
+                        line: 0, // populated by Analyzer::enrich_positions from tree-sitter
+                        col: 0,  // populated by Analyzer::enrich_positions from tree-sitter
+                        span: *span,
+                        ty: Some(ty.clone()),
+                    },
+                );
                 if array_index.is_some() {
                     self.array_labels.insert(label.clone());
                 }
                 for child in children {
                     self.collect_inline_item(child);
                 }
-            }
+            },
 
             Stmt::ComponentDef(def, span) => {
-                self.components.insert(def.name.clone(), ComponentInfo {
-                    name: def.name.clone(),
-                    params: def.params.iter().map(|p| ParamInfo {
-                        name: p.name.clone(),
-                        param_type: p.param_type.clone(),
-                        default: p.default.as_ref().map(|e| e.to_source()),
-                    }).collect(),
-                    line: 0, // populated by Analyzer::enrich_positions from tree-sitter
-                    col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
-                    span: *span,
-                });
+                self.components.insert(
+                    def.name.clone(),
+                    ComponentInfo {
+                        name: def.name.clone(),
+                        params: def
+                            .params
+                            .iter()
+                            .map(|p| ParamInfo {
+                                name: p.name.clone(),
+                                param_type: p.param_type.clone(),
+                                default: p.default.as_ref().map(|e| e.to_source()),
+                            })
+                            .collect(),
+                        line: 0, // populated by Analyzer::enrich_positions from tree-sitter
+                        col: 0,  // populated by Analyzer::enrich_positions from tree-sitter
+                        span: *span,
+                    },
+                );
 
                 // Recurse into component body
                 for stmt in &def.body {
                     self.collect_stmt(stmt);
                 }
-            }
+            },
 
-            Stmt::ForLoop { var, index_var, body, span, .. } => {
+            Stmt::ForLoop {
+                var,
+                index_var,
+                body,
+                span,
+                ..
+            } => {
                 let var_names: Vec<String> = match var {
                     LoopPattern::Single(name) => vec![name.clone()],
                     LoopPattern::Tuple(names) => names.clone(),
                 };
                 for name in &var_names {
-                    self.labels.insert(name.clone(), LabelInfo {
-                        name: name.clone(),
-                        kind: LabelKind::For,
-                        line: 0, // populated by Analyzer::enrich_positions from tree-sitter
-                        col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
-                        span: *span,
-                        ty: None,
-                    });
+                    self.labels.insert(
+                        name.clone(),
+                        LabelInfo {
+                            name: name.clone(),
+                            kind: LabelKind::For,
+                            line: 0, // populated by Analyzer::enrich_positions from tree-sitter
+                            col: 0,  // populated by Analyzer::enrich_positions from tree-sitter
+                            span: *span,
+                            ty: None,
+                        },
+                    );
                 }
 
                 if let Some(iv) = index_var {
-                    self.labels.insert(iv.clone(), LabelInfo {
-                        name: iv.clone(),
-                        kind: LabelKind::For,
-                        line: 0, // populated by Analyzer::enrich_positions from tree-sitter
-                        col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
-                        span: *span,
-                        ty: None,
-                    });
+                    self.labels.insert(
+                        iv.clone(),
+                        LabelInfo {
+                            name: iv.clone(),
+                            kind: LabelKind::For,
+                            line: 0, // populated by Analyzer::enrich_positions from tree-sitter
+                            col: 0,  // populated by Analyzer::enrich_positions from tree-sitter
+                            span: *span,
+                            ty: None,
+                        },
+                    );
                 }
 
                 for stmt in body {
                     self.collect_stmt(stmt);
                 }
-            }
+            },
 
             // Recurse into blocks
             Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
                 for stmt in body {
                     self.collect_stmt(stmt);
                 }
-            }
-            Stmt::Sequence { body, .. } | Stmt::Stagger { body, .. } | Stmt::Always { body, .. } => {
+            },
+            Stmt::Sequence { body, .. }
+            | Stmt::Stagger { body, .. }
+            | Stmt::Always { body, .. } => {
                 for stmt in body {
                     self.collect_stmt(stmt);
                 }
-            }
-            Stmt::Conditional { then_branch, else_branch, .. } => {
+            },
+            Stmt::Conditional {
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 for stmt in then_branch {
                     self.collect_stmt(stmt);
                 }
@@ -520,44 +614,49 @@ impl SymbolTable {
                         self.collect_stmt(stmt);
                     }
                 }
-            }
+            },
             Stmt::Match { arms, .. } => {
                 for (_, body) in arms {
                     for stmt in body {
                         self.collect_stmt(stmt);
                     }
                 }
-            }
+            },
 
             Stmt::Scene { name, span, .. } => {
-                self.scenes.insert(name.clone(), SceneInfo {
-                    name: name.clone(),
-                    line: 0, // populated by Analyzer::enrich_positions from tree-sitter
-                    col: 0,   // populated by Analyzer::enrich_positions from tree-sitter
-                    span: *span,
-                });
+                self.scenes.insert(
+                    name.clone(),
+                    SceneInfo {
+                        name: name.clone(),
+                        line: 0, // populated by Analyzer::enrich_positions from tree-sitter
+                        col: 0,  // populated by Analyzer::enrich_positions from tree-sitter
+                        span: *span,
+                    },
+                );
                 // Recurse into scene body
                 if let Stmt::Scene { body, .. } = stmt {
                     for s in body {
                         self.collect_stmt(s);
                     }
                 }
-            }
+            },
 
             Stmt::Play { .. } => {
                 // No new symbols to declare, but we could track play references here.
-            }
+            },
 
-            Stmt::Import { path, alias, span, .. } => {
+            Stmt::Import {
+                path, alias, span, ..
+            } => {
                 self.imports.push(ImportInfo {
                     path: path.clone(),
                     alias: alias.clone(),
                     span: *span,
                 });
-            }
+            },
 
             // Actions, assignments, etc. — no symbols to extract
-            _ => {}
+            _ => {},
         }
     }
 
@@ -574,35 +673,41 @@ impl SymbolTable {
                 for target in &action.targets {
                     self.referenced_labels.insert(target.clone());
                 }
-            }
+            },
             Stmt::Assignment { target, .. } => {
                 for seg in target {
                     match seg {
                         TargetSegment::Static(label) => {
                             self.referenced_labels.insert(label.clone());
-                        }
+                        },
                         TargetSegment::Indexed { base, index } => {
                             self.referenced_labels.insert(base.clone());
                             self.collect_refs_from_expr(index);
-                        }
+                        },
                     }
                 }
-            }
+            },
             Stmt::Play { scene_name, .. } => {
                 self.referenced_labels.insert(scene_name.clone());
-            }
+            },
             // Recurse into blocks
             Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
                 for stmt in body {
                     self.collect_refs_from_stmt(stmt);
                 }
-            }
-            Stmt::Sequence { body, .. } | Stmt::Stagger { body, .. } | Stmt::Always { body, .. } => {
+            },
+            Stmt::Sequence { body, .. }
+            | Stmt::Stagger { body, .. }
+            | Stmt::Always { body, .. } => {
                 for stmt in body {
                     self.collect_refs_from_stmt(stmt);
                 }
-            }
-            Stmt::Conditional { then_branch, else_branch, .. } => {
+            },
+            Stmt::Conditional {
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 for stmt in then_branch {
                     self.collect_refs_from_stmt(stmt);
                 }
@@ -611,29 +716,29 @@ impl SymbolTable {
                         self.collect_refs_from_stmt(stmt);
                     }
                 }
-            }
+            },
             Stmt::Match { arms, .. } => {
                 for (_, body) in arms {
                     for stmt in body {
                         self.collect_refs_from_stmt(stmt);
                     }
                 }
-            }
+            },
             Stmt::ForLoop { body, .. } => {
                 for stmt in body {
                     self.collect_refs_from_stmt(stmt);
                 }
-            }
+            },
             Stmt::ComponentDef(def, ..) => {
                 for stmt in &def.body {
                     self.collect_refs_from_stmt(stmt);
                 }
-            }
+            },
             Stmt::Scene { body, .. } => {
                 for stmt in body {
                     self.collect_refs_from_stmt(stmt);
                 }
-            }
+            },
             Stmt::ReactiveBinding { target, .. } => {
                 for seg in target {
                     self.referenced_labels.insert(seg.label_str().to_string());
@@ -641,8 +746,8 @@ impl SymbolTable {
                         self.collect_refs_from_expr(index);
                     }
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 
@@ -652,123 +757,142 @@ impl SymbolTable {
         match expr {
             Expr::Ident(name) => {
                 self.referenced_labels.insert(name.clone());
-            }
+            },
             Expr::Path(parts) => {
                 // First part is the receiver object (label reference)
                 if let Some(first) = parts.first() {
                     self.referenced_labels.insert(first.clone());
                 }
-            }
+            },
             Expr::Index(target, index) => {
                 self.collect_refs_from_expr(target);
                 self.collect_refs_from_expr(index);
-            }
+            },
             Expr::Tuple(items) | Expr::List(items) => {
                 for item in items {
                     self.collect_refs_from_expr(item);
                 }
-            }
+            },
             Expr::Binary(left, _, right) => {
                 self.collect_refs_from_expr(left);
                 self.collect_refs_from_expr(right);
-            }
+            },
             Expr::Unary(_, inner) => {
                 self.collect_refs_from_expr(inner);
-            }
+            },
             Expr::Call(_, args) => {
                 for arg in args {
                     self.collect_refs_from_expr(arg);
                 }
-            }
+            },
             Expr::Method(receiver, _, args) => {
                 self.collect_refs_from_expr(receiver);
                 for arg in args {
                     self.collect_refs_from_expr(arg);
                 }
-            }
+            },
             Expr::Closure(_, body) => {
                 self.collect_refs_from_expr(body);
-            }
+            },
             Expr::Conditional(cond, then_branch, else_branch) => {
                 self.collect_refs_from_expr(cond);
                 self.collect_refs_from_expr(then_branch);
                 self.collect_refs_from_expr(else_branch);
-            }
+            },
             Expr::Match(scrutinee, arms) => {
                 self.collect_refs_from_expr(scrutinee);
                 for (_pat, arm_expr) in arms {
                     self.collect_refs_from_expr(arm_expr);
                 }
-            }
+            },
             Expr::Construct(_, props) => {
                 for prop in props {
                     self.collect_refs_from_expr(&prop.value);
                 }
-            }
+            },
             // Literals (Num, Percent, Str, Bool, Null) have no identifier references
-            _ => {}
+            _ => {},
         }
     }
 
     /// Collect inline item children into the symbol table.
     fn collect_inline_item(&mut self, item: &InlineItem) {
         match item {
-            InlineItem::Labeled { label, array_index, children, .. } => {
-                self.labels.insert(label.clone(), LabelInfo {
-                    name: label.clone(),
-                    kind: LabelKind::Actor,
-                    line: 0,
-                    col: 0,
-                    span: None,
-                    ty: None,
-                });
+            InlineItem::Labeled {
+                label,
+                array_index,
+                children,
+                ..
+            } => {
+                self.labels.insert(
+                    label.clone(),
+                    LabelInfo {
+                        name: label.clone(),
+                        kind: LabelKind::Actor,
+                        line: 0,
+                        col: 0,
+                        span: None,
+                        ty: None,
+                    },
+                );
                 if array_index.is_some() {
                     self.array_labels.insert(label.clone());
                 }
                 for child in children {
                     self.collect_inline_item(child);
                 }
-            }
+            },
             InlineItem::Anonymous { children, .. } => {
                 for child in children {
                     self.collect_inline_item(child);
                 }
-            }
-            InlineItem::ForLoop { var, index_var, body, .. } => {
+            },
+            InlineItem::ForLoop {
+                var,
+                index_var,
+                body,
+                ..
+            } => {
                 let var_names: Vec<String> = match var {
                     LoopPattern::Single(name) => vec![name.clone()],
                     LoopPattern::Tuple(names) => names.clone(),
                 };
                 for name in &var_names {
-                    self.labels.insert(name.clone(), LabelInfo {
-                        name: name.clone(),
-                        kind: LabelKind::For,
-                        line: 0,
-                        col: 0,
-                        span: None,
-                        ty: None,
-                    });
+                    self.labels.insert(
+                        name.clone(),
+                        LabelInfo {
+                            name: name.clone(),
+                            kind: LabelKind::For,
+                            line: 0,
+                            col: 0,
+                            span: None,
+                            ty: None,
+                        },
+                    );
                 }
                 if let Some(iv) = index_var {
-                    self.labels.insert(iv.clone(), LabelInfo {
-                        name: iv.clone(),
-                        kind: LabelKind::For,
-                        line: 0,
-                        col: 0,
-                        span: None,
-                        ty: None,
-                    });
+                    self.labels.insert(
+                        iv.clone(),
+                        LabelInfo {
+                            name: iv.clone(),
+                            kind: LabelKind::For,
+                            line: 0,
+                            col: 0,
+                            span: None,
+                            ty: None,
+                        },
+                    );
                 }
                 for item in body {
                     self.collect_inline_item(item);
                 }
-            }
-            InlineItem::SlotMarker => {}
+            },
+            InlineItem::SlotMarker => {},
             InlineItem::SlotFill { items, .. } => {
                 for item in items {
                     self.collect_inline_item(item);
                 }
-            }
+            },
         }
     }
 
@@ -808,8 +932,7 @@ impl SymbolTable {
         if parts.len() == 2 {
             let namespace = parts[0];
             let name = parts[1];
-            self.namespaces.get(namespace)
-                .and_then(|ns| ns.labels.get(name))
+            self.namespaces.get(namespace).and_then(|ns| ns.labels.get(name))
         } else {
             None
         }
@@ -821,8 +944,7 @@ impl SymbolTable {
         if parts.len() == 2 {
             let namespace = parts[0];
             let name = parts[1];
-            self.namespaces.get(namespace)
-                .and_then(|ns| ns.components.get(name))
+            self.namespaces.get(namespace).and_then(|ns| ns.components.get(name))
         } else {
             None
         }
@@ -830,14 +952,16 @@ impl SymbolTable {
 
     /// Get all labels in a specific namespace (for completions).
     pub fn namespace_labels(&self, namespace: &str) -> Vec<&str> {
-        self.namespaces.get(namespace)
+        self.namespaces
+            .get(namespace)
             .map(|ns| ns.labels.keys().map(|s| s.as_str()).collect())
             .unwrap_or_default()
     }
 
     /// Get all components in a specific namespace (for completions).
     pub fn namespace_components(&self, namespace: &str) -> Vec<&str> {
-        self.namespaces.get(namespace)
+        self.namespaces
+            .get(namespace)
             .map(|ns| ns.components.keys().map(|s| s.as_str()).collect())
             .unwrap_or_default()
     }
@@ -861,15 +985,17 @@ pub fn infer_expr_type(expr: &Expr) -> PropertyType {
             } else {
                 PropertyType::Array
             }
-        }
+        },
         Expr::List(_) => PropertyType::Array,
         Expr::Ident(_) => PropertyType::Any,
-        // Known colorscheme namespaces always yield Color; scene.* is excluded (mixes colors and anchors).
-        Expr::Path(parts) if parts.len() >= 2
-            && matches!(parts[0].as_str(), "accent" | "text" | "surface" | "stroke") =>
+        // Known colorscheme namespaces always yield Color; scene.* is excluded (mixes colors and
+        // anchors).
+        Expr::Path(parts)
+            if parts.len() >= 2
+                && matches!(parts[0].as_str(), "accent" | "text" | "surface" | "stroke") =>
         {
             PropertyType::Color
-        }
+        },
         Expr::Path(_) => PropertyType::Any, // e.g., text.primary (single-segment), scene.*
         Expr::Index(_, _) => PropertyType::Any,
         Expr::Binary(left, op, right) => {
@@ -877,7 +1003,12 @@ pub fn infer_expr_type(expr: &Expr) -> PropertyType {
             let rt = infer_expr_type(right);
             match op {
                 // Arithmetic: result is Num if both operands are numeric, Any otherwise
-                BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod | BinaryOp::Pow => {
+                BinaryOp::Add
+                | BinaryOp::Sub
+                | BinaryOp::Mul
+                | BinaryOp::Div
+                | BinaryOp::Mod
+                | BinaryOp::Pow => {
                     if lt == PropertyType::Num && rt == PropertyType::Num {
                         PropertyType::Num
                     } else if lt == PropertyType::String || rt == PropertyType::String {
@@ -885,22 +1016,29 @@ pub fn infer_expr_type(expr: &Expr) -> PropertyType {
                     } else {
                         PropertyType::Any
                     }
-                }
+                },
                 // Comparison: result is Bool
-                BinaryOp::Eq | BinaryOp::Neq | BinaryOp::Lt | BinaryOp::Gt | BinaryOp::Lte | BinaryOp::Gte => PropertyType::Bool,
+                BinaryOp::Eq
+                | BinaryOp::Neq
+                | BinaryOp::Lt
+                | BinaryOp::Gt
+                | BinaryOp::Lte
+                | BinaryOp::Gte => PropertyType::Bool,
                 // Logical: result is Bool
                 BinaryOp::And | BinaryOp::Or => PropertyType::Bool,
             }
-        }
-        Expr::Unary(op, inner) => {
-            match op {
-                UnaryOp::Neg => {
-                    let t = infer_expr_type(inner);
-                    if t == PropertyType::Num { PropertyType::Num } else { PropertyType::Any }
+        },
+        Expr::Unary(op, inner) => match op {
+            UnaryOp::Neg => {
+                let t = infer_expr_type(inner);
+                if t == PropertyType::Num {
+                    PropertyType::Num
+                } else {
+                    PropertyType::Any
                 }
-                UnaryOp::Not => PropertyType::Bool,
-            }
-        }
+            },
+            UnaryOp::Not => PropertyType::Bool,
+        },
         Expr::Call(_, _) => PropertyType::Any,
         Expr::Method(_, _, _) => PropertyType::Any,
         Expr::Closure(_, _) => PropertyType::Any,
@@ -925,19 +1063,17 @@ mod tests {
 
     #[test]
     fn extracts_actor_labels() {
-        let stmts = vec![
-            Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "btn".to_string(),
-                array_index: None,
-                ty: "Button".to_string(),
-                props: vec![],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            },
-        ];
+        let stmts = vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "btn".to_string(),
+            array_index: None,
+            ty: "Button".to_string(),
+            props: vec![],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }];
         let table = SymbolTable::build_from_ast(&stmts);
         assert!(table.labels.contains_key("btn"));
         assert_eq!(table.labels["btn"].ty.as_deref(), Some("Button"));
@@ -945,14 +1081,12 @@ mod tests {
 
     #[test]
     fn extracts_let_bindings() {
-        let stmts = vec![
-            Stmt::LetDecl {
-                is_pub: false,
-                name: "x".to_string(),
-                value: Expr::Num(42.0),
-                span: None,
-            },
-        ];
+        let stmts = vec![Stmt::LetDecl {
+            is_pub: false,
+            name: "x".to_string(),
+            value: Expr::Num(42.0),
+            span: None,
+        }];
         let table = SymbolTable::build_from_ast(&stmts);
         assert!(table.labels.contains_key("x"));
         assert_eq!(table.labels["x"].kind, LabelKind::Let);
@@ -960,20 +1094,19 @@ mod tests {
 
     #[test]
     fn extracts_component_definitions() {
-        let stmts = vec![
-            Stmt::ComponentDef(ComponentDef {
+        let stmts = vec![Stmt::ComponentDef(
+            ComponentDef {
                 is_pub: false,
                 name: "MyButton".to_string(),
-                params: vec![
-                    ParamDef {
-                        name: "text".to_string(),
-                        param_type: None,
-                        default: Some(Expr::Str("Click".to_string())),
-                    },
-                ],
+                params: vec![ParamDef {
+                    name: "text".to_string(),
+                    param_type: None,
+                    default: Some(Expr::Str("Click".to_string())),
+                }],
                 body: vec![],
-            }, None),
-        ];
+            },
+            None,
+        )];
         let table = SymbolTable::build_from_ast(&stmts);
         assert!(table.components.contains_key("MyButton"));
         assert_eq!(table.components["MyButton"].params.len(), 1);
@@ -981,32 +1114,30 @@ mod tests {
 
     #[test]
     fn collects_properties_from_actors() {
-        let stmts = vec![
-            Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "title".to_string(),
-                array_index: None,
-                ty: "Text".to_string(),
-                props: vec![
-                    Property {
-                        name: "content".to_string(),
-                        value: Expr::Str("Hello".to_string()),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                    Property {
-                        name: "font_size".to_string(),
-                        value: Expr::Num(24.0),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                ],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            },
-        ];
+        let stmts = vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "title".to_string(),
+            array_index: None,
+            ty: "Text".to_string(),
+            props: vec![
+                Property {
+                    name: "content".to_string(),
+                    value: Expr::Str("Hello".to_string()),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "font_size".to_string(),
+                    value: Expr::Num(24.0),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }];
         let table = SymbolTable::build_from_ast(&stmts);
         let text_props = table.properties.get("Text").unwrap();
         assert!(text_props.contains(&"content".to_string()));
@@ -1018,11 +1149,7 @@ mod tests {
         // accent.*, text.*, surface.*, stroke.* with ≥2 segments → Color
         for ns in &["accent", "text", "surface", "stroke"] {
             let path = Expr::Path(vec![ns.to_string(), "primary".to_string()]);
-            assert_eq!(
-                infer_expr_type(&path),
-                PropertyType::Color,
-                "{ns}.primary should be Color"
-            );
+            assert_eq!(infer_expr_type(&path), PropertyType::Color, "{ns}.primary should be Color");
         }
         // scene.* stays Any (mixes colors and anchors)
         let scene = Expr::Path(vec!["scene".to_string(), "background".to_string()]);
@@ -1044,23 +1171,21 @@ mod tests {
                 span: None,
             },
             Stmt::Always {
-                body: vec![
-                    Stmt::Assignment {
-                        target: vec![
-                            TargetSegment::Indexed {
-                                base: "bars".to_string(),
-                                index: Box::new(Expr::Ident("sel".to_string())),
-                            },
-                            TargetSegment::Static("color".to_string()),
-                        ],
-                        property: "color".to_string(),
-                        value: Expr::Path(vec!["red".to_string()]),
-                        modifiers: vec![],
-                        easing: None,
-                        value_span: None,
-                        span: None,
-                    },
-                ],
+                body: vec![Stmt::Assignment {
+                    target: vec![
+                        TargetSegment::Indexed {
+                            base: "bars".to_string(),
+                            index: Box::new(Expr::Ident("sel".to_string())),
+                        },
+                        TargetSegment::Static("color".to_string()),
+                    ],
+                    property: "color".to_string(),
+                    value: Expr::Path(vec!["red".to_string()]),
+                    modifiers: vec![],
+                    easing: None,
+                    value_span: None,
+                    span: None,
+                }],
                 span: None,
             },
         ];

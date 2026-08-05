@@ -9,8 +9,8 @@
 //! recursion happen here.
 
 use crate::ast::BinaryOp;
-use crate::timeline::{EvalError, Value};
 use crate::timeline::utils::{safe_div, safe_rem};
+use crate::timeline::{EvalError, Value};
 
 /// Evaluate a binary operation on two runtime values.
 ///
@@ -37,69 +37,63 @@ pub fn eval_binary_op(left: Value, op: &BinaryOp, right: Value) -> Result<Value,
                 } else {
                     0.0
                 }
-            }
+            },
             BinaryOp::Neq => {
                 if l != r {
                     1.0
                 } else {
                     0.0
                 }
-            }
+            },
             BinaryOp::Lt => {
                 if l < r {
                     1.0
                 } else {
                     0.0
                 }
-            }
+            },
             BinaryOp::Gt => {
                 if l > r {
                     1.0
                 } else {
                     0.0
                 }
-            }
+            },
             BinaryOp::Lte => {
                 if l <= r {
                     1.0
                 } else {
                     0.0
                 }
-            }
+            },
             BinaryOp::Gte => {
                 if l >= r {
                     1.0
                 } else {
                     0.0
                 }
-            }
+            },
             BinaryOp::And => {
                 if l != 0.0 && r != 0.0 {
                     1.0
                 } else {
                     0.0
                 }
-            }
+            },
             BinaryOp::Or => {
                 if l != 0.0 || r != 0.0 {
                     1.0
                 } else {
                     0.0
                 }
-            }
+            },
         })),
         (Value::Vec2(l), Value::Vec2(r)) => match op {
             BinaryOp::Add => Ok(Value::Vec2([l[0] + r[0], l[1] + r[1]])),
             BinaryOp::Sub => Ok(Value::Vec2([l[0] - r[0], l[1] - r[1]])),
             BinaryOp::Mul => Ok(Value::Vec2([l[0] * r[0], l[1] * r[1]])),
-            BinaryOp::Div => Ok(Value::Vec2([
-                safe_div(l[0], r[0]),
-                safe_div(l[1], r[1]),
-            ])),
-            BinaryOp::Mod => Ok(Value::Vec2([
-                safe_rem(l[0], r[0]),
-                safe_rem(l[1], r[1]),
-            ])),
+            BinaryOp::Div => Ok(Value::Vec2([safe_div(l[0], r[0]), safe_div(l[1], r[1])])),
+            BinaryOp::Mod => Ok(Value::Vec2([safe_rem(l[0], r[0]), safe_rem(l[1], r[1])])),
             _ => Err(EvalError::TypeMismatch(format!(
                 "Unsupported operation {:?} for Vec2 and Vec2",
                 op
@@ -125,24 +119,9 @@ pub fn eval_binary_op(left: Value, op: &BinaryOp, right: Value) -> Result<Value,
             ))),
         },
         (Value::Color(l), Value::Color(r)) => match op {
-            BinaryOp::Add => Ok(Value::Color([
-                l[0] + r[0],
-                l[1] + r[1],
-                l[2] + r[2],
-                l[3] + r[3],
-            ])),
-            BinaryOp::Sub => Ok(Value::Color([
-                l[0] - r[0],
-                l[1] - r[1],
-                l[2] - r[2],
-                l[3] - r[3],
-            ])),
-            BinaryOp::Mul => Ok(Value::Color([
-                l[0] * r[0],
-                l[1] * r[1],
-                l[2] * r[2],
-                l[3] * r[3],
-            ])),
+            BinaryOp::Add => Ok(Value::Color([l[0] + r[0], l[1] + r[1], l[2] + r[2], l[3] + r[3]])),
+            BinaryOp::Sub => Ok(Value::Color([l[0] - r[0], l[1] - r[1], l[2] - r[2], l[3] - r[3]])),
+            BinaryOp::Mul => Ok(Value::Color([l[0] * r[0], l[1] * r[1], l[2] * r[2], l[3] * r[3]])),
             BinaryOp::Div => Ok(Value::Color([
                 safe_div(l[0], r[0]),
                 safe_div(l[1], r[1]),
@@ -180,16 +159,12 @@ pub fn eval_binary_op(left: Value, op: &BinaryOp, right: Value) -> Result<Value,
             BinaryOp::Add => Ok(Value::Vec3([l[0] + r, l[1] + r, l[2] + r])),
             BinaryOp::Sub => Ok(Value::Vec3([l[0] - r, l[1] - r, l[2] - r])),
             BinaryOp::Mul => Ok(Value::Vec3([l[0] * r, l[1] * r, l[2] * r])),
-            BinaryOp::Div => Ok(Value::Vec3([
-                safe_div(l[0], r),
-                safe_div(l[1], r),
-                safe_div(l[2], r),
-            ])),
-            BinaryOp::Mod => Ok(Value::Vec3([
-                safe_rem(l[0], r),
-                safe_rem(l[1], r),
-                safe_rem(l[2], r),
-            ])),
+            BinaryOp::Div => {
+                Ok(Value::Vec3([safe_div(l[0], r), safe_div(l[1], r), safe_div(l[2], r)]))
+            },
+            BinaryOp::Mod => {
+                Ok(Value::Vec3([safe_rem(l[0], r), safe_rem(l[1], r), safe_rem(l[2], r)]))
+            },
             _ => Err(EvalError::TypeMismatch(format!(
                 "Unsupported operation {:?} for Vec3 and Num",
                 op
@@ -199,16 +174,12 @@ pub fn eval_binary_op(left: Value, op: &BinaryOp, right: Value) -> Result<Value,
             BinaryOp::Add => Ok(Value::Vec3([l + r[0], l + r[1], l + r[2]])),
             BinaryOp::Sub => Ok(Value::Vec3([l - r[0], l - r[1], l - r[2]])),
             BinaryOp::Mul => Ok(Value::Vec3([l * r[0], l * r[1], l * r[2]])),
-            BinaryOp::Div => Ok(Value::Vec3([
-                safe_div(l, r[0]),
-                safe_div(l, r[1]),
-                safe_div(l, r[2]),
-            ])),
-            BinaryOp::Mod => Ok(Value::Vec3([
-                safe_rem(l, r[0]),
-                safe_rem(l, r[1]),
-                safe_rem(l, r[2]),
-            ])),
+            BinaryOp::Div => {
+                Ok(Value::Vec3([safe_div(l, r[0]), safe_div(l, r[1]), safe_div(l, r[2])]))
+            },
+            BinaryOp::Mod => {
+                Ok(Value::Vec3([safe_rem(l, r[0]), safe_rem(l, r[1]), safe_rem(l, r[2])]))
+            },
             _ => Err(EvalError::TypeMismatch(format!(
                 "Unsupported operation {:?} for Num and Vec3",
                 op
@@ -257,7 +228,7 @@ pub fn eval_binary_op(left: Value, op: &BinaryOp, right: Value) -> Result<Value,
                     op, left, right
                 )))
             }
-        }
+        },
     }
 }
 
@@ -283,56 +254,57 @@ pub fn eval_builtin_fn(name: &str, args: &[Value]) -> Result<Value, EvalError> {
         "deg" | "deg_to_rad" => {
             let x = single_num_arg(name, args)?;
             Ok(Value::Num(x * std::f64::consts::PI / 180.0))
-        }
+        },
         "rad" | "rad_to_deg" => {
             let x = single_num_arg(name, args)?;
             Ok(Value::Num(x * 180.0 / std::f64::consts::PI))
-        }
+        },
         "atan2" => {
             let (a, b) = two_num_args(name, args)?;
             Ok(Value::Num(a.atan2(b)))
-        }
+        },
         "min" => {
             let (a, b) = two_num_args(name, args)?;
             Ok(Value::Num(a.min(b)))
-        }
+        },
         "max" => {
             let (a, b) = two_num_args(name, args)?;
             Ok(Value::Num(a.max(b)))
-        }
+        },
         "clamp" => {
             let (val, min, max) = three_num_args(name, args)?;
             Ok(Value::Num(val.clamp(min, max)))
-        }
+        },
         "lerp" => {
             let (start, end, t) = three_num_args(name, args)?;
             Ok(Value::Num(start + (end - start) * t))
-        }
+        },
         "hypot" => {
             let (a, b) = two_num_args(name, args)?;
             Ok(Value::Num(a.hypot(b)))
-        }
+        },
         "pow" => {
             let (a, b) = two_num_args(name, args)?;
             Ok(Value::Num(a.powf(b)))
-        }
+        },
         "rem" => {
             let (a, b) = two_num_args(name, args)?;
             Ok(Value::Num(a % b))
-        }
+        },
         "step" => {
             let (edge, x) = two_num_args(name, args)?;
             Ok(Value::Num(if x < edge { 0.0 } else { 1.0 }))
-        }
+        },
         "round" => {
             let x = single_num_arg(name, args)?;
             Ok(Value::Num(x.round()))
-        }
+        },
         "list_swap" => {
             if args.len() != 3 {
-                return Err(EvalError::TypeMismatch(
-                    format!("list_swap requires 3 arguments (list, i, j), got {}", args.len())
-                ));
+                return Err(EvalError::TypeMismatch(format!(
+                    "list_swap requires 3 arguments (list, i, j), got {}",
+                    args.len()
+                )));
             }
             match &args[0] {
                 Value::List(items) => {
@@ -340,22 +312,29 @@ pub fn eval_builtin_fn(name: &str, args: &[Value]) -> Result<Value, EvalError> {
                     let j = args[2].as_num() as usize;
                     let mut new_list = items.clone();
                     if i >= new_list.len() || j >= new_list.len() {
-                        tracing::warn!("list_swap: index out of range (len={}, i={}, j={})", new_list.len(), i, j);
+                        tracing::warn!(
+                            "list_swap: index out of range (len={}, i={}, j={})",
+                            new_list.len(),
+                            i,
+                            j
+                        );
                         return Ok(Value::List(new_list));
                     }
                     new_list.swap(i, j);
                     Ok(Value::List(new_list))
-                }
-                _ => Err(EvalError::TypeMismatch(
-                    format!("list_swap requires a list as first argument, got {:?}", args[0])
-                )),
+                },
+                _ => Err(EvalError::TypeMismatch(format!(
+                    "list_swap requires a list as first argument, got {:?}",
+                    args[0]
+                ))),
             }
-        }
+        },
         "list_set" => {
             if args.len() != 3 {
-                return Err(EvalError::TypeMismatch(
-                    format!("list_set requires 3 arguments (list, i, value), got {}", args.len())
-                ));
+                return Err(EvalError::TypeMismatch(format!(
+                    "list_set requires 3 arguments (list, i, value), got {}",
+                    args.len()
+                )));
             }
             match &args[0] {
                 Value::List(items) => {
@@ -363,17 +342,22 @@ pub fn eval_builtin_fn(name: &str, args: &[Value]) -> Result<Value, EvalError> {
                     let new_value = args[2].clone();
                     let mut new_list = items.clone();
                     if i >= new_list.len() {
-                        tracing::warn!("list_set: index {} out of range for list of length {}", i, new_list.len());
+                        tracing::warn!(
+                            "list_set: index {} out of range for list of length {}",
+                            i,
+                            new_list.len()
+                        );
                         return Ok(Value::List(new_list));
                     }
                     new_list[i] = new_value;
                     Ok(Value::List(new_list))
-                }
-                _ => Err(EvalError::TypeMismatch(
-                    format!("list_set requires a list as first argument, got {:?}", args[0])
-                )),
+                },
+                _ => Err(EvalError::TypeMismatch(format!(
+                    "list_set requires a list as first argument, got {:?}",
+                    args[0]
+                ))),
             }
-        }
+        },
         _ => Err(EvalError::UndefinedVariable(name.to_string())),
     }
 }
@@ -400,14 +384,14 @@ fn eval_format(args: &[Value]) -> Result<Value, EvalError> {
                 } else {
                     n.to_string()
                 }
-            }
+            },
             Value::Str(s) => s.clone(),
             Value::Bool(b) => b.to_string(),
             Value::Vec2(v) => format!("({}, {})", v[0], v[1]),
             Value::Vec3(v) => format!("({}, {}, {})", v[0], v[1], v[2]),
             Value::Vec4(v) | Value::Color(v) => {
                 format!("({}, {}, {}, {})", v[0], v[1], v[2], v[3])
-            }
+            },
             Value::List(items) => format!("{:?}", items),
             Value::Object(name, fields) => format!("{}({:?})", name, fields),
             Value::NativeFn(_) => "<NativeFn>".to_string(),
@@ -423,27 +407,20 @@ fn eval_format(args: &[Value]) -> Result<Value, EvalError> {
 /// Extract a single numeric argument, returning a type error otherwise.
 fn single_num_arg(name: &str, args: &[Value]) -> Result<f64, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::TypeMismatch(format!(
-            "{} expects 1 argument",
-            name
-        )));
+        return Err(EvalError::TypeMismatch(format!("{} expects 1 argument", name)));
     }
     match &args[0] {
         Value::Num(n) => Ok(*n),
-        other => Err(EvalError::TypeMismatch(format!(
-            "{} expects a number, got {:?}",
-            name, other
-        ))),
+        other => {
+            Err(EvalError::TypeMismatch(format!("{} expects a number, got {:?}", name, other)))
+        },
     }
 }
 
 /// Extract two numeric arguments, returning a type error otherwise.
 fn two_num_args(name: &str, args: &[Value]) -> Result<(f64, f64), EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::TypeMismatch(format!(
-            "{} expects 2 arguments",
-            name
-        )));
+        return Err(EvalError::TypeMismatch(format!("{} expects 2 arguments", name)));
     }
     match (&args[0], &args[1]) {
         (Value::Num(a), Value::Num(b)) => Ok((*a, *b)),
@@ -457,10 +434,7 @@ fn two_num_args(name: &str, args: &[Value]) -> Result<(f64, f64), EvalError> {
 /// Extract three numeric arguments, returning a type error otherwise.
 fn three_num_args(name: &str, args: &[Value]) -> Result<(f64, f64, f64), EvalError> {
     if args.len() != 3 {
-        return Err(EvalError::TypeMismatch(format!(
-            "{} expects 3 arguments",
-            name
-        )));
+        return Err(EvalError::TypeMismatch(format!("{} expects 3 arguments", name)));
     }
     match (&args[0], &args[1], &args[2]) {
         (Value::Num(a), Value::Num(b), Value::Num(c)) => Ok((*a, *b, *c)),
@@ -475,10 +449,7 @@ fn three_num_args(name: &str, args: &[Value]) -> Result<(f64, f64, f64), EvalErr
 pub fn value_to_f64(value: &Value) -> Result<f64, EvalError> {
     match value {
         Value::Num(n) => Ok(*n),
-        other => Err(EvalError::TypeMismatch(format!(
-            "Expected number, got {:?}",
-            other
-        ))),
+        other => Err(EvalError::TypeMismatch(format!("Expected number, got {:?}", other))),
     }
 }
 
@@ -486,10 +457,7 @@ pub fn value_to_f64(value: &Value) -> Result<f64, EvalError> {
 pub fn value_to_vec2(value: &Value) -> Result<[f64; 2], EvalError> {
     match value {
         Value::Vec2(v) => Ok(*v),
-        other => Err(EvalError::TypeMismatch(format!(
-            "Expected Vec2, got {:?}",
-            other
-        ))),
+        other => Err(EvalError::TypeMismatch(format!("Expected Vec2, got {:?}", other))),
     }
 }
 
@@ -497,10 +465,7 @@ pub fn value_to_vec2(value: &Value) -> Result<[f64; 2], EvalError> {
 pub fn value_to_vec3(value: &Value) -> Result<[f64; 3], EvalError> {
     match value {
         Value::Vec3(v) => Ok(*v),
-        other => Err(EvalError::TypeMismatch(format!(
-            "Expected Vec3, got {:?}",
-            other
-        ))),
+        other => Err(EvalError::TypeMismatch(format!("Expected Vec3, got {:?}", other))),
     }
 }
 
@@ -508,10 +473,7 @@ pub fn value_to_vec3(value: &Value) -> Result<[f64; 3], EvalError> {
 pub fn value_to_color(value: &Value) -> Result<[f64; 4], EvalError> {
     match value {
         Value::Color(c) => Ok(*c),
-        other => Err(EvalError::TypeMismatch(format!(
-            "Expected Color, got {:?}",
-            other
-        ))),
+        other => Err(EvalError::TypeMismatch(format!("Expected Color, got {:?}", other))),
     }
 }
 
@@ -519,10 +481,7 @@ pub fn value_to_color(value: &Value) -> Result<[f64; 4], EvalError> {
 pub fn value_to_list(value: &Value) -> Result<Vec<Value>, EvalError> {
     match value {
         Value::List(items) => Ok(items.clone()),
-        other => Err(EvalError::TypeMismatch(format!(
-            "Expected List, got {:?}",
-            other
-        ))),
+        other => Err(EvalError::TypeMismatch(format!("Expected List, got {:?}", other))),
     }
 }
 
@@ -535,70 +494,59 @@ mod tests {
 
     #[test]
     fn test_binary_op_num_add() {
-        let result =
-            eval_binary_op(Value::Num(3.0), &BinaryOp::Add, Value::Num(4.0)).unwrap();
+        let result = eval_binary_op(Value::Num(3.0), &BinaryOp::Add, Value::Num(4.0)).unwrap();
         assert_eq!(result.as_num(), 7.0);
     }
 
     #[test]
     fn test_binary_op_num_sub() {
-        let result =
-            eval_binary_op(Value::Num(10.0), &BinaryOp::Sub, Value::Num(3.0)).unwrap();
+        let result = eval_binary_op(Value::Num(10.0), &BinaryOp::Sub, Value::Num(3.0)).unwrap();
         assert_eq!(result.as_num(), 7.0);
     }
 
     #[test]
     fn test_binary_op_num_mul() {
-        let result =
-            eval_binary_op(Value::Num(6.0), &BinaryOp::Mul, Value::Num(7.0)).unwrap();
+        let result = eval_binary_op(Value::Num(6.0), &BinaryOp::Mul, Value::Num(7.0)).unwrap();
         assert_eq!(result.as_num(), 42.0);
     }
 
     #[test]
     fn test_binary_op_num_div() {
-        let result =
-            eval_binary_op(Value::Num(10.0), &BinaryOp::Div, Value::Num(2.0)).unwrap();
+        let result = eval_binary_op(Value::Num(10.0), &BinaryOp::Div, Value::Num(2.0)).unwrap();
         assert_eq!(result.as_num(), 5.0);
     }
 
     #[test]
     fn test_binary_op_num_div_by_zero() {
-        let result =
-            eval_binary_op(Value::Num(10.0), &BinaryOp::Div, Value::Num(0.0)).unwrap();
+        let result = eval_binary_op(Value::Num(10.0), &BinaryOp::Div, Value::Num(0.0)).unwrap();
         assert_eq!(result.as_num(), 0.0);
     }
 
     #[test]
     fn test_binary_op_num_mod() {
-        let result =
-            eval_binary_op(Value::Num(10.0), &BinaryOp::Mod, Value::Num(3.0)).unwrap();
+        let result = eval_binary_op(Value::Num(10.0), &BinaryOp::Mod, Value::Num(3.0)).unwrap();
         assert_eq!(result.as_num(), 1.0);
     }
 
     #[test]
     fn test_binary_op_num_pow() {
-        let result =
-            eval_binary_op(Value::Num(2.0), &BinaryOp::Pow, Value::Num(3.0)).unwrap();
+        let result = eval_binary_op(Value::Num(2.0), &BinaryOp::Pow, Value::Num(3.0)).unwrap();
         assert_eq!(result.as_num(), 8.0);
     }
 
     #[test]
     fn test_binary_op_num_eq() {
-        let result =
-            eval_binary_op(Value::Num(5.0), &BinaryOp::Eq, Value::Num(5.0)).unwrap();
+        let result = eval_binary_op(Value::Num(5.0), &BinaryOp::Eq, Value::Num(5.0)).unwrap();
         assert_eq!(result.as_num(), 1.0);
-        let result =
-            eval_binary_op(Value::Num(5.0), &BinaryOp::Eq, Value::Num(6.0)).unwrap();
+        let result = eval_binary_op(Value::Num(5.0), &BinaryOp::Eq, Value::Num(6.0)).unwrap();
         assert_eq!(result.as_num(), 0.0);
     }
 
     #[test]
     fn test_binary_op_num_neq() {
-        let result =
-            eval_binary_op(Value::Num(5.0), &BinaryOp::Neq, Value::Num(6.0)).unwrap();
+        let result = eval_binary_op(Value::Num(5.0), &BinaryOp::Neq, Value::Num(6.0)).unwrap();
         assert_eq!(result.as_num(), 1.0);
-        let result =
-            eval_binary_op(Value::Num(5.0), &BinaryOp::Neq, Value::Num(5.0)).unwrap();
+        let result = eval_binary_op(Value::Num(5.0), &BinaryOp::Neq, Value::Num(5.0)).unwrap();
         assert_eq!(result.as_num(), 0.0);
     }
 
@@ -660,23 +608,20 @@ mod tests {
 
     #[test]
     fn test_binary_op_vec2_add() {
-        let result = eval_binary_op(
-            Value::Vec2([1.0, 2.0]),
-            &BinaryOp::Add,
-            Value::Vec2([3.0, 4.0]),
-        )
-        .unwrap();
+        let result =
+            eval_binary_op(Value::Vec2([1.0, 2.0]), &BinaryOp::Add, Value::Vec2([3.0, 4.0]))
+                .unwrap();
         assert_eq!(result.as_vec2(), [4.0, 6.0]);
     }
 
     #[test]
     fn test_binary_op_vec2_scalar_mul() {
-        let result = eval_binary_op(Value::Vec2([2.0, 3.0]), &BinaryOp::Mul, Value::Num(4.0))
-            .unwrap();
+        let result =
+            eval_binary_op(Value::Vec2([2.0, 3.0]), &BinaryOp::Mul, Value::Num(4.0)).unwrap();
         assert_eq!(result.as_vec2(), [8.0, 12.0]);
 
-        let result = eval_binary_op(Value::Num(4.0), &BinaryOp::Mul, Value::Vec2([2.0, 3.0]))
-            .unwrap();
+        let result =
+            eval_binary_op(Value::Num(4.0), &BinaryOp::Mul, Value::Vec2([2.0, 3.0])).unwrap();
         assert_eq!(result.as_vec2(), [8.0, 12.0]);
     }
 
@@ -728,8 +673,7 @@ mod tests {
         let result = eval_builtin_fn("sin", &[Value::Num(0.0)]).unwrap();
         assert!((result.as_num()).abs() < 1e-10);
 
-        let result =
-            eval_builtin_fn("cos", &[Value::Num(std::f64::consts::PI)]).unwrap();
+        let result = eval_builtin_fn("cos", &[Value::Num(std::f64::consts::PI)]).unwrap();
         assert!((result.as_num() + 1.0).abs() < 1e-10);
     }
 
@@ -759,43 +703,34 @@ mod tests {
 
     #[test]
     fn test_builtin_atan2() {
-        let result =
-            eval_builtin_fn("atan2", &[Value::Num(0.0), Value::Num(1.0)]).unwrap();
+        let result = eval_builtin_fn("atan2", &[Value::Num(0.0), Value::Num(1.0)]).unwrap();
         assert!((result.as_num()).abs() < 1e-10);
     }
 
     #[test]
     fn test_builtin_clamp() {
-        let result = eval_builtin_fn(
-            "clamp",
-            &[Value::Num(5.0), Value::Num(0.0), Value::Num(10.0)],
-        )
-        .unwrap();
+        let result =
+            eval_builtin_fn("clamp", &[Value::Num(5.0), Value::Num(0.0), Value::Num(10.0)])
+                .unwrap();
         assert_eq!(result.as_num(), 5.0);
 
-        let result = eval_builtin_fn(
-            "clamp",
-            &[Value::Num(-5.0), Value::Num(0.0), Value::Num(10.0)],
-        )
-        .unwrap();
+        let result =
+            eval_builtin_fn("clamp", &[Value::Num(-5.0), Value::Num(0.0), Value::Num(10.0)])
+                .unwrap();
         assert_eq!(result.as_num(), 0.0);
 
-        let result = eval_builtin_fn(
-            "clamp",
-            &[Value::Num(15.0), Value::Num(0.0), Value::Num(10.0)],
-        )
-        .unwrap();
+        let result =
+            eval_builtin_fn("clamp", &[Value::Num(15.0), Value::Num(0.0), Value::Num(10.0)])
+                .unwrap();
         assert_eq!(result.as_num(), 10.0);
     }
 
     #[test]
     fn test_builtin_min_max() {
-        let result =
-            eval_builtin_fn("min", &[Value::Num(3.0), Value::Num(7.0)]).unwrap();
+        let result = eval_builtin_fn("min", &[Value::Num(3.0), Value::Num(7.0)]).unwrap();
         assert_eq!(result.as_num(), 3.0);
 
-        let result =
-            eval_builtin_fn("max", &[Value::Num(3.0), Value::Num(7.0)]).unwrap();
+        let result = eval_builtin_fn("max", &[Value::Num(3.0), Value::Num(7.0)]).unwrap();
         assert_eq!(result.as_num(), 7.0);
     }
 
@@ -813,18 +748,14 @@ mod tests {
         let result = eval_builtin_fn("deg", &[Value::Num(90.0)]).unwrap();
         assert!((result.as_num() - std::f64::consts::FRAC_PI_2).abs() < 1e-10);
 
-        let result =
-            eval_builtin_fn("rad", &[Value::Num(std::f64::consts::PI)]).unwrap();
+        let result = eval_builtin_fn("rad", &[Value::Num(std::f64::consts::PI)]).unwrap();
         assert!((result.as_num() - 180.0).abs() < 1e-10);
     }
 
     #[test]
     fn test_builtin_lerp() {
-        let result = eval_builtin_fn(
-            "lerp",
-            &[Value::Num(0.0), Value::Num(10.0), Value::Num(0.5)],
-        )
-        .unwrap();
+        let result =
+            eval_builtin_fn("lerp", &[Value::Num(0.0), Value::Num(10.0), Value::Num(0.5)]).unwrap();
         assert_eq!(result.as_num(), 5.0);
     }
 
@@ -880,10 +811,7 @@ mod tests {
 
     #[test]
     fn test_value_to_vec3() {
-        assert_eq!(
-            value_to_vec3(&Value::Vec3([1.0, 2.0, 3.0])).unwrap(),
-            [1.0, 2.0, 3.0]
-        );
+        assert_eq!(value_to_vec3(&Value::Vec3([1.0, 2.0, 3.0])).unwrap(), [1.0, 2.0, 3.0]);
         assert!(value_to_vec3(&Value::Num(0.0)).is_err());
     }
 

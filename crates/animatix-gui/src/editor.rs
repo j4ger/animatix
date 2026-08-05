@@ -1,10 +1,12 @@
 //! Code editor with cell-based notebook UI, tree-sitter syntax highlighting,
 //! line numbers, and auto-complete.
 
-
-use egui::{Key, text::LayoutJob};
 use std::path::{Path, PathBuf};
+
 use animatix_analyzer::Analyzer;
+use egui::Key;
+use egui::text::LayoutJob;
+
 use crate::cell_editor::{Cell, CellEditorState, CellType, parse_cells, render_cell_editor};
 use crate::completion_popup::CompletionPopup;
 
@@ -102,7 +104,9 @@ impl EditorBuffer {
 
     /// Type of the currently focused cell, if any.
     pub fn focused_cell_type(&self) -> Option<crate::cell_editor::CellType> {
-        self.cell_state.focused_cell.and_then(|idx| self.cells.get(idx).map(|c| c.cell_type()))
+        self.cell_state
+            .focused_cell
+            .and_then(|idx| self.cells.get(idx).map(|c| c.cell_type()))
     }
 
     /// Override the focused cell index.
@@ -115,17 +119,21 @@ impl EditorBuffer {
     pub fn focus_diagnostic(&mut self, line: usize, column: usize) {
         let cell_idx = self.cell_index_for_source_line(line);
         let Some(idx) = cell_idx else { return };
-        let Some(cell_start_line) = self.source_line_for_cell(idx) else { return };
+        let Some(cell_start_line) = self.source_line_for_cell(idx) else {
+            return;
+        };
 
         // Determine how many header lines precede the editable body.
         let cell = &self.cells[idx];
         let header_lines = match cell {
             crate::cell_editor::Cell::Code { .. } => 0,
-            crate::cell_editor::Cell::Keyframe { attached_comment, .. } => {
+            crate::cell_editor::Cell::Keyframe {
+                attached_comment, ..
+            } => {
                 let comment_lines =
                     attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0);
                 comment_lines + 1 // +1 for the #timestamp line
-            }
+            },
         };
 
         let body_start_line = cell_start_line + header_lines;
@@ -215,15 +223,10 @@ impl EditorBuffer {
     fn compute_insert_keyframe(&self, after_idx: usize) -> Cell {
         use crate::cell_editor::format_duration_s;
 
-        let prev_time_s = self.cells[..=after_idx]
-            .iter()
-            .rev()
-            .find_map(|c| c.time_s())
-            .unwrap_or(0.0);
+        let prev_time_s =
+            self.cells[..=after_idx].iter().rev().find_map(|c| c.time_s()).unwrap_or(0.0);
 
-        let next_time_s = self.cells[after_idx + 1..]
-            .iter()
-            .find_map(|c| c.time_s());
+        let next_time_s = self.cells[after_idx + 1..].iter().find_map(|c| c.time_s());
 
         let (timestamp, is_relative, new_time_s) = if let Some(next) = next_time_s {
             let delta = (next - prev_time_s) / 2.0;
@@ -357,8 +360,13 @@ impl EditorBuffer {
         });
         if let Some(cell_type) = self.cell_state.pending_append_at_end.take() {
             let new_cell = match cell_type {
-                CellType::Keyframe => self.compute_insert_keyframe(self.cells.len().saturating_sub(1)),
-                CellType::Code => Cell::Code { body: String::new(), expanded: true },
+                CellType::Keyframe => {
+                    self.compute_insert_keyframe(self.cells.len().saturating_sub(1))
+                },
+                CellType::Code => Cell::Code {
+                    body: String::new(),
+                    expanded: true,
+                },
             };
             self.cells.push(new_cell);
             structurally_changed = true;
@@ -403,7 +411,8 @@ impl EditorBuffer {
             }
 
             // Mark response as changed so the workspace knows the source text was modified.
-            let mut r = ui.interact(response.rect, ui.id().with("cell_editor"), egui::Sense::click());
+            let mut r =
+                ui.interact(response.rect, ui.id().with("cell_editor"), egui::Sense::click());
             r.mark_changed();
             return r;
         }
@@ -420,9 +429,10 @@ impl EditorBuffer {
 
         // If completion consumed the input, don't process further
         if completion_consumed {
-            let insert_text = self.completion.selected_item().map(|item| {
-                item.insert_text.as_deref().unwrap_or(&item.label).to_string()
-            });
+            let insert_text = self
+                .completion
+                .selected_item()
+                .map(|item| item.insert_text.as_deref().unwrap_or(&item.label).to_string());
             if let Some(text) = insert_text {
                 self.insert_completion(&text);
                 self.completion.hide();
@@ -475,5 +485,4 @@ impl EditorBuffer {
 
         (line, col)
     }
-
-    }
+}

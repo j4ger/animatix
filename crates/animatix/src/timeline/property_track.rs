@@ -6,14 +6,14 @@
 //! - [`TrackAccessor`] extension trait for ergonomic access
 //! - Re-exports of [`Easing`] and [`apply_easing`] from `crate::easing`
 
-use crate::timeline::morph::MorphOptions;
 use std::collections::BTreeMap;
-
-// Re-export easing types so track.rs and other modules can get them from here.
-pub use crate::easing::{Easing, apply_easing};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+
+// Re-export easing types so track.rs and other modules can get them from here.
+pub use crate::easing::{Easing, apply_easing};
+use crate::timeline::morph::MorphOptions;
 
 /// Extension trait for lazy property track access.
 pub trait TrackAccessor<T: Interpolate> {
@@ -73,7 +73,10 @@ impl Interpolate for f64 {
 impl Interpolate for [f32; 2] {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
         let t = t.clamp(0.0, 1.0);
-        [self[0] + (other[0] - self[0]) * t, self[1] + (other[1] - self[1]) * t]
+        [
+            self[0] + (other[0] - self[0]) * t,
+            self[1] + (other[1] - self[1]) * t,
+        ]
     }
 }
 
@@ -138,14 +141,21 @@ impl Interpolate for Vec<[f32; 2]> {
         if self.is_empty() || other.is_empty() || self.len() != other.len() {
             if t < 0.5 { self.clone() } else { other.clone() }
         } else {
-            self.iter().zip(other.iter()).map(|(a, b)| [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]).collect()
+            self.iter()
+                .zip(other.iter())
+                .map(|(a, b)| [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t])
+                .collect()
         }
     }
 }
 
 /// A keyed animation track holding values of type `T` over time.
 #[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = "T: Serialize + for<'de2> Deserialize<'de2>"))]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(bound = "T: Serialize + for<'de2> Deserialize<'de2>")
+)]
 pub struct PropertyTrack<T> {
     /// Map from timestamp (ms) to `(value, easing)` pairs.
     pub(crate) keyframes: BTreeMap<u64, (T, Easing)>,
@@ -169,7 +179,11 @@ impl<T: Interpolate> Clone for PropertyTrack<T> {
 impl<T: Interpolate> PropertyTrack<T> {
     /// Create a new track with the given default value.
     pub fn new(default_value: T) -> Self {
-        Self { keyframes: BTreeMap::new(), default_value, last_evaluated: std::cell::RefCell::new(None) }
+        Self {
+            keyframes: BTreeMap::new(),
+            default_value,
+            last_evaluated: std::cell::RefCell::new(None),
+        }
     }
     /// Insert a keyframe at `time_ms` with `value` and `easing`.
     pub fn add_keyframe(&mut self, time_ms: u64, value: T, easing: Easing) {
@@ -182,7 +196,10 @@ impl<T: Interpolate> PropertyTrack<T> {
         self.evaluate_with(time_ms, T::clone)
     }
     /// Optimized evaluate for `Copy` types - avoids heap allocation on clone.
-    pub fn evaluate_copy(&self, time_ms: u64) -> T where T: Copy {
+    pub fn evaluate_copy(&self, time_ms: u64) -> T
+    where
+        T: Copy,
+    {
         self.evaluate_with(time_ms, |v| *v)
     }
     /// Returns `true` if this property track is currently inside an
@@ -197,7 +214,10 @@ impl<T: Interpolate> PropertyTrack<T> {
     /// Returns the interpolation segment for `time_ms`, if one exists between
     /// two keyframes. Returns `(found_time, prev_val, found_val, progress, found_easing)`
     /// where `progress` is in `(0, 1]`.
-    pub(crate) fn interpolation_segment(&self, time_ms: u64) -> Option<(u64, &T, &T, f32, &Easing)> {
+    pub(crate) fn interpolation_segment(
+        &self,
+        time_ms: u64,
+    ) -> Option<(u64, &T, &T, f32, &Easing)> {
         let found = self.keyframes.range(time_ms..).next()?;
         let (&found_time, (found_val, found_easing)) = found;
 
@@ -226,7 +246,9 @@ impl<T: Interpolate> PropertyTrack<T> {
             }
         }
 
-        let result = if let Some((_found_time, prev_val, found_val, progress, found_easing)) = self.interpolation_segment(time_ms) {
+        let result = if let Some((_found_time, prev_val, found_val, progress, found_easing)) =
+            self.interpolation_segment(time_ms)
+        {
             let eased_progress = apply_easing(progress, *found_easing);
             prev_val.interpolate(found_val, eased_progress)
         } else {
@@ -255,7 +277,10 @@ impl<T: Interpolate> PropertyTrack<T> {
     }
     /// Return the value of the most recent keyframe, or the default, using a custom clone strategy.
     fn last_value_with(&self, clone_val: impl Fn(&T) -> T) -> T {
-        self.keyframes.iter().next_back().map(|(_, (val, _))| clone_val(val))
+        self.keyframes
+            .iter()
+            .next_back()
+            .map(|(_, (val, _))| clone_val(val))
             .unwrap_or_else(|| clone_val(&self.default_value))
     }
     /// Return the timestamp of the most recent keyframe, if any.

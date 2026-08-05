@@ -1,15 +1,15 @@
 pub mod labels;
 pub mod text;
 
+#[cfg(test)]
+use animatix_syntax::diagnostics::diagnostics_summary_by_phase;
+use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use egui::{Color32, Vec2};
 
 #[cfg(test)]
 use crate::app::design_tokens::semantic::status::{DIAGNOSTIC_ERROR, DIAGNOSTIC_WARNING};
 use crate::app::design_tokens::spatial::{RADIUS_S, SPACE_2, SPACE_4};
 use crate::app::design_tokens::typography::TextRole;
-#[cfg(test)]
-use animatix_syntax::diagnostics::diagnostics_summary_by_phase;
-use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 
 /// Draw a badge with background and optional stroke at a specific position.
 /// Returns the rectangle occupied by the badge.

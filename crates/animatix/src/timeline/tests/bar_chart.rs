@@ -9,7 +9,11 @@ fn bar_colors_scheme_token_single() {
     assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(report.diagnostics.is_empty(), "Expected no diagnostics, got: {:?}", report.diagnostics);
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
     assert!(report.output.tracks.contains_key("chart"), "chart track should exist");
 }
 
@@ -22,7 +26,11 @@ fn bar_colors_scheme_token_list() {
     assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(report.diagnostics.is_empty(), "Expected no diagnostics, got: {:?}", report.diagnostics);
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
 }
 
 #[test]
@@ -34,7 +42,11 @@ fn bar_colors_mixed_list() {
     assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(report.diagnostics.is_empty(), "Expected no diagnostics, got: {:?}", report.diagnostics);
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
 }
 
 #[test]
@@ -46,7 +58,11 @@ fn bar_colors_auto() {
     assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(report.diagnostics.is_empty(), "Expected no diagnostics, got: {:?}", report.diagnostics);
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
 }
 
 #[test]
@@ -59,7 +75,10 @@ fn bar_colors_invalid_token_emits_diagnostic() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.iter().any(|d| d.code == DiagnosticCode::UnknownColorReference),
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagnosticCode::UnknownColorReference),
         "Expected UnknownColorReference diagnostic, got: {:?}",
         report.diagnostics
     );
@@ -76,7 +95,11 @@ fn bar_width_with_variable() {
     assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(report.diagnostics.is_empty(), "Expected no diagnostics, got: {:?}", report.diagnostics);
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
 }
 
 #[test]
@@ -88,7 +111,11 @@ fn show_axis_bool() {
     assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(report.diagnostics.is_empty(), "Expected no diagnostics, got: {:?}", report.diagnostics);
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
 }
 
 #[test]
@@ -100,7 +127,11 @@ fn show_axis_string() {
     assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(report.diagnostics.is_empty(), "Expected no diagnostics, got: {:?}", report.diagnostics);
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
 }
 
 #[test]
@@ -113,7 +144,10 @@ fn show_axis_invalid_type_emits_diagnostic() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.iter().any(|d| d.code == DiagnosticCode::InvalidPropertyValue),
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagnosticCode::InvalidPropertyValue),
         "Expected InvalidPropertyValue diagnostic, got: {:?}",
         report.diagnostics
     );
@@ -169,7 +203,11 @@ fn tuple_list_still_works_with_no_diagnostics() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     // Normal tuple list should produce no diagnostics
-    assert!(report.diagnostics.is_empty(), "Expected no diagnostics, got: {:?}", report.diagnostics);
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
     assert!(report.output.tracks.contains_key("chart"), "chart track should exist");
 }
 
@@ -183,5 +221,9 @@ fn max_value_with_variable() {
     assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(report.diagnostics.is_empty(), "Expected no diagnostics, got: {:?}", report.diagnostics);
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
 }

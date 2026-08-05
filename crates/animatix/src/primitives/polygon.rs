@@ -3,9 +3,9 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
+use crate::timeline::kurbo_shapes::KurboShape;
 use crate::timeline::shapes::parse_point_list_expr;
-use crate::timeline::{Environment, TrackAccessor, VectorShapeState};
-use crate::timeline::{SceneDimensions, VelloPath, kurbo_shapes::KurboShape};
+use crate::timeline::{Environment, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath};
 
 /// The `Polygon` primitive.
 pub struct PolygonPrimitive;
@@ -104,7 +104,11 @@ impl Primitive for PolygonPrimitive {
         use crate::primitives::evaluate_shape_render;
         use crate::timeline::shapes::PolygonState;
 
-        let half_size = ctx.track.geometry.size.get(ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+        let half_size = ctx
+            .track
+            .geometry
+            .size
+            .get(ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
         let points = ctx.track.shape.points.get(ctx.time_ms, Vec::new());
         let rot = ctx.track.geometry.rotation.get(ctx.time_ms, 0.0);
         let vector_paths = ctx.track.evaluate_vector_paths(ctx.time_ms);

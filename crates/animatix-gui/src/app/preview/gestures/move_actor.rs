@@ -4,10 +4,11 @@
 //! Handles: hit-test actor body, Alt duplicate, Shift detach from layout,
 //! multi-actor move with snap, grid, shift-lock, and keyframe finalization.
 
-use crate::app::commands::{Command, DocumentCommand, DragEvent, PropertyEdit, PropertyValue, ShellAction};
-use crate::app::preview::drag_utils;
+use crate::app::commands::{
+    Command, DocumentCommand, DragEvent, PropertyEdit, PropertyValue, ShellAction,
+};
 use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
-use crate::app::preview::{DragState, ToolMode};
+use crate::app::preview::{DragState, ToolMode, drag_utils};
 pub(crate) struct MoveActorGesture;
 
 impl GestureHandler for MoveActorGesture {
@@ -93,9 +94,8 @@ impl GestureHandler for MoveActorGesture {
 
                 // Alt duplicate before drag
                 if modifiers.alt {
-                    ctx.commands.push_back(
-                        ShellAction::Command(Command::DuplicateActor(actor.clone())),
-                    );
+                    ctx.commands
+                        .push_back(ShellAction::Command(Command::DuplicateActor(actor.clone())));
                     return GestureResult::Claimed;
                 }
 
@@ -142,8 +142,7 @@ impl GestureHandler for MoveActorGesture {
                     (raw_dx, raw_dy)
                 };
 
-                let snap_enabled =
-                    ctx.preview.snap.snap_enabled && !modifiers.alt;
+                let snap_enabled = ctx.preview.snap.snap_enabled && !modifiers.alt;
                 let threshold = ctx.preview.snap.snap_threshold;
                 let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
 

@@ -1,9 +1,11 @@
+use kurbo::Shape;
+
 use super::{
-    ActorKindId, AnimationTrack, DebugRenderOptions, EvalError, PlacementMode, PositionBinding, SceneDimensions, Timeline, Value,
-    VelloPath, resolve_bound_position, TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
+    ActorKindId, AnimationTrack, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, DebugRenderOptions,
+    EvalError, PlacementMode, PositionBinding, SceneDimensions, Timeline, TrackAccessor, Value,
+    VelloPath, resolve_bound_position,
 };
 use crate::renderer::types::TextPath;
-use kurbo::Shape;
 
 #[derive(Clone, Copy)]
 pub(crate) struct NodeTransform {
@@ -13,8 +15,7 @@ pub(crate) struct NodeTransform {
     pub local_transform: kurbo::Affine,
 }
 
-fn union_rect(
-acc: Option<kurbo::Rect>, rect: kurbo::Rect) -> Option<kurbo::Rect> {
+fn union_rect(acc: Option<kurbo::Rect>, rect: kurbo::Rect) -> Option<kurbo::Rect> {
     Some(match acc {
         Some(existing) => existing.union(rect),
         None => rect,
@@ -42,12 +43,7 @@ fn node_local_bounds(
     if let Some([half_width, half_height]) = image_half_size {
         bounds = union_rect(
             bounds,
-            kurbo::Rect::new(
-                0.0,
-                0.0,
-                (half_width * 2.0) as f64,
-                (half_height * 2.0) as f64,
-            ),
+            kurbo::Rect::new(0.0, 0.0, (half_width * 2.0) as f64, (half_height * 2.0) as f64),
         );
     }
 
@@ -83,7 +79,9 @@ impl Timeline {
         layout_position: Option<[f32; 2]>,
         node_overrides: Option<&std::collections::HashMap<String, Value>>,
     ) -> NodeTransform {
-        use crate::timeline::property_engine::{effective_f32, effective_vec2, effective_transform};
+        use crate::timeline::property_engine::{
+            effective_f32, effective_transform, effective_vec2,
+        };
 
         // ── Position: special handling for anchor/binding ──
         let override_position: Option<[f32; 2]> = node_overrides
@@ -92,7 +90,8 @@ impl Timeline {
                 Value::Vec2(pos) => Some([pos[0] as f32, pos[1] as f32]),
                 _ => None,
             });
-        let placement_mode = track.geometry.placement_mode.get(time_ms, PlacementMode::LayoutManaged);
+        let placement_mode =
+            track.geometry.placement_mode.get(time_ms, PlacementMode::LayoutManaged);
         let mut base_position = if let Some(ov_pos) = override_position {
             ov_pos
         } else {
@@ -111,22 +110,31 @@ impl Timeline {
         } else {
             track.geometry.position_binding.get(time_ms, PositionBinding::Absolute)
         };
-        let position = resolve_bound_position(binding, base_position, parent_transform, scene_dimensions);
+        let position =
+            resolve_bound_position(binding, base_position, parent_transform, scene_dimensions);
 
         // ── Spatial properties: read through registry-based helpers ──
         // Note: shift is handled manually because "shift" is not yet in the
         // property registry (despite being injectable into the environment).
-        let motion_offset = if let Some(Value::Vec2(v)) = node_overrides.and_then(|ov| ov.get("shift")) {
-            [v[0] as f32, v[1] as f32]
-        } else {
-            track.geometry.motion_offset.get(time_ms, [0.0, 0.0])
-        };
+        let motion_offset =
+            if let Some(Value::Vec2(v)) = node_overrides.and_then(|ov| ov.get("shift")) {
+                [v[0] as f32, v[1] as f32]
+            } else {
+                track.geometry.motion_offset.get(time_ms, [0.0, 0.0])
+            };
         let rotation = effective_f32(track, node_overrides, time_ms, "rotation", 0.0) as f64;
         let scale = effective_f32(track, node_overrides, time_ms, "scale", 1.0) as f64;
         let opacity = effective_f32(track, node_overrides, time_ms, "opacity", 1.0);
-        let half_size = effective_vec2(track, node_overrides, time_ms, "size", DEFAULT_LAYOUT_HALF_SIZE);
+        let half_size =
+            effective_vec2(track, node_overrides, time_ms, "size", DEFAULT_LAYOUT_HALF_SIZE);
 
-        let transform = effective_transform(track, node_overrides, time_ms, "transform", [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
+        let transform = effective_transform(
+            track,
+            node_overrides,
+            time_ms,
+            "transform",
+            [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+        );
         let transform_affine = kurbo::Affine::new([
             transform[0] as f64,
             transform[1] as f64,
@@ -289,10 +297,36 @@ impl Timeline {
         filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
         allow_pending_composites: bool,
     ) {
-        let (global_transform, global_opacity) =
-            self.render_actor_node(node_label, time_ms, parent_transform, parent_opacity, scene_dimensions, debug_options, scene, overrides, layout_positions, hit_regions, frame_env, filter_backend, allow_pending_composites);
+        let (global_transform, global_opacity) = self.render_actor_node(
+            node_label,
+            time_ms,
+            parent_transform,
+            parent_opacity,
+            scene_dimensions,
+            debug_options,
+            scene,
+            overrides,
+            layout_positions,
+            hit_regions,
+            frame_env,
+            filter_backend,
+            allow_pending_composites,
+        );
 
-        self.render_node_children(node_label, time_ms, global_transform, global_opacity, scene_dimensions, debug_options, scene, overrides, hit_regions, frame_env, filter_backend, allow_pending_composites);
+        self.render_node_children(
+            node_label,
+            time_ms,
+            global_transform,
+            global_opacity,
+            scene_dimensions,
+            debug_options,
+            scene,
+            overrides,
+            hit_regions,
+            frame_env,
+            filter_backend,
+            allow_pending_composites,
+        );
     }
 
     /// Evaluate a single actor node and render it to the scene.
@@ -374,10 +408,9 @@ impl Timeline {
                         layout_pos,
                         node_overrides,
                     );
-                    self.transform_cache.borrow_mut().insert(
-                        node_label.to_string(),
-                        (time_ms, parent_coeffs, t),
-                    );
+                    self.transform_cache
+                        .borrow_mut()
+                        .insert(node_label.to_string(), (time_ms, parent_coeffs, t));
                     t
                 }
             } else {
@@ -391,10 +424,9 @@ impl Timeline {
                     layout_pos,
                     node_overrides,
                 );
-                self.transform_cache.borrow_mut().insert(
-                    node_label.to_string(),
-                    (time_ms, parent_coeffs, t),
-                );
+                self.transform_cache
+                    .borrow_mut()
+                    .insert(node_label.to_string(), (time_ms, parent_coeffs, t));
                 t
             }
         };
@@ -438,14 +470,14 @@ impl Timeline {
             // Guard: only resample per-frame when the plot is dynamic (references `t`
             // or has animated params) or a func transition is currently active.
             // Static, non-transitioning plots keep the cached build-time vector_paths.
-            let transitioning = track.func_transitions.iter().any(|t| {
-                time_ms >= t.start_ms && time_ms <= t.end_ms
-            });
+            let transitioning = track
+                .func_transitions
+                .iter()
+                .any(|t| time_ms >= t.start_ms && time_ms <= t.end_ms);
             // Also use per-frame sampling once all transitions are complete so that
             // the final `to` function (not the original declaration) is rendered.
-            let has_completed_transitions = track.func_transitions.iter().any(|t| {
-                t.is_complete_at(time_ms)
-            });
+            let has_completed_transitions =
+                track.func_transitions.iter().any(|t| t.is_complete_at(time_ms));
 
             if procedural_plot.is_dynamic() || transitioning || has_completed_transitions {
                 let mut local_env = if let Some(env) = frame_env {
@@ -649,12 +681,24 @@ impl Timeline {
 
             // Apply modifier overrides for filter properties
             if let Some(ov) = overrides.get(node_label) {
-                if let Some(Value::Num(v)) = ov.get("blur") { blur = *v as f32; }
-                if let Some(Value::Num(v)) = ov.get("brightness") { brightness = *v as f32; }
-                if let Some(Value::Num(v)) = ov.get("contrast") { contrast = *v as f32; }
-                if let Some(Value::Num(v)) = ov.get("saturate") { saturate = *v as f32; }
-                if let Some(Value::Num(v)) = ov.get("hue_rotate") { hue_rotate = *v as f32; }
-                if let Some(Value::Num(v)) = ov.get("sepia") { sepia = *v as f32; }
+                if let Some(Value::Num(v)) = ov.get("blur") {
+                    blur = *v as f32;
+                }
+                if let Some(Value::Num(v)) = ov.get("brightness") {
+                    brightness = *v as f32;
+                }
+                if let Some(Value::Num(v)) = ov.get("contrast") {
+                    contrast = *v as f32;
+                }
+                if let Some(Value::Num(v)) = ov.get("saturate") {
+                    saturate = *v as f32;
+                }
+                if let Some(Value::Num(v)) = ov.get("hue_rotate") {
+                    hue_rotate = *v as f32;
+                }
+                if let Some(Value::Num(v)) = ov.get("sepia") {
+                    sepia = *v as f32;
+                }
             }
 
             // If all filters are identity and no blur, just append sub-scene directly
@@ -688,10 +732,12 @@ impl Timeline {
                             // Filter output is stored as a pending GPU composite.
                             // The renderer will blit it after the main scene render.
                             return;
-                        }
+                        },
                         Err(e) => {
-                            tracing::warn!("Zero-readback filter path failed, falling back to readback: {e}");
-                        }
+                            tracing::warn!(
+                                "Zero-readback filter path failed, falling back to readback: {e}"
+                            );
+                        },
                     }
                 }
             }
@@ -699,8 +745,14 @@ impl Timeline {
             // Render sub-scene to image via backend, apply GPU filters, draw result
             if let Some(backend) = filter_backend.as_mut() {
                 match backend.render_scene_to_image_gpu_filtered(
-                    &sub_scene, scene_dimensions,
-                    blur, brightness, contrast, saturate, hue_rotate, sepia,
+                    &sub_scene,
+                    scene_dimensions,
+                    blur,
+                    brightness,
+                    contrast,
+                    saturate,
+                    hue_rotate,
+                    sepia,
                 ) {
                     Ok(filtered) => {
                         let brush = vello::peniko::ImageBrush::new(filtered.data.clone())
@@ -708,11 +760,13 @@ impl Timeline {
                             .with_quality(vello::peniko::ImageQuality::Medium)
                             .with_alpha(global_opacity);
                         scene.draw_image(&brush, kurbo::Affine::IDENTITY);
-                    }
+                    },
                     Err(e) => {
-                        tracing::warn!("Filter backend error, falling back to unfiltered rendering: {e}");
+                        tracing::warn!(
+                            "Filter backend error, falling back to unfiltered rendering: {e}"
+                        );
                         scene.encoding_mut().append(sub_scene.encoding(), &None);
-                    }
+                    },
                 }
             }
         } else if track.kind == ActorKindId::Mask {
@@ -772,12 +826,22 @@ impl Timeline {
                 if let Some(child_track) = self.tracks.get(*child_label) {
                     if child_track.kind == ActorKindId::Fragment {
                         let content = child_track.text.text_content.get(time_ms, String::new());
-                        let hl_color = child_track.highlight.highlight_color.get(time_ms, [0.3, 0.5, 1.0, 1.0]);
+                        let hl_color = child_track
+                            .highlight
+                            .highlight_color
+                            .get(time_ms, [0.3, 0.5, 1.0, 1.0]);
                         let hl_opacity = child_track.highlight.highlight_opacity.get(time_ms, 0.0);
                         let hl_padding = child_track.highlight.highlight_padding.get(time_ms, 4.0);
                         let hl_radius = child_track.highlight.highlight_radius.get(time_ms, 3.0);
                         let hl_blend = child_track.highlight.highlight_blend;
-                        frags.push(FragInfo { content, hl_color, hl_opacity, hl_padding, hl_radius, hl_blend });
+                        frags.push(FragInfo {
+                            content,
+                            hl_color,
+                            hl_opacity,
+                            hl_padding,
+                            hl_radius,
+                            hl_blend,
+                        });
                     }
                 }
             }
@@ -785,9 +849,11 @@ impl Timeline {
             if !frags.is_empty() {
                 // Build Typst string: each fragment wrapped in #box() so they
                 // produce separate Groups in the output frame.
-                let typst_body: String = frags.iter().map(|f| {
-                    format!("#box()[{}]", f.content)
-                }).collect::<Vec<_>>().join("");
+                let typst_body: String = frags
+                    .iter()
+                    .map(|f| format!("#box()[{}]", f.content))
+                    .collect::<Vec<_>>()
+                    .join("");
 
                 // Use equation-level font_size and color from the Equation track.
                 let font_size = track.text.font_size.get(time_ms, 48.0);
@@ -824,7 +890,8 @@ impl Timeline {
                 ) {
                     Ok(frame) => {
                         // Extract grouped glyphs — one group per #box() wrapper.
-                        let (all_glyphs, ranges) = crate::renderer::text::extract_glyphs_grouped(&frame);
+                        let (all_glyphs, ranges) =
+                            crate::renderer::text::extract_glyphs_grouped(&frame);
 
                         // Compute highlight bounding boxes BEFORE moving glyphs into Arc.
                         let mut highlight_cmds: Vec<crate::primitives::RenderCommand> = Vec::new();
@@ -846,8 +913,10 @@ impl Timeline {
                                 if min_x.is_finite() && max_x.is_finite() {
                                     let pad = frag.hl_padding as f64;
                                     let hl_rect = kurbo::Rect::new(
-                                        min_x - pad, min_y - pad,
-                                        max_x + pad, max_y + pad,
+                                        min_x - pad,
+                                        min_y - pad,
+                                        max_x + pad,
+                                        max_y + pad,
                                     );
                                     let hl_color = vello::peniko::Color::from_rgba8(
                                         (frag.hl_color[0] * 255.0) as u8,
@@ -855,13 +924,15 @@ impl Timeline {
                                         (frag.hl_color[2] * 255.0) as u8,
                                         255,
                                     );
-                                    highlight_cmds.push(crate::primitives::RenderCommand::HighlightLayer {
-                                        rect: hl_rect,
-                                        color: hl_color,
-                                        blend: frag.hl_blend,
-                                        alpha: frag.hl_opacity,
-                                        corner_radius: frag.hl_radius as f64,
-                                    });
+                                    highlight_cmds.push(
+                                        crate::primitives::RenderCommand::HighlightLayer {
+                                            rect: hl_rect,
+                                            color: hl_color,
+                                            blend: frag.hl_blend,
+                                            alpha: frag.hl_opacity,
+                                            corner_radius: frag.hl_radius as f64,
+                                        },
+                                    );
                                 }
                             }
                         }
@@ -877,10 +948,10 @@ impl Timeline {
                         for cmd in &highlight_cmds {
                             cmd.execute(scene, &global_transform, global_opacity);
                         }
-                    }
+                    },
                     Err(e) => {
                         tracing::warn!("Equation Typst compilation failed: {e}");
-                    }
+                    },
                 }
             }
 
@@ -1024,21 +1095,16 @@ impl Timeline {
         // Collect modifier evaluation errors as runtime diagnostics.
         for err in &modifier_errors {
             tracing::warn!("Modifier evaluation error at t={time_ms}ms: {err}");
-            self.runtime_diagnostics.borrow_mut().push(
-                crate::diagnostics::Diagnostic::error(
+            self.runtime_diagnostics
+                .borrow_mut()
+                .push(crate::diagnostics::Diagnostic::error(
                     crate::diagnostics::DiagnosticCode::ModifierRuntimeError,
                     crate::diagnostics::DiagnosticPhase::Render,
                     format!("Modifier evaluation error at t={time_ms}ms: {err}"),
-                )
-            );
+                ));
         }
 
-        let bg = vello::peniko::Color::new([
-            bg_color[0],
-            bg_color[1],
-            bg_color[2],
-            bg_color[3],
-        ]);
+        let bg = vello::peniko::Color::new([bg_color[0], bg_color[1], bg_color[2], bg_color[3]]);
         scene.fill(
             vello::peniko::Fill::NonZero,
             kurbo::Affine::IDENTITY,
@@ -1168,7 +1234,10 @@ mod tests {
     #[test]
     fn evaluate_returns_scene_for_simple_timeline() {
         let timeline = make_minimal_timeline();
-        let dimensions = SceneDimensions { width: 800, height: 600 };
+        let dimensions = SceneDimensions {
+            width: 800,
+            height: 600,
+        };
 
         let scene = timeline.evaluate(0.0, dimensions);
 
@@ -1180,7 +1249,10 @@ mod tests {
     #[test]
     fn evaluate_returns_scene_at_different_times() {
         let timeline = make_minimal_timeline();
-        let dimensions = SceneDimensions { width: 800, height: 600 };
+        let dimensions = SceneDimensions {
+            width: 800,
+            height: 600,
+        };
 
         let scene_0 = timeline.evaluate(0.0, dimensions);
         let scene_5 = timeline.evaluate(5.0, dimensions);
@@ -1193,7 +1265,10 @@ mod tests {
     #[test]
     fn evaluate_with_empty_timeline_returns_scene() {
         let timeline = Timeline::new();
-        let dimensions = SceneDimensions { width: 800, height: 600 };
+        let dimensions = SceneDimensions {
+            width: 800,
+            height: 600,
+        };
 
         let scene = timeline.evaluate(0.0, dimensions);
         // Should not panic
@@ -1203,7 +1278,10 @@ mod tests {
     #[test]
     fn frame_cache_caches_identical_evaluations() {
         let timeline = make_minimal_timeline();
-        let dimensions = SceneDimensions { width: 800, height: 600 };
+        let dimensions = SceneDimensions {
+            width: 800,
+            height: 600,
+        };
 
         // First call should compute and cache
         let scene1 = timeline.evaluate(1.0, dimensions);
@@ -1230,7 +1308,10 @@ mod tests {
     #[test]
     fn frame_cache_misses_on_different_time() {
         let timeline = make_minimal_timeline();
-        let dimensions = SceneDimensions { width: 800, height: 600 };
+        let dimensions = SceneDimensions {
+            width: 800,
+            height: 600,
+        };
 
         let _scene1 = timeline.evaluate(0.0, dimensions);
         let _scene2 = timeline.evaluate(2.0, dimensions);
@@ -1245,8 +1326,14 @@ mod tests {
     fn frame_cache_misses_on_different_dimensions() {
         let timeline = make_minimal_timeline();
 
-        let dims_1 = SceneDimensions { width: 800, height: 600 };
-        let dims_2 = SceneDimensions { width: 1920, height: 1080 };
+        let dims_1 = SceneDimensions {
+            width: 800,
+            height: 600,
+        };
+        let dims_2 = SceneDimensions {
+            width: 1920,
+            height: 1080,
+        };
 
         let _scene1 = timeline.evaluate(0.0, dims_1);
 
@@ -1268,7 +1355,10 @@ mod tests {
     #[test]
     fn hit_regions_are_populated_after_evaluate() {
         let timeline = make_minimal_timeline();
-        let dimensions = SceneDimensions { width: 800, height: 600 };
+        let dimensions = SceneDimensions {
+            width: 800,
+            height: 600,
+        };
 
         // hit_regions should be empty before evaluate
         {
@@ -1276,24 +1366,49 @@ mod tests {
             assert!(regions.is_empty(), "hit_regions should be empty before evaluate");
         }
 
-        let _scene = timeline.evaluate_with_debug(0.0, dimensions, DebugRenderOptions { draw_bounds: false, compute_hit_regions: true, ..Default::default() }, &mut None);
+        let _scene = timeline.evaluate_with_debug(
+            0.0,
+            dimensions,
+            DebugRenderOptions {
+                draw_bounds: false,
+                compute_hit_regions: true,
+                ..Default::default()
+            },
+            &mut None,
+        );
 
         // hit_regions should be populated after evaluate
         let regions = timeline.hit_regions.borrow();
         assert!(!regions.is_empty(), "hit_regions should be populated after evaluate");
-        assert!(regions.iter().any(|(label, _)| label == "test_box"),
-            "hit_regions should contain 'test_box'");
+        assert!(
+            regions.iter().any(|(label, _)| label == "test_box"),
+            "hit_regions should contain 'test_box'"
+        );
     }
 
     #[test]
     fn hit_regions_contain_world_bounds() {
         let timeline = make_minimal_timeline();
-        let dimensions = SceneDimensions { width: 800, height: 600 };
+        let dimensions = SceneDimensions {
+            width: 800,
+            height: 600,
+        };
 
-        let _scene = timeline.evaluate_with_debug(0.0, dimensions, DebugRenderOptions { draw_bounds: false, compute_hit_regions: true, ..Default::default() }, &mut None);
+        let _scene = timeline.evaluate_with_debug(
+            0.0,
+            dimensions,
+            DebugRenderOptions {
+                draw_bounds: false,
+                compute_hit_regions: true,
+                ..Default::default()
+            },
+            &mut None,
+        );
 
         let regions = timeline.hit_regions.borrow();
-        let (label, bounds) = regions.iter().find(|(l, _)| l == "test_box")
+        let (label, bounds) = regions
+            .iter()
+            .find(|(l, _)| l == "test_box")
             .expect("should find test_box in hit_regions");
 
         assert_eq!(label, "test_box");
@@ -1305,15 +1420,25 @@ mod tests {
     #[test]
     fn evaluate_with_debug_options_skips_cache() {
         let timeline = make_minimal_timeline();
-        let dimensions = SceneDimensions { width: 800, height: 600 };
-        let debug_opts = DebugRenderOptions { draw_bounds: true, compute_hit_regions: false, ..Default::default() };
+        let dimensions = SceneDimensions {
+            width: 800,
+            height: 600,
+        };
+        let debug_opts = DebugRenderOptions {
+            draw_bounds: true,
+            compute_hit_regions: false,
+            ..Default::default()
+        };
 
         // Evaluate with debug options (should not cache)
         let _scene = timeline.evaluate_with_debug(0.0, dimensions, debug_opts, &mut None);
 
         // Cache should not be populated because debug_options != default
         let cache = timeline.frame_cache.borrow();
-        assert!(cache.is_none(), "frame cache should not be populated with non-default debug options");
+        assert!(
+            cache.is_none(),
+            "frame cache should not be populated with non-default debug options"
+        );
     }
 
     #[test]
@@ -1354,7 +1479,10 @@ mod tests {
 
         timeline.root_nodes.push("mask".to_string());
 
-        let dimensions = SceneDimensions { width: 800, height: 600 };
+        let dimensions = SceneDimensions {
+            width: 800,
+            height: 600,
+        };
         let scene = timeline.evaluate(0.0, dimensions);
 
         // Should not panic; returns a valid scene

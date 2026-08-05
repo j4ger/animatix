@@ -19,12 +19,13 @@
 //! `Accordion` manages a group of `CollapsibleSection` items where only one
 //! is open at a time (mutually exclusive).
 
+use egui::{CornerRadius, Id, Response, Sense, Ui, Vec2};
+
 use crate::tokens::motion::Transition;
 use crate::tokens::spatial::STROKE_WIDTH;
 use crate::tokens::typography::TextRole;
 use crate::widget::anim::animate_bool_eased;
 use crate::widget::traits::Collapsible as CollapsibleTrait;
-use egui::{CornerRadius, Id, Response, Sense, Ui, Vec2};
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -52,7 +53,11 @@ pub struct CollapsibleSection {
 impl CollapsibleSection {
     /// Create a new collapsible section with the given id and header text.
     pub fn new(id: impl Into<Id>, header: impl Into<String>) -> Self {
-        Self { id: id.into(), header: header.into(), default_open: false }
+        Self {
+            id: id.into(),
+            header: header.into(),
+            default_open: false,
+        }
     }
 
     /// Set the initial open state (used when the section is first encountered).
@@ -69,9 +74,7 @@ impl CollapsibleSection {
         let state_id = self.id.with(STATE_KEY);
 
         // Read current state (default_open on first use).
-        let is_open: bool = ui.data(|d| {
-            d.get_temp::<bool>(state_id).unwrap_or(self.default_open)
-        });
+        let is_open: bool = ui.data(|d| d.get_temp::<bool>(state_id).unwrap_or(self.default_open));
 
         // Allocate a clickable header area.
         let header_h = TextRole::Body.size() + s.space_2 * 2.0;
@@ -103,13 +106,20 @@ impl CollapsibleSection {
         );
 
         // Toggle on click.
-        let new_open = if header_response.clicked() { !is_open } else { is_open };
+        let new_open = if header_response.clicked() {
+            !is_open
+        } else {
+            is_open
+        };
         ui.data_mut(|d| {
             d.insert_temp(state_id, new_open);
         });
 
         // Animate progress toward the target.
-        let transition = Transition { duration: COLLAPSE_DURATION, easing: crate::tokens::motion::DECELERATE };
+        let transition = Transition {
+            duration: COLLAPSE_DURATION,
+            easing: crate::tokens::motion::DECELERATE,
+        };
         let ctx = ui.ctx().clone();
         let progress = animate_bool_eased(&ctx, progress_id, new_open, transition);
 
@@ -123,7 +133,10 @@ impl CollapsibleSection {
         // Separator below header.
         let sep_y = header_rect.max.y;
         ui.painter().line_segment(
-            [egui::pos2(header_rect.min.x, sep_y), egui::pos2(header_rect.max.x, sep_y)],
+            [
+                egui::pos2(header_rect.min.x, sep_y),
+                egui::pos2(header_rect.max.x, sep_y),
+            ],
             egui::Stroke::new(STROKE_WIDTH, t.border.default),
         );
 
@@ -167,7 +180,10 @@ impl Accordion {
     ///
     /// `default_open` sets which index starts open (`None` = all collapsed).
     pub fn new(id: impl Into<Id>, default_open: Option<usize>) -> Self {
-        Self { id: id.into(), default_open }
+        Self {
+            id: id.into(),
+            default_open,
+        }
     }
 
     /// Render one section of the accordion.
@@ -190,8 +206,7 @@ impl Accordion {
                 .unwrap_or(index == self.default_open.unwrap_or(0))
         });
 
-        let section = CollapsibleSection::new(section_id, title.as_ref())
-            .default_open(is_open);
+        let section = CollapsibleSection::new(section_id, title.as_ref()).default_open(is_open);
 
         let response = section.show(ui, body_fn);
 

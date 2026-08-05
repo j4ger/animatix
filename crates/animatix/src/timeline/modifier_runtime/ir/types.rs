@@ -1,8 +1,9 @@
+use std::collections::HashMap;
+use std::fmt;
+
 use crate::ast::{BinaryOp, Expr, LoopPattern, UnaryOp};
 use crate::timeline::Value;
 use crate::timeline::animation_track::SceneAnchor;
-use std::collections::HashMap;
-use std::fmt;
 
 /// Built-in mathematical and utility functions available in modifier expressions.
 #[derive(Clone, Debug, PartialEq)]
@@ -170,7 +171,7 @@ impl fmt::Display for IrLowerError {
         match self {
             IrLowerError::UnsupportedStatement(kind) => {
                 write!(f, "Unsupported IR statement: {kind}")
-            }
+            },
         }
     }
 }

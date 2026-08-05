@@ -30,13 +30,13 @@ impl fmt::Display for EvalError {
             EvalError::NotCallable(n) => write!(f, "Not callable: {}", n),
             EvalError::UnsupportedMethod(name) => {
                 write!(f, "Unsupported runtime method call: {}", name)
-            }
+            },
             EvalError::UnsupportedIndex => {
                 write!(f, "Unsupported runtime index expression")
-            }
+            },
             EvalError::UnsupportedConstruct(name) => {
                 write!(f, "Unsupported runtime construct expression: {}", name)
-            }
+            },
         }
     }
 }
@@ -52,12 +52,11 @@ impl std::error::Error for EvalError {}
 /// (stdlib / colorscheme `NativeFn`s, ~90 entries) is intentionally excluded:
 ///
 /// - Built-in math functions (`sin`, `cos`, `abs`, …) are resolved by
-///   `eval_shared::eval_builtin_fn` *before* any environment lookup, so they
-///   are always available inside closures regardless of `base`.
-/// - `NativeFn` values from the base (e.g. colorscheme samplers) are
-///   re-provided at render time through `build_frame_env`; call sites that
-///   invoke closures must propagate `env.base` themselves (see
-///   [`CapturedEnv::merge_into`]).
+///   `eval_shared::eval_builtin_fn` *before* any environment lookup, so they are always available
+///   inside closures regardless of `base`.
+/// - `NativeFn` values from the base (e.g. colorscheme samplers) are re-provided at render time
+///   through `build_frame_env`; call sites that invoke closures must propagate `env.base`
+///   themselves (see [`CapturedEnv::merge_into`]).
 ///
 /// **Guarantee**: every `merge_into` call site passes an [`Environment`]
 /// whose `base` Arc is already set to the timeline stdlib.  Debug assertions
@@ -155,7 +154,7 @@ impl PartialEq for Value {
             (Value::List(a), Value::List(b)) => a == b,
             (Value::Object(name_a, fields_a), Value::Object(name_b, fields_b)) => {
                 name_a == name_b && fields_a == fields_b
-            }
+            },
             // Native functions and closures cannot be compared for equality
             _ => false,
         }
@@ -243,7 +242,7 @@ impl Value {
                 let mut new_fields = fields.clone();
                 new_fields.insert(name.to_string(), value);
                 Value::Object(type_name.clone(), new_fields)
-            }
+            },
             _ => Value::Object(String::new(), {
                 let mut m = std::collections::HashMap::new();
                 m.insert(name.to_string(), value);
@@ -336,9 +335,10 @@ impl Environment {
                 return Some(binding.1.clone());
             }
         }
-        self.overrides.get(name).cloned().or_else(|| {
-            self.base.as_ref().and_then(|b| b.get(name).cloned())
-        })
+        self.overrides
+            .get(name)
+            .cloned()
+            .or_else(|| self.base.as_ref().and_then(|b| b.get(name).cloned()))
     }
 
     /// Look up a variable by name, returning a reference (zero-copy).
@@ -349,9 +349,9 @@ impl Environment {
                 return Some(&binding.1);
             }
         }
-        self.overrides.get(name).or_else(|| {
-            self.base.as_ref().and_then(|b| b.get(name))
-        })
+        self.overrides
+            .get(name)
+            .or_else(|| self.base.as_ref().and_then(|b| b.get(name)))
     }
 
     /// Set a variable binding overlay. Uses the first available slot, or
@@ -363,12 +363,12 @@ impl Environment {
                 Some((existing_name, _)) if existing_name == name => {
                     *slot = Some((name.to_string(), value));
                     return;
-                }
+                },
                 None => {
                     *slot = Some((name.to_string(), value));
                     return;
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
         // Both slots occupied — replace the first one
@@ -397,9 +397,11 @@ impl Environment {
     /// Total number of distinct variables (overrides + base, minus overlap).
     pub fn len(&self) -> usize {
         let base_count = self.base.as_ref().map(|b| b.len()).unwrap_or(0);
-        let overlap = self.base.as_ref().map(|b| {
-            self.overrides.keys().filter(|k| b.contains_key(*k)).count()
-        }).unwrap_or(0);
+        let overlap = self
+            .base
+            .as_ref()
+            .map(|b| self.overrides.keys().filter(|k| b.contains_key(*k)).count())
+            .unwrap_or(0);
         self.overrides.len() + base_count - overlap
     }
 
@@ -424,9 +426,11 @@ impl Environment {
 
 #[cfg(feature = "serde")]
 mod serde_impl {
+    use serde::de::{self, EnumAccess, VariantAccess, Visitor};
+    use serde::ser::SerializeStructVariant;
+    use serde::{Deserializer, Serializer};
+
     use super::*;
-    use serde::{Deserializer, Serializer, ser::SerializeStructVariant,
-                de::{self, Visitor, EnumAccess, VariantAccess}};
 
     /// Wire representation: a plain serializable enum mirroring `Value`.
     /// `NativeFn` round-trips as a unit (error on deserialize).
@@ -450,21 +454,22 @@ mod serde_impl {
     impl From<&Value> for ValueWire {
         fn from(v: &Value) -> Self {
             match v {
-                Value::Num(n)   => ValueWire::Num(*n),
-                Value::Str(s)   => ValueWire::Str(s.clone()),
-                Value::Bool(b)  => ValueWire::Bool(*b),
-                Value::Vec2(v)  => ValueWire::Vec2(*v),
-                Value::Vec3(v)  => ValueWire::Vec3(*v),
-                Value::Vec4(v)  => ValueWire::Vec4(*v),
+                Value::Num(n) => ValueWire::Num(*n),
+                Value::Str(s) => ValueWire::Str(s.clone()),
+                Value::Bool(b) => ValueWire::Bool(*b),
+                Value::Vec2(v) => ValueWire::Vec2(*v),
+                Value::Vec3(v) => ValueWire::Vec3(*v),
+                Value::Vec4(v) => ValueWire::Vec4(*v),
                 Value::Color(c) => ValueWire::Color(*c),
-                Value::List(l)  => ValueWire::List(l.iter().map(ValueWire::from).collect()),
+                Value::List(l) => ValueWire::List(l.iter().map(ValueWire::from).collect()),
                 Value::Object(name, fields) => ValueWire::Object(
                     name.clone(),
                     fields.iter().map(|(k, v)| (k.clone(), ValueWire::from(v))).collect(),
                 ),
                 Value::NativeFn(_) => ValueWire::NativeFn, // stdlib; not captured
-                Value::Closure(args, body, env) =>
-                    ValueWire::Closure(args.clone(), body.clone(), env.clone()),
+                Value::Closure(args, body, env) => {
+                    ValueWire::Closure(args.clone(), body.clone(), env.clone())
+                },
             }
         }
     }
@@ -473,29 +478,29 @@ mod serde_impl {
         type Error = String;
         fn try_from(w: ValueWire) -> Result<Self, String> {
             Ok(match w {
-                ValueWire::Num(n)   => Value::Num(n),
-                ValueWire::Str(s)   => Value::Str(s),
-                ValueWire::Bool(b)  => Value::Bool(b),
-                ValueWire::Vec2(v)  => Value::Vec2(v),
-                ValueWire::Vec3(v)  => Value::Vec3(v),
-                ValueWire::Vec4(v)  => Value::Vec4(v),
+                ValueWire::Num(n) => Value::Num(n),
+                ValueWire::Str(s) => Value::Str(s),
+                ValueWire::Bool(b) => Value::Bool(b),
+                ValueWire::Vec2(v) => Value::Vec2(v),
+                ValueWire::Vec3(v) => Value::Vec3(v),
+                ValueWire::Vec4(v) => Value::Vec4(v),
                 ValueWire::Color(c) => Value::Color(c),
-                ValueWire::List(l)  => Value::List(
-                    l.into_iter().map(Value::try_from)
-                      .collect::<Result<Vec<_>, _>>()?,
-                ),
+                ValueWire::List(l) => {
+                    Value::List(l.into_iter().map(Value::try_from).collect::<Result<Vec<_>, _>>()?)
+                },
                 ValueWire::Object(name, fields) => Value::Object(
                     name,
-                    fields.into_iter()
-                          .map(|(k, v)| Value::try_from(v).map(|v| (k, v)))
-                          .collect::<Result<_, _>>()?,
+                    fields
+                        .into_iter()
+                        .map(|(k, v)| Value::try_from(v).map(|v| (k, v)))
+                        .collect::<Result<_, _>>()?,
                 ),
                 ValueWire::NativeFn => {
                     return Err("NativeFn is not deserializable; \
-                                stdlib functions are re-provided at runtime".into());
-                }
-                ValueWire::Closure(args, body, env) =>
-                    Value::Closure(args, body, env),
+                                stdlib functions are re-provided at runtime"
+                        .into());
+                },
+                ValueWire::Closure(args, body, env) => Value::Closure(args, body, env),
             })
         }
     }

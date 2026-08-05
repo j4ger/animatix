@@ -5,6 +5,9 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
+use animatix::timeline::{SceneDimensions, Timeline};
+use animatix_syntax::diagnostics::Diagnostic;
+use animatix_syntax::to_source::ToSource;
 use egui::{RichText, Vec2};
 
 use crate::app::commands::{
@@ -14,17 +17,12 @@ use crate::app::components::button::Button;
 use crate::app::components::context_menu::{MenuEntry, render_menu};
 use crate::app::components::{anim, layout, row};
 use crate::app::design_tokens::motion;
-use crate::app::design_tokens::semantic::accent;
-use crate::app::design_tokens::semantic::status;
-use crate::app::design_tokens::semantic::text;
+use crate::app::design_tokens::semantic::{accent, status, text};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::icons::actor_icon_str;
 use crate::app::panels::SidebarTab;
 use crate::app::{FileTreeEntry, PreviewPaneState};
 use crate::editor::EditorBuffer;
-use animatix::timeline::{SceneDimensions, Timeline};
-use animatix_syntax::diagnostics::Diagnostic;
-use animatix_syntax::to_source::ToSource;
 
 /// Id used to persist the explorer filter string in egui's data store.
 const EXPLORER_FILTER_ID: &str = "explorer_filter";
@@ -735,9 +733,10 @@ fn render_actor_tree(
     let (is_expanded, should_show) = if has_filter {
         let base_expanded = has_children && !collapsed_actors.contains(label);
         let self_matches = label.to_lowercase().contains(filter_lower);
-        let descendant_matches = track.children.iter().any(|child| {
-            actor_matches_filter(timeline, child, filter_lower)
-        });
+        let descendant_matches = track
+            .children
+            .iter()
+            .any(|child| actor_matches_filter(timeline, child, filter_lower));
         let show = self_matches || descendant_matches;
         let expanded = self_matches || descendant_matches || base_expanded;
         (expanded, show)
@@ -1032,7 +1031,10 @@ fn actor_matches_filter(timeline: &Timeline, label: &str, filter_lower: &str) ->
     if label.to_lowercase().contains(filter_lower) {
         return true;
     }
-    track.children.iter().any(|child| actor_matches_filter(timeline, child, filter_lower))
+    track
+        .children
+        .iter()
+        .any(|child| actor_matches_filter(timeline, child, filter_lower))
 }
 
 // ─── Components Tab ───────────────────────────────────────────────────────

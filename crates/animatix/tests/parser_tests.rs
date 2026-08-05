@@ -1,13 +1,12 @@
 #![allow(clippy::approx_constant)]
 
+use animatix::timeline::eval_shared::eval_builtin_fn;
+use animatix::timeline::{Timeline as AnimatixTimeline, Value};
 use animatix_syntax::ast::{
     Action, ByteSpan, Expr, InlineItem, LoopPattern, MatchPattern, Modifier, Property, Stmt, Time,
     UnaryOp,
 };
-use animatix::timeline::Value;
-use animatix::timeline::eval_shared::eval_builtin_fn;
 use animatix_syntax::parser::parse_source;
-use animatix::timeline::Timeline as AnimatixTimeline;
 
 // Helper function to extract a single statement.
 // Actions, sequences, and staggers at the top level are wrapped in an implicit
@@ -77,7 +76,8 @@ mixed: Row, anchor: scene.bottom, offset: (0, -100), gap: 24, align: "center" {
 fn test_let_decl_types() {
     assert_eq!(
         parse_single_stmt("let a = 42"),
-        Stmt::LetDecl { is_pub: false,
+        Stmt::LetDecl {
+            is_pub: false,
             name: "a".to_string(),
             value: Expr::Num(42.0),
             span: None,
@@ -85,7 +85,8 @@ fn test_let_decl_types() {
     );
     assert_eq!(
         parse_single_stmt("let b = 3.14"),
-        Stmt::LetDecl { is_pub: false,
+        Stmt::LetDecl {
+            is_pub: false,
             name: "b".to_string(),
             value: Expr::Num(3.14),
             span: None,
@@ -93,7 +94,8 @@ fn test_let_decl_types() {
     );
     assert_eq!(
         parse_single_stmt("let c = true"),
-        Stmt::LetDecl { is_pub: false,
+        Stmt::LetDecl {
+            is_pub: false,
             name: "c".to_string(),
             value: Expr::Bool(true),
             span: None,
@@ -101,7 +103,8 @@ fn test_let_decl_types() {
     );
     assert_eq!(
         parse_single_stmt("let d = false"),
-        Stmt::LetDecl { is_pub: false,
+        Stmt::LetDecl {
+            is_pub: false,
             name: "d".to_string(),
             value: Expr::Bool(false),
             span: None,
@@ -109,7 +112,8 @@ fn test_let_decl_types() {
     );
     assert_eq!(
         parse_single_stmt("let e = null"),
-        Stmt::LetDecl { is_pub: false,
+        Stmt::LetDecl {
+            is_pub: false,
             name: "e".to_string(),
             value: Expr::Null,
             span: None,
@@ -117,7 +121,8 @@ fn test_let_decl_types() {
     );
     assert_eq!(
         parse_single_stmt("let f = \"string\""),
-        Stmt::LetDecl { is_pub: false,
+        Stmt::LetDecl {
+            is_pub: false,
             name: "f".to_string(),
             value: Expr::Str("string".to_string()),
             span: None,
@@ -129,7 +134,8 @@ fn test_let_decl_types() {
 fn test_collections() {
     assert_eq!(
         parse_single_stmt("let coords = (10, 20.5)"),
-        Stmt::LetDecl { is_pub: false,
+        Stmt::LetDecl {
+            is_pub: false,
             name: "coords".to_string(),
             value: Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(20.5)]),
             span: None,
@@ -137,18 +143,17 @@ fn test_collections() {
     );
     assert_eq!(
         parse_single_stmt("let arr = {a, b}"),
-        Stmt::LetDecl { is_pub: false,
+        Stmt::LetDecl {
+            is_pub: false,
             name: "arr".to_string(),
-            value: Expr::List(vec![
-                Expr::Ident("a".to_string()),
-                Expr::Ident("b".to_string())
-            ]),
+            value: Expr::List(vec![Expr::Ident("a".to_string()), Expr::Ident("b".to_string())]),
             span: None,
         }
     );
     assert_eq!(
         parse_single_stmt("let pct = (50%, 25%)"),
-        Stmt::LetDecl { is_pub: false,
+        Stmt::LetDecl {
+            is_pub: false,
             name: "pct".to_string(),
             value: Expr::Tuple(vec![Expr::Percent(50.0), Expr::Percent(25.0)]),
             span: None,
@@ -161,7 +166,9 @@ fn test_assignments_and_paths() {
     assert_eq!(
         parse_single_stmt("btn.color = \"red\""),
         Stmt::Assignment {
-            target: vec![animatix_syntax::ast::TargetSegment::Static("btn".to_string())],
+            target: vec![animatix_syntax::ast::TargetSegment::Static(
+                "btn".to_string()
+            )],
             property: "color".to_string(),
             value: Expr::Str("red".to_string()),
             modifiers: vec![],
@@ -173,15 +180,15 @@ fn test_assignments_and_paths() {
     assert_eq!(
         parse_single_stmt("morpher.size = (100, 100) [2s, ease: ease-out]"),
         Stmt::Assignment {
-            target: vec![animatix_syntax::ast::TargetSegment::Static("morpher".to_string())],
+            target: vec![animatix_syntax::ast::TargetSegment::Static(
+                "morpher".to_string()
+            )],
             property: "size".to_string(),
             value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
-            modifiers: vec![
-                Modifier {
-                    name: None,
-                    value: Expr::Ident("2s".to_string()),
-                },
-            ],
+            modifiers: vec![Modifier {
+                name: None,
+                value: Expr::Ident("2s".to_string()),
+            },],
             easing: Some(animatix_syntax::easing::Easing::EaseOut),
             value_span: Some(ByteSpan { start: 15, end: 26 }),
             span: None,
@@ -192,7 +199,9 @@ fn test_assignments_and_paths() {
     assert_eq!(
         parse_single_stmt("btn.at = (100, 100) [ease: linear]"),
         Stmt::Assignment {
-            target: vec![animatix_syntax::ast::TargetSegment::Static("btn".to_string())],
+            target: vec![animatix_syntax::ast::TargetSegment::Static(
+                "btn".to_string()
+            )],
             property: "at".to_string(),
             value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
             modifiers: vec![],
@@ -205,7 +214,9 @@ fn test_assignments_and_paths() {
     assert_eq!(
         parse_single_stmt("btn.opacity = 0.5 [ease: bounce]"),
         Stmt::Assignment {
-            target: vec![animatix_syntax::ast::TargetSegment::Static("btn".to_string())],
+            target: vec![animatix_syntax::ast::TargetSegment::Static(
+                "btn".to_string()
+            )],
             property: "opacity".to_string(),
             value: Expr::Num(0.5),
             modifiers: vec![],
@@ -218,7 +229,10 @@ fn test_assignments_and_paths() {
     assert_eq!(
         parse_single_stmt("left.badge.color = red"),
         Stmt::Assignment {
-            target: vec![animatix_syntax::ast::TargetSegment::Static("left".to_string()), animatix_syntax::ast::TargetSegment::Static("badge".to_string())],
+            target: vec![
+                animatix_syntax::ast::TargetSegment::Static("left".to_string()),
+                animatix_syntax::ast::TargetSegment::Static("badge".to_string())
+            ],
             property: "color".to_string(),
             value: Expr::Ident("red".to_string()),
             modifiers: vec![],
@@ -229,7 +243,8 @@ fn test_assignments_and_paths() {
     );
     assert_eq!(
         parse_single_stmt("let x = container.child"),
-        Stmt::LetDecl { is_pub: false,
+        Stmt::LetDecl {
+            is_pub: false,
             name: "x".to_string(),
             value: Expr::Path(vec!["container".to_string(), "child".to_string()]),
             span: None,
@@ -237,19 +252,17 @@ fn test_assignments_and_paths() {
     );
     assert_eq!(
         parse_single_stmt("let fill = left.badge.color"),
-        Stmt::LetDecl { is_pub: false,
+        Stmt::LetDecl {
+            is_pub: false,
             name: "fill".to_string(),
-            value: Expr::Path(vec![
-                "left".to_string(),
-                "badge".to_string(),
-                "color".to_string()
-            ]),
+            value: Expr::Path(vec!["left".to_string(), "badge".to_string(), "color".to_string()]),
             span: None,
         }
     );
     assert_eq!(
         parse_single_stmt("let center = scene.center"),
-        Stmt::LetDecl { is_pub: false,
+        Stmt::LetDecl {
+            is_pub: false,
             name: "center".to_string(),
             value: Expr::Path(vec!["scene".to_string(), "center".to_string()]),
             span: None,
@@ -265,18 +278,23 @@ fn test_sequence_parse() {
         ),
         Stmt::Sequence {
             body: vec![
-                Stmt::Action(Action {
-                    verb: "fade-in".to_string(),
-                    targets: vec!["badge".to_string()],
-                    args: vec![],
-                    modifiers: vec![Modifier {
-                        name: None,
-                        value: Expr::Ident("500ms".to_string()),
-                    }],
-                    byte_span: Some(ByteSpan { start: 11, end: 33 }),
-                }, None),
+                Stmt::Action(
+                    Action {
+                        verb: "fade-in".to_string(),
+                        targets: vec!["badge".to_string()],
+                        args: vec![],
+                        modifiers: vec![Modifier {
+                            name: None,
+                            value: Expr::Ident("500ms".to_string()),
+                        }],
+                        byte_span: Some(ByteSpan { start: 11, end: 33 }),
+                    },
+                    None
+                ),
                 Stmt::Assignment {
-                    target: vec![animatix_syntax::ast::TargetSegment::Static("badge".to_string())],
+                    target: vec![animatix_syntax::ast::TargetSegment::Static(
+                        "badge".to_string()
+                    )],
                     property: "color".to_string(),
                     value: Expr::Ident("red".to_string()),
                     modifiers: vec![
@@ -291,7 +309,7 @@ fn test_sequence_parse() {
                     ],
                     easing: None,
                     value_span: Some(ByteSpan { start: 47, end: 51 }),
-            span: None,
+                    span: None,
                 },
             ],
             span: None,
@@ -309,18 +327,23 @@ fn test_stagger_parse() {
                 value: Expr::Ident("150ms".to_string()),
             }],
             body: vec![
-                Stmt::Action(Action {
-                    verb: "fade-in".to_string(),
-                    targets: vec!["first".to_string()],
-                    args: vec![],
-                    modifiers: vec![Modifier {
-                        name: None,
-                        value: Expr::Ident("200ms".to_string()),
-                    }],
-                    byte_span: Some(ByteSpan { start: 18, end: 40 }),
-                }, None),
+                Stmt::Action(
+                    Action {
+                        verb: "fade-in".to_string(),
+                        targets: vec!["first".to_string()],
+                        args: vec![],
+                        modifiers: vec![Modifier {
+                            name: None,
+                            value: Expr::Ident("200ms".to_string()),
+                        }],
+                        byte_span: Some(ByteSpan { start: 18, end: 40 }),
+                    },
+                    None
+                ),
                 Stmt::Assignment {
-                    target: vec![animatix_syntax::ast::TargetSegment::Static("second".to_string())],
+                    target: vec![animatix_syntax::ast::TargetSegment::Static(
+                        "second".to_string()
+                    )],
                     property: "color".to_string(),
                     value: Expr::Ident("red".to_string()),
                     modifiers: vec![Modifier {
@@ -329,7 +352,7 @@ fn test_stagger_parse() {
                     }],
                     easing: None,
                     value_span: Some(ByteSpan { start: 55, end: 59 }),
-            span: None,
+                    span: None,
                 },
             ],
             span: None,
@@ -346,16 +369,19 @@ fn test_stagger_each_parse() {
                 name: Some("each".to_string()),
                 value: Expr::Ident("150ms".to_string()),
             }],
-            body: vec![Stmt::Action(Action {
-                verb: "fade-in".to_string(),
-                targets: vec!["first".to_string()],
-                args: vec![],
-                modifiers: vec![Modifier {
-                    name: None,
-                    value: Expr::Ident("200ms".to_string()),
-                }],
-                byte_span: Some(ByteSpan { start: 24, end: 46 }),
-            }, None)],
+            body: vec![Stmt::Action(
+                Action {
+                    verb: "fade-in".to_string(),
+                    targets: vec!["first".to_string()],
+                    args: vec![],
+                    modifiers: vec![Modifier {
+                        name: None,
+                        value: Expr::Ident("200ms".to_string()),
+                    }],
+                    byte_span: Some(ByteSpan { start: 24, end: 46 }),
+                },
+                None
+            )],
             span: None,
         }
     );
@@ -376,13 +402,13 @@ fn test_actor_decl_full() {
                     name: "radius".to_string(),
                     value: Expr::Num(50.0),
                     value_span: Some(ByteSpan { start: 25, end: 27 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
                 Property {
                     name: "color".to_string(),
                     value: Expr::Ident("blue".to_string()),
                     value_span: Some(ByteSpan { start: 36, end: 41 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 }
             ],
             modifiers: vec![
@@ -410,7 +436,7 @@ fn test_config_parse() {
                 name: "colorscheme".to_string(),
                 value: Expr::Str("editorial-dark".to_string()),
                 value_span: Some(ByteSpan { start: 22, end: 39 }),
-            trailing_comment: None,
+                trailing_comment: None,
             }],
             span: None,
         }
@@ -440,13 +466,13 @@ fn test_actor_decl_colorscheme_alias_parse() {
                     name: "color".to_string(),
                     value: Expr::Ident("auto".to_string()),
                     value_span: Some(ByteSpan { start: 23, end: 27 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
                 Property {
                     name: "stroke".to_string(),
                     value: Expr::Path(vec!["stroke".to_string(), "default".to_string()]),
                     value_span: Some(ByteSpan { start: 37, end: 51 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
             ],
             modifiers: vec![],
@@ -471,13 +497,13 @@ fn test_text_colorscheme_alias_parse() {
                     name: "text".to_string(),
                     value: Expr::Str("Animatix".to_string()),
                     value_span: Some(ByteSpan { start: 19, end: 29 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
                 Property {
                     name: "color".to_string(),
                     value: Expr::Path(vec!["text".to_string(), "primary".to_string()]),
                     value_span: Some(ByteSpan { start: 38, end: 50 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
             ],
             modifiers: vec![],
@@ -501,7 +527,7 @@ fn test_modifier_delay_and_duplicates_parse() {
                 name: "radius".to_string(),
                 value: Expr::Num(20.0),
                 value_span: Some(ByteSpan { start: 24, end: 27 }),
-            trailing_comment: None,
+                trailing_comment: None,
             }],
             modifiers: vec![
                 Modifier {
@@ -525,7 +551,9 @@ fn test_modifier_delay_and_duplicates_parse() {
     assert_eq!(
         parse_single_stmt("badge.radius = 40 [delay: 1s, 500ms]"),
         Stmt::Assignment {
-            target: vec![animatix_syntax::ast::TargetSegment::Static("badge".to_string())],
+            target: vec![animatix_syntax::ast::TargetSegment::Static(
+                "badge".to_string()
+            )],
             property: "radius".to_string(),
             value: Expr::Num(40.0),
             modifiers: vec![
@@ -537,7 +565,7 @@ fn test_modifier_delay_and_duplicates_parse() {
                     name: None,
                     value: Expr::Ident("500ms".to_string()),
                 },
-],
+            ],
             easing: None,
             value_span: Some(ByteSpan { start: 15, end: 18 }),
             span: None,
@@ -546,7 +574,10 @@ fn test_modifier_delay_and_duplicates_parse() {
     assert_eq!(
         parse_single_stmt("left.badge.color = red"),
         Stmt::Assignment {
-            target: vec![animatix_syntax::ast::TargetSegment::Static("left".to_string()), animatix_syntax::ast::TargetSegment::Static("badge".to_string())],
+            target: vec![
+                animatix_syntax::ast::TargetSegment::Static("left".to_string()),
+                animatix_syntax::ast::TargetSegment::Static("badge".to_string())
+            ],
             property: "color".to_string(),
             value: Expr::Ident("red".to_string()),
             modifiers: vec![],
@@ -568,7 +599,7 @@ fn test_modifier_delay_and_duplicates_parse() {
                 name: "title".to_string(),
                 value: Expr::Str("Latency".to_string()),
                 value_span: Some(ByteSpan { start: 25, end: 34 }),
-            trailing_comment: None,
+                trailing_comment: None,
             }],
             modifiers: vec![],
             children: vec![],
@@ -592,13 +623,13 @@ fn test_code_stmt_parse() {
                     name: "code".to_string(),
                     value: Expr::Str("fn main() {}".to_string()),
                     value_span: Some(ByteSpan { start: 21, end: 35 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
                 Property {
                     name: "font_size".to_string(),
                     value: Expr::Num(18.0),
                     value_span: Some(ByteSpan { start: 48, end: 50 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
             ],
             modifiers: vec![],
@@ -729,7 +760,10 @@ fn test_image_stmt_preserves_anchor_and_offset() {
                 Property {
                     name: "size".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(240.0), Expr::Num(180.0)]),
-                    value_span: Some(ByteSpan { start: 90, end: 101 }),
+                    value_span: Some(ByteSpan {
+                        start: 90,
+                        end: 101
+                    }),
                     trailing_comment: None,
                 },
             ],
@@ -758,25 +792,25 @@ fn test_line_actor_decl() {
                         Expr::Num(0.0),
                     ]),
                     value_span: Some(ByteSpan { start: 18, end: 26 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
                 Property {
                     name: "to".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(0.0)]),
                     value_span: Some(ByteSpan { start: 32, end: 39 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
                 Property {
                     name: "stroke".to_string(),
                     value: Expr::Ident("blue".to_string()),
                     value_span: Some(ByteSpan { start: 49, end: 53 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
                 Property {
                     name: "stroke_width".to_string(),
                     value: Expr::Num(3.0),
                     value_span: Some(ByteSpan { start: 69, end: 70 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 }
             ],
             modifiers: vec![],
@@ -801,19 +835,19 @@ fn test_ellipse_actor_decl() {
                     name: "radius_x".to_string(),
                     value: Expr::Num(80.0),
                     value_span: Some(ByteSpan { start: 25, end: 27 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
                 Property {
                     name: "radius_y".to_string(),
                     value: Expr::Num(30.0),
                     value_span: Some(ByteSpan { start: 39, end: 41 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
                 Property {
                     name: "color".to_string(),
                     value: Expr::Ident("green".to_string()),
                     value_span: Some(ByteSpan { start: 50, end: 55 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 }
             ],
             modifiers: vec![],
@@ -840,31 +874,31 @@ fn test_arc_actor_decl() {
                     name: "radius_x".to_string(),
                     value: Expr::Num(80.0),
                     value_span: Some(ByteSpan { start: 25, end: 27 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
                 Property {
                     name: "radius_y".to_string(),
                     value: Expr::Num(50.0),
                     value_span: Some(ByteSpan { start: 39, end: 41 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
                 Property {
                     name: "start_angle".to_string(),
                     value: Expr::Num(0.0),
                     value_span: Some(ByteSpan { start: 56, end: 57 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
                 Property {
                     name: "sweep_angle".to_string(),
                     value: Expr::Num(3.14),
                     value_span: Some(ByteSpan { start: 72, end: 76 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
                 Property {
                     name: "stroke".to_string(),
                     value: Expr::Ident("gold".to_string()),
                     value_span: Some(ByteSpan { start: 86, end: 90 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 }
             ],
             modifiers: vec![],
@@ -902,13 +936,13 @@ fn test_polygon_actor_decl() {
                         Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(80.0)]),
                     ]),
                     value_span: Some(ByteSpan { start: 24, end: 62 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 },
                 Property {
                     name: "color".to_string(),
                     value: Expr::Ident("cyan".to_string()),
                     value_span: Some(ByteSpan { start: 71, end: 75 }),
-                trailing_comment: None,
+                    trailing_comment: None,
                 }
             ],
             modifiers: vec![],
@@ -961,14 +995,20 @@ fn test_path_actor_decl() {
                         ),
                         Expr::Call("close".to_string(), vec![]),
                     ]),
-                    value_span: Some(ByteSpan { start: 23, end: 107 }),
-                trailing_comment: None,
+                    value_span: Some(ByteSpan {
+                        start: 23,
+                        end: 107
+                    }),
+                    trailing_comment: None,
                 },
                 Property {
                     name: "stroke".to_string(),
                     value: Expr::Ident("white".to_string()),
-                    value_span: Some(ByteSpan { start: 117, end: 122 }),
-                trailing_comment: None,
+                    value_span: Some(ByteSpan {
+                        start: 117,
+                        end: 122
+                    }),
+                    trailing_comment: None,
                 }
             ],
             modifiers: vec![],
@@ -999,7 +1039,7 @@ fn test_actor_decl_nested() {
                         name: "size".to_string(),
                         value: Expr::Num(10.0),
                         value_span: Some(ByteSpan { start: 33, end: 35 }),
-                    trailing_comment: None,
+                        trailing_comment: None,
                     }],
                     modifiers: vec![],
                     children: vec![]
@@ -1012,7 +1052,7 @@ fn test_actor_decl_nested() {
                         name: "size".to_string(),
                         value: Expr::Num(20.0),
                         value_span: Some(ByteSpan { start: 52, end: 55 }),
-                    trailing_comment: None,
+                        trailing_comment: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -1042,7 +1082,7 @@ fn test_actor_decl_anonymous() {
                         name: "size".to_string(),
                         value: Expr::Num(10.0),
                         value_span: Some(ByteSpan { start: 30, end: 32 }),
-                    trailing_comment: None,
+                        trailing_comment: None,
                     }],
                     modifiers: vec![],
                     children: vec![]
@@ -1053,7 +1093,7 @@ fn test_actor_decl_anonymous() {
                         name: "size".to_string(),
                         value: Expr::Num(20.0),
                         value_span: Some(ByteSpan { start: 46, end: 49 }),
-                    trailing_comment: None,
+                        trailing_comment: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -1083,24 +1123,24 @@ fn test_actor_decl_nested_with_children() {
             children: vec![
                 animatix_syntax::ast::InlineItem::Labeled {
                     label: "a".to_string(),
-            array_index: None,
+                    array_index: None,
                     ty: "Ellipse".to_string(),
                     props: vec![Property {
                         name: "size".to_string(),
                         value: Expr::Num(10.0),
                         value_span: Some(ByteSpan { start: 33, end: 36 }),
-                    trailing_comment: None,
+                        trailing_comment: None,
                     }],
                     modifiers: vec![],
                     children: vec![animatix_syntax::ast::InlineItem::Labeled {
                         label: "child".to_string(),
-            array_index: None,
+                        array_index: None,
                         ty: "Text".to_string(),
                         props: vec![Property {
                             name: "text".to_string(),
                             value: Expr::Str("hi".to_string()),
                             value_span: Some(ByteSpan { start: 57, end: 62 }),
-                        trailing_comment: None,
+                            trailing_comment: None,
                         }],
                         modifiers: vec![],
                         children: vec![],
@@ -1114,7 +1154,7 @@ fn test_actor_decl_nested_with_children() {
                         name: "size".to_string(),
                         value: Expr::Num(20.0),
                         value_span: Some(ByteSpan { start: 80, end: 83 }),
-                    trailing_comment: None,
+                        trailing_comment: None,
                     }],
                     modifiers: vec![],
                     children: vec![],
@@ -1135,16 +1175,19 @@ fn test_demo_layout_parse() {
 fn test_action() {
     assert_eq!(
         parse_single_stmt("fade-out ball [1s]"),
-        Stmt::Action(Action {
-            verb: "fade-out".to_string(),
-            targets: vec!["ball".to_string()],
-            args: vec![],
-            modifiers: vec![Modifier {
-                name: None,
-                value: Expr::Ident("1s".to_string())
-            }],
-            byte_span: Some(ByteSpan { start: 0, end: 18 }),
-        }, None)
+        Stmt::Action(
+            Action {
+                verb: "fade-out".to_string(),
+                targets: vec!["ball".to_string()],
+                args: vec![],
+                modifiers: vec![Modifier {
+                    name: None,
+                    value: Expr::Ident("1s".to_string())
+                }],
+                byte_span: Some(ByteSpan { start: 0, end: 18 }),
+            },
+            None
+        )
     );
 }
 
@@ -1247,7 +1290,8 @@ fn test_lifecycle_hook_syntax_rejected() {
 fn test_on_is_not_reserved_identifier() {
     assert_eq!(
         parse_single_stmt("let on = 1"),
-        Stmt::LetDecl { is_pub: false,
+        Stmt::LetDecl {
+            is_pub: false,
             name: "on".to_string(),
             value: Expr::Num(1.0),
             span: None,
@@ -1261,10 +1305,11 @@ fn test_always() {
     assert_eq!(
         result,
         Stmt::Always {
-            body: vec![Stmt::LetDecl { is_pub: false,
+            body: vec![Stmt::LetDecl {
+                is_pub: false,
                 name: "x".to_string(),
                 value: Expr::Path(vec!["btn".to_string(), "x".to_string()]),
-            span: None,
+                span: None,
             }],
             span: None,
         }
@@ -1276,7 +1321,9 @@ fn test_expression_conditional() {
     assert_eq!(
         parse_single_stmt("pulse.size = if active { (120, 120) } else { (180, 180) }"),
         Stmt::Assignment {
-            target: vec![animatix_syntax::ast::TargetSegment::Static("pulse".to_string())],
+            target: vec![animatix_syntax::ast::TargetSegment::Static(
+                "pulse".to_string()
+            )],
             property: "size".to_string(),
             value: Expr::Conditional(
                 Box::new(Expr::Ident("active".to_string())),
@@ -1308,13 +1355,16 @@ fn test_conditional() {
         result,
         Stmt::Conditional {
             condition: Expr::Ident("active".to_string()),
-            then_branch: vec![Stmt::Action(Action {
-                verb: "appear".to_string(),
-                targets: vec!["btn".to_string()],
-                args: vec![],
-                modifiers: vec![],
-                byte_span: Some(ByteSpan { start: 12, end: 23 }),
-            }, None)],
+            then_branch: vec![Stmt::Action(
+                Action {
+                    verb: "appear".to_string(),
+                    targets: vec!["btn".to_string()],
+                    args: vec![],
+                    modifiers: vec![],
+                    byte_span: Some(ByteSpan { start: 12, end: 23 }),
+                },
+                None
+            )],
             else_branch: None,
             span: None,
         }
@@ -1328,20 +1378,26 @@ fn test_conditional_with_else() {
         result,
         Stmt::Conditional {
             condition: Expr::Ident("active".to_string()),
-            then_branch: vec![Stmt::Action(Action {
-                verb: "fade-in".to_string(),
-                targets: vec!["btn".to_string()],
-                args: vec![],
-                modifiers: vec![],
-                byte_span: Some(ByteSpan { start: 12, end: 24 }),
-            }, None)],
-            else_branch: Some(vec![Stmt::Action(Action {
-                verb: "fade-out".to_string(),
-                targets: vec!["btn".to_string()],
-                args: vec![],
-                modifiers: vec![],
-                byte_span: Some(ByteSpan { start: 33, end: 46 }),
-            }, None)]),
+            then_branch: vec![Stmt::Action(
+                Action {
+                    verb: "fade-in".to_string(),
+                    targets: vec!["btn".to_string()],
+                    args: vec![],
+                    modifiers: vec![],
+                    byte_span: Some(ByteSpan { start: 12, end: 24 }),
+                },
+                None
+            )],
+            else_branch: Some(vec![Stmt::Action(
+                Action {
+                    verb: "fade-out".to_string(),
+                    targets: vec!["btn".to_string()],
+                    args: vec![],
+                    modifiers: vec![],
+                    byte_span: Some(ByteSpan { start: 33, end: 46 }),
+                },
+                None
+            )]),
             span: None,
         }
     );
@@ -1356,13 +1412,16 @@ fn test_for_loop() {
             var: LoopPattern::Single("item".to_string()),
             index_var: None,
             iterable: Expr::Ident("buttons".to_string()),
-            body: vec![Stmt::Action(Action {
-                verb: "appear".to_string(),
-                targets: vec!["item".to_string()],
-                args: vec![],
-                modifiers: vec![],
-                byte_span: Some(ByteSpan { start: 22, end: 34 }),
-            }, None)],
+            body: vec![Stmt::Action(
+                Action {
+                    verb: "appear".to_string(),
+                    targets: vec!["item".to_string()],
+                    args: vec![],
+                    modifiers: vec![],
+                    byte_span: Some(ByteSpan { start: 22, end: 34 }),
+                },
+                None
+            )],
             span: None,
         }
     );
@@ -1377,16 +1436,19 @@ fn test_for_loop_with_range() {
             var: LoopPattern::Single("i".to_string()),
             index_var: None,
             iterable: Expr::List(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0),]),
-            body: vec![Stmt::Action(Action {
-                verb: "scale".to_string(),
-                targets: vec!["btn".to_string()],
-                args: vec![],
-                modifiers: vec![Modifier {
-                    name: None,
-                    value: Expr::Ident("0.1s".to_string()),
-                }],
-                byte_span: Some(ByteSpan { start: 21, end: 38 }),
-            }, None)],
+            body: vec![Stmt::Action(
+                Action {
+                    verb: "scale".to_string(),
+                    targets: vec!["btn".to_string()],
+                    args: vec![],
+                    modifiers: vec![Modifier {
+                        name: None,
+                        value: Expr::Ident("0.1s".to_string()),
+                    }],
+                    byte_span: Some(ByteSpan { start: 21, end: 38 }),
+                },
+                None
+            )],
             span: None,
         }
     );
@@ -1401,13 +1463,16 @@ fn test_for_loop_tuple_destructuring_basic() {
             var: LoopPattern::Tuple(vec!["x".to_string(), "y".to_string()]),
             index_var: None,
             iterable: Expr::Ident("points".to_string()),
-            body: vec![Stmt::Action(Action {
-                verb: "appear".to_string(),
-                targets: vec!["dot".to_string()],
-                args: vec![],
-                modifiers: vec![],
-                byte_span: Some(ByteSpan { start: 23, end: 34 }),
-            }, None)],
+            body: vec![Stmt::Action(
+                Action {
+                    verb: "appear".to_string(),
+                    targets: vec!["dot".to_string()],
+                    args: vec![],
+                    modifiers: vec![],
+                    byte_span: Some(ByteSpan { start: 23, end: 34 }),
+                },
+                None
+            )],
             span: None,
         }
     );
@@ -1419,20 +1484,19 @@ fn test_for_loop_tuple_three_elements() {
     assert_eq!(
         result,
         Stmt::ForLoop {
-            var: LoopPattern::Tuple(vec![
-                "r".to_string(),
-                "g".to_string(),
-                "b".to_string()
-            ]),
+            var: LoopPattern::Tuple(vec!["r".to_string(), "g".to_string(), "b".to_string()]),
             index_var: None,
             iterable: Expr::Ident("colors".to_string()),
-            body: vec![Stmt::Action(Action {
-                verb: "fade-out".to_string(),
-                targets: vec!["fade".to_string()],
-                args: vec![],
-                modifiers: vec![],
-                byte_span: Some(ByteSpan { start: 26, end: 40 }),
-            }, None)],
+            body: vec![Stmt::Action(
+                Action {
+                    verb: "fade-out".to_string(),
+                    targets: vec!["fade".to_string()],
+                    args: vec![],
+                    modifiers: vec![],
+                    byte_span: Some(ByteSpan { start: 26, end: 40 }),
+                },
+                None
+            )],
             span: None,
         }
     );
@@ -1447,13 +1511,16 @@ fn test_for_loop_tuple_with_index() {
             var: LoopPattern::Tuple(vec!["a".to_string(), "b".to_string()]),
             index_var: Some("i".to_string()),
             iterable: Expr::Ident("items".to_string()),
-            body: vec![Stmt::Action(Action {
-                verb: "appear".to_string(),
-                targets: vec!["dot".to_string()],
-                args: vec![],
-                modifiers: vec![],
-                byte_span: Some(ByteSpan { start: 25, end: 36 }),
-            }, None)],
+            body: vec![Stmt::Action(
+                Action {
+                    verb: "appear".to_string(),
+                    targets: vec!["dot".to_string()],
+                    args: vec![],
+                    modifiers: vec![],
+                    byte_span: Some(ByteSpan { start: 25, end: 36 }),
+                },
+                None
+            )],
             span: None,
         }
     );
@@ -1461,29 +1528,40 @@ fn test_for_loop_tuple_with_index() {
 
 #[test]
 fn test_for_loop_tuple_destructuring_in_inline() {
-    let result = parse_single_stmt(
-        "group: Group { for (x, y) in pts { dot: Rect, at: (x, y) } }"
-    );
-    if let Stmt::ActorDecl { label, ty, children, .. } = result {
+    let result = parse_single_stmt("group: Group { for (x, y) in pts { dot: Rect, at: (x, y) } }");
+    if let Stmt::ActorDecl {
+        label,
+        ty,
+        children,
+        ..
+    } = result
+    {
         assert_eq!(label, "group");
         assert_eq!(ty, "Group");
         assert_eq!(children.len(), 1);
         match &children[0] {
-            InlineItem::ForLoop { var, index_var, iterable, body } => {
+            InlineItem::ForLoop {
+                var,
+                index_var,
+                iterable,
+                body,
+            } => {
                 assert_eq!(var, &LoopPattern::Tuple(vec!["x".to_string(), "y".to_string()]));
                 assert_eq!(index_var, &None);
                 assert_eq!(iterable, &Expr::Ident("pts".to_string()));
                 assert_eq!(body.len(), 1);
                 match &body[0] {
-                    InlineItem::Labeled { label, ty, props, .. } => {
+                    InlineItem::Labeled {
+                        label, ty, props, ..
+                    } => {
                         assert_eq!(label, "dot");
                         assert_eq!(ty, "Rect");
                         assert_eq!(props.len(), 1);
                         assert_eq!(props[0].name, "at");
-                    }
+                    },
                     other => panic!("Expected Labeled inline item, got {:?}", other),
                 }
-            }
+            },
             other => panic!("Expected InlineItem::ForLoop, got {:?}", other),
         }
     } else {
@@ -1493,20 +1571,30 @@ fn test_for_loop_tuple_destructuring_in_inline() {
 
 #[test]
 fn test_for_loop_tuple_inline_with_index() {
-    let result = parse_single_stmt(
-        "group: Group { for (x, y), i in pts { dot[i]: Rect, at: (x, y) } }"
-    );
-    if let Stmt::ActorDecl { label, ty, children, .. } = result {
+    let result =
+        parse_single_stmt("group: Group { for (x, y), i in pts { dot[i]: Rect, at: (x, y) } }");
+    if let Stmt::ActorDecl {
+        label,
+        ty,
+        children,
+        ..
+    } = result
+    {
         assert_eq!(label, "group");
         assert_eq!(ty, "Group");
         assert_eq!(children.len(), 1);
         match &children[0] {
-            InlineItem::ForLoop { var, index_var, iterable, body } => {
+            InlineItem::ForLoop {
+                var,
+                index_var,
+                iterable,
+                body,
+            } => {
                 assert_eq!(var, &LoopPattern::Tuple(vec!["x".to_string(), "y".to_string()]));
                 assert_eq!(index_var, &Some("i".to_string()));
                 assert_eq!(iterable, &Expr::Ident("pts".to_string()));
                 assert_eq!(body.len(), 1);
-            }
+            },
             other => panic!("Expected InlineItem::ForLoop, got {:?}", other),
         }
     } else {
@@ -1560,7 +1648,13 @@ fn test_slot_marker_in_container() {
   @slot
 }"#;
     let stmt = parse_single_stmt(src);
-    if let Stmt::ActorDecl { label, ty, children, .. } = stmt {
+    if let Stmt::ActorDecl {
+        label,
+        ty,
+        children,
+        ..
+    } = stmt
+    {
         assert_eq!(label, "header");
         assert_eq!(ty, "Col");
         assert_eq!(children.len(), 1);
@@ -1577,7 +1671,13 @@ fn test_slot_marker_with_defaults_in_container() {
   Text, text: "Default"
 }"#;
     let stmt = parse_single_stmt(src);
-    if let Stmt::ActorDecl { label, ty, children, .. } = stmt {
+    if let Stmt::ActorDecl {
+        label,
+        ty,
+        children,
+        ..
+    } = stmt
+    {
         assert_eq!(label, "footer");
         assert_eq!(ty, "Col");
         assert_eq!(children.len(), 2);
@@ -1586,7 +1686,7 @@ fn test_slot_marker_with_defaults_in_container() {
             InlineItem::Anonymous { ty, props, .. } => {
                 assert_eq!(ty, "Text");
                 assert!(!props.is_empty());
-            }
+            },
             _ => panic!("Expected Anonymous item, got {:?}", children[1]),
         }
     } else {
@@ -1605,7 +1705,13 @@ fn test_slot_fill_parsing() {
   }
 }"#;
     let stmt = parse_single_stmt(src);
-    if let Stmt::ActorDecl { label, ty, children, .. } = stmt {
+    if let Stmt::ActorDecl {
+        label,
+        ty,
+        children,
+        ..
+    } = stmt
+    {
         assert_eq!(label, "slide");
         assert_eq!(ty, "SlideLayout");
         assert_eq!(children.len(), 2);
@@ -1618,10 +1724,10 @@ fn test_slot_fill_parsing() {
                     InlineItem::Labeled { label, ty, .. } => {
                         assert_eq!(label, "title");
                         assert_eq!(ty, "Text");
-                    }
+                    },
                     _ => panic!("Expected Labeled item in slot fill"),
                 }
-            }
+            },
             _ => panic!("Expected SlotFill, got {:?}", children[0]),
         }
 
@@ -1629,7 +1735,7 @@ fn test_slot_fill_parsing() {
             InlineItem::SlotFill { slot, items } => {
                 assert_eq!(slot, "body");
                 assert_eq!(items.len(), 1);
-            }
+            },
             _ => panic!("Expected SlotFill, got {:?}", children[1]),
         }
     } else {
@@ -1652,7 +1758,7 @@ fn test_mixed_slot_fill_parsing() {
             InlineItem::SlotFill { slot, items } => {
                 assert_eq!(slot, "slot");
                 assert_eq!(items.len(), 1);
-            }
+            },
             _ => panic!("Expected SlotFill"),
         }
     } else {
@@ -1667,7 +1773,13 @@ fn test_empty_slot_fill() {
   @slot { }
 }"#;
     let stmt = parse_single_stmt(src);
-    if let Stmt::ActorDecl { label, ty, children, .. } = stmt {
+    if let Stmt::ActorDecl {
+        label,
+        ty,
+        children,
+        ..
+    } = stmt
+    {
         assert_eq!(label, "modal");
         assert_eq!(ty, "Dialog");
         assert_eq!(children.len(), 1);
@@ -1675,7 +1787,7 @@ fn test_empty_slot_fill() {
             InlineItem::SlotFill { slot, items } => {
                 assert_eq!(slot, "slot");
                 assert!(items.is_empty());
-            }
+            },
             _ => panic!("Expected SlotFill"),
         }
     } else {
@@ -1693,7 +1805,13 @@ fn test_slot_fill_with_multiple_items() {
   }
 }"#;
     let stmt = parse_single_stmt(src);
-    if let Stmt::ActorDecl { label, ty, children, .. } = stmt {
+    if let Stmt::ActorDecl {
+        label,
+        ty,
+        children,
+        ..
+    } = stmt
+    {
         assert_eq!(label, "header");
         assert_eq!(ty, "Header");
         assert_eq!(children.len(), 1);
@@ -1701,7 +1819,7 @@ fn test_slot_fill_with_multiple_items() {
             InlineItem::SlotFill { slot, items } => {
                 assert_eq!(slot, "title");
                 assert_eq!(items.len(), 2);
-            }
+            },
             _ => panic!("Expected SlotFill"),
         }
     } else {
@@ -1716,7 +1834,13 @@ fn test_slot_marker_as_only_child() {
   @slot
 }"#;
     let stmt = parse_single_stmt(src);
-    if let Stmt::ActorDecl { label, ty, children, .. } = stmt {
+    if let Stmt::ActorDecl {
+        label,
+        ty,
+        children,
+        ..
+    } = stmt
+    {
         assert_eq!(label, "sidebar");
         assert_eq!(ty, "Sidebar");
         assert_eq!(children.len(), 1);
@@ -1780,11 +1904,13 @@ fade-in dots[1] [300ms]
     assert!(errors.is_empty(), "parse errors: {:?}", errors);
     let ast = ast.unwrap();
     let timeline = AnimatixTimeline::build(&ast);
-    let has_target = timeline
-        .action_events
-        .iter()
-        .any(|e| e.targets.iter().any(|t| t == "dots__1"));
-    assert!(has_target, "expected action event targeting dots__1; events: {:?}", timeline.action_events);
+    let has_target =
+        timeline.action_events.iter().any(|e| e.targets.iter().any(|t| t == "dots__1"));
+    assert!(
+        has_target,
+        "expected action event targeting dots__1; events: {:?}",
+        timeline.action_events
+    );
 }
 
 #[test]
@@ -1801,9 +1927,7 @@ always {
     let (ast, errors) = parse_source(src);
     assert!(errors.is_empty(), "parse errors: {:?}", errors);
     let ast = ast.unwrap();
-    let found_match = ast.iter().any(|stmt| {
-        stmt_contains_match_expr(stmt)
-    });
+    let found_match = ast.iter().any(|stmt| stmt_contains_match_expr(stmt));
     assert!(found_match, "expected at least one Expr::Match in AST");
 }
 
@@ -1822,33 +1946,39 @@ match floor(t) % 3 {
     let (ast, errors) = parse_source(src);
     assert!(errors.is_empty(), "parse errors: {:?}", errors);
     let ast = ast.unwrap();
-    let found_match = ast.iter().any(|stmt| {
-        find_stmt(stmt, |s| matches!(s, Stmt::Match { .. }))
-    });
+    let found_match = ast.iter().any(|stmt| find_stmt(stmt, |s| matches!(s, Stmt::Match { .. })));
     assert!(found_match, "expected at least one Stmt::Match in AST");
 }
 
 // Helper: pattern_match_test helper since `pattern_matches` is not public
-fn test_pattern_matches(pat: &animatix_syntax::ast::MatchPattern, value: &animatix::timeline::Value) -> bool {
+fn test_pattern_matches(
+    pat: &animatix_syntax::ast::MatchPattern,
+    value: &animatix::timeline::Value,
+) -> bool {
     match pat {
         MatchPattern::Wildcard => true,
         MatchPattern::Num(n) => matches!(value, Value::Num(v) if (*v - *n).abs() < f64::EPSILON),
         MatchPattern::Str(s) => matches!(value, Value::Str(v) if v == s),
         MatchPattern::Bool(b) => matches!(value, Value::Bool(v) if v == b),
         MatchPattern::Range(lo, hi) => {
-            let lo_val = match lo.as_ref() { MatchPattern::Num(n) => *n, _ => return false };
-            let hi_val = match hi.as_ref() { MatchPattern::Num(n) => *n, _ => return false };
+            let lo_val = match lo.as_ref() {
+                MatchPattern::Num(n) => *n,
+                _ => return false,
+            };
+            let hi_val = match hi.as_ref() {
+                MatchPattern::Num(n) => *n,
+                _ => return false,
+            };
             matches!(value, Value::Num(v) if *v >= lo_val && *v <= hi_val)
-        }
+        },
         MatchPattern::Or(pats) => pats.iter().any(|p| test_pattern_matches(p, value)),
-        MatchPattern::Tuple(pats) => {
-            match value {
-                Value::List(items) => {
-                    items.len() == pats.len() && pats.iter().zip(items.iter()).all(|(p, v)| test_pattern_matches(p, v))
-                }
-                _ => false,
-            }
-        }
+        MatchPattern::Tuple(pats) => match value {
+            Value::List(items) => {
+                items.len() == pats.len()
+                    && pats.iter().zip(items.iter()).all(|(p, v)| test_pattern_matches(p, v))
+            },
+            _ => false,
+        },
     }
 }
 
@@ -1863,18 +1993,22 @@ fn test_match_pattern_wildcard() {
 fn test_match_pattern_literal() {
     assert!(test_pattern_matches(&MatchPattern::Num(0.0), &Value::Num(0.0)));
     assert!(!test_pattern_matches(&MatchPattern::Num(1.0), &Value::Num(0.0)));
-    assert!(test_pattern_matches(&MatchPattern::Str("red".to_string()), &Value::Str("red".to_string())));
-    assert!(!test_pattern_matches(&MatchPattern::Str("blue".to_string()), &Value::Str("red".to_string())));
+    assert!(test_pattern_matches(
+        &MatchPattern::Str("red".to_string()),
+        &Value::Str("red".to_string())
+    ));
+    assert!(!test_pattern_matches(
+        &MatchPattern::Str("blue".to_string()),
+        &Value::Str("red".to_string())
+    ));
     assert!(test_pattern_matches(&MatchPattern::Bool(true), &Value::Bool(true)));
     assert!(!test_pattern_matches(&MatchPattern::Bool(true), &Value::Bool(false)));
 }
 
 #[test]
 fn test_match_pattern_range() {
-    let range = MatchPattern::Range(
-        Box::new(MatchPattern::Num(1.0)),
-        Box::new(MatchPattern::Num(3.0)),
-    );
+    let range =
+        MatchPattern::Range(Box::new(MatchPattern::Num(1.0)), Box::new(MatchPattern::Num(3.0)));
     assert!(test_pattern_matches(&range, &Value::Num(1.0)));
     assert!(test_pattern_matches(&range, &Value::Num(2.0)));
     assert!(test_pattern_matches(&range, &Value::Num(3.0)));
@@ -1884,10 +2018,7 @@ fn test_match_pattern_range() {
 
 #[test]
 fn test_match_pattern_or() {
-    let or_pat = MatchPattern::Or(vec![
-        MatchPattern::Num(0.0),
-        MatchPattern::Num(2.0),
-    ]);
+    let or_pat = MatchPattern::Or(vec![MatchPattern::Num(0.0), MatchPattern::Num(2.0)]);
     assert!(test_pattern_matches(&or_pat, &Value::Num(0.0)));
     assert!(test_pattern_matches(&or_pat, &Value::Num(2.0)));
     assert!(!test_pattern_matches(&or_pat, &Value::Num(1.0)));
@@ -1900,25 +2031,19 @@ fn test_match_pattern_tuple() {
         MatchPattern::Wildcard,
         MatchPattern::Num(2.0),
     ]);
-    assert!(test_pattern_matches(&tuple_pat, &Value::List(vec![
-        Value::Num(0.0),
-        Value::Num(1.0),
-        Value::Num(2.0),
-    ])));
-    assert!(!test_pattern_matches(&tuple_pat, &Value::List(vec![
-        Value::Num(0.0),
-        Value::Num(1.0),
-        Value::Num(3.0),
-    ])));
+    assert!(test_pattern_matches(
+        &tuple_pat,
+        &Value::List(vec![Value::Num(0.0), Value::Num(1.0), Value::Num(2.0),])
+    ));
+    assert!(!test_pattern_matches(
+        &tuple_pat,
+        &Value::List(vec![Value::Num(0.0), Value::Num(1.0), Value::Num(3.0),])
+    ));
 }
 
 #[test]
 fn test_list_swap_builtin() {
-    let list = Value::List(vec![
-        Value::Num(1.0),
-        Value::Num(2.0),
-        Value::Num(3.0),
-    ]);
+    let list = Value::List(vec![Value::Num(1.0), Value::Num(2.0), Value::Num(3.0)]);
     let result = eval_builtin_fn("list_swap", &[list, Value::Num(0.0), Value::Num(2.0)]).unwrap();
     match &result {
         Value::List(items) => {
@@ -1926,18 +2051,14 @@ fn test_list_swap_builtin() {
             assert_eq!(items[0], Value::Num(3.0));
             assert_eq!(items[1], Value::Num(2.0));
             assert_eq!(items[2], Value::Num(1.0));
-        }
+        },
         _ => panic!("expected List, got {:?}", result),
     }
 }
 
 #[test]
 fn test_list_set_builtin() {
-    let list = Value::List(vec![
-        Value::Num(1.0),
-        Value::Num(2.0),
-        Value::Num(3.0),
-    ]);
+    let list = Value::List(vec![Value::Num(1.0), Value::Num(2.0), Value::Num(3.0)]);
     let result = eval_builtin_fn("list_set", &[list, Value::Num(1.0), Value::Num(99.0)]).unwrap();
     match &result {
         Value::List(items) => {
@@ -1945,24 +2066,21 @@ fn test_list_set_builtin() {
             assert_eq!(items[0], Value::Num(1.0));
             assert_eq!(items[1], Value::Num(99.0));
             assert_eq!(items[2], Value::Num(3.0));
-        }
+        },
         _ => panic!("expected List, got {:?}", result),
     }
 }
 
 #[test]
 fn test_list_swap_out_of_range() {
-    let list = Value::List(vec![
-        Value::Num(1.0),
-        Value::Num(2.0),
-    ]);
+    let list = Value::List(vec![Value::Num(1.0), Value::Num(2.0)]);
     let result = eval_builtin_fn("list_swap", &[list, Value::Num(0.0), Value::Num(99.0)]).unwrap();
     match &result {
         Value::List(items) => {
             assert_eq!(items.len(), 2);
             assert_eq!(items[0], Value::Num(1.0));
             assert_eq!(items[1], Value::Num(2.0));
-        }
+        },
         _ => panic!("expected List, got {:?}", result),
     }
 }
@@ -1970,12 +2088,20 @@ fn test_list_swap_out_of_range() {
 // Helper: check if a statement or any substatement contains Expr::Match
 fn stmt_contains_match_expr(stmt: &Stmt) -> bool {
     match stmt {
-        Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => body.iter().any(|s| stmt_contains_match_expr(s)),
+        Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
+            body.iter().any(|s| stmt_contains_match_expr(s))
+        },
         Stmt::Always { body, .. } => body.iter().any(|s| stmt_contains_match_expr(s)),
-        Stmt::Conditional { then_branch, else_branch, .. } => {
+        Stmt::Conditional {
+            then_branch,
+            else_branch,
+            ..
+        } => {
             then_branch.iter().any(|s| stmt_contains_match_expr(s))
-                || else_branch.as_ref().map_or(false, |b| b.iter().any(|s| stmt_contains_match_expr(s)))
-        }
+                || else_branch
+                    .as_ref()
+                    .map_or(false, |b| b.iter().any(|s| stmt_contains_match_expr(s)))
+        },
         Stmt::ForLoop { body, .. } => body.iter().any(|s| stmt_contains_match_expr(s)),
         Stmt::Match { .. } => true,
         Stmt::Assignment { value, .. } => {
@@ -1986,7 +2112,7 @@ fn stmt_contains_match_expr(stmt: &Stmt) -> bool {
                 }
             });
             found
-        }
+        },
         _ => false,
     }
 }
@@ -2005,16 +2131,18 @@ where
         | Stmt::Sequence { body, .. }
         | Stmt::Stagger { body, .. }
         | Stmt::Always { body, .. }
-        | Stmt::ForLoop { body, .. } => {
-            body.iter().any(|s| find_stmt(s, f))
-        }
-        Stmt::Conditional { then_branch, else_branch, .. } => {
+        | Stmt::ForLoop { body, .. } => body.iter().any(|s| find_stmt(s, f)),
+        Stmt::Conditional {
+            then_branch,
+            else_branch,
+            ..
+        } => {
             then_branch.iter().any(|s| find_stmt(s, f))
                 || else_branch.as_ref().map_or(false, |b| b.iter().any(|s| find_stmt(s, f)))
-        }
+        },
         Stmt::Match { arms, .. } => {
             arms.iter().any(|(_, body)| body.iter().any(|s| find_stmt(s, f)))
-        }
+        },
         _ => false,
     }
 }

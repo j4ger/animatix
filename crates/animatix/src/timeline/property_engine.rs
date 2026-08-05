@@ -33,20 +33,15 @@
 //! }
 //! ```
 
+// Sibling module imports (accessible via super:: because we're a child of timeline)
+use super::preserve_instant_delayed_value;
 use crate::ast::Expr;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
+use crate::timeline::dispatch::read_property_value;
 use crate::timeline::env::{Environment, Value};
 use crate::timeline::property_registry::{ActorField, ValueType};
-use crate::timeline::{
-    AnimationTrack, PropertyTrack, ShapeType, TrackAccessor,
-};
-use crate::timeline::dispatch::read_property_value;
-
-// Sibling module imports (accessible via super:: because we're a child of timeline)
-use super::{
-    preserve_instant_delayed_value,
-};
+use crate::timeline::{AnimationTrack, PropertyTrack, ShapeType, TrackAccessor};
 
 // ─────────────────────────────────────────────────────────────
 // Parsed property values
@@ -132,12 +127,18 @@ pub(crate) fn write_property_field(
             if let PropertyValue::U32(v) = value {
                 let st = ShapeType::from(v);
                 write_shape_type(
-                    &mut track.shape.shape_type, st, t_start_ms, t_end_ms, easing,
-                    ShapeType::Rect, has_duration, has_delay,
+                    &mut track.shape.shape_type,
+                    st,
+                    t_start_ms,
+                    t_end_ms,
+                    easing,
+                    ShapeType::Rect,
+                    has_duration,
+                    has_delay,
                 );
             }
             return;
-        }
+        },
         // No-ops: set via other means, not keyframed directly
         ActorField::PlacementMode
         | ActorField::PositionBinding
@@ -160,19 +161,17 @@ pub(crate) fn write_property_field(
                 ActorField::ContainerLayoutGroup => "layout",
                 _ => unreachable!(),
             };
-            diagnostics.push(
-                Diagnostic::warning(
-                    DiagnosticCode::InvalidModifierValue,
-                    DiagnosticPhase::Build,
-                    format!(
-                        "Cannot set '{}' directly; use its individual properties instead.",
-                        field_name
-                    ),
-                )
-            );
+            diagnostics.push(Diagnostic::warning(
+                DiagnosticCode::InvalidModifierValue,
+                DiagnosticPhase::Build,
+                format!(
+                    "Cannot set '{}' directly; use its individual properties instead.",
+                    field_name
+                ),
+            ));
             return;
-        }
-        _ => {} // Fall through to tier 2
+        },
+        _ => {}, // Fall through to tier 2
     }
 
     // ── Tier 2: Uniform dispatch via TrackFieldMut ──
@@ -186,35 +185,71 @@ pub(crate) fn write_property_field(
                     _ => 0.0,
                 };
                 write_f32(f, value, t_start_ms, t_end_ms, easing, default, has_duration, has_delay);
-            }
+            },
             TrackFieldMut::Vec2(f) => {
                 let default = match pv_default {
                     Some(PropertyValue::Vec2(d)) => d,
                     _ => [0.0, 0.0],
                 };
-                write_vec2(f, value, t_start_ms, t_end_ms, easing, default, has_duration, has_delay);
-            }
+                write_vec2(
+                    f,
+                    value,
+                    t_start_ms,
+                    t_end_ms,
+                    easing,
+                    default,
+                    has_duration,
+                    has_delay,
+                );
+            },
             TrackFieldMut::Vec4(f) => {
                 let default = match pv_default {
                     Some(PropertyValue::Vec4(d)) => d,
                     _ => [1.0, 1.0, 1.0, 1.0],
                 };
-                write_vec4(f, value, t_start_ms, t_end_ms, easing, default, has_duration, has_delay);
-            }
+                write_vec4(
+                    f,
+                    value,
+                    t_start_ms,
+                    t_end_ms,
+                    easing,
+                    default,
+                    has_duration,
+                    has_delay,
+                );
+            },
             TrackFieldMut::Transform(f) => {
                 let default = match pv_default {
                     Some(PropertyValue::Transform(d)) => d,
                     _ => [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
                 };
-                write_transform(f, value, t_start_ms, t_end_ms, easing, default, has_duration, has_delay);
-            }
+                write_transform(
+                    f,
+                    value,
+                    t_start_ms,
+                    t_end_ms,
+                    easing,
+                    default,
+                    has_duration,
+                    has_delay,
+                );
+            },
             TrackFieldMut::String(f) => {
                 let default = match pv_default {
                     Some(PropertyValue::String(d)) => d,
                     _ => String::new(),
                 };
-                write_string(f, value, t_start_ms, t_end_ms, easing, default, has_duration, has_delay);
-            }
+                write_string(
+                    f,
+                    value,
+                    t_start_ms,
+                    t_end_ms,
+                    easing,
+                    default,
+                    has_duration,
+                    has_delay,
+                );
+            },
             TrackFieldMut::U32(f) => {
                 let default = match pv_default {
                     Some(PropertyValue::U32(d)) => d,
@@ -240,38 +275,59 @@ pub(crate) fn write_property_field(
                     }
                     f.ensure(default).add_keyframe(t_end_ms, v, easing);
                 }
-            }
+            },
             TrackFieldMut::PointList(f) => {
                 let default = match pv_default {
                     Some(PropertyValue::PointList(d)) => d,
                     _ => Vec::new(),
                 };
-                write_point_list(f, value, t_start_ms, t_end_ms, easing, default, has_duration, has_delay);
-            }
+                write_point_list(
+                    f,
+                    value,
+                    t_start_ms,
+                    t_end_ms,
+                    easing,
+                    default,
+                    has_duration,
+                    has_delay,
+                );
+            },
             TrackFieldMut::CommandList(f) => {
                 let default = match pv_default {
                     Some(PropertyValue::CommandList(d)) => d,
                     _ => String::new(),
                 };
-                write_command_list(f, value, t_start_ms, t_end_ms, easing, default, has_duration, has_delay);
-            }
+                write_command_list(
+                    f,
+                    value,
+                    t_start_ms,
+                    t_end_ms,
+                    easing,
+                    default,
+                    has_duration,
+                    has_delay,
+                );
+            },
             // PlacementMode and MorphOptions are handled in tier 1 (no-ops),
             // but field_mut returns them, so this arm is here for exhaustiveness.
-            TrackFieldMut::PlacementMode(_) | TrackFieldMut::MorphOptions(_) => {}
+            TrackFieldMut::PlacementMode(_) | TrackFieldMut::MorphOptions(_) => {},
             // CalloutPlace is written via write_callout_place below.
             TrackFieldMut::CalloutPlace(f) => {
                 if let PropertyValue::CalloutPlace(v) = value {
                     f.ensure(super::animation_track::CalloutPlace::Right)
                         .add_keyframe(t_end_ms, v, easing);
                 }
-            }
+            },
             // ShapeType is handled in tier 1 above
-            TrackFieldMut::ShapeType(_) => {}
-            // VectorPaths, TextPaths, PositionBinding — generated/cached at build time, no keyframing.
-            TrackFieldMut::VectorPaths(_) | TrackFieldMut::TextPaths(_) | TrackFieldMut::PositionBinding(_) => {}
+            TrackFieldMut::ShapeType(_) => {},
+            // VectorPaths, TextPaths, PositionBinding — generated/cached at build time, no
+            // keyframing.
+            TrackFieldMut::VectorPaths(_)
+            | TrackFieldMut::TextPaths(_)
+            | TrackFieldMut::PositionBinding(_) => {},
             // Image — generated/cached at build time, no keyframing.
             #[cfg(feature = "render")]
-            TrackFieldMut::Image(_) => {}
+            TrackFieldMut::Image(_) => {},
         }
     }
 }
@@ -310,7 +366,9 @@ pub(crate) fn write_vec2(
     has_duration: bool,
     has_delay: bool,
 ) {
-    let PropertyValue::Vec2(v) = value else { return };
+    let PropertyValue::Vec2(v) = value else {
+        return;
+    };
     if has_duration {
         let start_val = field.get(t_start_ms, default);
         field.ensure(default).add_keyframe(t_start_ms, start_val, Easing::Linear);
@@ -354,7 +412,9 @@ pub(crate) fn write_transform(
     has_duration: bool,
     has_delay: bool,
 ) {
-    let PropertyValue::Transform(v) = value else { return };
+    let PropertyValue::Transform(v) = value else {
+        return;
+    };
     if has_duration {
         let start_val = field.get(t_start_ms, default);
         field.ensure(default).add_keyframe(t_start_ms, start_val, Easing::Linear);
@@ -374,10 +434,14 @@ pub(crate) fn write_point_list(
     has_duration: bool,
     has_delay: bool,
 ) {
-    let PropertyValue::PointList(v) = value else { return };
+    let PropertyValue::PointList(v) = value else {
+        return;
+    };
     if has_duration {
         let start_val = field.get(t_start_ms, default.clone());
-        field.ensure(default.clone()).add_keyframe(t_start_ms, start_val, Easing::Linear);
+        field
+            .ensure(default.clone())
+            .add_keyframe(t_start_ms, start_val, Easing::Linear);
     } else if has_delay {
         preserve_instant_delayed_value(field, t_start_ms);
     }
@@ -394,10 +458,14 @@ pub(crate) fn write_command_list(
     has_duration: bool,
     has_delay: bool,
 ) {
-    let PropertyValue::CommandList(v) = value else { return };
+    let PropertyValue::CommandList(v) = value else {
+        return;
+    };
     if has_duration {
         let start_val = field.get(t_start_ms, default.clone());
-        field.ensure(default.clone()).add_keyframe(t_start_ms, start_val, Easing::Linear);
+        field
+            .ensure(default.clone())
+            .add_keyframe(t_start_ms, start_val, Easing::Linear);
     } else if has_delay {
         preserve_instant_delayed_value(field, t_start_ms);
     }
@@ -433,10 +501,14 @@ pub(crate) fn write_string(
     has_duration: bool,
     has_delay: bool,
 ) {
-    let PropertyValue::String(v) = value else { return };
+    let PropertyValue::String(v) = value else {
+        return;
+    };
     if has_duration {
         let start_val = field.get(t_start_ms, default.clone());
-        field.ensure(default.clone()).add_keyframe(t_start_ms, start_val, Easing::Linear);
+        field
+            .ensure(default.clone())
+            .add_keyframe(t_start_ms, start_val, Easing::Linear);
     } else if has_delay {
         preserve_instant_delayed_value(field, t_start_ms);
     }
@@ -446,8 +518,6 @@ pub(crate) fn write_string(
 // ─────────────────────────────────────────────────────────────
 // Read: ActorField + time_ms → PropertyValue
 // ─────────────────────────────────────────────────────────────
-
-
 
 // ─────────────────────────────────────────────────────────────
 // Environment injection
@@ -496,10 +566,10 @@ pub(crate) fn inject_property_into_env(
                         } else {
                             write_default
                         }
-                    }
+                    },
                     ReadSource::None_ => continue,
                 }
-            }
+            },
         };
 
         // Inject the value and typed sub-keys (x, y, r, g, b, a).
@@ -524,15 +594,21 @@ pub(crate) fn inject_property_into_env(
 /// `key` must be positioned at the end of the property name (the full
 /// `{label}.{property}` prefix).  It is restored to `prefix_len + name.len()`
 /// after injection so that callers can continue using the buffer.
-fn inject_value(env: &mut Environment, key: &mut String, prefix_len: usize, name: &str, value: &PropertyValue) {
+fn inject_value(
+    env: &mut Environment,
+    key: &mut String,
+    prefix_len: usize,
+    name: &str,
+    value: &PropertyValue,
+) {
     let restore = prefix_len + name.len();
     match value {
         PropertyValue::F32(v) => {
             env.set(&*key, Value::Num(*v as f64));
-        }
+        },
         PropertyValue::U32(v) => {
             env.set(&*key, Value::Num(*v as f64));
-        }
+        },
         PropertyValue::Vec2(v) => {
             env.set(&*key, Value::Vec2([v[0] as f64, v[1] as f64]));
             key.push_str(".x");
@@ -540,7 +616,7 @@ fn inject_value(env: &mut Environment, key: &mut String, prefix_len: usize, name
             key.truncate(restore);
             key.push_str(".y");
             env.set(&*key, Value::Num(v[1] as f64));
-        }
+        },
         PropertyValue::Vec4(v) | PropertyValue::Color(v) => {
             env.set(&*key, Value::Color([v[0] as f64, v[1] as f64, v[2] as f64, v[3] as f64]));
             key.push_str(".r");
@@ -554,21 +630,24 @@ fn inject_value(env: &mut Environment, key: &mut String, prefix_len: usize, name
             key.truncate(restore);
             key.push_str(".a");
             env.set(&*key, Value::Num(v[3] as f64));
-        }
+        },
         PropertyValue::Transform(v) => {
-            env.set(&*key, Value::List(vec![
-                Value::Num(v[0] as f64),
-                Value::Num(v[1] as f64),
-                Value::Num(v[2] as f64),
-                Value::Num(v[3] as f64),
-                Value::Num(v[4] as f64),
-                Value::Num(v[5] as f64),
-            ]));
-        }
+            env.set(
+                &*key,
+                Value::List(vec![
+                    Value::Num(v[0] as f64),
+                    Value::Num(v[1] as f64),
+                    Value::Num(v[2] as f64),
+                    Value::Num(v[3] as f64),
+                    Value::Num(v[4] as f64),
+                    Value::Num(v[5] as f64),
+                ]),
+            );
+        },
         PropertyValue::String(v) => {
             env.set(&*key, Value::Str(v.clone()));
-        }
-        _ => {}
+        },
+        _ => {},
     }
     key.truncate(restore);
 }
@@ -654,13 +733,12 @@ pub(crate) fn effective_transform(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::easing::Easing;
     use crate::timeline::dispatch::{
-        property_has_keyframe_at, property_has_keyframes,
-        property_keyframe_count, property_keyframe_easing,
-        property_keyframe_times, read_property_value,
+        property_has_keyframe_at, property_has_keyframes, property_keyframe_count,
+        property_keyframe_easing, property_keyframe_times, read_property_value,
         read_property_value_or_default,
     };
-    use crate::easing::Easing;
 
     // Helper: write a keyframe and read it back
     fn write_read_roundtrip(
@@ -669,9 +747,7 @@ mod tests {
         value: PropertyValue,
         time_ms: u64,
     ) -> Option<PropertyValue> {
-        write_property_field(
-            track, field, value, time_ms, time_ms, Easing::Linear, &mut vec![],
-        );
+        write_property_field(track, field, value, time_ms, time_ms, Easing::Linear, &mut vec![]);
         read_property_value(track, field, time_ms)
     }
 
@@ -682,12 +758,8 @@ mod tests {
     #[test]
     fn test_write_read_roundtrip_f32() {
         let mut track = AnimationTrack::new("test".to_string());
-        let result = write_read_roundtrip(
-            &mut track,
-            ActorField::Opacity,
-            PropertyValue::F32(0.75),
-            500,
-        );
+        let result =
+            write_read_roundtrip(&mut track, ActorField::Opacity, PropertyValue::F32(0.75), 500);
         assert_eq!(result, Some(PropertyValue::F32(0.75)));
     }
 
@@ -754,24 +826,16 @@ mod tests {
     #[test]
     fn test_write_read_roundtrip_min_width() {
         let mut track = AnimationTrack::new("test".to_string());
-        let result = write_read_roundtrip(
-            &mut track,
-            ActorField::MinWidth,
-            PropertyValue::F32(200.0),
-            500,
-        );
+        let result =
+            write_read_roundtrip(&mut track, ActorField::MinWidth, PropertyValue::F32(200.0), 500);
         assert_eq!(result, Some(PropertyValue::F32(200.0)));
     }
 
     #[test]
     fn test_write_read_roundtrip_max_height() {
         let mut track = AnimationTrack::new("test".to_string());
-        let result = write_read_roundtrip(
-            &mut track,
-            ActorField::MaxHeight,
-            PropertyValue::F32(800.0),
-            500,
-        );
+        let result =
+            write_read_roundtrip(&mut track, ActorField::MaxHeight, PropertyValue::F32(800.0), 500);
         assert_eq!(result, Some(PropertyValue::F32(800.0)));
     }
 
@@ -814,12 +878,8 @@ mod tests {
     #[test]
     fn test_write_read_roundtrip_min_height() {
         let mut track = AnimationTrack::new("test".to_string());
-        let result = write_read_roundtrip(
-            &mut track,
-            ActorField::MinHeight,
-            PropertyValue::F32(300.0),
-            500,
-        );
+        let result =
+            write_read_roundtrip(&mut track, ActorField::MinHeight, PropertyValue::F32(300.0), 500);
         assert_eq!(result, Some(PropertyValue::F32(300.0)));
     }
 
@@ -843,8 +903,8 @@ mod tests {
             &mut track,
             ActorField::Opacity,
             PropertyValue::F32(0.5),
-            0,      // t_start
-            1000,   // t_end
+            0,    // t_start
+            1000, // t_end
             Easing::EaseOut,
             &mut diag,
         );
@@ -905,4 +965,3 @@ mod tests {
         assert_eq!(easing, Some(Easing::EaseInOut));
     }
 }
-

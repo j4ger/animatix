@@ -5,12 +5,14 @@
 //! - [`render_frames_streaming`] — parallel timeline render with sequential output
 //! - [`render_frames_streaming_composition`] — composition-aware variant
 
-use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
-use crate::composition::Composition;
-use crate::renderer::offscreen::{OffscreenRenderer, RenderedFrame};
-use crate::renderer::encode::ExportError;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+
 use tracing::info;
+
+use crate::composition::Composition;
+use crate::renderer::encode::ExportError;
+use crate::renderer::offscreen::{OffscreenRenderer, RenderedFrame};
+use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
 /// Fill an `AVFrame` with a borrowed RGBA buffer.
 ///
@@ -86,7 +88,9 @@ where
     }
 
     let mut handles = Vec::with_capacity(num_chunks);
-    for (chunk_idx, (renderer, sender)) in renderers.into_iter().zip(senders.into_iter()).enumerate() {
+    for (chunk_idx, (renderer, sender)) in
+        renderers.into_iter().zip(senders.into_iter()).enumerate()
+    {
         let start = chunk_idx * chunk_size;
         let end = ((chunk_idx + 1) * chunk_size).min(total_frames as usize);
         let timeline = timeline.clone();
@@ -103,9 +107,7 @@ where
                         debug_options,
                     )
                     .map_err(|e| ExportError::FrameRender { frame, message: e })?;
-                sender
-                    .send(rendered)
-                    .map_err(|_| ExportError::ThreadPanicked)?;
+                sender.send(rendered).map_err(|_| ExportError::ThreadPanicked)?;
             }
             Ok(())
         }));
@@ -216,26 +218,25 @@ where
 
                 let rendered = if let Some(blend) = transition_blend {
                     // Phase 7: transition blending — composite two scenes
-                    let from_scene = composition
-                        .scenes
-                        .get(&blend.from_scene)
-                        .ok_or_else(|| ExportError::FrameRender {
-                            frame,
-                            message: format!(
-                                "From scene '{}' not found in composition",
-                                blend.from_scene
-                            ),
+                    let from_scene =
+                        composition.scenes.get(&blend.from_scene).ok_or_else(|| {
+                            ExportError::FrameRender {
+                                frame,
+                                message: format!(
+                                    "From scene '{}' not found in composition",
+                                    blend.from_scene
+                                ),
+                            }
                         })?;
-                    let to_scene = composition
-                        .scenes
-                        .get(&blend.to_scene)
-                        .ok_or_else(|| ExportError::FrameRender {
+                    let to_scene = composition.scenes.get(&blend.to_scene).ok_or_else(|| {
+                        ExportError::FrameRender {
                             frame,
                             message: format!(
                                 "To scene '{}' not found in composition",
                                 blend.to_scene
                             ),
-                        })?;
+                        }
+                    })?;
                     renderer
                         .render_transition(
                             &from_scene.timeline,
@@ -251,13 +252,12 @@ where
                         .map_err(|e| ExportError::FrameRender { frame, message: e })?
                 } else {
                     // Single active scene — no transition
-                    let scene_timeline = composition
-                        .scenes
-                        .get(&scene_name)
-                        .ok_or_else(|| ExportError::FrameRender {
+                    let scene_timeline = composition.scenes.get(&scene_name).ok_or_else(|| {
+                        ExportError::FrameRender {
                             frame,
                             message: format!("Scene '{}' not found in composition", scene_name),
-                        })?;
+                        }
+                    })?;
 
                     renderer
                         .render_timeline_with_debug(
@@ -269,9 +269,7 @@ where
                         .map_err(|e| ExportError::FrameRender { frame, message: e })?
                 };
 
-                sender
-                    .send(rendered)
-                    .map_err(|_| ExportError::ThreadPanicked)?;
+                sender.send(rendered).map_err(|_| ExportError::ThreadPanicked)?;
             }
             Ok(())
         }));

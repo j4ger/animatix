@@ -58,8 +58,7 @@ pub enum SemanticTokenKind {
 }
 
 /// Persistent state for the cell editor (scroll position, focused cell, etc.).
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct CellEditorState {
     pub focused_cell: Option<usize>,
     pub scroll_to_cell: Option<usize>,
@@ -139,4 +138,3 @@ impl CellEditorState {
         swap_set(&mut self.warning_cells);
     }
 }
-

@@ -162,9 +162,7 @@ impl Widget for Select<'_> {
 
         let button_response = ui.button(current_label).on_hover_cursor(egui::CursorIcon::Default);
 
-        let popover = Popover::new(popover_id)
-            .below()
-            .max_width(260.0);
+        let popover = Popover::new(popover_id).below().max_width(260.0);
 
         let _popover_resp = popover.show(ui, &button_response, |ui| {
             let mut filter: String =
@@ -172,19 +170,15 @@ impl Widget for Select<'_> {
 
             ui.horizontal(|ui| {
                 if self.searchable {
-                    let edit = ui.add(
-                        TextEdit::singleline(&mut filter).hint_text("Search…"),
-                    );
+                    let edit = ui.add(TextEdit::singleline(&mut filter).hint_text("Search…"));
                     if edit.changed() {
-                        ui.ctx()
-                            .data_mut(|d| d.insert_temp(filter_key, filter.clone()));
+                        ui.ctx().data_mut(|d| d.insert_temp(filter_key, filter.clone()));
                     }
                 }
                 self.clearable.then(|| {
                     if ui.button("✕").clicked() {
                         *self.selected = None;
-                        ui.ctx()
-                            .data_mut(|d| d.remove::<String>(filter_key));
+                        ui.ctx().data_mut(|d| d.remove::<String>(filter_key));
                         Popover::close_by_id(ui.ctx(), popover_id);
                     }
                 });
@@ -202,17 +196,17 @@ impl Widget for Select<'_> {
                     match opt {
                         FlatOption::Header(_) => {
                             pending_header = Some(i);
-                        }
+                        },
                         FlatOption::Item { label, .. } => {
-                            let matches = filter.is_empty()
-                                || label.to_lowercase().contains(&filter_lower);
+                            let matches =
+                                filter.is_empty() || label.to_lowercase().contains(&filter_lower);
                             if matches {
                                 if let Some(h) = pending_header.take() {
                                     visible_indices.push(h);
                                 }
                                 visible_indices.push(i);
                             }
-                        }
+                        },
                     }
                 }
 
@@ -220,18 +214,15 @@ impl Widget for Select<'_> {
                     match &self.flat_options[i] {
                         FlatOption::Header(text) => {
                             ui.label(egui::RichText::new(text).strong().color(t.text.secondary));
-                        }
+                        },
                         FlatOption::Item { label, index } => {
-                            if ui
-                                .selectable_label(*self.selected == Some(*index), label)
-                                .clicked()
+                            if ui.selectable_label(*self.selected == Some(*index), label).clicked()
                             {
                                 *self.selected = Some(*index);
-                                ui.ctx()
-                                    .data_mut(|d| d.remove::<String>(filter_key));
+                                ui.ctx().data_mut(|d| d.remove::<String>(filter_key));
                                 Popover::close_by_id(ui.ctx(), popover_id);
                             }
-                        }
+                        },
                     }
                 }
             });
@@ -278,8 +269,7 @@ mod tests {
 
     #[test]
     fn grouped_constructor() {
-        let groups: &[(&str, &[&str])] =
-            &[("Fruits", &["Apple", "Banana"]), ("Veg", &["Carrot"])];
+        let groups: &[(&str, &[&str])] = &[("Fruits", &["Apple", "Banana"]), ("Veg", &["Carrot"])];
         let mut sel = None;
         let s = Select::grouped("test", &mut sel, groups);
         assert_eq!(s.flat_options.len(), 5);

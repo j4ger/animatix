@@ -58,7 +58,7 @@ impl TimelineIndex {
                         line_to_time.insert(line_idx, time_ms);
                         time_to_lines.entry(time_ms).or_default().push(line_idx);
                         continue;
-                    }
+                    },
                 };
 
                 let unit = time_part[num_str.len()..].trim_start();
@@ -107,20 +107,12 @@ impl TimelineIndex {
     ///
     /// Returns the keyframe line that is closest to and ≤ the given time.
     pub fn line_for_time(&self, time_ms: u64) -> Option<usize> {
-        self.keyframes
-            .iter()
-            .rev()
-            .find(|(t, _)| *t <= time_ms)
-            .map(|(_, line)| *line)
+        self.keyframes.iter().rev().find(|(t, _)| *t <= time_ms).map(|(_, line)| *line)
     }
 
     /// Find the keyframe time immediately before or at the given time.
     pub fn prev_keyframe_time(&self, time_ms: u64) -> Option<u64> {
-        self.keyframes
-            .iter()
-            .rev()
-            .find(|(t, _)| *t <= time_ms)
-            .map(|(t, _)| *t)
+        self.keyframes.iter().rev().find(|(t, _)| *t <= time_ms).map(|(t, _)| *t)
     }
 
     /// Find all source lines associated with a given time.

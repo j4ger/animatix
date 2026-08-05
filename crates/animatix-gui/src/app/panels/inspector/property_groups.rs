@@ -3,27 +3,22 @@ use animatix::timeline::{
     allowed_property_indices, property_has_keyframes, read_property_value_or_default,
 };
 use egui::{Color32, Stroke, Vec2};
-
-use eparts::{NumberField, TextField};
 use eparts::widget::Select;
+use eparts::{NumberField, TextField};
 
 use crate::app::commands::{
     ActionQueue, DocumentCommand, DragEvent, KeyframeCommand, PropertyEdit,
     PropertyValue as GuiPropertyValue, ShellAction,
 };
-use crate::app::components::row;
 use crate::app::components::button::Button;
-use crate::app::design_tokens::semantic::status;
-use crate::app::design_tokens::semantic::surface;
-use crate::app::design_tokens::semantic::text;
+use crate::app::components::row;
+use crate::app::design_tokens::semantic::{status, surface, text};
 use crate::app::design_tokens::spatial::inspector::{
     COL_GAP as INSPECTOR_COL_GAP, KF_BTN_WIDTH as INSPECTOR_KF_BTN_WIDTH,
     KF_COL_WIDTH as INSPECTOR_KF_COL_WIDTH, LABEL_MAX_WIDTH as INSPECTOR_LABEL_MAX_WIDTH,
     LABEL_MIN_WIDTH as INSPECTOR_LABEL_MIN_WIDTH, LABEL_WIDTH_FRAC as INSPECTOR_LABEL_WIDTH_FRAC,
 };
-use crate::app::design_tokens::spatial::{
-    spatial, RADIUS_S, STROKE_WIDTH,
-};
+use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;
 
 // ─── Data Structures ──────────────────────────────────────────────────────
@@ -495,7 +490,10 @@ pub(crate) fn render_property_row(
             ui.set_min_width(140.0);
             ui.strong(format!("Keyframe @ {:.2}s", current_time_s));
             ui.separator();
-            if ui.add(Button::danger(format!("{} Delete", egui_phosphor::regular::TRASH))).clicked() {
+            if ui
+                .add(Button::danger(format!("{} Delete", egui_phosphor::regular::TRASH)))
+                .clicked()
+            {
                 commands.push_back(
                     KeyframeCommand::DeleteKeyframe {
                         actor: actor_label.to_string(),
@@ -534,7 +532,8 @@ pub(crate) fn render_property_row(
             let ny = *y;
             let (a_label, b_label) = vec2_labels(entry.name);
             ui.scope_builder(
-                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
+                egui::UiBuilder::new()
+                    .max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
                 |ui| {
                     *ui.style_mut() = flat_style.clone();
                     ui.with_layout(
@@ -611,7 +610,8 @@ pub(crate) fn render_property_row(
             let unit = unit_suffix(entry.name);
             if is_01 {
                 ui.scope_builder(
-                    egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
+                    egui::UiBuilder::new()
+                        .max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
                     |ui| {
                         *ui.style_mut() = flat_style.clone();
                         ui.with_layout(
@@ -664,7 +664,8 @@ pub(crate) fn render_property_row(
                 // Non-0..1 float: use eparts NumberField
                 let mut nv = *v as f64;
                 ui.scope_builder(
-                    egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
+                    egui::UiBuilder::new()
+                        .max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
                     |ui| {
                         *ui.style_mut() = flat_style.clone();
                         ui.with_layout(
@@ -707,7 +708,8 @@ pub(crate) fn render_property_row(
         PropertyKind::U32(v) => {
             let mut nv = *v as f64;
             ui.scope_builder(
-                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
+                egui::UiBuilder::new()
+                    .max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
                 |ui| {
                     *ui.style_mut() = flat_style.clone();
                     ui.with_layout(
@@ -753,7 +755,8 @@ pub(crate) fn render_property_row(
             );
             let hex = format!("#{:02x}{:02x}{:02x}", color.r(), color.g(), color.b());
             ui.scope_builder(
-                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
+                egui::UiBuilder::new()
+                    .max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
                 |ui| {
                     *ui.style_mut() = flat_style.clone();
                     ui.with_layout(
@@ -796,7 +799,8 @@ pub(crate) fn render_property_row(
         PropertyKind::Text(text) => {
             let mut buf = text.clone();
             ui.scope_builder(
-                egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
+                egui::UiBuilder::new()
+                    .max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
                 |ui| {
                     *ui.style_mut() = flat_style.clone();
                     ui.with_layout(
@@ -804,7 +808,8 @@ pub(crate) fn render_property_row(
                         |ui| {
                             if entry.name == "shape_type" {
                                 use std::sync::OnceLock;
-                                static SHAPE_VARIANTS: OnceLock<Vec<&'static str>> = OnceLock::new();
+                                static SHAPE_VARIANTS: OnceLock<Vec<&'static str>> =
+                                    OnceLock::new();
                                 let variants = SHAPE_VARIANTS.get_or_init(|| {
                                     vec![
                                         ShapeType::Rect.as_str(),

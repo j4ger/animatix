@@ -59,14 +59,14 @@ pub fn walk_inline_item(item: &InlineItem, visitor: &mut dyn FnMut(&InlineItem))
     match item {
         InlineItem::Labeled { children, .. } | InlineItem::Anonymous { children, .. } => {
             walk_inline_items(children, visitor);
-        }
+        },
         InlineItem::ForLoop { body, .. } => {
             walk_inline_items(body, visitor);
-        }
+        },
         InlineItem::SlotFill { items, .. } => {
             walk_inline_items(items, visitor);
-        }
-        InlineItem::SlotMarker => {}
+        },
+        InlineItem::SlotMarker => {},
     }
 }
 
@@ -76,14 +76,14 @@ pub fn walk_inline_item_mut(item: &mut InlineItem, visitor: &mut dyn FnMut(&mut 
     match item {
         InlineItem::Labeled { children, .. } | InlineItem::Anonymous { children, .. } => {
             walk_inline_items_mut(children, visitor);
-        }
+        },
         InlineItem::ForLoop { body, .. } => {
             walk_inline_items_mut(body, visitor);
-        }
+        },
         InlineItem::SlotFill { items, .. } => {
             walk_inline_items_mut(items, visitor);
-        }
-        InlineItem::SlotMarker => {}
+        },
+        InlineItem::SlotMarker => {},
     }
 }
 
@@ -98,56 +98,56 @@ pub fn walk_expr(expr: &Expr, visitor: &mut dyn FnMut(&Expr)) {
         Expr::Index(target, index) => {
             walk_expr(target, visitor);
             walk_expr(index, visitor);
-        }
+        },
         Expr::Tuple(items) => {
             for item in items {
                 walk_expr(item, visitor);
             }
-        }
+        },
         Expr::List(items) => {
             for item in items {
                 walk_expr(item, visitor);
             }
-        }
+        },
         Expr::Binary(left, _, right) => {
             walk_expr(left, visitor);
             walk_expr(right, visitor);
-        }
+        },
         Expr::Unary(_, expr) => {
             walk_expr(expr, visitor);
-        }
+        },
         Expr::Call(_, args) => {
             for arg in args {
                 walk_expr(arg, visitor);
             }
-        }
+        },
         Expr::Method(receiver, _, args) => {
             walk_expr(receiver, visitor);
             for arg in args {
                 walk_expr(arg, visitor);
             }
-        }
+        },
         Expr::Closure(_, body) => {
             walk_expr(body, visitor);
-        }
+        },
         Expr::Conditional(cond, then, else_) => {
             walk_expr(cond, visitor);
             walk_expr(then, visitor);
             walk_expr(else_, visitor);
-        }
+        },
         Expr::Match(scrutinee, arms) => {
             walk_expr(scrutinee, visitor);
             for (_pat, arm_expr) in arms {
                 walk_expr(arm_expr, visitor);
             }
-        }
+        },
         Expr::Construct(_, props) => {
             for prop in props {
                 walk_expr(&prop.value, visitor);
             }
-        }
+        },
         // Literals, Ident, Path, Bool, Null, Percent have no sub-expressions
-        _ => {}
+        _ => {},
     }
 }
 
@@ -167,20 +167,22 @@ pub fn collect_stmt_bodies_mut(stmt: &mut Stmt) -> Vec<&mut Vec<Stmt>> {
         | Stmt::ComponentAction { body, .. }
         | Stmt::Scene { body, .. } => {
             vec![body]
-        }
-        Stmt::Conditional { then_branch, else_branch, .. } => {
+        },
+        Stmt::Conditional {
+            then_branch,
+            else_branch,
+            ..
+        } => {
             let mut bodies = vec![then_branch];
             if let Some(else_body) = else_branch {
                 bodies.push(else_body);
             }
             bodies
-        }
-        Stmt::Match { arms, .. } => {
-            arms.iter_mut().map(|(_, body)| body).collect()
-        }
+        },
+        Stmt::Match { arms, .. } => arms.iter_mut().map(|(_, body)| body).collect(),
         Stmt::ForLoop { body, .. } => {
             vec![body]
-        }
+        },
         _ => vec![],
     }
 }
@@ -197,22 +199,26 @@ pub fn recurse_stmt_bodies(stmt: &Stmt, f: &mut dyn FnMut(&[Stmt])) {
         | Stmt::ComponentAction { body, .. }
         | Stmt::Scene { body, .. } => {
             f(body);
-        }
-        Stmt::Conditional { then_branch, else_branch, .. } => {
+        },
+        Stmt::Conditional {
+            then_branch,
+            else_branch,
+            ..
+        } => {
             f(then_branch);
             if let Some(else_body) = else_branch {
                 f(else_body);
             }
-        }
+        },
         Stmt::Match { arms, .. } => {
             for (_, body) in arms {
                 f(body);
             }
-        }
+        },
         Stmt::ForLoop { body, .. } => {
             f(body);
-        }
-        _ => {}
+        },
+        _ => {},
     }
 }
 
@@ -268,10 +274,14 @@ pub fn find_assignment_mut<'a>(
 ) -> Option<&'a mut Stmt> {
     for stmt in stmts.iter_mut() {
         if let Stmt::Assignment {
-            target, property: prop, ..
+            target,
+            property: prop,
+            ..
         } = stmt
         {
-            if target.last().and_then(|t| t.as_static_str()).is_some_and(|t| t == actor) && prop == property {
+            if target.last().and_then(|t| t.as_static_str()).is_some_and(|t| t == actor)
+                && prop == property
+            {
                 return Some(stmt);
             }
         }
@@ -340,7 +350,7 @@ fn find_stmt_in_bodies<'a>(
                 }
             }
             None
-        }
+        },
         Stmt::ForLoop { body, .. } => f(body),
         _ => None,
     }
@@ -376,7 +386,7 @@ fn find_stmt_in_bodies_mut<'a>(
                 }
             }
             None
-        }
+        },
         Stmt::ForLoop { body, .. } => f(body),
         _ => None,
     }

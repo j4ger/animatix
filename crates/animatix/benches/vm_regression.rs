@@ -25,7 +25,10 @@ always {
 
 fn bench_reactive_timeline(c: &mut Criterion) {
     let timeline = build_reactive_timeline();
-    let dims = SceneDimensions { width: 1920, height: 1080 };
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
 
     // Benchmark evaluating at many different times to defeat the frame cache
     c.bench_function("reactive_playback_100frames", |b| {

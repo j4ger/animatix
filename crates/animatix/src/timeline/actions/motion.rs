@@ -76,7 +76,7 @@ fn parse_vec2_modifier(
             Ok(Value::Vec2([x, y])) => {
                 value = Some([x as f32, y as f32]);
                 saw_key = true;
-            }
+            },
             Ok(_) | Err(_) => {
                 push_shift_diagnostic(
                     diagnostics,
@@ -84,17 +84,12 @@ fn parse_vec2_modifier(
                     message,
                     key,
                 );
-            }
+            },
         }
     }
 
     if value.is_none() {
-        push_shift_diagnostic(
-            diagnostics,
-            DiagnosticCode::InvalidModifierValue,
-            message,
-            key,
-        );
+        push_shift_diagnostic(diagnostics, DiagnosticCode::InvalidModifierValue, message, key);
     }
 
     value
@@ -128,7 +123,7 @@ fn parse_num_modifier(
             Ok(Value::Num(n)) => {
                 value = Some(n as f32);
                 saw_key = true;
-            }
+            },
             Ok(_) | Err(_) => {
                 push_shift_diagnostic(
                     diagnostics,
@@ -136,17 +131,12 @@ fn parse_num_modifier(
                     message,
                     key,
                 );
-            }
+            },
         }
     }
 
     if value.is_none() {
-        push_shift_diagnostic(
-            diagnostics,
-            DiagnosticCode::InvalidModifierValue,
-            message,
-            key,
-        );
+        push_shift_diagnostic(diagnostics, DiagnosticCode::InvalidModifierValue, message, key);
     }
 
     value
@@ -161,12 +151,7 @@ fn parse_positive_num_modifier(
 ) -> Option<f32> {
     let value = parse_num_modifier(modifiers, timeline, key, message, diagnostics)?;
     if value <= 0.0 {
-        push_shift_diagnostic(
-            diagnostics,
-            DiagnosticCode::InvalidModifierValue,
-            message,
-            key,
-        );
+        push_shift_diagnostic(diagnostics, DiagnosticCode::InvalidModifierValue, message, key);
         return None;
     }
     Some(value)
@@ -176,10 +161,7 @@ fn timing_modifiers_without_keys(modifiers: &[Modifier], excluded_keys: &[&str])
     modifiers
         .iter()
         .filter(|modifier| {
-            modifier
-                .name
-                .as_deref()
-                .is_none_or(|name| !excluded_keys.contains(&name))
+            modifier.name.as_deref().is_none_or(|name| !excluded_keys.contains(&name))
         })
         .cloned()
         .collect()
@@ -244,28 +226,34 @@ impl BuiltinAction for Move {
             let start_offset = track.geometry.motion_offset.get(t_start_ms, [0.0, 0.0]);
 
             if duration_ms > 0.0 {
-                track
-                    .geometry
-                    .motion_offset
-                    .ensure([0.0, 0.0])
-                    .add_keyframe(t_start_ms, start_offset, Easing::Linear);
+                track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
+                    t_start_ms,
+                    start_offset,
+                    Easing::Linear,
+                );
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
                 let prior_offset = track.geometry.motion_offset.get(guard_time, [0.0, 0.0]);
-                if !track.geometry.motion_offset.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
-                    track
-                        .geometry
-                        .motion_offset
-                        .ensure([0.0, 0.0])
-                        .add_keyframe(guard_time, prior_offset, Easing::Linear);
+                if !track
+                    .geometry
+                    .motion_offset
+                    .as_ref()
+                    .map(|t| t.keyframes.contains_key(&guard_time))
+                    .unwrap_or(false)
+                {
+                    track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
+                        guard_time,
+                        prior_offset,
+                        Easing::Linear,
+                    );
                 }
             }
 
-            track
-                .geometry
-                .motion_offset
-                .ensure([0.0, 0.0])
-                .add_keyframe(t_end_ms, target_offset, easing);
+            track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
+                t_end_ms,
+                target_offset,
+                easing,
+            );
         }
     }
 }
@@ -330,20 +318,26 @@ impl BuiltinAction for Shift {
             let end_offset = [start_offset[0] + shift_by[0], start_offset[1] + shift_by[1]];
 
             if duration_ms > 0.0 {
-                track
-                    .geometry
-                    .motion_offset
-                    .ensure([0.0, 0.0])
-                    .add_keyframe(t_start_ms, start_offset, Easing::Linear);
+                track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
+                    t_start_ms,
+                    start_offset,
+                    Easing::Linear,
+                );
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
                 let prior_offset = track.geometry.motion_offset.get(guard_time, [0.0, 0.0]);
-                if !track.geometry.motion_offset.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
-                    track
-                        .geometry
-                        .motion_offset
-                        .ensure([0.0, 0.0])
-                        .add_keyframe(guard_time, prior_offset, Easing::Linear);
+                if !track
+                    .geometry
+                    .motion_offset
+                    .as_ref()
+                    .map(|t| t.keyframes.contains_key(&guard_time))
+                    .unwrap_or(false)
+                {
+                    track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
+                        guard_time,
+                        prior_offset,
+                        Easing::Linear,
+                    );
                 }
             }
 
@@ -416,20 +410,26 @@ impl BuiltinAction for Rotate {
             let end_rotation = start_rotation + angle_by;
 
             if duration_ms > 0.0 {
-                track
-                    .geometry
-                    .rotation
-                    .ensure(0.0)
-                    .add_keyframe(t_start_ms, start_rotation, Easing::Linear);
+                track.geometry.rotation.ensure(0.0).add_keyframe(
+                    t_start_ms,
+                    start_rotation,
+                    Easing::Linear,
+                );
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
                 let prior_rotation = track.geometry.rotation.get(guard_time, 0.0);
-                if !track.geometry.rotation.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
-                    track
-                        .geometry
-                        .rotation
-                        .ensure(0.0)
-                        .add_keyframe(guard_time, prior_rotation, Easing::Linear);
+                if !track
+                    .geometry
+                    .rotation
+                    .as_ref()
+                    .map(|t| t.keyframes.contains_key(&guard_time))
+                    .unwrap_or(false)
+                {
+                    track.geometry.rotation.ensure(0.0).add_keyframe(
+                        guard_time,
+                        prior_rotation,
+                        Easing::Linear,
+                    );
                 }
             }
 
@@ -498,20 +498,26 @@ impl BuiltinAction for Scale {
             let end_scale = start_scale * scale_by;
 
             if duration_ms > 0.0 {
-                track
-                    .geometry
-                    .scale
-                    .ensure(1.0)
-                    .add_keyframe(t_start_ms, start_scale, Easing::Linear);
+                track.geometry.scale.ensure(1.0).add_keyframe(
+                    t_start_ms,
+                    start_scale,
+                    Easing::Linear,
+                );
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
                 let prior_scale = track.geometry.scale.get(guard_time, 1.0);
-                if !track.geometry.scale.as_ref().map(|t| t.keyframes.contains_key(&guard_time)).unwrap_or(false) {
-                    track
-                        .geometry
-                        .scale
-                        .ensure(1.0)
-                        .add_keyframe(guard_time, prior_scale, Easing::Linear);
+                if !track
+                    .geometry
+                    .scale
+                    .as_ref()
+                    .map(|t| t.keyframes.contains_key(&guard_time))
+                    .unwrap_or(false)
+                {
+                    track.geometry.scale.ensure(1.0).add_keyframe(
+                        guard_time,
+                        prior_scale,
+                        Easing::Linear,
+                    );
                 }
             }
 
@@ -537,7 +543,7 @@ mod tests {
                 name: "size".to_string(),
                 value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(40.0)]),
                 value_span: None,
-            trailing_comment: None,
+                trailing_comment: None,
             }],
             modifiers: vec![],
             children: vec![],
@@ -546,79 +552,91 @@ mod tests {
     }
 
     fn shift_action(target: &str, by: Expr) -> Stmt {
-        Stmt::Action(Action {
-            verb: "shift".to_string(),
-            targets: vec![target.to_string()],
-            args: vec![],
-            modifiers: vec![
-                Modifier {
-                    name: Some("by".to_string()),
-                    value: by,
-                },
-                Modifier {
-                    name: None,
-                    value: Expr::Ident("1s".to_string()),
-                },
-            ],
-            byte_span: None,
-        }, None)
+        Stmt::Action(
+            Action {
+                verb: "shift".to_string(),
+                targets: vec![target.to_string()],
+                args: vec![],
+                modifiers: vec![
+                    Modifier {
+                        name: Some("by".to_string()),
+                        value: by,
+                    },
+                    Modifier {
+                        name: None,
+                        value: Expr::Ident("1s".to_string()),
+                    },
+                ],
+                byte_span: None,
+            },
+            None,
+        )
     }
 
     fn move_action(target: &str, to: Expr) -> Stmt {
-        Stmt::Action(Action {
-            verb: "move".to_string(),
-            targets: vec![target.to_string()],
-            args: vec![],
-            modifiers: vec![
-                Modifier {
-                    name: Some("to".to_string()),
-                    value: to,
-                },
-                Modifier {
-                    name: None,
-                    value: Expr::Ident("1s".to_string()),
-                },
-            ],
-            byte_span: None,
-        }, None)
+        Stmt::Action(
+            Action {
+                verb: "move".to_string(),
+                targets: vec![target.to_string()],
+                args: vec![],
+                modifiers: vec![
+                    Modifier {
+                        name: Some("to".to_string()),
+                        value: to,
+                    },
+                    Modifier {
+                        name: None,
+                        value: Expr::Ident("1s".to_string()),
+                    },
+                ],
+                byte_span: None,
+            },
+            None,
+        )
     }
 
     fn rotate_action(target: &str, by: Expr) -> Stmt {
-        Stmt::Action(Action {
-            verb: "rotate".to_string(),
-            targets: vec![target.to_string()],
-            args: vec![],
-            modifiers: vec![
-                Modifier {
-                    name: Some("by".to_string()),
-                    value: by,
-                },
-                Modifier {
-                    name: None,
-                    value: Expr::Ident("1s".to_string()),
-                },
-            ],
-            byte_span: None,
-        }, None)
+        Stmt::Action(
+            Action {
+                verb: "rotate".to_string(),
+                targets: vec![target.to_string()],
+                args: vec![],
+                modifiers: vec![
+                    Modifier {
+                        name: Some("by".to_string()),
+                        value: by,
+                    },
+                    Modifier {
+                        name: None,
+                        value: Expr::Ident("1s".to_string()),
+                    },
+                ],
+                byte_span: None,
+            },
+            None,
+        )
     }
 
     fn scale_action(target: &str, by: Expr) -> Stmt {
-        Stmt::Action(Action {
-            verb: "scale".to_string(),
-            targets: vec![target.to_string()],
-            args: vec![],
-            modifiers: vec![
-                Modifier {
-                    name: Some("by".to_string()),
-                    value: by,
-                },
-                Modifier {
-                    name: None,
-                    value: Expr::Ident("1s".to_string()),
-                },
-            ],
-            byte_span: None,
-        }, None)
+        Stmt::Action(
+            Action {
+                verb: "scale".to_string(),
+                targets: vec![target.to_string()],
+                args: vec![],
+                modifiers: vec![
+                    Modifier {
+                        name: Some("by".to_string()),
+                        value: by,
+                    },
+                    Modifier {
+                        name: None,
+                        value: Expr::Ident("1s".to_string()),
+                    },
+                ],
+                byte_span: None,
+            },
+            None,
+        )
     }
 
     #[test]
@@ -627,10 +645,7 @@ mod tests {
             time: Time::Seconds(0.0),
             body: vec![
                 circle_decl("badge"),
-                move_action(
-                    "badge",
-                    Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(-30.0)]),
-                ),
+                move_action("badge", Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(-30.0)])),
             ],
             span: None,
         }];
@@ -676,7 +691,9 @@ mod tests {
         let track = report.output.tracks.get("badge").expect("badge track");
 
         assert!((track.geometry.rotation.get(0, 0.0) - 0.0).abs() < f32::EPSILON);
-        assert!((track.geometry.rotation.get(1000, 0.0) - std::f32::consts::FRAC_PI_2).abs() < 0.0001);
+        assert!(
+            (track.geometry.rotation.get(1000, 0.0) - std::f32::consts::FRAC_PI_2).abs() < 0.0001
+        );
         assert!(report.diagnostics.is_empty());
     }
 
@@ -741,10 +758,7 @@ mod tests {
             time: Time::Seconds(0.0),
             body: vec![
                 circle_decl("badge"),
-                shift_action(
-                    "badge",
-                    Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(-24.0)]),
-                ),
+                shift_action("badge", Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(-24.0)])),
             ],
             span: None,
         }];
@@ -790,7 +804,7 @@ mod tests {
                         name: "gap".to_string(),
                         value: Expr::Num(20.0),
                         value_span: None,
-                    trailing_comment: None,
+                        trailing_comment: None,
                     }],
                     modifiers: vec![],
                     children: vec![crate::ast::InlineItem::Labeled {
@@ -801,7 +815,7 @@ mod tests {
                             name: "size".to_string(),
                             value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(40.0)]),
                             value_span: None,
-                        trailing_comment: None,
+                            trailing_comment: None,
                         }],
                         modifiers: vec![],
                         children: vec![],

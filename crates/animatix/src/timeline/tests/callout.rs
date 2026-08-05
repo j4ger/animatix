@@ -205,7 +205,9 @@ fn test_callout_animation() {
         Stmt::Keyframe {
             time: crate::ast::Time::Seconds(2.0),
             body: vec![Stmt::Assignment {
-                target: vec![crate::ast::TargetSegment::Static("anim_callout".to_string())],
+                target: vec![crate::ast::TargetSegment::Static(
+                    "anim_callout".to_string(),
+                )],
                 property: "to".to_string(),
                 value: Expr::Tuple(vec![Expr::Num(300.0), Expr::Num(200.0)]),
                 modifiers: vec![],
@@ -259,7 +261,8 @@ fn test_callout_arrowhead_size() {
     // - Verify the head_size tracks differ
 
     let timeline_small = build_callout_timeline([0.0, 0.0], [100.0, 0.0], "Small", [0.0, 0.0], 5.0);
-    let timeline_large = build_callout_timeline([0.0, 0.0], [100.0, 0.0], "Large", [0.0, 0.0], 20.0);
+    let timeline_large =
+        build_callout_timeline([0.0, 0.0], [100.0, 0.0], "Large", [0.0, 0.0], 20.0);
 
     let track_small = timeline_small.get_track("callout").expect("callout track should exist");
     let track_large = timeline_large.get_track("callout").expect("callout track should exist");
@@ -440,7 +443,10 @@ fn test_callout_target_mode_seeds_tracks() {
     );
 
     // Evaluating the scene should not panic
-    let dims = SceneDimensions { width: 1920, height: 1080 };
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
     let _scene = timeline.evaluate(0.0, dims);
 }
 
@@ -528,7 +534,10 @@ fn test_callout_target_mode_derives_positions() {
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
 
-    let dims = SceneDimensions { width: 1920, height: 1080 };
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
     // evaluate() must not panic when target mode is active
     let _scene = timeline.evaluate(0.0, dims);
 }
@@ -537,13 +546,13 @@ fn test_callout_target_mode_derives_positions() {
 fn test_callout_place_variants_accepted() {
     // Verify that all valid place identifiers parse to the correct enum variant.
     for (ident, expected) in &[
-        ("right",  CalloutPlace::Right),
-        ("left",   CalloutPlace::Left),
-        ("top",    CalloutPlace::Top),
-        ("above",  CalloutPlace::Top),
+        ("right", CalloutPlace::Right),
+        ("left", CalloutPlace::Left),
+        ("top", CalloutPlace::Top),
+        ("above", CalloutPlace::Top),
         ("bottom", CalloutPlace::Bottom),
-        ("below",  CalloutPlace::Bottom),
-        ("auto",   CalloutPlace::Auto),
+        ("below", CalloutPlace::Bottom),
+        ("auto", CalloutPlace::Auto),
     ] {
         let ast = vec![
             make_config(),
@@ -555,14 +564,12 @@ fn test_callout_place_variants_accepted() {
                     label: "note".to_string(),
                     array_index: None,
                     ty: "Callout".to_string(),
-                    props: vec![
-                        Property {
-                            name: "place".to_string(),
-                            value: Expr::Ident(ident.to_string()),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                    ],
+                    props: vec![Property {
+                        name: "place".to_string(),
+                        value: Expr::Ident(ident.to_string()),
+                        value_span: None,
+                        trailing_comment: None,
+                    }],
                     modifiers: vec![],
                     children: vec![],
                     span: None,
@@ -571,7 +578,11 @@ fn test_callout_place_variants_accepted() {
             },
         ];
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        assert!(report.diagnostics.is_empty(), "place={ident} produced unexpected diagnostics: {:?}", report.diagnostics);
+        assert!(
+            report.diagnostics.is_empty(),
+            "place={ident} produced unexpected diagnostics: {:?}",
+            report.diagnostics
+        );
         let track = report.output.get_track("note").unwrap();
         assert_eq!(
             track.geometry.callout_place.get(0, CalloutPlace::Right),
@@ -650,7 +661,8 @@ fn test_callout_place_default_is_right() {
 // position / scale / rotation / parent-child relationships precisely without
 // relying on how declaration-time props map to internal tracks.
 
-use crate::timeline::{ActorKindId, actor_kind::ShapeKind};
+use crate::timeline::ActorKindId;
+use crate::timeline::actor_kind::ShapeKind;
 
 /// Make a minimal target track with a given position and half-size.
 fn make_target_track(label: &str, pos: [f32; 2], half: [f32; 2]) -> AnimationTrack {
@@ -708,11 +720,13 @@ fn test_callout_target_translated_world_bounds() {
     timeline.tracks.insert("note".to_string(), callout);
     timeline.root_nodes.push("note".to_string());
 
-    let dims = SceneDimensions { width: 1920, height: 1080 };
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
     let note = timeline.get_track("note").unwrap();
-    let geom = crate::timeline::callout_geometry::derive_callout_geometry(
-        note, 0, Some(&timeline), dims,
-    );
+    let geom =
+        crate::timeline::callout_geometry::derive_callout_geometry(note, 0, Some(&timeline), dims);
     assert!((geom.to[0] - 240.0).abs() < 0.5, "expected to.x=240, got {}", geom.to[0]);
     assert!((geom.to[1] - 100.0).abs() < 0.5, "expected to.y=100, got {}", geom.to[1]);
 }
@@ -737,13 +751,19 @@ fn test_callout_target_scaled_world_bounds() {
     timeline.tracks.insert("note".to_string(), callout);
     timeline.root_nodes.push("note".to_string());
 
-    let dims = SceneDimensions { width: 1920, height: 1080 };
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
     let note = timeline.get_track("note").unwrap();
-    let geom = crate::timeline::callout_geometry::derive_callout_geometry(
-        note, 0, Some(&timeline), dims,
-    );
+    let geom =
+        crate::timeline::callout_geometry::derive_callout_geometry(note, 0, Some(&timeline), dims);
     // scale=2 doubles the visual extent: half_x=40 → 80 → right = 200+80 = 280
-    assert!((geom.to[0] - 280.0).abs() < 0.5, "expected to.x=280 (scale-aware), got {}", geom.to[0]);
+    assert!(
+        (geom.to[0] - 280.0).abs() < 0.5,
+        "expected to.x=280 (scale-aware), got {}",
+        geom.to[0]
+    );
     assert!((geom.to[1] - 100.0).abs() < 0.5, "expected to.y=100, got {}", geom.to[1]);
 }
 
@@ -767,11 +787,13 @@ fn test_callout_target_rotated_aabb() {
     timeline.tracks.insert("note".to_string(), callout);
     timeline.root_nodes.push("note".to_string());
 
-    let dims = SceneDimensions { width: 1920, height: 1080 };
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
     let note = timeline.get_track("note").unwrap();
-    let geom = crate::timeline::callout_geometry::derive_callout_geometry(
-        note, 0, Some(&timeline), dims,
-    );
+    let geom =
+        crate::timeline::callout_geometry::derive_callout_geometry(note, 0, Some(&timeline), dims);
     // After 90° rotation: AABB half_x = |hw*cos(π/2)| + |hh*sin(π/2)| = 0 + 20 = 20
     let hw = 40.0_f32;
     let hh = 20.0_f32;
@@ -780,7 +802,8 @@ fn test_callout_target_rotated_aabb() {
     assert!(
         (geom.to[0] - expected_to_x).abs() < 0.5,
         "expected to.x≈{:.1} (rotation-aware AABB), got {}",
-        expected_to_x, geom.to[0]
+        expected_to_x,
+        geom.to[0]
     );
 }
 
@@ -806,21 +829,20 @@ fn test_callout_target_nested_child_world_bounds() {
     timeline.tracks.insert("note".to_string(), callout);
     timeline.root_nodes.push("note".to_string());
 
-    let dims = SceneDimensions { width: 1920, height: 1080 };
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
     let note = timeline.get_track("note").unwrap();
-    let geom = crate::timeline::callout_geometry::derive_callout_geometry(
-        note, 0, Some(&timeline), dims,
-    );
+    let geom =
+        crate::timeline::callout_geometry::derive_callout_geometry(note, 0, Some(&timeline), dims);
     // world centre x = parent.pos.x + child.pos.x = 100+100 = 200; right = 200+40 = 240
     assert!(
         (geom.to[0] - 240.0).abs() < 0.5,
         "expected to.x=240 (nested world bounds), got {}",
         geom.to[0]
     );
-    assert!(
-        (geom.to[1] - 0.0).abs() < 0.5,
-        "expected to.y=0, got {}", geom.to[1]
-    );
+    assert!((geom.to[1] - 0.0).abs() < 0.5, "expected to.y=0, got {}", geom.to[1]);
 }
 
 #[test]
@@ -830,31 +852,34 @@ fn test_callout_missing_target_produces_diagnostic() {
         make_config(),
         Stmt::Keyframe {
             time: crate::ast::Time::Seconds(0.0),
-            body: vec![
-                Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "note".to_string(),
-                    array_index: None,
-                    ty: "Callout".to_string(),
-                    props: vec![Property {
-                        name: "target".to_string(),
-                        value: Expr::Str("nonexistent".to_string()),
-                        value_span: None,
-                        trailing_comment: None,
-                    }],
-                    modifiers: vec![],
-                    children: vec![],
-                    span: None,
-                },
-            ],
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "note".to_string(),
+                array_index: None,
+                ty: "Callout".to_string(),
+                props: vec![Property {
+                    name: "target".to_string(),
+                    value: Expr::Str("nonexistent".to_string()),
+                    value_span: None,
+                    trailing_comment: None,
+                }],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            }],
             span: None,
         },
     ];
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     use crate::diagnostics::DiagnosticCode;
-    let found = report.diagnostics.iter().any(|d| {
-        matches!(d.code, DiagnosticCode::CalloutTargetNotFound)
-    });
-    assert!(found, "expected CalloutTargetNotFound diagnostic, got: {:?}", report.diagnostics);
+    let found = report
+        .diagnostics
+        .iter()
+        .any(|d| matches!(d.code, DiagnosticCode::CalloutTargetNotFound));
+    assert!(
+        found,
+        "expected CalloutTargetNotFound diagnostic, got: {:?}",
+        report.diagnostics
+    );
 }

@@ -455,8 +455,14 @@ impl Theme {
                 danger_active,
             ),
             list: ListSlots {
-                even: Fill { bg: surf, fg: primary },
-                odd: Fill { bg: widget, fg: primary },
+                even: Fill {
+                    bg: surf,
+                    fg: primary,
+                },
+                odd: Fill {
+                    bg: widget,
+                    fg: primary,
+                },
                 selected: Fill {
                     bg: Color32::from_rgba_unmultiplied(
                         semantic::accent::PRIMARY.r(),
@@ -466,25 +472,76 @@ impl Theme {
                     ),
                     fg: primary,
                 },
-                hover: Fill { bg: hover, fg: primary },
+                hover: Fill {
+                    bg: hover,
+                    fg: primary,
+                },
             },
             tab: TabSlots {
-                active: TabSlot { bg: surf, fg: primary, indicator: semantic::accent::PRIMARY },
-                inactive: TabSlot { bg: widget, fg: secondary, indicator: Color32::TRANSPARENT },
-                hover: TabSlot { bg: hover, fg: primary, indicator: Color32::TRANSPARENT },
+                active: TabSlot {
+                    bg: surf,
+                    fg: primary,
+                    indicator: semantic::accent::PRIMARY,
+                },
+                inactive: TabSlot {
+                    bg: widget,
+                    fg: secondary,
+                    indicator: Color32::TRANSPARENT,
+                },
+                hover: TabSlot {
+                    bg: hover,
+                    fg: primary,
+                    indicator: Color32::TRANSPARENT,
+                },
             },
             menu_item: MenuItemSlots {
-                normal: Slot { bg: Color32::TRANSPARENT, fg: primary, border: Color32::TRANSPARENT },
-                hover: Slot { bg: hover, fg: primary, border: Color32::TRANSPARENT },
-                active: Slot { bg: active, fg: primary, border: Color32::TRANSPARENT },
-                disabled: Slot { bg: Color32::TRANSPARENT, fg: disabled, border: Color32::TRANSPARENT },
+                normal: Slot {
+                    bg: Color32::TRANSPARENT,
+                    fg: primary,
+                    border: Color32::TRANSPARENT,
+                },
+                hover: Slot {
+                    bg: hover,
+                    fg: primary,
+                    border: Color32::TRANSPARENT,
+                },
+                active: Slot {
+                    bg: active,
+                    fg: primary,
+                    border: Color32::TRANSPARENT,
+                },
+                disabled: Slot {
+                    bg: Color32::TRANSPARENT,
+                    fg: disabled,
+                    border: Color32::TRANSPARENT,
+                },
             },
             input: InputSlots {
-                normal: Slot { bg: widget, fg: primary, border: border_default },
-                hover: Slot { bg: widget, fg: primary, border: border_strong },
-                focus: Slot { bg: widget, fg: primary, border: border_focus },
-                invalid: Slot { bg: widget, fg: primary, border: semantic::status::ERROR },
-                disabled: Slot { bg: widget, fg: disabled, border: border_default },
+                normal: Slot {
+                    bg: widget,
+                    fg: primary,
+                    border: border_default,
+                },
+                hover: Slot {
+                    bg: widget,
+                    fg: primary,
+                    border: border_strong,
+                },
+                focus: Slot {
+                    bg: widget,
+                    fg: primary,
+                    border: border_focus,
+                },
+                invalid: Slot {
+                    bg: widget,
+                    fg: primary,
+                    border: semantic::status::ERROR,
+                },
+                disabled: Slot {
+                    bg: widget,
+                    fg: disabled,
+                    border: border_default,
+                },
             },
             scrollbar: ScrollbarSlots {
                 thumb: border_strong,
@@ -535,7 +592,11 @@ impl Theme {
     /// fields the GUI's `install_theme()` sets (panel/window fills, widget
     /// states, selection, text color).
     pub fn to_visuals(&self, dark: bool) -> Visuals {
-        let mut v = if dark { Visuals::dark() } else { Visuals::light() };
+        let mut v = if dark {
+            Visuals::dark()
+        } else {
+            Visuals::light()
+        };
 
         v.panel_fill = self.surface.panel;
         v.window_fill = self.surface.panel;
@@ -584,46 +645,150 @@ impl Theme {
 
 fn dark_button_slots() -> ButtonSlots {
     let transparent = Color32::TRANSPARENT;
-    let focus = Slot { bg: transparent, fg: transparent, border: semantic::border::FOCUS };
+    let focus = Slot {
+        bg: transparent,
+        fg: transparent,
+        border: semantic::border::FOCUS,
+    };
     ButtonSlots {
         primary: ButtonStateSlots {
-            normal: Slot { bg: semantic::accent::PRIMARY, fg: semantic::text::ON_ACCENT, border: semantic::accent::PRIMARY },
-            hover: Slot { bg: semantic::accent::PRIMARY_HOVER, fg: semantic::text::ON_ACCENT, border: semantic::accent::PRIMARY_HOVER },
-            active: Slot { bg: semantic::accent::PRIMARY_ACTIVE, fg: semantic::text::ON_ACCENT, border: semantic::accent::PRIMARY_ACTIVE },
-            selected: Slot { bg: semantic::accent::PRIMARY_ACTIVE, fg: semantic::text::ON_ACCENT, border: semantic::accent::PRIMARY_ACTIVE },
-            disabled: Slot { bg: semantic::surface::WIDGET, fg: semantic::text::DISABLED, border: semantic::surface::WIDGET },
+            normal: Slot {
+                bg: semantic::accent::PRIMARY,
+                fg: semantic::text::ON_ACCENT,
+                border: semantic::accent::PRIMARY,
+            },
+            hover: Slot {
+                bg: semantic::accent::PRIMARY_HOVER,
+                fg: semantic::text::ON_ACCENT,
+                border: semantic::accent::PRIMARY_HOVER,
+            },
+            active: Slot {
+                bg: semantic::accent::PRIMARY_ACTIVE,
+                fg: semantic::text::ON_ACCENT,
+                border: semantic::accent::PRIMARY_ACTIVE,
+            },
+            selected: Slot {
+                bg: semantic::accent::PRIMARY_ACTIVE,
+                fg: semantic::text::ON_ACCENT,
+                border: semantic::accent::PRIMARY_ACTIVE,
+            },
+            disabled: Slot {
+                bg: semantic::surface::WIDGET,
+                fg: semantic::text::DISABLED,
+                border: semantic::surface::WIDGET,
+            },
             focus,
         },
         secondary: ButtonStateSlots {
-            normal: Slot { bg: semantic::surface::WIDGET, fg: semantic::text::PRIMARY, border: semantic::border::DEFAULT },
-            hover: Slot { bg: semantic::surface::HOVER, fg: semantic::text::PRIMARY, border: semantic::accent::PRIMARY },
-            active: Slot { bg: semantic::surface::ACTIVE, fg: semantic::text::PRIMARY, border: semantic::accent::PRIMARY },
-            selected: Slot { bg: semantic::surface::ACTIVE, fg: semantic::text::PRIMARY, border: semantic::accent::PRIMARY },
-            disabled: Slot { bg: semantic::surface::WIDGET, fg: semantic::text::DISABLED, border: semantic::border::DEFAULT },
+            normal: Slot {
+                bg: semantic::surface::WIDGET,
+                fg: semantic::text::PRIMARY,
+                border: semantic::border::DEFAULT,
+            },
+            hover: Slot {
+                bg: semantic::surface::HOVER,
+                fg: semantic::text::PRIMARY,
+                border: semantic::accent::PRIMARY,
+            },
+            active: Slot {
+                bg: semantic::surface::ACTIVE,
+                fg: semantic::text::PRIMARY,
+                border: semantic::accent::PRIMARY,
+            },
+            selected: Slot {
+                bg: semantic::surface::ACTIVE,
+                fg: semantic::text::PRIMARY,
+                border: semantic::accent::PRIMARY,
+            },
+            disabled: Slot {
+                bg: semantic::surface::WIDGET,
+                fg: semantic::text::DISABLED,
+                border: semantic::border::DEFAULT,
+            },
             focus,
         },
         ghost: ButtonStateSlots {
-            normal: Slot { bg: transparent, fg: semantic::text::SECONDARY, border: transparent },
-            hover: Slot { bg: semantic::surface::HOVER, fg: semantic::text::PRIMARY, border: transparent },
-            active: Slot { bg: semantic::surface::ACTIVE, fg: semantic::accent::PRIMARY, border: transparent },
-            selected: Slot { bg: semantic::surface::ACTIVE, fg: semantic::accent::PRIMARY, border: semantic::accent::PRIMARY },
-            disabled: Slot { bg: transparent, fg: semantic::text::DISABLED, border: transparent },
+            normal: Slot {
+                bg: transparent,
+                fg: semantic::text::SECONDARY,
+                border: transparent,
+            },
+            hover: Slot {
+                bg: semantic::surface::HOVER,
+                fg: semantic::text::PRIMARY,
+                border: transparent,
+            },
+            active: Slot {
+                bg: semantic::surface::ACTIVE,
+                fg: semantic::accent::PRIMARY,
+                border: transparent,
+            },
+            selected: Slot {
+                bg: semantic::surface::ACTIVE,
+                fg: semantic::accent::PRIMARY,
+                border: semantic::accent::PRIMARY,
+            },
+            disabled: Slot {
+                bg: transparent,
+                fg: semantic::text::DISABLED,
+                border: transparent,
+            },
             focus,
         },
         icon: ButtonStateSlots {
-            normal: Slot { bg: transparent, fg: semantic::text::SECONDARY, border: transparent },
-            hover: Slot { bg: semantic::surface::HOVER, fg: semantic::text::PRIMARY, border: semantic::accent::PRIMARY },
-            active: Slot { bg: semantic::surface::ACTIVE, fg: semantic::text::PRIMARY, border: semantic::accent::PRIMARY },
-            selected: Slot { bg: semantic::surface::ACTIVE, fg: semantic::text::PRIMARY, border: semantic::accent::PRIMARY },
-            disabled: Slot { bg: transparent, fg: semantic::text::DISABLED, border: transparent },
+            normal: Slot {
+                bg: transparent,
+                fg: semantic::text::SECONDARY,
+                border: transparent,
+            },
+            hover: Slot {
+                bg: semantic::surface::HOVER,
+                fg: semantic::text::PRIMARY,
+                border: semantic::accent::PRIMARY,
+            },
+            active: Slot {
+                bg: semantic::surface::ACTIVE,
+                fg: semantic::text::PRIMARY,
+                border: semantic::accent::PRIMARY,
+            },
+            selected: Slot {
+                bg: semantic::surface::ACTIVE,
+                fg: semantic::text::PRIMARY,
+                border: semantic::accent::PRIMARY,
+            },
+            disabled: Slot {
+                bg: transparent,
+                fg: semantic::text::DISABLED,
+                border: transparent,
+            },
             focus,
         },
         danger: ButtonStateSlots {
-            normal: Slot { bg: semantic::status::error_faint(), fg: semantic::text::ON_ACCENT, border: semantic::status::ERROR },
-            hover: Slot { bg: semantic::status::ERROR, fg: semantic::text::ON_ACCENT, border: semantic::status::ERROR },
-            active: Slot { bg: Color32::from_rgb(200, 40, 40), fg: semantic::text::ON_ACCENT, border: Color32::from_rgb(200, 40, 40) },
-            selected: Slot { bg: semantic::status::ERROR, fg: semantic::text::ON_ACCENT, border: semantic::status::ERROR },
-            disabled: Slot { bg: semantic::surface::WIDGET, fg: semantic::text::DISABLED, border: semantic::surface::WIDGET },
+            normal: Slot {
+                bg: semantic::status::error_faint(),
+                fg: semantic::text::ON_ACCENT,
+                border: semantic::status::ERROR,
+            },
+            hover: Slot {
+                bg: semantic::status::ERROR,
+                fg: semantic::text::ON_ACCENT,
+                border: semantic::status::ERROR,
+            },
+            active: Slot {
+                bg: Color32::from_rgb(200, 40, 40),
+                fg: semantic::text::ON_ACCENT,
+                border: Color32::from_rgb(200, 40, 40),
+            },
+            selected: Slot {
+                bg: semantic::status::ERROR,
+                fg: semantic::text::ON_ACCENT,
+                border: semantic::status::ERROR,
+            },
+            disabled: Slot {
+                bg: semantic::surface::WIDGET,
+                fg: semantic::text::DISABLED,
+                border: semantic::surface::WIDGET,
+            },
             focus,
         },
     }
@@ -631,37 +796,97 @@ fn dark_button_slots() -> ButtonSlots {
 
 fn dark_list_slots() -> ListSlots {
     ListSlots {
-        even: Fill { bg: semantic::surface::SURFACE, fg: semantic::text::PRIMARY },
-        odd: Fill { bg: semantic::surface::WIDGET, fg: semantic::text::PRIMARY },
-        selected: Fill { bg: semantic::accent::selection(), fg: semantic::text::PRIMARY },
-        hover: Fill { bg: semantic::surface::HOVER, fg: semantic::text::PRIMARY },
+        even: Fill {
+            bg: semantic::surface::SURFACE,
+            fg: semantic::text::PRIMARY,
+        },
+        odd: Fill {
+            bg: semantic::surface::WIDGET,
+            fg: semantic::text::PRIMARY,
+        },
+        selected: Fill {
+            bg: semantic::accent::selection(),
+            fg: semantic::text::PRIMARY,
+        },
+        hover: Fill {
+            bg: semantic::surface::HOVER,
+            fg: semantic::text::PRIMARY,
+        },
     }
 }
 
 fn dark_tab_slots() -> TabSlots {
     TabSlots {
-        active: TabSlot { bg: semantic::surface::SURFACE, fg: semantic::text::PRIMARY, indicator: semantic::accent::PRIMARY },
-        inactive: TabSlot { bg: semantic::surface::WIDGET, fg: semantic::text::SECONDARY, indicator: Color32::TRANSPARENT },
-        hover: TabSlot { bg: semantic::surface::HOVER, fg: semantic::text::PRIMARY, indicator: Color32::TRANSPARENT },
+        active: TabSlot {
+            bg: semantic::surface::SURFACE,
+            fg: semantic::text::PRIMARY,
+            indicator: semantic::accent::PRIMARY,
+        },
+        inactive: TabSlot {
+            bg: semantic::surface::WIDGET,
+            fg: semantic::text::SECONDARY,
+            indicator: Color32::TRANSPARENT,
+        },
+        hover: TabSlot {
+            bg: semantic::surface::HOVER,
+            fg: semantic::text::PRIMARY,
+            indicator: Color32::TRANSPARENT,
+        },
     }
 }
 
 fn dark_menu_item_slots() -> MenuItemSlots {
     MenuItemSlots {
-        normal: Slot { bg: Color32::TRANSPARENT, fg: semantic::text::PRIMARY, border: Color32::TRANSPARENT },
-        hover: Slot { bg: semantic::surface::HOVER, fg: semantic::text::PRIMARY, border: Color32::TRANSPARENT },
-        active: Slot { bg: semantic::surface::ACTIVE, fg: semantic::text::PRIMARY, border: Color32::TRANSPARENT },
-        disabled: Slot { bg: Color32::TRANSPARENT, fg: semantic::text::DISABLED, border: Color32::TRANSPARENT },
+        normal: Slot {
+            bg: Color32::TRANSPARENT,
+            fg: semantic::text::PRIMARY,
+            border: Color32::TRANSPARENT,
+        },
+        hover: Slot {
+            bg: semantic::surface::HOVER,
+            fg: semantic::text::PRIMARY,
+            border: Color32::TRANSPARENT,
+        },
+        active: Slot {
+            bg: semantic::surface::ACTIVE,
+            fg: semantic::text::PRIMARY,
+            border: Color32::TRANSPARENT,
+        },
+        disabled: Slot {
+            bg: Color32::TRANSPARENT,
+            fg: semantic::text::DISABLED,
+            border: Color32::TRANSPARENT,
+        },
     }
 }
 
 fn dark_input_slots() -> InputSlots {
     InputSlots {
-        normal: Slot { bg: semantic::surface::WIDGET, fg: semantic::text::PRIMARY, border: semantic::border::DEFAULT },
-        hover: Slot { bg: semantic::surface::WIDGET, fg: semantic::text::PRIMARY, border: semantic::border::HOVER },
-        focus: Slot { bg: semantic::surface::WIDGET, fg: semantic::text::PRIMARY, border: semantic::border::FOCUS },
-        invalid: Slot { bg: semantic::surface::WIDGET, fg: semantic::text::PRIMARY, border: semantic::status::ERROR },
-        disabled: Slot { bg: semantic::surface::WIDGET, fg: semantic::text::DISABLED, border: semantic::border::DEFAULT },
+        normal: Slot {
+            bg: semantic::surface::WIDGET,
+            fg: semantic::text::PRIMARY,
+            border: semantic::border::DEFAULT,
+        },
+        hover: Slot {
+            bg: semantic::surface::WIDGET,
+            fg: semantic::text::PRIMARY,
+            border: semantic::border::HOVER,
+        },
+        focus: Slot {
+            bg: semantic::surface::WIDGET,
+            fg: semantic::text::PRIMARY,
+            border: semantic::border::FOCUS,
+        },
+        invalid: Slot {
+            bg: semantic::surface::WIDGET,
+            fg: semantic::text::PRIMARY,
+            border: semantic::status::ERROR,
+        },
+        disabled: Slot {
+            bg: semantic::surface::WIDGET,
+            fg: semantic::text::DISABLED,
+            border: semantic::border::DEFAULT,
+        },
     }
 }
 
@@ -679,49 +904,153 @@ fn light_button_slots(
     danger_active: Color32,
 ) -> ButtonSlots {
     let transparent = Color32::TRANSPARENT;
-    let focus = Slot { bg: transparent, fg: transparent, border: border_focus };
+    let focus = Slot {
+        bg: transparent,
+        fg: transparent,
+        border: border_focus,
+    };
     let a = semantic::accent::PRIMARY;
     let a_hover = semantic::accent::PRIMARY_HOVER;
     let a_active = semantic::accent::PRIMARY_ACTIVE;
     ButtonSlots {
         primary: ButtonStateSlots {
-            normal: Slot { bg: a, fg: on_accent, border: a },
-            hover: Slot { bg: a_hover, fg: on_accent, border: a_hover },
-            active: Slot { bg: a_active, fg: on_accent, border: a_active },
-            selected: Slot { bg: a_active, fg: on_accent, border: a_active },
-            disabled: Slot { bg: widget, fg: disabled, border: widget },
+            normal: Slot {
+                bg: a,
+                fg: on_accent,
+                border: a,
+            },
+            hover: Slot {
+                bg: a_hover,
+                fg: on_accent,
+                border: a_hover,
+            },
+            active: Slot {
+                bg: a_active,
+                fg: on_accent,
+                border: a_active,
+            },
+            selected: Slot {
+                bg: a_active,
+                fg: on_accent,
+                border: a_active,
+            },
+            disabled: Slot {
+                bg: widget,
+                fg: disabled,
+                border: widget,
+            },
             focus,
         },
         secondary: ButtonStateSlots {
-            normal: Slot { bg: widget, fg: text_primary, border: border_default },
-            hover: Slot { bg: hover, fg: text_primary, border: a },
-            active: Slot { bg: active, fg: text_primary, border: a },
-            selected: Slot { bg: active, fg: text_primary, border: a },
-            disabled: Slot { bg: widget, fg: disabled, border: border_default },
+            normal: Slot {
+                bg: widget,
+                fg: text_primary,
+                border: border_default,
+            },
+            hover: Slot {
+                bg: hover,
+                fg: text_primary,
+                border: a,
+            },
+            active: Slot {
+                bg: active,
+                fg: text_primary,
+                border: a,
+            },
+            selected: Slot {
+                bg: active,
+                fg: text_primary,
+                border: a,
+            },
+            disabled: Slot {
+                bg: widget,
+                fg: disabled,
+                border: border_default,
+            },
             focus,
         },
         ghost: ButtonStateSlots {
-            normal: Slot { bg: transparent, fg: secondary, border: transparent },
-            hover: Slot { bg: hover, fg: text_primary, border: transparent },
-            active: Slot { bg: active, fg: a, border: transparent },
-            selected: Slot { bg: active, fg: a, border: a },
-            disabled: Slot { bg: transparent, fg: disabled, border: transparent },
+            normal: Slot {
+                bg: transparent,
+                fg: secondary,
+                border: transparent,
+            },
+            hover: Slot {
+                bg: hover,
+                fg: text_primary,
+                border: transparent,
+            },
+            active: Slot {
+                bg: active,
+                fg: a,
+                border: transparent,
+            },
+            selected: Slot {
+                bg: active,
+                fg: a,
+                border: a,
+            },
+            disabled: Slot {
+                bg: transparent,
+                fg: disabled,
+                border: transparent,
+            },
             focus,
         },
         icon: ButtonStateSlots {
-            normal: Slot { bg: transparent, fg: secondary, border: transparent },
-            hover: Slot { bg: hover, fg: text_primary, border: a },
-            active: Slot { bg: active, fg: text_primary, border: a },
-            selected: Slot { bg: active, fg: text_primary, border: a },
-            disabled: Slot { bg: transparent, fg: disabled, border: transparent },
+            normal: Slot {
+                bg: transparent,
+                fg: secondary,
+                border: transparent,
+            },
+            hover: Slot {
+                bg: hover,
+                fg: text_primary,
+                border: a,
+            },
+            active: Slot {
+                bg: active,
+                fg: text_primary,
+                border: a,
+            },
+            selected: Slot {
+                bg: active,
+                fg: text_primary,
+                border: a,
+            },
+            disabled: Slot {
+                bg: transparent,
+                fg: disabled,
+                border: transparent,
+            },
             focus,
         },
         danger: ButtonStateSlots {
-            normal: Slot { bg: semantic::status::error_faint(), fg: on_accent, border: semantic::status::ERROR },
-            hover: Slot { bg: semantic::status::ERROR, fg: on_accent, border: semantic::status::ERROR },
-            active: Slot { bg: danger_active, fg: on_accent, border: danger_active },
-            selected: Slot { bg: semantic::status::ERROR, fg: on_accent, border: semantic::status::ERROR },
-            disabled: Slot { bg: widget, fg: disabled, border: widget },
+            normal: Slot {
+                bg: semantic::status::error_faint(),
+                fg: on_accent,
+                border: semantic::status::ERROR,
+            },
+            hover: Slot {
+                bg: semantic::status::ERROR,
+                fg: on_accent,
+                border: semantic::status::ERROR,
+            },
+            active: Slot {
+                bg: danger_active,
+                fg: on_accent,
+                border: danger_active,
+            },
+            selected: Slot {
+                bg: semantic::status::ERROR,
+                fg: on_accent,
+                border: semantic::status::ERROR,
+            },
+            disabled: Slot {
+                bg: widget,
+                fg: disabled,
+                border: widget,
+            },
             focus,
         },
     }
@@ -802,10 +1131,7 @@ mod tests {
         assert_eq!(t.surface.widget, semantic::surface::WIDGET);
         assert_eq!(t.surface.hover, semantic::surface::HOVER);
         assert_eq!(t.surface.active, semantic::surface::ACTIVE);
-        assert_eq!(
-            t.surface.floating_card_bg,
-            semantic::surface::floating_card_bg()
-        );
+        assert_eq!(t.surface.floating_card_bg, semantic::surface::floating_card_bg());
 
         assert_eq!(t.text.primary, semantic::text::PRIMARY);
         assert_eq!(t.text.secondary, semantic::text::SECONDARY);
@@ -833,25 +1159,13 @@ mod tests {
         assert_eq!(t.status.error, semantic::status::ERROR);
         assert_eq!(t.status.info, semantic::status::INFO);
         assert_eq!(t.status.playing_text, semantic::status::PLAYING_TEXT);
-        assert_eq!(
-            t.status.diagnostic_error,
-            semantic::status::DIAGNOSTIC_ERROR
-        );
-        assert_eq!(
-            t.status.diagnostic_warning,
-            semantic::status::DIAGNOSTIC_WARNING
-        );
+        assert_eq!(t.status.diagnostic_error, semantic::status::DIAGNOSTIC_ERROR);
+        assert_eq!(t.status.diagnostic_warning, semantic::status::DIAGNOSTIC_WARNING);
         assert_eq!(t.status.success_faint, semantic::status::success_faint());
-        assert_eq!(
-            t.status.success_ultra_faint,
-            semantic::status::success_ultra_faint()
-        );
+        assert_eq!(t.status.success_ultra_faint, semantic::status::success_ultra_faint());
         assert_eq!(t.status.warning_subtle, semantic::status::warning_subtle());
         assert_eq!(t.status.error_faint, semantic::status::error_faint());
-        assert_eq!(
-            t.status.error_ultra_faint,
-            semantic::status::error_ultra_faint()
-        );
+        assert_eq!(t.status.error_ultra_faint, semantic::status::error_ultra_faint());
 
         assert_eq!(t.border.default, semantic::border::DEFAULT);
         assert_eq!(t.border.strong, semantic::border::HOVER);
@@ -956,10 +1270,7 @@ mod tests {
         assert!(!AppThemeChoice::Auto.is_dark(Some(false)));
         assert!(AppThemeChoice::Auto.is_dark(None));
         // resolve() picks the matching Theme.
-        assert_eq!(
-            AppThemeChoice::Light.resolve(None).surface.base,
-            Theme::light().surface.base
-        );
+        assert_eq!(AppThemeChoice::Light.resolve(None).surface.base, Theme::light().surface.base);
         assert_eq!(
             AppThemeChoice::Auto.resolve(Some(true)).surface.base,
             Theme::dark().surface.base

@@ -68,6 +68,7 @@ impl GuiShell {
                 file::handle_reload(
                     &mut self.document_store,
                     &mut self.preview_store,
+                    &mut self.ui_store,
                     &mut self.workspace_store,
                 )
             },
@@ -253,10 +254,9 @@ impl GuiShell {
                 old_time_s,
                 new_time_s,
             ),
-            Command::SetSelectedKeyframes(keyframes) => ui::handle_set_selected_keyframes(
-                &mut self.ui_store,
-                keyframes,
-            ),
+            Command::SetSelectedKeyframes(keyframes) => {
+                ui::handle_set_selected_keyframes(&mut self.ui_store, keyframes)
+            },
             Command::ResizeAction {
                 verb,
                 targets,
@@ -316,7 +316,12 @@ impl GuiShell {
                 self.handle_property_edit(edit);
                 vec![]
             },
-            Command::DetachCallout { actor, from, to, label_at } => {
+            Command::DetachCallout {
+                actor,
+                from,
+                to,
+                label_at,
+            } => {
                 self.handle_detach_callout(actor, from, to, label_at);
                 vec![]
             },

@@ -1,8 +1,9 @@
 use std::collections::VecDeque;
 
+use animatix_syntax::diagnostics::Diagnostic;
+
 use crate::app::commands::{UndoEntry, UndoLabel};
 use crate::app::document::history::UiSnapshot;
-use animatix_syntax::diagnostics::Diagnostic;
 
 /// Owns undo/redo history with UI state snapshots.
 pub struct HistoryStore {

@@ -3,13 +3,7 @@ use egui::{Align, RichText, Stroke, Vec2};
 use crate::app::GuiShell;
 use crate::app::commands::{ActionQueue, DocumentCommand, SceneCommand, ShellAction, ViewAction};
 use crate::app::components::button::Button;
-use crate::app::design_tokens::semantic::accent;
-use crate::app::design_tokens::semantic::status;
-
-use crate::app::design_tokens::semantic::surface;
-
-use crate::app::design_tokens::semantic::text;
-
+use crate::app::design_tokens::semantic::{accent, status, surface, text};
 use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 

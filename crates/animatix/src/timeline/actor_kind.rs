@@ -1,10 +1,10 @@
-use crate::ast::{InlineItem, Modifier, Property};
-use crate::diagnostics::Diagnostic;
-use crate::timeline::shapes::ShapeType;
-use crate::timeline::Timeline;
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+
+use crate::ast::{InlineItem, Modifier, Property};
+use crate::diagnostics::Diagnostic;
+use crate::timeline::Timeline;
+use crate::timeline::shapes::ShapeType;
 
 /// Trait for actor type dispatch. Each primitive type implements this trait
 /// to provide its build logic.

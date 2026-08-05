@@ -3,8 +3,9 @@
 //! All three widgets are theme-driven, app-owned state, and use `animate_bool_eased`
 //! / `animate_lerp` for crossfades and thumb motion.
 
-use egui::{Color32, Pos2, Response, Sense, Stroke, StrokeKind, Vec2};
 use std::hash::{Hash, Hasher};
+
+use egui::{Color32, Pos2, Response, Sense, Stroke, StrokeKind, Vec2};
 
 use crate::tokens::motion::{NORMAL, STANDARD, Transition};
 use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH, STROKE_WIDTH_THICK};
@@ -83,10 +84,9 @@ impl<'a> egui::Widget for Checkbox<'a> {
         let box_size = Vec2::splat(s.row_xs);
         let spacing = s.space_3;
         let font = TextRole::Body.font_id();
-        let label_galley = self.label.map(|l| {
-            ui.painter()
-                .layout_no_wrap(l.to_string(), font.clone(), t.text.primary)
-        });
+        let label_galley = self
+            .label
+            .map(|l| ui.painter().layout_no_wrap(l.to_string(), font.clone(), t.text.primary));
         let label_size = label_galley.as_ref().map(|g| g.size()).unwrap_or(Vec2::ZERO);
 
         let total_size =
@@ -103,16 +103,15 @@ impl<'a> egui::Widget for Checkbox<'a> {
                 let label_pos =
                     egui::pos2(cb.right() + spacing, rect.center().y - label_size.y / 2.0);
                 (cb, egui::Rect::from_min_size(label_pos, label_size))
-            }
+            },
             Side::Left => {
                 let cb = egui::Rect::from_center_size(
                     rect.center() + Vec2::new(label_size.x / 2.0 + spacing / 2.0, 0.0),
                     box_size,
                 );
-                let label_pos =
-                    egui::pos2(rect.min.x, rect.center().y - label_size.y / 2.0);
+                let label_pos = egui::pos2(rect.min.x, rect.center().y - label_size.y / 2.0);
                 (cb, egui::Rect::from_min_size(label_pos, label_size))
-            }
+            },
         };
 
         // Animated checkmark crossfade
@@ -160,14 +159,10 @@ impl<'a> egui::Widget for Checkbox<'a> {
             let p2 = center + Vec2::new(-arm * 0.1 * scale, arm * 0.8 * scale);
             let p3 = center + Vec2::new(arm * 0.9 * scale, -arm * 0.9 * scale);
 
-            ui.painter().line_segment(
-                [p1, p2],
-                Stroke::new(STROKE_WIDTH_THICK, check_color),
-            );
-            ui.painter().line_segment(
-                [p2, p3],
-                Stroke::new(STROKE_WIDTH_THICK, check_color),
-            );
+            ui.painter()
+                .line_segment([p1, p2], Stroke::new(STROKE_WIDTH_THICK, check_color));
+            ui.painter()
+                .line_segment([p2, p3], Stroke::new(STROKE_WIDTH_THICK, check_color));
         }
 
         // Draw label
@@ -182,9 +177,7 @@ impl<'a> egui::Widget for Checkbox<'a> {
 
         // Tooltip + principle 3 cursor
         if !self.tooltip.is_empty() {
-            response
-                .on_hover_cursor(egui::CursorIcon::Default)
-                .on_hover_text(self.tooltip)
+            response.on_hover_cursor(egui::CursorIcon::Default).on_hover_text(self.tooltip)
         } else {
             response.on_hover_cursor(egui::CursorIcon::Default)
         }
@@ -259,10 +252,9 @@ impl<'a, T: PartialEq + Clone + Hash> egui::Widget for Radio<'a, T> {
         let outer_size = Vec2::splat(s.toggle.radio_size);
         let spacing = s.space_3;
         let font = TextRole::Body.font_id();
-        let label_galley = self.label.map(|l| {
-            ui.painter()
-                .layout_no_wrap(l.to_string(), font.clone(), t.text.primary)
-        });
+        let label_galley = self
+            .label
+            .map(|l| ui.painter().layout_no_wrap(l.to_string(), font.clone(), t.text.primary));
         let label_size = label_galley.as_ref().map(|g| g.size()).unwrap_or(Vec2::ZERO);
 
         let total_size =
@@ -278,16 +270,15 @@ impl<'a, T: PartialEq + Clone + Hash> egui::Widget for Radio<'a, T> {
                 let label_pos =
                     egui::pos2(outer.right() + spacing, rect.center().y - label_size.y / 2.0);
                 (outer, egui::Rect::from_min_size(label_pos, label_size))
-            }
+            },
             Side::Left => {
                 let outer = egui::Rect::from_center_size(
                     rect.center() + Vec2::new(label_size.x / 2.0 + spacing / 2.0, 0.0),
                     outer_size,
                 );
-                let label_pos =
-                    egui::pos2(rect.min.x, rect.center().y - label_size.y / 2.0);
+                let label_pos = egui::pos2(rect.min.x, rect.center().y - label_size.y / 2.0);
                 (outer, egui::Rect::from_min_size(label_pos, label_size))
-            }
+            },
         };
 
         // Animated dot progress
@@ -333,9 +324,7 @@ impl<'a, T: PartialEq + Clone + Hash> egui::Widget for Radio<'a, T> {
 
         // Tooltip + principle 3 cursor
         if !self.tooltip.is_empty() {
-            response
-                .on_hover_cursor(egui::CursorIcon::Default)
-                .on_hover_text(self.tooltip)
+            response.on_hover_cursor(egui::CursorIcon::Default).on_hover_text(self.tooltip)
         } else {
             response.on_hover_cursor(egui::CursorIcon::Default)
         }
@@ -403,16 +392,13 @@ impl<'a> egui::Widget for Switch<'a> {
         let spacing = s.space_3;
 
         let font = TextRole::Body.font_id();
-        let label_galley = self.label.map(|l| {
-            ui.painter()
-                .layout_no_wrap(l.to_string(), font.clone(), t.text.primary)
-        });
+        let label_galley = self
+            .label
+            .map(|l| ui.painter().layout_no_wrap(l.to_string(), font.clone(), t.text.primary));
         let label_size = label_galley.as_ref().map(|g| g.size()).unwrap_or(Vec2::ZERO);
 
-        let total_size = Vec2::new(
-            track_width + spacing + label_size.x,
-            track_height.max(label_size.y),
-        );
+        let total_size =
+            Vec2::new(track_width + spacing + label_size.x, track_height.max(label_size.y));
         let (rect, response) = ui.allocate_exact_size(total_size, Sense::click());
 
         // Position track and label
@@ -425,16 +411,15 @@ impl<'a> egui::Widget for Switch<'a> {
                 let label_pos =
                     egui::pos2(track.right() + spacing, rect.center().y - label_size.y / 2.0);
                 (track, egui::Rect::from_min_size(label_pos, label_size))
-            }
+            },
             Side::Left => {
                 let track = egui::Rect::from_center_size(
                     rect.center() + Vec2::new(label_size.x / 2.0 + spacing / 2.0, 0.0),
                     Vec2::new(track_width, track_height),
                 );
-                let label_pos =
-                    egui::pos2(rect.min.x, rect.center().y - label_size.y / 2.0);
+                let label_pos = egui::pos2(rect.min.x, rect.center().y - label_size.y / 2.0);
                 (track, egui::Rect::from_min_size(label_pos, label_size))
-            }
+            },
         };
 
         let track_center_y = track_rect.center().y;
@@ -447,14 +432,8 @@ impl<'a> egui::Widget for Switch<'a> {
         };
 
         // Animated thumb position
-        let thumb_x = animate_lerp(
-            ui.ctx(),
-            id.with("thumb"),
-            left_x,
-            right_x,
-            *self.value,
-            transition,
-        );
+        let thumb_x =
+            animate_lerp(ui.ctx(), id.with("thumb"), left_x, right_x, *self.value, transition);
 
         // Animated track color crossfade
         let track_color = animate_lerp(
@@ -467,11 +446,7 @@ impl<'a> egui::Widget for Switch<'a> {
         );
 
         // Draw track
-        ui.painter().rect_filled(
-            track_rect,
-            track_height / 2.0,
-            track_color,
-        );
+        ui.painter().rect_filled(track_rect, track_height / 2.0, track_color);
         ui.painter().rect_stroke(
             track_rect,
             track_height / 2.0,
@@ -500,9 +475,7 @@ impl<'a> egui::Widget for Switch<'a> {
 
         // Tooltip + principle 3 cursor
         if !self.tooltip.is_empty() {
-            response
-                .on_hover_cursor(egui::CursorIcon::Default)
-                .on_hover_text(self.tooltip)
+            response.on_hover_cursor(egui::CursorIcon::Default).on_hover_text(self.tooltip)
         } else {
             response.on_hover_cursor(egui::CursorIcon::Default)
         }
@@ -559,10 +532,7 @@ mod tests {
     #[test]
     fn checkbox_builder_chaining() {
         let mut val = true;
-        let cb = Checkbox::new(&mut val)
-            .label("L")
-            .label_side(Side::Left)
-            .tooltip("T");
+        let cb = Checkbox::new(&mut val).label("L").label_side(Side::Left).tooltip("T");
         assert_eq!(cb.label, Some("L"));
         assert_eq!(cb.label_side, Side::Left);
         assert_eq!(cb.tooltip, "T");
@@ -604,10 +574,7 @@ mod tests {
     #[test]
     fn radio_builder_chaining() {
         let mut val = 0u32;
-        let r = Radio::new(&mut val, 2)
-            .label("L")
-            .label_side(Side::Left)
-            .tooltip("T");
+        let r = Radio::new(&mut val, 2).label("L").label_side(Side::Left).tooltip("T");
         assert_eq!(r.this_value, 2);
         assert_eq!(r.label, Some("L"));
         assert_eq!(r.label_side, Side::Left);
@@ -656,10 +623,7 @@ mod tests {
     #[test]
     fn switch_builder_chaining() {
         let mut val = true;
-        let s = Switch::new(&mut val)
-            .label("L")
-            .label_side(Side::Left)
-            .tooltip("T");
+        let s = Switch::new(&mut val).label("L").label_side(Side::Left).tooltip("T");
         assert_eq!(s.label, Some("L"));
         assert_eq!(s.label_side, Side::Left);
         assert_eq!(s.tooltip, "T");

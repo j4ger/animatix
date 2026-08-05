@@ -1,8 +1,8 @@
 use egui::{Color32, Frame, Margin, RichText, ScrollArea, Stroke, Vec2};
 
 use crate::app::components::anim;
-use crate::app::design_tokens::semantic::{accent, surface, text, status};
 use crate::app::design_tokens::motion;
+use crate::app::design_tokens::semantic::{accent, status, surface, text};
 use crate::app::design_tokens::spatial::ROW_S;
 use crate::app::design_tokens::util::lerp_color;
 use crate::cell_editor::{Cell, CellDiagnostic, CellEditorState};
@@ -21,10 +21,10 @@ fn cell_analyzer_diagnostics(
             severity: match d.severity {
                 animatix_syntax::diagnostics::DiagnosticSeverity::Error => {
                     animatix_analyzer::DiagnosticSeverity::Error
-                }
+                },
                 animatix_syntax::diagnostics::DiagnosticSeverity::Warning => {
                     animatix_analyzer::DiagnosticSeverity::Warning
-                }
+                },
             },
             line: d.rel_line,
             col: d.rel_col,
@@ -83,9 +83,15 @@ pub fn render_cell_editor(
                 state.highlighted_cell == Some(index) || state.focused_cell == Some(index);
 
             let cell_response = match cell {
-                Cell::Code { .. } => {
-                    render_code_cell(ui, index, cell, &style, highlighted, state, &mut source_changed)
-                }
+                Cell::Code { .. } => render_code_cell(
+                    ui,
+                    index,
+                    cell,
+                    &style,
+                    highlighted,
+                    state,
+                    &mut source_changed,
+                ),
                 Cell::Keyframe { .. } => render_keyframe_cell(
                     ui,
                     index,
@@ -120,11 +126,7 @@ pub fn render_cell_editor(
 /// Clean 20×20 icon button for cell headers.
 ///
 /// No idle background; a subtle hover bg fades in and the icon brightens.
-fn header_btn(
-    ui: &mut egui::Ui,
-    icon: &'static str,
-    tooltip: &'static str,
-) -> bool {
+fn header_btn(ui: &mut egui::Ui, icon: &'static str, tooltip: &'static str) -> bool {
     let size = Vec2::splat(ROW_S);
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click());
 
@@ -182,8 +184,8 @@ fn apply_pending_cursor(ui: &mut egui::Ui, index: usize, state: &mut CellEditorS
     if state.pending_cursor_cell == Some(index) {
         if let Some(char_idx) = state.pending_cursor_char.take() {
             let text_edit_id = ui.id().with(("cell_body", index));
-            let mut te_state = egui::text_edit::TextEditState::load(ui.ctx(), text_edit_id)
-                .unwrap_or_default();
+            let mut te_state =
+                egui::text_edit::TextEditState::load(ui.ctx(), text_edit_id).unwrap_or_default();
             use egui::text::{CCursor, CCursorRange};
             te_state.cursor.set_char_range(Some(CCursorRange::one(CCursor::new(char_idx))));
             te_state.store(ui.ctx(), text_edit_id);
@@ -203,7 +205,11 @@ fn render_code_cell(
     source_changed: &mut bool,
 ) -> egui::Response {
     let expanded = cell.is_expanded(index, &state.collapsed_cells);
-    let bg = if highlighted { CODE_BG_HIGHLIGHT } else { CODE_BG };
+    let bg = if highlighted {
+        CODE_BG_HIGHLIGHT
+    } else {
+        CODE_BG
+    };
     let border_color = if state.focused_cell == Some(index) {
         Some(accent::PRIMARY)
     } else {
@@ -222,109 +228,83 @@ fn render_code_cell(
         .fill(border_color.unwrap_or(bg))
         .inner_margin(diagnostic_margin.unwrap_or(Margin::symmetric(0, 0)))
         .show(ui, |ui| {
-            Frame::new()
-                .fill(bg)
-                .inner_margin(Margin::symmetric(10, 8))
-                .show(ui, |ui| {
-                    ui.vertical(|ui| {
-                        // Header row
-                        let _header_response = ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+            Frame::new().fill(bg).inner_margin(Margin::symmetric(10, 8)).show(ui, |ui| {
+                ui.vertical(|ui| {
+                    // Header row
+                    let _header_response = ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
 
-                            let toggle = if expanded {
-                                egui_phosphor::regular::CARET_DOWN
-                            } else {
-                                egui_phosphor::regular::CARET_RIGHT
-                            };
-                            if header_btn(
-                                ui,
-                                toggle,
-                                if expanded { "Collapse" } else { "Expand" },
-                            ) {
-                                cell.set_expanded(!expanded);
+                        let toggle = if expanded {
+                            egui_phosphor::regular::CARET_DOWN
+                        } else {
+                            egui_phosphor::regular::CARET_RIGHT
+                        };
+                        if header_btn(ui, toggle, if expanded { "Collapse" } else { "Expand" }) {
+                            cell.set_expanded(!expanded);
+                        }
+
+                        // Code type icon + label
+                        ui.label(
+                            RichText::new(egui_phosphor::regular::CODE)
+                                .size(12.0)
+                                .color(text::MUTED),
+                        );
+                        ui.label(
+                            RichText::new(format!("Code {index}")).size(11.0).color(text::MUTED),
+                        );
+
+                        // Right-aligned actions
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
+                            if header_btn(ui, egui_phosphor::regular::TRASH, "Delete code block") {
+                                state.pending_delete_cell = Some(index);
                             }
-
-                            // Code type icon + label
-                            ui.label(
-                                RichText::new(egui_phosphor::regular::CODE)
-                                    .size(12.0)
-                                    .color(text::MUTED),
-                            );
-                            ui.label(
-                                RichText::new(format!("Code {index}"))
-                                    .size(11.0)
-                                    .color(text::MUTED),
-                            );
-
-                            // Right-aligned actions
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| {
-                                    ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
-                                    if header_btn(
-                                        ui,
-                                        egui_phosphor::regular::TRASH,
-                                        "Delete code block",
-                                    ) {
-                                        state.pending_delete_cell = Some(index);
-                                    }
-                                    if header_btn(
-                                        ui,
-                                        egui_phosphor::regular::ARROW_DOWN,
-                                        "Move down",
-                                    ) {
-                                        state.pending_move_down = Some(index);
-                                    }
-                                    if header_btn(
-                                        ui,
-                                        egui_phosphor::regular::ARROW_UP,
-                                        "Move up",
-                                    ) {
-                                        state.pending_move_up = Some(index);
-                                    }
-                                },
-                            );
+                            if header_btn(ui, egui_phosphor::regular::ARROW_DOWN, "Move down") {
+                                state.pending_move_down = Some(index);
+                            }
+                            if header_btn(ui, egui_phosphor::regular::ARROW_UP, "Move up") {
+                                state.pending_move_up = Some(index);
+                            }
                         });
+                    });
 
-                        if expanded {
-                            ui.add_space(4.0);
+                    if expanded {
+                        ui.add_space(4.0);
 
-                            apply_pending_cursor(ui, index, state);
+                        apply_pending_cursor(ui, index, state);
 
-                            let layouter_style = style.clone();
-                            let cell_diags_ref = cell_diags.clone();
-                            let cell_semantic: Vec<_> = state
-                                .semantic_highlights
-                                .iter()
-                                .filter(|sh| sh.cell_index == index)
-                                .cloned()
-                                .collect();
-                            // Cached highlight: skip highlight_source when cell body unchanged
-                            let body_text = cell.body().to_string();
-                            let cached_job = state
+                        let layouter_style = style.clone();
+                        let cell_diags_ref = cell_diags.clone();
+                        let cell_semantic: Vec<_> = state
+                            .semantic_highlights
+                            .iter()
+                            .filter(|sh| sh.cell_index == index)
+                            .cloned()
+                            .collect();
+                        // Cached highlight: skip highlight_source when cell body unchanged
+                        let body_text = cell.body().to_string();
+                        let cached_job = state
+                            .cached_highlight_jobs
+                            .get(&index)
+                            .filter(|(cached_body, _)| cached_body == &body_text)
+                            .map(|(_, job)| job.clone());
+                        let base_job = if let Some(job) = cached_job {
+                            job
+                        } else {
+                            let new_job = highlight_source(
+                                &body_text,
+                                &layouter_style,
+                                &cell_diags_ref,
+                                None,
+                                &cell_semantic,
+                            );
+                            state
                                 .cached_highlight_jobs
-                                .get(&index)
-                                .filter(|(cached_body, _)| cached_body == &body_text)
-                                .map(|(_, job)| job.clone());
-                            let base_job = if let Some(job) = cached_job {
-                                job
-                            } else {
-                                let new_job = highlight_source(
-                                    &body_text,
-                                    &layouter_style,
-                                    &cell_diags_ref,
-                                    None,
-                                    &cell_semantic,
-                                );
-                                state.cached_highlight_jobs.insert(
-                                    index,
-                                    (body_text.clone(), new_job.clone()),
-                                );
-                                new_job
-                            };
-                            let mut layouter = move |ui: &egui::Ui,
-                                                     buf: &dyn egui::TextBuffer,
-                                                     wrap_width: f32| {
+                                .insert(index, (body_text.clone(), new_job.clone()));
+                            new_job
+                        };
+                        let mut layouter =
+                            move |ui: &egui::Ui, buf: &dyn egui::TextBuffer, wrap_width: f32| {
                                 let buf_text = buf.as_str();
                                 let mut job = if buf_text == base_job.text.as_str() {
                                     base_job.clone()
@@ -341,36 +321,37 @@ fn render_code_cell(
                                 ui.fonts_mut(|fonts| fonts.layout_job(job))
                             };
 
-                            let text_edit_id = ui.id().with(("cell_body", index));
-                            let response = ui.add(
-                                egui::TextEdit::multiline(cell.body_mut())
-                                    .id(text_edit_id)
-                                    .code_editor()
-                                    .frame(Frame::NONE)
-                                    .desired_width(f32::INFINITY)
-                                    .layouter(&mut layouter),
-                            );
-                            if response.changed() {
-                                *source_changed = true;
-                            }
-                            if state.pending_cursor_cell == Some(index) {
-                                response.request_focus();
-                                state.pending_cursor_cell = None;
-                            }
-                            track_focus(index, &response, state);
-
-                            // Draw wavy diagnostic underlines
-                            let cell_underlines: Vec<CellDiagnostic> = state.diagnostics
-                                .iter()
-                                .filter(|d| d.cell_index == index)
-                                .cloned()
-                                .collect();
-                            if !cell_underlines.is_empty() {
-                                draw_wavy_underlines(ui, &cell_underlines, response.rect);
-                            }
+                        let text_edit_id = ui.id().with(("cell_body", index));
+                        let response = ui.add(
+                            egui::TextEdit::multiline(cell.body_mut())
+                                .id(text_edit_id)
+                                .code_editor()
+                                .frame(Frame::NONE)
+                                .desired_width(f32::INFINITY)
+                                .layouter(&mut layouter),
+                        );
+                        if response.changed() {
+                            *source_changed = true;
                         }
-                    });
+                        if state.pending_cursor_cell == Some(index) {
+                            response.request_focus();
+                            state.pending_cursor_cell = None;
+                        }
+                        track_focus(index, &response, state);
+
+                        // Draw wavy diagnostic underlines
+                        let cell_underlines: Vec<CellDiagnostic> = state
+                            .diagnostics
+                            .iter()
+                            .filter(|d| d.cell_index == index)
+                            .cloned()
+                            .collect();
+                        if !cell_underlines.is_empty() {
+                            draw_wavy_underlines(ui, &cell_underlines, response.rect);
+                        }
+                    }
                 });
+            });
         })
         .response
 }
@@ -412,132 +393,123 @@ fn render_keyframe_cell(
         .fill(border_color.unwrap_or(bg))
         .inner_margin(diagnostic_margin.unwrap_or(Margin::symmetric(0, 0)))
         .show(ui, |ui| {
-            Frame::new()
-                .fill(bg)
-                .show(ui, |ui| {
-                    ui.vertical(|ui| {
-                        // ── Header bar ──────────────────────────────
-                        Frame::new()
-                            .fill(KEYFRAME_HEADER_BG)
-                            .inner_margin(Margin::symmetric(10, 5))
-                            .show(ui, |ui| {
-                                ui.set_min_height(26.0);
-                                let _header_response = ui.horizontal(|ui| {
-                                    ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+            Frame::new().fill(bg).show(ui, |ui| {
+                ui.vertical(|ui| {
+                    // ── Header bar ──────────────────────────────
+                    Frame::new()
+                        .fill(KEYFRAME_HEADER_BG)
+                        .inner_margin(Margin::symmetric(10, 5))
+                        .show(ui, |ui| {
+                            ui.set_min_height(26.0);
+                            let _header_response = ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
 
-                                    let toggle = if expanded {
-                                        egui_phosphor::regular::CARET_DOWN
+                                let toggle = if expanded {
+                                    egui_phosphor::regular::CARET_DOWN
+                                } else {
+                                    egui_phosphor::regular::CARET_RIGHT
+                                };
+                                if header_btn(
+                                    ui,
+                                    toggle,
+                                    if expanded { "Collapse" } else { "Expand" },
+                                ) {
+                                    if expanded {
+                                        state.collapsed_cells.insert(index);
                                     } else {
-                                        egui_phosphor::regular::CARET_RIGHT
-                                    };
-                                    if header_btn(
-                                        ui,
-                                        toggle,
-                                        if expanded { "Collapse" } else { "Expand" },
-                                    ) {
-                                        if expanded {
-                                            state.collapsed_cells.insert(index);
-                                        } else {
-                                            state.collapsed_cells.remove(&index);
+                                        state.collapsed_cells.remove(&index);
+                                    }
+                                }
+
+                                // Keyframe type icon
+                                ui.label(
+                                    RichText::new(egui_phosphor::regular::FILM_STRIP)
+                                        .size(12.0)
+                                        .color(text::MUTED),
+                                );
+
+                                // Editable timestamp
+                                render_timestamp_editor(ui, cell, source_changed, state, index);
+
+                                // Play
+                                if header_btn(
+                                    ui,
+                                    egui_phosphor::regular::PLAY,
+                                    "Play from this keyframe",
+                                ) {
+                                    on_scrub_to_time(time_s);
+                                }
+
+                                // Right-aligned actions
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
+                                        if header_btn(
+                                            ui,
+                                            egui_phosphor::regular::TRASH,
+                                            "Delete keyframe",
+                                        ) {
+                                            state.pending_delete_cell = Some(index);
                                         }
-                                    }
-
-                                    // Keyframe type icon
-                                    ui.label(
-                                        RichText::new(egui_phosphor::regular::FILM_STRIP)
-                                            .size(12.0)
-                                            .color(text::MUTED),
-                                    );
-
-                                    // Editable timestamp
-                                    render_timestamp_editor(
-                                        ui,
-                                        cell,
-                                        source_changed,
-                                        state,
-                                        index,
-                                    );
-
-                                    // Play
-                                    if header_btn(
-                                        ui,
-                                        egui_phosphor::regular::PLAY,
-                                        "Play from this keyframe",
-                                    ) {
-                                        on_scrub_to_time(time_s);
-                                    }
-
-                                    // Right-aligned actions
-                                    ui.with_layout(
-                                        egui::Layout::right_to_left(egui::Align::Center),
-                                        |ui| {
-                                            ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
-                                            if header_btn(
-                                                ui,
-                                                egui_phosphor::regular::TRASH,
-                                                "Delete keyframe",
-                                            ) {
-                                                state.pending_delete_cell = Some(index);
-                                            }
-                                            if header_btn(
-                                                ui,
-                                                egui_phosphor::regular::ARROW_DOWN,
-                                                "Move down",
-                                            ) {
-                                                state.pending_move_down = Some(index);
-                                            }
-                                            if header_btn(
-                                                ui,
-                                                egui_phosphor::regular::ARROW_UP,
-                                                "Move up",
-                                            ) {
-                                                state.pending_move_up = Some(index);
-                                            }
-                                        },
-                                    );
-                                });
+                                        if header_btn(
+                                            ui,
+                                            egui_phosphor::regular::ARROW_DOWN,
+                                            "Move down",
+                                        ) {
+                                            state.pending_move_down = Some(index);
+                                        }
+                                        if header_btn(
+                                            ui,
+                                            egui_phosphor::regular::ARROW_UP,
+                                            "Move up",
+                                        ) {
+                                            state.pending_move_up = Some(index);
+                                        }
+                                    },
+                                );
                             });
+                        });
 
-                        // ── Body editor ─────────────────────────────
-                        if expanded {
-                            Frame::new()
-                                .fill(bg)
-                                .inner_margin(Margin::symmetric(10, 8))
-                                .show(ui, |ui| {
-                                    let layouter_style = style.clone();
-                                    let cell_diags_ref = cell_diags.clone();
-                                    let cell_semantic: Vec<_> = state
-                                        .semantic_highlights
-                                        .iter()
-                                        .filter(|sh| sh.cell_index == index)
-                                        .cloned()
-                                        .collect();
-                                    // Cached highlight: skip highlight_source when cell body unchanged
-                                    let body_text = cell.body().to_string();
-                                    let cached_job = state
+                    // ── Body editor ─────────────────────────────
+                    if expanded {
+                        Frame::new().fill(bg).inner_margin(Margin::symmetric(10, 8)).show(
+                            ui,
+                            |ui| {
+                                let layouter_style = style.clone();
+                                let cell_diags_ref = cell_diags.clone();
+                                let cell_semantic: Vec<_> = state
+                                    .semantic_highlights
+                                    .iter()
+                                    .filter(|sh| sh.cell_index == index)
+                                    .cloned()
+                                    .collect();
+                                // Cached highlight: skip highlight_source when cell body unchanged
+                                let body_text = cell.body().to_string();
+                                let cached_job = state
+                                    .cached_highlight_jobs
+                                    .get(&index)
+                                    .filter(|(cached_body, _)| cached_body == &body_text)
+                                    .map(|(_, job)| job.clone());
+                                let base_job = if let Some(job) = cached_job {
+                                    job
+                                } else {
+                                    let new_job = highlight_source(
+                                        &body_text,
+                                        &layouter_style,
+                                        &cell_diags_ref,
+                                        None,
+                                        &cell_semantic,
+                                    );
+                                    state
                                         .cached_highlight_jobs
-                                        .get(&index)
-                                        .filter(|(cached_body, _)| cached_body == &body_text)
-                                        .map(|(_, job)| job.clone());
-                                    let base_job = if let Some(job) = cached_job {
-                                        job
-                                    } else {
-                                        let new_job = highlight_source(
-                                            &body_text,
-                                            &layouter_style,
-                                            &cell_diags_ref,
-                                            None,
-                                            &cell_semantic,
-                                        );
-                                        state.cached_highlight_jobs.insert(
-                                            index,
-                                            (body_text.clone(), new_job.clone()),
-                                        );
-                                        new_job
-                                    };
-                                    let mut layouter = move |ui: &egui::Ui,
-                                                             buf: &dyn egui::TextBuffer,
-                                                             wrap_width: f32| {
+                                        .insert(index, (body_text.clone(), new_job.clone()));
+                                    new_job
+                                };
+                                let mut layouter =
+                                    move |ui: &egui::Ui,
+                                          buf: &dyn egui::TextBuffer,
+                                          wrap_width: f32| {
                                         let buf_text = buf.as_str();
                                         let mut job = if buf_text == base_job.text.as_str() {
                                             base_job.clone()
@@ -554,39 +526,41 @@ fn render_keyframe_cell(
                                         ui.fonts_mut(|fonts| fonts.layout_job(job))
                                     };
 
-                                    apply_pending_cursor(ui, index, state);
+                                apply_pending_cursor(ui, index, state);
 
-                                    let text_edit_id = ui.id().with(("cell_body", index));
-                                    let response = ui.add(
-                                        egui::TextEdit::multiline(cell.body_mut())
-                                            .id(text_edit_id)
-                                            .code_editor()
-                                            .frame(Frame::NONE)
-                                            .desired_width(f32::INFINITY)
-                                            .layouter(&mut layouter),
-                                    );
-                                    if response.changed() {
-                                        *source_changed = true;
-                                    }
-                                    if state.pending_cursor_cell == Some(index) {
-                                        response.request_focus();
-                                        state.pending_cursor_cell = None;
-                                    }
-                                    track_focus(index, &response, state);
+                                let text_edit_id = ui.id().with(("cell_body", index));
+                                let response = ui.add(
+                                    egui::TextEdit::multiline(cell.body_mut())
+                                        .id(text_edit_id)
+                                        .code_editor()
+                                        .frame(Frame::NONE)
+                                        .desired_width(f32::INFINITY)
+                                        .layouter(&mut layouter),
+                                );
+                                if response.changed() {
+                                    *source_changed = true;
+                                }
+                                if state.pending_cursor_cell == Some(index) {
+                                    response.request_focus();
+                                    state.pending_cursor_cell = None;
+                                }
+                                track_focus(index, &response, state);
 
-                                    // Draw wavy diagnostic underlines
-                                    let cell_underlines: Vec<CellDiagnostic> = state.diagnostics
-                                        .iter()
-                                        .filter(|d| d.cell_index == index)
-                                        .cloned()
-                                        .collect();
-                                    if !cell_underlines.is_empty() {
-                                        draw_wavy_underlines(ui, &cell_underlines, response.rect);
-                                    }
-                                });
-                        }
-                    });
+                                // Draw wavy diagnostic underlines
+                                let cell_underlines: Vec<CellDiagnostic> = state
+                                    .diagnostics
+                                    .iter()
+                                    .filter(|d| d.cell_index == index)
+                                    .cloned()
+                                    .collect();
+                                if !cell_underlines.is_empty() {
+                                    draw_wavy_underlines(ui, &cell_underlines, response.rect);
+                                }
+                            },
+                        );
+                    }
                 });
+            });
         })
         .response
 }
@@ -648,13 +622,8 @@ fn render_timestamp_editor(
     } else {
         let display = cell.display_timestamp().unwrap_or_else(|| raw_ts.clone());
         let label_response = ui.add(
-            egui::Label::new(
-                RichText::new(display)
-                    .monospace()
-                    .size(16.0)
-                    .color(accent::PRIMARY),
-            )
-            .sense(egui::Sense::click()),
+            egui::Label::new(RichText::new(display).monospace().size(16.0).color(accent::PRIMARY))
+                .sense(egui::Sense::click()),
         );
         if label_response.clicked() {
             state.editing_timestamp_cell = Some(cell_index);
@@ -678,11 +647,7 @@ fn track_focus(index: usize, response: &egui::Response, state: &mut CellEditorSt
 ///
 /// Uses the egui painter to draw a series of small zigzag segments under each
 /// diagnostic span.  Error diagnostics get red waves, warnings get amber waves.
-fn draw_wavy_underlines(
-    ui: &egui::Ui,
-    diags: &[CellDiagnostic],
-    text_rect: egui::Rect,
-) {
+fn draw_wavy_underlines(ui: &egui::Ui, diags: &[CellDiagnostic], text_rect: egui::Rect) {
     let painter = ui.painter();
     let font_id = egui::FontId::new(14.0, egui::FontFamily::Monospace);
 
@@ -751,7 +716,7 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
 
     // ── Divider line (always visible, brightens on hover) ──
     if left < right {
-        let line_a = egui::lerp(20.0..=80.0, t) as u8 ;
+        let line_a = egui::lerp(20.0..=80.0, t) as u8;
         ui.painter().line_segment(
             [egui::pos2(left, y), egui::pos2(right, y)],
             Stroke::new(
@@ -792,7 +757,7 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
     let border = if pressed {
         status::WARNING
     } else {
-        let border_a = egui::lerp(40.0..=100.0, btn_t) as u8 ;
+        let border_a = egui::lerp(40.0..=100.0, btn_t) as u8;
         Color32::from_rgba_premultiplied(120, 130, 150, border_a)
     };
 
@@ -800,12 +765,13 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
     let icon = if pressed {
         Color32::from_rgb(24, 27, 33)
     } else {
-        let icon_a = egui::lerp(100.0..=220.0, btn_t) as u8 ;
+        let icon_a = egui::lerp(100.0..=220.0, btn_t) as u8;
         Color32::from_rgba_premultiplied(200, 205, 215, icon_a)
     };
 
     ui.painter().rect_filled(btn_rect, 6.0, bg);
-    ui.painter().rect_stroke(btn_rect, 6.0, Stroke::new(1.0, border), egui::StrokeKind::Inside);
+    ui.painter()
+        .rect_stroke(btn_rect, 6.0, Stroke::new(1.0, border), egui::StrokeKind::Inside);
 
     ui.painter().text(
         center,
@@ -819,7 +785,7 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
         state.pending_insert_after = Some(after_index);
     }
 
-    use crate::app::components::context_menu::{render_menu, MenuEntry};
+    use crate::app::components::context_menu::{MenuEntry, render_menu};
 
     response.context_menu(|ui| {
         let entries = vec![
@@ -830,7 +796,7 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
             match idx {
                 0 => state.pending_insert_after = Some(after_index),
                 1 => state.pending_insert_code_after = Some(after_index),
-                _ => {}
+                _ => {},
             }
             ui.close();
         }

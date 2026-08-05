@@ -1,9 +1,10 @@
 //! Main AST statement processor: dispatches to actor declaration, assignment,
 //! sequence, stagger, always, for-loop, and let-decl handlers.
 
+use tracing::instrument;
+
 use super::*;
 use crate::ast::{InlineItem, LoopPattern, MatchPattern};
-use tracing::instrument;
 
 impl Timeline {
     // === Main AST Statement Processor ===
@@ -30,20 +31,22 @@ impl Timeline {
                 } => {
                     // Validate that user labels don't use the reserved `__` prefix
                     if label.starts_with("__") {
-                        diagnostics.push(
-                            Diagnostic::error(
-                                DiagnosticCode::ReservedLabelPrefix,
-                                DiagnosticPhase::Build,
-                                format!(
-                                    "Actor label '{}' uses reserved prefix '__' which is 
+                        diagnostics.push(Diagnostic::error(
+                            DiagnosticCode::ReservedLabelPrefix,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Actor label '{}' uses reserved prefix '__' which is \
                                      reserved for internally generated labels",
-                                    label
-                                ),
-                            )
-                        );
+                                label
+                            ),
+                        ));
                     }
                     let resolved_label = resolve_array_index(
-                        label, array_index, &self.env, diagnostics, time_ms as u64,
+                        label,
+                        array_index,
+                        &self.env,
+                        diagnostics,
+                        time_ms as u64,
                     );
                     self.process_actor_decl(
                         &resolved_label,
@@ -55,7 +58,7 @@ impl Timeline {
                         parent_label,
                         diagnostics,
                     );
-                }
+                },
                 Stmt::Assignment {
                     target,
                     property,
@@ -69,9 +72,7 @@ impl Timeline {
                         diagnostics.push(Diagnostic::error(
                             DiagnosticCode::InvalidAssignmentTarget,
                             DiagnosticPhase::Build,
-                            format!(
-                                "Assignment '{property} = ...' must include an actor label.",
-                            ),
+                            format!("Assignment '{property} = ...' must include an actor label.",),
                         ));
                     } else {
                         self.process_assignment_statement(
@@ -84,10 +85,10 @@ impl Timeline {
                             diagnostics,
                         );
                     }
-                }
+                },
                 Stmt::Always { body, .. } => {
                     self.modifiers.extend(body.clone());
-                }
+                },
                 Stmt::ReactiveBinding {
                     target,
                     property,
@@ -104,7 +105,7 @@ impl Timeline {
                         value_span: *value_span,
                         span: None,
                     });
-                }
+                },
                 Stmt::ForLoop {
                     var,
                     index_var,
@@ -112,56 +113,62 @@ impl Timeline {
                     body,
                     ..
                 } => {
-                    self.process_for_loop_stmts(var, index_var, iterable, body, time_ms, parent_label, diagnostics);
-                }
+                    self.process_for_loop_stmts(
+                        var,
+                        index_var,
+                        iterable,
+                        body,
+                        time_ms,
+                        parent_label,
+                        diagnostics,
+                    );
+                },
                 Stmt::Sequence { body, .. } => {
                     self.process_sequence(time_ms, body, parent_label, diagnostics);
-                }
-                Stmt::Stagger { modifiers, body, .. } => {
+                },
+                Stmt::Stagger {
+                    modifiers, body, ..
+                } => {
                     self.process_stagger(time_ms, modifiers, body, parent_label, diagnostics);
-                }
+                },
                 Stmt::Action(action, span) => {
                     // Record action metadata for GUI timeline visualization
                     let (duration_ms, easing) = parse_action_timing_simple(&action.modifiers);
                     let category = categorize_action(&action.verb);
                     for target in &action.targets {
-                        self.action_events.push(
-                            ActionEvent {
-                                verb: action.verb.clone(),
-                                targets: vec![target.clone()],
-                                start_time_ms: time_ms as u64,
-                                duration_ms,
-                                easing,
-                                category,
-                            },
-                        );
+                        self.action_events.push(ActionEvent {
+                            verb: action.verb.clone(),
+                            targets: vec![target.clone()],
+                            start_time_ms: time_ms as u64,
+                            duration_ms,
+                            easing,
+                            category,
+                        });
                     }
 
                     process_action(action, time_ms, self, diagnostics, *span);
-                }
+                },
                 Stmt::LetDecl { name, value, .. } => {
                     // G5/G6 guard: Anchor-point refs (`n0.right`) are
                     // frame-time-resolved and cannot be used in build-time
                     // `let` constants (transforms/bounds not resolved at build).
-                    if let crate::ast::Expr::Path(segments) = value {
-                        if segments.len() == 2 {
-                            if SceneAnchor::from_str(&segments[1]).is_some() {
-                                let msg = format!(
-                                    "'{}' references '{}' which is a frame-time anchor-point property; \
-                                     cannot resolve at build time. Use in 'always' or assignment instead.",
-                                    name, segments.join(".")
-                                );
-                                diagnostics.push(
-                                    Diagnostic::warning(
-                                        DiagnosticCode::InvalidPropertyValue,
-                                        DiagnosticPhase::Build,
-                                        msg,
-                                    )
-                                );
-                                // Fall through to evaluate (will likely fail or produce (0,0)),
-                                // which gives the user a second diagnostic for the eval failure.
-                            }
-                        }
+                    if let crate::ast::Expr::Path(segments) = value
+                        && segments.len() == 2
+                        && SceneAnchor::from_str(&segments[1]).is_some()
+                    {
+                        let msg = format!(
+                            "'{}' references '{}' which is a frame-time anchor-point property; \
+                             cannot resolve at build time. Use in 'always' or assignment instead.",
+                            name,
+                            segments.join(".")
+                        );
+                        diagnostics.push(Diagnostic::warning(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            msg,
+                        ));
+                        // Fall through to evaluate (will likely fail or produce (0,0)),
+                        // which gives the user a second diagnostic for the eval failure.
                     }
                     let eval_env = self.build_eval_env(time_ms as u64);
                     match evaluate_expr(value, &eval_env) {
@@ -171,7 +178,7 @@ impl Timeline {
                                 .or_default()
                                 .keyframes
                                 .insert(time_ms as u64, val);
-                        }
+                        },
                         Err(e) => {
                             diagnostics.push(
                                 Diagnostic::error(
@@ -184,31 +191,27 @@ impl Timeline {
                                 )
                                 .with_subject(name),
                             );
-                        }
+                        },
                     }
-                }
+                },
                 Stmt::Match {
-                    scrutinee,
-                    arms,
-                    ..
+                    scrutinee, arms, ..
                 } => {
                     // Evaluate the scrutinee at build time
                     let eval_env = self.build_eval_env(time_ms as u64);
                     let value = match evaluate_expr(scrutinee, &eval_env) {
                         Ok(v) => v,
                         Err(e) => {
-                            diagnostics.push(
-                                Diagnostic::error(
-                                    DiagnosticCode::ModuleExportEvalError,
-                                    DiagnosticPhase::Build,
-                                    format!(
-                                        "Failed to evaluate match scrutinee: {}; skipping match.",
-                                        e
-                                    ),
-                                )
-                            );
+                            diagnostics.push(Diagnostic::error(
+                                DiagnosticCode::ModuleExportEvalError,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "Failed to evaluate match scrutinee: {}; skipping match.",
+                                    e
+                                ),
+                            ));
                             continue;
-                        }
+                        },
                     };
                     // Find the first matching arm and process its body
                     let mut matched = false;
@@ -221,7 +224,8 @@ impl Timeline {
                     }
                     if !matched {
                         // Check if there's a wildcard arm (should be, but emit diagnostic if not)
-                        let has_wildcard = arms.iter().any(|(pat, _)| matches!(pat, MatchPattern::Wildcard));
+                        let has_wildcard =
+                            arms.iter().any(|(pat, _)| matches!(pat, MatchPattern::Wildcard));
                         if !has_wildcard {
                             diagnostics.push(
                                 Diagnostic::warning(
@@ -234,11 +238,21 @@ impl Timeline {
                                 )
                             );
                         }
-                        // If wildcard exists and no arm matched, the wildcard would have caught it already.
-                        // If no wildcard, we already warned; fall through silently.
+                        // If wildcard exists and no arm matched, the wildcard would have caught it
+                        // already. If no wildcard, we already warned; fall
+                        // through silently.
                     }
-                }
-                Stmt::Keyframe { .. } | Stmt::RelativeKeyframe { .. } | Stmt::Comment(..) | Stmt::Import { .. } | Stmt::Config { .. } | Stmt::Scene { .. } | Stmt::Play { .. } | Stmt::ComponentDef(..) | Stmt::ComponentAction { .. } | Stmt::Conditional { .. } => {}
+                },
+                Stmt::Keyframe { .. }
+                | Stmt::RelativeKeyframe { .. }
+                | Stmt::Comment(..)
+                | Stmt::Import { .. }
+                | Stmt::Config { .. }
+                | Stmt::Scene { .. }
+                | Stmt::Play { .. }
+                | Stmt::ComponentDef(..)
+                | Stmt::ComponentAction { .. }
+                | Stmt::Conditional { .. } => {},
             }
         }
     }
@@ -248,11 +262,17 @@ impl Timeline {
     // ─────────────────────────────────────────────────────────────
 
     /// Bind a loop iteration value according to the loop variable pattern.
-    fn bind_loop_var(&mut self, var: &LoopPattern, value: Value, index: usize, diagnostics: &mut Vec<Diagnostic>) {
+    fn bind_loop_var(
+        &mut self,
+        var: &LoopPattern,
+        value: Value,
+        index: usize,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
         match var {
             LoopPattern::Single(name) => {
                 self.env.set(name, value);
-            }
+            },
             LoopPattern::Tuple(names) => {
                 let components: Vec<Value> = match &value {
                     Value::List(items) => items.clone(),
@@ -278,7 +298,7 @@ impl Timeline {
                         )
                     );
                 }
-            }
+            },
         }
     }
 
@@ -340,12 +360,12 @@ pub(super) fn remove_loop_vars(
     match var {
         LoopPattern::Single(name) => {
             env.overrides.remove(name);
-        }
+        },
         LoopPattern::Tuple(names) => {
             for name in names {
                 env.overrides.remove(name);
             }
-        }
+        },
     }
     if let Some(iv) = index_var {
         env.overrides.remove(iv);
@@ -368,11 +388,11 @@ fn parse_action_timing_simple(modifiers: &[Modifier]) -> (u64, Easing) {
                         easing = parsed_easing;
                     }
                 }
-            }
+            },
             // Named "delay" modifier: only relevant for start_time, not duration
-            Some("delay") => {}
+            Some("delay") => {},
             // Named modifiers that aren't timing-related (e.g. "by", "to", "from") — skip
-            Some(_) => {}
+            Some(_) => {},
             // Bare (unnamed) modifiers: [2s] or [500ms]
             None => {
                 if let Some(raw) = config_string_value(&modifier.value) {
@@ -380,7 +400,7 @@ fn parse_action_timing_simple(modifiers: &[Modifier]) -> (u64, Easing) {
                         duration_ms = d as u64;
                     }
                 }
-            }
+            },
         }
     }
 
@@ -420,35 +440,28 @@ pub(crate) fn resolve_array_index(
             match evaluate_expr(index_expr, &eval_env) {
                 Ok(Value::Num(n)) if n >= 0.0 && n == n.floor() => {
                     crate::ast::array_actor_label(label, n as usize)
-                }
+                },
                 Ok(Value::Num(n)) => {
-                    diagnostics.push(
-                        Diagnostic::warning(
-                            DiagnosticCode::InvalidPropertyValue,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "Array index for '{}' must be a non-negative integer, got {}",
-                                label, n
-                            ),
-                        )
-                    );
+                    diagnostics.push(Diagnostic::warning(
+                        DiagnosticCode::InvalidPropertyValue,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "Array index for '{}' must be a non-negative integer, got {}",
+                            label, n
+                        ),
+                    ));
                     label.to_string()
-                }
+                },
                 _ => {
-                    diagnostics.push(
-                        Diagnostic::warning(
-                            DiagnosticCode::InvalidPropertyValue,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "Array index for '{}' must evaluate to a number",
-                                label
-                            ),
-                        )
-                    );
+                    diagnostics.push(Diagnostic::warning(
+                        DiagnosticCode::InvalidPropertyValue,
+                        DiagnosticPhase::Build,
+                        format!("Array index for '{}' must evaluate to a number", label),
+                    ));
                     label.to_string()
-                }
+                },
             }
-        }
+        },
         None => label.to_string(),
     }
 }
@@ -468,13 +481,13 @@ pub(crate) fn pattern_matches(pat: &MatchPattern, value: &Value) -> bool {
         MatchPattern::Wildcard => true,
         MatchPattern::Num(n) => {
             matches!(value, Value::Num(v) if (*v - *n).abs() < f64::EPSILON)
-        }
+        },
         MatchPattern::Str(s) => {
             matches!(value, Value::Str(v) if v == s)
-        }
+        },
         MatchPattern::Bool(b) => {
             matches!(value, Value::Bool(v) if v == b)
-        }
+        },
         MatchPattern::Range(lo, hi) => {
             // Both endpoints must be numeric
             let lo_val = match lo.as_ref() {
@@ -486,35 +499,25 @@ pub(crate) fn pattern_matches(pat: &MatchPattern, value: &Value) -> bool {
                 _ => return false,
             };
             matches!(value, Value::Num(v) if *v >= lo_val && *v <= hi_val)
-        }
-        MatchPattern::Or(pats) => {
-            pats.iter().any(|p| pattern_matches(p, value))
-        }
-        MatchPattern::Tuple(pats) => {
-            match value {
-                Value::List(items) => {
-                    if items.len() != pats.len() {
-                        return false;
-                    }
-                    pats.iter().zip(items.iter()).all(|(p, v)| pattern_matches(p, v))
+        },
+        MatchPattern::Or(pats) => pats.iter().any(|p| pattern_matches(p, value)),
+        MatchPattern::Tuple(pats) => match value {
+            Value::List(items) => {
+                if items.len() != pats.len() {
+                    return false;
                 }
-                Value::Vec2(arr) if pats.len() == 2 => {
-                    pats.iter().zip(arr.iter()).all(|(p, v)| {
-                        pattern_matches(p, &Value::Num(*v))
-                    })
-                }
-                Value::Vec3(arr) if pats.len() == 3 => {
-                    pats.iter().zip(arr.iter()).all(|(p, v)| {
-                        pattern_matches(p, &Value::Num(*v))
-                    })
-                }
-                Value::Vec4(arr) if pats.len() == 4 => {
-                    pats.iter().zip(arr.iter()).all(|(p, v)| {
-                        pattern_matches(p, &Value::Num(*v))
-                    })
-                }
-                _ => false,
-            }
-        }
+                pats.iter().zip(items.iter()).all(|(p, v)| pattern_matches(p, v))
+            },
+            Value::Vec2(arr) if pats.len() == 2 => {
+                pats.iter().zip(arr.iter()).all(|(p, v)| pattern_matches(p, &Value::Num(*v)))
+            },
+            Value::Vec3(arr) if pats.len() == 3 => {
+                pats.iter().zip(arr.iter()).all(|(p, v)| pattern_matches(p, &Value::Num(*v)))
+            },
+            Value::Vec4(arr) if pats.len() == 4 => {
+                pats.iter().zip(arr.iter()).all(|(p, v)| pattern_matches(p, &Value::Num(*v)))
+            },
+            _ => false,
+        },
     }
 }

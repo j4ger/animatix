@@ -5,9 +5,9 @@
 //! `animate_toward_eased()` applies the sampled curve on top of egui's linear
 //! time interpolation, giving real non-linear animation.
 
-use crate::tokens::motion::{INSTANT, Transition};
-use crate::tokens::motion::{motion_preference_from_ctx, resolve_duration};
 use egui::{Color32, Context, Id};
+
+use crate::tokens::motion::{INSTANT, Transition, motion_preference_from_ctx, resolve_duration};
 
 /// Linear interpolation between two values of the same type.
 ///
@@ -143,11 +143,21 @@ mod tests {
 
     #[test]
     fn animate_toward_reduced_motion_snaps() {
-        use crate::tokens::motion::{set_motion_preference, MotionPreference, SLOW, STANDARD, Transition};
+        use crate::tokens::motion::{
+            MotionPreference, SLOW, STANDARD, Transition, set_motion_preference,
+        };
         let ctx = Context::default();
         set_motion_preference(&ctx, MotionPreference::Reduced);
         let id = egui::Id::new("test_reduced");
-        let t = animate_toward(&ctx, id, 42.0, Transition { duration: SLOW, easing: STANDARD });
+        let t = animate_toward(
+            &ctx,
+            id,
+            42.0,
+            Transition {
+                duration: SLOW,
+                easing: STANDARD,
+            },
+        );
         assert_eq!(t, 42.0);
     }
 
@@ -158,18 +168,35 @@ mod tests {
         let id = egui::Id::new("test_full");
         // With default (Full) preference and a brand-new id, egui returns the
         // target immediately because there is no prior animation state to interpolate from.
-        let result = animate_toward(&ctx, id, 42.0, Transition { duration: FAST, easing: STANDARD });
+        let result = animate_toward(
+            &ctx,
+            id,
+            42.0,
+            Transition {
+                duration: FAST,
+                easing: STANDARD,
+            },
+        );
         assert_eq!(result, 42.0);
     }
 
     #[test]
     fn animate_toward_eased_reduced_motion_snaps() {
-        use crate::tokens::motion::{set_motion_preference, MotionPreference, NORMAL, STANDARD, Transition};
+        use crate::tokens::motion::{
+            MotionPreference, NORMAL, STANDARD, Transition, set_motion_preference,
+        };
         let ctx = Context::default();
         set_motion_preference(&ctx, MotionPreference::Reduced);
         let id = egui::Id::new("test_eased_reduced");
-        let t = animate_toward_eased(&ctx, id, 1.0, Transition { duration: NORMAL, easing: STANDARD });
+        let t = animate_toward_eased(
+            &ctx,
+            id,
+            1.0,
+            Transition {
+                duration: NORMAL,
+                easing: STANDARD,
+            },
+        );
         assert_eq!(t, 1.0);
     }
 }
-

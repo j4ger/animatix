@@ -58,29 +58,32 @@ impl Primitive for GridPrimitive {
         let env = ctx.timeline.env();
         for prop in props {
             match prop.name.as_str() {
-                "gap" => {
-                    match &prop.value {
-                        Expr::Tuple(items) if items.len() == 2 => {
-                            if let (Ok(Value::Num(a)), Ok(Value::Num(b))) = (
-                                crate::timeline::utils::evaluate_expr(&items[0], env),
-                                crate::timeline::utils::evaluate_expr(&items[1], env),
-                            ) {
-                                gap = [a as f32, b as f32];
-                            }
-                        },
-                        _ => {
-                            if let Ok(Value::Num(n)) =
-                                crate::timeline::utils::evaluate_expr(&prop.value, env)
-                            {
-                                gap = [n as f32, n as f32];
-                            }
-                        },
-                    }
+                "gap" => match &prop.value {
+                    Expr::Tuple(items) if items.len() == 2 => {
+                        if let (Ok(Value::Num(a)), Ok(Value::Num(b))) = (
+                            crate::timeline::utils::evaluate_expr(&items[0], env),
+                            crate::timeline::utils::evaluate_expr(&items[1], env),
+                        ) {
+                            gap = [a as f32, b as f32];
+                        }
+                    },
+                    _ => {
+                        if let Ok(Value::Num(n)) =
+                            crate::timeline::utils::evaluate_expr(&prop.value, env)
+                        {
+                            gap = [n as f32, n as f32];
+                        }
+                    },
                 },
                 "padding" => {
                     match &prop.value {
                         Expr::Tuple(items) if items.len() == 4 => {
-                            if let (Ok(Value::Num(a)), Ok(Value::Num(b)), Ok(Value::Num(c)), Ok(Value::Num(d))) = (
+                            if let (
+                                Ok(Value::Num(a)),
+                                Ok(Value::Num(b)),
+                                Ok(Value::Num(c)),
+                                Ok(Value::Num(d)),
+                            ) = (
                                 crate::timeline::utils::evaluate_expr(&items[0], env),
                                 crate::timeline::utils::evaluate_expr(&items[1], env),
                                 crate::timeline::utils::evaluate_expr(&items[2], env),
@@ -109,7 +112,12 @@ impl Primitive for GridPrimitive {
                     }
                 },
                 "align" => {
-                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(&prop.value, env, ctx.diagnostics, label) {
+                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        env,
+                        ctx.diagnostics,
+                        label,
+                    ) {
                         align = Some(v.as_str().to_string());
                     }
                 },

@@ -3,12 +3,10 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
+use crate::timeline::kurbo_shapes::KurboShape;
 use crate::timeline::{
-    Environment, Value,
+    Environment, SceneDimensions, TrackAccessor, Value, VectorShapeState, VelloPath,
     lookup_parse_numeric_vec2_with_lookup_diagnostic as parse_numeric_vec2_with_lookup_diagnostic,
-};
-use crate::timeline::{
-    SceneDimensions, TrackAccessor, VectorShapeState, VelloPath, kurbo_shapes::KurboShape,
 };
 
 /// The `Line` primitive.
@@ -124,14 +122,18 @@ impl Primitive for LinePrimitive {
         // Anchor refs are resolved first, then overrides may replace them.
         if let Some((actor, anchor)) = ctx.track.shape.from_anchor.as_ref() {
             if let Some(resolver) = ctx.target_resolver {
-                if let Some((centre, half)) = resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions) {
+                if let Some((centre, half)) =
+                    resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions)
+                {
                     line_from = bounds_anchor_point(*anchor, centre, half);
                 }
             }
         }
         if let Some((actor, anchor)) = ctx.track.shape.to_anchor.as_ref() {
             if let Some(resolver) = ctx.target_resolver {
-                if let Some((centre, half)) = resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions) {
+                if let Some((centre, half)) =
+                    resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions)
+                {
                     line_to = bounds_anchor_point(*anchor, centre, half);
                 }
             }

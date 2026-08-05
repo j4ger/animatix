@@ -21,7 +21,10 @@ pub fn parse_cells(source: &str) -> Vec<Cell> {
 
         if let Some((timestamp, is_relative, brace_kind)) = parse_keyframe_header(trimmed) {
             if !code_lines.is_empty() {
-                cells.push(Cell::Code { body: code_lines.join("\n"), expanded: true });
+                cells.push(Cell::Code {
+                    body: code_lines.join("\n"),
+                    expanded: true,
+                });
                 code_lines.clear();
             }
 
@@ -40,7 +43,7 @@ pub fn parse_cells(source: &str) -> Vec<Cell> {
                     } else {
                         collect_legacy_body(&lines, i + 1)
                     }
-                }
+                },
             };
 
             let time_s = if is_relative {
@@ -75,7 +78,10 @@ pub fn parse_cells(source: &str) -> Vec<Cell> {
     }
 
     if !code_lines.is_empty() {
-        cells.push(Cell::Code { body: code_lines.join("\n"), expanded: true });
+        cells.push(Cell::Code {
+            body: code_lines.join("\n"),
+            expanded: true,
+        });
     }
 
     cells
@@ -110,7 +116,9 @@ fn parse_keyframe_header(trimmed: &str) -> Option<(String, bool, BraceKind)> {
 
     let is_relative = timestamp.starts_with('+');
     let brace_kind = match brace_idx {
-        Some(idx) => BraceKind::Inline { remainder: header[idx + 1..].to_string() },
+        Some(idx) => BraceKind::Inline {
+            remainder: header[idx + 1..].to_string(),
+        },
         None => BraceKind::NextLine,
     };
 
@@ -128,11 +136,19 @@ fn parse_timestamp_seconds(timestamp: &str) -> f64 {
     }
 }
 
-fn collect_braced_body(lines: &[&str], open_line_idx: usize, first_segment: String) -> (String, usize) {
+fn collect_braced_body(
+    lines: &[&str],
+    open_line_idx: usize,
+    first_segment: String,
+) -> (String, usize) {
     let mut body = String::new();
     let mut depth = 1usize;
     let mut line_idx = open_line_idx;
-    let mut segment = if first_segment.is_empty() { String::new() } else { first_segment };
+    let mut segment = if first_segment.is_empty() {
+        String::new()
+    } else {
+        first_segment
+    };
 
     loop {
         let chars = segment.chars().peekable();
@@ -141,14 +157,14 @@ fn collect_braced_body(lines: &[&str], open_line_idx: usize, first_segment: Stri
                 '{' => {
                     depth += 1;
                     body.push(ch);
-                }
+                },
                 '}' => {
                     if depth == 1 {
                         return (body, line_idx + 1);
                     }
                     depth -= 1;
                     body.push(ch);
-                }
+                },
                 _ => body.push(ch),
             }
         }

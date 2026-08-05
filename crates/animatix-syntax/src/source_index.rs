@@ -6,6 +6,7 @@
 //! re-serialization) for write-back instead.
 
 use std::collections::HashMap;
+
 use crate::ast::{ByteSpan, InlineItem, Stmt, TargetSegment};
 
 /// Index mapping actor labels + property names to their source byte spans.
@@ -89,20 +90,20 @@ impl SourceIndex {
         crate::walk::walk_stmts(stmts, &mut |stmt| {
             match stmt {
                 Stmt::ActorDecl {
-                    label, props, children, ..
+                    label,
+                    props,
+                    children,
+                    ..
                 } => {
                     // Index properties on the actor declaration itself
                     for prop in props {
                         if let Some(span) = prop.value_span {
-                            self.decl_props.insert(
-                                (label.clone(), prop.name.clone()),
-                                span,
-                            );
+                            self.decl_props.insert((label.clone(), prop.name.clone()), span);
                         }
                     }
                     // Inline children are not part of the statement walk, walk them separately
                     self.walk_inline_items(children);
-                }
+                },
                 Stmt::Assignment {
                     target,
                     property,
@@ -112,13 +113,15 @@ impl SourceIndex {
                     // target is a path like ["container", "child"]
                     // The actor label is the last segment (always Static)
                     if let Some(TargetSegment::Static(actor)) = target.last() {
-                        self.assignments.insert(
-                            (actor.clone(), property.clone()),
-                            *span,
-                        );
+                        self.assignments.insert((actor.clone(), property.clone()), *span);
                     }
-                }
-                Stmt::ReactiveBinding { target, property, value_span, .. } => {
+                },
+                Stmt::ReactiveBinding {
+                    target,
+                    property,
+                    value_span,
+                    ..
+                } => {
                     // Reactive bindings are indexed like assignments
                     if let Some(TargetSegment::Static(actor)) = target.last() {
                         self.assignments.insert(
@@ -126,19 +129,16 @@ impl SourceIndex {
                             value_span.unwrap_or_default(),
                         );
                     }
-                }
+                },
                 Stmt::Config { settings, .. } => {
                     // Config properties use "at" syntax
                     for prop in settings {
                         if let Some(span) = prop.value_span {
-                            self.decl_props.insert(
-                                ("config".to_string(), prop.name.clone()),
-                                span,
-                            );
+                            self.decl_props.insert(("config".to_string(), prop.name.clone()), span);
                         }
                     }
-                }
-                _ => {}
+                },
+                _ => {},
             }
         });
     }
@@ -146,23 +146,18 @@ impl SourceIndex {
     fn walk_inline_items(&mut self, items: &[InlineItem]) {
         crate::walk::walk_inline_items(items, &mut |item| {
             match item {
-                InlineItem::Labeled {
-                    label, props, ..
-                } => {
+                InlineItem::Labeled { label, props, .. } => {
                     for prop in props {
                         if let Some(span) = prop.value_span {
-                            self.decl_props.insert(
-                                (label.clone(), prop.name.clone()),
-                                span,
-                            );
+                            self.decl_props.insert((label.clone(), prop.name.clone()), span);
                         }
                     }
-                }
+                },
                 InlineItem::Anonymous { props, .. } => {
                     // Anonymous items don't have labels, skip for now
                     let _ = props;
-                }
-                _ => {}
+                },
+                _ => {},
             }
         });
     }
@@ -190,12 +185,14 @@ mod tests {
                     name: "size".to_string(),
                     value: Expr::Num(100.0),
                     trailing_comment: None,
-                    value_span: Some(make_byte_span(20, 30)), },
+                    value_span: Some(make_byte_span(20, 30)),
+                },
                 Property {
                     name: "color".to_string(),
                     value: Expr::Ident("red".to_string()),
                     trailing_comment: None,
-                    value_span: Some(make_byte_span(32, 42)), },
+                    value_span: Some(make_byte_span(32, 42)),
+                },
             ],
             modifiers: vec![],
             children: vec![],
@@ -203,14 +200,8 @@ mod tests {
         }];
 
         let index = SourceIndex::build(&stmts);
-        assert_eq!(
-            index.find("btn", "size"),
-            Some(make_byte_span(20, 30))
-        );
-        assert_eq!(
-            index.find("btn", "color"),
-            Some(make_byte_span(32, 42))
-        );
+        assert_eq!(index.find("btn", "size"), Some(make_byte_span(20, 30)));
+        assert_eq!(index.find("btn", "color"), Some(make_byte_span(32, 42)));
         assert_eq!(index.find("btn", "nonexistent"), None);
     }
 
@@ -227,10 +218,7 @@ mod tests {
         }];
 
         let index = SourceIndex::build(&stmts);
-        assert_eq!(
-            index.find("btn", "color"),
-            Some(make_byte_span(50, 60))
-        );
+        assert_eq!(index.find("btn", "color"), Some(make_byte_span(50, 60)));
     }
 
     #[test]
@@ -245,7 +233,8 @@ mod tests {
                 name: "at".to_string(),
                 value: Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(20.0)]),
                 trailing_comment: None,
-                value_span: Some(make_byte_span(15, 35)), }],
+                value_span: Some(make_byte_span(15, 35)),
+            }],
             modifiers: vec![],
             children: vec![],
             span: None,
@@ -253,15 +242,9 @@ mod tests {
 
         let index = SourceIndex::build(&stmts);
         // Query with "at"
-        assert_eq!(
-            index.find("icon", "at"),
-            Some(make_byte_span(15, 35))
-        );
+        assert_eq!(index.find("icon", "at"), Some(make_byte_span(15, 35)));
         // Query with "position" should also work
-        assert_eq!(
-            index.find("icon", "position"),
-            Some(make_byte_span(15, 35))
-        );
+        assert_eq!(index.find("icon", "position"), Some(make_byte_span(15, 35)));
     }
 
     #[test]
@@ -282,10 +265,7 @@ mod tests {
 
         let index = SourceIndex::build(&stmts);
         // The actor label is the last segment of the path
-        assert_eq!(
-            index.find("inner", "color"),
-            Some(make_byte_span(100, 110))
-        );
+        assert_eq!(index.find("inner", "color"), Some(make_byte_span(100, 110)));
         // btn.inner is the full path, not the actor
         assert_eq!(index.find("btn.inner", "color"), None);
     }
@@ -299,13 +279,16 @@ mod tests {
                 value: Expr::Num(0.0),
                 span: None,
             },
-            Stmt::Action(crate::ast::Action {
-                verb: "move".to_string(),
-                targets: vec!["btn".to_string()],
-                args: vec![],
-                modifiers: vec![],
-                byte_span: None,
-            }, None),
+            Stmt::Action(
+                crate::ast::Action {
+                    verb: "move".to_string(),
+                    targets: vec!["btn".to_string()],
+                    args: vec![],
+                    modifiers: vec![],
+                    byte_span: None,
+                },
+                None,
+            ),
         ];
 
         let index = SourceIndex::build(&stmts);
@@ -345,7 +328,8 @@ mod tests {
                     name: "size".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(100.0)]),
                     trailing_comment: None,
-                    value_span: Some(make_byte_span(40, 60)), }],
+                    value_span: Some(make_byte_span(40, 60)),
+                }],
                 modifiers: vec![],
                 children: vec![],
                 span: None,
@@ -354,9 +338,6 @@ mod tests {
         }];
 
         let index = SourceIndex::build(&stmts);
-        assert_eq!(
-            index.find("card", "size"),
-            Some(make_byte_span(40, 60))
-        );
+        assert_eq!(index.find("card", "size"), Some(make_byte_span(40, 60)));
     }
 }

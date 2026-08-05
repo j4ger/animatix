@@ -6,9 +6,12 @@
 //! This is a lightweight, single-pass checker with no inference and no unification.
 //! Unannotated parameters (`param_type: None`) accept any value.
 
-use crate::ast::{ComponentDef, Expr, MatchPattern, Modifier, ParamDef, Property, Stmt, TypeAnnotation};
-use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use std::collections::HashMap;
+
+use crate::ast::{
+    ComponentDef, Expr, MatchPattern, Modifier, ParamDef, Property, Stmt, TypeAnnotation,
+};
+use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 
 /// Type-checking environment.
 pub struct TypeEnv<'a> {
@@ -53,7 +56,13 @@ impl<'a> TypeEnv<'a> {
 
     fn check_stmt(&mut self, stmt: &Stmt, diagnostics: &mut Vec<Diagnostic>) {
         match stmt {
-            Stmt::ActorDecl { label, ty, props, children, .. } => {
+            Stmt::ActorDecl {
+                label,
+                ty,
+                props,
+                children,
+                ..
+            } => {
                 // Track label → type for action invocation validation
                 self.labels.insert(label.clone(), ty.clone());
                 // Check if this actor decl instantiates a component
@@ -64,7 +73,7 @@ impl<'a> TypeEnv<'a> {
                 for child in children {
                     self.check_inline_item(child, diagnostics);
                 }
-            }
+            },
             Stmt::Action(action, _span) => {
                 for target in &action.targets {
                     // Try component action first
@@ -98,7 +107,7 @@ impl<'a> TypeEnv<'a> {
                         }
                     }
                 }
-            }
+            },
             Stmt::Keyframe { body, .. }
             | Stmt::RelativeKeyframe { body, .. }
             | Stmt::Sequence { body, .. }
@@ -107,7 +116,7 @@ impl<'a> TypeEnv<'a> {
                 for stmt in body {
                     self.check_stmt(stmt, diagnostics);
                 }
-            }
+            },
             Stmt::Conditional {
                 then_branch,
                 else_branch,
@@ -121,38 +130,34 @@ impl<'a> TypeEnv<'a> {
                         self.check_stmt(stmt, diagnostics);
                     }
                 }
-            }
-            Stmt::Match {
-                arms,
-                ..
-            } => {
+            },
+            Stmt::Match { arms, .. } => {
                 // Enforce `_` wildcard arm (required by spec — Amendment 1)
-                let has_wildcard = arms.iter().any(|(pat, _)| matches!(pat, MatchPattern::Wildcard));
+                let has_wildcard =
+                    arms.iter().any(|(pat, _)| matches!(pat, MatchPattern::Wildcard));
                 if !has_wildcard {
-                    diagnostics.push(
-                        Diagnostic::error(
-                            DiagnosticCode::MissingWildcardArm,
-                            DiagnosticPhase::Parse,
-                            "match must have a `_` wildcard arm (required for exhaustive matching)",
-                        )
-                    );
+                    diagnostics.push(Diagnostic::error(
+                        DiagnosticCode::MissingWildcardArm,
+                        DiagnosticPhase::Parse,
+                        "match must have a `_` wildcard arm (required for exhaustive matching)",
+                    ));
                 }
                 for (_, body) in arms {
                     for stmt in body {
                         self.check_stmt(stmt, diagnostics);
                     }
                 }
-            }
+            },
             Stmt::ForLoop { body, .. } => {
                 for stmt in body {
                     self.check_stmt(stmt, diagnostics);
                 }
-            }
+            },
             Stmt::Scene { body, .. } => {
                 for stmt in body {
                     self.check_stmt(stmt, diagnostics);
                 }
-            }
+            },
             Stmt::ComponentDef(def, _span) => {
                 if self.strict_types {
                     self.check_param_annotations(&def.name, "component", &def.params, diagnostics);
@@ -160,27 +165,25 @@ impl<'a> TypeEnv<'a> {
                 for stmt in &def.body {
                     self.check_stmt(stmt, diagnostics);
                 }
-            }
-            Stmt::ComponentAction { name, params, body, .. } => {
+            },
+            Stmt::ComponentAction {
+                name, params, body, ..
+            } => {
                 if self.strict_types {
                     self.check_param_annotations(name, "action", params, diagnostics);
                 }
                 for stmt in body {
                     self.check_stmt(stmt, diagnostics);
                 }
-            }
+            },
             Stmt::Config { .. } => {
                 // Config is handled at the program level, not per-statement
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 
-    fn check_inline_item(
-        &self,
-        item: &crate::ast::InlineItem,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
+    fn check_inline_item(&self, item: &crate::ast::InlineItem, diagnostics: &mut Vec<Diagnostic>) {
         match item {
             crate::ast::InlineItem::Anonymous { ty, children, .. }
             | crate::ast::InlineItem::Labeled { ty, children, .. } => {
@@ -197,13 +200,13 @@ impl<'a> TypeEnv<'a> {
                 for child in children {
                     self.check_inline_item(child, diagnostics);
                 }
-            }
+            },
             crate::ast::InlineItem::SlotFill { items, .. } => {
                 for item in items {
                     self.check_inline_item(item, diagnostics);
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 
@@ -357,21 +360,21 @@ fn expr_type(expr: &Expr) -> TypeAnnotation {
                 let elem_type = expr_type(&items[0]);
                 TypeAnnotation::List(Box::new(elem_type))
             }
-        }
+        },
         Expr::Tuple(items) => match items.len() {
             2 if items.iter().all(|e| matches!(e, Expr::Num(_) | Expr::Percent(_))) => {
                 TypeAnnotation::Vec2
-            }
+            },
             4 if items.iter().all(|e| matches!(e, Expr::Num(_) | Expr::Percent(_))) => {
                 TypeAnnotation::Vec4
-            }
+            },
             _ => TypeAnnotation::Any,
         },
         Expr::Ident(_) => {
             // Actor label references resolve to Actor type at build time
             // (we can't know for sure without symbol table, so we guess)
             TypeAnnotation::Any
-        }
+        },
         // Known colorscheme namespaces (accent.*, text.*, surface.*, stroke.*) infer Color.
         // scene.* is excluded — it mixes colors and anchors.
         Expr::Path(parts)
@@ -379,10 +382,8 @@ fn expr_type(expr: &Expr) -> TypeAnnotation {
                 && matches!(parts[0].as_str(), "accent" | "text" | "surface" | "stroke") =>
         {
             TypeAnnotation::Color
-        }
-        Expr::Path(parts) if parts.len() == 1 => {
-            TypeAnnotation::Any
-        }
+        },
+        Expr::Path(parts) if parts.len() == 1 => TypeAnnotation::Any,
         Expr::Construct(name, _) => {
             // Construct expressions like Colorscheme "name" { ... }
             // or Point { x: 10, y: 20 }
@@ -391,7 +392,7 @@ fn expr_type(expr: &Expr) -> TypeAnnotation {
                 "Color" | "Colorscheme" => TypeAnnotation::Color,
                 _ => TypeAnnotation::Any,
             }
-        }
+        },
         // Binary operations on numeric types produce Num
         Expr::Binary(left, _, right) => {
             let left_ty = expr_type(left);
@@ -401,7 +402,7 @@ fn expr_type(expr: &Expr) -> TypeAnnotation {
             } else {
                 TypeAnnotation::Any
             }
-        }
+        },
         Expr::Unary(_, inner) => expr_type(inner),
         Expr::Call(name, _) => {
             // Known functions
@@ -409,7 +410,7 @@ fn expr_type(expr: &Expr) -> TypeAnnotation {
                 "rgb" | "rgba" | "hsv" | "hsl" => TypeAnnotation::Color,
                 _ => TypeAnnotation::Any,
             }
-        }
+        },
         _ => TypeAnnotation::Any,
     }
 }
@@ -451,11 +452,13 @@ fn expr_summary(expr: &Expr) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use chumsky::Parser;
+
     use super::*;
     use crate::ast::{ComponentDef, ParamDef, Property, Stmt};
     use crate::module::{ActionTemplate, ComponentEntry};
-    use chumsky::Parser;
-    use std::collections::HashMap;
 
     fn make_env() -> TypeEnv<'static> {
         let mut components = HashMap::new();
@@ -495,14 +498,12 @@ mod tests {
             label: "btn".to_string(),
             array_index: None,
             ty: "Button".to_string(),
-            props: vec![
-                Property {
-                    name: "size".to_string(),
-                    value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(60.0)]),
-                    value_span: None,
-                    trailing_comment: None,
-                },
-            ],
+            props: vec![Property {
+                name: "size".to_string(),
+                value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(60.0)]),
+                value_span: None,
+                trailing_comment: None,
+            }],
             modifiers: vec![],
             children: vec![],
             span: None,
@@ -521,14 +522,12 @@ mod tests {
             label: "btn".to_string(),
             array_index: None,
             ty: "Button".to_string(),
-            props: vec![
-                Property {
-                    name: "size".to_string(),
-                    value: Expr::Str("too big".to_string()),
-                    value_span: None,
-                    trailing_comment: None,
-                },
-            ],
+            props: vec![Property {
+                name: "size".to_string(),
+                value: Expr::Str("too big".to_string()),
+                value_span: None,
+                trailing_comment: None,
+            }],
             modifiers: vec![],
             children: vec![],
             span: None,
@@ -745,11 +744,7 @@ mod tests {
         // Known colorscheme namespaces with ≥2 segments → Color
         for ns in &["accent", "text", "surface", "stroke"] {
             let path = Expr::Path(vec![ns.to_string(), "primary".to_string()]);
-            assert_eq!(
-                expr_type(&path),
-                TypeAnnotation::Color,
-                "{ns}.primary should be Color"
-            );
+            assert_eq!(expr_type(&path), TypeAnnotation::Color, "{ns}.primary should be Color");
         }
         // scene.* stays Any (mixes colors and anchors)
         let scene = Expr::Path(vec!["scene".to_string(), "background".to_string()]);
@@ -781,6 +776,10 @@ mod tests {
         }];
         let mut env = env;
         let diagnostics = env.check_statements(&stmts);
-        assert!(diagnostics.is_empty(), "accent.primary should be accepted for Color param, got: {:?}", diagnostics);
+        assert!(
+            diagnostics.is_empty(),
+            "accent.primary should be accepted for Color param, got: {:?}",
+            diagnostics
+        );
     }
 }

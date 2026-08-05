@@ -1,10 +1,10 @@
-use super::{
-    AnimationTrack, AudioSegment, Diagnostic, Easing, Expr, Timeline, apply_explicit_position_binding,
-    evaluate_expr_with_lookup_diagnostic, resolve_position_binding_with_lookup_diagnostic,
-    TrackAccessor, DEFAULT_LAYOUT_HALF_SIZE,
-};
 use super::property_engine::{parse_property_value, write_property_field};
 use super::property_registry::lookup_property;
+use super::{
+    AnimationTrack, AudioSegment, DEFAULT_LAYOUT_HALF_SIZE, Diagnostic, Easing, Expr, Timeline,
+    TrackAccessor, apply_explicit_position_binding, evaluate_expr_with_lookup_diagnostic,
+    resolve_position_binding_with_lookup_diagnostic,
+};
 use crate::ast::Property;
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
 use crate::timeline::Value;
@@ -16,16 +16,11 @@ fn push_media_load_failure_diagnostic(
     message: String,
 ) {
     diagnostics.push(
-        Diagnostic::error(
-            DiagnosticCode::MediaLoadFailure,
-            DiagnosticPhase::Build,
-            message,
-        )
-        .with_subject(subject)
-        .with_path(url),
+        Diagnostic::error(DiagnosticCode::MediaLoadFailure, DiagnosticPhase::Build, message)
+            .with_subject(subject)
+            .with_path(url),
     );
 }
-
 
 fn seed_svg_track(
     track: &mut AnimationTrack,
@@ -60,7 +55,7 @@ fn seed_svg_track(
                     Easing::Linear,
                 );
                 track.svg_paths = parsed_paths;
-            }
+            },
             Err(error) => push_media_load_failure_diagnostic(
                 diagnostics,
                 &format!("{}.url", subject_label),
@@ -93,19 +88,18 @@ fn seed_image_track(
         Ok(image) => {
             let display_size = authored_half_size
                 .unwrap_or([image.natural_size[0] / 2.0, image.natural_size[1] / 2.0]);
-            track
-                .geometry
-                .size
-                .ensure(DEFAULT_LAYOUT_HALF_SIZE)
-                .add_keyframe(time_ms, display_size, Easing::Linear);
-            track
-                .ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE)
-                .add_keyframe(time_ms, display_size, Easing::Linear);
-            track
-                .image
-                .ensure(None)
-                .add_keyframe(time_ms, Some(image), Easing::Linear);
-        }
+            track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                time_ms,
+                display_size,
+                Easing::Linear,
+            );
+            track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                time_ms,
+                display_size,
+                Easing::Linear,
+            );
+            track.image.ensure(None).add_keyframe(time_ms, Some(image), Easing::Linear);
+        },
         Err(error) => push_media_load_failure_diagnostic(
             diagnostics,
             &format!("{}.url", subject_label),
@@ -131,12 +125,14 @@ impl Timeline {
         self.add_node(label.to_string(), parent_label);
         // Parse timing modifiers for Image/Svg declarations (timed re-declarations).
         use crate::timeline::timing::{
-            parse_timing_modifiers, ModifierHost, ParsedTimingModifiers,
+            ModifierHost, ParsedTimingModifiers, parse_timing_modifiers,
         };
-        let ParsedTimingModifiers {
-            delay_ms,
-            ..
-        } = parse_timing_modifiers(modifiers, ModifierHost::ActorDeclaration, Some(label), diagnostics);
+        let ParsedTimingModifiers { delay_ms, .. } = parse_timing_modifiers(
+            modifiers,
+            ModifierHost::ActorDeclaration,
+            Some(label),
+            diagnostics,
+        );
         // Pre-seed opacity for pre-keyframe first declarations without explicit opacity.
         let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
         let is_first_decl = !self.tracks.contains_key(label);
@@ -160,7 +156,11 @@ impl Timeline {
         }
 
         if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
-            track.style.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
+            track
+                .style
+                .opacity
+                .ensure(1.0)
+                .add_keyframe(0, self.default_opacity, Easing::Linear);
         }
 
         let mut url = String::new();
@@ -182,7 +182,7 @@ impl Timeline {
                     )
                     .map(|v| v.as_str())
                     .unwrap_or_default();
-                }
+                },
                 "scale" => {
                     scale = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -192,7 +192,7 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(1.0))
                     .as_num() as f32;
-                }
+                },
                 "size" => {
                     if let Value::Vec2([width, height]) = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -204,11 +204,11 @@ impl Timeline {
                     {
                         authored_size = Some([width as f32 / 2.0, height as f32 / 2.0]);
                     }
-                }
+                },
                 "at" => at_expr = Some(prop.value.clone()),
                 "anchor" => anchor_expr = Some(prop.value.clone()),
                 "offset" => offset_expr = Some(prop.value.clone()),
-                _ => {}
+                _ => {},
             }
         }
 
@@ -237,8 +237,22 @@ impl Timeline {
             }
             let prop_subject = format!("{}.{}", label, prop.name);
             if let Some(schema) = lookup_property(&prop.name) {
-                if let Some(pv) = parse_property_value(schema.value_type, &prop.value, &eval_env, diagnostics, &prop_subject) {
-                    write_property_field(track, schema.field, pv, time_ms as u64, time_ms as u64, Easing::Linear, diagnostics);
+                if let Some(pv) = parse_property_value(
+                    schema.value_type,
+                    &prop.value,
+                    &eval_env,
+                    diagnostics,
+                    &prop_subject,
+                ) {
+                    write_property_field(
+                        track,
+                        schema.field,
+                        pv,
+                        time_ms as u64,
+                        time_ms as u64,
+                        Easing::Linear,
+                        diagnostics,
+                    );
                 }
             }
         }
@@ -249,8 +263,8 @@ impl Timeline {
             "Svg" => seed_svg_track(track, diagnostics, label, &url, scale, seed_time_ms),
             "Image" => {
                 seed_image_track(track, diagnostics, label, &url, authored_size, seed_time_ms)
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 
@@ -295,7 +309,7 @@ impl Timeline {
                     )
                     .map(|v| v.as_str())
                     .unwrap_or_default();
-                }
+                },
                 "volume" => {
                     volume = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -305,8 +319,8 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(1.0))
                     .as_num() as f32;
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
 
@@ -315,7 +329,9 @@ impl Timeline {
                 Diagnostic::warning(
                     crate::diagnostics::DiagnosticCode::InvalidConfigValue,
                     crate::diagnostics::DiagnosticPhase::Build,
-                    format!("Audio actor '{label}' has no 'source' property; no audio will be played."),
+                    format!(
+                        "Audio actor '{label}' has no 'source' property; no audio will be played."
+                    ),
                 )
                 .with_subject(label),
             );
@@ -324,16 +340,25 @@ impl Timeline {
 
         // Parse timing modifiers to determine start time and duration
         use crate::timeline::timing::{
-            parse_timing_modifiers, ModifierHost, ParsedTimingModifiers,
+            ModifierHost, ParsedTimingModifiers, parse_timing_modifiers,
         };
         let ParsedTimingModifiers {
             duration_ms,
             delay_ms,
             ..
-        } = parse_timing_modifiers(modifiers, ModifierHost::ActorDeclaration, Some(label), diagnostics);
+        } = parse_timing_modifiers(
+            modifiers,
+            ModifierHost::ActorDeclaration,
+            Some(label),
+            diagnostics,
+        );
 
         let start_time_s = (time_ms + delay_ms) / 1000.0;
-        let duration_s = if duration_ms > 0.0 { Some(duration_ms / 1000.0) } else { None };
+        let duration_s = if duration_ms > 0.0 {
+            Some(duration_ms / 1000.0)
+        } else {
+            None
+        };
 
         self.audio_segments.push(AudioSegment {
             source,

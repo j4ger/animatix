@@ -2,8 +2,8 @@ use super::*;
 
 #[test]
 fn test_stack_align_start_and_end() {
-    use crate::timeline::layout::ChildExtent;
     use crate::timeline::PlacementMode;
+    use crate::timeline::layout::ChildExtent;
 
     let children = vec![
         ChildExtent {
@@ -41,8 +41,16 @@ fn test_baseline_alignment_via_layout_engine() {
     use crate::timeline::{ContainerMetadata, LayoutEngine, LayoutType, PlacementMode};
 
     let children = vec![
-        ChildExtent { label: "a".to_string(), half_size: [50.0, 30.0], placement_mode: PlacementMode::LayoutManaged },
-        ChildExtent { label: "b".to_string(), half_size: [40.0, 20.0], placement_mode: PlacementMode::LayoutManaged },
+        ChildExtent {
+            label: "a".to_string(),
+            half_size: [50.0, 30.0],
+            placement_mode: PlacementMode::LayoutManaged,
+        },
+        ChildExtent {
+            label: "b".to_string(),
+            half_size: [40.0, 20.0],
+            placement_mode: PlacementMode::LayoutManaged,
+        },
     ];
 
     let metadata = ContainerMetadata {
@@ -57,9 +65,8 @@ fn test_baseline_alignment_via_layout_engine() {
 
     // Baseline alignment
     let child_baselines = vec![-8.0, -4.0];
-    let positions = LayoutEngine::compute_positions_with_baselines(
-        &metadata, &children, &child_baselines,
-    );
+    let positions =
+        LayoutEngine::compute_positions_with_baselines(&metadata, &children, &child_baselines);
 
     assert_eq!(positions.len(), 2);
     // Baselines should differ from center-aligned positions
@@ -70,9 +77,8 @@ fn test_baseline_alignment_via_layout_engine() {
     );
 
     // With empty baselines, should behave like center
-    let positions_no_baselines = LayoutEngine::compute_positions_with_baselines(
-        &metadata, &children, &[],
-    );
+    let positions_no_baselines =
+        LayoutEngine::compute_positions_with_baselines(&metadata, &children, &[]);
     assert!((positions_no_baselines[0][1]).abs() < 0.01);
     assert!((positions_no_baselines[1][1]).abs() < 0.01);
 
@@ -82,7 +88,9 @@ fn test_baseline_alignment_via_layout_engine() {
         ..metadata.clone()
     };
     let positions_center = LayoutEngine::compute_positions_with_baselines(
-        &metadata_center, &children, &child_baselines,
+        &metadata_center,
+        &children,
+        &child_baselines,
     );
     assert!((positions_center[0][1]).abs() < 0.01);
     assert!((positions_center[1][1]).abs() < 0.01);
@@ -93,8 +101,16 @@ fn test_fixed_size_layout_still_works() {
     use crate::timeline::layout::ChildExtent;
     // Backward compatibility: fixed-size layout should work unchanged
     let children = vec![
-        ChildExtent { label: "a".into(), half_size: [50.0, 25.0], placement_mode: PlacementMode::LayoutManaged },
-        ChildExtent { label: "b".into(), half_size: [50.0, 25.0], placement_mode: PlacementMode::LayoutManaged },
+        ChildExtent {
+            label: "a".into(),
+            half_size: [50.0, 25.0],
+            placement_mode: PlacementMode::LayoutManaged,
+        },
+        ChildExtent {
+            label: "b".into(),
+            half_size: [50.0, 25.0],
+            placement_mode: PlacementMode::LayoutManaged,
+        },
     ];
 
     let metadata = ContainerMetadata {
@@ -118,15 +134,22 @@ fn test_fixed_size_layout_still_works() {
 
     // With specs/constraints (empty), should produce same result
     let positions_with_specs = crate::timeline::LayoutEngine::compute_positions_with_specs(
-        &metadata, &children, &[], &[], &[], [0.0, 0.0],
+        &metadata,
+        &children,
+        &[],
+        &[],
+        &[],
+        [0.0, 0.0],
     );
     assert_eq!(positions.len(), positions_with_specs.len());
     for i in 0..positions.len() {
         assert!(
-            (positions[i][0] - positions_with_specs[i][0]).abs() < 0.01 &&
-            (positions[i][1] - positions_with_specs[i][1]).abs() < 0.01,
+            (positions[i][0] - positions_with_specs[i][0]).abs() < 0.01
+                && (positions[i][1] - positions_with_specs[i][1]).abs() < 0.01,
             "Position mismatch at index {}: {:?} vs {:?}",
-            i, positions[i], positions_with_specs[i]
+            i,
+            positions[i],
+            positions_with_specs[i]
         );
     }
 }

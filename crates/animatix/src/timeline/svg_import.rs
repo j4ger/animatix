@@ -454,7 +454,7 @@ fn collect_gradients_from_defs(defs_node: &Node, gradients: &mut HashMap<String,
                         stops,
                     },
                 );
-            }
+            },
             "radialGradient" => {
                 let stops = parse_gradient_stops(&child);
                 if stops.is_empty() {
@@ -463,15 +463,12 @@ fn collect_gradients_from_defs(defs_node: &Node, gradients: &mut HashMap<String,
                 let cx = attr_float(&child, "cx", 0.5);
                 let cy = attr_float(&child, "cy", 0.5);
                 let r = attr_float(&child, "r", 0.5);
-                gradients.insert(
-                    id,
-                    GradientDef::Radial { cx, cy, r, stops },
-                );
-            }
+                gradients.insert(id, GradientDef::Radial { cx, cy, r, stops });
+            },
             _ => {
                 // Recurse into child elements of defs (e.g., nested groups)
                 collect_gradients_from_defs(&child, gradients);
-            }
+            },
         }
     }
 }
@@ -487,9 +484,7 @@ fn parse_gradient_stops(grad_node: &Node) -> Vec<GradientStop> {
             continue;
         }
 
-        let offset_str = child
-            .attribute("offset")
-            .unwrap_or("0");
+        let offset_str = child.attribute("offset").unwrap_or("0");
         let offset = if offset_str.ends_with('%') {
             offset_str.trim_end_matches('%').parse::<f64>().ok().map(|v| v / 100.0)
         } else {
@@ -524,7 +519,9 @@ fn parse_stop_color(value: &str) -> (u8, u8, u8) {
     // Hex colors
     if let Some(hex) = value.strip_prefix('#') {
         if hex.len() == 3 {
-            if let (Some(rc), Some(gc), Some(bc)) = (hex.chars().next(), hex.chars().nth(1), hex.chars().nth(2)) {
+            if let (Some(rc), Some(gc), Some(bc)) =
+                (hex.chars().next(), hex.chars().nth(1), hex.chars().nth(2))
+            {
                 let r = u8::from_str_radix(&format!("{rc}{rc}"), 16).unwrap_or(0);
                 let g = u8::from_str_radix(&format!("{gc}{gc}"), 16).unwrap_or(0);
                 let b = u8::from_str_radix(&format!("{bc}{bc}"), 16).unwrap_or(0);
@@ -611,14 +608,24 @@ fn extract_clip_path_data(node: &Node) -> String {
                 if let Some(d) = child.attribute("d") {
                     paths.push(d.to_string());
                 }
-            }
+            },
             "rect" => {
                 let x = attr_float(&child, "x", 0.0);
                 let y = attr_float(&child, "y", 0.0);
                 let w = attr_float(&child, "width", 0.0);
                 let h = attr_float(&child, "height", 0.0);
-                paths.push(format!("M {} {} L {} {} L {} {} L {} {} Z", x, y, x+w, y, x+w, y+h, x, y+h));
-            }
+                paths.push(format!(
+                    "M {} {} L {} {} L {} {} L {} {} Z",
+                    x,
+                    y,
+                    x + w,
+                    y,
+                    x + w,
+                    y + h,
+                    x,
+                    y + h
+                ));
+            },
             "circle" => {
                 let cx = attr_float(&child, "cx", 0.0);
                 let cy = attr_float(&child, "cy", 0.0);
@@ -633,8 +640,8 @@ fn extract_clip_path_data(node: &Node) -> String {
                     cx-r*k, cy+r, cx-r, cy+r*k, cx-r, cy,
                     cx-r, cy-r*k, cx-r*k, cy-r, cx, cy-r
                 ));
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
     paths.join(" ")
@@ -675,7 +682,10 @@ fn collect_masks_recursive(node: &Node, masks: &mut HashMap<String, MaskDef>) {
 /// Try to resolve a `url(#id)` reference in a fill/stroke attribute.
 /// If the id refers to a known gradient, return an approximate solid color.
 /// Returns `None` if the value is not a url reference or the gradient is unknown.
-fn resolve_gradient_url(value: &str, gradients: &HashMap<String, GradientDef>) -> Option<(u8, u8, u8)> {
+fn resolve_gradient_url(
+    value: &str,
+    gradients: &HashMap<String, GradientDef>,
+) -> Option<(u8, u8, u8)> {
     let value = value.trim();
     if let Some(inner) = value.strip_prefix("url(#") {
         let id = if let Some(end) = inner.find(')') {
@@ -687,10 +697,7 @@ fn resolve_gradient_url(value: &str, gradients: &HashMap<String, GradientDef>) -
             Some(grad.approximate_solid_color())
         } else {
             // Gradient referenced but not found in defs — log warning
-            tracing::warn!(
-                "SVG import: gradient '{}' referenced but not found in <defs>",
-                id
-            );
+            tracing::warn!("SVG import: gradient '{}' referenced but not found in <defs>", id);
             None
         }
     } else {
@@ -759,11 +766,7 @@ fn parse_hex_color(hex: &str) -> Option<Expr> {
         let r = hex.chars().next()?;
         let g = hex.chars().nth(1)?;
         let b = hex.chars().nth(2)?;
-        u32::from_str_radix(
-            &format!("{r}{r}{g}{g}{b}{b}"),
-            16,
-        )
-        .ok()
+        u32::from_str_radix(&format!("{r}{r}{g}{g}{b}{b}"), 16).ok()
     } else if hex.len() == 6 {
         u32::from_str_radix(hex, 16).ok()
     } else {
@@ -774,10 +777,7 @@ fn parse_hex_color(hex: &str) -> Option<Expr> {
     let g = ((rgb >> 8) & 0xFF) as f64;
     let b = (rgb & 0xFF) as f64;
 
-    Some(Expr::Call(
-        "rgb".into(),
-        vec![Expr::Num(r), Expr::Num(g), Expr::Num(b)],
-    ))
+    Some(Expr::Call("rgb".into(), vec![Expr::Num(r), Expr::Num(g), Expr::Num(b)]))
 }
 
 // ---------------------------------------------------------------------------
@@ -816,7 +816,7 @@ fn parse_svg_path_data(d: &str) -> Expr {
                     ));
                     current_pos = (abs_x, abs_y);
                 }
-            }
+            },
             "L" | "l" => {
                 let abs = cmd == "L";
                 while i + 1 < tokens.len() && is_number(&tokens[i]) {
@@ -834,7 +834,7 @@ fn parse_svg_path_data(d: &str) -> Expr {
                     ));
                     current_pos = (abs_x, abs_y);
                 }
-            }
+            },
             "Q" | "q" => {
                 let abs = cmd == "Q";
                 while i + 3 < tokens.len() && is_number(&tokens[i]) {
@@ -864,7 +864,7 @@ fn parse_svg_path_data(d: &str) -> Expr {
                     ));
                     current_pos = (abs_x, abs_y);
                 }
-            }
+            },
             "C" | "c" => {
                 let abs = cmd == "C";
                 while i + 5 < tokens.len() && is_number(&tokens[i]) {
@@ -900,7 +900,7 @@ fn parse_svg_path_data(d: &str) -> Expr {
                     ));
                     current_pos = (abs_x, abs_y);
                 }
-            }
+            },
             "H" | "h" => {
                 let abs = cmd == "H";
                 while i < tokens.len() && is_number(&tokens[i]) {
@@ -913,7 +913,7 @@ fn parse_svg_path_data(d: &str) -> Expr {
                     ));
                     current_pos = (abs_x, current_pos.1);
                 }
-            }
+            },
             "V" | "v" => {
                 let abs = cmd == "V";
                 while i < tokens.len() && is_number(&tokens[i]) {
@@ -926,7 +926,7 @@ fn parse_svg_path_data(d: &str) -> Expr {
                     ));
                     current_pos = (current_pos.0, abs_y);
                 }
-            }
+            },
             "S" | "s" => {
                 // Smooth cubic bezier: control point is reflection of previous control point
                 let abs = cmd == "S";
@@ -963,7 +963,7 @@ fn parse_svg_path_data(d: &str) -> Expr {
                     ));
                     current_pos = (abs_x, abs_y);
                 }
-            }
+            },
             "T" | "t" => {
                 // Smooth quadratic bezier: control point is reflection of previous control point
                 let abs = cmd == "T";
@@ -975,12 +975,7 @@ fn parse_svg_path_data(d: &str) -> Expr {
                     let (abs_x1, abs_y1, abs_x, abs_y) = if abs {
                         (current_pos.0, current_pos.1, x, y)
                     } else {
-                        (
-                            current_pos.0,
-                            current_pos.1,
-                            current_pos.0 + x,
-                            current_pos.1 + y,
-                        )
+                        (current_pos.0, current_pos.1, current_pos.0 + x, current_pos.1 + y)
                     };
                     commands.push(Expr::Call(
                         "quad_to".into(),
@@ -993,7 +988,7 @@ fn parse_svg_path_data(d: &str) -> Expr {
                     ));
                     current_pos = (abs_x, abs_y);
                 }
-            }
+            },
             "A" | "a" => {
                 // Arc: A rx x-rotation large-arc-flag sweep-flag x y
                 let abs = cmd == "A";
@@ -1019,14 +1014,14 @@ fn parse_svg_path_data(d: &str) -> Expr {
                     ));
                     current_pos = (abs_x, abs_y);
                 }
-            }
+            },
             "Z" | "z" => {
                 commands.push(Expr::Call("close".into(), vec![]));
-            }
+            },
             _ => {
                 // Unknown command — skip and continue parsing rest of path
                 continue;
-            }
+            },
         }
     }
 
@@ -1099,9 +1094,7 @@ fn convert_children(
             continue;
         }
         let tag = child.tag_name().name();
-        let local_transform = parse_transform(
-            child.attribute("transform").unwrap_or(""),
-        );
+        let local_transform = parse_transform(child.attribute("transform").unwrap_or(""));
         let combined = parent_transform.compose(&local_transform);
 
         let first_new_index = stmts.len();
@@ -1110,51 +1103,51 @@ fn convert_children(
             "g" => {
                 convert_group(&child, stmts, counter, &combined, gradients, masks)?;
                 true
-            }
+            },
             "rect" => {
                 convert_rect(&child, stmts, counter, &combined, gradients)?;
                 true
-            }
+            },
             "circle" => {
                 convert_circle(&child, stmts, counter, &combined, gradients)?;
                 true
-            }
+            },
             "ellipse" => {
                 convert_ellipse(&child, stmts, counter, &combined, gradients)?;
                 true
-            }
+            },
             "path" => {
                 convert_path(&child, stmts, counter, &combined, gradients)?;
                 true
-            }
+            },
             "text" => {
                 convert_text(&child, stmts, counter, &combined, parent, gradients)?;
                 true
-            }
+            },
             "svg" => {
                 convert_children(&child, stmts, counter, &combined, gradients, masks)?;
                 true
-            }
+            },
             "line" => {
                 convert_line(&child, stmts, counter, &combined, gradients)?;
                 true
-            }
+            },
             "polyline" | "polygon" => {
                 convert_poly(&child, stmts, counter, &combined, tag, gradients)?;
                 true
-            }
+            },
             "use" => {
                 convert_use(&child, parent, stmts, counter, &combined, gradients, masks)?;
                 true
-            }
+            },
             "defs" | "mask" => false,
-            "clipPath" | "pattern" | "linearGradient"
-            | "radialGradient" | "filter" | "style" | "title" | "desc" => false,
+            "clipPath" | "pattern" | "linearGradient" | "radialGradient" | "filter" | "style"
+            | "title" | "desc" => false,
             _ => {
                 // Unknown element: still recurse in case it has renderable children
                 convert_children(&child, stmts, counter, &combined, gradients, masks)?;
                 true
-            }
+            },
         };
 
         if is_renderable {
@@ -1181,23 +1174,22 @@ fn convert_use(
     masks: &HashMap<String, MaskDef>,
 ) -> Result<(), SvgImportError> {
     // Resolve href (try both href and xlink:href)
-    let href = node.attribute("href")
-        .or_else(|| node.attribute("xlink:href"));
-    
+    let href = node.attribute("href").or_else(|| node.attribute("xlink:href"));
+
     let Some(href) = href else {
         return Ok(()); // No href — skip silently
     };
-    
+
     // Remove leading # to get the id
     let id = href.trim_start_matches('#');
-    
+
     // Find the referenced element by id
     let referenced = find_element_by_id(root, id);
     let Some(referenced) = referenced else {
         tracing::warn!("SVG import: <use> references unknown id '{}'", id);
         return Ok(());
     };
-    
+
     // Convert the referenced element as if it were inline
     let tag = referenced.tag_name().name();
     match tag {
@@ -1207,13 +1199,15 @@ fn convert_use(
         "ellipse" => convert_ellipse(&referenced, stmts, counter, transform, gradients)?,
         "path" => convert_path(&referenced, stmts, counter, transform, gradients)?,
         "line" => convert_line(&referenced, stmts, counter, transform, gradients)?,
-        "polyline" | "polygon" => convert_poly(&referenced, stmts, counter, transform, tag, gradients)?,
+        "polyline" | "polygon" => {
+            convert_poly(&referenced, stmts, counter, transform, tag, gradients)?
+        },
         _ => {
             // Unsupported element type for <use> — skip
             tracing::warn!("SVG import: <use> references unsupported element type '{}'", tag);
-        }
+        },
     }
-    
+
     Ok(())
 }
 
@@ -1366,10 +1360,7 @@ fn convert_ellipse(
     let ry = attr_float(node, "ry", 0.0);
 
     let mut props = vec![
-        Property::new("size", Expr::Tuple(vec![
-            Expr::Num(rx * 2.0),
-            Expr::Num(ry * 2.0),
-        ])),
+        Property::new("size", Expr::Tuple(vec![Expr::Num(rx * 2.0), Expr::Num(ry * 2.0)])),
         Property::new("at", Expr::Tuple(vec![Expr::Num(cx), Expr::Num(cy)])),
     ];
 
@@ -1411,10 +1402,7 @@ fn convert_path(
 
     let mut props = vec![
         Property::new("commands", commands),
-        Property::new("at", Expr::Tuple(vec![
-            Expr::Num(transform.tx),
-            Expr::Num(transform.ty),
-        ])),
+        Property::new("at", Expr::Tuple(vec![Expr::Num(transform.tx), Expr::Num(transform.ty)])),
     ];
 
     if transform.rotation_deg != 0.0 {
@@ -1461,10 +1449,13 @@ fn convert_line(
     let length = (dx * dx + dy * dy).sqrt();
 
     let mut props = vec![
-        Property::new("size", Expr::Tuple(vec![
-            Expr::Num(length / 2.0),
-            Expr::Num(1.0), // minimal height
-        ])),
+        Property::new(
+            "size",
+            Expr::Tuple(vec![
+                Expr::Num(length / 2.0),
+                Expr::Num(1.0), // minimal height
+            ]),
+        ),
         Property::new("at", Expr::Tuple(vec![Expr::Num(cx), Expr::Num(cy)])),
     ];
 
@@ -1606,10 +1597,7 @@ fn convert_text(
 fn transform_to_props(t: &Transform) -> Vec<Property> {
     let mut props = Vec::new();
     if t.tx != 0.0 || t.ty != 0.0 {
-        props.push(Property::new(
-            "at",
-            Expr::Tuple(vec![Expr::Num(t.tx), Expr::Num(t.ty)]),
-        ));
+        props.push(Property::new("at", Expr::Tuple(vec![Expr::Num(t.tx), Expr::Num(t.ty)])));
     }
     if t.rotation_deg != 0.0 {
         props.push(Property::new("rotation", Expr::Num(t.rotation_deg)));
@@ -1635,12 +1623,16 @@ fn find_ancestor_attr<'a>(node: &Node<'a, 'a>, attr: &str) -> Option<&'a str> {
 
 /// Add `fill`, `stroke`, `stroke-width`, `opacity` properties from SVG attributes.
 /// Also handles `stroke-dasharray` parsing and `url(#...)` gradient references.
-fn add_fill_stroke_props(node: &Node, props: &mut Vec<Property>, gradients: &HashMap<String, GradientDef>) {
+fn add_fill_stroke_props(
+    node: &Node,
+    props: &mut Vec<Property>,
+    gradients: &HashMap<String, GradientDef>,
+) {
     // Resolve parent color for currentColor support
-    let current_color: Option<Expr> = node.attribute("color")
+    let current_color: Option<Expr> = node
+        .attribute("color")
         .and_then(|c| parse_svg_color(c, None))
-        .or_else(|| find_ancestor_attr(node, "color")
-            .and_then(|c| parse_svg_color(c, None)));
+        .or_else(|| find_ancestor_attr(node, "color").and_then(|c| parse_svg_color(c, None)));
 
     // Fill color — handles hex, named, rgb(), url(#id) gradient references, and inherit
     let fill_value = node.attribute("fill").or_else(|| {
@@ -1651,7 +1643,9 @@ fn add_fill_stroke_props(node: &Node, props: &mut Vec<Property>, gradients: &Has
         }
     });
     if let Some(fill) = fill_value {
-        if let Some(color_expr) = parse_svg_color_with_gradients(fill, gradients, current_color.as_ref()) {
+        if let Some(color_expr) =
+            parse_svg_color_with_gradients(fill, gradients, current_color.as_ref())
+        {
             props.push(Property::new("color", color_expr));
         } else {
             // fill="none" → transparent; fill="url(...)" with unknown gradient → transparent
@@ -1675,7 +1669,9 @@ fn add_fill_stroke_props(node: &Node, props: &mut Vec<Property>, gradients: &Has
         }
     });
     if let Some(stroke) = stroke_value {
-        if let Some(color_expr) = parse_svg_color_with_gradients(stroke, gradients, current_color.as_ref()) {
+        if let Some(color_expr) =
+            parse_svg_color_with_gradients(stroke, gradients, current_color.as_ref())
+        {
             props.push(Property::new("stroke_color", color_expr));
         }
     }
@@ -1738,7 +1734,11 @@ fn add_fill_stroke_props(node: &Node, props: &mut Vec<Property>, gradients: &Has
 /// is emitted via tracing.
 ///
 /// Returns `None` for `none`/`transparent`, or for unknown/unresolvable urls.
-fn parse_svg_color_with_gradients(value: &str, gradients: &HashMap<String, GradientDef>, current_color: Option<&Expr>) -> Option<Expr> {
+fn parse_svg_color_with_gradients(
+    value: &str,
+    gradients: &HashMap<String, GradientDef>,
+    current_color: Option<&Expr>,
+) -> Option<Expr> {
     let value = value.trim();
 
     // Check for url(#id) gradient reference
@@ -1747,11 +1747,17 @@ fn parse_svg_color_with_gradients(value: &str, gradients: &HashMap<String, Gradi
             tracing::warn!(
                 "SVG import: gradient '{}' approximated as solid rgb({}, {}, {})",
                 &value[5..value.find(')').unwrap_or(value.len() - 1)],
-                r, g, b
+                r,
+                g,
+                b
             );
             return Some(Expr::Call(
                 "rgb".into(),
-                vec![Expr::Num(r as f64), Expr::Num(g as f64), Expr::Num(b as f64)],
+                vec![
+                    Expr::Num(r as f64),
+                    Expr::Num(g as f64),
+                    Expr::Num(b as f64),
+                ],
             ));
         }
         // Unknown or unresolvable gradient reference — return None (transparent)
@@ -1871,9 +1877,7 @@ fn wrap_new_statements_with_mask(
 
 /// Parse an SVG attribute as f64, returning `default` on missing or invalid.
 fn attr_float(node: &Node, name: &str, default: f64) -> f64 {
-    node.attribute(name)
-        .and_then(|v| v.parse::<f64>().ok())
-        .unwrap_or(default)
+    node.attribute(name).and_then(|v| v.parse::<f64>().ok()).unwrap_or(default)
 }
 
 // ---------------------------------------------------------------------------
@@ -1975,11 +1979,17 @@ mod tests {
         let expr = parse_svg_path_data("M0 0 C10 10 20 20 30 0 Z");
         let expected = Expr::List(vec![
             Expr::Call("move_to".into(), vec![Expr::Num(0.0), Expr::Num(0.0)]),
-            Expr::Call("curve_to".into(), vec![
-                Expr::Num(10.0), Expr::Num(10.0),
-                Expr::Num(20.0), Expr::Num(20.0),
-                Expr::Num(30.0), Expr::Num(0.0),
-            ]),
+            Expr::Call(
+                "curve_to".into(),
+                vec![
+                    Expr::Num(10.0),
+                    Expr::Num(10.0),
+                    Expr::Num(20.0),
+                    Expr::Num(20.0),
+                    Expr::Num(30.0),
+                    Expr::Num(0.0),
+                ],
+            ),
             Expr::Call("close".into(), vec![]),
         ]);
         assert_eq!(expr, expected);
@@ -2004,7 +2014,12 @@ mod tests {
         std::fs::remove_file(&path).ok();
 
         // First statement should be a @config from width/height attributes
-        assert_eq!(stmts.len(), 4, "expected 4 root statements (config + 3 actors), got {}", stmts.len());
+        assert_eq!(
+            stmts.len(),
+            4,
+            "expected 4 root statements (config + 3 actors), got {}",
+            stmts.len()
+        );
         if let Stmt::Config { settings, .. } = &stmts[0] {
             assert_eq!(settings.len(), 1);
             assert_eq!(settings[0].name, "size");
@@ -2014,7 +2029,10 @@ mod tests {
         }
 
         // Next should be a Rect
-        if let Stmt::ActorDecl { label, ty, props, .. } = &stmts[1] {
+        if let Stmt::ActorDecl {
+            label, ty, props, ..
+        } = &stmts[1]
+        {
             assert_eq!(label, "rect_0");
             assert_eq!(ty, "Rect");
             // size should be (50, 30)
@@ -2037,7 +2055,13 @@ mod tests {
         }
 
         // Next should be a Group
-        if let Stmt::ActorDecl { label, ty, children, .. } = &stmts[3] {
+        if let Stmt::ActorDecl {
+            label,
+            ty,
+            children,
+            ..
+        } = &stmts[3]
+        {
             assert_eq!(label, "group_2");
             assert_eq!(ty, "Group");
             // Group should have one child (rect_3)
@@ -2074,13 +2098,27 @@ mod tests {
 
             // scale should be ~2
             let scale_prop = props.iter().find(|p| p.name == "scale").unwrap();
-            assert!((2.0 - match &scale_prop.value { Expr::Num(n) => *n, _ => 0.0 }).abs() < 1e-6);
+            assert!(
+                (2.0 - match &scale_prop.value {
+                    Expr::Num(n) => *n,
+                    _ => 0.0,
+                })
+                .abs()
+                    < 1e-6
+            );
 
             // stroke_color
             let stroke_prop = props.iter().find(|p| p.name == "stroke_color").unwrap();
             assert_eq!(
                 stroke_prop.value,
-                Expr::Call("rgb".into(), vec![Expr::Num(0x33 as f64), Expr::Num(0x33 as f64), Expr::Num(0x33 as f64)])
+                Expr::Call(
+                    "rgb".into(),
+                    vec![
+                        Expr::Num(0x33 as f64),
+                        Expr::Num(0x33 as f64),
+                        Expr::Num(0x33 as f64)
+                    ]
+                )
             );
 
             // stroke_width
@@ -2094,7 +2132,7 @@ mod tests {
         let result = import_svg(Path::new("/nonexistent/file.svg"));
         assert!(result.is_err());
         match result.unwrap_err() {
-            SvgImportError::Io(_) => {} // expected
+            SvgImportError::Io(_) => {}, // expected
             other => panic!("Expected Io error, got: {other}"),
         }
     }
@@ -2110,8 +2148,20 @@ mod tests {
 
     #[test]
     fn test_compose_transforms() {
-        let a = Transform { tx: 10.0, ty: 20.0, rotation_deg: 0.0, sx: 1.0, sy: 1.0 };
-        let b = Transform { tx: 5.0, ty: 5.0, rotation_deg: 30.0, sx: 2.0, sy: 2.0 };
+        let a = Transform {
+            tx: 10.0,
+            ty: 20.0,
+            rotation_deg: 0.0,
+            sx: 1.0,
+            sy: 1.0,
+        };
+        let b = Transform {
+            tx: 5.0,
+            ty: 5.0,
+            rotation_deg: 30.0,
+            sx: 2.0,
+            sy: 2.0,
+        };
         let c = a.compose(&b);
         assert!((c.tx - 15.0).abs() < 1e-6); // 10 + 5*1
         assert!((c.ty - 25.0).abs() < 1e-6); // 20 + 5*1
@@ -2142,10 +2192,7 @@ mod tests {
         if let Stmt::Config { settings, .. } = &stmts[0] {
             assert_eq!(settings.len(), 1);
             assert_eq!(settings[0].name, "size");
-            assert_eq!(
-                settings[0].value,
-                Expr::Tuple(vec![Expr::Num(800.0), Expr::Num(600.0)])
-            );
+            assert_eq!(settings[0].value, Expr::Tuple(vec![Expr::Num(800.0), Expr::Num(600.0)]));
         } else {
             panic!("Expected Config as first statement from viewBox");
         }
@@ -2168,10 +2215,7 @@ mod tests {
         assert!(!stmts.is_empty());
         if let Stmt::Config { settings, .. } = &stmts[0] {
             assert_eq!(settings[0].name, "size");
-            assert_eq!(
-                settings[0].value,
-                Expr::Tuple(vec![Expr::Num(640.0), Expr::Num(480.0)])
-            );
+            assert_eq!(settings[0].value, Expr::Tuple(vec![Expr::Num(640.0), Expr::Num(480.0)]));
         } else {
             panic!("Expected Config as first statement from width/height");
         }
@@ -2291,10 +2335,7 @@ mod tests {
             // Average of #ff0000 (255,0,0) and #0000ff (0,0,255) ≈ (128, 0, 128)
             assert_eq!(
                 color_prop.value,
-                Expr::Call(
-                    "rgb".into(),
-                    vec![Expr::Num(128.0), Expr::Num(0.0), Expr::Num(128.0)]
-                )
+                Expr::Call("rgb".into(), vec![Expr::Num(128.0), Expr::Num(0.0), Expr::Num(128.0)])
             );
         } else {
             panic!("Expected ActorDecl with gradient-approximated color");
@@ -2326,8 +2367,8 @@ mod tests {
             // Should have stroke_color (approximated) and no regular color (fill="none")
             let stroke_prop = props.iter().find(|p| p.name == "stroke_color").unwrap();
             // Average of red(255,0,0), green(0,128,0), blue(0,0,255):
-            // spans: 0.0→0.5: avg(red,green) (127,64,0) × 0.5 + 0.5→1.0: avg(green,blue) (0,64,127) × 0.5
-            // = (63.5, 64, 63.5) → (64, 64, 64)
+            // spans: 0.0→0.5: avg(red,green) (127,64,0) × 0.5 + 0.5→1.0: avg(green,blue) (0,64,127)
+            // × 0.5 = (63.5, 64, 63.5) → (64, 64, 64)
             // Let's just verify it's an rgb call
             assert!(matches!(&stroke_prop.value, Expr::Call(name, ..) if name == "rgb"));
         } else {
@@ -2419,10 +2460,7 @@ mod tests {
                     commands[0],
                     Expr::Call("move_to".into(), vec![Expr::Num(0.0), Expr::Num(0.0)])
                 );
-                assert_eq!(
-                    commands[4],
-                    Expr::Call("close".into(), vec![])
-                );
+                assert_eq!(commands[4], Expr::Call("close".into(), vec![]));
             } else {
                 panic!("Expected List of commands");
             }
@@ -2449,13 +2487,19 @@ mod tests {
             assert_eq!(ty, "Path");
             let cmd_prop = props.iter().find(|p| p.name == "commands").unwrap();
             if let Expr::List(commands) = &cmd_prop.value {
-                assert_eq!(commands.len(), 3, "polyline should have 3 commands (move + 2 lines, no close)");
+                assert_eq!(
+                    commands.len(),
+                    3,
+                    "polyline should have 3 commands (move + 2 lines, no close)"
+                );
                 assert_eq!(
                     commands[0],
                     Expr::Call("move_to".into(), vec![Expr::Num(10.0), Expr::Num(20.0)])
                 );
                 // No Z/close command
-                assert!(!commands.iter().any(|c| matches!(c, Expr::Call(name, ..) if name == "close")));
+                assert!(
+                    !commands.iter().any(|c| matches!(c, Expr::Call(name, ..) if name == "close"))
+                );
             } else {
                 panic!("Expected List of commands");
             }
@@ -2527,8 +2571,17 @@ mod tests {
     #[test]
     fn test_gradient_approximation_single_stop() {
         let def = GradientDef::Linear {
-            x1: 0.0, y1: 0.0, x2: 1.0, y2: 0.0,
-            stops: vec![GradientStop { offset: 0.0, r: 200, g: 150, b: 100, opacity: 1.0 }],
+            x1: 0.0,
+            y1: 0.0,
+            x2: 1.0,
+            y2: 0.0,
+            stops: vec![GradientStop {
+                offset: 0.0,
+                r: 200,
+                g: 150,
+                b: 100,
+                opacity: 1.0,
+            }],
         };
         let (r, g, b) = def.approximate_solid_color();
         assert_eq!((r, g, b), (200, 150, 100));
@@ -2537,10 +2590,25 @@ mod tests {
     #[test]
     fn test_gradient_approximation_two_stops() {
         let def = GradientDef::Linear {
-            x1: 0.0, y1: 0.0, x2: 1.0, y2: 0.0,
+            x1: 0.0,
+            y1: 0.0,
+            x2: 1.0,
+            y2: 0.0,
             stops: vec![
-                GradientStop { offset: 0.0, r: 255, g: 0, b: 0, opacity: 1.0 },
-                GradientStop { offset: 1.0, r: 0, g: 0, b: 255, opacity: 1.0 },
+                GradientStop {
+                    offset: 0.0,
+                    r: 255,
+                    g: 0,
+                    b: 0,
+                    opacity: 1.0,
+                },
+                GradientStop {
+                    offset: 1.0,
+                    r: 0,
+                    g: 0,
+                    b: 255,
+                    opacity: 1.0,
+                },
             ],
         };
         let (r, g, b) = def.approximate_solid_color();
@@ -2551,11 +2619,32 @@ mod tests {
     #[test]
     fn test_gradient_approximation_three_stops() {
         let def = GradientDef::Linear {
-            x1: 0.0, y1: 0.0, x2: 1.0, y2: 0.0,
+            x1: 0.0,
+            y1: 0.0,
+            x2: 1.0,
+            y2: 0.0,
             stops: vec![
-                GradientStop { offset: 0.0, r: 0, g: 0, b: 0, opacity: 1.0 },
-                GradientStop { offset: 0.5, r: 128, g: 128, b: 128, opacity: 1.0 },
-                GradientStop { offset: 1.0, r: 255, g: 255, b: 255, opacity: 1.0 },
+                GradientStop {
+                    offset: 0.0,
+                    r: 0,
+                    g: 0,
+                    b: 0,
+                    opacity: 1.0,
+                },
+                GradientStop {
+                    offset: 0.5,
+                    r: 128,
+                    g: 128,
+                    b: 128,
+                    opacity: 1.0,
+                },
+                GradientStop {
+                    offset: 1.0,
+                    r: 255,
+                    g: 255,
+                    b: 255,
+                    opacity: 1.0,
+                },
             ],
         };
         let (r, g, b) = def.approximate_solid_color();

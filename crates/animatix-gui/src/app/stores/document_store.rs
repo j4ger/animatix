@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use animatix_syntax::diagnostics::{Diagnostic, diagnostics_phase_summary};
+
 use crate::app::commands::UndoLabel;
 use crate::app::document::history::UiSnapshot;
 use crate::app::document::snapshot::{DocumentSnapshot, SnapshotStatus};
@@ -7,8 +9,6 @@ use crate::app::document::version::DocumentGeneration;
 use crate::app::stores::{HistoryStore, SourceStore};
 use crate::document::DocumentSession;
 use crate::editor::EditorBuffer;
-use animatix_syntax::diagnostics::Diagnostic;
-use animatix_syntax::diagnostics::diagnostics_phase_summary;
 
 /// Pending undo snapshot state, captured before a mutation.
 struct PendingSnapshot {
@@ -99,36 +99,11 @@ impl DocumentStore {
         }
     }
 
-    /// Snapshot with UI state capture for richer undo/redo.
-    #[allow(dead_code)] // Snapshot with UI state capture for richer undo/redo; not yet called.
-    pub fn snapshot_with_ui(
-        &mut self,
-        label: UndoLabel,
-        ui_before: crate::app::document::history::UiSnapshot,
-        ui_after: crate::app::document::history::UiSnapshot,
-    ) {
-        let source_before = self.source.document.source_text.clone();
-        let source_after = self.source.document.source_text.clone();
-        self.history.snapshot(label, &source_before, &source_after, ui_before, ui_after);
-    }
-
     // ── Snapshot API ──
-
-    /// The latest completed snapshot (may be failed or stale).
-    #[allow(dead_code)] // Reserved for panel migration — panels currently read from DocumentSession directly
-    pub fn current_snapshot(&self) -> Option<Arc<DocumentSnapshot>> {
-        self.current.clone()
-    }
 
     /// The latest snapshot with a renderable target (for preview fallback).
     pub fn last_good_snapshot(&self) -> Option<Arc<DocumentSnapshot>> {
         self.last_good.clone()
-    }
-
-    /// The current document generation.
-    #[allow(dead_code)] // Reserved for panel migration — generation tracked internally otherwise
-    pub fn document_generation(&self) -> DocumentGeneration {
-        self.generation
     }
 
     /// Publish a new snapshot, incrementing the generation.
@@ -259,20 +234,9 @@ impl DocumentStore {
             }
         }
     }
-
-    /// Try to rebuild the current document and produce a snapshot.
-    /// Returns true if a snapshot was published.
-    #[allow(dead_code)] // Reserved for async rebuild path; rebuild currently handled by RebuildWorker
-    pub fn try_rebuild_snapshot(&mut self) -> bool {
-        let ok = self.source.document.rebuild().is_ok();
-        self.publish_rebuild_result(ok);
-        ok
-    }
 }
 
 /// Build a DocumentSnapshot from the current DocumentSession state.
-/// Snapshot storage is wired but not yet queried by the frame pipeline.
-#[allow(dead_code)] // Snapshot storage wired but not yet queried by the frame pipeline.
 #[allow(clippy::arc_with_non_send_sync)] // Arc chosen for future async rebuild path compatibility
 fn snapshot_from_session(doc: &DocumentSession, source_hash: u64) -> DocumentSnapshot {
     let target = if let Some(timeline) = doc.timeline.as_ref() {

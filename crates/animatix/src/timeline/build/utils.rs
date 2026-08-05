@@ -13,7 +13,11 @@ pub(crate) enum ScaleType {
 impl ScaleType {
     /// Parse from a user-supplied string (case-insensitive).
     pub(crate) fn from_str(s: &str) -> Self {
-        if s.eq_ignore_ascii_case("log") { Self::Log } else { Self::Linear }
+        if s.eq_ignore_ascii_case("log") {
+            Self::Log
+        } else {
+            Self::Linear
+        }
     }
 
     #[inline]
@@ -74,7 +78,12 @@ impl GraphScaleConfig {
         x_scale: ScaleType,
         y_scale: ScaleType,
     ) -> Self {
-        Self { x_domain, y_domain, x_scale, y_scale }
+        Self {
+            x_domain,
+            y_domain,
+            x_scale,
+            y_scale,
+        }
     }
 }
 
@@ -119,8 +128,8 @@ impl GraphContext {
 /// * `mx`, `my` — Math coordinates to convert.
 /// * `scale` — Static scale/domain configuration.
 /// * `geo` — Dynamic geometry (size, position, padding).
-/// * `relative` — If `true`, returns coordinates relative to the graph's position.
-///   If `false`, returns absolute screen coordinates.
+/// * `relative` — If `true`, returns coordinates relative to the graph's position. If `false`,
+///   returns absolute screen coordinates.
 ///
 /// # Returns
 /// Screen coordinates as `[x, y]`.
@@ -224,7 +233,8 @@ mod tests {
         )
     }
 
-    /// Round-trip with no padding (linear scale): screen_to_math(math_to_screen(mx, my)) == [mx, my].
+    /// Round-trip with no padding (linear scale): screen_to_math(math_to_screen(mx, my)) == [mx,
+    /// my].
     #[test]
     fn screen_to_math_round_trip_no_padding() {
         let ctx = linear_ctx([-10.0, 10.0], [-5.0, 5.0], [800.0, 600.0], [0.0, 0.0], [0.0; 4]);
@@ -232,14 +242,8 @@ mod tests {
         for (mx, my) in [(-5.0_f64, 3.0_f64), (0.0, 0.0), (10.0, -5.0), (-10.0, 5.0)] {
             let [sx, sy] = graph_math_to_screen(mx, my, &ctx.scale, &ctx.geo, false);
             let [rx, ry] = graph_screen_to_math(sx, sy, &ctx.scale, &ctx.geo);
-            assert!(
-                (rx - mx).abs() < 1e-10,
-                "x round-trip failed: {mx} -> screen {sx} -> {rx}"
-            );
-            assert!(
-                (ry - my).abs() < 1e-10,
-                "y round-trip failed: {my} -> screen {sy} -> {ry}"
-            );
+            assert!((rx - mx).abs() < 1e-10, "x round-trip failed: {mx} -> screen {sx} -> {rx}");
+            assert!((ry - my).abs() < 1e-10, "y round-trip failed: {my} -> screen {sy} -> {ry}");
         }
     }
 
@@ -337,17 +341,16 @@ mod tests {
             GraphGeometry::new([800.0, 600.0], [0.0, 0.0], [0.0; 4]),
         );
 
-        for (mx, my) in [(1.0_f64, 1.0_f64), (10.0, 100.0), (0.1, 0.5), (1000.0, 500.0)] {
+        for (mx, my) in [
+            (1.0_f64, 1.0_f64),
+            (10.0, 100.0),
+            (0.1, 0.5),
+            (1000.0, 500.0),
+        ] {
             let [sx, sy] = graph_math_to_screen(mx, my, &ctx.scale, &ctx.geo, false);
             let [rx, ry] = graph_screen_to_math(sx, sy, &ctx.scale, &ctx.geo);
-            assert!(
-                (rx - mx).abs() < 1e-8,
-                "log x round-trip failed: {mx} -> screen {sx} -> {rx}"
-            );
-            assert!(
-                (ry - my).abs() < 1e-8,
-                "log y round-trip failed: {my} -> screen {sy} -> {ry}"
-            );
+            assert!((rx - mx).abs() < 1e-8, "log x round-trip failed: {mx} -> screen {sx} -> {rx}");
+            assert!((ry - my).abs() < 1e-8, "log y round-trip failed: {my} -> screen {sy} -> {ry}");
         }
     }
 

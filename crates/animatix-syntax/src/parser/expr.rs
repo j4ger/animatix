@@ -4,11 +4,11 @@
 //! Provides the full expression parser including atom parsers (numbers, percents,
 //! strings, booleans, null) and the recursive expression parser with operator
 //! precedence, tuple/array literals, calls, constructors, closures, and conditionals.
-//!
 
-use crate::ast::*;
 use chumsky::prelude::*;
+
 use super::common::{self, ExprParser};
+use crate::ast::*;
 
 /// Build the expression parser.
 ///
@@ -90,7 +90,12 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
                     .then(expr.clone())
                     .map(|(parts, value)| {
                         let name = parts.join(".");
-                        Property { name, value, value_span: None, trailing_comment: None }
+                        Property {
+                            name,
+                            value,
+                            value_span: None,
+                            trailing_comment: None,
+                        }
                     })
                     .separated_by(just(',').padded())
                     .allow_trailing()
@@ -124,10 +129,7 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
             .repeated()
             .collect::<Vec<_>>()
             .then(base_atom)
-            .map(|(ops, expr)| {
-                ops.into_iter()
-                    .fold(expr, |acc, op| Expr::Unary(op, Box::new(acc)))
-            })
+            .map(|(ops, expr)| ops.into_iter().fold(expr, |acc, op| Expr::Unary(op, Box::new(acc))))
             .padded();
 
         // Postfix fold: field access, method calls, and subscript indexing.
@@ -157,30 +159,23 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
                 .map(PostfixStep::Index),
         ));
 
-        let access = atom
-            .clone()
-            .foldl(
-                postfix_step.repeated(),
-                |base, step| match step {
-                    PostfixStep::Field(segment, args) => {
-                        if let Some(args) = args {
-                            Expr::Method(Box::new(base), segment, args)
-                        } else {
-                            match base {
-                                Expr::Ident(name) => Expr::Path(vec![name, segment]),
-                                Expr::Path(mut parts) => {
-                                    parts.push(segment);
-                                    Expr::Path(parts)
-                                }
-                                other => Expr::Method(Box::new(other), segment, Vec::new()),
-                            }
-                        }
+        let access = atom.clone().foldl(postfix_step.repeated(), |base, step| match step {
+            PostfixStep::Field(segment, args) => {
+                if let Some(args) = args {
+                    Expr::Method(Box::new(base), segment, args)
+                } else {
+                    match base {
+                        Expr::Ident(name) => Expr::Path(vec![name, segment]),
+                        Expr::Path(mut parts) => {
+                            parts.push(segment);
+                            Expr::Path(parts)
+                        },
+                        other => Expr::Method(Box::new(other), segment, Vec::new()),
                     }
-                    PostfixStep::Index(index_expr) => {
-                        Expr::Index(Box::new(base), Box::new(index_expr))
-                    }
-                },
-            );
+                }
+            },
+            PostfixStep::Index(index_expr) => Expr::Index(Box::new(base), Box::new(index_expr)),
+        });
 
         // Mathematical and logical operators precedence
         let pow = recursive(|pow| {
@@ -225,29 +220,21 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
             just('<').to(BinaryOp::Lt),
         ));
 
-        let comparison = sum.clone().foldl(
-            compare_op.padded().then(sum.clone()).repeated(),
-            |lhs, (op, rhs)| Expr::Binary(Box::new(lhs), op, Box::new(rhs)),
-        );
+        let comparison = sum
+            .clone()
+            .foldl(compare_op.padded().then(sum.clone()).repeated(), |lhs, (op, rhs)| {
+                Expr::Binary(Box::new(lhs), op, Box::new(rhs))
+            });
 
         let conditional_expr = text::keyword("if")
             .ignore_then(expr.clone())
+            .then(expr.clone().delimited_by(just('{').padded(), just('}').padded()))
             .then(
-                expr.clone()
-                    .delimited_by(just('{').padded(), just('}').padded()),
-            )
-            .then(
-                text::keyword("else").ignore_then(
-                    expr.clone()
-                        .delimited_by(just('{').padded(), just('}').padded()),
-                ),
+                text::keyword("else")
+                    .ignore_then(expr.clone().delimited_by(just('{').padded(), just('}').padded())),
             )
             .map(|((condition, then_branch), else_branch)| {
-                Expr::Conditional(
-                    Box::new(condition),
-                    Box::new(then_branch),
-                    Box::new(else_branch),
-                )
+                Expr::Conditional(Box::new(condition), Box::new(then_branch), Box::new(else_branch))
             })
             .boxed();
 
@@ -316,16 +303,15 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
 
             // Or-pattern: atom (| atom)*
             atom.clone()
-                .foldl(
-                    just('|').padded().ignore_then(atom.clone()).repeated(),
-                    |left, right| match left {
+                .foldl(just('|').padded().ignore_then(atom.clone()).repeated(), |left, right| {
+                    match left {
                         MatchPattern::Or(mut items) => {
                             items.push(right);
                             MatchPattern::Or(items)
-                        }
+                        },
                         other => MatchPattern::Or(vec![other, right]),
-                    },
-                )
+                    }
+                })
                 .boxed()
         });
 
@@ -343,7 +329,10 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
                     .delimited_by(just('{').padded(), just('}').padded()),
             )
             .map(|(scrutinee, arms)| {
-                Expr::Match(Box::new(scrutinee), arms.into_iter().map(|(p, e)| (p, Box::new(e))).collect())
+                Expr::Match(
+                    Box::new(scrutinee),
+                    arms.into_iter().map(|(p, e)| (p, Box::new(e))).collect(),
+                )
             })
             .boxed();
 

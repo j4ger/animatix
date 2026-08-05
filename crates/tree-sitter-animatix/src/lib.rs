@@ -15,7 +15,8 @@ pub fn language() -> Language {
 }
 
 /// The syntax highlighting query for Animatix.
-pub const HIGHLIGHTS_QUERY: &str = include_str!("../../../tree-sitter-animatix/queries/highlights.scm");
+pub const HIGHLIGHTS_QUERY: &str =
+    include_str!("../../../tree-sitter-animatix/queries/highlights.scm");
 
 #[cfg(test)]
 mod tests {

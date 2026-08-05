@@ -75,17 +75,12 @@ impl Widget for Label {
         let base_text = self.text.text();
 
         // Base text galley
-        let base_galley = ui.painter().layout_no_wrap(
-            base_text.to_string(),
-            font_id.clone(),
-            base_color,
-        );
+        let base_galley =
+            ui.painter().layout_no_wrap(base_text.to_string(), font_id.clone(), base_color);
 
         // Optional required asterisk
         let asterisk_galley = if self.required {
-            Some(
-                ui.painter().layout_no_wrap(" *".to_string(), font_id, t.status.error),
-            )
+            Some(ui.painter().layout_no_wrap(" *".to_string(), font_id, t.status.error))
         } else {
             None
         };
@@ -93,15 +88,11 @@ impl Widget for Label {
         let base_text_width = base_galley.size().x;
         let asterisk_width = asterisk_galley.as_ref().map_or(0.0, |g| g.size().x);
         let total_width = base_text_width + asterisk_width;
-        let total_height = base_galley
-            .size()
-            .y
-            .max(asterisk_galley.as_ref().map_or(0.0, |g| g.size().y));
+        let total_height =
+            base_galley.size().y.max(asterisk_galley.as_ref().map_or(0.0, |g| g.size().y));
 
-        let (rect, response) = ui.allocate_exact_size(
-            egui::vec2(total_width, total_height),
-            egui::Sense::hover(),
-        );
+        let (rect, response) =
+            ui.allocate_exact_size(egui::vec2(total_width, total_height), egui::Sense::hover());
 
         // Paint base text
         ui.painter().galley(rect.min, base_galley.clone(), base_color);
@@ -121,8 +112,9 @@ impl Widget for Label {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use egui::Color32;
+
+    use super::*;
 
     #[test]
     fn builder_defaults() {
@@ -158,10 +150,7 @@ mod tests {
 
     #[test]
     fn chaining_works() {
-        let l = Label::new("test")
-            .role(TextRole::Caption)
-            .required(true)
-            .color(Color32::GREEN);
+        let l = Label::new("test").role(TextRole::Caption).required(true).color(Color32::GREEN);
         assert_eq!(l.role, TextRole::Caption);
         assert!(l.required);
         assert_eq!(l.color, Some(Color32::GREEN));

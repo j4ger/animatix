@@ -5,12 +5,12 @@
 pub mod ast;
 /// Error and warning reporting types for the animation pipeline.
 pub mod diagnostics;
-/// Configurable source formatter for `.amx` files.
-pub mod formatter;
-/// Shared formatting logic used by both `ToSource` and `Formatter`.
-pub mod format_core;
 /// Animation easing curves and interpolation functions.
 pub mod easing;
+/// Shared formatting logic used by both `ToSource` and `Formatter`.
+pub mod format_core;
+/// Configurable source formatter for `.amx` files.
+pub mod formatter;
 /// Icon glyph constants for UI primitives.
 pub mod icon_glyphs;
 pub mod module;
@@ -19,10 +19,10 @@ pub mod parser;
 #[doc(hidden)]
 pub use chumsky;
 pub mod source_index;
-pub mod walk;
-/// Tree-sitter CST → Animatix AST converter for incremental parsing.
-pub mod ts_convert;
 pub mod to_source;
 pub mod transition_registry;
+/// Tree-sitter CST → Animatix AST converter for incremental parsing.
+pub mod ts_convert;
 /// Gradual type checker for component/action parameter validation.
 pub mod typecheck;
+pub mod walk;

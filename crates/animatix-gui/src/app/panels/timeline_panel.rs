@@ -20,23 +20,20 @@
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
+use animatix::composition::Composition;
+use animatix::timeline::Timeline;
+use egui::{Align2, Color32, FontId, Pos2, Rect, RichText, Sense, Stroke, Vec2};
+
 use crate::app::PreviewPaneState;
 use crate::app::commands::{ActionQueue, Command, PlaybackCommand, ShellAction};
 use crate::app::components::button::{self, Button, toolbar_separator};
 use crate::app::components::layout;
-use crate::app::design_tokens::semantic::accent;
-use crate::app::design_tokens::semantic::border;
-use crate::app::design_tokens::semantic::category;
-use crate::app::design_tokens::semantic::status;
-use crate::app::design_tokens::semantic::surface;
-use crate::app::design_tokens::semantic::text;
-use crate::app::design_tokens::semantic::timeline;
-use crate::app::design_tokens::spatial::timeline::{KF_HALF as KF_DIAMOND_HALF};
+use crate::app::design_tokens::semantic::{
+    accent, border, category, status, surface, text, timeline,
+};
+use crate::app::design_tokens::spatial::timeline::KF_HALF as KF_DIAMOND_HALF;
 use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
-use animatix::composition::Composition;
-use animatix::timeline::Timeline;
-use egui::{Align2, Color32, FontId, Pos2, Rect, RichText, Sense, Stroke, Vec2};
 
 /// Property groups for per-property lanes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -157,7 +154,8 @@ pub(crate) struct TimelineContext<'a> {
     /// Cached per-scene keyframe time positions (for density strip rendering).
     pub scene_keyframe_times: &'a HashMap<String, Vec<f64>>,
     pub snap_fps: f32,
-    /// Set by the panel each frame; true when the panel or its children received pointer interaction.
+    /// Set by the panel each frame; true when the panel or its children received pointer
+    /// interaction.
     pub timeline_focused: &'a mut bool,
 }
 
@@ -644,7 +642,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
     let mut new_kf_drag: Option<(String, &'static str, u64, f64)> = kf_drag.clone();
 
     // ── Action block drag state ──
-    // (track_idx, event_start_ms, edge: LeftOrRight, initial_pointer_x, original_start_s, original_duration_s)
+    // (track_idx, event_start_ms, edge: LeftOrRight, initial_pointer_x, original_start_s,
+    // original_duration_s)
     #[derive(Clone, Copy, PartialEq)]
     enum Edge {
         Left,
@@ -914,7 +913,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         let actor_track_count = actor_tree.len();
         let total_track_rows = actor_track_count + extra_prop_lanes;
         let actor_first_top = content_y;
-        let actor_last_bot = actor_first_top + total_track_rows as f32 * sp.timeline.track_row_height;
+        let actor_last_bot =
+            actor_first_top + total_track_rows as f32 * sp.timeline.track_row_height;
         content_y = actor_last_bot;
 
         let rs_top = content_y;
@@ -1800,11 +1800,18 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 if !track_selected.is_empty() {
                     ui.strong(format!("{} selected keyframes", track_selected.len()));
                     ui.separator();
-                    if ui.add(Button::danger(format!("{} Delete selected", egui_phosphor::regular::TRASH))).clicked() {
+                    if ui
+                        .add(Button::danger(format!(
+                            "{} Delete selected",
+                            egui_phosphor::regular::TRASH
+                        )))
+                        .clicked()
+                    {
                         for (actor, time_ms) in &track_selected {
                             if let Some(tl) = timeline {
                                 if let Some(track) = tl.get_track(actor) {
-                                    // Use per-property collector to delete all matching keyframes across all properties
+                                    // Use per-property collector to delete all matching keyframes
+                                    // across all properties
                                     for (prop_name, times) in collect_per_property_keyframes(track)
                                     {
                                         if times.contains(time_ms) {

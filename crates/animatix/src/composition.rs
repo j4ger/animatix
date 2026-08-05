@@ -8,11 +8,12 @@
 //! `Timeline::build_with_diagnostics` path — this module is only activated
 //! when `Stmt::Scene` markers are present in the parsed AST.
 
+use std::collections::{BTreeMap, HashMap};
+
 use crate::ast::{Expr, Property, Span, Stmt, Transition};
 use crate::diagnostics::{BuildReport, Diagnostic, DiagnosticCode, DiagnosticPhase};
-use crate::timeline::Timeline;
 use crate::module::Namespace;
-use std::collections::{BTreeMap, HashMap};
+use crate::timeline::Timeline;
 
 // ---------------------------------------------------------------------------
 // Composition Data Structures
@@ -176,7 +177,12 @@ impl BuildTarget {
         namespaces: &std::collections::HashMap<String, Namespace>,
         source_path: Option<&std::path::Path>,
     ) -> BuildReport<Self> {
-        Self::from_ast_with_quality(statements, namespaces, source_path, crate::timeline::BuildQuality::Production)
+        Self::from_ast_with_quality(
+            statements,
+            namespaces,
+            source_path,
+            crate::timeline::BuildQuality::Production,
+        )
     }
 
     /// Build from AST with explicit build quality.
@@ -189,13 +195,23 @@ impl BuildTarget {
         let font_context = std::sync::Arc::new(crate::renderer::text::FontContext::new());
         let has_scenes = statements.iter().any(|s| matches!(s, Stmt::Scene { .. }));
         let mut report = if has_scenes {
-            let report = Composition::build_with_font_context(statements, namespaces, font_context, build_quality);
+            let report = Composition::build_with_font_context(
+                statements,
+                namespaces,
+                font_context,
+                build_quality,
+            );
             BuildReport {
                 output: BuildTarget::MultiScene(report.output),
                 diagnostics: report.diagnostics,
             }
         } else {
-            let report = Timeline::build_with_diagnostics_and_font_context(statements, namespaces, font_context, build_quality);
+            let report = Timeline::build_with_diagnostics_and_font_context(
+                statements,
+                namespaces,
+                font_context,
+                build_quality,
+            );
             // Warn about persistent actors in a truly single-scene file (no successor).
             let mut diags = report.diagnostics;
             for (label, &flag) in &report.output.persistence_flags {
@@ -278,7 +294,12 @@ impl Composition {
 
         for stmt in statements {
             match stmt {
-                Stmt::Scene { name, config, body, span } => {
+                Stmt::Scene {
+                    name,
+                    config,
+                    body,
+                    span,
+                } => {
                     if scenes.contains_key(name) {
                         diagnostics.push(
                             Diagnostic::error(
@@ -309,7 +330,12 @@ impl Composition {
                     merged_body.extend(body.clone());
                     merged_bodies.insert(name.clone(), merged_body.clone());
 
-                    let build_report = Timeline::build_with_diagnostics_and_font_context(&merged_body, namespaces, font_context.clone(), build_quality);
+                    let build_report = Timeline::build_with_diagnostics_and_font_context(
+                        &merged_body,
+                        namespaces,
+                        font_context.clone(),
+                        build_quality,
+                    );
                     diagnostics.extend(
                         build_report
                             .diagnostics
@@ -341,7 +367,7 @@ impl Composition {
 
                     declaration_order.push(name.clone());
                     in_scene = true;
-                }
+                },
                 other => {
                     if !in_scene {
                         // Top-level statements before the first scene are the shared prelude.
@@ -352,16 +378,16 @@ impl Composition {
                             | Stmt::ComponentDef(..)
                             | Stmt::Comment(..) => {
                                 shared_prelude.push(other.clone());
-                            }
+                            },
                             _ => {
                                 // Other top-level statements before any scene are unusual.
                                 // We keep them in the prelude but warn.
-                            }
+                            },
                         }
                     }
                     // Statements already inside scene bodies are handled by
                     // the per-scene timeline build.
-                }
+                },
             }
         }
 
@@ -410,7 +436,10 @@ impl Composition {
                     merged.extend(scene_data.body.clone());
                     merged_bodies.insert(target.clone(), merged.clone());
                     let build_report = Timeline::build_with_diagnostics_and_font_context(
-                        &merged, namespaces, font_context.clone(), build_quality,
+                        &merged,
+                        namespaces,
+                        font_context.clone(),
+                        build_quality,
                     );
                     diagnostics.extend(
                         build_report
@@ -419,8 +448,10 @@ impl Composition {
                             .map(|d| d.with_subject(format!("scene '{}'", target))),
                     );
                     let timeline = build_report.output;
-                    let explicit_duration_s = Self::extract_duration_from_config(&scene_data.config);
-                    let duration_s = explicit_duration_s.unwrap_or_else(|| timeline.duration_seconds());
+                    let explicit_duration_s =
+                        Self::extract_duration_from_config(&scene_data.config);
+                    let duration_s =
+                        explicit_duration_s.unwrap_or_else(|| timeline.duration_seconds());
                     scenes.insert(
                         target.clone(),
                         CompositionScene {
@@ -438,12 +469,8 @@ impl Composition {
         }
 
         // 3. Compute walk order (following edges, with cycle detection)
-        let walk_order = Self::compute_walk_order(
-            &declaration_order,
-            &edges,
-            &scenes,
-            &mut diagnostics,
-        );
+        let walk_order =
+            Self::compute_walk_order(&declaration_order, &edges, &scenes, &mut diagnostics);
 
         // 3.5: Walk-order carry injection
         //
@@ -456,10 +483,7 @@ impl Composition {
             // predecessor detection).
             let mut reverse_edges: BTreeMap<String, Vec<String>> = BTreeMap::new();
             for (from, edge) in &edges {
-                reverse_edges
-                    .entry(edge.to_scene.clone())
-                    .or_default()
-                    .push(from.clone());
+                reverse_edges.entry(edge.to_scene.clone()).or_default().push(from.clone());
             }
 
             // Default scene dimensions used for Phase 3 layout re-rooting.
@@ -541,9 +565,8 @@ impl Composition {
                 // Discard first-pass diagnostics for this scene; the carry-
                 // aware rebuild will produce the authoritative diagnostics.
                 let scene_subject = format!("scene '{}'", scene_name);
-                diagnostics.retain(|d| {
-                    d.location.subject.as_deref() != Some(scene_subject.as_str())
-                });
+                diagnostics
+                    .retain(|d| d.location.subject.as_deref() != Some(scene_subject.as_str()));
 
                 // Rebuild with carry injection.
                 let build_report = crate::timeline::Timeline::build_with_carry(
@@ -614,8 +637,8 @@ impl Composition {
                 // Apply transition overlap
                 if let Some(edge) = edges.get(name) {
                     if edge.transition.duration_ms > 0 {
-                        let overlap_s = (edge.transition.duration_ms as f64 / 1000.0)
-                            .min(scene.duration_s); // Clamp to scene duration
+                        let overlap_s =
+                            (edge.transition.duration_ms as f64 / 1000.0).min(scene.duration_s); // Clamp to scene duration
                         current_time -= overlap_s;
                     }
                 }
@@ -649,10 +672,7 @@ impl Composition {
     ///
     /// Returns the active scene name, local time within that scene, and
     /// optional transition blend info if currently in a transition period.
-    pub fn evaluate(
-        &self,
-        global_time_s: f64,
-    ) -> (String, f64, Option<TransitionBlend>) {
+    pub fn evaluate(&self, global_time_s: f64) -> (String, f64, Option<TransitionBlend>) {
         let t = global_time_s.max(0.0).min(self.global_duration_s.max(0.001));
 
         // Find all scenes whose [start, start+duration) range contains t.
@@ -681,15 +701,10 @@ impl Composition {
             let to_local = t - to_start;
 
             let edge = self.edges.get(from_name);
-            let id = edge
-                .map(|e| e.transition.id.clone())
-                .unwrap_or_else(|| "cut".into());
-            let transition_duration_s = edge
-                .map(|e| e.transition.duration_ms as f64 / 1000.0)
-                .unwrap_or(0.0);
-            let easing = edge
-                .map(|e| e.transition.easing)
-                .unwrap_or(crate::easing::Easing::Linear);
+            let id = edge.map(|e| e.transition.id.clone()).unwrap_or_else(|| "cut".into());
+            let transition_duration_s =
+                edge.map(|e| e.transition.duration_ms as f64 / 1000.0).unwrap_or(0.0);
+            let easing = edge.map(|e| e.transition.easing).unwrap_or(crate::easing::Easing::Linear);
 
             let progress = if transition_duration_s > 0.0 {
                 ((t - to_start) / transition_duration_s).clamp(0.0, 1.0)
@@ -716,11 +731,7 @@ impl Composition {
         } else if let Some((name, start, _end)) = active.first() {
             // Single active scene — no transition
             let local = t - start;
-            (
-                name.to_string(),
-                local,
-                None,
-            )
+            (name.to_string(), local, None)
         } else {
             // t is at or beyond the end — return last scene at final frame
             if let Some(last_name) = self.declaration_order.last() {
@@ -743,9 +754,8 @@ impl Composition {
         // Consider transition overlap: a scene may be active slightly beyond its
         // nominal end due to transition blending.
         let edge = self.edges.get(scene_name);
-        let transition_overlap = edge
-            .map(|e| e.transition.duration_ms as f64 / 1000.0)
-            .unwrap_or(0.0);
+        let transition_overlap =
+            edge.map(|e| e.transition.duration_ms as f64 / 1000.0).unwrap_or(0.0);
 
         if global_time_s >= *start && global_time_s < end + transition_overlap {
             Some(global_time_s - start)
@@ -819,11 +829,7 @@ impl Composition {
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         // Keys that are valid at scene level.
-        const SCENE_SCOPED_KEYS: &[&str] = &[
-            "colorscheme",
-            "dynamic_layout",
-            "duration",
-        ];
+        const SCENE_SCOPED_KEYS: &[&str] = &["colorscheme", "dynamic_layout", "duration"];
 
         for prop in config {
             if SCENE_SCOPED_KEYS.contains(&prop.name.as_str()) {
@@ -858,10 +864,8 @@ impl Composition {
 
         // Detect orphan scenes: scenes that are not the target of any `play` edge
         // and are not the first scene in the chain.
-        let targeted_scenes: std::collections::HashSet<&str> = edges
-            .values()
-            .map(|e| e.to_scene.as_str())
-            .collect();
+        let targeted_scenes: std::collections::HashSet<&str> =
+            edges.values().map(|e| e.to_scene.as_str()).collect();
         let first_scene = declaration_order.first().map(|s| s.as_str());
         for name in declaration_order {
             if Some(name.as_str()) != first_scene && !targeted_scenes.contains(name.as_str()) {
@@ -949,9 +953,10 @@ impl Composition {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use animatix_syntax::parser::parser_simple;
     use chumsky::Parser;
+
+    use super::*;
 
     #[test]
     fn test_no_scenes_returns_empty_composition() {
@@ -1235,10 +1240,8 @@ mod tests {
         );
         let parsed = parser_simple().parse(source).unwrap();
         let report = Composition::build(&parsed, &std::collections::HashMap::new());
-        let has_orphan = report
-            .diagnostics
-            .iter()
-            .any(|d| matches!(d.code, DiagnosticCode::OrphanScene));
+        let has_orphan =
+            report.diagnostics.iter().any(|d| matches!(d.code, DiagnosticCode::OrphanScene));
         assert!(has_orphan, "Expected OrphanScene warning");
         // Orphan should still be in the walk order (appended at end)
         let comp = &report.output;
@@ -1291,14 +1294,11 @@ mod tests {
         );
         let parsed = parser_simple().parse(source).unwrap();
         let report = Composition::build(&parsed, &std::collections::HashMap::new());
-        let has_resolution_warning = report
-            .diagnostics
-            .iter()
-            .any(|d| {
-                matches!(d.code, DiagnosticCode::InvalidConfigValue)
-                    && d.message.contains("resolution")
-                    && d.message.contains("composition-scoped")
-            });
+        let has_resolution_warning = report.diagnostics.iter().any(|d| {
+            matches!(d.code, DiagnosticCode::InvalidConfigValue)
+                && d.message.contains("resolution")
+                && d.message.contains("composition-scoped")
+        });
         assert!(has_resolution_warning, "Expected resolution scene-config warning");
         // The prelude resolution should still be used (not the scene one)
         // Composition builds successfully
@@ -1317,13 +1317,10 @@ mod tests {
         let parsed = parser_simple().parse(source).unwrap();
         let report = Composition::build(&parsed, &std::collections::HashMap::new());
         // colorscheme is scene-scoped — no warning expected
-        let has_config_warning = report
-            .diagnostics
-            .iter()
-            .any(|d| {
-                matches!(d.code, DiagnosticCode::InvalidConfigValue)
-                    && d.message.contains("composition-scoped")
-            });
+        let has_config_warning = report.diagnostics.iter().any(|d| {
+            matches!(d.code, DiagnosticCode::InvalidConfigValue)
+                && d.message.contains("composition-scoped")
+        });
         assert!(!has_config_warning, "colorscheme should not trigger composition-scoped warning");
     }
 
@@ -1335,12 +1332,16 @@ mod tests {
         let scenes_file = dir.join("scenes.amx");
         let main_file = dir.join("main.amx");
 
-        std::fs::write(&scenes_file, concat!(
-            "# FadeIn\n",
-            "#0s\n",
-            "label: Text, text: \"Fade In Scene\"\n",
-            "fade-in label [500ms]\n",
-        )).unwrap();
+        std::fs::write(
+            &scenes_file,
+            concat!(
+                "# FadeIn\n",
+                "#0s\n",
+                "label: Text, text: \"Fade In Scene\"\n",
+                "fade-in label [500ms]\n",
+            ),
+        )
+        .unwrap();
 
         std::fs::write(&main_file, format!(
             "import \"{}\" as scenes\n\n# Intro\n#0s\ntitle: Text, text: \"Welcome\"\nplay scenes.FadeIn [fade, 300ms]\n",
@@ -1356,9 +1357,11 @@ mod tests {
 
         // Should have both "Intro" (local) and "scenes.FadeIn" (cross-file)
         assert!(comp.scenes.contains_key("Intro"));
-        assert!(comp.scenes.contains_key("scenes.FadeIn"),
+        assert!(
+            comp.scenes.contains_key("scenes.FadeIn"),
             "Cross-file scene 'scenes.FadeIn' not found. Scenes: {:?}",
-            comp.scenes.keys().collect::<Vec<_>>());
+            comp.scenes.keys().collect::<Vec<_>>()
+        );
 
         // Edge should point to the cross-file scene
         let edge = comp.edges.get("Intro").unwrap();
@@ -1373,7 +1376,8 @@ mod tests {
 
     #[test]
     fn test_cross_file_scene_not_found() {
-        let dir = std::env::temp_dir().join(format!("animatix_test_notfound_{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("animatix_test_notfound_{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
 
         let scenes_file = dir.join("scenes.amx");
@@ -1396,26 +1400,35 @@ mod tests {
             .diagnostics
             .iter()
             .any(|d| matches!(d.code, DiagnosticCode::PlayTargetNotFound));
-        assert!(has_play_error, "Expected PlayTargetNotFound diagnostic. Diagnostics: {:?}", report.diagnostics);
+        assert!(
+            has_play_error,
+            "Expected PlayTargetNotFound diagnostic. Diagnostics: {:?}",
+            report.diagnostics
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
     fn test_cross_file_scene_duration_preserved() {
-        let dir = std::env::temp_dir().join(format!("animatix_test_duration_{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("animatix_test_duration_{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
 
         let scenes_file = dir.join("scenes.amx");
         let main_file = dir.join("main.amx");
 
         // Scene with explicit duration config
-        std::fs::write(&scenes_file, concat!(
-            "# TimedScene\n",
-            "config { duration: 5.0 }\n",
-            "#0s\n",
-            "label: Text, text: \"Timed\"\n",
-        )).unwrap();
+        std::fs::write(
+            &scenes_file,
+            concat!(
+                "# TimedScene\n",
+                "config { duration: 5.0 }\n",
+                "#0s\n",
+                "label: Text, text: \"Timed\"\n",
+            ),
+        )
+        .unwrap();
 
         std::fs::write(&main_file, format!(
             "import \"{}\" as scenes\n\n# Intro\n#0s\ntitle: Text, text: \"Welcome\"\nplay scenes.TimedScene\n",
@@ -1784,10 +1797,8 @@ mod tests {
         let parsed = parser_simple().parse(source).unwrap();
         let report = Composition::build(&parsed, &std::collections::HashMap::new());
 
-        let has_after_remove_warn = report
-            .diagnostics
-            .iter()
-            .any(|d| d.code == DiagnosticCode::PersistAfterRemove);
+        let has_after_remove_warn =
+            report.diagnostics.iter().any(|d| d.code == DiagnosticCode::PersistAfterRemove);
         assert!(
             has_after_remove_warn,
             "remove then persist in same scene should emit PersistAfterRemove. Diagnostics: {:?}",
@@ -1845,10 +1856,7 @@ mod tests {
             "SceneB: circle auto_color slot must be carried"
         );
         let slot_b = scene_b.timeline.auto_color_assignments["circle"];
-        assert_eq!(
-            slot_a, slot_b,
-            "auto_color slot must be the same in both scenes"
-        );
+        assert_eq!(slot_a, slot_b, "auto_color slot must be the same in both scenes");
     }
 
     /// `PlotCurve` actor must carry its `ActorKindId::PlotCurve` kind and

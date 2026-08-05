@@ -3,17 +3,18 @@
 //! Handles hover preview, click cycling through overlapping actors,
 //! and right-click context menu for explicit selection.
 
+use std::collections::HashSet;
+
+use animatix::timeline::animation_track::CalloutPlace;
+use egui::{Pos2, Vec2};
+
 use super::*;
 use crate::app::components::context_menu::{MenuEntry, render_floating_menu};
 use crate::app::design_tokens::semantic::accent::{ghost as accent_ghost, strong as accent_strong};
-use crate::app::design_tokens::semantic::border;
 use crate::app::design_tokens::semantic::overlay::badge_bg;
-use crate::app::design_tokens::semantic::text;
+use crate::app::design_tokens::semantic::{border, text};
 use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
-use egui::{Pos2, Vec2};
-use std::collections::HashSet;
-use animatix::timeline::animation_track::CalloutPlace;
 
 // ─── Selection State ────────────────────────────────────────────────────────
 

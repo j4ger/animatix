@@ -11,11 +11,12 @@
 //! WGSL compute shaders.  One CPU readback per filter actor still occurs so
 //! the result can be drawn back into the parent Vello scene.
 
+use std::borrow::Cow;
+
 use crate::renderer::core::RendererCore;
+use crate::timeline::SceneDimensions;
 use crate::timeline::filter::{FilterBackend, PendingComposite};
 use crate::timeline::image::SceneImage;
-use crate::timeline::SceneDimensions;
-use std::borrow::Cow;
 
 // ── WGSL compute shaders ────────────────────────────────────────────────────
 
@@ -214,7 +215,8 @@ impl GpuFilterBackend {
         });
         let render_view = render_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        // Ping-pong texture A: read by compute (TEXTURE_BINDING), written by compute (STORAGE_BINDING)
+        // Ping-pong texture A: read by compute (TEXTURE_BINDING), written by compute
+        // (STORAGE_BINDING)
         let tex_a = device.create_texture(&wgpu::TextureDescriptor {
             size: wgpu::Extent3d {
                 width: dimensions.width,
@@ -489,11 +491,8 @@ impl GpuFilterBackend {
             m2: matrix[2],
             m3: matrix[3],
         };
-        self.queue.write_buffer(
-            &self.color_matrix_uniform_buffer,
-            0,
-            bytemuck::bytes_of(&params),
-        );
+        self.queue
+            .write_buffer(&self.color_matrix_uniform_buffer, 0, bytemuck::bytes_of(&params));
 
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Animatix Color Matrix Bind Group"),
@@ -538,11 +537,9 @@ impl GpuFilterBackend {
     ) -> Result<SceneImage, String> {
         let output_buffer = &self.output_buffer;
 
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Animatix Filter Readback Encoder"),
-            });
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Animatix Filter Readback Encoder"),
+        });
 
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
@@ -588,8 +585,8 @@ impl GpuFilterBackend {
         for y in 0..dimensions.height as usize {
             let src_row = &data[y * self.bytes_per_row as usize
                 ..y * self.bytes_per_row as usize + dimensions.width as usize * 4];
-            let dst_row = &mut rgba[y * dimensions.width as usize * 4
-                ..(y + 1) * dimensions.width as usize * 4];
+            let dst_row = &mut rgba
+                [y * dimensions.width as usize * 4..(y + 1) * dimensions.width as usize * 4];
             dst_row.copy_from_slice(src_row);
         }
         drop(data);
@@ -657,11 +654,9 @@ impl GpuFilterBackend {
         let tex_a_view = &self.tex_a_view;
         let tex_b_view = &self.tex_b_view;
 
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Animatix GPU Filter Encoder"),
-            });
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Animatix GPU Filter Encoder"),
+        });
 
         let render_texture = &self.render_texture;
         let tex_a = &self.tex_a;
@@ -726,7 +721,9 @@ impl GpuFilterBackend {
             active = match active {
                 FilteredSource::TexA => FilteredSource::TexB,
                 FilteredSource::TexB => FilteredSource::TexA,
-                FilteredSource::Render => unreachable!("render texture is never swapped in ping-pong"),
+                FilteredSource::Render => {
+                    unreachable!("render texture is never swapped in ping-pong")
+                },
             };
         }
 
@@ -805,7 +802,11 @@ impl GpuFilterBackend {
         );
         self.queue.submit(std::iter::once(encoder.finish()));
 
-        Ok(PendingComposite { texture, view, alpha })
+        Ok(PendingComposite {
+            texture,
+            view,
+            alpha,
+        })
     }
 }
 
@@ -921,9 +922,8 @@ mod tests {
                 .expect("GpuFilterBackend should initialise");
 
             let scene = vello::Scene::new();
-            let result = backend.render_scene_to_image_gpu_filtered(
-                &scene, dims, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0,
-            );
+            let result = backend
+                .render_scene_to_image_gpu_filtered(&scene, dims, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0);
             assert!(result.is_ok(), "GPU identity filter path should succeed");
             let image = result.unwrap();
             assert_eq!(image.natural_size[0], 64.0);
@@ -945,9 +945,8 @@ mod tests {
                 .expect("GpuFilterBackend should initialise");
 
             let scene = vello::Scene::new();
-            let result = backend.render_scene_to_image_gpu_filtered(
-                &scene, dims, 5.0, 1.0, 1.0, 1.0, 0.0, 0.0,
-            );
+            let result = backend
+                .render_scene_to_image_gpu_filtered(&scene, dims, 5.0, 1.0, 1.0, 1.0, 0.0, 0.0);
             assert!(result.is_ok(), "GPU blur filter path should succeed");
             let image = result.unwrap();
             assert_eq!(image.natural_size[0], 64.0);
@@ -969,9 +968,8 @@ mod tests {
                 .expect("GpuFilterBackend should initialise");
 
             let scene = vello::Scene::new();
-            let result = backend.render_scene_to_image_gpu_filtered(
-                &scene, dims, 0.0, 1.5, 1.2, 0.5, 45.0, 0.3,
-            );
+            let result = backend
+                .render_scene_to_image_gpu_filtered(&scene, dims, 0.0, 1.5, 1.2, 0.5, 45.0, 0.3);
             assert!(result.is_ok(), "GPU color-matrix path should succeed");
             let image = result.unwrap();
             assert_eq!(image.natural_size[0], 64.0);

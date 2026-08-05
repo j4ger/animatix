@@ -13,6 +13,12 @@ pub mod image;
 #[cfg(feature = "video")]
 pub mod video;
 
+#[cfg(feature = "video")]
+pub use gif::{
+    render_gif_composition, render_gif_composition_with_progress,
+    render_gif_composition_with_settings, render_gif_timeline, render_gif_timeline_with_debug,
+    render_gif_timeline_with_progress, render_gif_timeline_with_settings,
+};
 pub use image::{
     render_image, render_image_composition, render_image_timeline,
     render_image_timeline_with_debug, render_image_timeline_with_progress,
@@ -24,14 +30,6 @@ pub use self::video::{
     render_video_composition_with_settings, render_video_timeline,
     render_video_timeline_with_debug, render_video_timeline_with_progress,
     render_video_timeline_with_settings,
-};
-
-#[cfg(feature = "video")]
-pub use gif::{
-    render_gif_composition, render_gif_composition_with_progress,
-    render_gif_composition_with_settings, render_gif_timeline,
-    render_gif_timeline_with_debug, render_gif_timeline_with_progress,
-    render_gif_timeline_with_settings,
 };
 // ---------------------------------------------------------------------------
 // Error types
@@ -75,7 +73,7 @@ impl std::fmt::Display for ExportError {
             Self::RendererCreation(msg) => write!(f, "Failed to create renderer: {msg}"),
             Self::FrameRender { frame, message } => {
                 write!(f, "Failed to render frame {frame}: {message}")
-            }
+            },
             Self::ImageEncode(msg) => write!(f, "Image encoding error: {msg}"),
             Self::ImageSave(err) => write!(f, "Failed to save image: {err}"),
             Self::VideoEncode(msg) => write!(f, "Video encoding error: {msg}"),
@@ -83,7 +81,10 @@ impl std::fmt::Display for ExportError {
             Self::InvalidPath(_) => write!(f, "Output path contains null bytes"),
             Self::ThreadPanicked => write!(f, "Render thread panicked"),
             Self::Cancelled => write!(f, "Export cancelled by user"),
-            Self::FfmpegNotFound => write!(f, "ffmpeg is required for audio muxing. Install it from https://ffmpeg.org or via your package manager (e.g. `apt install ffmpeg`, `brew install ffmpeg`)."),
+            Self::FfmpegNotFound => write!(
+                f,
+                "ffmpeg is required for audio muxing. Install it from https://ffmpeg.org or via your package manager (e.g. `apt install ffmpeg`, `brew install ffmpeg`)."
+            ),
             Self::Internal(msg) => write!(f, "Internal export error: {msg}"),
         }
     }
@@ -323,12 +324,13 @@ pub fn mux_audio_segments(
 
     require_ffmpeg()?;
 
-    let is_webm = output_path
-        .extension()
-        .map(|e| e == "webm")
-        .unwrap_or(false);
+    let is_webm = output_path.extension().map(|e| e == "webm").unwrap_or(false);
 
-    let temp_ext = if is_webm { "tmp_muxed.webm" } else { "tmp_muxed.mp4" };
+    let temp_ext = if is_webm {
+        "tmp_muxed.webm"
+    } else {
+        "tmp_muxed.mp4"
+    };
     let temp_path = output_path.with_extension(temp_ext);
     let audio_codec = if is_webm { "libopus" } else { "aac" };
 
@@ -385,15 +387,13 @@ pub fn mux_audio_segments(
 
     tracing::debug!("ffmpeg audio mux command: {:?}", cmd);
 
-    let status = cmd
-        .status()
-        .map_err(|e| ExportError::VideoEncode(format!("Failed to run ffmpeg for audio muxing: {e}")))?;
+    let status = cmd.status().map_err(|e| {
+        ExportError::VideoEncode(format!("Failed to run ffmpeg for audio muxing: {e}"))
+    })?;
 
     if !status.success() {
         std::fs::remove_file(&temp_path).ok();
-        return Err(ExportError::VideoEncode(
-            "ffmpeg audio muxing failed".into(),
-        ));
+        return Err(ExportError::VideoEncode("ffmpeg audio muxing failed".into()));
     }
 
     // Replace original with muxed version

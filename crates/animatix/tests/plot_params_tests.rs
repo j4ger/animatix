@@ -7,9 +7,10 @@
 //! 4. Parameter priority (always block > build-time declaration)
 //! 5. Multiple parameters animating simultaneously
 
+use std::fs;
+
 use animatix::timeline::{SceneDimensions, Timeline, Value};
 use animatix_syntax::module::ModuleGraph;
-use std::fs;
 
 const DIMS: SceneDimensions = SceneDimensions {
     width: 1920,
@@ -47,14 +48,8 @@ curve: PlotCurve, func: (x) => sin(freq * x), domain: (0, 6.28), samples: 100
     let timeline = build_timeline_from_source("t1_var_capture", source);
 
     // The timeline should have a procedural plot for "curve"
-    let curve_track = timeline
-        .tracks()
-        .get("curve")
-        .expect("Expected track for 'curve'");
-    assert!(
-        curve_track.procedural_plot.is_some(),
-        "curve should have a procedural_plot"
-    );
+    let curve_track = timeline.tracks().get("curve").expect("Expected track for 'curve'");
+    assert!(curve_track.procedural_plot.is_some(), "curve should have a procedural_plot");
 
     // Evaluate at t=0 should not panic and produce a scene
     let _scene = timeline.evaluate(0.0, DIMS);
@@ -79,8 +74,7 @@ always {
 
     // always block should produce modifier programs
     assert!(
-        !timeline.modifier_programs.is_empty()
-            || !timeline.modifier_bytecode_programs.is_empty(),
+        !timeline.modifier_programs.is_empty() || !timeline.modifier_bytecode_programs.is_empty(),
         "Expected modifier programs from always block"
     );
 
@@ -105,10 +99,7 @@ curve: PlotCurve, func: (x) => sin(freq * x), freq: 2, domain: (0, 6.28), sample
 "#;
     let timeline = build_timeline_from_source("t3_param_kf", source);
 
-    let curve_track = timeline
-        .tracks()
-        .get("curve")
-        .expect("Expected track for 'curve'");
+    let curve_track = timeline.tracks().get("curve").expect("Expected track for 'curve'");
 
     // Procedural plot should exist with "freq" as a param name
     let plot = curve_track
@@ -129,17 +120,11 @@ curve: PlotCurve, func: (x) => sin(freq * x), freq: 2, domain: (0, 6.28), sample
 
     // At t=0ms, freq should be 2
     let val_0 = freq_pt.evaluate(0);
-    assert!(
-        (val_0 - 2.0).abs() < 1e-9,
-        "freq at t=0 should be 2.0, got {val_0}"
-    );
+    assert!((val_0 - 2.0).abs() < 1e-9, "freq at t=0 should be 2.0, got {val_0}");
 
     // At t=3000ms, freq should be 8
     let val_3000 = freq_pt.evaluate(3000);
-    assert!(
-        (val_3000 - 8.0).abs() < 1e-9,
-        "freq at t=3000 should be 8.0, got {val_3000}"
-    );
+    assert!((val_3000 - 8.0).abs() < 1e-9, "freq at t=3000 should be 8.0, got {val_3000}");
 
     // At t=1500ms, freq should be interpolated between 2 and 8 (≈5 with linear easing)
     let val_1500 = freq_pt.evaluate(1500);
@@ -180,20 +165,13 @@ always {
 
     // Modifier programs should exist from the always block
     assert!(
-        !timeline.modifier_programs.is_empty()
-            || !timeline.modifier_bytecode_programs.is_empty(),
+        !timeline.modifier_programs.is_empty() || !timeline.modifier_bytecode_programs.is_empty(),
         "Expected modifier programs from always block"
     );
 
     // The procedural plot should exist (freq: 2 is a custom numeric param)
-    let curve_track = timeline
-        .tracks()
-        .get("curve")
-        .expect("Expected track for 'curve'");
-    assert!(
-        curve_track.procedural_plot.is_some(),
-        "curve should have a procedural_plot"
-    );
+    let curve_track = timeline.tracks().get("curve").expect("Expected track for 'curve'");
+    assert!(curve_track.procedural_plot.is_some(), "curve should have a procedural_plot");
 
     // Build frame env and run modifiers to check the override
     let overrides = std::collections::HashMap::new();
@@ -243,10 +221,7 @@ curve: PlotCurve, func: (x) => amp * sin(freq * x), freq: 2, amp: 1.0, domain: (
 "#;
     let timeline = build_timeline_from_source("t5_multi_param", source);
 
-    let curve_track = timeline
-        .tracks()
-        .get("curve")
-        .expect("Expected track for 'curve'");
+    let curve_track = timeline.tracks().get("curve").expect("Expected track for 'curve'");
 
     let plot = curve_track
         .procedural_plot
@@ -271,14 +246,8 @@ curve: PlotCurve, func: (x) => amp * sin(freq * x), freq: 2, amp: 1.0, domain: (
 
     let freq_0 = freq_pt.evaluate(0);
     let freq_2000 = freq_pt.evaluate(2000);
-    assert!(
-        (freq_0 - 2.0).abs() < 1e-9,
-        "freq at t=0 should be 2.0, got {freq_0}"
-    );
-    assert!(
-        (freq_2000 - 5.0).abs() < 1e-9,
-        "freq at t=2000 should be 5.0, got {freq_2000}"
-    );
+    assert!((freq_0 - 2.0).abs() < 1e-9, "freq at t=0 should be 2.0, got {freq_0}");
+    assert!((freq_2000 - 5.0).abs() < 1e-9, "freq at t=2000 should be 5.0, got {freq_2000}");
 
     // Mid-point interpolation for freq
     let freq_1000 = freq_pt.evaluate(1000);
@@ -295,14 +264,8 @@ curve: PlotCurve, func: (x) => amp * sin(freq * x), freq: 2, amp: 1.0, domain: (
 
     let amp_0 = amp_pt.evaluate(0);
     let amp_2000 = amp_pt.evaluate(2000);
-    assert!(
-        (amp_0 - 1.0).abs() < 1e-9,
-        "amp at t=0 should be 1.0, got {amp_0}"
-    );
-    assert!(
-        (amp_2000 - 0.5).abs() < 1e-9,
-        "amp at t=2000 should be 0.5, got {amp_2000}"
-    );
+    assert!((amp_0 - 1.0).abs() < 1e-9, "amp at t=0 should be 1.0, got {amp_0}");
+    assert!((amp_2000 - 0.5).abs() < 1e-9, "amp at t=2000 should be 0.5, got {amp_2000}");
 
     // Mid-point interpolation for amp
     let amp_1000 = amp_pt.evaluate(1000);

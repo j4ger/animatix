@@ -1,23 +1,15 @@
-use egui::{Color32, RichText, Stroke, Vec2};
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use egui::{Color32, RichText, Stroke, Vec2};
+
 use crate::app::GuiShell;
 use crate::app::components::layout;
-use crate::app::design_tokens::semantic::accent;
-use crate::app::design_tokens::semantic::border;
-use crate::app::design_tokens::semantic::overlay;
-use crate::app::design_tokens::semantic::status;
-
-use crate::app::design_tokens::semantic::surface;
-
-use crate::app::design_tokens::semantic::text;
-
+use crate::app::design_tokens::semantic::{accent, border, overlay, status, surface, text};
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, RADIUS_XL, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::document::export_target::ExportScope;
-use crate::app::utils::text::truncate_chars;
-use crate::app::utils::text::truncate_middle;
+use crate::app::utils::text::{truncate_chars, truncate_middle};
 
 // ─── Export Configuration ───────────────────────────────────────────────────
 
@@ -807,6 +799,16 @@ impl GuiShell {
     }
 
     fn start_export(&mut self) {
+        // Join any finished thread first so a stale handle cannot block a new export.
+        self.export_store.poll_export_status();
+        if self.export_store.export_thread.is_some() {
+            self.export_store.export_status = ExportStatus::Running;
+            self.ui_store.toasts.push(crate::app::components::toast::Toast::warning(
+                "Previous export is still finishing".to_string(),
+            ));
+            return;
+        }
+
         let scope = self.export_store.export_state.export_scope.clone();
 
         let target = match self.document_store.source.document.export_target(scope) {
@@ -820,14 +822,16 @@ impl GuiShell {
 
         let cloned_target = match target {
             crate::app::document::export_target::ExportTargetRef::Timeline { timeline, .. } => {
-                crate::app::document::export_target::ExportTargetOwned::Timeline(timeline.clone())
+                crate::app::document::export_target::ExportTargetOwned::Timeline(Box::new(
+                    timeline.clone(),
+                ))
             },
             crate::app::document::export_target::ExportTargetRef::Composition {
                 composition,
                 ..
-            } => crate::app::document::export_target::ExportTargetOwned::Composition(
+            } => crate::app::document::export_target::ExportTargetOwned::Composition(Box::new(
                 composition.clone(),
-            ),
+            )),
         };
 
         let effective_duration_s = target.duration_s();
@@ -941,19 +945,17 @@ impl GuiShell {
                                 state.time_s,
                                 &output_path,
                             ),
-                            _ => Err(animatix::renderer::ExportError::Internal(
-                                format!(
-                                    "export worker: format {:?} expected a composition target",
-                                    state.format
-                                ),
-                            )),
+                            _ => Err(animatix::renderer::ExportError::Internal(format!(
+                                "export worker: format {:?} expected a composition target",
+                                state.format
+                            ))),
                         }
                     } else {
                         match &cloned_target {
                             crate::app::document::export_target::ExportTargetOwned::Timeline(
                                 tl,
                             ) => {
-                                let timeline = tl.clone();
+                                let timeline = tl.as_ref().clone();
                                 animatix::renderer::render_image_timeline_with_progress(
                                     timeline,
                                     state.width,
@@ -965,12 +967,10 @@ impl GuiShell {
                                     cancel_ref,
                                 )
                             },
-                            _ => Err(animatix::renderer::ExportError::Internal(
-                                format!(
-                                    "export worker: format {:?} expected a timeline target",
-                                    state.format
-                                ),
-                            )),
+                            _ => Err(animatix::renderer::ExportError::Internal(format!(
+                                "export worker: format {:?} expected a timeline target",
+                                state.format
+                            ))),
                         }
                     }
                 },
@@ -998,19 +998,17 @@ impl GuiShell {
                                 progress_ref,
                                 cancel_ref,
                             ),
-                            _ => Err(animatix::renderer::ExportError::Internal(
-                                format!(
-                                    "export worker: format {:?} expected a composition target",
-                                    state.format
-                                ),
-                            )),
+                            _ => Err(animatix::renderer::ExportError::Internal(format!(
+                                "export worker: format {:?} expected a composition target",
+                                state.format
+                            ))),
                         }
                     } else {
                         match &cloned_target {
                             crate::app::document::export_target::ExportTargetOwned::Timeline(
                                 tl,
                             ) => {
-                                let timeline = tl.clone();
+                                let timeline = tl.as_ref().clone();
                                 animatix::renderer::render_video_timeline_with_progress(
                                     timeline,
                                     state.width,
@@ -1024,12 +1022,10 @@ impl GuiShell {
                                     cancel_ref,
                                 )
                             },
-                            _ => Err(animatix::renderer::ExportError::Internal(
-                                format!(
-                                    "export worker: format {:?} expected a timeline target",
-                                    state.format
-                                ),
-                            )),
+                            _ => Err(animatix::renderer::ExportError::Internal(format!(
+                                "export worker: format {:?} expected a timeline target",
+                                state.format
+                            ))),
                         }
                     }
                 },
@@ -1060,19 +1056,17 @@ impl GuiShell {
                                 progress_ref,
                                 cancel_ref,
                             ),
-                            _ => Err(animatix::renderer::ExportError::Internal(
-                                format!(
-                                    "export worker: format {:?} expected a composition target",
-                                    state.format
-                                ),
-                            )),
+                            _ => Err(animatix::renderer::ExportError::Internal(format!(
+                                "export worker: format {:?} expected a composition target",
+                                state.format
+                            ))),
                         }
                     } else {
                         match &cloned_target {
                             crate::app::document::export_target::ExportTargetOwned::Timeline(
                                 tl,
                             ) => {
-                                let timeline = tl.clone();
+                                let timeline = tl.as_ref().clone();
                                 animatix::renderer::render_video_timeline_with_progress(
                                     timeline,
                                     state.width,
@@ -1089,12 +1083,10 @@ impl GuiShell {
                                     cancel_ref,
                                 )
                             },
-                            _ => Err(animatix::renderer::ExportError::Internal(
-                                format!(
-                                    "export worker: format {:?} expected a timeline target",
-                                    state.format
-                                ),
-                            )),
+                            _ => Err(animatix::renderer::ExportError::Internal(format!(
+                                "export worker: format {:?} expected a timeline target",
+                                state.format
+                            ))),
                         }
                     }
                 },
@@ -1122,19 +1114,17 @@ impl GuiShell {
                                 progress_ref,
                                 cancel_ref,
                             ),
-                            _ => Err(animatix::renderer::ExportError::Internal(
-                                format!(
-                                    "export worker: format {:?} expected a composition target",
-                                    state.format
-                                ),
-                            )),
+                            _ => Err(animatix::renderer::ExportError::Internal(format!(
+                                "export worker: format {:?} expected a composition target",
+                                state.format
+                            ))),
                         }
                     } else {
                         match &cloned_target {
                             crate::app::document::export_target::ExportTargetOwned::Timeline(
                                 tl,
                             ) => {
-                                let timeline = tl.clone();
+                                let timeline = tl.as_ref().clone();
                                 animatix::renderer::render_video_timeline_with_progress(
                                     timeline,
                                     state.width,
@@ -1148,12 +1138,10 @@ impl GuiShell {
                                     cancel_ref,
                                 )
                             },
-                            _ => Err(animatix::renderer::ExportError::Internal(
-                                format!(
-                                    "export worker: format {:?} expected a timeline target",
-                                    state.format
-                                ),
-                            )),
+                            _ => Err(animatix::renderer::ExportError::Internal(format!(
+                                "export worker: format {:?} expected a timeline target",
+                                state.format
+                            ))),
                         }
                     }
                 },
@@ -1181,19 +1169,17 @@ impl GuiShell {
                                 progress_ref,
                                 cancel_ref,
                             ),
-                            _ => Err(animatix::renderer::ExportError::Internal(
-                                format!(
-                                    "export worker: format {:?} expected a composition target",
-                                    state.format
-                                ),
-                            )),
+                            _ => Err(animatix::renderer::ExportError::Internal(format!(
+                                "export worker: format {:?} expected a composition target",
+                                state.format
+                            ))),
                         }
                     } else {
                         match &cloned_target {
                             crate::app::document::export_target::ExportTargetOwned::Timeline(
                                 tl,
                             ) => {
-                                let timeline = tl.clone();
+                                let timeline = tl.as_ref().clone();
                                 animatix::renderer::render_gif_timeline_with_progress(
                                     timeline,
                                     state.width,
@@ -1207,12 +1193,10 @@ impl GuiShell {
                                     cancel_ref,
                                 )
                             },
-                            _ => Err(animatix::renderer::ExportError::Internal(
-                                format!(
-                                    "export worker: format {:?} expected a timeline target",
-                                    state.format
-                                ),
-                            )),
+                            _ => Err(animatix::renderer::ExportError::Internal(format!(
+                                "export worker: format {:?} expected a timeline target",
+                                state.format
+                            ))),
                         }
                     }
                 },
@@ -1221,11 +1205,9 @@ impl GuiShell {
                 ExportFormat::Video
                 | ExportFormat::WebM
                 | ExportFormat::Mov
-                | ExportFormat::Gif => {
-                    Err(animatix::renderer::ExportError::Internal(
-                        "This format requires the 'video' feature (FFmpeg)".into(),
-                    ))
-                }
+                | ExportFormat::Gif => Err(animatix::renderer::ExportError::Internal(
+                    "This format requires the 'video' feature (FFmpeg)".into(),
+                )),
             };
             (result, result_path)
         });

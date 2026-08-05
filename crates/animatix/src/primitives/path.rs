@@ -4,8 +4,7 @@ use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
 use crate::timeline::shapes::parse_path_commands_expr;
-use crate::timeline::{Environment, TrackAccessor, VectorShapeState};
-use crate::timeline::{SceneDimensions, VelloPath};
+use crate::timeline::{Environment, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath};
 
 /// The `Path` primitive.
 pub struct PathPrimitive;
@@ -93,7 +92,11 @@ impl Primitive for PathPrimitive {
         use crate::primitives::evaluate_shape_render;
         use crate::timeline::shapes::PathState;
 
-        let half_size = ctx.track.geometry.size.get(ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+        let half_size = ctx
+            .track
+            .geometry
+            .size
+            .get(ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
         let vector_paths = ctx.track.evaluate_vector_paths(ctx.time_ms);
 
         let mut state = PathState {

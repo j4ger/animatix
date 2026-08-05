@@ -1,12 +1,11 @@
-use crate::tokens::theme::{theme, Theme};
-use crate::tokens::spatial::{
-    component::TOAST_WIDTH,
-    spatial,
-    RADIUS_M, RADIUS_S, STROKE_WIDTH,
-};
-use crate::tokens::typography::TextRole;
-use egui::{Color32, Pos2, Rect, Vec2};
 use std::time::Instant;
+
+use egui::{Color32, Pos2, Rect, Vec2};
+
+use crate::tokens::spatial::component::TOAST_WIDTH;
+use crate::tokens::spatial::{RADIUS_M, RADIUS_S, STROKE_WIDTH, spatial};
+use crate::tokens::theme::{Theme, theme};
+use crate::tokens::typography::TextRole;
 
 /// Toast severity level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -123,11 +122,9 @@ impl Default for ToastQueue {
 impl ToastQueue {
     pub fn push(&mut self, toast: Toast) {
         // Dedup: collapse non-expired toasts with the same level and message.
-        if let Some(existing) = self
-            .toasts
-            .iter_mut()
-            .find(|t| t.level == toast.level && t.message == toast.message && !t.is_expired(Instant::now()))
-        {
+        if let Some(existing) = self.toasts.iter_mut().find(|t| {
+            t.level == toast.level && t.message == toast.message && !t.is_expired(Instant::now())
+        }) {
             existing.count += 1;
             existing.created_at = Instant::now();
             return;
@@ -161,15 +158,13 @@ impl ToastQueue {
         let (start_x, start_y, stack_up) = match self.placement {
             ToastPlacement::BottomRight => {
                 (viewport.max.x - margin - toast_w, viewport.max.y - margin, true)
-            }
+            },
             ToastPlacement::BottomLeft => (margin, viewport.max.y - margin, true),
             ToastPlacement::TopRight => (viewport.max.x - margin - toast_w, margin, false),
             ToastPlacement::TopLeft => (margin, margin, false),
-            ToastPlacement::BottomCenter => (
-                viewport.center().x - toast_w / 2.0,
-                viewport.max.y - margin,
-                true,
-            ),
+            ToastPlacement::BottomCenter => {
+                (viewport.center().x - toast_w / 2.0, viewport.max.y - margin, true)
+            },
             ToastPlacement::TopCenter => (viewport.center().x - toast_w / 2.0, margin, false),
         };
 

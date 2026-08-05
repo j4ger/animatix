@@ -33,7 +33,9 @@ pub enum UndoLabel {
     PropertyEdit(PropertyEdit),
     /// Undo label for callout detach; constructed when undo integration is wired up.
     #[allow(dead_code)] // Undo wiring for DetachCallout is planned but not yet connected.
-    DetachCallout { actor: String },
+    DetachCallout {
+        actor: String,
+    },
 
     // Actor
     CreateActor {
@@ -115,7 +117,12 @@ impl From<UndoLabel> for Command {
             UndoLabel::FindReplaceAll => Command::FindReplaceAll,
             UndoLabel::InsertionFromPalette => Command::InsertionFromPalette,
             UndoLabel::PropertyEdit(e) => Command::PropertyEdit(e),
-            UndoLabel::DetachCallout { actor } => Command::DetachCallout { actor, from: [0.0; 2], to: [0.0; 2], label_at: [0.0; 2] },
+            UndoLabel::DetachCallout { actor } => Command::DetachCallout {
+                actor,
+                from: [0.0; 2],
+                to: [0.0; 2],
+                label_at: [0.0; 2],
+            },
             UndoLabel::CreateActor {
                 ty,
                 label,
@@ -314,7 +321,8 @@ pub enum Command {
 
     // ── Property / Inspector ──────────────────────────────────────────
     PropertyEdit(PropertyEdit),
-    /// Detach a targeted callout: bake current from/to/label_at as manual props and remove `target`.
+    /// Detach a targeted callout: bake current from/to/label_at as manual props and remove
+    /// `target`.
     DetachCallout {
         actor: String,
         from: [f32; 2],

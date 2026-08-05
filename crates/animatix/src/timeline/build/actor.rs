@@ -1,11 +1,11 @@
 //! Actor building logic: processes actor declarations, generates VelloPaths,
 //! inserts keyframes, and dispatches to ActorKind implementations.
 
+use super::plot::ProcessedPlotActor;
 use super::*;
 use crate::ast::{Expr, InlineItem, Property};
 use crate::timeline::actor_kind::find_actor_kind;
 use crate::timeline::plot::PlotCurveKind;
-use super::plot::ProcessedPlotActor;
 use crate::timeline::vello_path::VelloPath;
 
 impl Timeline {
@@ -42,7 +42,8 @@ impl Timeline {
             );
         }
 
-        // VectorField, Heatmap, ContourSet, NumberPlane are build-time only; no runtime re-evaluation.
+        // VectorField, Heatmap, ContourSet, NumberPlane are build-time only; no runtime
+        // re-evaluation.
         if ty == "VectorField" || ty == "Heatmap" || ty == "ContourSet" || ty == "NumberPlane" {
             return vec![];
         }
@@ -66,7 +67,13 @@ impl Timeline {
             let p_padding = self
                 .env
                 .get(&format!("{}_padding", p_label))
-                .and_then(|v| if let Value::Vec4(p) = v { Some(p) } else { None })
+                .and_then(|v| {
+                    if let Value::Vec4(p) = v {
+                        Some(p)
+                    } else {
+                        None
+                    }
+                })
                 .unwrap_or([0.0; 4]);
 
             let kind = extracted.kind.unwrap_or(PlotCurveKind::Cartesian);
@@ -512,8 +519,7 @@ impl Timeline {
                                         track.shape.from_anchor =
                                             Some((segments[0].clone(), anchor));
                                     } else {
-                                        track.shape.to_anchor =
-                                            Some((segments[0].clone(), anchor));
+                                        track.shape.to_anchor = Some((segments[0].clone(), anchor));
                                     }
                                 }
                             }
@@ -656,7 +662,11 @@ impl Timeline {
         // Pre-seed opacity for pre-keyframe first declarations so that
         // insert_start_keyframes captures the correct invisible start value.
         if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
-            track.style.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
+            track
+                .style
+                .opacity
+                .ensure(1.0)
+                .add_keyframe(0, self.default_opacity, Easing::Linear);
         }
 
         if let Some((binding, bound_position)) = position_binding {
@@ -820,13 +830,11 @@ impl Timeline {
             // preserve existing keyframes.
             if let Some(ref plot) = track.procedural_plot {
                 for (name, default_val) in &plot.params {
-                    track.plot_param_tracks
-                        .entry(name.clone())
-                        .or_insert_with(|| {
-                            let mut t = super::PropertyTrack::new(*default_val);
-                            t.add_keyframe(0, *default_val, super::Easing::Linear);
-                            t
-                        });
+                    track.plot_param_tracks.entry(name.clone()).or_insert_with(|| {
+                        let mut t = super::PropertyTrack::new(*default_val);
+                        t.add_keyframe(0, *default_val, super::Easing::Linear);
+                        t
+                    });
                 }
             }
 
@@ -837,7 +845,11 @@ impl Timeline {
             // Pre-seed opacity for pre-keyframe first declarations so that
             // insert_start_keyframes captures the correct invisible start value.
             if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
-                track.style.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
+                track.style.opacity.ensure(1.0).add_keyframe(
+                    0,
+                    self.default_opacity,
+                    Easing::Linear,
+                );
             }
 
             // === Keyframe Insertion ===
@@ -910,7 +922,6 @@ impl Timeline {
                     .ok();
                 }
             }
-
         }
     }
 }

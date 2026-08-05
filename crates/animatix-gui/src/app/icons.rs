@@ -3,10 +3,9 @@
 //! The `ActorKindMeta.icon_id` field already contains the concrete glyph string
 //! (defined in the core crate's `icon_glyphs` module to avoid a GUI dependency).
 
-use animatix::timeline::ActorKindId;
-
 // Re-export the language-level metadata so callers don't need a second import.
 pub use animatix::primitives::actor_kind_meta;
+use animatix::timeline::ActorKindId;
 
 // ── Icon + Label pair ───────────────────────────────────────────────────
 

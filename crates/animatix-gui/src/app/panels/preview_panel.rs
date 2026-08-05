@@ -1,19 +1,15 @@
 //! Preview panel: canvas with rulers, zoom/pan, drag interaction, and overlays.
 
+use animatix::timeline::SceneDimensions;
 use egui::Vec2;
 
 use crate::app::commands::{ActorCommand, DocumentCommand, PlaybackCommand};
-use crate::app::design_tokens::semantic::border;
-use crate::app::design_tokens::semantic::status;
-use crate::app::design_tokens::semantic::surface;
-use crate::app::design_tokens::semantic::text;
-use crate::app::design_tokens::spatial::preview as preview_spatial;
-use crate::app::design_tokens::spatial::{RADIUS_L, STROKE_WIDTH};
+use crate::app::design_tokens::semantic::{border, status, surface, text};
+use crate::app::design_tokens::spatial::{RADIUS_L, STROKE_WIDTH, preview as preview_spatial};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::panels::{RULER_SIZE, nice_tick_interval};
 pub(crate) use crate::app::preview::context::PreviewContext;
 use crate::app::preview::{self, DragState, fit_preview, selection};
-use animatix::timeline::SceneDimensions;
 
 // ─── Free functions for the preview canvas ─────────────────────────────────
 

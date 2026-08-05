@@ -4,10 +4,12 @@ use criterion::{Criterion, black_box, criterion_group, criterion_main};
 mod common;
 
 fn build_many_actors_scene() -> Timeline {
-    let mut source = String::from(r#"config { colorscheme: "editorial-dark" }
+    let mut source = String::from(
+        r#"config { colorscheme: "editorial-dark" }
 
 #0s
-"#);
+"#,
+    );
     for i in 0..50 {
         source.push_str(&format!(
             "box{i}: Rect, size: (50, 50), color: accent.primary, at: ({}, {})\n",
@@ -20,7 +22,10 @@ fn build_many_actors_scene() -> Timeline {
 
 fn bench_cost_breakdown(c: &mut Criterion) {
     let timeline = build_many_actors_scene();
-    let dims = SceneDimensions { width: 1920, height: 1080 };
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
 
     // Baseline: full evaluate
     c.bench_function("full_evaluate", |b| {

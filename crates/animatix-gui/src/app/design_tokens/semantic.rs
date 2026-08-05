@@ -16,18 +16,11 @@
 //! ```
 
 use egui::Color32;
+// ── Generic roles — re-exported from eparts ──────────────────────────────────
+pub use eparts::tokens::semantic;
+pub use eparts::tokens::semantic::{accent, border, overlay, status, surface, text};
 
 use super::primitive as p;
-
-// ── Generic roles — re-exported from eparts ──────────────────────────────────
-
-pub use eparts::tokens::semantic;
-pub use eparts::tokens::semantic::accent;
-pub use eparts::tokens::semantic::border;
-pub use eparts::tokens::semantic::overlay;
-pub use eparts::tokens::semantic::status;
-pub use eparts::tokens::semantic::surface;
-pub use eparts::tokens::semantic::text;
 
 // ── App-specific submodules — defined locally ────────────────────────────────
 

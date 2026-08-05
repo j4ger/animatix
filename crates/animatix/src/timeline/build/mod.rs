@@ -16,10 +16,13 @@
 //! | `plot.rs` | Plot curve/axis path building (pre-existing) |
 //! | `keyframe_utils.rs` | Keyframe insertion helpers (pre-existing) |
 
-use super::*;
-pub(super) use keyframe_utils::{insert_end_keyframes, insert_start_keyframes, preserve_delayed_values};
-pub(super) use plot::{build_graph_axis_paths, build_plot_curve_paths, PlotCurveParams};
+pub(super) use keyframe_utils::{
+    insert_end_keyframes, insert_start_keyframes, preserve_delayed_values,
+};
+pub(super) use plot::{PlotCurveParams, build_graph_axis_paths, build_plot_curve_paths};
 pub(crate) use process::pattern_matches;
+
+use super::*;
 use crate::timeline::plot::PlotCurveKind;
 
 mod actor;

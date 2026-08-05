@@ -81,7 +81,12 @@ impl Primitive for StackPrimitive {
                 "padding" => {
                     match &prop.value {
                         Expr::Tuple(items) if items.len() == 4 => {
-                            if let (Ok(Value::Num(a)), Ok(Value::Num(b)), Ok(Value::Num(c)), Ok(Value::Num(d))) = (
+                            if let (
+                                Ok(Value::Num(a)),
+                                Ok(Value::Num(b)),
+                                Ok(Value::Num(c)),
+                                Ok(Value::Num(d)),
+                            ) = (
                                 crate::timeline::utils::evaluate_expr(&items[0], env),
                                 crate::timeline::utils::evaluate_expr(&items[1], env),
                                 crate::timeline::utils::evaluate_expr(&items[2], env),
@@ -110,7 +115,12 @@ impl Primitive for StackPrimitive {
                     }
                 },
                 "align" => {
-                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(&prop.value, env, ctx.diagnostics, label) {
+                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        env,
+                        ctx.diagnostics,
+                        label,
+                    ) {
                         align = Some(v.as_str().to_string());
                     }
                 },
@@ -118,9 +128,13 @@ impl Primitive for StackPrimitive {
             }
         }
 
-        // Emit diagnostic warning if gap is set on Stack (Stack is an overlap container, gap is contradictory)
+        // Emit diagnostic warning if gap is set on Stack (Stack is an overlap container, gap is
+        // contradictory)
         if saw_gap {
-            tracing::warn!("Stack container '{}' has gap set — gap is ignored on Stack (Stack is an overlap container)", label);
+            tracing::warn!(
+                "Stack container '{}' has gap set — gap is ignored on Stack (Stack is an overlap container)",
+                label
+            );
         }
 
         ctx.timeline.register_container_metadata_and_apply_layout(

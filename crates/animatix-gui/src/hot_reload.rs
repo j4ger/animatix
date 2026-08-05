@@ -1,8 +1,8 @@
-use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher, Event};
-use std::path::Path;
-use std::path::PathBuf;
-use std::sync::mpsc::{channel, Receiver};
+use std::path::{Path, PathBuf};
+use std::sync::mpsc::{Receiver, channel};
 use std::time::{Duration, Instant};
+
+use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 
 pub struct HotReloader {
     _watcher: RecommendedWatcher,
@@ -50,14 +50,21 @@ impl HotReloader {
         while let Ok(result) = self.rx.try_recv() {
             match result {
                 Ok(event) => {
-                    // Check if this is a modify event for our watched file
-                    if matches!(event.kind, notify::EventKind::Modify(notify::event::ModifyKind::Data(_) | notify::event::ModifyKind::Any)) {
+                    // Accept modify, create, and remove events because editors commonly
+                    // save atomically by renaming a temporary file over the watched path.
+                    if matches!(
+                        event.kind,
+                        notify::EventKind::Modify(_)
+                            | notify::EventKind::Create(_)
+                            | notify::EventKind::Remove(_)
+                            | notify::EventKind::Any
+                    ) {
                         self.last_event = Some(app_time);
                     }
-                }
+                },
                 Err(e) => {
                     tracing::warn!("File watcher error: {:?}", e);
-                }
+                },
             }
         }
 

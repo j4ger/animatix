@@ -1,9 +1,9 @@
 //! Completion popup widget for the code editor.
 
-use egui::{self, Color32, FontId, FontFamily, Key, Rect, Pos2, Vec2, Stroke, CornerRadius};
+use animatix_analyzer::{CompletionItem, CompletionKind};
+use egui::{self, Color32, CornerRadius, FontFamily, FontId, Key, Pos2, Rect, Stroke, Vec2};
 
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, ROW_M};
-use animatix_analyzer::{CompletionItem, CompletionKind};
 
 /// State for the completion popup.
 pub struct CompletionPopup {
@@ -124,7 +124,10 @@ impl CompletionPopup {
         let mut result = None;
 
         // Filter items based on trigger text
-        let filtered: Vec<(usize, &CompletionItem)> = self.items.iter().enumerate()
+        let filtered: Vec<(usize, &CompletionItem)> = self
+            .items
+            .iter()
+            .enumerate()
             .filter(|(_, item)| {
                 if self.trigger_text.is_empty() {
                     true
@@ -170,8 +173,14 @@ impl CompletionPopup {
             Color32::from_rgb(200, 200, 200)
         };
 
-        ui.painter().rect_filled(popup_rect, CornerRadius::same(RADIUS_M as u8), bg_color);
-        ui.painter().rect_stroke(popup_rect, CornerRadius::same(RADIUS_M as u8), Stroke::new(1.0, border_color), egui::StrokeKind::Outside);
+        ui.painter()
+            .rect_filled(popup_rect, CornerRadius::same(RADIUS_M as u8), bg_color);
+        ui.painter().rect_stroke(
+            popup_rect,
+            CornerRadius::same(RADIUS_M as u8),
+            Stroke::new(1.0, border_color),
+            egui::StrokeKind::Outside,
+        );
 
         // Render items
         let mut item_rect = Rect::from_min_size(
@@ -180,18 +189,25 @@ impl CompletionPopup {
         );
 
         for (visible_idx, (original_idx, item)) in filtered.iter().enumerate() {
-            if visible_idx >= self.scroll_offset && visible_idx < self.scroll_offset + self.max_visible {
+            if visible_idx >= self.scroll_offset
+                && visible_idx < self.scroll_offset + self.max_visible
+            {
                 let is_selected = *original_idx == self.selected;
 
                 // Highlight selected item
                 if is_selected {
-                    // Semantic completion colors are intentionally hardcoded to match syntax highlighting.
+                    // Semantic completion colors are intentionally hardcoded to match syntax
+                    // highlighting.
                     let highlight_color = if ui.visuals().dark_mode {
                         Color32::from_rgb(60, 65, 75)
                     } else {
                         Color32::from_rgb(220, 230, 240)
                     };
-                    ui.painter().rect_filled(item_rect, CornerRadius::same(RADIUS_S as u8), highlight_color);
+                    ui.painter().rect_filled(
+                        item_rect,
+                        CornerRadius::same(RADIUS_S as u8),
+                        highlight_color,
+                    );
                 }
 
                 // Draw icon based on kind
@@ -302,15 +318,16 @@ mod tests {
     #[test]
     fn popup_shows_with_items() {
         let mut popup = CompletionPopup::new();
-        popup.show(vec![
-            CompletionItem {
+        popup.show(
+            vec![CompletionItem {
                 label: "test".to_string(),
                 kind: CompletionKind::Keyword,
                 detail: None,
                 documentation: None,
                 insert_text: None,
-            },
-        ], String::new());
+            }],
+            String::new(),
+        );
         assert!(popup.is_visible());
     }
 
@@ -324,22 +341,25 @@ mod tests {
     #[test]
     fn popup_navigation() {
         let mut popup = CompletionPopup::new();
-        popup.show(vec![
-            CompletionItem {
-                label: "a".to_string(),
-                kind: CompletionKind::Keyword,
-                detail: None,
-                documentation: None,
-                insert_text: None,
-            },
-            CompletionItem {
-                label: "b".to_string(),
-                kind: CompletionKind::Keyword,
-                detail: None,
-                documentation: None,
-                insert_text: None,
-            },
-        ], String::new());
+        popup.show(
+            vec![
+                CompletionItem {
+                    label: "a".to_string(),
+                    kind: CompletionKind::Keyword,
+                    detail: None,
+                    documentation: None,
+                    insert_text: None,
+                },
+                CompletionItem {
+                    label: "b".to_string(),
+                    kind: CompletionKind::Keyword,
+                    detail: None,
+                    documentation: None,
+                    insert_text: None,
+                },
+            ],
+            String::new(),
+        );
 
         assert_eq!(popup.selected, 0);
 

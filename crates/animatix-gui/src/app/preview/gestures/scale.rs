@@ -2,17 +2,16 @@
 //!
 //! Extracted from the legacy `drag_handler.rs` Scale match arms.
 
-use crate::app::commands::{DocumentCommand, PropertyEdit, PropertyValue};
-use crate::app::design_tokens::spatial::preview::{
-    HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS,
-    MIN_ACTOR_SIZE as PREVIEW_MIN_ACTOR_SIZE,
-    MIN_SCALE as PREVIEW_MIN_SCALE,
-};
-use crate::app::preview::drag_utils;
-use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
-use crate::app::preview::{self, DragState, ToolMode};
 use animatix::timeline::TrackAccessor;
 use egui::Pos2;
+
+use crate::app::commands::{DocumentCommand, PropertyEdit, PropertyValue};
+use crate::app::design_tokens::spatial::preview::{
+    HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS, MIN_ACTOR_SIZE as PREVIEW_MIN_ACTOR_SIZE,
+    MIN_SCALE as PREVIEW_MIN_SCALE,
+};
+use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
+use crate::app::preview::{self, DragState, ToolMode, drag_utils};
 
 pub(crate) struct ScaleGesture;
 
@@ -81,13 +80,11 @@ impl GestureHandler for ScaleGesture {
                     .and_then(|t| t.get_track(&actor))
                     .map(|tr| {
                         let mode = if let Some(primitive) =
-                            animatix::timeline::actor_kind_meta(tr.kind).and_then(|m| {
-                                animatix::primitives::find_primitive(m.type_name)
-                            }) {
+                            animatix::timeline::actor_kind_meta(tr.kind)
+                                .and_then(|m| animatix::primitives::find_primitive(m.type_name))
+                        {
                             match primitive.resize_mode() {
-                                animatix::timeline::ResizeMode::Scale => {
-                                    preview::ResizeMode::Scale
-                                },
+                                animatix::timeline::ResizeMode::Scale => preview::ResizeMode::Scale,
                                 _ => preview::ResizeMode::Size,
                             }
                         } else {
@@ -206,18 +203,15 @@ impl GestureHandler for ScaleGesture {
                     old_anchor_local[0] * new_w / start_size[0].max(1.0),
                     old_anchor_local[1] * new_h / start_size[1].max(1.0),
                 ];
-                let anchor_world_x = start_position[0]
-                    + old_anchor_local[0] * cos_rot
+                let anchor_world_x = start_position[0] + old_anchor_local[0] * cos_rot
                     - old_anchor_local[1] * sin_rot;
                 let anchor_world_y = start_position[1]
                     + old_anchor_local[0] * sin_rot
                     + old_anchor_local[1] * cos_rot;
-                let new_pos_x = anchor_world_x
-                    - new_anchor_local[0] * cos_rot
-                    + new_anchor_local[1] * sin_rot;
-                let new_pos_y = anchor_world_y
-                    - new_anchor_local[0] * sin_rot
-                    - new_anchor_local[1] * cos_rot;
+                let new_pos_x =
+                    anchor_world_x - new_anchor_local[0] * cos_rot + new_anchor_local[1] * sin_rot;
+                let new_pos_y =
+                    anchor_world_y - new_anchor_local[0] * sin_rot - new_anchor_local[1] * cos_rot;
 
                 if resize_mode == preview::ResizeMode::Scale {
                     let ratio = new_w / start_size[0].max(1.0);

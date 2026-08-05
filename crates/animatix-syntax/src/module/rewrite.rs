@@ -1,4 +1,7 @@
-use super::{Action, ComponentDef, Expr, HashMap, HashSet, InlineItem, Modifier, Property, Stmt, TargetSegment};
+use super::{
+    Action, ComponentDef, Expr, HashMap, HashSet, InlineItem, Modifier, Property, Stmt,
+    TargetSegment,
+};
 
 /// Recursively check if a statement contains any identifiers that need rewriting.
 fn stmt_needs_rewrite(
@@ -9,52 +12,82 @@ fn stmt_needs_rewrite(
 ) -> bool {
     // Per-variant checks that DON'T involve body recursion
     let immediate = match stmt {
-        Stmt::ActorDecl { label, props, modifiers, children, .. } => {
+        Stmt::ActorDecl {
+            label,
+            props,
+            modifiers,
+            children,
+            ..
+        } => {
             root_label == Some(label.as_str())
                 || known_labels.contains(label.as_str())
-                || props.iter().any(|p| expr_needs_rewrite(&p.value, root_label, known_labels, bindings))
-                || modifiers.iter().any(|m| expr_needs_rewrite(&m.value, root_label, known_labels, bindings))
-                || children.iter().any(|item| inline_item_needs_rewrite(item, root_label, known_labels, bindings))
-        }
-        Stmt::Assignment { target, value, modifiers, .. } => {
+                || props
+                    .iter()
+                    .any(|p| expr_needs_rewrite(&p.value, root_label, known_labels, bindings))
+                || modifiers
+                    .iter()
+                    .any(|m| expr_needs_rewrite(&m.value, root_label, known_labels, bindings))
+                || children
+                    .iter()
+                    .any(|item| inline_item_needs_rewrite(item, root_label, known_labels, bindings))
+        },
+        Stmt::Assignment {
+            target,
+            value,
+            modifiers,
+            ..
+        } => {
             target.iter().any(|t| match t {
-                TargetSegment::Static(s) => s == "self" || root_label == Some(s.as_str()) || known_labels.contains(s.as_str()),
+                TargetSegment::Static(s) => {
+                    s == "self"
+                        || root_label == Some(s.as_str())
+                        || known_labels.contains(s.as_str())
+                },
                 TargetSegment::Indexed { .. } => false,
-            })
-                || expr_needs_rewrite(value, root_label, known_labels, bindings)
-                || modifiers.iter().any(|m| expr_needs_rewrite(&m.value, root_label, known_labels, bindings))
-        }
+            }) || expr_needs_rewrite(value, root_label, known_labels, bindings)
+                || modifiers
+                    .iter()
+                    .any(|m| expr_needs_rewrite(&m.value, root_label, known_labels, bindings))
+        },
         Stmt::ReactiveBinding { target, value, .. } => {
             target.iter().any(|t| match t {
-                TargetSegment::Static(s) => s == "self" || root_label == Some(s.as_str()) || known_labels.contains(s.as_str()),
+                TargetSegment::Static(s) => {
+                    s == "self"
+                        || root_label == Some(s.as_str())
+                        || known_labels.contains(s.as_str())
+                },
                 TargetSegment::Indexed { .. } => false,
-            })
-                || expr_needs_rewrite(value, root_label, known_labels, bindings)
-        }
-        Stmt::LetDecl { value, .. } => expr_needs_rewrite(value, root_label, known_labels, bindings),
-        Stmt::Config { settings, .. } => {
-            settings.iter().any(|p| expr_needs_rewrite(&p.value, root_label, known_labels, bindings))
-        }
-        Stmt::Stagger { modifiers, .. } => {
-            modifiers.iter().any(|m| expr_needs_rewrite(&m.value, root_label, known_labels, bindings))
-        }
+            }) || expr_needs_rewrite(value, root_label, known_labels, bindings)
+        },
+        Stmt::LetDecl { value, .. } => {
+            expr_needs_rewrite(value, root_label, known_labels, bindings)
+        },
+        Stmt::Config { settings, .. } => settings
+            .iter()
+            .any(|p| expr_needs_rewrite(&p.value, root_label, known_labels, bindings)),
+        Stmt::Stagger { modifiers, .. } => modifiers
+            .iter()
+            .any(|m| expr_needs_rewrite(&m.value, root_label, known_labels, bindings)),
         Stmt::Conditional { condition, .. } => {
             expr_needs_rewrite(condition, root_label, known_labels, bindings)
-        }
+        },
         Stmt::Match { scrutinee, .. } => {
             expr_needs_rewrite(scrutinee, root_label, known_labels, bindings)
-        }
+        },
         _ => false,
     };
 
-    if immediate { return true; }
+    if immediate {
+        return true;
+    }
 
     // Body recursion uses shared walk — any variant with a body is handled automatically.
     // If a new Stmt variant with a body is added, update walk.rs and this will work.
     let mut body_needs = false;
     crate::walk::recurse_stmt_bodies(stmt, &mut |body| {
         if !body_needs {
-            body_needs = body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings));
+            body_needs =
+                body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings));
         }
     });
     body_needs
@@ -75,7 +108,7 @@ fn expr_needs_rewrite(
                         || name == "self"
                         || root_label == Some(name.as_str())
                         || known_labels.contains(name.as_str());
-                }
+                },
                 Expr::Path(parts) => {
                     needs = parts.iter().any(|p| {
                         bindings.contains_key(p.as_str())
@@ -83,8 +116,8 @@ fn expr_needs_rewrite(
                             || root_label == Some(p.as_str())
                             || known_labels.contains(p.as_str())
                     });
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
     });
@@ -99,22 +132,39 @@ fn inline_item_needs_rewrite(
 ) -> bool {
     let mut needs = false;
     crate::walk::walk_inline_item(item, &mut |i| {
-        if needs { return; }
+        if needs {
+            return;
+        }
         match i {
-            InlineItem::Labeled { label, props, modifiers, .. } => {
+            InlineItem::Labeled {
+                label,
+                props,
+                modifiers,
+                ..
+            } => {
                 needs = root_label == Some(label.as_str())
                     || known_labels.contains(label.as_str())
-                    || props.iter().any(|p| expr_needs_rewrite(&p.value, root_label, known_labels, bindings))
-                    || modifiers.iter().any(|m| expr_needs_rewrite(&m.value, root_label, known_labels, bindings));
-            }
-            InlineItem::Anonymous { props, modifiers, .. } => {
-                needs = props.iter().any(|p| expr_needs_rewrite(&p.value, root_label, known_labels, bindings))
-                    || modifiers.iter().any(|m| expr_needs_rewrite(&m.value, root_label, known_labels, bindings));
-            }
+                    || props
+                        .iter()
+                        .any(|p| expr_needs_rewrite(&p.value, root_label, known_labels, bindings))
+                    || modifiers
+                        .iter()
+                        .any(|m| expr_needs_rewrite(&m.value, root_label, known_labels, bindings));
+            },
+            InlineItem::Anonymous {
+                props, modifiers, ..
+            } => {
+                needs = props
+                    .iter()
+                    .any(|p| expr_needs_rewrite(&p.value, root_label, known_labels, bindings))
+                    || modifiers
+                        .iter()
+                        .any(|m| expr_needs_rewrite(&m.value, root_label, known_labels, bindings));
+            },
             InlineItem::SlotFill { .. } | InlineItem::ForLoop { .. } | InlineItem::SlotMarker => {
                 // These variants don't have immediate rewrite triggers;
                 // their children are handled by walk_inline_item's recursion.
-            }
+            },
         }
     });
     needs
@@ -168,76 +218,116 @@ pub(super) fn rewrite_stmt(
             span: *span,
         },
         Stmt::Sequence { body, span, .. } => Stmt::Sequence {
-            body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
-                body.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
+            body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings))
+            {
+                body.iter()
+                    .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
+                    .collect()
             } else {
                 body.clone()
             },
             span: *span,
         },
-        Stmt::Stagger { modifiers, body, span, .. } => Stmt::Stagger {
+        Stmt::Stagger {
+            modifiers,
+            body,
+            span,
+            ..
+        } => Stmt::Stagger {
             modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
-            body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
-                body.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
+            body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings))
+            {
+                body.iter()
+                    .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
+                    .collect()
             } else {
                 body.clone()
             },
             span: *span,
         },
-        Stmt::Action(action, span) => Stmt::Action(Action {
-            verb: action.verb.clone(),
-            targets: action
-                .targets
-                .iter()
-                .map(|target| rewrite_label_ref(target, prefix, root_label, known_labels))
-                .collect(),
-            args: action
-                .args
-                .iter()
-                .map(|arg| rewrite_expr(arg, prefix, root_label, known_labels, bindings))
-                .collect(),
-            modifiers: rewrite_modifiers(
-                &action.modifiers,
-                prefix,
-                root_label,
-                known_labels,
-                bindings,
-            ),
-            byte_span: action.byte_span,
-        }, *span),
-        Stmt::LetDecl { is_pub, name, value, span, .. } => Stmt::LetDecl {
+        Stmt::Action(action, span) => Stmt::Action(
+            Action {
+                verb: action.verb.clone(),
+                targets: action
+                    .targets
+                    .iter()
+                    .map(|target| rewrite_label_ref(target, prefix, root_label, known_labels))
+                    .collect(),
+                args: action
+                    .args
+                    .iter()
+                    .map(|arg| rewrite_expr(arg, prefix, root_label, known_labels, bindings))
+                    .collect(),
+                modifiers: rewrite_modifiers(
+                    &action.modifiers,
+                    prefix,
+                    root_label,
+                    known_labels,
+                    bindings,
+                ),
+                byte_span: action.byte_span,
+            },
+            *span,
+        ),
+        Stmt::LetDecl {
+            is_pub,
+            name,
+            value,
+            span,
+            ..
+        } => Stmt::LetDecl {
             is_pub: *is_pub,
             name: name.clone(),
             value: rewrite_expr(value, prefix, root_label, known_labels, bindings),
             span: *span,
         },
-        Stmt::Keyframe { time, body, span, .. } => Stmt::Keyframe {
+        Stmt::Keyframe {
+            time, body, span, ..
+        } => Stmt::Keyframe {
             time: time.clone(),
-            body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
-                body.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
+            body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings))
+            {
+                body.iter()
+                    .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
+                    .collect()
             } else {
                 body.clone()
             },
             span: *span,
         },
-        Stmt::RelativeKeyframe { offset, body, span, .. } => Stmt::RelativeKeyframe {
+        Stmt::RelativeKeyframe {
+            offset, body, span, ..
+        } => Stmt::RelativeKeyframe {
             offset: offset.clone(),
-            body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
-                body.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
+            body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings))
+            {
+                body.iter()
+                    .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
+                    .collect()
             } else {
                 body.clone()
             },
             span: *span,
         },
-Stmt::Always { body, span, .. } => Stmt::Always {
-			body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
-				body.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
-			} else {
-				body.clone()
-			},
-			span: *span,
-		},
-		Stmt::ReactiveBinding { target, property, value, value_span, span, .. } => Stmt::ReactiveBinding {
+        Stmt::Always { body, span, .. } => Stmt::Always {
+            body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings))
+            {
+                body.iter()
+                    .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
+                    .collect()
+            } else {
+                body.clone()
+            },
+            span: *span,
+        },
+        Stmt::ReactiveBinding {
+            target,
+            property,
+            value,
+            value_span,
+            span,
+            ..
+        } => Stmt::ReactiveBinding {
             target: rewrite_label_path(target, prefix, root_label, known_labels),
             property: property.clone(),
             value: rewrite_expr(value, prefix, root_label, known_labels, bindings),
@@ -252,14 +342,24 @@ Stmt::Always { body, span, .. } => Stmt::Always {
             ..
         } => Stmt::Conditional {
             condition: rewrite_expr(condition, prefix, root_label, known_labels, bindings),
-            then_branch: if then_branch.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
-                then_branch.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
+            then_branch: if then_branch
+                .iter()
+                .any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings))
+            {
+                then_branch
+                    .iter()
+                    .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
+                    .collect()
             } else {
                 then_branch.clone()
             },
             else_branch: else_branch.as_ref().map(|branch| {
-                if branch.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
-                    branch.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
+                if branch.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings))
+                {
+                    branch
+                        .iter()
+                        .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
+                        .collect()
                 } else {
                     branch.clone()
                 }
@@ -276,8 +376,15 @@ Stmt::Always { body, span, .. } => Stmt::Always {
             arms: arms
                 .iter()
                 .map(|(pat, body)| {
-                    let rewritten_body = if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
-                        body.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
+                    let rewritten_body = if body
+                        .iter()
+                        .any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings))
+                    {
+                        body.iter()
+                            .map(|stmt| {
+                                rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)
+                            })
+                            .collect()
                     } else {
                         body.clone()
                     };
@@ -297,28 +404,51 @@ Stmt::Always { body, span, .. } => Stmt::Always {
             var: var.clone(),
             index_var: index_var.clone(),
             iterable: rewrite_expr(iterable, prefix, root_label, known_labels, bindings),
-            body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
-                body.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
+            body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings))
+            {
+                body.iter()
+                    .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
+                    .collect()
             } else {
                 body.clone()
             },
             span: *span,
         },
-        Stmt::ComponentDef(definition, span) => Stmt::ComponentDef(ComponentDef {
-            is_pub: definition.is_pub,
-            name: definition.name.clone(),
-            params: definition.params.clone(),
-            body: if definition.body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
-                definition.body.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
-            } else {
-                definition.body.clone()
+        Stmt::ComponentDef(definition, span) => Stmt::ComponentDef(
+            ComponentDef {
+                is_pub: definition.is_pub,
+                name: definition.name.clone(),
+                params: definition.params.clone(),
+                body: if definition
+                    .body
+                    .iter()
+                    .any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings))
+                {
+                    definition
+                        .body
+                        .iter()
+                        .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
+                        .collect()
+                } else {
+                    definition.body.clone()
+                },
             },
-        }, *span),
-        Stmt::ComponentAction { name, params, body, span, .. } => Stmt::ComponentAction {
+            *span,
+        ),
+        Stmt::ComponentAction {
+            name,
+            params,
+            body,
+            span,
+            ..
+        } => Stmt::ComponentAction {
             name: name.clone(),
             params: params.clone(),
-            body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings)) {
-                body.iter().map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings)).collect()
+            body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings))
+            {
+                body.iter()
+                    .map(|stmt| rewrite_stmt(stmt, prefix, root_label, known_labels, bindings))
+                    .collect()
             } else {
                 body.clone()
             },
@@ -328,10 +458,21 @@ Stmt::Always { body, span, .. } => Stmt::Always {
             settings: rewrite_properties(settings, prefix, root_label, known_labels, bindings),
             span: *span,
         },
-        Stmt::Import { path, alias, span, .. } => Stmt::Import { path: path.clone(), alias: alias.clone(), span: *span },
+        Stmt::Import {
+            path, alias, span, ..
+        } => Stmt::Import {
+            path: path.clone(),
+            alias: alias.clone(),
+            span: *span,
+        },
         Stmt::Comment(comment, span) => Stmt::Comment(comment.clone(), *span),
         // Multi-scene composition statements: pass through unchanged
-        Stmt::Scene { name, config, body, span } => Stmt::Scene {
+        Stmt::Scene {
+            name,
+            config,
+            body,
+            span,
+        } => Stmt::Scene {
             name: name.clone(),
             config: rewrite_properties(config, prefix, root_label, known_labels, bindings),
             body: body
@@ -340,7 +481,11 @@ Stmt::Always { body, span, .. } => Stmt::Always {
                 .collect(),
             span: *span,
         },
-        Stmt::Play { scene_name, transition, span } => Stmt::Play {
+        Stmt::Play {
+            scene_name,
+            transition,
+            span,
+        } => Stmt::Play {
             scene_name: scene_name.clone(),
             transition: transition.clone(),
             span: *span,
@@ -472,12 +617,12 @@ fn rewrite_expr(
                         let mut path = split_rewritten_label(name);
                         path.extend(remaining.iter().cloned());
                         Expr::Path(path)
-                    }
+                    },
                     Expr::Path(path) => {
                         let mut path = path.clone();
                         path.extend(remaining.iter().cloned());
                         Expr::Path(path)
-                    }
+                    },
                     other => other.clone(),
                 };
             }
@@ -509,22 +654,10 @@ fn rewrite_expr(
             } else {
                 Expr::Path(parts.clone())
             }
-        }
+        },
         Expr::Index(target, index) => Expr::Index(
-            Box::new(rewrite_expr(
-                target,
-                prefix,
-                root_label,
-                known_labels,
-                bindings,
-            )),
-            Box::new(rewrite_expr(
-                index,
-                prefix,
-                root_label,
-                known_labels,
-                bindings,
-            )),
+            Box::new(rewrite_expr(target, prefix, root_label, known_labels, bindings)),
+            Box::new(rewrite_expr(index, prefix, root_label, known_labels, bindings)),
         ),
         Expr::Tuple(items) => Expr::Tuple(
             items
@@ -539,31 +672,13 @@ fn rewrite_expr(
                 .collect(),
         ),
         Expr::Binary(lhs, op, rhs) => Expr::Binary(
-            Box::new(rewrite_expr(
-                lhs,
-                prefix,
-                root_label,
-                known_labels,
-                bindings,
-            )),
+            Box::new(rewrite_expr(lhs, prefix, root_label, known_labels, bindings)),
             op.clone(),
-            Box::new(rewrite_expr(
-                rhs,
-                prefix,
-                root_label,
-                known_labels,
-                bindings,
-            )),
+            Box::new(rewrite_expr(rhs, prefix, root_label, known_labels, bindings)),
         ),
         Expr::Unary(op, value) => Expr::Unary(
             op.clone(),
-            Box::new(rewrite_expr(
-                value,
-                prefix,
-                root_label,
-                known_labels,
-                bindings,
-            )),
+            Box::new(rewrite_expr(value, prefix, root_label, known_labels, bindings)),
         ),
         Expr::Call(name, args) => Expr::Call(
             name.clone(),
@@ -572,13 +687,7 @@ fn rewrite_expr(
                 .collect(),
         ),
         Expr::Method(target, name, args) => Expr::Method(
-            Box::new(rewrite_expr(
-                target,
-                prefix,
-                root_label,
-                known_labels,
-                bindings,
-            )),
+            Box::new(rewrite_expr(target, prefix, root_label, known_labels, bindings)),
             name.clone(),
             args.iter()
                 .map(|arg| rewrite_expr(arg, prefix, root_label, known_labels, bindings))
@@ -586,49 +695,19 @@ fn rewrite_expr(
         ),
         Expr::Closure(params, body) => Expr::Closure(
             params.clone(),
-            Box::new(rewrite_expr(
-                body,
-                prefix,
-                root_label,
-                known_labels,
-                bindings,
-            )),
+            Box::new(rewrite_expr(body, prefix, root_label, known_labels, bindings)),
         ),
         Expr::Conditional(condition, then_expr, else_expr) => Expr::Conditional(
-            Box::new(rewrite_expr(
-                condition,
-                prefix,
-                root_label,
-                known_labels,
-                bindings,
-            )),
-            Box::new(rewrite_expr(
-                then_expr,
-                prefix,
-                root_label,
-                known_labels,
-                bindings,
-            )),
-            Box::new(rewrite_expr(
-                else_expr,
-                prefix,
-                root_label,
-                known_labels,
-                bindings,
-            )),
+            Box::new(rewrite_expr(condition, prefix, root_label, known_labels, bindings)),
+            Box::new(rewrite_expr(then_expr, prefix, root_label, known_labels, bindings)),
+            Box::new(rewrite_expr(else_expr, prefix, root_label, known_labels, bindings)),
         ),
         Expr::Construct(name, props) => Expr::Construct(
             name.clone(),
             rewrite_properties(props, prefix, root_label, known_labels, bindings),
         ),
         Expr::Match(scrutinee, arms) => Expr::Match(
-            Box::new(rewrite_expr(
-                scrutinee,
-                prefix,
-                root_label,
-                known_labels,
-                bindings,
-            )),
+            Box::new(rewrite_expr(scrutinee, prefix, root_label, known_labels, bindings)),
             arms.iter()
                 .map(|(pat, arm_expr)| {
                     (
@@ -700,19 +779,26 @@ fn rewrite_label_path(
     let rewritten_first = rewrite_label_ref(first_str, prefix, root_label, known_labels);
 
     // Extract static strings from remaining segments for the self-skip check
-    let rest_static: Vec<&str> = rest.iter().filter_map(|s| match s {
-        TargetSegment::Static(s) => Some(s.as_str()),
-        TargetSegment::Indexed { .. } => None,
-    }).collect();
+    let rest_static: Vec<&str> = rest
+        .iter()
+        .filter_map(|s| match s {
+            TargetSegment::Static(s) => Some(s.as_str()),
+            TargetSegment::Indexed { .. } => None,
+        })
+        .collect();
 
     // If the path starts with `self` followed by the root label, skip the root label
     // since `self` already resolves to the prefixed root actor.
     let rest = if first_str == "self" {
         if let Some((second, remaining)) = rest_static.split_first() {
             if root_label == Some(second) {
-                let mut result: Vec<TargetSegment> = split_rewritten_label(&rewritten_first).into_iter().map(TargetSegment::Static).collect();
+                let mut result: Vec<TargetSegment> = split_rewritten_label(&rewritten_first)
+                    .into_iter()
+                    .map(TargetSegment::Static)
+                    .collect();
                 for seg in remaining {
-                    result.push(TargetSegment::Static(rewrite_path_segment(seg, prefix, root_label)));
+                    result
+                        .push(TargetSegment::Static(rewrite_path_segment(seg, prefix, root_label)));
                 }
                 return result;
             }
@@ -722,10 +808,15 @@ fn rewrite_label_path(
         rest
     };
 
-    let mut rewritten: Vec<TargetSegment> = split_rewritten_label(&rewritten_first).into_iter().map(TargetSegment::Static).collect();
+    let mut rewritten: Vec<TargetSegment> = split_rewritten_label(&rewritten_first)
+        .into_iter()
+        .map(TargetSegment::Static)
+        .collect();
     for seg in rest {
         match seg {
-            TargetSegment::Static(s) => rewritten.push(TargetSegment::Static(rewrite_path_segment(s, prefix, root_label))),
+            TargetSegment::Static(s) => {
+                rewritten.push(TargetSegment::Static(rewrite_path_segment(s, prefix, root_label)))
+            },
             TargetSegment::Indexed { .. } => rewritten.push(seg.clone()),
         }
     }
@@ -735,11 +826,7 @@ fn rewrite_label_path(
 /// Rewrite a path segment for use inside a label path. Unlike `rewrite_label`,
 /// this does not add the prefix to known labels — the prefix is only applied
 /// to the first element of the path via `rewrite_label_ref`.
-fn rewrite_path_segment(
-    seg: &str,
-    prefix: &str,
-    root_label: Option<&str>,
-) -> String {
+fn rewrite_path_segment(seg: &str, prefix: &str, root_label: Option<&str>) -> String {
     if seg == "scene" {
         seg.to_string()
     } else if root_label == Some(seg) {
@@ -766,14 +853,36 @@ mod tests {
             array_index: None,
             ty: "Svg".to_string(),
             props: vec![
-                Property { name: "url".to_string(), value: Expr::Str("examples/vector.svg".to_string()), value_span: None, trailing_comment: None },
-                Property { name: "at".to_string(), value: Expr::Ident("badge".to_string()), value_span: None, trailing_comment: None },
-                Property { name: "anchor".to_string(), value: Expr::Path(vec!["scene".to_string(), "top".to_string()]), value_span: None, trailing_comment: None },
-                Property { name: "offset".to_string(), value: Expr::Tuple(vec![
-                    Expr::Num(0.0),
-                    Expr::Ident("delta".to_string()),
-                ]), value_span: None, trailing_comment: None },
-                Property { name: "scale".to_string(), value: Expr::Num(1.0), value_span: None, trailing_comment: None },
+                Property {
+                    name: "url".to_string(),
+                    value: Expr::Str("examples/vector.svg".to_string()),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "at".to_string(),
+                    value: Expr::Ident("badge".to_string()),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "anchor".to_string(),
+                    value: Expr::Path(vec!["scene".to_string(), "top".to_string()]),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "offset".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Ident("delta".to_string())]),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "scale".to_string(),
+                    value: Expr::Num(1.0),
+                    value_span: None,
+                    trailing_comment: None,
+                },
             ],
             modifiers: vec![],
             children: vec![],
@@ -786,10 +895,7 @@ mod tests {
 
         match rewritten {
             Stmt::ActorDecl {
-                label,
-                ty,
-                props,
-                ..
+                label, ty, props, ..
             } => {
                 assert_eq!(label, "hero.logo");
                 assert_eq!(ty, "Svg");
@@ -805,7 +911,7 @@ mod tests {
                     get_prop("offset"),
                     Some(&Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(48.0)]))
                 );
-            }
+            },
             other => unreachable!("expected rewritten actor decl statement, got {other:?}"),
         }
     }

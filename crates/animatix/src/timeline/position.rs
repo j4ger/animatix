@@ -31,7 +31,7 @@ pub(crate) fn parse_percent_vec2(expr: &Expr) -> Option<[f32; 2]> {
         Expr::Tuple(items) if items.len() == 2 => match (&items[0], &items[1]) {
             (Expr::Percent(x), Expr::Percent(y)) => {
                 Some([(*x as f32) / 100.0, (*y as f32) / 100.0])
-            }
+            },
             _ => None,
         },
         _ => None,
@@ -52,11 +52,14 @@ pub(crate) fn resolve_position_binding_with_lookup_diagnostic(
 
     // ── Conflict detection ──
     // Warn when both `at` and `anchor` specify a position; `anchor` takes precedence.
-    let at_resolves = at_expr.map(|expr| {
-        parse_scene_anchor(expr).is_some()
-            || parse_percent_vec2(expr).is_some()
-            || parse_numeric_vec2_with_lookup_diagnostic(expr, env, diagnostics, subject).is_some()
-    }).unwrap_or(false);
+    let at_resolves = at_expr
+        .map(|expr| {
+            parse_scene_anchor(expr).is_some()
+                || parse_percent_vec2(expr).is_some()
+                || parse_numeric_vec2_with_lookup_diagnostic(expr, env, diagnostics, subject)
+                    .is_some()
+        })
+        .unwrap_or(false);
 
     if anchor_expr.is_some() && at_resolves {
         diagnostics.push(
@@ -112,10 +115,7 @@ pub(crate) fn resolve_position_binding_with_lookup_diagnostic(
 }
 
 /// Compute the scene-space anchor point for the given anchor and scene dimensions.
-pub fn scene_anchor_point(
-    anchor: SceneAnchor,
-    scene_dimensions: SceneDimensions,
-) -> kurbo::Point {
+pub fn scene_anchor_point(anchor: SceneAnchor, scene_dimensions: SceneDimensions) -> kurbo::Point {
     let width = scene_dimensions.width as f64;
     let height = scene_dimensions.height as f64;
     match anchor {
@@ -142,14 +142,14 @@ pub(crate) fn resolve_bound_position(
         PositionBinding::SceneAnchor { anchor, offset } => {
             let point = scene_anchor_point(anchor, scene_dimensions);
             kurbo::Point::new(point.x + offset[0] as f64, point.y + offset[1] as f64)
-        }
+        },
         PositionBinding::ScenePercent { x, y, offset } => kurbo::Point::new(
             scene_dimensions.width as f64 * x as f64 + offset[0] as f64,
             scene_dimensions.height as f64 * y as f64 + offset[1] as f64,
         ),
         PositionBinding::ContainerDefault { anchor } => {
             scene_anchor_point(anchor, scene_dimensions)
-        }
+        },
         PositionBinding::ContainerPercent { x, y } => {
             // Container-managed position is in base_position.
             // Apply percentage offset and return directly (already in local coords).
@@ -157,7 +157,7 @@ pub(crate) fn resolve_bound_position(
                 base_position[0] + scene_dimensions.width as f32 * x,
                 base_position[1] + scene_dimensions.height as f32 * y,
             ];
-        }
+        },
     };
 
     let local_point = parent_transform.inverse() * scene_point;
@@ -165,11 +165,11 @@ pub(crate) fn resolve_bound_position(
 }
 
 pub(crate) fn mark_track_manual_position(track: &mut AnimationTrack, time_ms: u64) {
-    track
-        .geometry
-        .placement_mode
-        .ensure(PlacementMode::LayoutManaged)
-        .add_keyframe(time_ms, PlacementMode::Manual, Easing::Linear);
+    track.geometry.placement_mode.ensure(PlacementMode::LayoutManaged).add_keyframe(
+        time_ms,
+        PlacementMode::Manual,
+        Easing::Linear,
+    );
 }
 
 pub(crate) fn preserve_discrete_position_state_before(track: &mut AnimationTrack, time_ms: u64) {
@@ -179,13 +179,20 @@ pub(crate) fn preserve_discrete_position_state_before(track: &mut AnimationTrack
 
     let previous_time = time_ms - 1;
 
-    if !track.geometry.placement_mode.as_ref().map(|t| t.keyframes.contains_key(&previous_time)).unwrap_or(false) {
-        let previous_mode = track.geometry.placement_mode.get(previous_time, PlacementMode::LayoutManaged);
-        track
-            .geometry
-            .placement_mode
-            .ensure(PlacementMode::LayoutManaged)
-            .add_keyframe(previous_time, previous_mode, Easing::Linear);
+    if !track
+        .geometry
+        .placement_mode
+        .as_ref()
+        .map(|t| t.keyframes.contains_key(&previous_time))
+        .unwrap_or(false)
+    {
+        let previous_mode =
+            track.geometry.placement_mode.get(previous_time, PlacementMode::LayoutManaged);
+        track.geometry.placement_mode.ensure(PlacementMode::LayoutManaged).add_keyframe(
+            previous_time,
+            previous_mode,
+            Easing::Linear,
+        );
     }
 
     if !track
@@ -195,12 +202,13 @@ pub(crate) fn preserve_discrete_position_state_before(track: &mut AnimationTrack
         .map(|t| t.keyframes.contains_key(&previous_time))
         .unwrap_or(false)
     {
-        let previous_binding = track.geometry.position_binding.get(previous_time, PositionBinding::Absolute);
-        track
-            .geometry
-            .position_binding
-            .ensure(PositionBinding::Absolute)
-            .add_keyframe(previous_time, previous_binding, Easing::Linear);
+        let previous_binding =
+            track.geometry.position_binding.get(previous_time, PositionBinding::Absolute);
+        track.geometry.position_binding.ensure(PositionBinding::Absolute).add_keyframe(
+            previous_time,
+            previous_binding,
+            Easing::Linear,
+        );
     }
 }
 
@@ -230,11 +238,11 @@ pub(crate) fn set_track_position_binding(
     time_ms: u64,
     binding: PositionBinding,
 ) {
-    track
-        .geometry
-        .position_binding
-        .ensure(PositionBinding::Absolute)
-        .add_keyframe(time_ms, binding, Easing::Linear);
+    track.geometry.position_binding.ensure(PositionBinding::Absolute).add_keyframe(
+        time_ms,
+        binding,
+        Easing::Linear,
+    );
 }
 
 pub(crate) fn apply_explicit_position_binding(
@@ -365,7 +373,14 @@ mod tests {
             "Should not emit any warnings for anchor with percentages"
         );
         assert!(
-            matches!(result.unwrap().0, PositionBinding::ScenePercent { x: 0.5, y: 0.6, offset: [0.0, 0.0] }),
+            matches!(
+                result.unwrap().0,
+                PositionBinding::ScenePercent {
+                    x: 0.5,
+                    y: 0.6,
+                    offset: [0.0, 0.0]
+                }
+            ),
             "Anchor should accept percentage tuples"
         );
     }
@@ -387,14 +402,16 @@ mod tests {
         );
 
         assert!(result.is_some());
+        assert!(diagnostics.is_empty(), "Should not emit any warnings for anchor with offset");
         assert!(
-            diagnostics.is_empty(),
-            "Should not emit any warnings for anchor with offset"
-        );
-        assert!(
-            matches!(result.unwrap().0, PositionBinding::SceneAnchor { anchor: SceneAnchor::Center, offset: [10.0, 20.0] }),
+            matches!(
+                result.unwrap().0,
+                PositionBinding::SceneAnchor {
+                    anchor: SceneAnchor::Center,
+                    offset: [10.0, 20.0]
+                }
+            ),
             "Offset should be applied to anchor binding"
         );
     }
-
 }

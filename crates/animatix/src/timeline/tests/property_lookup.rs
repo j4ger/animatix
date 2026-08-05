@@ -14,14 +14,7 @@ fn test_for_iter_values_spreads_list_variable() {
     // When iterating over a variable holding a list, the list should be spread
     // (not wrapped as a single element). This is bug #17 fix.
     let mut env = Environment::new();
-    env.set(
-        "items",
-        Value::List(vec![
-            Value::Num(10.0),
-            Value::Num(20.0),
-            Value::Num(30.0),
-        ]),
-    );
+    env.set("items", Value::List(vec![Value::Num(10.0), Value::Num(20.0), Value::Num(30.0)]));
     let values = for_iter_values(&Expr::Ident("items".to_string()), &env);
     assert_eq!(
         values,

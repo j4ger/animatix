@@ -10,7 +10,7 @@
 //! let text = format_shortcut(&shortcut, ui.ctx());
 //! ```
 
-use egui::{CornerRadius, Context, Response, Rect, Sense, Stroke, Widget};
+use egui::{Context, CornerRadius, Rect, Response, Sense, Stroke, Widget};
 
 use crate::tokens::spatial::RADIUS_S;
 use crate::tokens::theme::theme;
@@ -43,12 +43,9 @@ impl Widget for Kbd {
         let s = crate::spatial(ui);
         let font_id = TextRole::Caption.font_id();
 
-        let galley = ui.painter().layout(
-            self.text.clone(),
-            font_id,
-            t.text.secondary,
-            ui.available_width(),
-        );
+        let galley =
+            ui.painter()
+                .layout(self.text.clone(), font_id, t.text.secondary, ui.available_width());
 
         let pad = s.space_1;
         let size = galley.size() + egui::vec2(pad * 2.0, pad * 2.0);
@@ -68,11 +65,7 @@ impl Widget for Kbd {
             egui::StrokeKind::Outside,
         );
         // egui 0.34 `galley` requires a fallback colour for glyphs missing from the font.
-        painter.galley(
-            rect.min + egui::vec2(pad, pad),
-            galley,
-            t.text.secondary,
-        );
+        painter.galley(rect.min + egui::vec2(pad, pad), galley, t.text.secondary);
 
         response
     }

@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use animatix_syntax::diagnostics::diagnostics_phase_summary;
+
 use crate::app::commands::Effect;
 use crate::app::components::toast::Toast;
 use crate::app::document::rebuild::{RebuildResponse, RebuildToken, RebuildWorker};
@@ -9,7 +11,6 @@ use crate::app::persistence::save_app_state;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore, WorkspaceStore};
 use crate::app::utils::has_source_load_failure;
 use crate::document::DocumentSession;
-use animatix_syntax::diagnostics::diagnostics_phase_summary;
 
 /// Sync preview playback state from document metadata.
 pub(crate) fn sync_preview_from_document(
@@ -164,20 +165,23 @@ pub fn handle_toggle_expand_dir(
     vec![]
 }
 
+/// Persist the current source to disk atomically and mark the document saved.
+pub(crate) fn save_document(document_store: &mut DocumentStore) -> Result<(), String> {
+    document_store.source.document.save_to_disk().map_err(|err| err.to_string())?;
+    document_store.source.mark_saved();
+    Ok(())
+}
+
 pub fn handle_save(
     document_store: &mut DocumentStore,
     _preview_store: &mut PreviewStore,
 ) -> Vec<Effect> {
     let path = document_store.source.file_path().to_path_buf();
-    let text = document_store.source.text().to_string();
-    match std::fs::write(&path, &text) {
-        Ok(()) => {
-            document_store.source.mark_saved();
-            vec![
-                Effect::Status(format!("Saved {}", path.display())),
-                Effect::Toast(Toast::success(format!("Saved {}", path.display()))),
-            ]
-        },
+    match save_document(document_store) {
+        Ok(()) => vec![
+            Effect::Status(format!("Saved {}", path.display())),
+            Effect::Toast(Toast::success(format!("Saved {}", path.display()))),
+        ],
         Err(err) => {
             tracing::warn!("Save failed: {}", err);
             vec![Effect::Toast(Toast::error(format!("Save failed: {}", err)))]
@@ -188,6 +192,7 @@ pub fn handle_save(
 pub fn handle_reload(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
+    ui_store: &mut UiStore,
     workspace_store: &mut WorkspaceStore,
 ) -> Vec<Effect> {
     let path = document_store.source.file_path().to_path_buf();
@@ -195,33 +200,16 @@ pub fn handle_reload(
         Ok(text) => {
             document_store.replace_text(text);
             document_store.source.document.is_dirty = false;
-            if let Err(e) = document_store.source.document.rebuild() {
-                tracing::warn!("Document reload rebuild failed: {}", e);
-            }
-            document_store.publish_rebuild_result(
-                document_store.source.document.last_rebuild_error.is_none(),
+            preview_store.pending_rebuild_at = Some(
+                std::time::Instant::now()
+                    + std::time::Duration::from_millis(ui_store.rebuild_debounce_ms),
             );
-            let status = if has_source_load_failure(&document_store.source.document.diagnostics) {
-                format!(
-                    "Reloaded {} • parse/load error • {}",
-                    document_store.source.document.file_path.display(),
-                    diagnostics_phase_summary(&document_store.source.document.diagnostics)
-                )
-            } else {
-                document_store.document_status(format!(
-                    "Reloaded {}",
-                    document_store.source.document.file_path.display()
-                ))
-            };
-            let error = document_store.source.document.last_rebuild_error.clone();
-            sync_preview_from_document(document_store, preview_store, status, false, false);
-            preview_store.preview.error = error;
             workspace_store.file_tree = build_file_tree(
                 &workspace_store.workspace_root,
                 &document_store.source.document.file_path,
                 &workspace_store.expanded_dirs,
             );
-            vec![]
+            vec![Effect::Status(format!("Reloaded {}", path.display()))]
         },
         Err(e) => {
             tracing::warn!("Reload failed: {}", e);
@@ -318,17 +306,55 @@ pub fn handle_rebuild(
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use super::*;
+    use crate::editor::EditorBuffer;
+
+    #[test]
+    fn save_document_reports_error_without_clearing_dirty() {
+        let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let dir = std::env::temp_dir().join(format!(
+            "animatix_save_failure_{}_{}",
+            std::process::id(),
+            unique
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("scene.amx");
+        std::fs::create_dir_all(&target).unwrap();
+
+        let document = DocumentSession::from_source(target.clone(), "#0s\n".to_string()).unwrap();
+        let editor = EditorBuffer::new(&target, document.source_text.clone());
+        let mut store = DocumentStore::new(document, editor);
+        store.source.document.is_dirty = true;
+
+        assert!(save_document(&mut store).is_err());
+        assert!(store.source.document.is_dirty);
+    }
+}
+
 /// Submit a rebuild request to the background worker.
 pub fn handle_rebuild_submit(
     worker: &mut RebuildWorker,
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
-) -> RebuildToken {
+) -> Option<RebuildToken> {
     document_store.source.invalidate_cache();
     preview_store.rebuild_in_progress = true;
     preview_store.preview.status = "Building timeline…".to_string();
     preview_store.preview_dirty = true;
-    worker.submit(&document_store.source)
+    match worker.submit(&document_store.source) {
+        Ok(token) => Some(token),
+        Err(err) => {
+            preview_store.rebuild_in_progress = false;
+            preview_store
+                .preview
+                .set_status_error(format!("Rebuild failed to start: {err}"));
+            None
+        },
+    }
 }
 
 /// Handle a completed background rebuild response.

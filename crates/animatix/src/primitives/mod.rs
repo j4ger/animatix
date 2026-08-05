@@ -36,17 +36,16 @@
 //! | Media | Image, Svg |
 //! | Plots | Graph, PlotCurve |
 //! | Containers | Row, Col, Grid, Stack, Group, Mask |
-//!
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::renderer::error::RenderError;
 use crate::renderer::types::TextPath;
+use crate::timeline::callout_geometry::TargetResolver;
 use crate::timeline::{
     ActorCategory, ActorKindId, AnimationTrack, DEFAULT_WHITE, Environment, SceneDimensions,
     Timeline, TrackAccessor, Value, VectorShapeState, VectorShapeStyle, VelloPath,
 };
-use crate::timeline::callout_geometry::TargetResolver;
 
 /// Evaluate text paths for a text primitive at frame time.
 ///
@@ -727,7 +726,7 @@ pub static PRIMITIVES: &[&dyn Primitive] = &[
     // Media
     &IMAGE,
     #[cfg(feature = "svg")]
-        &SVG,
+    &SVG,
     &AUDIO,
     // Plots
     &GRAPH,

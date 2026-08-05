@@ -11,10 +11,11 @@
 //! converter emits [`Diagnostic`] entries for these nodes and skips them,
 //! producing a best-effort AST from the valid portions of the source.
 
+use tree_sitter::{Language, Node, Parser, Tree};
+
 use crate::ast::*;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
-use tree_sitter::{Language, Node, Parser, Tree};
 
 /// Intermediate representation for items inside a children_block.
 /// Used during CST-to-AST conversion to collect inline items before
@@ -100,7 +101,7 @@ fn group_keyframes(stmts: Vec<Stmt>) -> Vec<Stmt> {
                     result.push(kf);
                 }
                 current_keyframe = Some(stmt);
-            }
+            },
             Stmt::Config { .. }
             | Stmt::Import { .. }
             | Stmt::LetDecl { .. }
@@ -114,7 +115,7 @@ fn group_keyframes(stmts: Vec<Stmt>) -> Vec<Stmt> {
                     result.push(kf);
                 }
                 result.push(stmt);
-            }
+            },
             _ => {
                 // Actions, sequences, staggers, actor decls, assignments, etc.
                 // go into the current keyframe body
@@ -129,13 +130,13 @@ fn group_keyframes(stmts: Vec<Stmt>) -> Vec<Stmt> {
                                 body: vec![stmt],
                                 span: None,
                             });
-                        }
+                        },
                         _ => {
                             result.push(stmt);
-                        }
+                        },
                     }
                 }
-            }
+            },
         }
     }
 
@@ -152,8 +153,8 @@ fn append_to_keyframe_body(kf: &mut Stmt, stmt: Stmt) {
     match kf {
         Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
             body.push(stmt);
-        }
-        _ => {}
+        },
+        _ => {},
     }
 }
 
@@ -182,12 +183,8 @@ impl<'a> TsConverter<'a> {
         let _end = node.end_position();
         let span = node.start_byte()..node.end_byte();
         self.diagnostics.push(
-            Diagnostic::error(
-                DiagnosticCode::ParseError,
-                DiagnosticPhase::Parse,
-                message,
-            )
-            .with_location(start.row + 1, start.column + 1, span),
+            Diagnostic::error(DiagnosticCode::ParseError, DiagnosticPhase::Parse, message)
+                .with_location(start.row + 1, start.column + 1, span),
         );
     }
 
@@ -240,7 +237,7 @@ impl<'a> TsConverter<'a> {
                     self.push_error(node, format!("unexpected '{}'", self.node_text(node)));
                 }
                 None
-            }
+            },
         }
     }
 
@@ -259,9 +256,7 @@ impl<'a> TsConverter<'a> {
             .child_by_field_name("path")
             .map(|n| self.strip_quotes(self.node_text(n)))
             .unwrap_or_default();
-        let alias = node
-            .child_by_field_name("alias")
-            .map(|n| self.node_text(n).to_string());
+        let alias = node.child_by_field_name("alias").map(|n| self.node_text(n).to_string());
         Stmt::Import {
             path,
             alias,
@@ -395,16 +390,12 @@ impl<'a> TsConverter<'a> {
 
     fn convert_assignment(&mut self, node: Node) -> Stmt {
         let target_node = node.child_by_field_name("target");
-        let target = target_node
-            .map(|n| self.convert_target_segments(n))
-            .unwrap_or_default();
+        let target = target_node.map(|n| self.convert_target_segments(n)).unwrap_or_default();
         let value = node
             .child_by_field_name("value")
             .and_then(|n| self.convert_expr(n))
             .unwrap_or(Expr::Null);
-        let value_span = node
-            .child_by_field_name("value")
-            .map(|n| node_byte_span(n));
+        let value_span = node.child_by_field_name("value").map(|n| node_byte_span(n));
         let modifiers = self.convert_modifier_block_node(node);
         Stmt::Assignment {
             target,
@@ -419,16 +410,12 @@ impl<'a> TsConverter<'a> {
 
     fn convert_reactive_binding(&mut self, node: Node) -> Stmt {
         let target_node = node.child_by_field_name("target");
-        let target = target_node
-            .map(|n| self.convert_target_segments(n))
-            .unwrap_or_default();
+        let target = target_node.map(|n| self.convert_target_segments(n)).unwrap_or_default();
         let value = node
             .child_by_field_name("value")
             .and_then(|n| self.convert_expr(n))
             .unwrap_or(Expr::Null);
-        let value_span = node
-            .child_by_field_name("value")
-            .map(|n| node_byte_span(n));
+        let value_span = node.child_by_field_name("value").map(|n| node_byte_span(n));
         Stmt::ReactiveBinding {
             target,
             property: String::new(),
@@ -596,11 +583,11 @@ impl<'a> TsConverter<'a> {
             "match_wildcard" => MatchPattern::Wildcard,
             "match_literal" => {
                 let mut cursor = node.walk();
-                for child in node.named_children(&mut cursor) {
+                if let Some(child) = node.named_children(&mut cursor).next() {
                     return self.convert_match_literal(child);
                 }
                 MatchPattern::Wildcard
-            }
+            },
             "match_range" => {
                 let low = node.child_by_field_name("low");
                 let high = node.child_by_field_name("high");
@@ -609,10 +596,10 @@ impl<'a> TsConverter<'a> {
                         let lo_pat = self.convert_match_literal(lo);
                         let hi_pat = self.convert_match_literal(hi);
                         MatchPattern::Range(Box::new(lo_pat), Box::new(hi_pat))
-                    }
+                    },
                     _ => MatchPattern::Wildcard,
                 }
-            }
+            },
             "match_or" => {
                 let mut pats = Vec::new();
                 let mut cursor = node.walk();
@@ -620,7 +607,7 @@ impl<'a> TsConverter<'a> {
                     pats.push(self.convert_single_match_pattern(child));
                 }
                 MatchPattern::Or(pats)
-            }
+            },
             "match_tuple" => {
                 let mut pats = Vec::new();
                 let mut cursor = node.walk();
@@ -628,15 +615,15 @@ impl<'a> TsConverter<'a> {
                     pats.push(self.convert_single_match_pattern(child));
                 }
                 MatchPattern::Tuple(pats)
-            }
+            },
             _ => {
                 // Fallback: try to recurse into named children
                 let mut cursor = node.walk();
-                for child in node.named_children(&mut cursor) {
+                if let Some(child) = node.named_children(&mut cursor).next() {
                     return self.convert_single_match_pattern(child);
                 }
                 MatchPattern::Wildcard
-            }
+            },
         }
     }
 
@@ -645,13 +632,9 @@ impl<'a> TsConverter<'a> {
             "number" => {
                 let text = self.node_text(node);
                 MatchPattern::Num(text.parse::<f64>().unwrap_or(0.0))
-            }
-            "string" => {
-                MatchPattern::Str(self.strip_quotes(self.node_text(node)).to_string())
-            }
-            "boolean" => {
-                MatchPattern::Bool(self.node_text(node) == "true")
-            }
+            },
+            "string" => MatchPattern::Str(self.strip_quotes(self.node_text(node)).to_string()),
+            "boolean" => MatchPattern::Bool(self.node_text(node) == "true"),
             _ => MatchPattern::Wildcard,
         }
     }
@@ -706,15 +689,13 @@ impl<'a> TsConverter<'a> {
             "number" => {
                 let text = self.node_text(node);
                 text.parse::<f64>().ok().map(Expr::Num)
-            }
+            },
             "percentage" => {
                 // percentage child is a number node
                 let num_node = node.child(0);
-                let text = num_node
-                    .map(|n| self.node_text(n))
-                    .unwrap_or("0");
+                let text = num_node.map(|n| self.node_text(n)).unwrap_or("0");
                 text.parse::<f64>().ok().map(Expr::Percent)
-            }
+            },
             "time_literal" => {
                 // Time literals like "2s" or "500ms" — convert to seconds as a number
                 let text = self.node_text(node);
@@ -723,7 +704,7 @@ impl<'a> TsConverter<'a> {
                     Time::Seconds(s) => Some(Expr::Num(s)),
                     Time::Milliseconds(ms) => Some(Expr::Num(ms as f64 / 1000.0)),
                 }
-            }
+            },
             "string" => Some(Expr::Str(self.strip_quotes(self.node_text(node)).to_string())),
             "boolean" => Some(Expr::Bool(self.node_text(node) == "true")),
             "null_literal" => Some(Expr::Null),
@@ -748,7 +729,7 @@ impl<'a> TsConverter<'a> {
                     }
                 }
                 None
-            }
+            },
             "if_expression" => {
                 // If expression used as an expression (not statement)
                 let condition = node
@@ -768,16 +749,17 @@ impl<'a> TsConverter<'a> {
                     Box::new(then_expr),
                     Box::new(else_expr),
                 ))
-            }
-            "match_expression" => {
-                self.convert_match_expr(node)
-            }
+            },
+            "match_expression" => self.convert_match_expr(node),
             _ => {
                 if node.is_error() {
-                    self.push_error(node, format!("unexpected expression '{}'", self.node_text(node)));
+                    self.push_error(
+                        node,
+                        format!("unexpected expression '{}'", self.node_text(node)),
+                    );
                 }
                 None
-            }
+            },
         }
     }
 
@@ -791,10 +773,8 @@ impl<'a> TsConverter<'a> {
     }
 
     fn convert_unary(&mut self, node: Node) -> Option<Expr> {
-        let op_text = node
-            .child_by_field_name("operator")
-            .map(|n| self.node_text(n))
-            .unwrap_or("-");
+        let op_text =
+            node.child_by_field_name("operator").map(|n| self.node_text(n)).unwrap_or("-");
         let op = match op_text {
             "-" => UnaryOp::Neg,
             "!" => UnaryOp::Not,
@@ -822,9 +802,19 @@ impl<'a> TsConverter<'a> {
                     let text = self.node_text(child);
                     if matches!(
                         text,
-                        "+" | "-" | "*" | "/" | "%" | "^"
-                            | "==" | "!=" | "<" | ">" | "<=" | ">="
-                            | "&&" | "||"
+                        "+" | "-"
+                            | "*"
+                            | "/"
+                            | "%"
+                            | "^"
+                            | "=="
+                            | "!="
+                            | "<"
+                            | ">"
+                            | "<="
+                            | ">="
+                            | "&&"
+                            | "||"
                     ) {
                         op_text = text;
                     }
@@ -924,7 +914,7 @@ impl<'a> TsConverter<'a> {
                     if body_expr.is_none() {
                         body_expr = self.convert_expr(child);
                     }
-                }
+                },
             }
         }
         let body = Box::new(body_expr.unwrap_or(Expr::Null));
@@ -971,11 +961,11 @@ impl<'a> TsConverter<'a> {
                             props.push(self.convert_property(prop_node));
                         }
                     }
-                }
+                },
                 "property" => {
                     props.push(self.convert_property(child));
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
         props
@@ -990,9 +980,7 @@ impl<'a> TsConverter<'a> {
             .child_by_field_name("value")
             .and_then(|n| self.convert_expr(n))
             .unwrap_or(Expr::Null);
-        let value_span = node
-            .child_by_field_name("value")
-            .map(|n| node_byte_span(n));
+        let value_span = node.child_by_field_name("value").map(|n| node_byte_span(n));
         Property {
             name,
             value,
@@ -1023,9 +1011,7 @@ impl<'a> TsConverter<'a> {
             .child_by_field_name("name")
             .map(|n| self.node_text(n).to_string())
             .unwrap_or_default();
-        let default = node
-            .child_by_field_name("default")
-            .and_then(|n| self.convert_expr(n));
+        let default = node.child_by_field_name("default").and_then(|n| self.convert_expr(n));
         ParamDef {
             name,
             param_type: None, // Could be extracted from "type" field
@@ -1051,7 +1037,7 @@ impl<'a> TsConverter<'a> {
                             }
                         }
                     }
-                }
+                },
                 "modifier_list" => {
                     let mut list_cursor = child.walk();
                     for mod_node in child.named_children(&mut list_cursor) {
@@ -1059,17 +1045,15 @@ impl<'a> TsConverter<'a> {
                             modifiers.push(self.convert_modifier(mod_node));
                         }
                     }
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
         modifiers
     }
 
     fn convert_modifier(&mut self, node: Node) -> Modifier {
-        let name = node
-            .child_by_field_name("key")
-            .map(|n| self.node_text(n).to_string());
+        let name = node.child_by_field_name("key").map(|n| self.node_text(n).to_string());
         let value = node
             .child_by_field_name("value")
             .and_then(|n| self.convert_expr(n))
@@ -1129,19 +1113,25 @@ impl<'a> TsConverter<'a> {
                     let mut inner_cursor = child.walk();
                     for stmt_node in child.named_children(&mut inner_cursor) {
                         if stmt_node.is_error() || stmt_node.is_missing() {
-                            self.push_error(stmt_node, format!("syntax error near '{}'", self.node_text(stmt_node)));
+                            self.push_error(
+                                stmt_node,
+                                format!("syntax error near '{}'", self.node_text(stmt_node)),
+                            );
                             continue;
                         }
                         if stmt_node.kind() == "comment" {
-                            stmts.push(Stmt::Comment(self.node_text(stmt_node).to_string(), node_span(stmt_node)));
+                            stmts.push(Stmt::Comment(
+                                self.node_text(stmt_node).to_string(),
+                                node_span(stmt_node),
+                            ));
                             continue;
                         }
                         if let Some(stmt) = self.convert_statement(stmt_node) {
                             stmts.push(stmt);
                         }
                     }
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
         stmts
@@ -1155,7 +1145,10 @@ impl<'a> TsConverter<'a> {
                 let mut cursor = node.walk();
                 for child in node.named_children(&mut cursor) {
                     if child.is_error() || child.is_missing() {
-                        self.push_error(child, format!("syntax error near '{}'", self.node_text(child)));
+                        self.push_error(
+                            child,
+                            format!("syntax error near '{}'", self.node_text(child)),
+                        );
                         continue;
                     }
                     if let Some(stmt) = self.convert_statement(child) {
@@ -1163,7 +1156,7 @@ impl<'a> TsConverter<'a> {
                     }
                 }
                 stmts
-            }
+            },
             "expression_block" => {
                 // expression_block is `{ expr }` — wrap in a synthetic statement
                 let mut cursor = node.walk();
@@ -1179,7 +1172,7 @@ impl<'a> TsConverter<'a> {
                     }
                 }
                 Vec::new()
-            }
+            },
             _ => Vec::new(),
         }
     }
@@ -1196,7 +1189,7 @@ impl<'a> TsConverter<'a> {
                     }
                 }
                 None
-            }
+            },
             "expression_block" => {
                 let mut cursor = node.walk();
                 for child in node.named_children(&mut cursor) {
@@ -1205,7 +1198,7 @@ impl<'a> TsConverter<'a> {
                     }
                 }
                 None
-            }
+            },
             _ => self.convert_expr(node),
         }
     }
@@ -1231,11 +1224,11 @@ impl<'a> TsConverter<'a> {
                 if let Some(name) = node.child_by_field_name("name") {
                     segments.push(self.node_text(name).to_string());
                 }
-            }
+            },
             "identifier" => {
                 segments.push(self.node_text(node).to_string());
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 
@@ -1278,14 +1271,16 @@ impl<'a> TsConverter<'a> {
                             let mut iic = inline_items_node.walk();
                             for item_node in inline_items_node.named_children(&mut iic) {
                                 if item_node.kind() == "inline_item" {
-                                    if let Some(raw_item) = self.collect_inline_item_variant(item_node) {
+                                    if let Some(raw_item) =
+                                        self.collect_inline_item_variant(item_node)
+                                    {
                                         raw.push(raw_item);
                                     }
                                 }
                             }
                         }
                     }
-                }
+                },
                 "slot_marker" => raw.push(RawItem::Item(InlineItem::SlotMarker)),
                 "slot_fill" => {
                     let slot_name = child
@@ -1297,8 +1292,8 @@ impl<'a> TsConverter<'a> {
                         slot: slot_name,
                         items: fill_items,
                     }));
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
 
@@ -1314,7 +1309,7 @@ impl<'a> TsConverter<'a> {
                     {
                         props.push(p);
                     }
-                }
+                },
                 RawItem::Children(c) => {
                     if let Some(
                         InlineItem::Labeled { children, .. }
@@ -1323,7 +1318,7 @@ impl<'a> TsConverter<'a> {
                     {
                         *children = c;
                     }
-                }
+                },
             }
         }
         result
@@ -1359,7 +1354,7 @@ impl<'a> TsConverter<'a> {
                     modifiers,
                     children,
                 }))
-            }
+            },
             "inline_anonymous_actor" => {
                 let ty = node
                     .child_by_field_name("type")
@@ -1373,7 +1368,7 @@ impl<'a> TsConverter<'a> {
                     modifiers,
                     children,
                 }))
-            }
+            },
             "inline_property" => Some(RawItem::Property(self.convert_property(node))),
             "inline_for_loop" => {
                 let var = node
@@ -1391,7 +1386,7 @@ impl<'a> TsConverter<'a> {
                     iterable,
                     body,
                 }))
-            }
+            },
             "inline_slot_marker" => Some(RawItem::Item(InlineItem::SlotMarker)),
             "inline_slot_fill" => {
                 let slot_name = node
@@ -1403,17 +1398,15 @@ impl<'a> TsConverter<'a> {
                     slot: slot_name,
                     items: fill_items,
                 }))
-            }
+            },
             "inline_children_block" => {
                 // Standalone children block — attach to preceding actor
                 let sub_items = self.convert_children_block_items(node);
                 Some(RawItem::Children(sub_items))
-            }
+            },
             _ => None,
         }
     }
-
-
 
     /// Check if a node has a direct anonymous child with the given text.
     fn has_child_text(&self, node: Node, text: &str) -> bool {
@@ -1443,12 +1436,7 @@ impl<'a> TsConverter<'a> {
 fn node_span(node: Node) -> Option<Span> {
     let start = node.start_position();
     let end = node.end_position();
-    Some(Span::new(
-        start.row + 1,
-        start.column + 1,
-        end.row + 1,
-        end.column + 1,
-    ))
+    Some(Span::new(start.row + 1, start.column + 1, end.row + 1, end.column + 1))
 }
 
 /// Convert a tree-sitter node's position to a `ByteSpan`.
@@ -1493,7 +1481,9 @@ title: Text, text: "Hello"
         assert!(!result.statements.is_empty(), "expected statements");
         // The actor declaration is grouped into the keyframe body by group_keyframes
         let actor = result.statements.iter().find_map(|s| match s {
-            Stmt::Keyframe { body, .. } => body.iter().find(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "title")),
+            Stmt::Keyframe { body, .. } => body
+                .iter()
+                .find(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "title")),
             Stmt::ActorDecl { label, .. } if label == "title" => Some(s),
             _ => None,
         });
@@ -1548,7 +1538,7 @@ title: Text, text: "Hello"
                     "expected binary add, got: {:?}",
                     value
                 );
-            }
+            },
             other => panic!("expected let declaration, got: {:?}", other),
         }
     }
@@ -1573,7 +1563,7 @@ title: Text, text: "Hello"
         match &result.statements[0] {
             Stmt::Import { path, .. } => {
                 assert_eq!(path, "./components.amx");
-            }
+            },
             other => panic!("expected import, got: {:?}", other),
         }
     }
@@ -1598,7 +1588,7 @@ title: Text, text: "Hello"
         match &result.statements[0] {
             Stmt::Play { scene_name, .. } => {
                 assert_eq!(scene_name, "Intro");
-            }
+            },
             other => panic!("expected play, got: {:?}", other),
         }
     }
@@ -1635,12 +1625,8 @@ title: Text, text: "Hello"
         let result = parse_source(source).expect("parse should succeed");
         match &result.statements[0] {
             Stmt::LetDecl { value, .. } => {
-                assert!(
-                    matches!(value, Expr::Tuple(_)),
-                    "expected tuple, got: {:?}",
-                    value
-                );
-            }
+                assert!(matches!(value, Expr::Tuple(_)), "expected tuple, got: {:?}", value);
+            },
             other => panic!("expected let, got: {:?}", other),
         }
     }
@@ -1651,12 +1637,8 @@ title: Text, text: "Hello"
         let result = parse_source(source).expect("parse should succeed");
         match &result.statements[0] {
             Stmt::LetDecl { value, .. } => {
-                assert!(
-                    matches!(value, Expr::Closure(..)),
-                    "expected closure, got: {:?}",
-                    value
-                );
-            }
+                assert!(matches!(value, Expr::Closure(..)), "expected closure, got: {:?}", value);
+            },
             other => panic!("expected let, got: {:?}", other),
         }
     }

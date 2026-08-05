@@ -1,7 +1,6 @@
 //! Completion popup support for the code editor.
 
-use crate::cell_editor::parse_cells;
-use crate::cell_editor::CellEditorState;
+use crate::cell_editor::{CellEditorState, parse_cells};
 use crate::editor::EditorBuffer;
 
 impl EditorBuffer {

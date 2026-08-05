@@ -4,9 +4,8 @@
 
 use crate::app::commands::{DocumentCommand, PropertyEdit, PropertyValue};
 use crate::app::design_tokens::spatial::preview::HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS;
-use crate::app::preview::drag_utils;
 use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
-use crate::app::preview::{self, DragState, ToolMode};
+use crate::app::preview::{self, DragState, ToolMode, drag_utils};
 
 pub(crate) struct RotateGesture;
 
@@ -73,7 +72,8 @@ impl GestureHandler for RotateGesture {
                     return GestureResult::Ignored;
                 }
 
-                // Compute pivot: opposite edge (bottom-center) for handle hit, actor center for body hit
+                // Compute pivot: opposite edge (bottom-center) for handle hit, actor center for
+                // body hit
                 let pivot = if near_rotation_handle {
                     // Opposite edge = bottom center of the actor's bounding box
                     let hh = props.size[1] / 2.0;
@@ -150,10 +150,7 @@ impl GestureHandler for RotateGesture {
                     _ => return GestureResult::Ignored,
                 }
 
-                crate::app::preview::gestures::common::finish_drag(
-                    ctx,
-                    old_drag_state,
-                );
+                crate::app::preview::gestures::common::finish_drag(ctx, old_drag_state);
                 *ctx.drag_state = DragState::None;
 
                 GestureResult::Claimed

@@ -13,22 +13,30 @@ impl EditorBuffer {
         self.cell_state.warning_cells.clear();
 
         for d in diagnostics {
-            let Some(doc_line) = d.location.line else { continue };
+            let Some(doc_line) = d.location.line else {
+                continue;
+            };
             let doc_line = doc_line.saturating_sub(1); // 0-indexed
 
-            let Some(cell_idx) = self.cell_index_for_source_line(doc_line) else { continue };
-            let Some(cell_start_line) = self.source_line_for_cell(cell_idx) else { continue };
+            let Some(cell_idx) = self.cell_index_for_source_line(doc_line) else {
+                continue;
+            };
+            let Some(cell_start_line) = self.source_line_for_cell(cell_idx) else {
+                continue;
+            };
 
             let cell = &self.cells[cell_idx];
 
             // How many header lines before the editable body?
             let header_lines = match cell {
                 crate::cell_editor::Cell::Code { .. } => 0,
-                crate::cell_editor::Cell::Keyframe { attached_comment, .. } => {
+                crate::cell_editor::Cell::Keyframe {
+                    attached_comment, ..
+                } => {
                     let comment_lines =
                         attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0);
                     comment_lines + 1 // +1 for the #timestamp line
-                }
+                },
             };
 
             let body_start_line = cell_start_line + header_lines;
@@ -37,10 +45,10 @@ impl EditorBuffer {
             match d.severity {
                 animatix_syntax::diagnostics::DiagnosticSeverity::Error => {
                     self.cell_state.error_cells.insert(cell_idx);
-                }
+                },
                 animatix_syntax::diagnostics::DiagnosticSeverity::Warning => {
                     self.cell_state.warning_cells.insert(cell_idx);
-                }
+                },
             }
 
             // Skip diagnostics that sit on the cell header (not in the body text).
@@ -87,17 +95,23 @@ impl EditorBuffer {
             let doc_line = span.start_line.saturating_sub(1); // 0-indexed
             let doc_end_line = span.end_line.saturating_sub(1);
 
-            let Some(cell_idx) = self.cell_index_for_source_line(doc_line) else { continue };
-            let Some(cell_start_line) = self.source_line_for_cell(cell_idx) else { continue };
+            let Some(cell_idx) = self.cell_index_for_source_line(doc_line) else {
+                continue;
+            };
+            let Some(cell_start_line) = self.source_line_for_cell(cell_idx) else {
+                continue;
+            };
 
             let cell = &self.cells[cell_idx];
             let header_lines = match cell {
                 crate::cell_editor::Cell::Code { .. } => 0,
-                crate::cell_editor::Cell::Keyframe { attached_comment, .. } => {
+                crate::cell_editor::Cell::Keyframe {
+                    attached_comment, ..
+                } => {
                     let comment_lines =
                         attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0);
                     comment_lines + 1
-                }
+                },
             };
             let body_start_line = cell_start_line + header_lines;
 
@@ -121,17 +135,23 @@ impl EditorBuffer {
             let doc_line = span.start_line.saturating_sub(1);
             let doc_end_line = span.end_line.saturating_sub(1);
 
-            let Some(cell_idx) = self.cell_index_for_source_line(doc_line) else { continue };
-            let Some(cell_start_line) = self.source_line_for_cell(cell_idx) else { continue };
+            let Some(cell_idx) = self.cell_index_for_source_line(doc_line) else {
+                continue;
+            };
+            let Some(cell_start_line) = self.source_line_for_cell(cell_idx) else {
+                continue;
+            };
 
             let cell = &self.cells[cell_idx];
             let header_lines = match cell {
                 crate::cell_editor::Cell::Code { .. } => 0,
-                crate::cell_editor::Cell::Keyframe { attached_comment, .. } => {
+                crate::cell_editor::Cell::Keyframe {
+                    attached_comment, ..
+                } => {
                     let comment_lines =
                         attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0);
                     comment_lines + 1
-                }
+                },
             };
             let body_start_line = cell_start_line + header_lines;
 
@@ -154,14 +174,18 @@ impl EditorBuffer {
         if !symbols.scenes.is_empty() {
             for (cell_idx, cell) in self.cells.iter().enumerate() {
                 let cell_source = cell.to_source();
-                let Some(cell_start_line) = self.source_line_for_cell(cell_idx) else { continue };
+                let Some(cell_start_line) = self.source_line_for_cell(cell_idx) else {
+                    continue;
+                };
                 let header_lines = match cell {
                     crate::cell_editor::Cell::Code { .. } => 0,
-                    crate::cell_editor::Cell::Keyframe { attached_comment, .. } => {
+                    crate::cell_editor::Cell::Keyframe {
+                        attached_comment, ..
+                    } => {
                         let comment_lines =
                             attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0);
                         comment_lines + 1
-                    }
+                    },
                 };
                 let _body_start_line = cell_start_line + header_lines;
 
@@ -214,18 +238,24 @@ impl EditorBuffer {
             // Analyzer diagnostics use 0-based tree-sitter positions
             let doc_line = d.line;
 
-            let Some(cell_idx) = self.cell_index_for_source_line(doc_line) else { continue };
-            let Some(cell_start_line) = self.source_line_for_cell(cell_idx) else { continue };
+            let Some(cell_idx) = self.cell_index_for_source_line(doc_line) else {
+                continue;
+            };
+            let Some(cell_start_line) = self.source_line_for_cell(cell_idx) else {
+                continue;
+            };
 
             let cell = &self.cells[cell_idx];
 
             let header_lines = match cell {
                 crate::cell_editor::Cell::Code { .. } => 0,
-                crate::cell_editor::Cell::Keyframe { attached_comment, .. } => {
+                crate::cell_editor::Cell::Keyframe {
+                    attached_comment, ..
+                } => {
                     let comment_lines =
                         attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0);
                     comment_lines + 1
-                }
+                },
             };
 
             let body_start_line = cell_start_line + header_lines;
@@ -233,27 +263,27 @@ impl EditorBuffer {
             let severity = match d.severity {
                 animatix_analyzer::DiagnosticSeverity::Error => {
                     animatix_syntax::diagnostics::DiagnosticSeverity::Error
-                }
+                },
                 animatix_analyzer::DiagnosticSeverity::Warning => {
                     animatix_syntax::diagnostics::DiagnosticSeverity::Warning
-                }
+                },
                 animatix_analyzer::DiagnosticSeverity::Info => {
                     animatix_syntax::diagnostics::DiagnosticSeverity::Warning
-                }
+                },
                 animatix_analyzer::DiagnosticSeverity::Hint => {
                     animatix_syntax::diagnostics::DiagnosticSeverity::Warning
-                }
+                },
             };
 
             match severity {
                 animatix_syntax::diagnostics::DiagnosticSeverity::Error => {
                     self.cell_state.error_cells.insert(cell_idx);
-                }
+                },
                 animatix_syntax::diagnostics::DiagnosticSeverity::Warning => {
                     if !self.cell_state.error_cells.contains(&cell_idx) {
                         self.cell_state.warning_cells.insert(cell_idx);
                     }
-                }
+                },
             }
 
             if doc_line < body_start_line {

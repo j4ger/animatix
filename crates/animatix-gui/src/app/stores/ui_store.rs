@@ -1,12 +1,13 @@
-use crate::app::commands::ActionQueue;
-use crate::app::commands::ShellAction;
+use std::collections::{HashMap, HashSet};
+
+use egui_tiles::Tree;
+
+use crate::app::commands::{ActionQueue, ShellAction};
 use crate::app::components::toast::ToastQueue;
 use crate::app::panels::SidebarTab;
 use crate::app::panels::inspector::{KeyframeViewMode, PropertyViewMode};
 use crate::app::preview::selection::SelectionState;
 use crate::app::preview::{DragState, ToolMode};
-use egui_tiles::Tree;
-use std::collections::{HashMap, HashSet};
 
 /// Selection state for the UI.
 pub struct SelectionStore {
@@ -102,7 +103,8 @@ pub struct ViewStore {
     pub timeline_scroll_offset: f32,
     /// IDE appearance preference (Auto follows the OS light/dark setting).
     pub app_theme: eparts::AppThemeChoice,
-    /// True when the timeline panel or any of its children received pointer interaction this frame.
+    /// True when the timeline panel or any of its children received pointer interaction this
+    /// frame.
     pub timeline_focused: bool,
     /// True when the user prefers reduced motion (animations snap to instant).
     pub reduce_motion: bool,
@@ -216,7 +218,7 @@ impl UiStore {
             active_scene: self.view.active_scene.clone(),
             selected_actors: self.selection.selected_actors.clone(),
             selected_keyframes: self.selection.selected_keyframes.clone(),
-            playhead_time_s: 0.0,           // caller should set this from preview store
+            playhead_time_s: 0.0, // caller should set this from preview store
             loop_start_s: None,
             loop_end_s: None,
             timeline_scroll_offset: self.view.timeline_scroll_offset,

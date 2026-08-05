@@ -9,12 +9,12 @@
 
 use egui::{Align2, Margin, Stroke, Ui};
 
-use crate::widget::anim;
+use crate::density;
 use crate::tokens::motion;
+use crate::tokens::spatial::{self, RADIUS_XL, STROKE_WIDTH, dialog as dialog_token};
 use crate::tokens::theme::theme;
-use crate::tokens::spatial::{self, RADIUS_XL, STROKE_WIDTH};
-use crate::tokens::spatial::dialog as dialog_token;
-use crate::{density, tokens::typography::TextRole};
+use crate::tokens::typography::TextRole;
+use crate::widget::anim;
 use crate::widget::button::Button;
 
 /// Context passed to the dialog body on each frame.
@@ -135,10 +135,13 @@ pub fn modal(
 
     // Use separate transitions for open vs close:
     //   - Open:  MODAL (DECELERATE, 0.40s) — fast rise, gentle settle
-    //   - Close: MODAL_EXIT (STANDARD, 0.20s) — shorter symmetric exit;
-    //            avoids the front-loaded ghost-tail stall of DECELERATE
-    //            applied to the closing direction.
-    let transition = if is_closing { motion::MODAL_EXIT } else { motion::MODAL };
+    //   - Close: MODAL_EXIT (STANDARD, 0.20s) — shorter symmetric exit; avoids the front-loaded
+    //     ghost-tail stall of DECELERATE applied to the closing direction.
+    let transition = if is_closing {
+        motion::MODAL_EXIT
+    } else {
+        motion::MODAL
+    };
     let anim_target = if is_closing { 0.0 } else { 1.0 };
     let raw_progress = anim::animate_toward(ctx, anim_id, anim_target, transition);
 
@@ -156,8 +159,7 @@ pub fn modal(
     // ── Animated backdrop (painted before window, layered behind it) ──
     let bg = t.overlay.backdrop;
     let alpha = (bg.a() as f32 * progress).round() as u8;
-    let backdrop_color =
-        egui::Color32::from_rgba_premultiplied(bg.r(), bg.g(), bg.b(), alpha);
+    let backdrop_color = egui::Color32::from_rgba_premultiplied(bg.r(), bg.g(), bg.b(), alpha);
     ui.painter().rect_filled(screen_rect, 0.0, backdrop_color);
 
     // Close on backdrop click (gated until the dialog is visually established)
@@ -243,9 +245,8 @@ pub fn modal(
     let body_close = resp.map(|r| r.inner.unwrap_or(true)).unwrap_or(true);
 
     // ── Close request detection ──
-    let close_requested = ctx.input(|i| i.key_pressed(egui::Key::Escape))
-        || backdrop_clicked
-        || body_close;
+    let close_requested =
+        ctx.input(|i| i.key_pressed(egui::Key::Escape)) || backdrop_clicked || body_close;
 
     // Start closing animation (only once, on first close request)
     if close_requested && !is_closing {
@@ -267,9 +268,7 @@ pub fn modal(
         // request focus via Memory. Nesting `ctx.memory_mut` inside `ctx.data_mut`
         // would deadlock because data lives inside Memory (same RwLock).
         let saved = ctx.data_mut(|d| {
-            let saved = d
-                .get_temp::<Option<egui::Id>>(prev_focus_id)
-                .and_then(|o| o);
+            let saved = d.get_temp::<Option<egui::Id>>(prev_focus_id).and_then(|o| o);
             d.remove::<Option<egui::Id>>(prev_focus_id);
             d.remove::<bool>(closing_id);
             d.remove::<bool>(opened_id);
@@ -293,7 +292,10 @@ pub fn title_row(ui: &mut Ui, title: &str) -> bool {
     ui.horizontal(|ui| {
         ui.label(egui::RichText::new(title).size(TextRole::Heading.size()).color(t.text.primary));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.add(Button::icon(egui_phosphor::regular::X).with_tooltip("Close (Esc)")).clicked() {
+            if ui
+                .add(Button::icon(egui_phosphor::regular::X).with_tooltip("Close (Esc)"))
+                .clicked()
+            {
                 close = true;
             }
         });

@@ -13,29 +13,32 @@
 //! - **Position-based** — `(line, col)` inputs matching LSP's `Position` type
 //! - **Incremental** — `Analyzer::update()` re-parses only when source changes
 
-mod symbol_table;
 mod completer;
-mod diagnostics;
-mod workspace;
-mod types;
-mod hover;
 mod definition;
-mod references;
+mod diagnostics;
 mod document_symbol;
+mod hover;
+mod references;
+mod symbol_table;
+mod types;
+mod workspace;
 
-pub use symbol_table::{
-    SymbolTable, ImportInfo, LabelInfo, LabelKind, ComponentInfo, ParamInfo, SceneInfo,
-};
-pub use completer::{all_snippets, CompletionItem, CompletionKind, completions_at};
-pub use diagnostics::{Diagnostic, DiagnosticSeverity, LintConfig, collect_diagnostics, collect_diagnostics_with_config};
-pub use workspace::Workspace;
-pub use types::{HoverInfo, Location, DocumentSymbol, SymbolKind};
-
-use animatix_syntax::ast::{Span, Stmt};
-use animatix_syntax::parser::{parse_source, ParseError};
 // chumsky::Parser trait is not needed directly; parser functions are called via module API.
 use std::path::{Path, PathBuf};
+
+use animatix_syntax::ast::{Span, Stmt};
+use animatix_syntax::parser::{ParseError, parse_source};
+pub use completer::{CompletionItem, CompletionKind, all_snippets, completions_at};
+pub use diagnostics::{
+    Diagnostic, DiagnosticSeverity, LintConfig, collect_diagnostics,
+    collect_diagnostics_with_config,
+};
+pub use symbol_table::{
+    ComponentInfo, ImportInfo, LabelInfo, LabelKind, ParamInfo, SceneInfo, SymbolTable,
+};
 use tree_sitter::{Parser as TsParser, Tree};
+pub use types::{DocumentSymbol, HoverInfo, Location, SymbolKind};
+pub use workspace::Workspace;
 
 /// The main entry point for language intelligence.
 ///
@@ -118,17 +121,14 @@ impl Analyzer {
 
         // Run type checker
         self.type_diagnostics = if let Some(ref stmts) = self.ast {
-                let components = Self::build_component_registry(stmts);
-                let module_actions = std::collections::HashMap::new();
-                let mut env = animatix_syntax::typecheck::TypeEnv::new(&components, &module_actions);
-                let syntax_diagnostics = env.check_statements(stmts);
-                syntax_diagnostics
-                    .into_iter()
-                    .map(Self::convert_type_diagnostic)
-                    .collect()
-            } else {
-                Vec::new()
-            };
+            let components = Self::build_component_registry(stmts);
+            let module_actions = std::collections::HashMap::new();
+            let mut env = animatix_syntax::typecheck::TypeEnv::new(&components, &module_actions);
+            let syntax_diagnostics = env.check_statements(stmts);
+            syntax_diagnostics.into_iter().map(Self::convert_type_diagnostic).collect()
+        } else {
+            Vec::new()
+        };
 
         self.symbols = table;
     }
@@ -137,8 +137,9 @@ impl Analyzer {
     fn build_component_registry(
         stmts: &[Stmt],
     ) -> std::collections::HashMap<String, animatix_syntax::module::ComponentEntry> {
-        use animatix_syntax::module::ComponentEntry;
         use std::collections::HashMap;
+
+        use animatix_syntax::module::ComponentEntry;
 
         let mut registry = HashMap::new();
         for def in animatix_syntax::module::discovery::collect_component_defs(stmts) {
@@ -162,10 +163,10 @@ impl Analyzer {
         let severity = match d.severity {
             animatix_syntax::diagnostics::DiagnosticSeverity::Error => {
                 diagnostics::DiagnosticSeverity::Error
-            }
+            },
             animatix_syntax::diagnostics::DiagnosticSeverity::Warning => {
                 diagnostics::DiagnosticSeverity::Warning
-            }
+            },
         };
         let line = d.location.line.unwrap_or(1).saturating_sub(1);
         let col = d.location.column.unwrap_or(1).saturating_sub(1);
@@ -187,7 +188,11 @@ impl Analyzer {
         Self::walk_for_positions(&mut cursor, source, table);
     }
 
-    fn walk_for_positions(cursor: &mut tree_sitter::TreeCursor, source: &str, table: &mut SymbolTable) {
+    fn walk_for_positions(
+        cursor: &mut tree_sitter::TreeCursor,
+        source: &str,
+        table: &mut SymbolTable,
+    ) {
         let node = cursor.node();
         let kind = node.kind();
 
@@ -209,7 +214,7 @@ impl Analyzer {
                         });
                     }
                 }
-            }
+            },
             "actor_declaration" => {
                 if let Some(label_node) = node.child_by_field_name("label") {
                     let name = label_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
@@ -226,7 +231,7 @@ impl Analyzer {
                         });
                     }
                 }
-            }
+            },
             "component_definition" => {
                 if let Some(name_node) = node.child_by_field_name("name") {
                     let name = name_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
@@ -243,7 +248,7 @@ impl Analyzer {
                         });
                     }
                 }
-            }
+            },
             "import_statement" => {
                 if let Some(path_node) = node.child_by_field_name("path") {
                     let path = path_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
@@ -261,7 +266,7 @@ impl Analyzer {
                         }
                     }
                 }
-            }
+            },
             "for_block" => {
                 if let Some(var_node) = node.child_by_field_name("variable") {
                     let name = var_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
@@ -278,7 +283,7 @@ impl Analyzer {
                         });
                     }
                 }
-            }
+            },
             "use_statement" => {
                 if let Some(path_node) = node.child_by_field_name("path") {
                     let path = path_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
@@ -296,7 +301,7 @@ impl Analyzer {
                         }
                     }
                 }
-            }
+            },
             "reactive_binding" => {
                 if let Some(target_node) = node.child_by_field_name("target") {
                     let name = target_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
@@ -313,7 +318,7 @@ impl Analyzer {
                         });
                     }
                 }
-            }
+            },
             "scene_declaration" => {
                 if let Some(name_node) = node.child_by_field_name("name") {
                     let name = name_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
@@ -323,8 +328,8 @@ impl Analyzer {
                         info.col = start.column + 1;
                     }
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
 
         // Recurse into children
@@ -401,7 +406,12 @@ impl Analyzer {
     /// Go-to-definition at cursor position.
     ///
     /// Pass `workspace` for cross-file definition lookup.
-    pub fn definition_at(&self, workspace: Option<&Workspace>, line: usize, col: usize) -> Option<Location> {
+    pub fn definition_at(
+        &self,
+        workspace: Option<&Workspace>,
+        line: usize,
+        col: usize,
+    ) -> Option<Location> {
         definition::definition_at(
             &self.symbols,
             self.tree.as_ref(),
@@ -433,9 +443,7 @@ impl Analyzer {
         let node = tree.root_node().descendant_for_point_range(point, point)?;
 
         match node.kind() {
-            "identifier" => {
-                Some(node.utf8_text(self.source.as_bytes()).unwrap_or("").to_string())
-            }
+            "identifier" => Some(node.utf8_text(self.source.as_bytes()).unwrap_or("").to_string()),
             _ => None,
         }
     }
@@ -549,9 +557,10 @@ title: Text {
         assert_eq!(import_path, PathBuf::from("/project/lib.amx"));
 
         let lib_symbols = workspace.file_symbols(Path::new("/project/lib.amx")).unwrap();
-        assert!(lib_symbols.labels.contains_key("shared_color"), "lib should have shared_color " );
+        assert!(lib_symbols.labels.contains_key("shared_color"), "lib should have shared_color ");
 
-        let analyzer = Analyzer::new_with_path(main_source, Some(PathBuf::from("/project/main.amx")));
+        let analyzer =
+            Analyzer::new_with_path(main_source, Some(PathBuf::from("/project/main.amx")));
 
         // Verify local symbols are available
         let symbols = analyzer.symbols();
@@ -559,7 +568,10 @@ title: Text {
 
         // Verify workspace resolves cross-file symbols
         let resolved = workspace.resolve_symbols(Path::new("/project/main.amx"));
-        assert!(resolved.labels.contains_key("shared_color"), "workspace should resolve shared_color from import");
+        assert!(
+            resolved.labels.contains_key("shared_color"),
+            "workspace should resolve shared_color from import"
+        );
     }
 
     #[test]
@@ -690,7 +702,7 @@ always {
         let loc = analyzer.definition_at(None, 6, 4);
         assert!(loc.is_some());
         let loc = loc.unwrap();
-        assert!(loc.file.is_none(), "definition in same file " );
+        assert!(loc.file.is_none(), "definition in same file ");
         // Declaration "title:" on line 2 (0-based): enrich_positions sets line to 2+1=3
         assert_eq!(loc.line, 3);
         assert_eq!(loc.col, 1);
@@ -834,8 +846,10 @@ a_actor: Text { content: "A", }
             assert!(
                 symbols[i - 1].line <= symbols[i].line,
                 "sort order: {} (L{}) before {} (L{})",
-                symbols[i - 1].name, symbols[i - 1].line,
-                symbols[i].name, symbols[i].line,
+                symbols[i - 1].name,
+                symbols[i - 1].line,
+                symbols[i].name,
+                symbols[i].line,
             );
         }
     }

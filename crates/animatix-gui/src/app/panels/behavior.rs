@@ -1,17 +1,16 @@
+use std::collections::{HashMap, HashSet};
+
 use egui::{Color32, Rect, Stroke, Visuals};
 use egui_tiles::{Behavior, SimplificationOptions, TileId, UiResponse};
 
-use crate::app::WorkspaceTab;
+use crate::app::commands::ActionQueue;
 use crate::app::design_tokens::semantic::accent;
 use crate::app::design_tokens::spatial::timeline::RULER_HEIGHT as TIMELINE_RULER_HEIGHT;
 use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
-
-use crate::app::commands::ActionQueue;
 use crate::app::panels::{editor, inspector, preview_panel, sidebar, timeline_panel};
-use crate::app::preview;
 use crate::app::preview::selection;
 use crate::app::stores::{DocumentStore, PreviewStore, WorkspaceStore};
-use std::collections::{HashMap, HashSet};
+use crate::app::{WorkspaceTab, preview};
 
 pub(crate) struct WorkspaceBehavior<'a> {
     pub(crate) document_store: &'a mut DocumentStore,

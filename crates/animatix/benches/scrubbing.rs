@@ -15,10 +15,12 @@ subtitle: Text, content: "Subtitle text here", font_size: 24, color: text.second
 }
 
 fn build_many_actors_scene() -> Timeline {
-    let mut source = String::from(r#"config { colorscheme: "editorial-dark" }
+    let mut source = String::from(
+        r#"config { colorscheme: "editorial-dark" }
 
 #0s
-"#);
+"#,
+    );
     for i in 0..50 {
         source.push_str(&format!(
             "box{i}: Rect, size: (50, 50), color: accent.primary, at: ({}, {})\n",
@@ -49,7 +51,10 @@ fn bench_scrubbing(c: &mut Criterion) {
     let text_scene = build_text_scene();
     let many_actors = build_many_actors_scene();
     let layout_scene = build_layout_scene();
-    let dims = SceneDimensions { width: 1920, height: 1080 };
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
 
     // Benchmark random-access scrubbing (different times each iteration)
     c.bench_function("scrub_text_scene_100frames", |b| {

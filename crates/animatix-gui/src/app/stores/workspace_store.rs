@@ -1,8 +1,9 @@
-use crate::app::FileTreeEntry;
-use crate::hot_reload::HotReloader;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::Instant;
+
+use crate::app::FileTreeEntry;
+use crate::hot_reload::HotReloader;
 
 /// Owns workspace-level state: file tree, persisted layout, recent files,
 /// hot-reloader, and global settings.
@@ -12,6 +13,7 @@ pub struct WorkspaceStore {
     pub file_tree: Vec<FileTreeEntry>,
     pub persistence_path: PathBuf,
     pub hot_reloader: Option<HotReloader>,
+    pub hot_reload_error: Option<String>,
     pub last_reload_time: Option<Instant>,
 }
 
@@ -22,6 +24,7 @@ impl WorkspaceStore {
         file_tree: Vec<FileTreeEntry>,
         persistence_path: PathBuf,
         hot_reloader: Option<HotReloader>,
+        hot_reload_error: Option<String>,
     ) -> Self {
         Self {
             workspace_root,
@@ -29,6 +32,7 @@ impl WorkspaceStore {
             file_tree,
             persistence_path,
             hot_reloader,
+            hot_reload_error,
             last_reload_time: None,
         }
     }
@@ -51,6 +55,7 @@ mod tests {
             file_tree,
             persistence_path,
             None,
+            None,
         );
 
         assert_eq!(store.workspace_root, workspace_root);
@@ -70,6 +75,7 @@ mod tests {
             expanded_dirs,
             Vec::new(),
             PathBuf::from(".test_persistence.ron"),
+            None,
             None,
         );
 

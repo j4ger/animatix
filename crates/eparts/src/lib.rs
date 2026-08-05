@@ -9,24 +9,23 @@ pub mod tokens;
 pub mod widget;
 
 // Trait that decouples the diagnostics widget from animatix-domain types.
-pub use widget::diagnostics::DiagnosticEntry;
-pub use widget::spinner::Spinner;
-
-// ── Shared widget traits & Size (A1 + A2) ──────────────────────────
-pub use widget::traits::{Collapsible, Disableable, Selectable, Size, Sizable};
-
-// ── Runtime theme (B1) ──────────────────────────────────────────────
-pub use tokens::theme::{theme, theme_from_ctx, set_theme, AppThemeChoice, Theme};
-
-pub use tokens::spatial::{density, density_from_ctx, set_density, Density, spatial, spatial_from_ctx, Spatial};
-
 // ── Motion preference (reduced-motion) ───────────────────────────────
-pub use tokens::motion::{motion_preference, motion_preference_from_ctx, set_motion_preference, MotionPreference, resolve_duration};
-
+pub use tokens::motion::{
+    MotionPreference, motion_preference, motion_preference_from_ctx, resolve_duration,
+    set_motion_preference,
+};
+pub use tokens::spatial::{
+    Density, Spatial, density, density_from_ctx, set_density, spatial, spatial_from_ctx,
+};
+// ── Runtime theme (B1) ──────────────────────────────────────────────
+pub use tokens::theme::{AppThemeChoice, Theme, set_theme, theme, theme_from_ctx};
+pub use widget::diagnostics::DiagnosticEntry;
+// ── Input widgets (C2 + C3) ─────────────────────────────────────────
+pub use widget::input::{NumberField, TextField};
+pub use widget::list::{List, ListAction, ListResponse, SearchableList, SearchableListResponse};
+pub use widget::spinner::Spinner;
+pub use widget::toggle::{Checkbox, Radio, Side, Switch};
+// ── Shared widget traits & Size (A1 + A2) ──────────────────────────
+pub use widget::traits::{Collapsible, Disableable, Selectable, Sizable, Size};
 // ── Tree, List, SearchableList (H1 + H2 + H3) ──────────────────────
 pub use widget::tree::{Tree, TreeAction, TreeId, TreeItem, TreeResponse};
-pub use widget::list::{List, ListAction, ListResponse, SearchableList, SearchableListResponse};
-
-// ── Input widgets (C2 + C3) ─────────────────────────────────────────
-pub use widget::input::{TextField, NumberField};
-pub use widget::toggle::{Checkbox, Radio, Side, Switch};

@@ -1,6 +1,7 @@
+use std::collections::{HashMap, HashSet};
+
 use animatix::timeline::{AnimationTrack, Timeline, collect_all_keyframe_times};
 use egui::{Color32, Pos2, RichText, ScrollArea, Vec2};
-use std::collections::{HashMap, HashSet};
 
 use crate::app::PreviewPaneState;
 use crate::app::commands::{
@@ -9,17 +10,11 @@ use crate::app::commands::{
 };
 use crate::app::components::easing_curve_editor::EasingCurveState;
 use crate::app::components::{easing_curve_editor, layout, timeline};
-use crate::app::design_tokens::semantic::accent;
-use crate::app::design_tokens::semantic::border;
-use crate::app::design_tokens::semantic::status;
-use crate::app::design_tokens::semantic::surface;
 use crate::app::design_tokens::semantic::surface::WIDGET;
-use crate::app::design_tokens::semantic::text;
 use crate::app::design_tokens::semantic::text::DISABLED;
-use crate::app::design_tokens::spatial::{spatial, RADIUS_M, RADIUS_S, STROKE_WIDTH};
-use crate::app::design_tokens::spatial::inspector::{
-    INPUT_WIDTH_FLOAT as INSPECTOR_INPUT_WIDTH_FLOAT,
-};
+use crate::app::design_tokens::semantic::{accent, border, status, surface, text};
+use crate::app::design_tokens::spatial::inspector::INPUT_WIDTH_FLOAT as INSPECTOR_INPUT_WIDTH_FLOAT;
+use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::icons::actor_icon_str;
 use crate::app::panels::panel_frame;
@@ -27,7 +22,6 @@ use crate::app::utils::text::truncate_chars;
 
 pub(crate) mod graph_editor;
 pub(crate) mod keyframe_table;
-pub(crate) mod model;
 pub(crate) mod property_groups;
 pub(crate) mod spreadsheet;
 
@@ -194,7 +188,10 @@ fn render_scene_inspector(
             let bg_color = scene.timeline.background_color_at(0);
             layout::labeled_row(ui, "Background", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
                 let center_y = ui.cursor().min.y + ui.available_height() / 2.0;
-                let color_rect = egui::Rect::from_center_size(egui::pos2(ui.cursor().min.x + 12.0, center_y), Vec2::new(24.0, 24.0));
+                let color_rect = egui::Rect::from_center_size(
+                    egui::pos2(ui.cursor().min.x + 12.0, center_y),
+                    Vec2::new(24.0, 24.0),
+                );
                 ui.painter().rect_filled(
                     color_rect,
                     RADIUS_S,

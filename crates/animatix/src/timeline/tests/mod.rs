@@ -1,21 +1,36 @@
 use super::*;
 use crate::ast::Property;
 
-#[cfg(test)] mod scene_eval;
-#[cfg(test)] mod colorscheme;
-#[cfg(test)] mod modifiers;
-#[cfg(test)] mod property_lookup;
-#[cfg(test)] mod variable_tracks;
-#[cfg(test)] mod build;
-#[cfg(test)] mod build_diagnostics;
-#[cfg(test)] mod layout;
-#[cfg(test)] mod taffy_layout;
-#[cfg(test)] mod container_helpers;
-#[cfg(test)] mod keyframe_times;
-#[cfg(test)] mod callout;
-#[cfg(test)] mod legend;
-#[cfg(test)] mod bar_chart;
-#[cfg(test)] mod plot_transitions;
+#[cfg(test)]
+mod bar_chart;
+#[cfg(test)]
+mod build;
+#[cfg(test)]
+mod build_diagnostics;
+#[cfg(test)]
+mod callout;
+#[cfg(test)]
+mod colorscheme;
+#[cfg(test)]
+mod container_helpers;
+#[cfg(test)]
+mod keyframe_times;
+#[cfg(test)]
+mod layout;
+#[cfg(test)]
+mod legend;
+#[cfg(test)]
+mod modifiers;
+#[cfg(test)]
+mod plot_transitions;
+#[cfg(test)]
+mod property_lookup;
+#[cfg(test)]
+mod scene_eval;
+#[cfg(test)]
+mod taffy_layout;
+#[cfg(test)]
+mod variable_tracks;
 
 #[test]
 fn test_animated_scene_has_keyframes() {

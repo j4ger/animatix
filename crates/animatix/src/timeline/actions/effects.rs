@@ -9,14 +9,14 @@ fn effect_timing_params() -> Vec<ActionParam> {
     let mut params = vec![
         ActionParam {
             name: "intensity".to_string(),
-            description: "Intensity/strength of the effect (e.g. [intensity: 10.0] for shake amplitude)"
-                .to_string(),
+            description:
+                "Intensity/strength of the effect (e.g. [intensity: 10.0] for shake amplitude)"
+                    .to_string(),
             type_info: "number".to_string(),
         },
         ActionParam {
             name: "frequency".to_string(),
-            description: "Number of oscillations (e.g. [frequency: 5] for shake count)"
-                .to_string(),
+            description: "Number of oscillations (e.g. [frequency: 5] for shake count)".to_string(),
             type_info: "number".to_string(),
         },
     ];
@@ -112,19 +112,19 @@ impl BuiltinAction for Shake {
                 let shake_offset = [start_offset[0] + intensity * direction, start_offset[1]];
 
                 // Build up shake with linear interpolation between cycles
-                track
-                    .geometry
-                    .motion_offset
-                    .ensure([0.0, 0.0])
-                    .add_keyframe(cycle_time, shake_offset, Easing::Linear);
+                track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
+                    cycle_time,
+                    shake_offset,
+                    Easing::Linear,
+                );
             }
 
             // Return to original position at end
-            track
-                .geometry
-                .motion_offset
-                .ensure([0.0, 0.0])
-                .add_keyframe(t_end_ms, start_offset, easing);
+            track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
+                t_end_ms,
+                start_offset,
+                easing,
+            );
         }
     }
 }
@@ -137,7 +137,8 @@ impl BuiltinAction for Pulse {
         ActionSignature {
             name: "pulse".to_string(),
             category: "Effects".to_string(),
-            description: "Pulses the target by scaling up and then returning to normal.".to_string(),
+            description: "Pulses the target by scaling up and then returning to normal."
+                .to_string(),
             params: vec![],
             modifiers: effect_timing_params(),
         }
@@ -265,34 +266,34 @@ impl BuiltinAction for Bounce {
             let t_66 = (time_ms + delay_ms + duration_ms * 0.66) as u64;
 
             // Start
-            track
-                .geometry
-                .motion_offset
-                .ensure([0.0, 0.0])
-                .add_keyframe(t_start_ms, start_offset, Easing::Linear);
+            track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
+                t_start_ms,
+                start_offset,
+                Easing::Linear,
+            );
 
             // Down (elastic overshoot)
             let bounce_down = [start_offset[0], start_offset[1] + intensity];
-            track
-                .geometry
-                .motion_offset
-                .ensure([0.0, 0.0])
-                .add_keyframe(t_33, bounce_down, Easing::EaseOut);
+            track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
+                t_33,
+                bounce_down,
+                Easing::EaseOut,
+            );
 
             // Up (recovery)
             let bounce_up = [start_offset[0], start_offset[1] - intensity * 0.3];
-            track
-                .geometry
-                .motion_offset
-                .ensure([0.0, 0.0])
-                .add_keyframe(t_66, bounce_up, Easing::EaseOut);
+            track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
+                t_66,
+                bounce_up,
+                Easing::EaseOut,
+            );
 
             // Settle back
-            track
-                .geometry
-                .motion_offset
-                .ensure([0.0, 0.0])
-                .add_keyframe(t_end_ms, start_offset, easing);
+            track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
+                t_end_ms,
+                start_offset,
+                easing,
+            );
         }
     }
 }
@@ -313,7 +314,7 @@ mod tests {
                 name: "size".to_string(),
                 value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(40.0)]),
                 value_span: None,
-            trailing_comment: None,
+                trailing_comment: None,
             }],
             modifiers: vec![],
             children: vec![],
@@ -322,32 +323,32 @@ mod tests {
     }
 
     fn shake_action(target: &str, intensity: f64) -> Stmt {
-        Stmt::Action(Action {
-            verb: "shake".to_string(),
-            targets: vec![target.to_string()],
-            args: vec![],
-            modifiers: vec![
-                Modifier {
-                    name: Some("intensity".to_string()),
-                    value: Expr::Num(intensity),
-                },
-                Modifier {
-                    name: None,
-                    value: Expr::Ident("500ms".to_string()),
-                },
-            ],
-            byte_span: None,
-        }, None)
+        Stmt::Action(
+            Action {
+                verb: "shake".to_string(),
+                targets: vec![target.to_string()],
+                args: vec![],
+                modifiers: vec![
+                    Modifier {
+                        name: Some("intensity".to_string()),
+                        value: Expr::Num(intensity),
+                    },
+                    Modifier {
+                        name: None,
+                        value: Expr::Ident("500ms".to_string()),
+                    },
+                ],
+                byte_span: None,
+            },
+            None,
+        )
     }
 
     #[test]
     fn shake_adds_motion_keyframes() {
         let ast = vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
-            body: vec![
-                circle_decl("badge"),
-                shake_action("badge", 15.0),
-            ],
+            body: vec![circle_decl("badge"), shake_action("badge", 15.0)],
             span: None,
         }];
 
@@ -355,7 +356,14 @@ mod tests {
         let track = report.output.tracks.get("badge").expect("badge track");
 
         // Check that multiple motion offset keyframes were added
-        assert!(track.geometry.motion_offset.as_ref().map(|t| !t.keyframes.is_empty()).unwrap_or(false));
+        assert!(
+            track
+                .geometry
+                .motion_offset
+                .as_ref()
+                .map(|t| !t.keyframes.is_empty())
+                .unwrap_or(false)
+        );
         assert!(report.diagnostics.is_empty());
     }
 
@@ -365,19 +373,25 @@ mod tests {
             time: Time::Seconds(0.0),
             body: vec![
                 circle_decl("badge"),
-                Stmt::Action(Action {
-                    verb: "pulse".to_string(),
-                    targets: vec!["badge".to_string()],
-                    args: vec![],
-                    modifiers: vec![Modifier {
-                        name: Some("intensity".to_string()),
-                        value: Expr::Num(0.3),
-                    }, Modifier {
-                        name: None,
-                        value: Expr::Ident("600ms".to_string()),
-                    }],
-                    byte_span: None,
-                }, None),
+                Stmt::Action(
+                    Action {
+                        verb: "pulse".to_string(),
+                        targets: vec!["badge".to_string()],
+                        args: vec![],
+                        modifiers: vec![
+                            Modifier {
+                                name: Some("intensity".to_string()),
+                                value: Expr::Num(0.3),
+                            },
+                            Modifier {
+                                name: None,
+                                value: Expr::Ident("600ms".to_string()),
+                            },
+                        ],
+                        byte_span: None,
+                    },
+                    None,
+                ),
             ],
             span: None,
         }];

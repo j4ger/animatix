@@ -1,12 +1,17 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::primitives::arrow::build_arrow_path;
-use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx, evaluate_text_paths, sample_shape_style};
+use crate::primitives::{
+    ActorCategory, ActorKindId, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx,
+    evaluate_text_paths, sample_shape_style,
+};
 use crate::renderer::error::RenderError;
 use crate::renderer::text::TextKind;
-use crate::timeline::{AnimationTrack, Environment, SceneDimensions, TrackAccessor, Value, VectorShapeState, VelloPath};
 use crate::timeline::animation_track::CalloutPlace;
 use crate::timeline::callout_geometry::derive_callout_geometry;
+use crate::timeline::{
+    AnimationTrack, Environment, SceneDimensions, TrackAccessor, Value, VectorShapeState, VelloPath,
+};
 
 /// Parse a numeric value from an AST expression.
 fn parse_f32(expr: &Expr) -> Option<f32> {
@@ -23,7 +28,7 @@ fn parse_vec2(expr: &Expr) -> Option<[f32; 2]> {
             let x = parse_f32(&items[0])?;
             let y = parse_f32(&items[1])?;
             Some([x, y])
-        }
+        },
         _ => None,
     }
 }
@@ -104,32 +109,32 @@ impl Primitive for CalloutPrimitive {
                     if let Some(parsed) = parse_vec2(&prop.value) {
                         from = parsed;
                     }
-                }
+                },
                 "to" => {
                     if let Some(parsed) = parse_vec2(&prop.value) {
                         to = parsed;
                     }
-                }
+                },
                 "head_size" => {
                     if let Some(val) = parse_f32(&prop.value) {
                         head_size = val.max(1.0);
                     }
-                }
+                },
                 "label" => {
                     if let Some(s) = parse_string(&prop.value) {
                         label_text = s;
                     }
-                }
+                },
                 "label_at" => {
                     if let Some(parsed) = parse_vec2(&prop.value) {
                         label_at = parsed;
                     }
-                }
+                },
                 "target" => {
                     if let Some(s) = parse_string(&prop.value) {
                         callout_target = s;
                     }
-                }
+                },
                 "place" => {
                     if let Some(s) = parse_string(&prop.value) {
                         match CalloutPlace::from_str(&s) {
@@ -137,30 +142,58 @@ impl Primitive for CalloutPrimitive {
                             None => callout_place_invalid = true,
                         }
                     }
-                }
+                },
                 "standoff" => {
                     if let Some(val) = parse_f32(&prop.value) {
                         callout_standoff = val;
                     }
-                }
+                },
                 "to_offset" => {
                     if let Some(parsed) = parse_vec2(&prop.value) {
                         callout_to_offset = parsed;
                     }
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
 
         // Write initial keyframes to tracks so that the property engine
         // can sample them at frame time.
-        track.shape.line_from.ensure([-100.0, 0.0]).add_keyframe(0, from, crate::easing::Easing::Linear);
-        track.shape.line_to.ensure([100.0, 0.0]).add_keyframe(0, to, crate::easing::Easing::Linear);
-        track.shape.head_size.ensure(10.0).add_keyframe(0, head_size, crate::easing::Easing::Linear);
-        track.text.text_content.ensure(String::new()).add_keyframe(0, label_text, crate::easing::Easing::Linear);
-        track.geometry.label_at.ensure([0.0, 0.0]).add_keyframe(0, label_at, crate::easing::Easing::Linear);
-        track.geometry.callout_target.ensure(String::new()).add_keyframe(0, callout_target, crate::easing::Easing::Linear);
-        track.geometry.callout_place.ensure(CalloutPlace::Right).add_keyframe(0, callout_place, crate::easing::Easing::Linear);
+        track.shape.line_from.ensure([-100.0, 0.0]).add_keyframe(
+            0,
+            from,
+            crate::easing::Easing::Linear,
+        );
+        track
+            .shape
+            .line_to
+            .ensure([100.0, 0.0])
+            .add_keyframe(0, to, crate::easing::Easing::Linear);
+        track.shape.head_size.ensure(10.0).add_keyframe(
+            0,
+            head_size,
+            crate::easing::Easing::Linear,
+        );
+        track.text.text_content.ensure(String::new()).add_keyframe(
+            0,
+            label_text,
+            crate::easing::Easing::Linear,
+        );
+        track.geometry.label_at.ensure([0.0, 0.0]).add_keyframe(
+            0,
+            label_at,
+            crate::easing::Easing::Linear,
+        );
+        track.geometry.callout_target.ensure(String::new()).add_keyframe(
+            0,
+            callout_target,
+            crate::easing::Easing::Linear,
+        );
+        track.geometry.callout_place.ensure(CalloutPlace::Right).add_keyframe(
+            0,
+            callout_place,
+            crate::easing::Easing::Linear,
+        );
 
         if callout_place_invalid {
             return Err(vec![Diagnostic::warning(
@@ -169,8 +202,16 @@ impl Primitive for CalloutPrimitive {
                 format!("callout '{}': 'place' must be right|left|top|bottom|auto", label),
             )]);
         }
-        track.geometry.callout_standoff.ensure(40.0).add_keyframe(0, callout_standoff, crate::easing::Easing::Linear);
-        track.geometry.callout_to_offset.ensure([0.0, 0.0]).add_keyframe(0, callout_to_offset, crate::easing::Easing::Linear);
+        track.geometry.callout_standoff.ensure(40.0).add_keyframe(
+            0,
+            callout_standoff,
+            crate::easing::Easing::Linear,
+        );
+        track.geometry.callout_to_offset.ensure([0.0, 0.0]).add_keyframe(
+            0,
+            callout_to_offset,
+            crate::easing::Easing::Linear,
+        );
 
         Ok(())
     }
@@ -183,7 +224,12 @@ impl Primitive for CalloutPrimitive {
         use crate::timeline::Value;
 
         // Derive geometry using the shared helper (handles both manual and targeted mode).
-        let geom = derive_callout_geometry(ctx.track, ctx.time_ms, ctx.target_resolver, ctx.scene_dimensions);
+        let geom = derive_callout_geometry(
+            ctx.track,
+            ctx.time_ms,
+            ctx.target_resolver,
+            ctx.scene_dimensions,
+        );
         let mut from = geom.from;
         let mut to = geom.to;
         let mut head_size = ctx.track.shape.head_size.get(ctx.time_ms, 10.0);
@@ -191,7 +237,8 @@ impl Primitive for CalloutPrimitive {
         // Warn when targeted but resolver didn't find the target.
         let target_name = ctx.track.geometry.callout_target.get(ctx.time_ms, String::new());
         if !target_name.is_empty() && ctx.target_resolver.is_none() {
-            // Build-time diagnostic (CalloutTargetNotFound) already covers this; debug only to avoid per-frame spam.
+            // Build-time diagnostic (CalloutTargetNotFound) already covers this; debug only to
+            // avoid per-frame spam.
             tracing::debug!(
                 "callout '{}': target actor '{}' not found in timeline",
                 ctx.track.label,
@@ -223,26 +270,25 @@ impl Primitive for CalloutPrimitive {
                 (style.stroke_color[2] * 255.0) as u8,
                 (style.stroke_color[3] * 255.0) as u8,
             )),
-            stroke: crate::timeline::shapes::shape_stroke(
-                style.stroke_color,
-                style.stroke_width,
-            )
-            .or_else(|| {
-                Some((
-                    vello::peniko::Color::from_rgba8(
-                        (style.stroke_color[0] * 255.0) as u8,
-                        (style.stroke_color[1] * 255.0) as u8,
-                        (style.stroke_color[2] * 255.0) as u8,
-                        (style.stroke_color[3] * 255.0) as u8,
-                    ),
-                    1.0,
-                ))
-            }),
+            stroke: crate::timeline::shapes::shape_stroke(style.stroke_color, style.stroke_width)
+                .or_else(|| {
+                    Some((
+                        vello::peniko::Color::from_rgba8(
+                            (style.stroke_color[0] * 255.0) as u8,
+                            (style.stroke_color[1] * 255.0) as u8,
+                            (style.stroke_color[2] * 255.0) as u8,
+                            (style.stroke_color[3] * 255.0) as u8,
+                        ),
+                        1.0,
+                    ))
+                }),
             line_cap: 0,
             line_join: 0,
         };
 
-        let mut commands = vec![RenderCommand::Paths { paths: vec![arrow_vello] }];
+        let mut commands = vec![RenderCommand::Paths {
+            paths: vec![arrow_vello],
+        }];
 
         // Sample label text and position
         let mut label_text = ctx.track.text.text_content.get(ctx.time_ms, String::new());
@@ -344,20 +390,30 @@ impl Primitive for CalloutPrimitive {
         match name {
             "from" => {
                 if let Some(parsed) =
-                    crate::timeline::lookup_parse_numeric_vec2_with_lookup_diagnostic(value, env, diagnostics, subject)
+                    crate::timeline::lookup_parse_numeric_vec2_with_lookup_diagnostic(
+                        value,
+                        env,
+                        diagnostics,
+                        subject,
+                    )
                 {
                     callout.from = parsed;
                 }
                 true
-            }
+            },
             "to" => {
                 if let Some(parsed) =
-                    crate::timeline::lookup_parse_numeric_vec2_with_lookup_diagnostic(value, env, diagnostics, subject)
+                    crate::timeline::lookup_parse_numeric_vec2_with_lookup_diagnostic(
+                        value,
+                        env,
+                        diagnostics,
+                        subject,
+                    )
                 {
                     callout.to = parsed;
                 }
                 true
-            }
+            },
             "head_size" => {
                 if let Value::Num(val) =
                     crate::timeline::evaluate_expr(value, env).unwrap_or(Value::Num(10.0))
@@ -365,7 +421,7 @@ impl Primitive for CalloutPrimitive {
                     callout.head_size = val.max(1.0) as f32;
                 }
                 true
-            }
+            },
             _ => false,
         }
     }

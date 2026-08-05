@@ -67,5 +67,10 @@ pub enum GestureResult {
 pub trait GestureHandler {
     /// Handle a gesture event. Return Claimed if the gesture was handled and should not be
     /// passed to lower-priority handlers.
-    fn handle(&mut self, gesture: &Gesture, ctx: &mut crate::app::preview::context::PreviewContext, preview_rect: egui::Rect) -> GestureResult;
-} 
+    fn handle(
+        &mut self,
+        gesture: &Gesture,
+        ctx: &mut crate::app::preview::context::PreviewContext,
+        preview_rect: egui::Rect,
+    ) -> GestureResult;
+}

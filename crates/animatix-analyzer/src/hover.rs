@@ -1,8 +1,9 @@
 //! Hover information provider.
 
+use tree_sitter::Tree;
+
 use crate::symbol_table::{LabelKind, SymbolTable};
 use crate::types::HoverInfo;
-use tree_sitter::Tree;
 
 /// Get hover information at a cursor position.
 pub fn hover_at(
@@ -102,7 +103,9 @@ pub fn hover_at(
                 // Check if it's a component
                 if symbols.components.contains_key(text) {
                     let info = &symbols.components[text];
-                    let params_str = info.params.iter()
+                    let params_str = info
+                        .params
+                        .iter()
                         .map(|p| match &p.param_type {
                             Some(ty) => format!("{}: {:?}", p.name, ty),
                             None => p.name.clone(),
@@ -110,7 +113,10 @@ pub fn hover_at(
                         .collect::<Vec<_>>()
                         .join(", ");
                     Some(HoverInfo {
-                        contents: format!("**Component** `{}`\n\nParameters: ({})", text, params_str),
+                        contents: format!(
+                            "**Component** `{}`\n\nParameters: ({})",
+                            text, params_str
+                        ),
                         range: Some((
                             node.start_position().row,
                             node.start_position().column,
@@ -124,7 +130,7 @@ pub fn hover_at(
             } else {
                 None
             }
-        }
+        },
         // type_identifier doesn't exist in tree-sitter-animatix; types are just identifiers
         // handled by the identifier branch above via symbols.types.contains(text)
         "string" => Some(HoverInfo {

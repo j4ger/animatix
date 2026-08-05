@@ -20,16 +20,10 @@ impl fmt::Display for DisplayStmt<'_> {
                 target,
                 property,
                 value,
-            } => write!(
-                f,
-                "assign {}.{} = {}",
-                target.join("."),
-                property,
-                DisplayExpr(value)
-            ),
+            } => write!(f, "assign {}.{} = {}", target.join("."), property, DisplayExpr(value)),
             ModifierIrStmt::Let { name, value } => {
                 write!(f, "let {} = {}", name, DisplayExpr(value))
-            }
+            },
             ModifierIrStmt::If {
                 condition,
                 then_branch,
@@ -54,7 +48,7 @@ impl fmt::Display for DisplayStmt<'_> {
                     write!(f, " }}")?;
                 }
                 Ok(())
-            }
+            },
             ModifierIrStmt::For {
                 var,
                 index_var,
@@ -73,19 +67,13 @@ impl fmt::Display for DisplayStmt<'_> {
                     write!(f, "{}", DisplayStmt(stmt))?;
                 }
                 write!(f, " }}")
-            }
+            },
             ModifierIrStmt::AssignIndexed {
                 base,
                 index: _,
                 property,
                 value,
-            } => write!(
-                f,
-                "assign {}[<expr>].{} = {}",
-                base,
-                property,
-                DisplayExpr(value)
-            ),
+            } => write!(f, "assign {}[<expr>].{} = {}", base, property, DisplayExpr(value)),
             ModifierIrStmt::Noop => write!(f, "noop"),
         }
     }
@@ -118,16 +106,13 @@ impl fmt::Display for DisplayCompiledExpr<'_> {
                     write!(f, "{}", DisplayCompiledExpr(item))?;
                 }
                 write!(f, ")")
-            }
+            },
             CompiledExpr::Unary(op, expr) => {
                 write!(f, "({op:?} {})", DisplayCompiledExpr(expr))
-            }
-            CompiledExpr::Binary(left, op, right) => write!(
-                f,
-                "({} {op:?} {})",
-                DisplayCompiledExpr(left),
-                DisplayCompiledExpr(right)
-            ),
+            },
+            CompiledExpr::Binary(left, op, right) => {
+                write!(f, "({} {op:?} {})", DisplayCompiledExpr(left), DisplayCompiledExpr(right))
+            },
             CompiledExpr::Select(cond, then_expr, else_expr) => write!(
                 f,
                 "if {} then {} else {}",
@@ -144,15 +129,10 @@ impl fmt::Display for DisplayCompiledExpr<'_> {
                     write!(f, "{}", DisplayCompiledExpr(arg))?;
                 }
                 write!(f, ")")
-            }
+            },
             CompiledExpr::Index(container, index) => {
-                write!(
-                    f,
-                    "{}[{}]",
-                    DisplayCompiledExpr(container),
-                    DisplayCompiledExpr(index)
-                )
-            }
+                write!(f, "{}[{}]", DisplayCompiledExpr(container), DisplayCompiledExpr(index))
+            },
             CompiledExpr::Method(receiver, name, args) => {
                 write!(f, "{}.{name}(", DisplayCompiledExpr(receiver))?;
                 for (idx, arg) in args.iter().enumerate() {
@@ -162,10 +142,10 @@ impl fmt::Display for DisplayCompiledExpr<'_> {
                     write!(f, "{}", DisplayCompiledExpr(arg))?;
                 }
                 write!(f, ")")
-            }
+            },
             CompiledExpr::Closure(params, _body) => {
                 write!(f, "closure({:?})", params)
-            }
+            },
             CompiledExpr::Construct(name, fields) => {
                 write!(f, "{name}{{")?;
                 for (idx, (field, expr)) in fields.iter().enumerate() {
@@ -175,10 +155,10 @@ impl fmt::Display for DisplayCompiledExpr<'_> {
                     write!(f, "{field}: {}", DisplayCompiledExpr(expr))?;
                 }
                 write!(f, "}}")
-            }
+            },
             CompiledExpr::AnchorLookup { actor, anchor } => {
                 write!(f, "anchor({}.{})", actor, anchor.as_str())
-            }
+            },
         }
     }
 }

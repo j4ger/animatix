@@ -16,11 +16,7 @@ pub(crate) fn parse_numeric_vec2(expr: &Expr, env: &Environment) -> Option<[f32;
 /// For Indexed targets, the runtime index is not resolved — use
 /// [`assignment_target_key_with_env`] for frame-time resolution.
 pub(crate) fn assignment_target_key(target: &[TargetSegment]) -> String {
-    target
-        .iter()
-        .map(|s| s.label_str())
-        .collect::<Vec<&str>>()
-        .join(".")
+    target.iter().map(|s| s.label_str()).collect::<Vec<&str>>().join(".")
 }
 
 /// Build a target key at frame time, evaluating any Indexed segments against
@@ -39,7 +35,7 @@ pub(crate) fn assignment_target_key_with_env(
                 match idx_val {
                     Value::Num(n) if n >= 0.0 && n == n.floor() => {
                         parts.push(array_actor_label(base, n as usize));
-                    }
+                    },
                     Value::Num(n) => {
                         let msg = format!(
                             "Array index for '{}' must be a non-negative integer, got {}",
@@ -47,7 +43,7 @@ pub(crate) fn assignment_target_key_with_env(
                         );
                         tracing::warn!("{}", msg);
                         return Err(EvalError::TypeMismatch(msg));
-                    }
+                    },
                     other => {
                         let msg = format!(
                             "Array index for '{}' must evaluate to a number, got {:?}",
@@ -55,9 +51,9 @@ pub(crate) fn assignment_target_key_with_env(
                         );
                         tracing::warn!("{}", msg);
                         return Err(EvalError::TypeMismatch(msg));
-                    }
+                    },
                 }
-            }
+            },
         }
     }
     Ok(parts.join("."))
@@ -120,7 +116,7 @@ pub(crate) fn best_path_suggestion<'a>(
         }
 
         match best {
-            Some((_, best_score)) if score <= best_score => {}
+            Some((_, best_score)) if score <= best_score => {},
             _ => best = Some((candidate, score)),
         }
     }
@@ -142,7 +138,7 @@ pub(crate) fn evaluate_expr_with_lookup_diagnostic(
                 best_path_suggestion(&lookup_key, candidate_keys.iter().map(String::as_str));
             push_unknown_lookup_path_diagnostic(diagnostics, subject, &lookup_key, suggestion);
             None
-        }
+        },
         Err(_) => None,
     }
 }
@@ -182,7 +178,7 @@ pub(crate) fn parse_color_in_env_with_lookup_diagnostic(
                 .with_subject(subject),
             );
             Some(fallback)
-        }
+        },
         Err(_) => Some(fallback),
     }
 }
@@ -213,35 +209,33 @@ pub(crate) fn for_iter_values(iterable: &Expr, env: &Environment) -> Vec<Value> 
                         return Some(Value::Color([r as f64, g as f64, b as f64, a as f64]));
                     }
                 }
-                tracing::warn!(
-                    "for_iter_values: failed to evaluate item {:?}: {}",
-                    item, e
-                );
+                tracing::warn!("for_iter_values: failed to evaluate item {:?}: {}", item, e);
                 None
-            }
+            },
         }
     };
 
     match iterable {
-        Expr::Tuple(items) => items.iter().filter_map(|item| try_eval(item)).collect(),
-        Expr::List(items) => items.iter().filter_map(|item| try_eval(item)).collect(),
+        Expr::Tuple(items) => items.iter().filter_map(try_eval).collect(),
+        Expr::List(items) => items.iter().filter_map(try_eval).collect(),
         _ => match evaluate_expr(iterable, env) {
             Ok(Value::List(items)) => items,
             Ok(Value::Vec2([start, end])) => {
                 let start = start as i64;
                 let end = end as i64;
                 (start..end).map(|i| Value::Num(i as f64)).collect()
-            }
+            },
             Ok(Value::Vec3(values)) => values.into_iter().map(Value::Num).collect(),
             Ok(Value::Vec4(values)) => values.into_iter().map(Value::Num).collect(),
             Ok(value) => vec![value],
             Err(e) => {
                 tracing::warn!(
                     "for_iter_values: failed to evaluate iterable {:?}: {}",
-                    iterable, e
+                    iterable,
+                    e
                 );
                 Vec::new()
-            }
+            },
         },
     }
 }
@@ -269,12 +263,10 @@ mod tests {
     #[test]
     fn test_assignment_target_key_with_env_indexed() {
         // Given: bars[i] with i=2 in the environment
-        let target = vec![
-            TargetSegment::Indexed {
-                base: "bars".to_string(),
-                index: Box::new(Expr::Ident("i".to_string())),
-            },
-        ];
+        let target = vec![TargetSegment::Indexed {
+            base: "bars".to_string(),
+            index: Box::new(Expr::Ident("i".to_string())),
+        }];
         let mut env = Environment::new();
         env.set("i", Value::Num(2.0));
 
@@ -295,7 +287,6 @@ mod tests {
         assert_eq!(key, "container.child");
     }
 
-    #[test]
     #[test]
     fn test_assignment_target_key_static() {
         // All-static path must produce the same key as before

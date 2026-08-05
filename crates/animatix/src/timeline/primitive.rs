@@ -94,7 +94,7 @@ impl PrimitiveDescriptor {
                                 },
                             }
                         }
-                    }
+                    },
                     ActorCategory::Plot => Self {
                         actor_type: primitive.type_name(),
                         family: PrimitiveFamily::Plot,

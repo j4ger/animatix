@@ -20,16 +20,16 @@ pub(crate) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64
     let start_stroke_progress = track.style.stroke_progress.get(t_start_ms, 1.0);
     let start_fill_opacity = track.style.fill_opacity.get(t_start_ms, 1.0);
 
-    track
-        .shape
-        .vector_paths
-        .ensure(Vec::new())
-        .add_keyframe(t_start_ms, start_vector_paths, Easing::Linear);
-    track
-        .geometry
-        .position
-        .ensure([0.0, 0.0])
-        .add_keyframe(t_start_ms, start_position, Easing::Linear);
+    track.shape.vector_paths.ensure(Vec::new()).add_keyframe(
+        t_start_ms,
+        start_vector_paths,
+        Easing::Linear,
+    );
+    track.geometry.position.ensure([0.0, 0.0]).add_keyframe(
+        t_start_ms,
+        start_position,
+        Easing::Linear,
+    );
     track
         .geometry
         .size
@@ -38,55 +38,56 @@ pub(crate) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64
     track
         .ensure_layout_size(default_size)
         .add_keyframe(t_start_ms, start_size, Easing::Linear);
-    track
-        .shape
-        .line_from
-        .ensure([-50.0, 0.0])
-        .add_keyframe(t_start_ms, start_line_from, Easing::Linear);
+    track.shape.line_from.ensure([-50.0, 0.0]).add_keyframe(
+        t_start_ms,
+        start_line_from,
+        Easing::Linear,
+    );
     track
         .shape
         .line_to
         .ensure([50.0, 0.0])
         .add_keyframe(t_start_ms, start_line_to, Easing::Linear);
+    track.shape.arc_angles.ensure(default_arc).add_keyframe(
+        t_start_ms,
+        start_arc_angles,
+        Easing::Linear,
+    );
     track
-        .shape
-        .arc_angles
-        .ensure(default_arc)
-        .add_keyframe(t_start_ms, start_arc_angles, Easing::Linear);
-    track.style
+        .style
         .color
         .ensure(DEFAULT_WHITE)
         .add_keyframe(t_start_ms, start_color, Easing::Linear);
-    track
-        .shape
-        .shape_type
-        .ensure(ShapeType::Rect)
-        .add_keyframe(t_start_ms, start_shape_type, Easing::Linear);
+    track.shape.shape_type.ensure(ShapeType::Rect).add_keyframe(
+        t_start_ms,
+        start_shape_type,
+        Easing::Linear,
+    );
     track
         .style
         .opacity
         .ensure(1.0)
         .add_keyframe(t_start_ms, start_opacity, Easing::Linear);
-    track
-        .style
-        .stroke_width
-        .ensure(2.0)
-        .add_keyframe(t_start_ms, start_stroke_width, Easing::Linear);
-    track
-        .style
-        .stroke_color
-        .ensure(DEFAULT_WHITE)
-        .add_keyframe(t_start_ms, start_stroke_color, Easing::Linear);
-    track
-        .style
-        .stroke_progress
-        .ensure(1.0)
-        .add_keyframe(t_start_ms, start_stroke_progress, Easing::Linear);
-    track
-        .style
-        .fill_opacity
-        .ensure(1.0)
-        .add_keyframe(t_start_ms, start_fill_opacity, Easing::Linear);
+    track.style.stroke_width.ensure(2.0).add_keyframe(
+        t_start_ms,
+        start_stroke_width,
+        Easing::Linear,
+    );
+    track.style.stroke_color.ensure(DEFAULT_WHITE).add_keyframe(
+        t_start_ms,
+        start_stroke_color,
+        Easing::Linear,
+    );
+    track.style.stroke_progress.ensure(1.0).add_keyframe(
+        t_start_ms,
+        start_stroke_progress,
+        Easing::Linear,
+    );
+    track.style.fill_opacity.ensure(1.0).add_keyframe(
+        t_start_ms,
+        start_fill_opacity,
+        Easing::Linear,
+    );
 }
 
 /// Preserve current track values at `t_start_ms` for delayed animations.
@@ -141,44 +142,26 @@ pub(crate) fn insert_end_keyframes(
         .position
         .ensure([0.0, 0.0])
         .add_keyframe(t_end_ms, position, easing);
-    track
-        .geometry
-        .size
-        .ensure(default_size)
-        .add_keyframe(t_end_ms, size, easing);
-    track
-        .ensure_layout_size(default_size)
-        .add_keyframe(t_end_ms, size, easing);
+    track.geometry.size.ensure(default_size).add_keyframe(t_end_ms, size, easing);
+    track.ensure_layout_size(default_size).add_keyframe(t_end_ms, size, easing);
     track
         .shape
         .line_from
         .ensure([-50.0, 0.0])
         .add_keyframe(t_end_ms, line_from, easing);
-    track
-        .shape
-        .line_to
-        .ensure([50.0, 0.0])
-        .add_keyframe(t_end_ms, line_to, easing);
+    track.shape.line_to.ensure([50.0, 0.0]).add_keyframe(t_end_ms, line_to, easing);
     track
         .shape
         .arc_angles
         .ensure(default_arc)
         .add_keyframe(t_end_ms, arc_angles, easing);
-    track
-        .style
-        .color
-        .ensure(DEFAULT_WHITE)
-        .add_keyframe(t_end_ms, color, easing);
+    track.style.color.ensure(DEFAULT_WHITE).add_keyframe(t_end_ms, color, easing);
     track
         .shape
         .shape_type
         .ensure(ShapeType::Rect)
         .add_keyframe(t_end_ms, shape_type, easing);
-    track
-        .style
-        .opacity
-        .ensure(1.0)
-        .add_keyframe(t_end_ms, opacity, easing);
+    track.style.opacity.ensure(1.0).add_keyframe(t_end_ms, opacity, easing);
     track
         .style
         .stroke_width

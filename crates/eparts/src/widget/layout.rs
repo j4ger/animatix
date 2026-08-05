@@ -314,21 +314,17 @@ pub fn separator_labeled(ui: &mut egui::Ui, label: impl Into<egui::WidgetText>) 
     let label = label.into();
     let label_str = label.text().to_string();
     ui.horizontal(|ui| {
-        let galley = ui.painter().layout_no_wrap(
-            label_str.clone(),
-            TextRole::BodyS.font_id(),
-            t.text.muted,
-        );
+        let galley =
+            ui.painter()
+                .layout_no_wrap(label_str.clone(), TextRole::BodyS.font_id(), t.text.muted);
         let label_w = galley.size().x + s.space_2 * 2.0;
         let avail = ui.available_width();
         let line_h = STROKE_WIDTH;
         let line_fraction = (avail - label_w) / 2.0;
 
         // Left line
-        let (left_rect, _) = ui.allocate_exact_size(
-            Vec2::new(line_fraction.max(0.0), line_h),
-            egui::Sense::hover(),
-        );
+        let (left_rect, _) =
+            ui.allocate_exact_size(Vec2::new(line_fraction.max(0.0), line_h), egui::Sense::hover());
         ui.painter().line_segment(
             [
                 egui::pos2(left_rect.min.x, left_rect.center().y),
@@ -352,10 +348,8 @@ pub fn separator_labeled(ui: &mut egui::Ui, label: impl Into<egui::WidgetText>) 
         );
 
         // Right line
-        let (right_rect, _) = ui.allocate_exact_size(
-            Vec2::new(line_fraction.max(0.0), line_h),
-            egui::Sense::hover(),
-        );
+        let (right_rect, _) =
+            ui.allocate_exact_size(Vec2::new(line_fraction.max(0.0), line_h), egui::Sense::hover());
         ui.painter().line_segment(
             [
                 egui::pos2(right_rect.min.x, right_rect.center().y),
@@ -426,10 +420,7 @@ pub fn group_box(
 ///     });
 /// });
 /// ```
-pub fn status_bar(
-    ui: &mut Ui,
-    build: impl FnOnce(&mut Ui),
-) {
+pub fn status_bar(ui: &mut Ui, build: impl FnOnce(&mut Ui)) {
     let t = theme(ui);
     let s = spatial(ui);
     let h = s.row_s;

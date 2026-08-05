@@ -1,15 +1,18 @@
-use crate::app::commands::{ActionQueue, DocumentCommand, KeyframeCommand, PropertyEdit, PropertyValue, ShellAction, ViewAction};
+use animatix::timeline::{
+    PropertyValue as TlPropertyValue, SceneDimensions, Timeline, lookup_property,
+    read_property_value_or_default,
+};
+use egui::{Color32, Pos2, Rect, RichText, Sense, Stroke, Vec2};
+
+use crate::app::commands::{
+    ActionQueue, DocumentCommand, KeyframeCommand, PropertyEdit, PropertyValue, ShellAction,
+    ViewAction,
+};
 use crate::app::components::button::Button;
-use crate::app::design_tokens::semantic::border;
-use crate::app::design_tokens::semantic::status;
-use crate::app::design_tokens::semantic::surface;
-use crate::app::design_tokens::semantic::text;
-use crate::app::design_tokens::spatial::spatial;
-use crate::app::design_tokens::spatial::{RADIUS_L, RADIUS_S, STROKE_WIDTH};
+use crate::app::design_tokens::semantic::{border, status, surface, text};
+use crate::app::design_tokens::spatial::{RADIUS_L, RADIUS_S, STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::preview::{ActorProps, PreviewTransform};
-use animatix::timeline::{PropertyValue as TlPropertyValue, SceneDimensions, Timeline, lookup_property, read_property_value_or_default};
-use egui::{Color32, Pos2, Rect, RichText, Sense, Stroke, Vec2};
 /// Show the property popup attached to a selected actor.
 ///
 /// Attached to actor's top edge, follows actor, clamped to viewport.
@@ -58,7 +61,8 @@ pub fn show_property_popup(
     );
     // Build child UI for content
     let sp = spatial(ui);
-    let mut content = ui.new_child(egui::UiBuilder::new().max_rect(popup_rect.shrink(sp.base.space_3)));
+    let mut content =
+        ui.new_child(egui::UiBuilder::new().max_rect(popup_rect.shrink(sp.base.space_3)));
     content.set_clip_rect(popup_rect);
     // ── Header: actor name + close (draggable) ──
     let header_h = sp.base.row_l; // 28px - comfortable height for header
@@ -79,7 +83,8 @@ pub fn show_property_popup(
         ui.painter().rect_filled(header_rect, RADIUS_S as u8, surface::HOVER);
     }
     // Subtle drag handle indicator (6 dots) on the left side of header
-    let handle_center = Pos2::new(header_rect.min.x + sp.base.space_2 + 4.0, header_rect.center().y);
+    let handle_center =
+        Pos2::new(header_rect.min.x + sp.base.space_2 + 4.0, header_rect.center().y);
     let dot_color = if header_resp.hovered() {
         text::MUTED
     } else {
@@ -114,7 +119,9 @@ pub fn show_property_popup(
     let opacity = timeline
         .and_then(|tl| {
             tl.get_track(actor).map(|track| {
-                let schema = lookup_property("opacity").unwrap();
+                let Some(schema) = lookup_property("opacity") else {
+                    return 1.0;
+                };
                 let val = read_property_value_or_default(track, schema, time_ms);
                 match val {
                     TlPropertyValue::F32(v) => v,

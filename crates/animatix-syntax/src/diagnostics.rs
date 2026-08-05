@@ -110,7 +110,8 @@ pub enum DiagnosticCode {
     PersistIgnoresDuration,
     /// Scene persistence: `persist` targets a layout-managed leaf child directly.
     PersistLayoutManagedChild,
-    /// Scene persistence: `persist` is used in a single-scene file or the last scene (no successor).
+    /// Scene persistence: `persist` is used in a single-scene file or the last scene (no
+    /// successor).
     PersistTargetNotCarried,
     /// Scene persistence: a scene has multiple predecessors in the play graph.
     CarryAmbiguousPredecessor,
@@ -153,10 +154,10 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::UnsupportedModifierKey => write!(f, "unsupported-modifier-key"),
             DiagnosticCode::UnsupportedAssignmentProperty => {
                 write!(f, "unsupported-assignment-property")
-            }
+            },
             DiagnosticCode::InvalidAssignmentTarget => {
                 write!(f, "invalid-assignment-target")
-            }
+            },
             DiagnosticCode::InvalidModifierValue => write!(f, "invalid-modifier-value"),
             DiagnosticCode::InvalidConfigValue => write!(f, "invalid-config-value"),
             DiagnosticCode::ConflictingModifierKey => write!(f, "conflicting-modifier-key"),
@@ -166,22 +167,24 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::UnsupportedActionTarget => write!(f, "unsupported-action-target"),
             DiagnosticCode::UnsupportedSequenceStatement => {
                 write!(f, "unsupported-sequence-statement")
-            }
+            },
             DiagnosticCode::UnknownTargetPath => write!(f, "unknown-target-path"),
             DiagnosticCode::UnknownLookupPath => write!(f, "unknown-lookup-path"),
             DiagnosticCode::UnsupportedStaggerStatement => {
                 write!(f, "unsupported-stagger-statement")
-            }
+            },
             DiagnosticCode::MediaLoadFailure => write!(f, "media-load-failure"),
             DiagnosticCode::LayoutSizeFallback => write!(f, "layout-size-fallback"),
             DiagnosticCode::UnsupportedMediaAssignment => write!(f, "unsupported-media-assignment"),
             DiagnosticCode::InvalidColorschemeData => write!(f, "invalid-colorscheme-data"),
-            DiagnosticCode::ColorschemeInheritanceCycle => write!(f, "colorscheme-inheritance-cycle"),
+            DiagnosticCode::ColorschemeInheritanceCycle => {
+                write!(f, "colorscheme-inheritance-cycle")
+            },
             DiagnosticCode::ModuleExportEvalError => write!(f, "module-export-eval-error"),
             DiagnosticCode::ModifierCompilationError => write!(f, "modifier-compilation-error"),
             DiagnosticCode::ConflictingPositionBinding => {
                 write!(f, "conflicting-position-binding")
-            }
+            },
             DiagnosticCode::IgnoredOffset => write!(f, "ignored-offset"),
             DiagnosticCode::DuplicateSceneName => write!(f, "duplicate-scene-name"),
             DiagnosticCode::PlayTargetNotFound => write!(f, "play-target-not-found"),
@@ -200,16 +203,16 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::UnknownComponentProperty => write!(f, "unknown-component-property"),
             DiagnosticCode::AlwaysOverridesKeyframes => {
                 write!(f, "always-overrides-keyframes")
-            }
+            },
             DiagnosticCode::AbsolutePositionOnLayoutManagedChild => {
                 write!(f, "absolute-position-on-layout-managed-child")
-            }
+            },
             DiagnosticCode::DeprecatedPrimitive => write!(f, "deprecated-primitive"),
             DiagnosticCode::InvalidPropertyValue => write!(f, "invalid-property-value"),
             DiagnosticCode::ReservedLabelPrefix => write!(f, "reserved-label-prefix"),
             DiagnosticCode::BracedPropertySilentDrop => {
                 write!(f, "braced-property-silent-drop")
-            }
+            },
             DiagnosticCode::CalloutTargetNotFound => write!(f, "callout-target-not-found"),
             DiagnosticCode::MissingWildcardArm => write!(f, "missing-wildcard-arm"),
         }
@@ -330,11 +333,7 @@ impl<T> BuildReport<T> {
         // (code, message, subject) combination.
         let mut seen = std::collections::HashSet::new();
         diagnostics.retain(|d| {
-            let key = (
-                d.code,
-                d.message.clone(),
-                d.location.subject.clone(),
-            );
+            let key = (d.code, d.message.clone(), d.location.subject.clone());
             seen.insert(key)
         });
         Self {
@@ -363,11 +362,7 @@ impl DiagnosticPhaseSummary {
 
     /// Returns a human-readable label for this phase summary.
     pub fn label(&self) -> String {
-        format!(
-            "{}: {}",
-            self.phase,
-            severity_summary(self.warnings, self.errors)
-        )
+        format!("{}: {}", self.phase, severity_summary(self.warnings, self.errors))
     }
 }
 
@@ -396,7 +391,7 @@ pub fn format_diagnostic(diagnostic: &Diagnostic) -> String {
     ) {
         (Some(path), Some(line), Some(col)) => {
             format!(" --> {}:{}:{}", path.display(), line, col)
-        }
+        },
         (Some(path), None, None) => format!(" --> {}", path.display()),
         (None, Some(line), Some(col)) => format!(" --> {}:{}", line, col),
         _ => String::new(),
@@ -434,10 +429,7 @@ pub fn format_diagnostic_with_source(diagnostic: &Diagnostic, source: &str) -> S
 }
 
 /// Extract the source line containing `span` and the caret position within it.
-fn extract_source_snippet(
-    source: &str,
-    span: &Range<usize>,
-) -> Option<(String, usize, usize)> {
+fn extract_source_snippet(source: &str, span: &Range<usize>) -> Option<(String, usize, usize)> {
     let start = span.start;
     let end = span.end;
     if start > source.len() || end > source.len() {
@@ -447,10 +439,7 @@ fn extract_source_snippet(
     // Find the start of the line containing `start`
     let line_start = source[..start].rfind('\n').map(|i| i + 1).unwrap_or(0);
     // Find the end of the line containing `end`
-    let line_end = source[end..]
-        .find('\n')
-        .map(|i| end + i)
-        .unwrap_or(source.len());
+    let line_end = source[end..].find('\n').map(|i| end + i).unwrap_or(source.len());
 
     let line_text = source[line_start..line_end].to_string();
     let caret_offset = start - line_start;
@@ -539,10 +528,7 @@ mod tests {
 
     #[test]
     fn source_load_failure_code_formats_honestly() {
-        assert_eq!(
-            DiagnosticCode::SourceLoadFailure.to_string(),
-            "source-load-failure"
-        );
+        assert_eq!(DiagnosticCode::SourceLoadFailure.to_string(), "source-load-failure");
     }
 
     #[test]
@@ -631,10 +617,7 @@ mod tests {
             ),
         ];
 
-        assert_eq!(
-            diagnostics_phase_summary(&diagnostics),
-            "parse: 1 error | build: 1 warning"
-        );
+        assert_eq!(diagnostics_phase_summary(&diagnostics), "parse: 1 error | build: 1 warning");
     }
 
     #[test]
@@ -667,14 +650,8 @@ mod tests {
 
         let report: BuildReport<()> = BuildReport::new((), diagnostics);
         assert_eq!(report.diagnostics.len(), 2);
-        assert!(report
-            .diagnostics
-            .iter()
-            .any(|d| d.message == "Unknown action 'spin'"));
-        assert!(report
-            .diagnostics
-            .iter()
-            .any(|d| d.message == "Unknown action 'pulse'"));
+        assert!(report.diagnostics.iter().any(|d| d.message == "Unknown action 'spin'"));
+        assert!(report.diagnostics.iter().any(|d| d.message == "Unknown action 'pulse'"));
     }
 
     #[test]
@@ -700,10 +677,7 @@ mod tests {
 
     #[test]
     fn persist_ignores_duration_code_formats_honestly() {
-        assert_eq!(
-            DiagnosticCode::PersistIgnoresDuration.to_string(),
-            "persist-ignores-duration"
-        );
+        assert_eq!(DiagnosticCode::PersistIgnoresDuration.to_string(), "persist-ignores-duration");
     }
 
     #[test]
@@ -732,10 +706,7 @@ mod tests {
 
     #[test]
     fn persist_after_remove_code_formats_honestly() {
-        assert_eq!(
-            DiagnosticCode::PersistAfterRemove.to_string(),
-            "persist-after-remove"
-        );
+        assert_eq!(DiagnosticCode::PersistAfterRemove.to_string(), "persist-after-remove");
     }
 
     #[test]

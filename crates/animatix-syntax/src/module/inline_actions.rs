@@ -1,6 +1,7 @@
+use std::collections::HashMap;
+
 use crate::ast::{Expr, Modifier, Span, Stmt};
 use crate::module::{ActionTemplate, InstanceActionRegistry};
-use std::collections::HashMap;
 
 // NOTE: This function takes ownership of Vec<Stmt> and produces a new
 // Vec<Stmt> (owned tree transformation with potential 1→N expansion).
@@ -50,7 +51,7 @@ fn inline_stmt(
                 return apply_modifiers_to_body(body, &unconsumed, span);
             }
             vec![Stmt::Action(action, span)]
-        }
+        },
         // For all other statements, recurse into bodies using shared walk
         mut stmt => {
             let bodies = crate::walk::collect_stmt_bodies_mut(&mut stmt);
@@ -58,7 +59,7 @@ fn inline_stmt(
                 *body = inline_custom_actions(std::mem::take(body), registry, module_actions);
             }
             vec![stmt]
-        }
+        },
     }
 }
 
@@ -129,7 +130,7 @@ fn is_time_expr(expr: &Expr) -> bool {
             } else {
                 false
             }
-        }
+        },
         _ => false,
     }
 }
@@ -168,46 +169,35 @@ fn substitute_params_in_stmt(stmt: &Stmt, bindings: &HashMap<String, Expr>) -> S
                 .map(|m| substitute_params_in_modifier(&m, bindings))
                 .collect();
             Stmt::Action(action, span)
-        }
+        },
         Stmt::Keyframe { time, body, span } => Stmt::Keyframe {
             time,
-            body: body
-                .iter()
-                .map(|s| substitute_params_in_stmt(s, bindings))
-                .collect(),
+            body: body.iter().map(|s| substitute_params_in_stmt(s, bindings)).collect(),
             span,
         },
         Stmt::RelativeKeyframe { offset, body, span } => Stmt::RelativeKeyframe {
             offset,
-            body: body
-                .iter()
-                .map(|s| substitute_params_in_stmt(s, bindings))
-                .collect(),
+            body: body.iter().map(|s| substitute_params_in_stmt(s, bindings)).collect(),
             span,
         },
         Stmt::Sequence { body, span } => Stmt::Sequence {
-            body: body
-                .iter()
-                .map(|s| substitute_params_in_stmt(s, bindings))
-                .collect(),
+            body: body.iter().map(|s| substitute_params_in_stmt(s, bindings)).collect(),
             span,
         },
-        Stmt::Stagger { modifiers, body, span } => Stmt::Stagger {
+        Stmt::Stagger {
+            modifiers,
+            body,
+            span,
+        } => Stmt::Stagger {
             modifiers: modifiers
                 .into_iter()
                 .map(|m| substitute_params_in_modifier(&m, bindings))
                 .collect(),
-            body: body
-                .iter()
-                .map(|s| substitute_params_in_stmt(s, bindings))
-                .collect(),
+            body: body.iter().map(|s| substitute_params_in_stmt(s, bindings)).collect(),
             span,
         },
         Stmt::Always { body, span } => Stmt::Always {
-            body: body
-                .iter()
-                .map(|s| substitute_params_in_stmt(s, bindings))
-                .collect(),
+            body: body.iter().map(|s| substitute_params_in_stmt(s, bindings)).collect(),
             span,
         },
         Stmt::ReactiveBinding {
@@ -246,7 +236,12 @@ fn substitute_params_in_stmt(stmt: &Stmt, bindings: &HashMap<String, Expr>) -> S
             scrutinee: substitute_params_in_expr(&scrutinee, bindings),
             arms: arms
                 .iter()
-                .map(|(pat, body)| (pat.clone(), body.iter().map(|s| substitute_params_in_stmt(s, bindings)).collect()))
+                .map(|(pat, body)| {
+                    (
+                        pat.clone(),
+                        body.iter().map(|s| substitute_params_in_stmt(s, bindings)).collect(),
+                    )
+                })
                 .collect(),
             span,
         },
@@ -260,10 +255,7 @@ fn substitute_params_in_stmt(stmt: &Stmt, bindings: &HashMap<String, Expr>) -> S
             var,
             index_var,
             iterable: substitute_params_in_expr(&iterable, bindings),
-            body: body
-                .iter()
-                .map(|s| substitute_params_in_stmt(s, bindings))
-                .collect(),
+            body: body.iter().map(|s| substitute_params_in_stmt(s, bindings)).collect(),
             span,
         },
         other => other,
@@ -272,7 +264,9 @@ fn substitute_params_in_stmt(stmt: &Stmt, bindings: &HashMap<String, Expr>) -> S
 
 fn substitute_params_in_expr(expr: &Expr, bindings: &HashMap<String, Expr>) -> Expr {
     match expr {
-        Expr::Ident(name) => bindings.get(name).cloned().unwrap_or_else(|| Expr::Ident(name.clone())),
+        Expr::Ident(name) => {
+            bindings.get(name).cloned().unwrap_or_else(|| Expr::Ident(name.clone()))
+        },
         Expr::Path(parts) => {
             if let Some(first) = parts.first() {
                 if let Some(bound) = bindings.get(first) {
@@ -283,22 +277,21 @@ fn substitute_params_in_expr(expr: &Expr, bindings: &HashMap<String, Expr>) -> E
                 }
             }
             Expr::Path(parts.clone())
-        }
+        },
         Expr::Tuple(items) => Expr::Tuple(
             items.iter().map(|item| substitute_params_in_expr(item, bindings)).collect(),
         ),
-        Expr::List(items) => Expr::List(
-            items.iter().map(|item| substitute_params_in_expr(item, bindings)).collect(),
-        ),
+        Expr::List(items) => {
+            Expr::List(items.iter().map(|item| substitute_params_in_expr(item, bindings)).collect())
+        },
         Expr::Binary(lhs, op, rhs) => Expr::Binary(
             Box::new(substitute_params_in_expr(lhs, bindings)),
             op.clone(),
             Box::new(substitute_params_in_expr(rhs, bindings)),
         ),
-        Expr::Unary(op, value) => Expr::Unary(
-            op.clone(),
-            Box::new(substitute_params_in_expr(value, bindings)),
-        ),
+        Expr::Unary(op, value) => {
+            Expr::Unary(op.clone(), Box::new(substitute_params_in_expr(value, bindings)))
+        },
         Expr::Call(name, args) => Expr::Call(
             name.clone(),
             args.iter().map(|arg| substitute_params_in_expr(arg, bindings)).collect(),
@@ -308,10 +301,9 @@ fn substitute_params_in_expr(expr: &Expr, bindings: &HashMap<String, Expr>) -> E
             name.clone(),
             args.iter().map(|arg| substitute_params_in_expr(arg, bindings)).collect(),
         ),
-        Expr::Closure(params, body) => Expr::Closure(
-            params.clone(),
-            Box::new(substitute_params_in_expr(body, bindings)),
-        ),
+        Expr::Closure(params, body) => {
+            Expr::Closure(params.clone(), Box::new(substitute_params_in_expr(body, bindings)))
+        },
         Expr::Conditional(cond, then_expr, else_expr) => Expr::Conditional(
             Box::new(substitute_params_in_expr(cond, bindings)),
             Box::new(substitute_params_in_expr(then_expr, bindings)),
@@ -320,7 +312,9 @@ fn substitute_params_in_expr(expr: &Expr, bindings: &HashMap<String, Expr>) -> E
         Expr::Match(scrutinee, arms) => Expr::Match(
             Box::new(substitute_params_in_expr(scrutinee, bindings)),
             arms.iter()
-                .map(|(pat, expr)| (pat.clone(), Box::new(substitute_params_in_expr(expr, bindings))))
+                .map(|(pat, expr)| {
+                    (pat.clone(), Box::new(substitute_params_in_expr(expr, bindings)))
+                })
                 .collect(),
         ),
         Expr::Construct(name, props) => Expr::Construct(
@@ -348,7 +342,10 @@ fn substitute_params_in_expr(expr: &Expr, bindings: &HashMap<String, Expr>) -> E
     }
 }
 
-fn substitute_params_in_modifier(modifier: &Modifier, bindings: &HashMap<String, Expr>) -> Modifier {
+fn substitute_params_in_modifier(
+    modifier: &Modifier,
+    bindings: &HashMap<String, Expr>,
+) -> Modifier {
     Modifier {
         name: modifier.name.clone(),
         value: substitute_params_in_expr(&modifier.value, bindings),
@@ -368,8 +365,7 @@ fn apply_modifiers_to_body(
         return body;
     }
 
-    body
-        .into_iter()
+    body.into_iter()
         .map(|stmt| match stmt {
             Stmt::Assignment {
                 target,
@@ -389,7 +385,7 @@ fn apply_modifiers_to_body(
             Stmt::Action(mut action, _) => {
                 action.modifiers = invocation_modifiers.to_vec();
                 Stmt::Action(action, span)
-            }
+            },
             other => other,
         })
         .collect()
@@ -433,7 +429,11 @@ mod tests {
                 param_type: Some(TypeAnnotation::Num),
                 default: Some(Expr::Num(1.2)),
             }],
-            body: vec![make_assignment("self", "scale", Expr::Ident("scale".to_string()))],
+            body: vec![make_assignment(
+                "self",
+                "scale",
+                Expr::Ident("scale".to_string()),
+            )],
         };
 
         let registry: InstanceActionRegistry =
@@ -456,7 +456,7 @@ mod tests {
         match &result[0] {
             Stmt::Assignment { value, .. } => {
                 assert_eq!(*value, Expr::Num(1.5));
-            }
+            },
             other => panic!("expected assignment, got {:?}", other),
         }
     }
@@ -469,7 +469,11 @@ mod tests {
                 param_type: Some(TypeAnnotation::Num),
                 default: Some(Expr::Num(1.2)),
             }],
-            body: vec![make_assignment("self", "scale", Expr::Ident("scale".to_string()))],
+            body: vec![make_assignment(
+                "self",
+                "scale",
+                Expr::Ident("scale".to_string()),
+            )],
         };
 
         let registry: InstanceActionRegistry =
@@ -485,7 +489,7 @@ mod tests {
         match &result[0] {
             Stmt::Assignment { value, .. } => {
                 assert_eq!(*value, Expr::Num(1.2));
-            }
+            },
             other => panic!("expected assignment, got {:?}", other),
         }
     }
@@ -537,12 +541,14 @@ mod tests {
         let result = inline_stmt(invocation, &registry, &module_actions);
         assert_eq!(result.len(), 1);
         match &result[0] {
-            Stmt::Assignment { value, modifiers, .. } => {
+            Stmt::Assignment {
+                value, modifiers, ..
+            } => {
                 assert_eq!(*value, Expr::Num(1.5));
                 // `duration` was consumed as param, `scale` was consumed as param,
                 // so no modifiers should remain to be applied to body
                 assert!(modifiers.is_empty(), "expected no modifiers, got {:?}", modifiers);
-            }
+            },
             other => panic!("expected assignment, got {:?}", other),
         }
     }
@@ -555,7 +561,11 @@ mod tests {
                 param_type: Some(TypeAnnotation::Num),
                 default: Some(Expr::Num(1.2)),
             }],
-            body: vec![make_assignment("self", "scale", Expr::Ident("scale".to_string()))],
+            body: vec![make_assignment(
+                "self",
+                "scale",
+                Expr::Ident("scale".to_string()),
+            )],
         };
 
         let registry: InstanceActionRegistry =
@@ -583,11 +593,13 @@ mod tests {
         let result = inline_stmt(invocation, &registry, &module_actions);
         assert_eq!(result.len(), 1);
         match &result[0] {
-            Stmt::Assignment { value, modifiers, .. } => {
+            Stmt::Assignment {
+                value, modifiers, ..
+            } => {
                 assert_eq!(*value, Expr::Num(1.5));
                 assert_eq!(modifiers.len(), 1);
                 assert_eq!(modifiers[0].name, Some("ease".to_string()));
-            }
+            },
             other => panic!("expected assignment, got {:?}", other),
         }
     }
@@ -618,10 +630,12 @@ mod tests {
         let result = inline_stmt(invocation, &registry, &module_actions);
         assert_eq!(result.len(), 1);
         match &result[0] {
-            Stmt::Assignment { property, value, .. } => {
+            Stmt::Assignment {
+                property, value, ..
+            } => {
                 assert_eq!(property, "opacity");
                 assert_eq!(*value, Expr::Num(0.5));
-            }
+            },
             other => panic!("expected assignment, got {:?}", other),
         }
     }

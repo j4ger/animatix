@@ -1,7 +1,8 @@
+use std::time::Instant;
+
 use crate::app::PreviewPaneState;
 use crate::app::document::rebuild::RebuildToken;
 use crate::app::preview::performance::PerformanceMetrics;
-use std::time::Instant;
 
 /// Owns the preview pane state, playback timing, and pending rebuild scheduling.
 pub struct PreviewStore {
@@ -41,8 +42,9 @@ impl PreviewStore {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use animatix::timeline::SceneDimensions;
+
+    use super::*;
 
     #[test]
     fn preview_store_new_creates_valid_store() {

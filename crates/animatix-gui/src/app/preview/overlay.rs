@@ -3,14 +3,11 @@
 //! All preview overlays (grid, guides, labels, etc.) are controlled through
 //! [`PreviewOverlay`] which lives in [`PreviewPaneState`](crate::app::PreviewPaneState).
 
-use crate::app::design_tokens::semantic::accent;
-use crate::app::design_tokens::semantic::border;
-use crate::app::design_tokens::semantic::status;
-use crate::app::design_tokens::semantic::surface;
-use crate::app::design_tokens::semantic::text;
-use crate::app::preview::performance::PerformanceMetrics;
 use animatix::timeline::SceneDimensions;
 use egui::Color32;
+
+use crate::app::design_tokens::semantic::{accent, border, status, surface, text};
+use crate::app::preview::performance::PerformanceMetrics;
 
 /// Toggle-able overlays for the preview canvas.
 #[derive(Debug, Clone)]
@@ -187,7 +184,12 @@ pub fn render_layout_debug(
         };
 
         // Get container position (center) and size (full width/height)
-        let pos = track.geometry.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+        let pos = track
+            .geometry
+            .position
+            .as_ref()
+            .map(|p| p.evaluate(time_ms))
+            .unwrap_or([0.0, 0.0]);
         let size = track.geometry.size.as_ref().map(|s| s.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
         let half_w = size[0] / 2.0;
         let half_h = size[1] / 2.0;
@@ -228,10 +230,18 @@ pub fn render_layout_debug(
             let Some(child_track) = timeline.get_track(&child.label) else {
                 continue;
             };
-            let child_pos =
-                child_track.geometry.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
-            let child_size =
-                child_track.geometry.size.as_ref().map(|s| s.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+            let child_pos = child_track
+                .geometry
+                .position
+                .as_ref()
+                .map(|p| p.evaluate(time_ms))
+                .unwrap_or([0.0, 0.0]);
+            let child_size = child_track
+                .geometry
+                .size
+                .as_ref()
+                .map(|s| s.evaluate(time_ms))
+                .unwrap_or([0.0, 0.0]);
 
             let child_tl = tx.scene_to_screen(kurbo::Point::new(
                 (child_pos[0] - child_size[0] / 2.0) as f64,
@@ -273,10 +283,18 @@ pub fn render_layout_debug(
                 .iter()
                 .filter_map(|child| {
                     let track = timeline.get_track(&child.label)?;
-                    let child_pos =
-                        track.geometry.position.as_ref().map(|p| p.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
-                    let child_size =
-                        track.geometry.size.as_ref().map(|s| s.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+                    let child_pos = track
+                        .geometry
+                        .position
+                        .as_ref()
+                        .map(|p| p.evaluate(time_ms))
+                        .unwrap_or([0.0, 0.0]);
+                    let child_size = track
+                        .geometry
+                        .size
+                        .as_ref()
+                        .map(|s| s.evaluate(time_ms))
+                        .unwrap_or([0.0, 0.0]);
                     Some((child_pos, child_size))
                 })
                 .collect();

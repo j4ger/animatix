@@ -6,9 +6,8 @@
 //! against this environment to produce property overrides.
 
 use super::{
-    Environment, SceneAnchor, SceneDimensions, Timeline, Value,
-    scene_anchor_point, set_lookup_color,
-    set_lookup_vec2,
+    Environment, SceneAnchor, SceneDimensions, Timeline, Value, scene_anchor_point,
+    set_lookup_color, set_lookup_vec2,
 };
 
 /// Apply a modifier override incrementally to the frame environment.
@@ -30,14 +29,14 @@ pub(crate) fn apply_override_incremental(
         Value::Vec2([x, y]) => {
             env.set(&format!("{key}.x"), Value::Num(*x));
             env.set(&format!("{key}.y"), Value::Num(*y));
-        }
+        },
         Value::Color([r, g, b, a]) => {
             env.set(&format!("{key}.r"), Value::Num(*r));
             env.set(&format!("{key}.g"), Value::Num(*g));
             env.set(&format!("{key}.b"), Value::Num(*b));
             env.set(&format!("{key}.a"), Value::Num(*a));
-        }
-        _ => {}
+        },
+        _ => {},
     }
 
     // Recalculate derived values when size changes, but don't overwrite
@@ -185,14 +184,14 @@ impl Timeline {
                         Value::Vec2([x, y]) => {
                             env.set(&format!("{label}.{key}.x"), Value::Num(*x));
                             env.set(&format!("{label}.{key}.y"), Value::Num(*y));
-                        }
+                        },
                         Value::Color([r, g, b, a]) => {
                             env.set(&format!("{label}.{key}.r"), Value::Num(*r));
                             env.set(&format!("{label}.{key}.g"), Value::Num(*g));
                             env.set(&format!("{label}.{key}.b"), Value::Num(*b));
                             env.set(&format!("{label}.{key}.a"), Value::Num(*a));
-                        }
-                        _ => {}
+                        },
+                        _ => {},
                     }
                 }
             }

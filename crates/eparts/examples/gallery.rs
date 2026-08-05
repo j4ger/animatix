@@ -8,31 +8,28 @@
 
 use std::collections::HashSet;
 
-use eframe::{CreationContext, egui::{self, Color32}};
-use eparts::{
-    set_theme, AppThemeChoice, Theme,
-    tokens::typography::TextRole,
-    widget::{
-        self,
-        button::Button,
-        feedback::{Alert, AlertLevel, Badge, ProgressBar, Skeleton, Tag},
-        form::{Field, Form},
-        input::{NumberField, TextField},
-        kbd::Kbd,
-        label::Label,
-        layout::{card, group_box, section_header, separator},
-        link::Link,
-        list::{List, SearchableList},
-        popover::Popover,
-        select::Select,
-        slider::Slider,
-        spinner::Spinner,
-        tabs::TabBar,
-        toggle::{Checkbox, Radio, Side, Switch},
-        tooltip::text_tooltip,
-        tree::{Tree, TreeItem, TreeAction},
-    },
-};
+use eframe::CreationContext;
+use eframe::egui::{self, Color32};
+use eparts::tokens::typography::TextRole;
+use eparts::widget::button::Button;
+use eparts::widget::feedback::{Alert, AlertLevel, Badge, ProgressBar, Skeleton, Tag};
+use eparts::widget::form::{Field, Form};
+use eparts::widget::input::{NumberField, TextField};
+use eparts::widget::kbd::Kbd;
+use eparts::widget::label::Label;
+use eparts::widget::layout::{card, group_box, section_header, separator};
+use eparts::widget::link::Link;
+use eparts::widget::list::{List, SearchableList};
+use eparts::widget::popover::Popover;
+use eparts::widget::select::Select;
+use eparts::widget::slider::Slider;
+use eparts::widget::spinner::Spinner;
+use eparts::widget::tabs::TabBar;
+use eparts::widget::toggle::{Checkbox, Radio, Side, Switch};
+use eparts::widget::tooltip::text_tooltip;
+use eparts::widget::tree::{Tree, TreeAction, TreeItem};
+use eparts::widget::{self};
+use eparts::{AppThemeChoice, Theme, set_theme};
 
 // ── Application state ──────────────────────────────────────────────
 
@@ -127,17 +124,33 @@ impl eframe::App for GalleryApp {
         egui::TopBottomPanel::top("theme_bar").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Theme:");
-                if ui.selectable_value(&mut self.theme_choice, AppThemeChoice::Light, "Light").clicked() {
+                if ui
+                    .selectable_value(&mut self.theme_choice, AppThemeChoice::Light, "Light")
+                    .clicked()
+                {
                     self.apply_theme(ctx);
                 }
-                if ui.selectable_value(&mut self.theme_choice, AppThemeChoice::Dark, "Dark").clicked() {
+                if ui
+                    .selectable_value(&mut self.theme_choice, AppThemeChoice::Dark, "Dark")
+                    .clicked()
+                {
                     self.apply_theme(ctx);
                 }
-                if ui.selectable_value(&mut self.theme_choice, AppThemeChoice::Auto, "Auto").clicked() {
+                if ui
+                    .selectable_value(&mut self.theme_choice, AppThemeChoice::Auto, "Auto")
+                    .clicked()
+                {
                     self.apply_theme(ctx);
                 }
                 ui.separator();
-                ui.label(format!("Effective: {}", if self.theme_choice.is_dark(None) { "Dark" } else { "Light" }));
+                ui.label(format!(
+                    "Effective: {}",
+                    if self.theme_choice.is_dark(None) {
+                        "Dark"
+                    } else {
+                        "Light"
+                    }
+                ));
             });
         });
 
@@ -155,7 +168,6 @@ impl eframe::App for GalleryApp {
 impl GalleryApp {
     fn gallery_body(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
-
             // ── Buttons ──────────────────────────────────────────────
             section_header(ui, "🔘", "Buttons", None);
             ui.horizontal(|ui| {
@@ -203,16 +215,14 @@ impl GalleryApp {
                     .show(ui);
             });
             ui.horizontal(|ui| {
-                NumberField::new(&mut self.number)
-                    .range(0.0..=100.0)
-                    .suffix(" %")
-                    .show(ui);
-                ui.add(Slider::new(&mut self.slider, 0.0..=1.0)
-                    .show_value(true));
-                ui.add(Slider::new(&mut self.slider_log, 0.1..=10.0)
-                    .logarithmic(true)
-                    .suffix("x")
-                    .show_value(true));
+                NumberField::new(&mut self.number).range(0.0..=100.0).suffix(" %").show(ui);
+                ui.add(Slider::new(&mut self.slider, 0.0..=1.0).show_value(true));
+                ui.add(
+                    Slider::new(&mut self.slider_log, 0.1..=10.0)
+                        .logarithmic(true)
+                        .suffix("x")
+                        .show_value(true),
+                );
             });
             ui.add_space(8.0);
 
@@ -220,19 +230,20 @@ impl GalleryApp {
             section_header(ui, "📋", "Selection", None);
             ui.horizontal(|ui| {
                 ui.label("Select:");
-                ui.add(Select::new("gallery_select", &mut self.select, &["Red", "Green", "Blue"])
-                    .placeholder("Pick a color"));
+                ui.add(
+                    Select::new("gallery_select", &mut self.select, &["Red", "Green", "Blue"])
+                        .placeholder("Pick a color"),
+                );
             });
             ui.horizontal(|ui| {
                 ui.label("List:");
                 let list_items: Vec<&str> = vec!["Alpha", "Beta", "Gamma", "Delta", "Epsilon"];
-                List::new(&list_items)
-                    .row_height(24.0)
-                    .show(ui, "gallery_list");
+                List::new(&list_items).row_height(24.0).show(ui, "gallery_list");
             });
             ui.horizontal(|ui| {
                 ui.label("Searchable:");
-                let searchable_items: Vec<&str> = vec!["Apple", "Banana", "Cherry", "Date", "Elderberry"];
+                let searchable_items: Vec<&str> =
+                    vec!["Apple", "Banana", "Cherry", "Date", "Elderberry"];
                 SearchableList::new(&searchable_items)
                     .placeholder("Filter fruits...")
                     .show(ui, "gallery_searchable");
@@ -241,20 +252,14 @@ impl GalleryApp {
 
             // ── Form ──────────────────────────────────────────────────
             section_header(ui, "📄", "Form", None);
-            Form::new("gallery_form")
-                .label_width(100.0)
-                .show(ui, |f: &mut Field| {
-                    f.field("Name", |ui| {
-                        TextField::new(&mut self.form_name)
-                            .placeholder("Your name")
-                            .show(ui);
-                    });
-                    f.required_field("Email", |ui| {
-                        TextField::new(&mut self.form_email)
-                            .placeholder("you@example.com")
-                            .show(ui);
-                    });
+            Form::new("gallery_form").label_width(100.0).show(ui, |f: &mut Field| {
+                f.field("Name", |ui| {
+                    TextField::new(&mut self.form_name).placeholder("Your name").show(ui);
                 });
+                f.required_field("Email", |ui| {
+                    TextField::new(&mut self.form_email).placeholder("you@example.com").show(ui);
+                });
+            });
             ui.add_space(8.0);
 
             // ── Feedback ──────────────────────────────────────────────
@@ -271,8 +276,10 @@ impl GalleryApp {
                 ui.add(Alert::new("Warning: check your input", AlertLevel::Warning));
             });
             ui.horizontal(|ui| {
-                ui.add(Alert::new("Error: something went wrong", AlertLevel::Error)
-                    .title(Some("Error".into())));
+                ui.add(
+                    Alert::new("Error: something went wrong", AlertLevel::Error)
+                        .title(Some("Error".into())),
+                );
             });
             ui.add(ProgressBar::new(self.progress).show_percentage(true));
             ui.horizontal(|ui| {
@@ -319,16 +326,22 @@ impl GalleryApp {
 
             // ── Overlays ──────────────────────────────────────────────
             section_header(ui, "🪟", "Overlays", None);
-            Popover::new("gallery_popover")
-                .below()
-                .max_width(200.0)
-                .show(ui, &ui.response(), |ui| {
+            Popover::new("gallery_popover").below().max_width(200.0).show(
+                ui,
+                &ui.response(),
+                |ui| {
                     ui.label("Popover content!");
                     ui.small("Click outside to dismiss.");
-                });
+                },
+            );
             ui.add_space(4.0);
             let tooltip_trigger = ui.button("Hover for tooltip");
-            text_tooltip(ui, ui.id().with("gallery_tooltip"), &tooltip_trigger, "Tooltip text here!");
+            text_tooltip(
+                ui,
+                ui.id().with("gallery_tooltip"),
+                &tooltip_trigger,
+                "Tooltip text here!",
+            );
             ui.add_space(8.0);
 
             // ── ColorPicker ───────────────────────────────────────────
@@ -336,8 +349,11 @@ impl GalleryApp {
             let picker_resp = widget::ColorPicker::new("gallery_color", &mut self.color)
                 .alpha(true)
                 .swatches(&[
-                    Color32::RED, Color32::GREEN, Color32::BLUE,
-                    Color32::YELLOW, Color32::from_rgb(255, 128, 0),
+                    Color32::RED,
+                    Color32::GREEN,
+                    Color32::BLUE,
+                    Color32::YELLOW,
+                    Color32::from_rgb(255, 128, 0),
                 ])
                 .show(ui);
             if picker_resp.changed {
@@ -348,8 +364,7 @@ impl GalleryApp {
             // ── Tree ──────────────────────────────────────────────────
             section_header(ui, "🌳", "Tree", None);
             let flat_items = self.build_tree_items();
-            let tree_resp = Tree::new(&flat_items)
-                .show(ui, "gallery_tree");
+            let tree_resp = Tree::new(&flat_items).show(ui, "gallery_tree");
             if let Some(action) = tree_resp.action {
                 match action {
                     TreeAction::Toggled(id) => {
@@ -358,10 +373,10 @@ impl GalleryApp {
                         } else {
                             self.expanded.insert(id);
                         }
-                    }
+                    },
                     TreeAction::Selected(id) => {
                         self.tree_selected = Some(id);
-                    }
+                    },
                 }
             }
             if let Some(ref sel) = self.tree_selected {
@@ -432,9 +447,5 @@ impl GalleryApp {
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions::default();
-    eframe::run_native(
-        "eparts Gallery",
-        options,
-        Box::new(|cc| Ok(Box::new(GalleryApp::new(cc)))),
-    )
+    eframe::run_native("eparts Gallery", options, Box::new(|cc| Ok(Box::new(GalleryApp::new(cc)))))
 }

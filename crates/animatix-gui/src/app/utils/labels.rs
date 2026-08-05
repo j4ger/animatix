@@ -21,8 +21,9 @@ pub fn unique_label(timeline: Option<&animatix::timeline::Timeline>, ty: &str) -
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use animatix::timeline::{AnimationTrack, Timeline};
+
+    use super::*;
 
     #[test]
     fn unique_label_finds_first_available() {

@@ -48,12 +48,18 @@ pub struct Keymap<A, S> {
 impl<A, S> Keymap<A, S> {
     /// Create an empty keymap.
     pub fn new() -> Self {
-        Self { bindings: Vec::new() }
+        Self {
+            bindings: Vec::new(),
+        }
     }
 
     /// Register a binding.
     pub fn bind(&mut self, shortcut: KeyboardShortcut, action: A, scope: S) {
-        self.bindings.push(Binding { shortcut, action, scope });
+        self.bindings.push(Binding {
+            shortcut,
+            action,
+            scope,
+        });
     }
 
     /// All registered bindings (e.g. to render a cheat sheet).
@@ -79,11 +85,7 @@ impl<A: Clone, S: Clone> Keymap<A, S> {
     /// app supplies its focus/context logic here). The shortcut is consumed via
     /// `egui`'s input only when the scope allows, so a gated-out binding does not
     /// swallow the key.
-    pub fn check(
-        &self,
-        ctx: &Context,
-        mut scope_allows: impl FnMut(&S) -> bool,
-    ) -> Option<A> {
+    pub fn check(&self, ctx: &Context, mut scope_allows: impl FnMut(&S) -> bool) -> Option<A> {
         for b in &self.bindings {
             if scope_allows(&b.scope) && ctx.input_mut(|i| i.consume_shortcut(&b.shortcut)) {
                 return Some(b.action.clone());
@@ -104,8 +106,9 @@ impl<A: Clone, S: Clone> Keymap<A, S> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use egui::{Context, Key, Modifiers};
+
+    use super::*;
 
     #[derive(Clone, Copy, PartialEq, Debug)]
     enum Action {

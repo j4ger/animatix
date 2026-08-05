@@ -1,6 +1,6 @@
-use super::panels;
-use super::*;
 use animatix::timeline::TrackAccessor;
+
+use super::{panels, *};
 
 impl GuiShell {
     pub(crate) fn handle_keyframe_edit(&mut self, edit: panels::PropertyEdit) {
@@ -95,70 +95,97 @@ impl GuiShell {
         to: [f32; 2],
         label_at: [f32; 2],
     ) {
-        use crate::source_edit::SourceEdit;
         use animatix_syntax::ast::Expr;
 
-        let result = if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
+        use crate::source_edit::SourceEdit;
+
+        let result = if let Some(ref mut stmts) = self.document_store.source.document.raw_statements
+        {
             let actor_c = actor.clone();
             try_apply_source_edit(stmts, |trial| {
                 // Set from
-                let from_expr = Expr::Tuple(vec![
-                    Expr::Num(from[0] as f64),
-                    Expr::Num(from[1] as f64),
-                ]);
-                let _ = crate::source_edit::apply_edit(trial, SourceEdit::SetProperty {
-                    actor: actor_c.clone(),
-                    property: "from".into(),
-                    value: from_expr.clone(),
-                }).or_else(|err| {
-                    tracing::warn!("failed to set property 'from' on actor '{}': {}", actor_c, err);
-                    crate::source_edit::apply_edit(trial, SourceEdit::InsertProperty {
+                let from_expr =
+                    Expr::Tuple(vec![Expr::Num(from[0] as f64), Expr::Num(from[1] as f64)]);
+                let _ = crate::source_edit::apply_edit(
+                    trial,
+                    SourceEdit::SetProperty {
                         actor: actor_c.clone(),
                         property: "from".into(),
-                        value: from_expr,
-                    })
+                        value: from_expr.clone(),
+                    },
+                )
+                .or_else(|err| {
+                    tracing::warn!("failed to set property 'from' on actor '{}': {}", actor_c, err);
+                    crate::source_edit::apply_edit(
+                        trial,
+                        SourceEdit::InsertProperty {
+                            actor: actor_c.clone(),
+                            property: "from".into(),
+                            value: from_expr,
+                        },
+                    )
                 });
                 // Set to
-                let to_expr = Expr::Tuple(vec![
-                    Expr::Num(to[0] as f64),
-                    Expr::Num(to[1] as f64),
-                ]);
-                let _ = crate::source_edit::apply_edit(trial, SourceEdit::SetProperty {
-                    actor: actor_c.clone(),
-                    property: "to".into(),
-                    value: to_expr.clone(),
-                }).or_else(|err| {
-                    tracing::warn!("failed to set property 'to' on actor '{}': {}", actor_c, err);
-                    crate::source_edit::apply_edit(trial, SourceEdit::InsertProperty {
+                let to_expr = Expr::Tuple(vec![Expr::Num(to[0] as f64), Expr::Num(to[1] as f64)]);
+                let _ = crate::source_edit::apply_edit(
+                    trial,
+                    SourceEdit::SetProperty {
                         actor: actor_c.clone(),
                         property: "to".into(),
-                        value: to_expr,
-                    })
+                        value: to_expr.clone(),
+                    },
+                )
+                .or_else(|err| {
+                    tracing::warn!("failed to set property 'to' on actor '{}': {}", actor_c, err);
+                    crate::source_edit::apply_edit(
+                        trial,
+                        SourceEdit::InsertProperty {
+                            actor: actor_c.clone(),
+                            property: "to".into(),
+                            value: to_expr,
+                        },
+                    )
                 });
                 // Set label_at
-                let label_expr = Expr::Tuple(vec![
-                    Expr::Num(label_at[0] as f64),
-                    Expr::Num(label_at[1] as f64),
-                ]);
-                let _ = crate::source_edit::apply_edit(trial, SourceEdit::SetProperty {
-                    actor: actor_c.clone(),
-                    property: "label_at".into(),
-                    value: label_expr.clone(),
-                }).or_else(|err| {
-                    tracing::warn!("failed to set property 'label_at' on actor '{}': {}", actor_c, err);
-                    crate::source_edit::apply_edit(trial, SourceEdit::InsertProperty {
+                let label_expr =
+                    Expr::Tuple(vec![Expr::Num(label_at[0] as f64), Expr::Num(label_at[1] as f64)]);
+                let _ = crate::source_edit::apply_edit(
+                    trial,
+                    SourceEdit::SetProperty {
                         actor: actor_c.clone(),
                         property: "label_at".into(),
-                        value: label_expr,
-                    })
+                        value: label_expr.clone(),
+                    },
+                )
+                .or_else(|err| {
+                    tracing::warn!(
+                        "failed to set property 'label_at' on actor '{}': {}",
+                        actor_c,
+                        err
+                    );
+                    crate::source_edit::apply_edit(
+                        trial,
+                        SourceEdit::InsertProperty {
+                            actor: actor_c.clone(),
+                            property: "label_at".into(),
+                            value: label_expr,
+                        },
+                    )
                 });
                 // Remove target
-                let result = crate::source_edit::apply_edit(trial, SourceEdit::RemoveProperty {
-                    actor: actor_c.clone(),
-                    property: "target".into(),
-                });
+                let result = crate::source_edit::apply_edit(
+                    trial,
+                    SourceEdit::RemoveProperty {
+                        actor: actor_c.clone(),
+                        property: "target".into(),
+                    },
+                );
                 if let Err(err) = result {
-                    tracing::warn!("failed to remove property 'target' on actor '{}': {}", actor_c, err);
+                    tracing::warn!(
+                        "failed to remove property 'target' on actor '{}': {}",
+                        actor_c,
+                        err
+                    );
                 }
                 Ok(())
             })
@@ -419,8 +446,8 @@ impl GuiShell {
 ///
 /// 1. Clones `stmts`.
 /// 2. Calls `apply_fn` with the cloned statements.
-/// 3. If `apply_fn` returns `Ok(())`, serializes the trial AST back to source,
-///    builds a new source index, and commits the clone back to `stmts`.
+/// 3. If `apply_fn` returns `Ok(())`, serializes the trial AST back to source, builds a new source
+///    index, and commits the clone back to `stmts`.
 /// 4. If `apply_fn` returns `Err`, leaves `stmts` untouched and propagates the error.
 ///
 /// Callers should validate the edit (e.g. `PropertyValue → Expr` round-trip)
@@ -465,9 +492,9 @@ fn apply_property_edit_to_track(
     value: &panels::PropertyValue,
     time_ms: u64,
 ) {
+    use animatix::timeline::{PropertyTrack, TrackFieldMut};
+
     use crate::app::panels::PropertyValue as PV;
-    use animatix::timeline::PropertyTrack;
-    use animatix::timeline::TrackFieldMut;
 
     let linear = animatix_syntax::easing::Easing::Linear;
 
@@ -499,7 +526,8 @@ fn apply_property_edit_to_track(
         },
         "at" => {
             if let PV::Vec2(v) = value {
-                let binding = track.geometry.position_binding.as_ref().map(|pb| pb.evaluate(time_ms));
+                let binding =
+                    track.geometry.position_binding.as_ref().map(|pb| pb.evaluate(time_ms));
                 match binding {
                     Some(animatix::timeline::PositionBinding::ScenePercent { .. }) => {
                         if let Some(ref mut pb_track) = track.geometry.position_binding {
@@ -513,7 +541,8 @@ fn apply_property_edit_to_track(
                         }
                     },
                     _ => {
-                        let pt = track.geometry.position.get_or_insert_with(|| PropertyTrack::new(*v));
+                        let pt =
+                            track.geometry.position.get_or_insert_with(|| PropertyTrack::new(*v));
                         pt.set_default_value(*v);
                         pt.add_keyframe(time_ms, *v, linear);
                     },
@@ -532,7 +561,8 @@ fn apply_property_edit_to_track(
         },
         "radius_x" => {
             if let PV::Float(v) = value {
-                let current = track.geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+                let current =
+                    track.geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
                 let size = [*v, current[1]];
                 let pt = track.geometry.size.get_or_insert_with(|| PropertyTrack::new(size));
                 pt.set_default_value(size);
@@ -542,7 +572,8 @@ fn apply_property_edit_to_track(
         },
         "radius_y" => {
             if let PV::Float(v) = value {
-                let current = track.geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+                let current =
+                    track.geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
                 let size = [current[0], *v];
                 let pt = track.geometry.size.get_or_insert_with(|| PropertyTrack::new(size));
                 pt.set_default_value(size);
@@ -572,7 +603,8 @@ fn apply_property_edit_to_track(
         },
         "tip_length" => {
             if let PV::Float(v) = value {
-                let current = track.geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+                let current =
+                    track.geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
                 let size = [*v, current[1]];
                 let pt = track.geometry.size.get_or_insert_with(|| PropertyTrack::new(size));
                 pt.set_default_value(size);
@@ -582,7 +614,8 @@ fn apply_property_edit_to_track(
         },
         "tip_width" => {
             if let PV::Float(v) = value {
-                let current = track.geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+                let current =
+                    track.geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
                 let size = [current[0], *v];
                 let pt = track.geometry.size.get_or_insert_with(|| PropertyTrack::new(size));
                 pt.set_default_value(size);
@@ -642,7 +675,9 @@ fn apply_property_edit_to_track(
                     }
                 },
                 (TrackFieldMut::CalloutPlace(f), PV::Text(v)) => {
-                    if let Some(place) = animatix::timeline::animation_track::CalloutPlace::from_str(v.as_str()) {
+                    if let Some(place) =
+                        animatix::timeline::animation_track::CalloutPlace::from_str(v.as_str())
+                    {
                         let pt = f.get_or_insert_with(|| PropertyTrack::new(place));
                         pt.set_default_value(place);
                         pt.add_keyframe(time_ms, place, linear);

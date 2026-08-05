@@ -1,7 +1,8 @@
 //! AST discovery helpers for collecting definitions and imports.
 
-use super::{ComponentDef, Stmt};
 use std::collections::HashMap;
+
+use super::{ComponentDef, Stmt};
 
 pub(super) fn collect_imports(statements: &[Stmt]) -> Vec<(String, Option<String>)> {
     let mut imports = Vec::new();
@@ -27,7 +28,7 @@ pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
                     span: None,
                 })
             }
-        }
+        },
         Stmt::RelativeKeyframe { offset, body, .. } => {
             let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
             if body.is_empty() {
@@ -39,7 +40,7 @@ pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
                     span: None,
                 })
             }
-        }
+        },
         Stmt::Sequence { body, .. } => {
             let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
             if body.is_empty() {
@@ -47,8 +48,10 @@ pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
             } else {
                 Some(Stmt::Sequence { body, span: None })
             }
-        }
-        Stmt::Stagger { modifiers, body, .. } => {
+        },
+        Stmt::Stagger {
+            modifiers, body, ..
+        } => {
             let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
             if body.is_empty() {
                 None
@@ -59,12 +62,14 @@ pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
                     span: None,
                 })
             }
-        }
+        },
         Stmt::Always { body, .. } => {
             let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
             Some(Stmt::Always { body, span: None })
-        }
-        Stmt::ComponentAction { name, params, body, .. } => {
+        },
+        Stmt::ComponentAction {
+            name, params, body, ..
+        } => {
             let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
             Some(Stmt::ComponentAction {
                 name: name.clone(),
@@ -72,7 +77,7 @@ pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
                 body,
                 span: None,
             })
-        }
+        },
         Stmt::ComponentDef(def, _) => {
             let body = def.body.iter().filter_map(strip_imports).collect::<Vec<_>>();
             Some(Stmt::ComponentDef(
@@ -84,8 +89,14 @@ pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
                 },
                 None,
             ))
-        }
-        Stmt::ForLoop { var, index_var, iterable, body, .. } => {
+        },
+        Stmt::ForLoop {
+            var,
+            index_var,
+            iterable,
+            body,
+            ..
+        } => {
             let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
             Some(Stmt::ForLoop {
                 var: var.clone(),
@@ -94,7 +105,7 @@ pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
                 body,
                 span: None,
             })
-        }
+        },
         Stmt::Conditional {
             condition,
             then_branch,
@@ -111,11 +122,9 @@ pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
                 else_branch,
                 span: None,
             })
-        }
+        },
         Stmt::Match {
-            scrutinee,
-            arms,
-            ..
+            scrutinee, arms, ..
         } => {
             let arms = arms
                 .iter()
@@ -128,7 +137,7 @@ pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
                 arms,
                 span: None,
             })
-        }
+        },
         _ => Some(stmt.clone()),
     }
 }
@@ -165,7 +174,13 @@ pub fn collect_scenes_from_stmts(stmts: &[Stmt]) -> HashMap<String, super::Scene
     let prelude = collect_prelude_stmts(stmts);
     let mut scenes = HashMap::new();
     for stmt in stmts {
-        if let Stmt::Scene { name, config, body, span } = stmt {
+        if let Stmt::Scene {
+            name,
+            config,
+            body,
+            span,
+        } = stmt
+        {
             scenes.insert(
                 name.clone(),
                 super::SceneData {
@@ -188,7 +203,10 @@ pub fn collect_component_actions(
 ) -> HashMap<String, crate::module::ActionTemplate> {
     let mut actions = HashMap::new();
     for stmt in &definition.body {
-        if let Stmt::ComponentAction { name, params, body, .. } = stmt {
+        if let Stmt::ComponentAction {
+            name, params, body, ..
+        } = stmt
+        {
             actions.insert(
                 name.clone(),
                 crate::module::ActionTemplate {

@@ -54,11 +54,12 @@
 //! }
 //! ```
 
-use egui::{Id, Response, Sense};
 #[allow(unused_imports)]
 use std::collections::HashSet;
 
-use crate::tokens::spatial::{density, ROW_M, SPACE_4};
+use egui::{Id, Response, Sense};
+
+use crate::tokens::spatial::{ROW_M, SPACE_4, density};
 use crate::widget::row::Row;
 
 // ── Public types ─────────────────────────────────────────────────────
@@ -168,10 +169,8 @@ impl<'a> Tree<'a> {
             .ctx()
             .data(|d| d.get_temp::<String>(tree_id.with("ta_buf")))
             .unwrap_or_default();
-        let mut ta_time: f64 = ui
-            .ctx()
-            .data(|d| d.get_temp::<f64>(tree_id.with("ta_time")))
-            .unwrap_or(0.0);
+        let mut ta_time: f64 =
+            ui.ctx().data(|d| d.get_temp::<f64>(tree_id.with("ta_time"))).unwrap_or(0.0);
         let now = ui.input(|i| i.time);
         const TYPE_AHEAD_TIMEOUT: f64 = 0.8;
 
@@ -182,33 +181,53 @@ impl<'a> Tree<'a> {
         ui.input(|i| {
             for ev in &i.events {
                 match ev {
-                    egui::Event::Key { key: egui::Key::ArrowDown, pressed: true, .. } => {
+                    egui::Event::Key {
+                        key: egui::Key::ArrowDown,
+                        pressed: true,
+                        ..
+                    } => {
                         if num_items > 0 {
                             let next = sel_idx.map(|i| (i + 1).min(num_items - 1)).unwrap_or(0);
                             sel_idx = Some(next);
                             selected_id = Some(self.items[next].id.clone());
                         }
-                    }
-                    egui::Event::Key { key: egui::Key::ArrowUp, pressed: true, .. } => {
+                    },
+                    egui::Event::Key {
+                        key: egui::Key::ArrowUp,
+                        pressed: true,
+                        ..
+                    } => {
                         if num_items > 0 {
                             let prev = sel_idx.map(|i| i.saturating_sub(1)).unwrap_or(0);
                             sel_idx = Some(prev);
                             selected_id = Some(self.items[prev].id.clone());
                         }
-                    }
-                    egui::Event::Key { key: egui::Key::Home, pressed: true, .. } => {
+                    },
+                    egui::Event::Key {
+                        key: egui::Key::Home,
+                        pressed: true,
+                        ..
+                    } => {
                         if num_items > 0 {
                             sel_idx = Some(0);
                             selected_id = Some(self.items[0].id.clone());
                         }
-                    }
-                    egui::Event::Key { key: egui::Key::End, pressed: true, .. } => {
+                    },
+                    egui::Event::Key {
+                        key: egui::Key::End,
+                        pressed: true,
+                        ..
+                    } => {
                         if num_items > 0 {
                             sel_idx = Some(num_items - 1);
                             selected_id = Some(self.items[num_items - 1].id.clone());
                         }
-                    }
-                    egui::Event::Key { key: egui::Key::ArrowLeft, pressed: true, .. } => {
+                    },
+                    egui::Event::Key {
+                        key: egui::Key::ArrowLeft,
+                        pressed: true,
+                        ..
+                    } => {
                         if let Some(idx) = sel_idx {
                             if let Some(item) = self.items.get(idx) {
                                 if item.expanded && item.has_children {
@@ -230,8 +249,12 @@ impl<'a> Tree<'a> {
                                 }
                             }
                         }
-                    }
-                    egui::Event::Key { key: egui::Key::ArrowRight, pressed: true, .. } => {
+                    },
+                    egui::Event::Key {
+                        key: egui::Key::ArrowRight,
+                        pressed: true,
+                        ..
+                    } => {
                         if let Some(idx) = sel_idx {
                             if let Some(item) = self.items.get(idx) {
                                 if !item.expanded && item.has_children {
@@ -247,8 +270,12 @@ impl<'a> Tree<'a> {
                                 }
                             }
                         }
-                    }
-                    egui::Event::Key { key: egui::Key::Enter, pressed: true, .. } => {
+                    },
+                    egui::Event::Key {
+                        key: egui::Key::Enter,
+                        pressed: true,
+                        ..
+                    } => {
                         if let Some(idx) = sel_idx {
                             if let Some(item) = self.items.get(idx) {
                                 if item.has_children {
@@ -256,7 +283,7 @@ impl<'a> Tree<'a> {
                                 }
                             }
                         }
-                    }
+                    },
                     egui::Event::Text(text) => {
                         // Type-ahead: reset buffer on timeout.
                         if now - ta_time > TYPE_AHEAD_TIMEOUT {
@@ -292,8 +319,8 @@ impl<'a> Tree<'a> {
                                 }
                             }
                         }
-                    }
-                    _ => {}
+                    },
+                    _ => {},
                 }
             }
         });
@@ -408,14 +435,18 @@ pub fn type_ahead_match(prefix: &str, start_idx: usize, items: &[TreeItem]) -> O
     }
     let lower = prefix.to_lowercase();
     let n = items.len();
-    if let Some((i, _)) = items[start_idx..n].iter().enumerate().find(|(_, item)| {
-        item.label.to_lowercase().starts_with(&lower)
-    }) {
+    if let Some((i, _)) = items[start_idx..n]
+        .iter()
+        .enumerate()
+        .find(|(_, item)| item.label.to_lowercase().starts_with(&lower))
+    {
         return Some(start_idx + i);
     }
-    if let Some((i, _)) = items[0..start_idx.min(n)].iter().enumerate().find(|(_, item)| {
-        item.label.to_lowercase().starts_with(&lower)
-    }) {
+    if let Some((i, _)) = items[0..start_idx.min(n)]
+        .iter()
+        .enumerate()
+        .find(|(_, item)| item.label.to_lowercase().starts_with(&lower))
+    {
         return Some(i);
     }
     None
@@ -577,4 +608,3 @@ mod tests {
         assert_eq!(tree.indent_step, 24.0);
     }
 }
-

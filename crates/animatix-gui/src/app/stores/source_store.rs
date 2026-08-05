@@ -1,9 +1,11 @@
+use std::collections::HashMap;
+
+use kurbo::Rect;
+
 use crate::app::document::source_change::SourceChange;
 use crate::app::document::version::SourceEpoch;
 use crate::document::DocumentSession;
 use crate::editor::EditorBuffer;
-use kurbo::Rect;
-use std::collections::HashMap;
 
 /// Owns the canonical document text (via EditorBuffer) and the compiled
 /// timeline (via DocumentSession). This is the single source of truth for
@@ -77,14 +79,10 @@ impl SourceStore {
         &self.document.file_path
     }
 
-    #[allow(dead_code)] // Accessors for epoch and dirty state used by future background rebuild integration.
-    /// Accessors for epoch and dirty state used by future background rebuild integration.
     pub fn epoch(&self) -> SourceEpoch {
         self.source_epoch
     }
 
-    #[allow(dead_code)] // Accessors for epoch and dirty state used by future background rebuild integration.
-    /// Accessors for epoch and dirty state used by future background rebuild integration.
     pub fn is_dirty(&self) -> bool {
         self.document.is_dirty
     }
@@ -152,7 +150,10 @@ pub fn rebuild_cache(
 }
 
 // ── Helper: push keyframe times for all animated properties on a track ──
-fn push_kf_props(track: &animatix::timeline::AnimationTrack, result: &mut Vec<(u64, &'static str)>) {
+fn push_kf_props(
+    track: &animatix::timeline::AnimationTrack,
+    result: &mut Vec<(u64, &'static str)>,
+) {
     let indices = animatix::timeline::allowed_property_indices(track.kind);
     for idx in indices {
         let schema = &animatix::timeline::PROPERTY_REGISTRY[idx];

@@ -1,11 +1,10 @@
 use kurbo::{BezPath, CubicBez, ParamCurve, PathEl, Point};
-
-use crate::easing::apply_easing;
-use super::property_track::{Interpolate, PropertyTrack};
-use crate::renderer::types::{TextPath, VelloPath};
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+
+use super::property_track::{Interpolate, PropertyTrack};
+use crate::easing::apply_easing;
+use crate::renderer::types::{TextPath, VelloPath};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -137,10 +136,7 @@ fn align_path_lists_nearest(source: &[BezPath], target: &[BezPath]) -> Vec<(BezP
             result.push((src.clone(), target[j].clone()));
         } else {
             // No targets left — pair with degenerate point at source centroid
-            result.push((
-                src.clone(),
-                BezPath::from_vec(vec![PathEl::MoveTo(src_centroid)]),
-            ));
+            result.push((src.clone(), BezPath::from_vec(vec![PathEl::MoveTo(src_centroid)])));
         }
     }
 
@@ -148,10 +144,7 @@ fn align_path_lists_nearest(source: &[BezPath], target: &[BezPath]) -> Vec<(BezP
     for (j, tgt) in target.iter().enumerate() {
         if !target_used[j] {
             let centroid = get_centroid(tgt);
-            result.push((
-                BezPath::from_vec(vec![PathEl::MoveTo(centroid)]),
-                tgt.clone(),
-            ));
+            result.push((BezPath::from_vec(vec![PathEl::MoveTo(centroid)]), tgt.clone()));
         }
     }
 
@@ -244,10 +237,7 @@ fn align_subpaths_nearest(
             target_used[j] = true;
             result.push((src.clone(), tgt_subs[j].clone()));
         } else {
-            result.push((
-                src.clone(),
-                vec![PathEl::MoveTo(src_centroid)],
-            ));
+            result.push((src.clone(), vec![PathEl::MoveTo(src_centroid)]));
         }
     }
 
@@ -281,13 +271,10 @@ pub fn align_segments(
         }
     }
 
-    // If one is completely empty but the other isn't (e.g. degenerate single point), pad the empty one
-    let src_has_curve = src_curves
-        .iter()
-        .any(|el| matches!(el, PathEl::CurveTo(..)));
-    let tgt_has_curve = tgt_curves
-        .iter()
-        .any(|el| matches!(el, PathEl::CurveTo(..)));
+    // If one is completely empty but the other isn't (e.g. degenerate single point), pad the empty
+    // one
+    let src_has_curve = src_curves.iter().any(|el| matches!(el, PathEl::CurveTo(..)));
+    let tgt_has_curve = tgt_curves.iter().any(|el| matches!(el, PathEl::CurveTo(..)));
 
     if tgt_has_curve && !src_has_curve {
         let pt = get_subpath_centroid(source_subpath);
@@ -353,48 +340,35 @@ pub fn morph_paths_with_options(
     let (aligned_src, aligned_tgt) =
         align_subpaths_with_strategy(&source_path, &target_path, options.strategy);
 
-    for (s, tr) in aligned_src
-        .elements()
-        .iter()
-        .zip(aligned_tgt.elements().iter())
-    {
+    for (s, tr) in aligned_src.elements().iter().zip(aligned_tgt.elements().iter()) {
         match (s, tr) {
             (PathEl::MoveTo(p1), PathEl::MoveTo(p2)) => {
-                result.push(PathEl::MoveTo(curved_lerp_point(
-                    *p1,
-                    *p2,
-                    t,
-                    options.path_arc,
-                )));
-            }
+                result.push(PathEl::MoveTo(curved_lerp_point(*p1, *p2, t, options.path_arc)));
+            },
             (PathEl::LineTo(p1), PathEl::LineTo(p2)) => {
-                result.push(PathEl::LineTo(curved_lerp_point(
-                    *p1,
-                    *p2,
-                    t,
-                    options.path_arc,
-                )));
-            }
+                result.push(PathEl::LineTo(curved_lerp_point(*p1, *p2, t, options.path_arc)));
+            },
             (PathEl::QuadTo(p1a, p1b), PathEl::QuadTo(p2a, p2b)) => {
                 result.push(PathEl::QuadTo(
                     curved_lerp_point(*p1a, *p2a, t, options.path_arc),
                     curved_lerp_point(*p1b, *p2b, t, options.path_arc),
                 ));
-            }
+            },
             (PathEl::CurveTo(p1a, p1b, p1c), PathEl::CurveTo(p2a, p2b, p2c)) => {
                 result.push(PathEl::CurveTo(
                     curved_lerp_point(*p1a, *p2a, t, options.path_arc),
                     curved_lerp_point(*p1b, *p2b, t, options.path_arc),
                     curved_lerp_point(*p1c, *p2c, t, options.path_arc),
                 ));
-            }
+            },
             (PathEl::ClosePath, PathEl::ClosePath) => {
                 result.push(PathEl::ClosePath);
-            }
+            },
             _ => {
-                // If they are not the same type, fallback to target (should not happen if aligned properly)
+                // If they are not the same type, fallback to target (should not happen if aligned
+                // properly)
                 result.push(*tr);
-            }
+            },
         }
     }
 
@@ -448,17 +422,17 @@ fn path_bounds(path: &BezPath) -> PathBounds {
         match element {
             PathEl::MoveTo(p) | PathEl::LineTo(p) => {
                 update_bounds(*p, &mut min_x, &mut max_x, &mut min_y, &mut max_y)
-            }
+            },
             PathEl::QuadTo(p1, p2) => {
                 update_bounds(*p1, &mut min_x, &mut max_x, &mut min_y, &mut max_y);
                 update_bounds(*p2, &mut min_x, &mut max_x, &mut min_y, &mut max_y);
-            }
+            },
             PathEl::CurveTo(p1, p2, p3) => {
                 update_bounds(*p1, &mut min_x, &mut max_x, &mut min_y, &mut max_y);
                 update_bounds(*p2, &mut min_x, &mut max_x, &mut min_y, &mut max_y);
                 update_bounds(*p3, &mut min_x, &mut max_x, &mut min_y, &mut max_y);
-            }
-            PathEl::ClosePath => {}
+            },
+            PathEl::ClosePath => {},
         }
     }
 
@@ -512,11 +486,9 @@ fn map_path_points(path: &BezPath, mut map_point: impl FnMut(Point) -> Point) ->
             PathEl::MoveTo(point) => mapped.push(PathEl::MoveTo(map_point(*point))),
             PathEl::LineTo(point) => mapped.push(PathEl::LineTo(map_point(*point))),
             PathEl::QuadTo(p1, p2) => mapped.push(PathEl::QuadTo(map_point(*p1), map_point(*p2))),
-            PathEl::CurveTo(p1, p2, p3) => mapped.push(PathEl::CurveTo(
-                map_point(*p1),
-                map_point(*p2),
-                map_point(*p3),
-            )),
+            PathEl::CurveTo(p1, p2, p3) => {
+                mapped.push(PathEl::CurveTo(map_point(*p1), map_point(*p2), map_point(*p3)))
+            },
             PathEl::ClosePath => mapped.push(PathEl::ClosePath),
         }
     }
@@ -539,11 +511,7 @@ fn path_centroid_key(path: &BezPath, other: &BezPath) -> std::cmp::Ordering {
     left.x
         .partial_cmp(&right.x)
         .unwrap_or(std::cmp::Ordering::Equal)
-        .then_with(|| {
-            left.y
-                .partial_cmp(&right.y)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
+        .then_with(|| left.y.partial_cmp(&right.y).unwrap_or(std::cmp::Ordering::Equal))
 }
 
 #[allow(clippy::ptr_arg)]
@@ -577,18 +545,18 @@ fn get_subpath_centroid(subpath: &[PathEl]) -> Point {
                 sum_x += p.x;
                 sum_y += p.y;
                 count += 1.0;
-            }
+            },
             PathEl::QuadTo(_, p) => {
                 sum_x += p.x;
                 sum_y += p.y;
                 count += 1.0;
-            }
+            },
             PathEl::CurveTo(_, _, p) => {
                 sum_x += p.x;
                 sum_y += p.y;
                 count += 1.0;
-            }
-            PathEl::ClosePath => {}
+            },
+            PathEl::ClosePath => {},
         }
     }
 
@@ -628,24 +596,24 @@ fn to_curves(subpath: &[PathEl]) -> Vec<PathEl> {
                 result.push(PathEl::MoveTo(*p));
                 last_pt = *p;
                 first_pt = *p;
-            }
+            },
             PathEl::LineTo(p) => {
                 // convert line to curve
                 let p1 = lerp_point(last_pt, *p, 1.0 / 3.0);
                 let p2 = lerp_point(last_pt, *p, 2.0 / 3.0);
                 result.push(PathEl::CurveTo(p1, p2, *p));
                 last_pt = *p;
-            }
+            },
             PathEl::QuadTo(p1, p2) => {
                 let cp1 = lerp_point(last_pt, *p1, 2.0 / 3.0);
                 let cp2 = lerp_point(*p2, *p1, 2.0 / 3.0);
                 result.push(PathEl::CurveTo(cp1, cp2, *p2));
                 last_pt = *p2;
-            }
+            },
             PathEl::CurveTo(p1, p2, p3) => {
                 result.push(PathEl::CurveTo(*p1, *p2, *p3));
                 last_pt = *p3;
-            }
+            },
             PathEl::ClosePath => {
                 // Optional: convert ClosePath to line/curve back to first_pt
                 let p = first_pt;
@@ -654,7 +622,7 @@ fn to_curves(subpath: &[PathEl]) -> Vec<PathEl> {
                 result.push(PathEl::CurveTo(p1, p2, p));
                 result.push(PathEl::ClosePath);
                 last_pt = p;
-            }
+            },
         }
     }
     result
@@ -677,8 +645,8 @@ fn split_longest(curves: &mut Vec<PathEl>) -> bool {
                     max_last_pt = last_pt;
                 }
                 last_pt = *p3;
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 
@@ -735,9 +703,15 @@ pub fn evaluate_paths_with_options<T: Interpolate>(
     time_ms: u64,
     interpolate: fn(&T, &T, f32, MorphOptions) -> T,
 ) -> T {
-    if let Some((found_time, prev_val, found_val, progress, found_easing)) = paths.interpolation_segment(time_ms) {
+    if let Some((found_time, prev_val, found_val, progress, found_easing)) =
+        paths.interpolation_segment(time_ms)
+    {
         let eased_progress = apply_easing(progress, *found_easing);
-        let options = morph_options.keyframes.get(&found_time).map(|(value, _)| *value).unwrap_or_default();
+        let options = morph_options
+            .keyframes
+            .get(&found_time)
+            .map(|(value, _)| *value)
+            .unwrap_or_default();
         interpolate(prev_val, found_val, eased_progress, options)
     } else {
         // No interior segment - use default or boundary value
@@ -756,7 +730,12 @@ pub fn evaluate_paths_with_options<T: Interpolate>(
 }
 
 /// Interpolate between two `Vec<TextPath>` using morph options.
-pub fn interpolate_text_paths(source: &Vec<TextPath>, target: &Vec<TextPath>, t: f32, options: MorphOptions) -> Vec<TextPath> {
+pub fn interpolate_text_paths(
+    source: &Vec<TextPath>,
+    target: &Vec<TextPath>,
+    t: f32,
+    options: MorphOptions,
+) -> Vec<TextPath> {
     if options.strategy == MorphStrategy::Fade {
         if t <= 0.0 {
             return source.clone();
@@ -786,24 +765,38 @@ pub fn interpolate_text_paths(source: &Vec<TextPath>, target: &Vec<TextPath>, t:
 
     let source_paths: Vec<_> = source.iter().map(|path| path.path.clone()).collect();
     let target_paths: Vec<_> = target.iter().map(|path| path.path.clone()).collect();
-    let aligned_lists = align_path_lists_with_strategy(&source_paths, &target_paths, options.strategy);
-    aligned_lists.into_iter().enumerate().map(|(index, (source_path, target_path))| TextPath {
-        path: morph_paths_with_options(&source_path, &target_path, t as f64, options),
-        color: if t < 0.5 {
-            source.get(index).map(|path| path.color.clone())
-                .unwrap_or_else(|| target.get(index).map(|path| path.color.clone())
-                .unwrap_or_else(|| typst::visualize::Paint::Solid(typst::visualize::Color::BLACK)))
-        } else {
-            target.get(index).map(|path| path.color.clone())
-                .unwrap_or_else(|| source.get(index).map(|path| path.color.clone())
-                .unwrap_or_else(|| typst::visualize::Paint::Solid(typst::visualize::Color::BLACK)))
-        },
-        opacity: 1.0,
-    }).collect()
+    let aligned_lists =
+        align_path_lists_with_strategy(&source_paths, &target_paths, options.strategy);
+    aligned_lists
+        .into_iter()
+        .enumerate()
+        .map(|(index, (source_path, target_path))| TextPath {
+            path: morph_paths_with_options(&source_path, &target_path, t as f64, options),
+            color: if t < 0.5 {
+                source.get(index).map(|path| path.color.clone()).unwrap_or_else(|| {
+                    target.get(index).map(|path| path.color.clone()).unwrap_or_else(|| {
+                        typst::visualize::Paint::Solid(typst::visualize::Color::BLACK)
+                    })
+                })
+            } else {
+                target.get(index).map(|path| path.color.clone()).unwrap_or_else(|| {
+                    source.get(index).map(|path| path.color.clone()).unwrap_or_else(|| {
+                        typst::visualize::Paint::Solid(typst::visualize::Color::BLACK)
+                    })
+                })
+            },
+            opacity: 1.0,
+        })
+        .collect()
 }
 
 /// Interpolate between two `Vec<VelloPath>` using morph options.
-pub fn interpolate_vello_paths(source: &Vec<VelloPath>, target: &Vec<VelloPath>, t: f32, options: MorphOptions) -> Vec<VelloPath> {
+pub fn interpolate_vello_paths(
+    source: &Vec<VelloPath>,
+    target: &Vec<VelloPath>,
+    t: f32,
+    options: MorphOptions,
+) -> Vec<VelloPath> {
     if options.strategy == MorphStrategy::Fade {
         if t <= 0.0 {
             return source.clone();
@@ -837,28 +830,63 @@ pub fn interpolate_vello_paths(source: &Vec<VelloPath>, target: &Vec<VelloPath>,
 
     let source_paths: Vec<_> = source.iter().map(|path| path.path.clone()).collect();
     let target_paths: Vec<_> = target.iter().map(|path| path.path.clone()).collect();
-    let aligned_lists = align_path_lists_with_strategy(&source_paths, &target_paths, options.strategy);
-    aligned_lists.into_iter().enumerate().map(|(index, (source_path, target_path))| {
-        let source_element = source.get(index);
-        let target_element = target.get(index);
-        VelloPath {
-            path: morph_paths_with_options(&source_path, &target_path, t as f64, options),
-            fill: match (source_element.and_then(|e| e.fill), target_element.and_then(|e| e.fill)) {
-                (Some(c1), Some(c2)) => Some(lerp_color(c1, c2, t)),
-                (Some(c), None) => Some(if t < 0.5 { c } else { vello::peniko::Color::TRANSPARENT }),
-                (None, Some(c)) => Some(if t >= 0.5 { c } else { vello::peniko::Color::TRANSPARENT }),
-                (None, None) => None,
-            },
-            stroke: match (source_element.and_then(|e| e.stroke), target_element.and_then(|e| e.stroke)) {
-                (Some((c1, w1)), Some((c2, w2))) => Some((lerp_color(c1, c2, t), w1 + (w2 - w1) * t)),
-                (Some((c, w)), None) => Some((if t < 0.5 { c } else { vello::peniko::Color::TRANSPARENT }, if t < 0.5 { w } else { 0.0 })),
-                (None, Some((c, w))) => Some((if t >= 0.5 { c } else { vello::peniko::Color::TRANSPARENT }, if t >= 0.5 { w } else { 0.0 })),
-                (None, None) => None,
-            },
-            line_cap: source_element.map(|e| e.line_cap).unwrap_or(0),
-            line_join: source_element.map(|e| e.line_join).unwrap_or(0),
-        }
-    }).collect()
+    let aligned_lists =
+        align_path_lists_with_strategy(&source_paths, &target_paths, options.strategy);
+    aligned_lists
+        .into_iter()
+        .enumerate()
+        .map(|(index, (source_path, target_path))| {
+            let source_element = source.get(index);
+            let target_element = target.get(index);
+            VelloPath {
+                path: morph_paths_with_options(&source_path, &target_path, t as f64, options),
+                fill: match (
+                    source_element.and_then(|e| e.fill),
+                    target_element.and_then(|e| e.fill),
+                ) {
+                    (Some(c1), Some(c2)) => Some(lerp_color(c1, c2, t)),
+                    (Some(c), None) => Some(if t < 0.5 {
+                        c
+                    } else {
+                        vello::peniko::Color::TRANSPARENT
+                    }),
+                    (None, Some(c)) => Some(if t >= 0.5 {
+                        c
+                    } else {
+                        vello::peniko::Color::TRANSPARENT
+                    }),
+                    (None, None) => None,
+                },
+                stroke: match (
+                    source_element.and_then(|e| e.stroke),
+                    target_element.and_then(|e| e.stroke),
+                ) {
+                    (Some((c1, w1)), Some((c2, w2))) => {
+                        Some((lerp_color(c1, c2, t), w1 + (w2 - w1) * t))
+                    },
+                    (Some((c, w)), None) => Some((
+                        if t < 0.5 {
+                            c
+                        } else {
+                            vello::peniko::Color::TRANSPARENT
+                        },
+                        if t < 0.5 { w } else { 0.0 },
+                    )),
+                    (None, Some((c, w))) => Some((
+                        if t >= 0.5 {
+                            c
+                        } else {
+                            vello::peniko::Color::TRANSPARENT
+                        },
+                        if t >= 0.5 { w } else { 0.0 },
+                    )),
+                    (None, None) => None,
+                },
+                line_cap: source_element.map(|e| e.line_cap).unwrap_or(0),
+                line_join: source_element.map(|e| e.line_join).unwrap_or(0),
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -935,10 +963,7 @@ mod tests {
 
         // Everything should be MoveTo, CurveTo, or ClosePath
         for el in &a_src {
-            assert!(matches!(
-                el,
-                PathEl::MoveTo(_) | PathEl::CurveTo(_, _, _) | PathEl::ClosePath
-            ));
+            assert!(matches!(el, PathEl::MoveTo(_) | PathEl::CurveTo(_, _, _) | PathEl::ClosePath));
         }
     }
 
@@ -984,14 +1009,8 @@ mod tests {
             MorphStrategy::Match,
         );
 
-        assert_ne!(
-            get_centroid(&auto_pairs[0].0),
-            get_centroid(&auto_pairs[0].1)
-        );
-        assert_eq!(
-            get_centroid(&match_pairs[0].0),
-            get_centroid(&match_pairs[0].1)
-        );
+        assert_ne!(get_centroid(&auto_pairs[0].0), get_centroid(&auto_pairs[0].1));
+        assert_eq!(get_centroid(&match_pairs[0].0), get_centroid(&match_pairs[0].1));
     }
 
     #[test]
@@ -1013,14 +1032,8 @@ mod tests {
         );
 
         // Nearest should pair left↔left and right↔right despite index mismatch
-        assert_eq!(
-            get_centroid(&nearest_pairs[0].0),
-            get_centroid(&nearest_pairs[0].1)
-        );
-        assert_eq!(
-            get_centroid(&nearest_pairs[1].0),
-            get_centroid(&nearest_pairs[1].1)
-        );
+        assert_eq!(get_centroid(&nearest_pairs[0].0), get_centroid(&nearest_pairs[0].1));
+        assert_eq!(get_centroid(&nearest_pairs[1].0), get_centroid(&nearest_pairs[1].1));
     }
 
     #[test]
@@ -1124,7 +1137,12 @@ mod tests {
     // evaluate_paths_with_options tests (moved from track.rs)
     // ────────────────────────────────────────────────────────
 
-    fn identity_interpolate<T: Interpolate>(source: &T, target: &T, t: f32, _options: MorphOptions) -> T {
+    fn identity_interpolate<T: Interpolate>(
+        source: &T,
+        target: &T,
+        t: f32,
+        _options: MorphOptions,
+    ) -> T {
         source.interpolate(target, t)
     }
 
@@ -1173,7 +1191,15 @@ mod tests {
         paths.add_keyframe(1000, 100.0, Easing::Linear);
         let mut morph = PropertyTrack::new(MorphOptions::default());
         // Morph at the same time as the second keyframe
-        morph.add_keyframe(1000, MorphOptions { strategy: MorphStrategy::Fade, path_arc: 0.0, stretch: false }, Easing::Linear);
+        morph.add_keyframe(
+            1000,
+            MorphOptions {
+                strategy: MorphStrategy::Fade,
+                path_arc: 0.0,
+                stretch: false,
+            },
+            Easing::Linear,
+        );
         // Should use Fade morph strategy (which just returns source+target)
         let result = evaluate_paths_with_options(&paths, &morph, 500, identity_interpolate);
         // identity_interpolate just does normal interpolation regardless of morph
@@ -1201,7 +1227,16 @@ mod tests {
             line_cap: 0,
             line_join: 0,
         }];
-        let result = interpolate_vello_paths(&source, &target, 0.0, MorphOptions { strategy: MorphStrategy::Fade, path_arc: 0.0, stretch: false });
+        let result = interpolate_vello_paths(
+            &source,
+            &target,
+            0.0,
+            MorphOptions {
+                strategy: MorphStrategy::Fade,
+                path_arc: 0.0,
+                stretch: false,
+            },
+        );
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].fill.unwrap().to_rgba8().a, 255);
     }
@@ -1222,7 +1257,16 @@ mod tests {
             line_cap: 0,
             line_join: 0,
         }];
-        let result = interpolate_vello_paths(&source, &target, 1.0, MorphOptions { strategy: MorphStrategy::Fade, path_arc: 0.0, stretch: false });
+        let result = interpolate_vello_paths(
+            &source,
+            &target,
+            1.0,
+            MorphOptions {
+                strategy: MorphStrategy::Fade,
+                path_arc: 0.0,
+                stretch: false,
+            },
+        );
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].fill.unwrap().to_rgba8().a, 255);
     }
@@ -1243,7 +1287,16 @@ mod tests {
             line_cap: 0,
             line_join: 0,
         }];
-        let result = interpolate_vello_paths(&source, &target, 0.5, MorphOptions { strategy: MorphStrategy::Fade, path_arc: 0.0, stretch: false });
+        let result = interpolate_vello_paths(
+            &source,
+            &target,
+            0.5,
+            MorphOptions {
+                strategy: MorphStrategy::Fade,
+                path_arc: 0.0,
+                stretch: false,
+            },
+        );
         assert_eq!(result.len(), 2);
         // Source path alpha should be halved: 200 * 0.5 = 100
         assert_eq!(result[0].fill.unwrap().to_rgba8().a, 100);
@@ -1267,7 +1320,16 @@ mod tests {
             color: typst::visualize::Paint::Solid(typst::visualize::Color::WHITE),
             opacity: 0.8,
         }];
-        let result = interpolate_text_paths(&source, &target, 0.5, MorphOptions { strategy: MorphStrategy::Fade, path_arc: 0.0, stretch: false });
+        let result = interpolate_text_paths(
+            &source,
+            &target,
+            0.5,
+            MorphOptions {
+                strategy: MorphStrategy::Fade,
+                path_arc: 0.0,
+                stretch: false,
+            },
+        );
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].opacity, 0.5);
         assert_eq!(result[1].opacity, 0.4);
@@ -1283,7 +1345,16 @@ mod tests {
             line_cap: 0,
             line_join: 0,
         }];
-        let result = interpolate_vello_paths(&source, &target, 0.25, MorphOptions { strategy: MorphStrategy::Fade, path_arc: 0.0, stretch: false });
+        let result = interpolate_vello_paths(
+            &source,
+            &target,
+            0.25,
+            MorphOptions {
+                strategy: MorphStrategy::Fade,
+                path_arc: 0.0,
+                stretch: false,
+            },
+        );
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].fill.unwrap().to_rgba8().a, 32); // 128 * 0.25
     }
@@ -1298,7 +1369,16 @@ mod tests {
             line_join: 0,
         }];
         let target: Vec<VelloPath> = vec![];
-        let result = interpolate_vello_paths(&source, &target, 0.75, MorphOptions { strategy: MorphStrategy::Fade, path_arc: 0.0, stretch: false });
+        let result = interpolate_vello_paths(
+            &source,
+            &target,
+            0.75,
+            MorphOptions {
+                strategy: MorphStrategy::Fade,
+                path_arc: 0.0,
+                stretch: false,
+            },
+        );
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].fill.unwrap().to_rgba8().a, 50); // 200 * 0.25
     }

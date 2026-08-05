@@ -8,32 +8,33 @@ pub mod exit;
 pub mod highlight;
 /// Motion actions that transform actor placement (move, shift, rotate, scale).
 pub mod motion;
-/// Action registry types: signatures, parameters, and the [`BuiltinAction`] trait.
-pub mod registry;
 /// Persistence actions (persist, remove) for multi-scene carry-forward.
 pub mod persistence;
+/// Action registry types: signatures, parameters, and the [`BuiltinAction`] trait.
+pub mod registry;
 /// Reorder actions that change container child order (swap, reorder).
 pub mod reorder;
 /// Reveal actions that animate vector stroke and fill visibility
 /// (draw-in, reveal-in, wipe-out, reveal-out, draw-out).
 pub mod reveal;
 
-use crate::ast::Action;
-use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
-use crate::easing::Easing;
-use crate::timeline::property_track::{Interpolate, PropertyTrack, TrackAccessor};
-use crate::timeline::actor_kind::ActorKindId;
-use crate::timeline::Timeline;
-use tracing::{debug, instrument, warn};
 use effects::{Bounce, Pulse, Shake};
 use entrance::{FadeIn, WipeIn};
 use exit::FadeOut;
 use highlight::{Highlight, Unhighlight};
-use persistence::{Persist, Remove};
 use motion::{Move, Rotate, Scale, Shift};
+use persistence::{Persist, Remove};
 use registry::{ActionSignature, BuiltinAction};
 use reorder::{Reorder, Swap};
 use reveal::{DrawIn, DrawOut, RevealIn, RevealOut, WipeOut};
+use tracing::{debug, instrument, warn};
+
+use crate::ast::Action;
+use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use crate::easing::Easing;
+use crate::timeline::Timeline;
+use crate::timeline::actor_kind::ActorKindId;
+use crate::timeline::property_track::{Interpolate, PropertyTrack, TrackAccessor};
 
 fn push_unknown_action_diagnostic(
     action: &Action,
@@ -44,10 +45,7 @@ fn push_unknown_action_diagnostic(
         Diagnostic::error(
             DiagnosticCode::UnknownAction,
             DiagnosticPhase::Build,
-            format!(
-                "Unknown action '{}'; no built-in action matches this name.",
-                action.verb
-            ),
+            format!("Unknown action '{}'; no built-in action matches this name.", action.verb),
         )
         .with_subject(&action.verb)
         .with_ast_span(span),
@@ -72,8 +70,8 @@ fn push_unsupported_action_target_diagnostic(
     );
 }
 
-/// Insert a guard keyframe at `guard_time` for a single property track if one doesn't already exist.
-/// This preserves the pre-delay value for instant-change actions (duration == 0) with delay.
+/// Insert a guard keyframe at `guard_time` for a single property track if one doesn't already
+/// exist. This preserves the pre-delay value for instant-change actions (duration == 0) with delay.
 pub(crate) fn ensure_guard_keyframe<T: Interpolate>(
     track: &mut Option<PropertyTrack<T>>,
     guard_time: u64,
@@ -90,8 +88,8 @@ pub(crate) fn ensure_guard_keyframe<T: Interpolate>(
 ///
 /// Resolution order:
 /// 1. If the full string is already a track key, return it directly.
-/// 2. Split by `.` and walk the parent→child hierarchy. Return the leaf
-///    track key if the path is valid.
+/// 2. Split by `.` and walk the parent→child hierarchy. Return the leaf track key if the path is
+///    valid.
 /// 3. Return `None` if the path cannot be resolved.
 fn resolve_action_target(timeline: &Timeline, target: &str) -> Option<String> {
     // Fast path: direct lookup (handles plain identifiers and pre-built keys)
@@ -245,11 +243,13 @@ pub(crate) fn ensure_vector_reveal_target(
 
     // Text/Code/Typst targets are now allowed; draw-in uses char_progress for typewriter effect.
 
-    if timeline
-        .tracks
-        .get(target)
-        .is_some_and(|track| !track.children.is_empty())
-        && track.shape.vector_paths.as_ref().map(|t| t.default_value.is_empty() && t.keyframes.is_empty()).unwrap_or(true)
+    if timeline.tracks.get(target).is_some_and(|track| !track.children.is_empty())
+        && track
+            .shape
+            .vector_paths
+            .as_ref()
+            .map(|t| t.default_value.is_empty() && t.keyframes.is_empty())
+            .unwrap_or(true)
         && track.svg_paths.is_empty()
     {
         push_unsupported_action_target_diagnostic(
@@ -324,10 +324,7 @@ pub fn process_action(
 
 /// Exposes all action signatures for LSP/UI integration.
 pub fn get_action_signatures() -> Vec<ActionSignature> {
-    get_builtin_actions()
-        .iter()
-        .map(|a| a.signature())
-        .collect()
+    get_builtin_actions().iter().map(|a| a.signature()).collect()
 }
 
 #[cfg(test)]
@@ -335,9 +332,7 @@ mod tests {
     use super::*;
     use crate::ast::{Action, Modifier};
     use crate::diagnostics::DiagnosticCode;
-    use crate::timeline::{
-        AnimationTrack, ContainerMetadata, LayoutType, PropertyTrack,
-    };
+    use crate::timeline::{AnimationTrack, ContainerMetadata, LayoutType, PropertyTrack};
 
     #[test]
     fn unknown_actions_emit_diagnostics() {
@@ -365,29 +360,17 @@ mod tests {
 
     #[test]
     fn action_signatures_include_reveal_out() {
-        assert!(
-            get_action_signatures()
-                .iter()
-                .any(|signature| signature.name == "reveal-out")
-        );
+        assert!(get_action_signatures().iter().any(|signature| signature.name == "reveal-out"));
     }
 
     #[test]
     fn action_signatures_include_draw_out() {
-        assert!(
-            get_action_signatures()
-                .iter()
-                .any(|signature| signature.name == "draw-out")
-        );
+        assert!(get_action_signatures().iter().any(|signature| signature.name == "draw-out"));
     }
 
     #[test]
     fn action_signatures_include_reveal_in() {
-        assert!(
-            get_action_signatures()
-                .iter()
-                .any(|signature| signature.name == "reveal-in")
-        );
+        assert!(get_action_signatures().iter().any(|signature| signature.name == "reveal-in"));
     }
 
     #[test]
@@ -618,7 +601,9 @@ mod tests {
     #[test]
     fn reorder_action_requires_order_modifier() {
         let mut timeline = Timeline::new();
-        timeline.tracks.insert("row".to_string(), AnimationTrack::new("row".to_string()));
+        timeline
+            .tracks
+            .insert("row".to_string(), AnimationTrack::new("row".to_string()));
 
         let action = Action {
             verb: "reorder".to_string(),

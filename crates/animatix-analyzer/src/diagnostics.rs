@@ -1,11 +1,12 @@
 //! Diagnostic collection from parse errors and semantic checks.
 
-use crate::symbol_table::{SymbolTable, LabelKind};
+use std::collections::HashSet;
+
 use animatix_syntax::ast::*;
 use animatix_syntax::parser::ParseError;
 use animatix_syntax::walk;
-use std::collections::HashSet;
 
+use crate::symbol_table::{LabelKind, SymbolTable};
 
 /// A diagnostic message (error, warning, etc.).
 #[derive(Debug, Clone)]
@@ -121,7 +122,7 @@ impl LintConfig {
                     config.disable_all_warnings = lint.disable_all_warnings.unwrap_or(false);
                 }
                 config
-            }
+            },
             Err(_) => Self::default(),
         }
     }
@@ -148,7 +149,14 @@ pub fn collect_diagnostics(
     ast: Option<&[Stmt]>,
     tree: Option<&tree_sitter::Tree>,
 ) -> Vec<Diagnostic> {
-    collect_diagnostics_with_config(source, parse_errors, symbols, ast, tree, &LintConfig::default())
+    collect_diagnostics_with_config(
+        source,
+        parse_errors,
+        symbols,
+        ast,
+        tree,
+        &LintConfig::default(),
+    )
 }
 
 /// Collect all diagnostics from the source with lint configuration.
@@ -231,7 +239,10 @@ fn collect_semantic_diagnostics(
     for (name, info) in &symbols.labels {
         if !symbols.referenced_labels.contains(name) {
             // Don't warn for for-loop variables, always blocks, or array base labels
-            if info.kind == LabelKind::For || info.kind == LabelKind::Always || symbols.array_labels.contains(name) {
+            if info.kind == LabelKind::For
+                || info.kind == LabelKind::Always
+                || symbols.array_labels.contains(name)
+            {
                 continue;
             }
             diagnostics.push(Diagnostic {
@@ -240,12 +251,16 @@ fn collect_semantic_diagnostics(
                 col: info.col,
                 end_line: info.line,
                 end_col: info.col + name.len(),
-                message: format!("Unused {}: '{}'", match info.kind {
-                    LabelKind::Actor => "actor",
-                    LabelKind::Let => "binding",
-                    LabelKind::Component => "component",
-                    _ => "label",
-                }, name),
+                message: format!(
+                    "Unused {}: '{}'",
+                    match info.kind {
+                        LabelKind::Actor => "actor",
+                        LabelKind::Let => "binding",
+                        LabelKind::Component => "component",
+                        _ => "label",
+                    },
+                    name
+                ),
                 code: Some("unused-label".to_string()),
             });
         }
@@ -289,12 +304,7 @@ fn find_token_range(
                 if node_text == text {
                     let start = child.start_position();
                     let end = child.end_position();
-                    return Some((
-                        start.row,
-                        start.column,
-                        end.row,
-                        end.column,
-                    ));
+                    return Some((start.row, start.column, end.row, end.column));
                 }
             }
         }
@@ -307,7 +317,13 @@ fn find_token_range(
 }
 
 /// Check a single statement for semantic issues.
-fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, tree: Option<&tree_sitter::Tree>, source: &str, diagnostics: &mut Vec<Diagnostic>) {
+fn check_stmt(
+    stmt: &Stmt,
+    symbols: &SymbolTable,
+    tree: Option<&tree_sitter::Tree>,
+    source: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     match stmt {
         Stmt::Action(action, span) => {
             let (line, col, end_line, end_col) = span_to_diag(span);
@@ -316,7 +332,9 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, tree: Option<&tree_sitter::Tre
             if !symbols.actions.contains(&action.verb) {
                 // Try to find the verb token in the tree-sitter tree for precise positioning
                 let (vline, vcol, vend_line, vend_col) = tree
-                    .and_then(|t| find_token_range(t.root_node(), source, "action_verb", &action.verb))
+                    .and_then(|t| {
+                        find_token_range(t.root_node(), source, "action_verb", &action.verb)
+                    })
                     .unwrap_or((line, col, end_line, end_col));
                 diagnostics.push(Diagnostic {
                     severity: DiagnosticSeverity::Warning,
@@ -333,7 +351,7 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, tree: Option<&tree_sitter::Tre
             for target in &action.targets {
                 let is_defined = symbols.labels.contains_key(target)
                     || is_array_member_label(target)
-                        .map_or(false, |base| symbols.array_labels.contains(base));
+                        .is_some_and(|base| symbols.array_labels.contains(base));
                 if !is_defined {
                     // Use tree-sitter for precise target positioning when available
                     let (tline, tcol, tend_line, tend_col) = tree
@@ -350,9 +368,15 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, tree: Option<&tree_sitter::Tre
                     });
                 }
             }
-        }
+        },
 
-        Stmt::Assignment { target, property, value, span, .. } => {
+        Stmt::Assignment {
+            target,
+            property,
+            value,
+            span,
+            ..
+        } => {
             let (line, col, end_line, end_col) = span_to_diag(span);
 
             // Check if target label exists
@@ -360,7 +384,7 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, tree: Option<&tree_sitter::Tre
                 let label = seg.label_str();
                 let is_defined = symbols.labels.contains_key(label)
                     || is_array_member_label(label)
-                        .map_or(false, |base| symbols.array_labels.contains(base));
+                        .is_some_and(|base| symbols.array_labels.contains(base));
                 if !is_defined {
                     diagnostics.push(Diagnostic {
                         severity: DiagnosticSeverity::Warning,
@@ -421,9 +445,11 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, tree: Option<&tree_sitter::Tre
                     }
                 }
             }
-        }
+        },
 
-        Stmt::ActorDecl { ty, props, span, .. } => {
+        Stmt::ActorDecl {
+            ty, props, span, ..
+        } => {
             let (line, col, end_line, end_col) = span_to_diag(span);
 
             // Check if type is known
@@ -481,10 +507,10 @@ fn check_stmt(stmt: &Stmt, symbols: &SymbolTable, tree: Option<&tree_sitter::Tre
                     }
                 }
             }
-        }
+        },
 
         // Recurse into blocks is handled by walk_stmts caller
-        _ => {}
+        _ => {},
     }
 }
 
@@ -501,19 +527,21 @@ mod tests {
 
     #[test]
     fn unknown_action_detected() {
-        let stmts = vec![
-            Stmt::Action(Action {
+        let stmts = vec![Stmt::Action(
+            Action {
                 verb: "fly".to_string(),
                 targets: vec!["btn".to_string()],
                 args: vec![],
                 modifiers: vec![],
                 byte_span: None,
-            }, None),
-        ];
+            },
+            None,
+        )];
         let symbols = SymbolTable::build_from_ast(&[]);
         let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), None);
 
-        let unknown_actions: Vec<_> = diagnostics.iter()
+        let unknown_actions: Vec<_> = diagnostics
+            .iter()
             .filter(|d| d.code.as_deref() == Some("unknown-action"))
             .collect();
         assert_eq!(unknown_actions.len(), 1);
@@ -522,19 +550,21 @@ mod tests {
 
     #[test]
     fn undefined_label_detected() {
-        let stmts = vec![
-            Stmt::Action(Action {
+        let stmts = vec![Stmt::Action(
+            Action {
                 verb: "move".to_string(),
                 targets: vec!["nonexistent".to_string()],
                 args: vec![],
                 modifiers: vec![],
                 byte_span: None,
-            }, None),
-        ];
+            },
+            None,
+        )];
         let symbols = SymbolTable::build_from_ast(&[]);
         let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), None);
 
-        let undefined: Vec<_> = diagnostics.iter()
+        let undefined: Vec<_> = diagnostics
+            .iter()
             .filter(|d| d.code.as_deref() == Some("undefined-label"))
             .collect();
         assert_eq!(undefined.len(), 1);
@@ -543,23 +573,22 @@ mod tests {
 
     #[test]
     fn unknown_type_detected() {
-        let stmts = vec![
-            Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "thing".to_string(),
-                array_index: None,
-                ty: "UnknownType".to_string(),
-                props: vec![],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            },
-        ];
+        let stmts = vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "thing".to_string(),
+            array_index: None,
+            ty: "UnknownType".to_string(),
+            props: vec![],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }];
         let symbols = SymbolTable::build_from_ast(&stmts);
         let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), None);
 
-        let unknown_types: Vec<_> = diagnostics.iter()
+        let unknown_types: Vec<_> = diagnostics
+            .iter()
             .filter(|d| d.code.as_deref() == Some("unknown-type"))
             .collect();
         assert_eq!(unknown_types.len(), 1);
@@ -584,26 +613,26 @@ mod tests {
     #[test]
     fn lint_config_suppresses_specific_code() {
         let source = "// lint-disable: unused-label\n#0s\ntitle: Text";
-        let stmts = vec![
-            Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "title".to_string(),
-                array_index: None,
-                ty: "Text".to_string(),
-                props: vec![],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            },
-        ];
+        let stmts = vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "title".to_string(),
+            array_index: None,
+            ty: "Text".to_string(),
+            props: vec![],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }];
         let mut symbols = SymbolTable::build_from_ast(&stmts);
         // Don't add any references - should trigger unused-label
         symbols.collect_references(&[]);
         let config = LintConfig::from_source(source);
-        let diagnostics = collect_diagnostics_with_config(source, &[], &symbols, Some(&stmts), None, &config);
+        let diagnostics =
+            collect_diagnostics_with_config(source, &[], &symbols, Some(&stmts), None, &config);
 
-        let unused: Vec<_> = diagnostics.iter()
+        let unused: Vec<_> = diagnostics
+            .iter()
             .filter(|d| d.code.as_deref() == Some("unused-label"))
             .collect();
         assert_eq!(unused.len(), 0, "unused-label should be suppressed");
@@ -612,25 +641,25 @@ mod tests {
     #[test]
     fn lint_config_suppresses_warnings_globally() {
         let source = "// lint-disable-all-warnings\n#0s\ntitle: Text";
-        let stmts = vec![
-            Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "title".to_string(),
-                array_index: None,
-                ty: "Text".to_string(),
-                props: vec![],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            },
-        ];
+        let stmts = vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "title".to_string(),
+            array_index: None,
+            ty: "Text".to_string(),
+            props: vec![],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }];
         let mut symbols = SymbolTable::build_from_ast(&stmts);
         symbols.collect_references(&[]);
         let config = LintConfig::from_source(source);
-        let diagnostics = collect_diagnostics_with_config(source, &[], &symbols, Some(&stmts), None, &config);
+        let diagnostics =
+            collect_diagnostics_with_config(source, &[], &symbols, Some(&stmts), None, &config);
 
-        let warnings: Vec<_> = diagnostics.iter()
+        let warnings: Vec<_> = diagnostics
+            .iter()
             .filter(|d| d.severity == DiagnosticSeverity::Warning)
             .collect();
         assert_eq!(warnings.len(), 0, "all warnings should be suppressed");
@@ -638,32 +667,29 @@ mod tests {
 
     #[test]
     fn type_mismatch_detected() {
-        use animatix_syntax::ast::{Property, Expr};
+        use animatix_syntax::ast::{Expr, Property};
 
-        let stmts = vec![
-            Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "title".to_string(),
-                array_index: None,
-                ty: "Text".to_string(),
-                props: vec![
-                    Property {
-                        name: "font_size".to_string(),
-                        value: Expr::Str("hello".to_string()),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                ],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            },
-        ];
+        let stmts = vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "title".to_string(),
+            array_index: None,
+            ty: "Text".to_string(),
+            props: vec![Property {
+                name: "font_size".to_string(),
+                value: Expr::Str("hello".to_string()),
+                value_span: None,
+                trailing_comment: None,
+            }],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }];
         let symbols = SymbolTable::build_from_ast(&stmts);
         let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), None);
 
-        let type_mismatches: Vec<_> = diagnostics.iter()
+        let type_mismatches: Vec<_> = diagnostics
+            .iter()
             .filter(|d| d.code.as_deref() == Some("type-mismatch"))
             .collect();
         assert_eq!(type_mismatches.len(), 1);
@@ -674,32 +700,29 @@ mod tests {
 
     #[test]
     fn type_mismatch_not_triggered_for_any() {
-        use animatix_syntax::ast::{Property, Expr};
+        use animatix_syntax::ast::{Expr, Property};
 
-        let stmts = vec![
-            Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "title".to_string(),
-                array_index: None,
-                ty: "Text".to_string(),
-                props: vec![
-                    Property {
-                        name: "font_size".to_string(),
-                        value: Expr::Ident("my_var".to_string()),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                ],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            },
-        ];
+        let stmts = vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "title".to_string(),
+            array_index: None,
+            ty: "Text".to_string(),
+            props: vec![Property {
+                name: "font_size".to_string(),
+                value: Expr::Ident("my_var".to_string()),
+                value_span: None,
+                trailing_comment: None,
+            }],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }];
         let symbols = SymbolTable::build_from_ast(&stmts);
         let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), None);
 
-        let type_mismatches: Vec<_> = diagnostics.iter()
+        let type_mismatches: Vec<_> = diagnostics
+            .iter()
             .filter(|d| d.code.as_deref() == Some("type-mismatch"))
             .collect();
         assert_eq!(type_mismatches.len(), 0, "Should not trigger for Any type");
@@ -708,24 +731,22 @@ mod tests {
     #[test]
     fn lint_config_does_not_suppress_errors() {
         let source = "// lint-disable: parse-0\n#0s\ntitle: Text";
-        let parse_errors = vec![
-            ParseError {
-                message: "test error".to_string(),
-                line: 1,
-                column: 1,
-                span: 0..10,
-                expected: vec![],
-                found: None,
-                context: vec![],
-            },
-        ];
+        let parse_errors = vec![ParseError {
+            message: "test error".to_string(),
+            line: 1,
+            column: 1,
+            span: 0..10,
+            expected: vec![],
+            found: None,
+            context: vec![],
+        }];
         let symbols = SymbolTable::build_from_ast(&[]);
         let config = LintConfig::from_source(source);
-        let diagnostics = collect_diagnostics_with_config(source, &parse_errors, &symbols, None, None, &config);
+        let diagnostics =
+            collect_diagnostics_with_config(source, &parse_errors, &symbols, None, None, &config);
 
-        let errors: Vec<_> = diagnostics.iter()
-            .filter(|d| d.severity == DiagnosticSeverity::Error)
-            .collect();
+        let errors: Vec<_> =
+            diagnostics.iter().filter(|d| d.severity == DiagnosticSeverity::Error).collect();
         assert_eq!(errors.len(), 1, "errors should not be suppressed");
     }
 }

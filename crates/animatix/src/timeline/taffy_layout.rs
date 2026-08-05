@@ -6,31 +6,30 @@
 //!
 //! ## Key Design Points
 //!
-//! 1. **Center-relative coordinates**: Taffy uses top-left origin with absolute positioning.
-//!    We translate by offsetting by container size/2 to maintain center-origin semantics.
+//! 1. **Center-relative coordinates**: Taffy uses top-left origin with absolute positioning. We
+//!    translate by offsetting by container size/2 to maintain center-origin semantics.
 //!
-//! 2. **Manual child exclusion**: Children with `PlacementMode::Manual` are excluded from
-//!    position assignment but their sizes still participate in container layout via the
-//!    `available_size` mechanism (pre-computed with manual children included).
+//! 2. **Manual child exclusion**: Children with `PlacementMode::Manual` are excluded from position
+//!    assignment but their sizes still participate in container layout via the `available_size`
+//!    mechanism (pre-computed with manual children included).
 //!
-//! 3. **Stack special-casing**: Stack layout places all children at origin (0, 0) regardless
-//!    of their sizes. We keep this behavior unchanged for semantic compatibility.
+//! 3. **Stack special-casing**: Stack layout places all children at origin (0, 0) regardless of
+//!    their sizes. We keep this behavior unchanged for semantic compatibility.
 //!
-//! 4. **Gap and alignment**: Translated to Taffy's flexbox `gap` and `align_items`/`justify_content`.
+//! 4. **Gap and alignment**: Translated to Taffy's flexbox `gap` and
+//!    `align_items`/`justify_content`.
 //!
 //! 5. **Build-time vs dynamic**: The same Taffy computation path is used for both build-time
 //!    (`apply_container_layout`) and dynamic (`compute_layout_for_time`) layouts.
 
-use taffy::prelude::*;
-
-use crate::timeline::layout::ChildExtent;
-use crate::timeline::LayoutType;
-
-#[cfg(test)]
-use crate::timeline::layout::compute_container_size;
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use taffy::prelude::*;
+
+use crate::timeline::LayoutType;
+use crate::timeline::layout::ChildExtent;
+#[cfg(test)]
+use crate::timeline::layout::compute_container_size;
 
 /// Describes how a single dimension (width or height) of a child should be sized.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -91,7 +90,10 @@ impl ChildSizeSpec {
 
     /// Create a size spec from percentage strings (e.g. "50%") and auto.
     pub fn from_parts(w_spec: SizeSpec, h_spec: SizeSpec) -> Self {
-        Self { width: w_spec, height: h_spec }
+        Self {
+            width: w_spec,
+            height: h_spec,
+        }
     }
 
     /// Return true if both dimensions are fixed absolute sizes.
@@ -101,7 +103,8 @@ impl ChildSizeSpec {
 }
 
 /// Parse a single dimension expression (Expr) into a SizeSpec.
-/// Supports: numeric literal (fixed), string "50%" (percent), "auto", "fill", "fit", and ident auto/fill/fit.
+/// Supports: numeric literal (fixed), string "50%" (percent), "auto", "fill", "fit", and ident
+/// auto/fill/fit.
 pub fn parse_dimension_spec(expr: &crate::ast::Expr) -> SizeSpec {
     use crate::ast::Expr;
     match expr {
@@ -119,13 +122,11 @@ pub fn parse_dimension_spec(expr: &crate::ast::Expr) -> SizeSpec {
                 _ => SizeSpec::Auto,
             }
         },
-        Expr::Ident(s) => {
-            match s.as_str() {
-                "auto" => SizeSpec::Auto,
-                "fill" => SizeSpec::Fill,
-                "fit" => SizeSpec::Fit,
-                _ => SizeSpec::Auto,
-            }
+        Expr::Ident(s) => match s.as_str() {
+            "auto" => SizeSpec::Auto,
+            "fill" => SizeSpec::Fill,
+            "fit" => SizeSpec::Fit,
+            _ => SizeSpec::Auto,
         },
         _ => SizeSpec::Auto,
     }
@@ -136,26 +137,20 @@ pub fn parse_dimension_spec(expr: &crate::ast::Expr) -> SizeSpec {
 pub fn parse_size_spec(expr: &crate::ast::Expr) -> ChildSizeSpec {
     use crate::ast::Expr;
     match expr {
-        Expr::Tuple(items) if items.len() == 2 => {
-            ChildSizeSpec::from_parts(
-                parse_dimension_spec(&items[0]),
-                parse_dimension_spec(&items[1]),
-            )
-        },
+        Expr::Tuple(items) if items.len() == 2 => ChildSizeSpec::from_parts(
+            parse_dimension_spec(&items[0]),
+            parse_dimension_spec(&items[1]),
+        ),
         // Single value: `size: fill`, `size: auto`, `size: fit`
-        Expr::Str(s) => {
-            match s.as_str() {
-                "fill" => ChildSizeSpec::from_parts(SizeSpec::Fill, SizeSpec::Auto),
-                "auto" | "fit" => ChildSizeSpec::from_parts(SizeSpec::Auto, SizeSpec::Auto),
-                _ => ChildSizeSpec::fixed(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE),
-            }
+        Expr::Str(s) => match s.as_str() {
+            "fill" => ChildSizeSpec::from_parts(SizeSpec::Fill, SizeSpec::Auto),
+            "auto" | "fit" => ChildSizeSpec::from_parts(SizeSpec::Auto, SizeSpec::Auto),
+            _ => ChildSizeSpec::fixed(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE),
         },
-        Expr::Ident(s) => {
-            match s.as_str() {
-                "fill" => ChildSizeSpec::from_parts(SizeSpec::Fill, SizeSpec::Auto),
-                "auto" | "fit" => ChildSizeSpec::from_parts(SizeSpec::Auto, SizeSpec::Auto),
-                _ => ChildSizeSpec::fixed(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE),
-            }
+        Expr::Ident(s) => match s.as_str() {
+            "fill" => ChildSizeSpec::from_parts(SizeSpec::Fill, SizeSpec::Auto),
+            "auto" | "fit" => ChildSizeSpec::from_parts(SizeSpec::Auto, SizeSpec::Auto),
+            _ => ChildSizeSpec::fixed(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE),
         },
         _ => ChildSizeSpec::fixed(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE),
     }
@@ -209,21 +204,41 @@ fn build_child_style(
             width: width_dim,
             height: height_dim,
         },
-        flex_grow: if width_is_fill || height_is_fill { 1.0 } else { 0.0 },
+        flex_grow: if width_is_fill || height_is_fill {
+            1.0
+        } else {
+            0.0
+        },
         min_size: Size {
             width: constraints.min_width.map_or(Dimension::auto(), |v| {
-                if v == 0.0 { Dimension::auto() } else { Dimension::length(v) }
+                if v == 0.0 {
+                    Dimension::auto()
+                } else {
+                    Dimension::length(v)
+                }
             }),
             height: constraints.min_height.map_or(Dimension::auto(), |v| {
-                if v == 0.0 { Dimension::auto() } else { Dimension::length(v) }
+                if v == 0.0 {
+                    Dimension::auto()
+                } else {
+                    Dimension::length(v)
+                }
             }),
         },
         max_size: Size {
             width: constraints.max_width.map_or(Dimension::auto(), |v| {
-                if v.is_infinite() || v.is_nan() { Dimension::auto() } else { Dimension::length(v) }
+                if v.is_infinite() || v.is_nan() {
+                    Dimension::auto()
+                } else {
+                    Dimension::length(v)
+                }
             }),
             height: constraints.max_height.map_or(Dimension::auto(), |v| {
-                if v.is_infinite() || v.is_nan() { Dimension::auto() } else { Dimension::length(v) }
+                if v.is_infinite() || v.is_nan() {
+                    Dimension::auto()
+                } else {
+                    Dimension::length(v)
+                }
             }),
         },
         ..Default::default()
@@ -277,12 +292,20 @@ pub fn compute_taffy_linear_layout(
     align: &str,
 ) -> TaffyLayoutOutput {
     // Use default vertical_align (center) for baseline-non-aware callers
-    compute_taffy_linear_layout_with_baselines(children, layout_type, gap, padding, align, &[], "center")
+    compute_taffy_linear_layout_with_baselines(
+        children,
+        layout_type,
+        gap,
+        padding,
+        align,
+        &[],
+        "center",
+    )
 }
 
 /// Like `compute_taffy_linear_layout` but supports baseline alignment.
-/// `child_baselines` is a per-child baseline offset from text center (f32), empty = no baseline info.
-/// `vertical_align` can be "center", "baseline", "top", or "bottom".
+/// `child_baselines` is a per-child baseline offset from text center (f32), empty = no baseline
+/// info. `vertical_align` can be "center", "baseline", "top", or "bottom".
 pub fn compute_taffy_linear_layout_with_baselines(
     children: &[ChildExtent],
     layout_type: LayoutType,
@@ -306,7 +329,9 @@ pub fn compute_taffy_linear_layout_with_baselines(
     let mut child_nodes: Vec<NodeId> = Vec::with_capacity(children.len());
 
     for child in children {
-        let node = taffy.new_leaf(fixed_leaf_style(child.half_size)).expect("taffy new_leaf should succeed for valid child size");
+        let node = taffy
+            .new_leaf(fixed_leaf_style(child.half_size))
+            .expect("taffy new_leaf should succeed for valid child size");
         child_nodes.push(node);
     }
 
@@ -335,16 +360,23 @@ pub fn compute_taffy_linear_layout_with_baselines(
         ..Default::default()
     };
 
-    let container_node = taffy.new_with_children(container_style, &child_nodes).expect("taffy new_with_children should succeed for valid style and children");
-    taffy.compute_layout(container_node, Size::MAX_CONTENT).expect("taffy compute_layout should succeed");
+    let container_node = taffy
+        .new_with_children(container_style, &child_nodes)
+        .expect("taffy new_with_children should succeed for valid style and children");
+    taffy
+        .compute_layout(container_node, Size::MAX_CONTENT)
+        .expect("taffy compute_layout should succeed");
 
-    let container_layout = taffy.layout(container_node).expect("taffy layout should exist for computed container node");
+    let container_layout = taffy
+        .layout(container_node)
+        .expect("taffy layout should exist for computed container node");
     let container_size = [container_layout.size.width, container_layout.size.height];
     let mut positions: Vec<TaffyLayoutResult> = children
         .iter()
         .zip(child_nodes)
         .map(|(_child, node)| {
-            let child_layout = taffy.layout(node).expect("taffy layout should exist for computed child node");
+            let child_layout =
+                taffy.layout(node).expect("taffy layout should exist for computed child node");
             TaffyLayoutResult {
                 position: center_relative_position(container_layout, child_layout),
             }
@@ -353,11 +385,16 @@ pub fn compute_taffy_linear_layout_with_baselines(
 
     // Baseline alignment: adjust Y positions to align baselines of all children.
     // Only applies to Row/Col (not Grid) and only when baseline data is available.
-    if vertical_align == "baseline" && !child_baselines.is_empty() && child_baselines.len() >= positions.len() {
+    if vertical_align == "baseline"
+        && !child_baselines.is_empty()
+        && child_baselines.len() >= positions.len()
+    {
         // Compute the world-space baseline Y for each child
-        let child_baseline_ys: Vec<f64> = positions.iter().zip(child_baselines.iter()).map(|(pos, bl)| {
-            pos.position[1] as f64 + *bl as f64
-        }).collect();
+        let child_baseline_ys: Vec<f64> = positions
+            .iter()
+            .zip(child_baselines.iter())
+            .map(|(pos, bl)| pos.position[1] as f64 + *bl as f64)
+            .collect();
 
         // Find the highest baseline (smallest Y value since Vello Y is down)
         // We want all baselines at the same Y, so we align to the highest one.
@@ -366,13 +403,17 @@ pub fn compute_taffy_linear_layout_with_baselines(
         // Adjust each child's Y so its baseline aligns with max_baseline_y
         for (i, pos) in positions.iter_mut().enumerate() {
             if i < child_baselines.len() {
-                let adjustment = max_baseline_y - (pos.position[1] as f64 + child_baselines[i] as f64);
+                let adjustment =
+                    max_baseline_y - (pos.position[1] as f64 + child_baselines[i] as f64);
                 pos.position[1] += adjustment as f32;
             }
         }
     }
 
-    TaffyLayoutOutput { positions, container_size }
+    TaffyLayoutOutput {
+        positions,
+        container_size,
+    }
 }
 
 /// Like `compute_taffy_linear_layout_with_baselines` but supports child size specs and constraints.
@@ -457,16 +498,29 @@ pub fn compute_taffy_linear_layout_with_specs(
     };
 
     // Also pass definite available space so percentage/fill children can resolve correctly
-    let available = if needs_parent_size && (parent_content_size[0] > 0.0 || parent_content_size[1] > 0.0) {
-        Size {
-            width: if is_row { AvailableSpace::Definite(parent_content_size[0]) } else { AvailableSpace::MaxContent },
-            height: if is_row { AvailableSpace::MaxContent } else { AvailableSpace::Definite(parent_content_size[1]) },
-        }
-    } else {
-        Size::MAX_CONTENT
-    };
-    let container_node = taffy.new_with_children(container_style, &child_nodes).expect("taffy new_with_children should succeed");
-    taffy.compute_layout(container_node, available).expect("taffy compute_layout should succeed");
+    let available =
+        if needs_parent_size && (parent_content_size[0] > 0.0 || parent_content_size[1] > 0.0) {
+            Size {
+                width: if is_row {
+                    AvailableSpace::Definite(parent_content_size[0])
+                } else {
+                    AvailableSpace::MaxContent
+                },
+                height: if is_row {
+                    AvailableSpace::MaxContent
+                } else {
+                    AvailableSpace::Definite(parent_content_size[1])
+                },
+            }
+        } else {
+            Size::MAX_CONTENT
+        };
+    let container_node = taffy
+        .new_with_children(container_style, &child_nodes)
+        .expect("taffy new_with_children should succeed");
+    taffy
+        .compute_layout(container_node, available)
+        .expect("taffy compute_layout should succeed");
 
     let container_layout = taffy.layout(container_node).expect("taffy layout should exist");
     let container_size = [container_layout.size.width, container_layout.size.height];
@@ -482,20 +536,29 @@ pub fn compute_taffy_linear_layout_with_specs(
         .collect();
 
     // Baseline alignment (same as above)
-    if vertical_align == "baseline" && !child_baselines.is_empty() && child_baselines.len() >= positions.len() {
-        let child_baseline_ys: Vec<f64> = positions.iter().zip(child_baselines.iter()).map(|(pos, bl)| {
-            pos.position[1] as f64 + *bl as f64
-        }).collect();
+    if vertical_align == "baseline"
+        && !child_baselines.is_empty()
+        && child_baselines.len() >= positions.len()
+    {
+        let child_baseline_ys: Vec<f64> = positions
+            .iter()
+            .zip(child_baselines.iter())
+            .map(|(pos, bl)| pos.position[1] as f64 + *bl as f64)
+            .collect();
         let max_baseline_y = child_baseline_ys.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
         for (i, pos) in positions.iter_mut().enumerate() {
             if i < child_baselines.len() {
-                let adjustment = max_baseline_y - (pos.position[1] as f64 + child_baselines[i] as f64);
+                let adjustment =
+                    max_baseline_y - (pos.position[1] as f64 + child_baselines[i] as f64);
                 pos.position[1] += adjustment as f32;
             }
         }
     }
 
-    TaffyLayoutOutput { positions, container_size }
+    TaffyLayoutOutput {
+        positions,
+        container_size,
+    }
 }
 
 /// Compute layout using Taffy for Grid containers.
@@ -521,7 +584,9 @@ pub fn compute_taffy_grid_layout(
     // remain identical even when some children are manually positioned.
     let mut child_nodes: Vec<NodeId> = Vec::with_capacity(children.len());
     for child in children {
-        let node = taffy.new_leaf(fixed_leaf_style(child.half_size)).expect("taffy new_leaf should succeed for valid child size");
+        let node = taffy
+            .new_leaf(fixed_leaf_style(child.half_size))
+            .expect("taffy new_leaf should succeed for valid child size");
         child_nodes.push(node);
     }
 
@@ -529,14 +594,10 @@ pub fn compute_taffy_grid_layout(
     let (col_widths, row_heights) = compute_grid_tracks(children, cols, rows);
 
     // Create grid template using helper functions
-    let col_template: Vec<GridTemplateComponent<String>> = col_widths
-        .iter()
-        .map(|&w| GridTemplateComponent::from_length(w))
-        .collect();
-    let row_template: Vec<GridTemplateComponent<String>> = row_heights
-        .iter()
-        .map(|&h| GridTemplateComponent::from_length(h))
-        .collect();
+    let col_template: Vec<GridTemplateComponent<String>> =
+        col_widths.iter().map(|&w| GridTemplateComponent::from_length(w)).collect();
+    let row_template: Vec<GridTemplateComponent<String>> =
+        row_heights.iter().map(|&h| GridTemplateComponent::from_length(h)).collect();
 
     // Create container style with grid
     // Don't set explicit size - let Taffy compute it from the grid template
@@ -557,23 +618,28 @@ pub fn compute_taffy_grid_layout(
         ..Default::default()
     };
 
-    let container_node = taffy.new_leaf(container_style).expect("taffy new_leaf should succeed for grid container style");
+    let container_node = taffy
+        .new_leaf(container_style)
+        .expect("taffy new_leaf should succeed for grid container style");
 
     // Add children with grid placement
     for (i, child_node) in child_nodes.iter().enumerate() {
-        taffy.add_child(container_node, *child_node).expect("taffy add_child should succeed for valid parent and child nodes");
+        taffy
+            .add_child(container_node, *child_node)
+            .expect("taffy add_child should succeed for valid parent and child nodes");
         // Set grid placement using the line() helper from prelude
         let row = i / cols;
         let col = i % cols;
-        taffy.set_style(
-            *child_node,
-            Style {
-                grid_row: line((row + 1) as i16),
-                grid_column: line((col + 1) as i16),
-                ..Default::default()
-            },
-        )
-        .expect("taffy set_style should succeed for valid child node and grid placement");
+        taffy
+            .set_style(
+                *child_node,
+                Style {
+                    grid_row: line((row + 1) as i16),
+                    grid_column: line((col + 1) as i16),
+                    ..Default::default()
+                },
+            )
+            .expect("taffy set_style should succeed for valid child node and grid placement");
     }
 
     // Compute layout
@@ -582,19 +648,26 @@ pub fn compute_taffy_grid_layout(
         .expect("taffy compute_layout should succeed for grid");
 
     // Extract positions
-    let container_layout = taffy.layout(container_node).expect("taffy layout should exist for computed grid container");
+    let container_layout = taffy
+        .layout(container_node)
+        .expect("taffy layout should exist for computed grid container");
     let container_size = [container_layout.size.width, container_layout.size.height];
     let mut results: Vec<TaffyLayoutResult> = Vec::with_capacity(children.len());
 
     for (i, _child) in children.iter().enumerate() {
-        let child_layout = taffy.layout(child_nodes[i]).expect("taffy layout should exist for computed grid child node");
+        let child_layout = taffy
+            .layout(child_nodes[i])
+            .expect("taffy layout should exist for computed grid child node");
 
         results.push(TaffyLayoutResult {
             position: center_relative_position(container_layout, child_layout),
         });
     }
 
-    TaffyLayoutOutput { positions: results, container_size }
+    TaffyLayoutOutput {
+        positions: results,
+        container_size,
+    }
 }
 
 /// Compute layout for Grid containers with size specs and constraints.
@@ -660,18 +733,21 @@ pub fn compute_taffy_grid_layout_with_specs(
     let container_node = taffy.new_leaf(container_style).expect("taffy new_leaf should succeed");
 
     for (i, child_node) in child_nodes.iter().enumerate() {
-        taffy.add_child(container_node, *child_node).expect("taffy add_child should succeed");
+        taffy
+            .add_child(container_node, *child_node)
+            .expect("taffy add_child should succeed");
         let row = i / cols;
         let col = i % cols;
-        taffy.set_style(
-            *child_node,
-            Style {
-                grid_row: line((row + 1) as i16),
-                grid_column: line((col + 1) as i16),
-                ..Default::default()
-            },
-        )
-        .expect("taffy set_style should succeed");
+        taffy
+            .set_style(
+                *child_node,
+                Style {
+                    grid_row: line((row + 1) as i16),
+                    grid_column: line((col + 1) as i16),
+                    ..Default::default()
+                },
+            )
+            .expect("taffy set_style should succeed");
     }
 
     taffy
@@ -689,15 +765,14 @@ pub fn compute_taffy_grid_layout_with_specs(
         });
     }
 
-    TaffyLayoutOutput { positions: results, container_size }
+    TaffyLayoutOutput {
+        positions: results,
+        container_size,
+    }
 }
 
 /// Compute grid column widths and row heights.
-fn compute_grid_tracks(
-    children: &[ChildExtent],
-    cols: usize,
-    rows: usize,
-) -> (Vec<f32>, Vec<f32>) {
+fn compute_grid_tracks(children: &[ChildExtent], cols: usize, rows: usize) -> (Vec<f32>, Vec<f32>) {
     let cols = cols.max(1);
     let rows = rows.max(1);
 
@@ -735,7 +810,13 @@ mod tests {
             make_child("b", 100.0, 50.0, PlacementMode::LayoutManaged),
         ];
 
-        let output = compute_taffy_linear_layout(&children, LayoutType::Row, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center");
+        let output = compute_taffy_linear_layout(
+            &children,
+            LayoutType::Row,
+            [10.0, 10.0],
+            [0.0, 0.0, 0.0, 0.0],
+            "center",
+        );
         let results = &output.positions;
 
         // Two 100-wide children with 10 gap, centered
@@ -757,7 +838,13 @@ mod tests {
             make_child("b", 50.0, 100.0, PlacementMode::LayoutManaged),
         ];
 
-        let output = compute_taffy_linear_layout(&children, LayoutType::Col, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center");
+        let output = compute_taffy_linear_layout(
+            &children,
+            LayoutType::Col,
+            [10.0, 10.0],
+            [0.0, 0.0, 0.0, 0.0],
+            "center",
+        );
         let results = &output.positions;
 
         // Two 100-tall children with 10 gap, centered
@@ -779,7 +866,13 @@ mod tests {
             make_child("c", 100.0, 50.0, PlacementMode::LayoutManaged),
         ];
 
-        let output = compute_taffy_linear_layout(&children, LayoutType::Row, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center");
+        let output = compute_taffy_linear_layout(
+            &children,
+            LayoutType::Row,
+            [10.0, 10.0],
+            [0.0, 0.0, 0.0, 0.0],
+            "center",
+        );
         let results = &output.positions;
 
         assert_eq!(results.len(), 3);
@@ -797,7 +890,13 @@ mod tests {
     #[test]
     fn test_empty_children() {
         let children: Vec<ChildExtent> = vec![];
-        let output = compute_taffy_linear_layout(&children, LayoutType::Row, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center");
+        let output = compute_taffy_linear_layout(
+            &children,
+            LayoutType::Row,
+            [10.0, 10.0],
+            [0.0, 0.0, 0.0, 0.0],
+            "center",
+        );
         assert!(output.positions.is_empty());
 
         let output = compute_taffy_grid_layout(&children, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], 2);
@@ -809,8 +908,7 @@ mod tests {
     #[test]
     fn test_compute_available_width_col() {
         // Col: available_width = container_size - horizontal padding
-        use crate::timeline::ContainerMetadata;
-        use crate::timeline::LayoutType;
+        use crate::timeline::{ContainerMetadata, LayoutType};
 
         let metadata = ContainerMetadata {
             layout_type: LayoutType::Col,
@@ -830,8 +928,7 @@ mod tests {
 
     #[test]
     fn test_compute_available_width_grid() {
-        use crate::timeline::ContainerMetadata;
-        use crate::timeline::LayoutType;
+        use crate::timeline::{ContainerMetadata, LayoutType};
 
         let metadata = ContainerMetadata {
             layout_type: LayoutType::Grid,
@@ -852,8 +949,7 @@ mod tests {
 
     #[test]
     fn test_compute_available_width_row_unbounded() {
-        use crate::timeline::ContainerMetadata;
-        use crate::timeline::LayoutType;
+        use crate::timeline::{ContainerMetadata, LayoutType};
 
         let metadata = ContainerMetadata {
             layout_type: LayoutType::Row,
@@ -873,8 +969,7 @@ mod tests {
 
     #[test]
     fn test_compute_available_width_min_1px() {
-        use crate::timeline::ContainerMetadata;
-        use crate::timeline::LayoutType;
+        use crate::timeline::{ContainerMetadata, LayoutType};
 
         let metadata = ContainerMetadata {
             layout_type: LayoutType::Col,
@@ -894,8 +989,7 @@ mod tests {
 
     #[test]
     fn test_compute_container_size_row() {
-        use crate::timeline::ContainerMetadata;
-        use crate::timeline::LayoutType;
+        use crate::timeline::{ContainerMetadata, LayoutType};
 
         let children = vec![
             make_child("a", 100.0, 50.0, PlacementMode::LayoutManaged),
@@ -920,8 +1014,7 @@ mod tests {
 
     #[test]
     fn test_compute_container_size_col() {
-        use crate::timeline::ContainerMetadata;
-        use crate::timeline::LayoutType;
+        use crate::timeline::{ContainerMetadata, LayoutType};
 
         let children = vec![
             make_child("a", 150.0, 100.0, PlacementMode::LayoutManaged),
@@ -985,14 +1078,23 @@ mod tests {
 
         // First compute with center alignment (default)
         let center_output = compute_taffy_linear_layout(
-            &children, layout_type, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center",
+            &children,
+            layout_type,
+            [10.0, 10.0],
+            [0.0, 0.0, 0.0, 0.0],
+            "center",
         );
 
         // Compute with baseline alignment
         let child_baselines = vec![-8.0, -4.0]; // baseline offsets: large=-8, small=-4
         let baseline_output = compute_taffy_linear_layout_with_baselines(
-            &children, layout_type, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center",
-            &child_baselines, "baseline",
+            &children,
+            layout_type,
+            [10.0, 10.0],
+            [0.0, 0.0, 0.0, 0.0],
+            "center",
+            &child_baselines,
+            "baseline",
         );
 
         // Center alignment should have both children at Y=0 (centered vertically)
@@ -1006,14 +1108,19 @@ mod tests {
         // small adjustment = -4 - (-4) = 0 → small child Y stays same
         assert!(
             (baseline_output.positions[0].position[1] - 4.0).abs() < 0.01
-            || (baseline_output.positions[0].position[1]).abs() < 0.01,
+                || (baseline_output.positions[0].position[1]).abs() < 0.01,
             "Baseline alignment should adjust child Y positions"
         );
 
         // Verify vertical_align center still works (no baseline adjustment)
         let center_with_baselines = compute_taffy_linear_layout_with_baselines(
-            &children, layout_type, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center",
-            &child_baselines, "center",
+            &children,
+            layout_type,
+            [10.0, 10.0],
+            [0.0, 0.0, 0.0, 0.0],
+            "center",
+            &child_baselines,
+            "center",
         );
         assert!((center_with_baselines.positions[0].position[1]).abs() < 0.01);
         assert!((center_with_baselines.positions[1].position[1]).abs() < 0.01);
@@ -1031,13 +1138,23 @@ mod tests {
         let child_baselines = vec![-6.0, -3.0];
 
         let center_output = compute_taffy_linear_layout_with_baselines(
-            &children, layout_type, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center",
-            &child_baselines, "center",
+            &children,
+            layout_type,
+            [10.0, 10.0],
+            [0.0, 0.0, 0.0, 0.0],
+            "center",
+            &child_baselines,
+            "center",
         );
 
         let baseline_output = compute_taffy_linear_layout_with_baselines(
-            &children, layout_type, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center",
-            &child_baselines, "baseline",
+            &children,
+            layout_type,
+            [10.0, 10.0],
+            [0.0, 0.0, 0.0, 0.0],
+            "center",
+            &child_baselines,
+            "baseline",
         );
 
         // Center: children stacked vertically in Col
@@ -1049,7 +1166,9 @@ mod tests {
 
         // Baseline: should adjust Y positions differently from center
         assert!(
-            (baseline_output.positions[0].position[1] - center_output.positions[0].position[1]).abs() > 0.01,
+            (baseline_output.positions[0].position[1] - center_output.positions[0].position[1])
+                .abs()
+                > 0.01,
             "Baseline alignment should differ from center alignment in Col"
         );
     }
@@ -1066,8 +1185,13 @@ mod tests {
         let empty_baselines: Vec<f32> = vec![];
 
         let baseline_output = compute_taffy_linear_layout_with_baselines(
-            &children, layout_type, [10.0, 10.0], [0.0, 0.0, 0.0, 0.0], "center",
-            &empty_baselines, "baseline",
+            &children,
+            layout_type,
+            [10.0, 10.0],
+            [0.0, 0.0, 0.0, 0.0],
+            "center",
+            &empty_baselines,
+            "baseline",
         );
 
         // With empty baselines, should fall back to center
@@ -1127,19 +1251,13 @@ mod tests {
     fn test_parse_size_spec() {
         use crate::ast::Expr;
         // size: (50%, auto)
-        let expr = Expr::Tuple(vec![
-            Expr::Str("50%".into()),
-            Expr::Ident("auto".into()),
-        ]);
+        let expr = Expr::Tuple(vec![Expr::Str("50%".into()), Expr::Ident("auto".into())]);
         let spec = parse_size_spec(&expr);
         assert_eq!(spec.width, SizeSpec::Percent(0.5));
         assert_eq!(spec.height, SizeSpec::Auto);
 
         // size: (100, 200) — fixed tuple
-        let expr = Expr::Tuple(vec![
-            Expr::Num(100.0),
-            Expr::Num(200.0),
-        ]);
+        let expr = Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(200.0)]);
         let spec = parse_size_spec(&expr);
         assert_eq!(spec.width, SizeSpec::Fixed(100.0));
         assert_eq!(spec.height, SizeSpec::Fixed(200.0));
@@ -1170,23 +1288,33 @@ mod tests {
         let constraints = vec![SizeConstraints::default(), SizeConstraints::default()];
 
         let output = compute_taffy_linear_layout_with_specs(
-            &children, LayoutType::Row, [0.0, 0.0], [0.0, 0.0, 0.0, 0.0], "start",
-            &[], "center", &specs, &constraints, [400.0, 100.0],
+            &children,
+            LayoutType::Row,
+            [0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+            "start",
+            &[],
+            "center",
+            &specs,
+            &constraints,
+            [400.0, 100.0],
         );
 
         // With 50% + Fill in a row with no gap: a gets 200px, b gets 200px
         assert_eq!(output.positions.len(), 2);
         // Container size should be 400 x 50
         let container_w = output.container_size[0];
-        assert!((container_w - 400.0).abs() < 1.0, "Container width expected ~400, got {}", container_w);
+        assert!(
+            (container_w - 400.0).abs() < 1.0,
+            "Container width expected ~400, got {}",
+            container_w
+        );
         assert!((output.container_size[1] - 50.0).abs() < 1.0);
     }
 
     #[test]
     fn test_linear_layout_with_constraints() {
-        let children = vec![
-            make_child("a", 200.0, 50.0, PlacementMode::LayoutManaged),
-        ];
+        let children = vec![make_child("a", 200.0, 50.0, PlacementMode::LayoutManaged)];
         let specs = vec![None];
         let constraints = vec![SizeConstraints {
             min_width: None,
@@ -1196,13 +1324,24 @@ mod tests {
         }];
 
         let output = compute_taffy_linear_layout_with_specs(
-            &children, LayoutType::Row, [0.0, 0.0], [0.0, 0.0, 0.0, 0.0], "start",
-            &[], "center", &specs, &constraints, [500.0, 100.0],
+            &children,
+            LayoutType::Row,
+            [0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+            "start",
+            &[],
+            "center",
+            &specs,
+            &constraints,
+            [500.0, 100.0],
         );
 
         // Child a wants 200px width, but max_width is 100px, so it should be clamped
-        assert!((output.container_size[0] - 100.0).abs() < 1.0,
-            "Container width expected ~100 (clamped by max), got {}", output.container_size[0]);
+        assert!(
+            (output.container_size[0] - 100.0).abs() < 1.0,
+            "Container width expected ~100 (clamped by max), got {}",
+            output.container_size[0]
+        );
     }
 
     #[test]
@@ -1216,12 +1355,20 @@ mod tests {
         let constraints = vec![
             SizeConstraints::default(),
             SizeConstraints::default(),
-            SizeConstraints { min_width: Some(150.0), ..SizeConstraints::default() },
+            SizeConstraints {
+                min_width: Some(150.0),
+                ..SizeConstraints::default()
+            },
         ];
 
         let output = compute_taffy_grid_layout_with_specs(
-            &children, [0.0, 0.0], [0.0, 0.0, 0.0, 0.0], 2,
-            &specs, &constraints, [500.0, 200.0],
+            &children,
+            [0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+            2,
+            &specs,
+            &constraints,
+            [500.0, 200.0],
         );
 
         assert_eq!(output.positions.len(), 3);

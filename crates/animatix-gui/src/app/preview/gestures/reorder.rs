@@ -5,10 +5,9 @@
 //! Projects mouse position onto the Row/Col main axis to determine the target insertion index.
 
 use crate::app::commands::{DocumentCommand, PropertyEdit, PropertyValue};
-use crate::app::preview::DragState;
-use crate::app::preview::drag_utils;
 use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
 use crate::app::preview::gestures::common::finish_drag;
+use crate::app::preview::{DragState, drag_utils};
 
 pub(crate) struct ReorderGesture;
 
@@ -20,7 +19,9 @@ impl GestureHandler for ReorderGesture {
         preview_rect: egui::Rect,
     ) -> GestureResult {
         match gesture {
-            Gesture::DragStart { pos: _, modifiers, .. } => {
+            Gesture::DragStart {
+                pos: _, modifiers, ..
+            } => {
                 // Reorder only fires on the drag start of the first real movement,
                 // not on a click. We use `drag_started` which is driven by egui's
                 // drag_started() — indicating actual pixel movement.

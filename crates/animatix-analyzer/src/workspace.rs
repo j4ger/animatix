@@ -1,8 +1,9 @@
 //! Workspace management for cross-file analysis.
 
-use crate::symbol_table::SymbolTable;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+
+use crate::symbol_table::SymbolTable;
 
 /// A workspace holds multiple files and their cross-file relationships.
 ///
@@ -30,10 +31,8 @@ impl Workspace {
         use animatix_syntax::parser::parse_source;
 
         let (ast, _) = parse_source(source);
-        let mut symbols = ast
-            .as_ref()
-            .map(|stmts| SymbolTable::build_from_ast(stmts))
-            .unwrap_or_default();
+        let mut symbols =
+            ast.as_ref().map(|stmts| SymbolTable::build_from_ast(stmts)).unwrap_or_default();
         if let Some(ref stmts) = ast {
             symbols.collect_references(stmts);
         }
@@ -58,11 +57,7 @@ impl Workspace {
     /// Resolve imports for a file and return a merged symbol table
     /// containing local symbols plus exported symbols from imported files.
     pub fn resolve_symbols(&self, path: &Path) -> SymbolTable {
-        let mut merged = self
-            .files
-            .get(path)
-            .map(|e| e.symbols.clone())
-            .unwrap_or_default();
+        let mut merged = self.files.get(path).map(|e| e.symbols.clone()).unwrap_or_default();
 
         for import in &merged.imports.clone() {
             // Try to find the imported file by path

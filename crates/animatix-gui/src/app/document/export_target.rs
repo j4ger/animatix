@@ -40,11 +40,11 @@ impl<'a> ExportTargetRef<'a> {
 
 /// Owned export target for background export threads.
 ///
-/// Used by both the image and video export paths, so it must be available
-/// without the `video` feature.  (Keep the allow; image export also hits
-/// this enum, making the large-variant warning a real, intentional cost.)
+/// Timeline is boxed to keep this enum small and to avoid moving a large,
+/// non-Sync type into the worker closure. Renderer calls that require owned
+/// timelines clone once inside the worker.
 #[derive(Clone)]
 pub enum ExportTargetOwned {
-    Timeline(Timeline),
-    Composition(Composition),
+    Timeline(Box<Timeline>),
+    Composition(Box<Composition>),
 }

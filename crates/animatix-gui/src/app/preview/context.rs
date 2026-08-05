@@ -5,22 +5,21 @@
 
 use std::collections::{HashMap, HashSet};
 
-use egui::{Pos2, Vec2};
+use animatix::timeline::{ActorKindId, SceneDimensions, Timeline};
+use egui::{Pos2, Stroke, Vec2};
 
-use crate::app::commands::{ActionQueue, DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue, SceneCommand};
-use crate::app::design_tokens::semantic::accent;
-use crate::app::design_tokens::semantic::status;
-use crate::app::design_tokens::semantic::surface;
-use crate::app::design_tokens::semantic::text;
-use crate::app::design_tokens::spatial::preview::{HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS, MIN_ZOOM as PREVIEW_MIN_ZOOM};
-use crate::app::design_tokens::spatial::spatial;
-use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
+use crate::app::commands::{
+    ActionQueue, DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue, SceneCommand,
+};
+use crate::app::design_tokens::semantic::{accent, status, surface, text};
+use crate::app::design_tokens::spatial::preview::{
+    HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS, MIN_ZOOM as PREVIEW_MIN_ZOOM,
+};
+use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::preview::performance::PerformanceMetrics;
-use crate::app::preview::{ActorProps, DragState, selection, self};
+use crate::app::preview::{self, ActorProps, DragState, selection};
 use crate::app::{InlineTextEditState, PreviewPaneState};
-use animatix::timeline::{ActorKindId, SceneDimensions, Timeline};
-use egui::Stroke;
 
 pub(crate) struct PreviewContext<'a> {
     pub scene_dimensions: SceneDimensions,
@@ -97,11 +96,7 @@ impl PreviewContext<'_> {
         let track = timeline.get_track(actor)?;
         let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
         let schema = animatix::timeline::lookup_property("text").unwrap();
-        let value = animatix::timeline::read_property_value_or_default(
-            track,
-            schema,
-            time_ms,
-        );
+        let value = animatix::timeline::read_property_value_or_default(track, schema, time_ms);
         match value {
             animatix::timeline::PropertyValue::String(s) => Some(s),
             _ => None,
@@ -192,7 +187,8 @@ impl PreviewContext<'_> {
 
         // Build text edit UI
         let sp = spatial(ui);
-        let mut child = ui.new_child(egui::UiBuilder::new().max_rect(editor_rect.shrink(sp.base.space_2)));
+        let mut child =
+            ui.new_child(egui::UiBuilder::new().max_rect(editor_rect.shrink(sp.base.space_2)));
         child.set_clip_rect(editor_rect);
 
         let font = match edit.property.as_str() {
@@ -1123,15 +1119,33 @@ impl PreviewContext<'_> {
                     let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
                     if let Some(track) = timeline.get_track(actor) {
                         let geo = animatix::timeline::callout_geometry::derive_callout_geometry(
-                            track, time_ms, Some(timeline), self.scene_dimensions,
+                            track,
+                            time_ms,
+                            Some(timeline),
+                            self.scene_dimensions,
                         );
                         let zoom = self.preview.viewport.preview_zoom;
                         let pan = self.preview.viewport.preview_pan;
                         let desired = preview_rect.size();
                         let tip_world = kurbo::Point::new(geo.to[0] as f64, geo.to[1] as f64);
-                        let label_world = kurbo::Point::new(geo.label_point[0] as f64, geo.label_point[1] as f64);
-                        let tip_screen = preview::scene_to_screen(tip_world, preview_rect, self.scene_dimensions, desired, zoom, pan);
-                        let label_screen = preview::scene_to_screen(label_world, preview_rect, self.scene_dimensions, desired, zoom, pan);
+                        let label_world =
+                            kurbo::Point::new(geo.label_point[0] as f64, geo.label_point[1] as f64);
+                        let tip_screen = preview::scene_to_screen(
+                            tip_world,
+                            preview_rect,
+                            self.scene_dimensions,
+                            desired,
+                            zoom,
+                            pan,
+                        );
+                        let label_screen = preview::scene_to_screen(
+                            label_world,
+                            preview_rect,
+                            self.scene_dimensions,
+                            desired,
+                            zoom,
+                            pan,
+                        );
                         let active_tip = matches!(&self.drag_state, DragState::CalloutTip { actor: a, .. } if a == actor);
                         let active_label = matches!(&self.drag_state, DragState::CalloutLabel { actor: a, .. } if a == actor);
                         preview::draw_callout_handles(
@@ -1145,16 +1159,22 @@ impl PreviewContext<'_> {
                         // Place handles and standoff handle for targeted callouts
                         if geo.is_targeted {
                             let place_screens = preview::callout_place_handle_screens(
-                                &geo, preview_rect, self.scene_dimensions, desired, zoom, pan,
+                                &geo,
+                                preview_rect,
+                                self.scene_dimensions,
+                                desired,
+                                zoom,
+                                pan,
                             );
                             // Individual place handles are never highlighted yet:
                             // intended to highlight on tap, but not during drag.
                             // TODO: highlight the tapped place once tap selection lands.
-                            let active_place = if self.selection.tapped_place_actor.as_deref() == Some(actor) {
-                                self.selection.tapped_place
-                            } else {
-                                None
-                            };
+                            let active_place =
+                                if self.selection.tapped_place_actor.as_deref() == Some(actor) {
+                                    self.selection.tapped_place
+                                } else {
+                                    None
+                                };
                             preview::draw_callout_place_handles(
                                 ui.painter(),
                                 place_screens,
@@ -1162,8 +1182,16 @@ impl PreviewContext<'_> {
                                 ui.ctx().pixels_per_point(),
                             );
                             // Standoff handle at `from`
-                            let from_world = kurbo::Point::new(geo.from[0] as f64, geo.from[1] as f64);
-                            let standoff_screen = preview::scene_to_screen(from_world, preview_rect, self.scene_dimensions, desired, zoom, pan);
+                            let from_world =
+                                kurbo::Point::new(geo.from[0] as f64, geo.from[1] as f64);
+                            let standoff_screen = preview::scene_to_screen(
+                                from_world,
+                                preview_rect,
+                                self.scene_dimensions,
+                                desired,
+                                zoom,
+                                pan,
+                            );
                             let active_standoff = matches!(&self.drag_state, DragState::CalloutStandoff { actor: a, .. } if a == actor);
                             preview::draw_callout_standoff_handle(
                                 ui.painter(),
@@ -1442,12 +1470,14 @@ impl PreviewContext<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use egui::Rect;
+
+    use super::*;
 
     #[test]
     fn test_clamp_pan_center() {
-        // Scene 1920×1080, preview 960×540, zoom=1 → full scene visible, must pan to center (960, 540)
+        // Scene 1920×1080, preview 960×540, zoom=1 → full scene visible, must pan to center (960,
+        // 540)
         let scene = SceneDimensions {
             width: 1920,
             height: 1080,

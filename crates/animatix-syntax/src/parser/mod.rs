@@ -10,10 +10,10 @@
 //!
 //! ## Key Design Notes
 //!
-//! - The grammar is expression-heavy with prefix/infix operator precedence handled via
-//!   combinator chaining in `chumsky`.
-//! - Actor declarations, actions, and assignments share a generic modifier syntax in
-//!   brackets `[...]`.
+//! - The grammar is expression-heavy with prefix/infix operator precedence handled via combinator
+//!   chaining in `chumsky`.
+//! - Actor declarations, actions, and assignments share a generic modifier syntax in brackets
+//!   `[...]`.
 //! - `Text`, `Math`, `Code` are parsed as generic actor declarations.
 //! - The parser accepts some syntax that the runtime may reject (e.g., method/index/construct
 //!   expressions) — honest runtime diagnostics handle the mismatch.
@@ -34,18 +34,20 @@
 //! - `tree-sitter-animatix/` is a synchronized derivative for editor tooling.
 //! - Parser tests in `tests/parser_tests.rs` are the authority on accepted syntax.
 
+pub(crate) mod common;
 pub(crate) mod expr;
 pub(crate) mod inline;
 pub(crate) mod stmt;
 pub(crate) mod top_level;
-pub(crate) mod common;
 
-use crate::ast::*;
-use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
-use chumsky::prelude::*;
 use std::cell::RefCell;
 use std::ops::Range;
 use std::rc::Rc;
+
+use chumsky::prelude::*;
+
+use crate::ast::*;
+use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 
 /// Replace `//` line comments with spaces while preserving newlines.
 ///
@@ -129,24 +131,28 @@ pub fn parse_source(source: &str) -> (Option<Vec<Stmt>>, Vec<ParseError>) {
 pub fn parse_source_ts(source: &str) -> (Option<Vec<Stmt>>, Vec<ParseError>) {
     match crate::ts_convert::parse_source(source) {
         Some(result) => {
-            let errors: Vec<ParseError> = result.diagnostics.iter().map(|d| {
-                let span = d.location.span.clone().unwrap_or(0..0);
-                ParseError {
-                    message: d.message.clone(),
-                    span,
-                    line: d.location.line.unwrap_or(1),
-                    column: d.location.column.unwrap_or(1),
-                    expected: Vec::new(),
-                    found: None,
-                    context: Vec::new(),
-                }
-            }).collect();
+            let errors: Vec<ParseError> = result
+                .diagnostics
+                .iter()
+                .map(|d| {
+                    let span = d.location.span.clone().unwrap_or(0..0);
+                    ParseError {
+                        message: d.message.clone(),
+                        span,
+                        line: d.location.line.unwrap_or(1),
+                        column: d.location.column.unwrap_or(1),
+                        expected: Vec::new(),
+                        found: None,
+                        context: Vec::new(),
+                    }
+                })
+                .collect();
             (Some(result.statements), errors)
-        }
+        },
         None => {
             // Tree-sitter failed — fall back to chumsky
             parse_source(source)
-        }
+        },
     }
 }
 
@@ -244,8 +250,11 @@ impl ParseError {
         if !self.context.is_empty() {
             msg.push_str(&format!("\n  in {}", self.context.join(" > ")));
         }
-        Diagnostic::error(DiagnosticCode::ParseError, DiagnosticPhase::Parse, msg)
-            .with_location(self.line, self.column, self.span.clone())
+        Diagnostic::error(DiagnosticCode::ParseError, DiagnosticPhase::Parse, msg).with_location(
+            self.line,
+            self.column,
+            self.span.clone(),
+        )
     }
 
     /// Convert a chumsky `Rich` error into a structured `ParseError`.
@@ -260,7 +269,10 @@ impl ParseError {
         let mut found = None;
 
         match err.reason() {
-            chumsky::error::RichReason::ExpectedFound { expected: exp, found: f } => {
+            chumsky::error::RichReason::ExpectedFound {
+                expected: exp,
+                found: f,
+            } => {
                 expected = exp.iter().map(|p| p.to_string()).collect();
                 found = f.as_ref().map(|c| c.to_string());
                 let expected_str = expected.join(", ");
@@ -268,20 +280,17 @@ impl ParseError {
                     (false, Some(f)) => _message = format!("expected {expected_str}, found '{f}'"),
                     (false, None) => {
                         _message = format!("expected {expected_str}, found end of input")
-                    }
+                    },
                     (true, Some(f)) => _message = format!("unexpected '{f}'"),
                     (true, None) => _message = "unexpected end of input".to_string(),
                 }
-            }
+            },
             chumsky::error::RichReason::Custom(msg) => {
                 _message = msg.clone();
-            }
+            },
         }
 
-        let context: Vec<String> = err
-            .contexts()
-            .map(|(pattern, _)| pattern.to_string())
-            .collect();
+        let context: Vec<String> = err.contexts().map(|(pattern, _)| pattern.to_string()).collect();
 
         Self {
             message: _message,
@@ -316,8 +325,8 @@ fn byte_offset_to_line_col(source: &str, offset: usize) -> (usize, usize) {
 /// Build the top-level `.amx` file parser that discards warnings.
 ///
 /// Convenience wrapper for tests and contexts where diagnostics are not needed.
-pub fn parser_simple<'src>(
-) -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich<'src, char>>> {
+pub fn parser_simple<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich<'src, char>>>
+{
     parser(Rc::new(RefCell::new(Vec::new())))
 }
 
@@ -340,8 +349,9 @@ pub fn parser<'src>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use chumsky::Parser;
+
+    use super::*;
 
     #[test]
     fn test_closure_parser() {
@@ -349,7 +359,13 @@ mod tests {
         let res = parser_simple().parse(input).unwrap();
 
         // Find the LetDecl stmt
-        if let Stmt::LetDecl { is_pub, name, value, .. } = &res[0] {
+        if let Stmt::LetDecl {
+            is_pub,
+            name,
+            value,
+            ..
+        } = &res[0]
+        {
             assert!(!(*is_pub));
             assert_eq!(name, "f");
             assert_eq!(
@@ -554,18 +570,20 @@ mod tests {
         }
     }
 
-
     #[test]
     fn test_reactive_binding_parser() {
         let input = r#"orbiter.at := tracker.at + (200 * cos(3 * t), 200 * sin(3 * t))"#;
         let res = parser_simple().parse(input).unwrap();
         assert_eq!(res.len(), 1);
         // Reactive bindings are not wrapped in a default keyframe
-        if let Stmt::ReactiveBinding { target, property, value, .. } = &res[0] {
-            assert_eq!(
-                target,
-                &[TargetSegment::Static("orbiter".to_string())]
-            );
+        if let Stmt::ReactiveBinding {
+            target,
+            property,
+            value,
+            ..
+        } = &res[0]
+        {
+            assert_eq!(target, &[TargetSegment::Static("orbiter".to_string())]);
             assert_eq!(property, "at");
             // Verify it's a binary expression (tracker.at + (...))
             if let Expr::Binary(left, BinaryOp::Add, _right) = value {
@@ -601,7 +619,10 @@ mod tests {
         assert!(errors.is_empty(), "Parse errors: {:?}", errors);
         let ast = ast.expect("parsed AST");
         assert_eq!(ast.len(), 1);
-        if let Stmt::Assignment { property, value, .. } = &ast[0] {
+        if let Stmt::Assignment {
+            property, value, ..
+        } = &ast[0]
+        {
             assert_eq!(property, "circ");
             if let Expr::Construct(name, props) = value {
                 assert_eq!(name, "Circle");
@@ -651,9 +672,8 @@ mod tests {
         let (_ast, errors) = parse_source(input);
         assert!(!errors.is_empty(), "Expected parse errors");
         // The error should include context about being in an actor declaration
-        let has_context = errors.iter().any(|e| {
-            e.context.iter().any(|c| c.contains("actor declaration"))
-        });
+        let has_context =
+            errors.iter().any(|e| e.context.iter().any(|c| c.contains("actor declaration")));
         assert!(
             has_context,
             "Expected error context to include 'actor declaration', got: {:?}",
@@ -699,7 +719,10 @@ mod tests {
         assert!(stmts.is_some(), "snippet should parse");
         let stmts = stmts.unwrap();
         assert_eq!(stmts.len(), 1);
-        if let Stmt::ActorDecl { label, ty, props, .. } = &stmts[0] {
+        if let Stmt::ActorDecl {
+            label, ty, props, ..
+        } = &stmts[0]
+        {
             assert_eq!(label, "label");
             assert_eq!(ty, "Text");
             assert_eq!(props.len(), 1);
@@ -712,12 +735,19 @@ mod tests {
     #[test]
     fn parse_snippet_actor_with_children() {
         // AMX children (nested items) use braces
-        let snippet = "${1:container}: ${2:Row} {\n    ${3:child}: ${4:Text}, content: \"${5:Hi}\"\n}";
+        let snippet =
+            "${1:container}: ${2:Row} {\n    ${3:child}: ${4:Text}, content: \"${5:Hi}\"\n}";
         let stmts = parse_snippet(snippet);
         assert!(stmts.is_some(), "snippet should parse");
         let stmts = stmts.unwrap();
         assert_eq!(stmts.len(), 1);
-        if let Stmt::ActorDecl { label, ty, children, .. } = &stmts[0] {
+        if let Stmt::ActorDecl {
+            label,
+            ty,
+            children,
+            ..
+        } = &stmts[0]
+        {
             assert_eq!(label, "container");
             assert_eq!(ty, "Row");
             assert_eq!(children.len(), 1);
@@ -733,7 +763,11 @@ mod tests {
         assert!(stmts.is_some(), "keyframe snippet should parse");
         let stmts = stmts.unwrap();
         assert_eq!(stmts.len(), 1);
-        assert!(matches!(&stmts[0], Stmt::Keyframe { .. }), "Expected Keyframe, got {:?}", stmts[0]);
+        assert!(
+            matches!(&stmts[0], Stmt::Keyframe { .. }),
+            "Expected Keyframe, got {:?}",
+            stmts[0]
+        );
     }
 
     #[test]
@@ -756,10 +790,18 @@ mod tests {
         assert_eq!(stmts.len(), 1);
         if let Stmt::Keyframe { body, .. } = &stmts[0] {
             assert_eq!(body.len(), 1);
-            assert!(matches!(&body[0], Stmt::Stagger { .. }), "Expected Stagger inside keyframe, got {:?}", body[0]);
+            assert!(
+                matches!(&body[0], Stmt::Stagger { .. }),
+                "Expected Stagger inside keyframe, got {:?}",
+                body[0]
+            );
         } else {
             // Also accept top-level stagger
-            assert!(matches!(&stmts[0], Stmt::Stagger { .. }), "Expected Stagger or Keyframe, got {:?}", stmts[0]);
+            assert!(
+                matches!(&stmts[0], Stmt::Stagger { .. }),
+                "Expected Stagger or Keyframe, got {:?}",
+                stmts[0]
+            );
         }
     }
 
@@ -770,10 +812,13 @@ mod tests {
         assert!(result.is_some(), "dotted action target should parse");
         let stmts = result.unwrap();
         // May be wrapped in a default keyframe
-        let action = stmts.iter().flat_map(|s| match s {
-            Stmt::Keyframe { body, .. } => body.iter().collect::<Vec<_>>(),
-            other => vec![other],
-        }).find(|s| matches!(s, Stmt::Action(..)));
+        let action = stmts
+            .iter()
+            .flat_map(|s| match s {
+                Stmt::Keyframe { body, .. } => body.iter().collect::<Vec<_>>(),
+                other => vec![other],
+            })
+            .find(|s| matches!(s, Stmt::Action(..)));
         assert!(action.is_some(), "expected Action stmt, got {:?}", stmts);
         if let Stmt::Action(action, _) = action.unwrap() {
             assert_eq!(action.verb, "highlight");
@@ -879,10 +924,13 @@ mod tests {
         let result = parse_snippet("highlight eq.f1, eq.f2 [500ms]");
         assert!(result.is_some(), "comma-separated dotted targets should parse");
         let stmts = result.unwrap();
-        let action = stmts.iter().flat_map(|s| match s {
-            Stmt::Keyframe { body, .. } => body.iter().collect::<Vec<_>>(),
-            other => vec![other],
-        }).find(|s| matches!(s, Stmt::Action(..)));
+        let action = stmts
+            .iter()
+            .flat_map(|s| match s {
+                Stmt::Keyframe { body, .. } => body.iter().collect::<Vec<_>>(),
+                other => vec![other],
+            })
+            .find(|s| matches!(s, Stmt::Action(..)));
         assert!(action.is_some(), "expected Action stmt");
         if let Stmt::Action(action, _) = action.unwrap() {
             assert_eq!(action.verb, "highlight");
@@ -926,10 +974,13 @@ mod tests {
         let result = parse_snippet(src);
         assert!(result.is_some(), "should parse without error");
         let stmts = result.unwrap();
-        let action = stmts.iter().flat_map(|s| match s {
-            Stmt::Keyframe { body, .. } => body.iter().collect::<Vec<_>>(),
-            other => vec![other],
-        }).find(|s| matches!(s, Stmt::Action(..)));
+        let action = stmts
+            .iter()
+            .flat_map(|s| match s {
+                Stmt::Keyframe { body, .. } => body.iter().collect::<Vec<_>>(),
+                other => vec![other],
+            })
+            .find(|s| matches!(s, Stmt::Action(..)));
         assert!(action.is_some(), "expected Action stmt");
         if let Stmt::Action(a, _) = action.unwrap() {
             assert_eq!(a.targets, vec!["x"], "target should be 'x', not 'x[300ms]'");
@@ -948,10 +999,13 @@ mod tests {
         let result = parse_snippet(src);
         assert!(result.is_some(), "indexed action target should parse");
         let stmts = result.unwrap();
-        let action = stmts.iter().flat_map(|s| match s {
-            Stmt::Keyframe { body, .. } => body.iter().collect::<Vec<_>>(),
-            other => vec![other],
-        }).find(|s| matches!(s, Stmt::Action(..)));
+        let action = stmts
+            .iter()
+            .flat_map(|s| match s {
+                Stmt::Keyframe { body, .. } => body.iter().collect::<Vec<_>>(),
+                other => vec![other],
+            })
+            .find(|s| matches!(s, Stmt::Action(..)));
         assert!(action.is_some(), "expected Action stmt");
         if let Stmt::Action(a, _) = action.unwrap() {
             assert_eq!(a.targets, vec!["dots__0"]);
@@ -965,16 +1019,19 @@ mod tests {
         let result = parse_snippet(src);
         assert!(result.is_some(), "indexed assignment target should parse");
         let stmts = result.unwrap();
-        let stmt = stmts.iter().flat_map(|s| match s {
-            Stmt::Keyframe { body, .. } => body.iter().collect::<Vec<_>>(),
-            other => vec![other],
-        }).find(|s| matches!(s, Stmt::Assignment { .. }));
+        let stmt = stmts
+            .iter()
+            .flat_map(|s| match s {
+                Stmt::Keyframe { body, .. } => body.iter().collect::<Vec<_>>(),
+                other => vec![other],
+            })
+            .find(|s| matches!(s, Stmt::Assignment { .. }));
         assert!(stmt.is_some(), "expected Assignment stmt");
-        if let Stmt::Assignment { target, property, .. } = stmt.unwrap() {
-            assert_eq!(
-                target,
-                &vec![TargetSegment::Static("dots__0".to_string())]
-            );
+        if let Stmt::Assignment {
+            target, property, ..
+        } = stmt.unwrap()
+        {
+            assert_eq!(target, &vec![TargetSegment::Static("dots__0".to_string())]);
             assert_eq!(property, "opacity");
         }
     }
@@ -986,11 +1043,17 @@ mod tests {
         let result = parse_snippet(src);
         assert!(result.is_some(), "dotted indexed assignment should parse");
         let stmts = result.unwrap();
-        let stmt = stmts.iter().flat_map(|s| match s {
-            Stmt::Keyframe { body, .. } => body.iter().collect::<Vec<_>>(),
-            other => vec![other],
-        }).find(|s| matches!(s, Stmt::Assignment { .. }));
-        if let Stmt::Assignment { target, property, .. } = stmt.unwrap() {
+        let stmt = stmts
+            .iter()
+            .flat_map(|s| match s {
+                Stmt::Keyframe { body, .. } => body.iter().collect::<Vec<_>>(),
+                other => vec![other],
+            })
+            .find(|s| matches!(s, Stmt::Assignment { .. }));
+        if let Stmt::Assignment {
+            target, property, ..
+        } = stmt.unwrap()
+        {
             assert_eq!(
                 target,
                 &vec![
@@ -1011,12 +1074,15 @@ mod tests {
         let always = result.iter().find(|s| matches!(s, Stmt::Always { .. })).unwrap();
         if let Stmt::Always { body, .. } = always {
             let assignment = body.iter().find(|s| matches!(s, Stmt::Assignment { .. })).unwrap();
-            if let Stmt::Assignment { target, property, .. } = assignment {
+            if let Stmt::Assignment {
+                target, property, ..
+            } = assignment
+            {
                 assert_eq!(target.len(), 1, "expected exactly one target segment");
                 match &target[0] {
                     TargetSegment::Indexed { base, .. } => {
                         assert_eq!(base, "bars");
-                    }
+                    },
                     other => panic!("expected Indexed segment, got {:?}", other),
                 }
                 assert_eq!(property, "color");
@@ -1034,12 +1100,15 @@ mod tests {
         let src = "bars[0].opacity = 0.5";
         let result = crate::parser::parse_source(src).0.unwrap();
         let stmt = result.iter().find(|s| matches!(s, Stmt::Assignment { .. })).unwrap();
-        if let Stmt::Assignment { target, property, .. } = stmt {
+        if let Stmt::Assignment {
+            target, property, ..
+        } = stmt
+        {
             assert_eq!(target.len(), 1, "expected exactly one target segment");
             match &target[0] {
                 TargetSegment::Static(s) => {
                     assert_eq!(s, "bars__0", "static index should resolve to '__' notation");
-                }
+                },
                 other => panic!("expected Static segment, got {:?}", other),
             }
             assert_eq!(property, "opacity");

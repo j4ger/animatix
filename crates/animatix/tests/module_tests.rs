@@ -1,21 +1,15 @@
-use animatix_syntax::ast::Expr;
-use animatix_syntax::module::{ModuleError, ModuleGraph};
-use animatix::timeline::Timeline;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use animatix::timeline::Timeline;
+use animatix_syntax::ast::Expr;
+use animatix_syntax::module::{ModuleError, ModuleGraph};
+
 fn temp_project_dir(name: &str) -> PathBuf {
-    let unique = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let dir = std::env::temp_dir().join(format!(
-        "animatix_{}_{}_{}",
-        name,
-        std::process::id(),
-        unique
-    ));
+    let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+    let dir =
+        std::env::temp_dir().join(format!("animatix_{}_{}_{}", name, std::process::id(), unique));
     fs::create_dir_all(&dir).unwrap();
     dir
 }
@@ -212,78 +206,78 @@ visible: Rect, size: (100, 100)
     let expanded = program.expand_components();
 
     // The hidden circle from helper should NOT be in expanded statements
-     let expanded_debug = format!("{expanded:#?}");
-     assert!(!expanded_debug.contains("hidden"));
-     assert!(expanded_debug.contains("visible"));
- }
+    let expanded_debug = format!("{expanded:#?}");
+    assert!(!expanded_debug.contains("hidden"));
+    assert!(expanded_debug.contains("visible"));
+}
 
- #[test]
- fn load_program_resolves_reexports() {
-     let dir = temp_project_dir("reexports");
-     let entry = dir.join("scene.amx");
-     let theme = dir.join("theme.amx");
-     let colors = dir.join("colors.amx");
+#[test]
+fn load_program_resolves_reexports() {
+    let dir = temp_project_dir("reexports");
+    let entry = dir.join("scene.amx");
+    let theme = dir.join("theme.amx");
+    let colors = dir.join("colors.amx");
 
-     write_file(
-         &colors,
-         r#"
+    write_file(
+        &colors,
+        r#"
  pub let primary = (0.38, 0.78, 1.0, 1.0)
  pub let danger = (1.0, 0.2, 0.2, 1.0)
  "#,
-     );
+    );
 
-     write_file(
-         &theme,
-         r#"
+    write_file(
+        &theme,
+        r#"
  import "./colors.amx" as c
  pub let accent = c.primary
  pub let warning = c.danger
  "#,
-     );
+    );
 
-     write_file(
-         &entry,
-         r#"
+    write_file(
+        &entry,
+        r#"
  import "./theme.amx" as theme
 
  panel: Rect, size: (200, 100), color: theme.accent
  "#,
-     );
+    );
 
-     let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
 
-     assert!(program.namespaces.contains_key("theme"));
-     let theme_ns = program.namespaces.get("theme").unwrap();
-     assert!(theme_ns.exports.contains_key("accent"));
-     assert!(theme_ns.exports.contains_key("warning"));
+    assert!(program.namespaces.contains_key("theme"));
+    let theme_ns = program.namespaces.get("theme").unwrap();
+    assert!(theme_ns.exports.contains_key("accent"));
+    assert!(theme_ns.exports.contains_key("warning"));
 
-     // Verify re-exported values are resolved (not just path expressions)
-     let accent_expr = theme_ns.exports.get("accent").unwrap();
-     match accent_expr {
-         Expr::Tuple(vals) => {
-             assert_eq!(vals.len(), 4);
-         }
-         other => panic!("Expected resolved tuple for accent, got: {:?}", other),
-     }
+    // Verify re-exported values are resolved (not just path expressions)
+    let accent_expr = theme_ns.exports.get("accent").unwrap();
+    match accent_expr {
+        Expr::Tuple(vals) => {
+            assert_eq!(vals.len(), 4);
+        },
+        other => panic!("Expected resolved tuple for accent, got: {:?}", other),
+    }
 
-     let warning_expr = theme_ns.exports.get("warning").unwrap();
-      match warning_expr {
-          Expr::Tuple(vals) => {
-              assert_eq!(vals.len(), 4);
-          }
-          other => panic!("Expected resolved tuple for warning, got: {:?}", other),
-      }
-  }
+    let warning_expr = theme_ns.exports.get("warning").unwrap();
+    match warning_expr {
+        Expr::Tuple(vals) => {
+            assert_eq!(vals.len(), 4);
+        },
+        other => panic!("Expected resolved tuple for warning, got: {:?}", other),
+    }
+}
 
-  #[test]
-  fn load_program_custom_component_action_basic() {
-      let dir = temp_project_dir("custom_action");
-      let entry = dir.join("scene.amx");
-      let library = dir.join("button.amx");
+#[test]
+fn load_program_custom_component_action_basic() {
+    let dir = temp_project_dir("custom_action");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("button.amx");
 
-      write_file(
-          &library,
-          r#"
+    write_file(
+        &library,
+        r#"
 pub component Button(text: "OK") {
     action pulse {
         self.scale = 1.2 [100ms]
@@ -292,11 +286,11 @@ pub component Button(text: "OK") {
     frame: Rect, size: (100, 40)
 }
 "#,
-      );
+    );
 
-      write_file(
-          &entry,
-          r#"
+    write_file(
+        &entry,
+        r#"
 import "./button.amx"
 
 btn: Button, text: "Click"
@@ -304,45 +298,45 @@ btn: Button, text: "Click"
 #0s
 pulse btn [200ms]
 "#,
-      );
+    );
 
-      let program = ModuleGraph::new().load_program(&entry).unwrap();
-      let expanded = program.expand_components();
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
 
-      // The custom action should be inlined: btn.scale assignments
-      let expanded_debug = format!("{expanded:#?}");
-      // Custom action should inline scale assignments on btn
-      assert!(
-          expanded_debug.contains("\"btn\""),
-          "Custom action should inline btn assignments, got: {}",
-          expanded_debug
-      );
-      assert!(
-          expanded_debug.contains("\"scale\""),
-          "Custom action should inline scale property, got: {}",
-          expanded_debug
-      );
-      // ComponentAction should NOT be in output
-      assert!(
-          !expanded_debug.contains("ComponentAction"),
-          "ComponentAction should be removed after inlining"
-      );
-      // pulse action invocation should be replaced
-      assert!(
-          !expanded_debug.contains("pulse"),
-          "pulse invocation should be replaced with inlined body"
-      );
-  }
+    // The custom action should be inlined: btn.scale assignments
+    let expanded_debug = format!("{expanded:#?}");
+    // Custom action should inline scale assignments on btn
+    assert!(
+        expanded_debug.contains("\"btn\""),
+        "Custom action should inline btn assignments, got: {}",
+        expanded_debug
+    );
+    assert!(
+        expanded_debug.contains("\"scale\""),
+        "Custom action should inline scale property, got: {}",
+        expanded_debug
+    );
+    // ComponentAction should NOT be in output
+    assert!(
+        !expanded_debug.contains("ComponentAction"),
+        "ComponentAction should be removed after inlining"
+    );
+    // pulse action invocation should be replaced
+    assert!(
+        !expanded_debug.contains("pulse"),
+        "pulse invocation should be replaced with inlined body"
+    );
+}
 
-  #[test]
-  fn load_program_custom_component_action_self_keyword() {
-      let dir = temp_project_dir("custom_action_self");
-      let entry = dir.join("scene.amx");
-      let library = dir.join("card.amx");
+#[test]
+fn load_program_custom_component_action_self_keyword() {
+    let dir = temp_project_dir("custom_action_self");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("card.amx");
 
-      write_file(
-          &library,
-          r#"
+    write_file(
+        &library,
+        r#"
 pub component Card {
     action glow {
         self.frame.color = accent.primary [300ms]
@@ -351,11 +345,11 @@ pub component Card {
     frame: Rect, size: (200, 120)
 }
 "#,
-      );
+    );
 
-      write_file(
-          &entry,
-          r#"
+    write_file(
+        &entry,
+        r#"
 import "./card.amx"
 
 card1: Card
@@ -363,40 +357,40 @@ card1: Card
 #0s
 glow card1 [500ms]
 "#,
-      );
+    );
 
-      let program = ModuleGraph::new().load_program(&entry).unwrap();
-      let expanded = program.expand_components();
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
 
-      let expanded_debug = format!("{expanded:#?}");
-      // self should rewrite to the instance label
-      assert!(
-          expanded_debug.contains("\"card1\""),
-          "self should rewrite to instance label: {}",
-          expanded_debug
-      );
-      // self.frame rewrites to just card1 when frame is the root label
-      assert!(
-          !expanded_debug.contains("\"frame\""),
-          "root label frame should be rewritten to instance label, not preserved: {}",
-          expanded_debug
-      );
-      assert!(
-          expanded_debug.contains("\"color\""),
-          "color property should exist: {}",
-          expanded_debug
-      );
-  }
+    let expanded_debug = format!("{expanded:#?}");
+    // self should rewrite to the instance label
+    assert!(
+        expanded_debug.contains("\"card1\""),
+        "self should rewrite to instance label: {}",
+        expanded_debug
+    );
+    // self.frame rewrites to just card1 when frame is the root label
+    assert!(
+        !expanded_debug.contains("\"frame\""),
+        "root label frame should be rewritten to instance label, not preserved: {}",
+        expanded_debug
+    );
+    assert!(
+        expanded_debug.contains("\"color\""),
+        "color property should exist: {}",
+        expanded_debug
+    );
+}
 
-  #[test]
-  fn load_program_custom_component_action_inside_sequence() {
-      let dir = temp_project_dir("custom_action_sequence");
-      let entry = dir.join("scene.amx");
-      let library = dir.join("badge.amx");
+#[test]
+fn load_program_custom_component_action_inside_sequence() {
+    let dir = temp_project_dir("custom_action_sequence");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("badge.amx");
 
-      write_file(
-          &library,
-          r#"
+    write_file(
+        &library,
+        r#"
 pub component Badge {
     action bounce {
         self.scale = 1.5 [100ms]
@@ -405,11 +399,11 @@ pub component Badge {
     icon: Ellipse, radius: 12
 }
 "#,
-      );
+    );
 
-      write_file(
-          &entry,
-          r#"
+    write_file(
+        &entry,
+        r#"
 import "./badge.amx"
 
 badge1: Badge
@@ -420,64 +414,64 @@ sequence {
     fade-in badge1 [300ms]
 }
 "#,
-      );
+    );
 
-      let program = ModuleGraph::new().load_program(&entry).unwrap();
-      let expanded = program.expand_components();
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
 
-      // Build timeline to verify sequence timing works with inlined actions
-      let timeline = animatix::timeline::Timeline::build(&expanded);
-      let track_names: Vec<_> = timeline.tracks().keys().collect();
-      assert!(
-          timeline.tracks().contains_key("badge1"),
-          "badge1 should exist. Tracks: {:?}",
-          track_names
-      );
-      let track = timeline.tracks().get("badge1").unwrap();
-      // bounce: each inlined assignment gets the invocation [200ms] modifier,
-      // so total bounce span is 400ms (200ms + 200ms). fade-in starts at 400ms.
-      let scale = track.geometry.scale.as_ref().expect("scale should exist");
-      // At 100ms, first scale assignment is halfway through 200ms: 1.0 → 1.5 = 1.25
-      assert!(
-          (scale.evaluate(100) - 1.25).abs() < 0.01,
-          "Scale should be 1.25 at 100ms, got {}",
-          scale.evaluate(100)
-      );
-      // At 250ms, second scale assignment is 50ms into 200ms: 1.5 → 1.0 = 1.375
-      assert!(
-          (scale.evaluate(250) - 1.375).abs() < 0.01,
-          "Scale should be 1.375 at 250ms, got {}",
-          scale.evaluate(250)
-      );
-      // At 500ms, fade-in is 100ms into 300ms: opacity ~0.33
-      let opacity = track.style.opacity.as_ref().expect("opacity should exist");
-      assert!(
-          opacity.evaluate(500) > 0.2 && opacity.evaluate(500) < 0.5,
-          "Opacity should be fading in at 500ms, got {}",
-          opacity.evaluate(500)
-      );
-  }
+    // Build timeline to verify sequence timing works with inlined actions
+    let timeline = animatix::timeline::Timeline::build(&expanded);
+    let track_names: Vec<_> = timeline.tracks().keys().collect();
+    assert!(
+        timeline.tracks().contains_key("badge1"),
+        "badge1 should exist. Tracks: {:?}",
+        track_names
+    );
+    let track = timeline.tracks().get("badge1").unwrap();
+    // bounce: each inlined assignment gets the invocation [200ms] modifier,
+    // so total bounce span is 400ms (200ms + 200ms). fade-in starts at 400ms.
+    let scale = track.geometry.scale.as_ref().expect("scale should exist");
+    // At 100ms, first scale assignment is halfway through 200ms: 1.0 → 1.5 = 1.25
+    assert!(
+        (scale.evaluate(100) - 1.25).abs() < 0.01,
+        "Scale should be 1.25 at 100ms, got {}",
+        scale.evaluate(100)
+    );
+    // At 250ms, second scale assignment is 50ms into 200ms: 1.5 → 1.0 = 1.375
+    assert!(
+        (scale.evaluate(250) - 1.375).abs() < 0.01,
+        "Scale should be 1.375 at 250ms, got {}",
+        scale.evaluate(250)
+    );
+    // At 500ms, fade-in is 100ms into 300ms: opacity ~0.33
+    let opacity = track.style.opacity.as_ref().expect("opacity should exist");
+    assert!(
+        opacity.evaluate(500) > 0.2 && opacity.evaluate(500) < 0.5,
+        "Opacity should be fading in at 500ms, got {}",
+        opacity.evaluate(500)
+    );
+}
 
-  #[test]
-  fn load_program_expands_component_with_slots() {
-     let dir = temp_project_dir("slots_basic");
-     let entry = dir.join("scene.amx");
-     let library = dir.join("slides.amx");
+#[test]
+fn load_program_expands_component_with_slots() {
+    let dir = temp_project_dir("slots_basic");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("slides.amx");
 
-     write_file(
-         &library,
-         r#"
+    write_file(
+        &library,
+        r#"
  pub component SlideLayout {
      header: Col {
          @slot
      }
  }
  "#,
-     );
+    );
 
-     write_file(
-         &entry,
-         r#"
+    write_file(
+        &entry,
+        r#"
  import "./slides.amx"
 
  slide: SlideLayout {
@@ -486,30 +480,30 @@ sequence {
      }
  }
  "#,
-     );
+    );
 
-     let program = ModuleGraph::new().load_program(&entry).unwrap();
-     let expanded = program.expand_components();
-     let expanded_debug = format!("{expanded:#?}");
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let expanded_debug = format!("{expanded:#?}");
 
-      // Component should be expanded (no "SlideLayout" left)
-      assert!(!expanded_debug.contains("SlideLayout"));
-      // Instance should be there
-      assert!(expanded_debug.contains("slide"));
-      // Filled item should be present
-      assert!(expanded_debug.contains("\"title\""));
-      assert!(expanded_debug.contains("Hello"));
- }
+    // Component should be expanded (no "SlideLayout" left)
+    assert!(!expanded_debug.contains("SlideLayout"));
+    // Instance should be there
+    assert!(expanded_debug.contains("slide"));
+    // Filled item should be present
+    assert!(expanded_debug.contains("\"title\""));
+    assert!(expanded_debug.contains("Hello"));
+}
 
- #[test]
- fn load_program_slot_defaults_fallback() {
-     let dir = temp_project_dir("slots_defaults");
-     let entry = dir.join("scene.amx");
-     let library = dir.join("slides.amx");
+#[test]
+fn load_program_slot_defaults_fallback() {
+    let dir = temp_project_dir("slots_defaults");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("slides.amx");
 
-     write_file(
-         &library,
-         r#"
+    write_file(
+        &library,
+        r#"
  pub component SlideLayout {
      footer: Col {
          @slot
@@ -517,36 +511,36 @@ sequence {
      }
  }
  "#,
-     );
+    );
 
-     write_file(
-         &entry,
-         r#"
+    write_file(
+        &entry,
+        r#"
  import "./slides.amx"
 
   slide: SlideLayout {}
  "#,
-     );
+    );
 
-     let program = ModuleGraph::new().load_program(&entry).unwrap();
-     let expanded = program.expand_components();
-     let expanded_debug = format!("{expanded:#?}");
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let expanded_debug = format!("{expanded:#?}");
 
-     assert!(!expanded_debug.contains("SlideLayout"));
-     assert!(expanded_debug.contains("slide"));
-     // Default item should appear
-     assert!(expanded_debug.contains("Default Footer"));
- }
+    assert!(!expanded_debug.contains("SlideLayout"));
+    assert!(expanded_debug.contains("slide"));
+    // Default item should appear
+    assert!(expanded_debug.contains("Default Footer"));
+}
 
- #[test]
- fn load_program_slot_mixed_filled_and_unfilled() {
-     let dir = temp_project_dir("slots_mixed");
-     let entry = dir.join("scene.amx");
-     let library = dir.join("slides.amx");
+#[test]
+fn load_program_slot_mixed_filled_and_unfilled() {
+    let dir = temp_project_dir("slots_mixed");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("slides.amx");
 
-     write_file(
-         &library,
-         r#"
+    write_file(
+        &library,
+        r#"
  pub component SlideLayout {
      header: Col {
          @slot
@@ -561,11 +555,11 @@ sequence {
      }
  }
  "#,
-     );
+    );
 
-     write_file(
-         &entry,
-         r#"
+    write_file(
+        &entry,
+        r#"
  import "./slides.amx"
 
   slide: SlideLayout {
@@ -575,66 +569,66 @@ sequence {
   }
  // header and footer not filled — should use defaults
  "#,
-     );
+    );
 
-     let program = ModuleGraph::new().load_program(&entry).unwrap();
-     let expanded = program.expand_components();
-     let expanded_debug = format!("{expanded:#?}");
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let expanded_debug = format!("{expanded:#?}");
 
-     assert!(!expanded_debug.contains("SlideLayout"));
-     assert!(expanded_debug.contains("slide"));
-     // Default header and footer should appear
-     assert!(expanded_debug.contains("Default Header"));
-     assert!(expanded_debug.contains("Default Footer"));
-     // Filled body should appear
-     assert!(expanded_debug.contains("Ellipse"));
- }
+    assert!(!expanded_debug.contains("SlideLayout"));
+    assert!(expanded_debug.contains("slide"));
+    // Default header and footer should appear
+    assert!(expanded_debug.contains("Default Header"));
+    assert!(expanded_debug.contains("Default Footer"));
+    // Filled body should appear
+    assert!(expanded_debug.contains("Ellipse"));
+}
 
- #[test]
- fn load_program_slot_unfilled_required_becomes_empty() {
-     let dir = temp_project_dir("slots_unfilled");
-     let entry = dir.join("scene.amx");
-     let library = dir.join("slides.amx");
+#[test]
+fn load_program_slot_unfilled_required_becomes_empty() {
+    let dir = temp_project_dir("slots_unfilled");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("slides.amx");
 
-     write_file(
-         &library,
-         r#"
+    write_file(
+        &library,
+        r#"
  pub component SlideLayout {
      body: Group {
          @slot
      }
  }
  "#,
-     );
+    );
 
-     write_file(
-         &entry,
-         r#"
+    write_file(
+        &entry,
+        r#"
  import "./slides.amx"
 
   slide: SlideLayout {}
  "#,
-     );
+    );
 
-     let program = ModuleGraph::new().load_program(&entry).unwrap();
-     let expanded = program.expand_components();
-     let expanded_debug = format!("{expanded:#?}");
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let expanded_debug = format!("{expanded:#?}");
 
-      assert!(!expanded_debug.contains("SlideLayout"));
-       // The container should still exist (just empty)
-       assert!(expanded_debug.contains("slide"));
-       assert!(expanded_debug.contains("children: []"));
- }
+    assert!(!expanded_debug.contains("SlideLayout"));
+    // The container should still exist (just empty)
+    assert!(expanded_debug.contains("slide"));
+    assert!(expanded_debug.contains("children: []"));
+}
 
- #[test]
- fn load_program_slot_multiple_instances_different_fills() {
-     let dir = temp_project_dir("slot_multi_instance");
-     let entry = dir.join("scene.amx");
-     let library = dir.join("slides.amx");
+#[test]
+fn load_program_slot_multiple_instances_different_fills() {
+    let dir = temp_project_dir("slot_multi_instance");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("slides.amx");
 
-     write_file(
-         &library,
-         r#"
+    write_file(
+        &library,
+        r#"
  pub component Card {
      header: Col {
          @slot
@@ -644,11 +638,11 @@ sequence {
      }
  }
  "#,
-     );
+    );
 
-     write_file(
-         &entry,
-         r#"
+    write_file(
+        &entry,
+        r#"
  import "./slides.amx"
 
  first: Card {
@@ -669,30 +663,30 @@ sequence {
      }
  }
  "#,
-     );
+    );
 
-     let program = ModuleGraph::new().load_program(&entry).unwrap();
-     let expanded = program.expand_components();
-     let expanded_debug = format!("{expanded:#?}");
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let expanded_debug = format!("{expanded:#?}");
 
-     assert!(expanded_debug.contains("first"));
-     assert!(expanded_debug.contains("Second Header"));
-     assert!(expanded_debug.contains("Second Body"));
-     assert!(expanded_debug.contains("first"));
-     assert!(expanded_debug.contains("First Header"));
-     assert!(expanded_debug.contains("First Body"));
-     assert!(!expanded_debug.contains("Card"));
- }
+    assert!(expanded_debug.contains("first"));
+    assert!(expanded_debug.contains("Second Header"));
+    assert!(expanded_debug.contains("Second Body"));
+    assert!(expanded_debug.contains("first"));
+    assert!(expanded_debug.contains("First Header"));
+    assert!(expanded_debug.contains("First Body"));
+    assert!(!expanded_debug.contains("Card"));
+}
 
- #[test]
- fn load_program_slot_empty_fill() {
-     let dir = temp_project_dir("slot_empty_fill");
-     let entry = dir.join("scene.amx");
-     let library = dir.join("slides.amx");
+#[test]
+fn load_program_slot_empty_fill() {
+    let dir = temp_project_dir("slot_empty_fill");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("slides.amx");
 
-     write_file(
-         &library,
-         r#"
+    write_file(
+        &library,
+        r#"
  pub component Slide {
      header: Col {
          @slot
@@ -700,48 +694,48 @@ sequence {
      }
  }
  "#,
-     );
+    );
 
-     write_file(
-         &entry,
-         r#"
+    write_file(
+        &entry,
+        r#"
  import "./slides.amx"
 
  slide: Slide {
      @header {}
  }
  "#,
-     );
+    );
 
-     let program = ModuleGraph::new().load_program(&entry).unwrap();
-     let expanded = program.expand_components();
-     let expanded_debug = format!("{expanded:#?}");
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let expanded_debug = format!("{expanded:#?}");
 
-     assert!(expanded_debug.contains("slide"));
-     assert!(!expanded_debug.contains("Default Header"));
-     assert!(!expanded_debug.contains("Slide"));
- }
+    assert!(expanded_debug.contains("slide"));
+    assert!(!expanded_debug.contains("Default Header"));
+    assert!(!expanded_debug.contains("Slide"));
+}
 
- #[test]
- fn load_program_slot_with_component_as_fill() {
-     let dir = temp_project_dir("slot_component_fill");
-     let entry = dir.join("scene.amx");
-     let library = dir.join("slides.amx");
+#[test]
+fn load_program_slot_with_component_as_fill() {
+    let dir = temp_project_dir("slot_component_fill");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("slides.amx");
 
-     write_file(
-         &library,
-         r#"
+    write_file(
+        &library,
+        r#"
  pub component Slide {
      header: Col {
          @slot
      }
  }
  "#,
-     );
+    );
 
-     write_file(
-         &entry,
-         r#"
+    write_file(
+        &entry,
+        r#"
  import "./slides.amx"
 
  slide: Slide {
@@ -750,26 +744,26 @@ sequence {
      }
  }
  "#,
-     );
+    );
 
-     let program = ModuleGraph::new().load_program(&entry).unwrap();
-     let expanded = program.expand_components();
-     let expanded_debug = format!("{expanded:#?}");
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let expanded_debug = format!("{expanded:#?}");
 
-     assert!(expanded_debug.contains("slide"));
-     assert!(expanded_debug.contains("My Title"));
-     assert!(!expanded_debug.contains("Slide"));
- }
+    assert!(expanded_debug.contains("slide"));
+    assert!(expanded_debug.contains("My Title"));
+    assert!(!expanded_debug.contains("Slide"));
+}
 
- #[test]
- fn load_program_slot_fill_nonexistent_slot() {
-     let dir = temp_project_dir("slot_nonexistent");
-     let entry = dir.join("scene.amx");
-     let library = dir.join("slides.amx");
+#[test]
+fn load_program_slot_fill_nonexistent_slot() {
+    let dir = temp_project_dir("slot_nonexistent");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("slides.amx");
 
-     write_file(
-         &library,
-         r#"
+    write_file(
+        &library,
+        r#"
  pub component Card {
      header: Col {
          @slot
@@ -777,11 +771,11 @@ sequence {
      }
  }
  "#,
-     );
+    );
 
-     write_file(
-         &entry,
-         r#"
+    write_file(
+        &entry,
+        r#"
  import "./slides.amx"
 
  card: Card {
@@ -790,27 +784,27 @@ sequence {
      }
  }
  "#,
-     );
+    );
 
-     let program = ModuleGraph::new().load_program(&entry).unwrap();
-     let expanded = program.expand_components();
-     let expanded_debug = format!("{expanded:#?}");
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let expanded_debug = format!("{expanded:#?}");
 
-     assert!(expanded_debug.contains("card"));
-     assert!(expanded_debug.contains("Default Header"));
-     assert!(!expanded_debug.contains("This should be ignored"));
-     assert!(!expanded_debug.contains("Card"));
- }
+    assert!(expanded_debug.contains("card"));
+    assert!(expanded_debug.contains("Default Header"));
+    assert!(!expanded_debug.contains("This should be ignored"));
+    assert!(!expanded_debug.contains("Card"));
+}
 
- #[test]
- fn load_program_slot_all_filled_no_defaults_used() {
-     let dir = temp_project_dir("slot_all_filled");
-     let entry = dir.join("scene.amx");
-     let library = dir.join("slides.amx");
+#[test]
+fn load_program_slot_all_filled_no_defaults_used() {
+    let dir = temp_project_dir("slot_all_filled");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("slides.amx");
 
-     write_file(
-         &library,
-         r#"
+    write_file(
+        &library,
+        r#"
  pub component Card {
      header: Col {
          @slot
@@ -822,11 +816,11 @@ sequence {
      }
  }
  "#,
-     );
+    );
 
-     write_file(
-         &entry,
-         r#"
+    write_file(
+        &entry,
+        r#"
  import "./slides.amx"
 
  card: Card {
@@ -838,28 +832,28 @@ sequence {
      }
  }
  "#,
-     );
+    );
 
-     let program = ModuleGraph::new().load_program(&entry).unwrap();
-     let expanded = program.expand_components();
-     let expanded_debug = format!("{expanded:#?}");
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let expanded_debug = format!("{expanded:#?}");
 
-      assert!(expanded_debug.contains("card"));
-     assert!(expanded_debug.contains("Custom Header"));
-     assert!(expanded_debug.contains("Custom Footer"));
-     assert!(!expanded_debug.contains("Default Header"));
-     assert!(!expanded_debug.contains("Default Footer"));
-     assert!(!expanded_debug.contains("Card"));
- }
+    assert!(expanded_debug.contains("card"));
+    assert!(expanded_debug.contains("Custom Header"));
+    assert!(expanded_debug.contains("Custom Footer"));
+    assert!(!expanded_debug.contains("Default Header"));
+    assert!(!expanded_debug.contains("Default Footer"));
+    assert!(!expanded_debug.contains("Card"));
+}
 
- #[test]
- fn load_program_three_slot_fills() {
-     let dir = temp_project_dir("three_slot_fills");
-     let entry = dir.join("scene.amx");
+#[test]
+fn load_program_three_slot_fills() {
+    let dir = temp_project_dir("three_slot_fills");
+    let entry = dir.join("scene.amx");
 
-     write_file(
-         &entry,
-         r##"
+    write_file(
+        &entry,
+        r##"
 config { colorscheme: "editorial-dark", resolution: (800, 500) }
 
 pub component Card(title: "Card") {
@@ -894,28 +888,28 @@ card_c: Card, title: "Test", anchor: scene.center, offset: (0, 0) {
   }
 }
 "##,
-     );
+    );
 
-     let program = ModuleGraph::new().load_program(&entry).unwrap();
-     
-     // Also verify timeline builds correctly
-     let expanded = program.expand_components();
-     let timeline = Timeline::build(&expanded);
-     
-     // Check that all 3 cards exist in the timeline
-     assert!(timeline.tracks().contains_key("card_a"), "card_a should exist");
-     assert!(timeline.tracks().contains_key("card_b"), "card_b should exist");
-      assert!(timeline.tracks().contains_key("card_c"), "card_c should exist");
- }
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
 
- #[test]
- fn load_program_custom_component_action_self_nested_path() {
-     let dir = temp_project_dir("self_nested_path");
-     let entry = dir.join("scene.amx");
+    // Also verify timeline builds correctly
+    let expanded = program.expand_components();
+    let timeline = Timeline::build(&expanded);
 
-     write_file(
-         &entry,
-         r##"
+    // Check that all 3 cards exist in the timeline
+    assert!(timeline.tracks().contains_key("card_a"), "card_a should exist");
+    assert!(timeline.tracks().contains_key("card_b"), "card_b should exist");
+    assert!(timeline.tracks().contains_key("card_c"), "card_c should exist");
+}
+
+#[test]
+fn load_program_custom_component_action_self_nested_path() {
+    let dir = temp_project_dir("self_nested_path");
+    let entry = dir.join("scene.amx");
+
+    write_file(
+        &entry,
+        r##"
 config { colorscheme: "editorial-dark", resolution: (800, 500) }
 
 pub component Card(title: "Card") {
@@ -936,26 +930,29 @@ card_a: Card, title: "Design", anchor: scene.center, offset: (-120, 0)
 #1s
 highlight card_a
 "##,
-     );
+    );
 
-     let program = ModuleGraph::new().load_program(&entry).unwrap();
-     let expanded = program.expand_components();
-     let timeline = Timeline::build(&expanded);
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let timeline = Timeline::build(&expanded);
 
-     // Verify the card and its children exist after expansion
-     // Note: 'frame' is the root label so it becomes just 'card_a', not 'card_a.frame'
-      assert!(timeline.tracks().contains_key("card_a"), "card_a (root frame) should exist");
-     assert!(timeline.tracks().contains_key("card_a.title_text"), "card_a.title_text should exist");
- }
+    // Verify the card and its children exist after expansion
+    // Note: 'frame' is the root label so it becomes just 'card_a', not 'card_a.frame'
+    assert!(timeline.tracks().contains_key("card_a"), "card_a (root frame) should exist");
+    assert!(
+        timeline.tracks().contains_key("card_a.title_text"),
+        "card_a.title_text should exist"
+    );
+}
 
- #[test]
- fn load_program_comments_in_always_block() {
-     let dir = temp_project_dir("comments_always");
-     let entry = dir.join("scene.amx");
+#[test]
+fn load_program_comments_in_always_block() {
+    let dir = temp_project_dir("comments_always");
+    let entry = dir.join("scene.amx");
 
-     write_file(
-         &entry,
-         r##"
+    write_file(
+        &entry,
+        r##"
 config { colorscheme: "editorial-dark", resolution: (800, 500) }
 
 #0s
@@ -968,14 +965,12 @@ always {
   box.rotation = box.rotation + 1
 }
 "##,
-     );
+    );
 
-     let program = ModuleGraph::new().load_program(&entry).unwrap();
-     let expanded = program.expand_components();
-     let timeline = Timeline::build(&expanded);
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let timeline = Timeline::build(&expanded);
 
-     // Verify the box exists
-     assert!(timeline.tracks().contains_key("box"), "box should exist");
- }
-
-
+    // Verify the box exists
+    assert!(timeline.tracks().contains_key("box"), "box should exist");
+}

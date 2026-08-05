@@ -10,7 +10,11 @@ use super::SourceEditError;
 /// Preserves the quoting style of the existing value: if the current value is
 /// an unquoted identifier (`Expr::Ident`), the new value is stored as an
 /// identifier when possible (no spaces, no special chars).
-pub(super) fn set_config_property(stmts: &mut Vec<Stmt>, key: &str, value: Expr) -> Result<(), SourceEditError> {
+pub(super) fn set_config_property(
+    stmts: &mut Vec<Stmt>,
+    key: &str,
+    value: Expr,
+) -> Result<(), SourceEditError> {
     // Find existing config block
     let config_idx = stmts.iter().position(|s| matches!(s, Stmt::Config { .. }));
 
@@ -31,15 +35,18 @@ pub(super) fn set_config_property(stmts: &mut Vec<Stmt>, key: &str, value: Expr)
     }
 
     // No config block exists — create one at the top
-    stmts.insert(0, Stmt::Config {
-        settings: vec![Property {
-            name: key.into(),
-            value,
-            value_span: None,
-            trailing_comment: None,
-        }],
-        span: None,
-    });
+    stmts.insert(
+        0,
+        Stmt::Config {
+            settings: vec![Property {
+                name: key.into(),
+                value,
+                value_span: None,
+                trailing_comment: None,
+            }],
+            span: None,
+        },
+    );
     Ok(())
 }
 

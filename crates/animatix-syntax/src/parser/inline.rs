@@ -6,13 +6,15 @@
 //! items combinator.  The combinator is invoked from [`super::parser()`] to
 //! parse the children of actor declarations.
 
-use crate::ast::*;
-use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
-use chumsky::input::MapExtra;
-use chumsky::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
+
+use chumsky::input::MapExtra;
+use chumsky::prelude::*;
+
 use super::common::{self, ExprParser, InlineItemsParser, ParserExtra, StrInput};
+use crate::ast::*;
+use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 
 /// Internal flat representation of items parsed inside an actor block.
 ///
@@ -58,42 +60,30 @@ pub(crate) fn parser<'src>(
             .or_not()
             .map(|c| c.unwrap_or_default());
 
-        let for_inline_index = just(',')
-            .padded()
-            .ignore_then(common::ident())
-            .or_not();
+        let for_inline_index = just(',').padded().ignore_then(common::ident()).or_not();
 
         let flat_item = choice((
             // @slotname { items } in component instantiation blocks
             just('@')
                 .ignore_then(common::ident())
-                .then(
-                    inline_items
-                        .clone()
-                        .delimited_by(just('{').padded(), just('}').padded()),
-                )
+                .then(inline_items.clone().delimited_by(just('{').padded(), just('}').padded()))
                 .map(|(name, items)| FlatItem::SlotFill(name, items)),
             // @slot marker in component definition blocks
             just("@slot").padded().to(FlatItem::SlotMarker),
-            // For loop inside container children: `for item in list { ... }` or `for item, i in list { ... }` or `for (a, b) in list { ... }`
+            // For loop inside container children: `for item in list { ... }` or `for item, i in
+            // list { ... }` or `for (a, b) in list { ... }`
             {
-                let loop_var_pat = common::ident()
-                    .map(LoopPattern::Single)
-                    .or(common::ident()
-                        .separated_by(just(',').padded())
-                        .collect::<Vec<_>>()
-                        .delimited_by(just('(').padded(), just(')').padded())
-                        .map(LoopPattern::Tuple));
+                let loop_var_pat = common::ident().map(LoopPattern::Single).or(common::ident()
+                    .separated_by(just(',').padded())
+                    .collect::<Vec<_>>()
+                    .delimited_by(just('(').padded(), just(')').padded())
+                    .map(LoopPattern::Tuple));
                 text::keyword("for")
                     .ignore_then(loop_var_pat)
                     .then(for_inline_index)
                     .then_ignore(text::keyword("in").padded())
                     .then(expr.clone())
-                    .then(
-                        inline_items
-                            .clone()
-                            .delimited_by(just('{').padded(), just('}').padded()),
-                    )
+                    .then(inline_items.clone().delimited_by(just('{').padded(), just('}').padded()))
                     .map(|(((var, index_var), iterable), body)| {
                         FlatItem::ForLoop(var, index_var, iterable, body)
                     })
@@ -109,14 +99,23 @@ pub(crate) fn parser<'src>(
                     FlatItem::Labeled(label, array_index, ty, mods, children)
                 }),
             // Anonymous inline item: Type [mods] [{ children }]
-            type_ident.clone()
+            type_ident
+                .clone()
                 .then(modifiers.clone())
                 .then(children_block.clone())
                 .map(|((ty, mods), children)| FlatItem::Anonymous(ty, mods, children)),
-            property.clone().map_with(|p, extra: &mut MapExtra<'src, '_, &'src str, extra::Err<Rich<'src, char>>>| {
-                let span = extra.span();
-                FlatItem::Prop(p, ByteSpan { start: span.start, end: span.end })
-            }),
+            property.clone().map_with(
+                |p, extra: &mut MapExtra<'src, '_, &'src str, extra::Err<Rich<'src, char>>>| {
+                    let span = extra.span();
+                    FlatItem::Prop(
+                        p,
+                        ByteSpan {
+                            start: span.start,
+                            end: span.end,
+                        },
+                    )
+                },
+            ),
             // Standalone children block: attaches to the preceding item
             inline_items
                 .clone()
@@ -143,7 +142,7 @@ pub(crate) fn parser<'src>(
                                 modifiers: mods,
                                 children,
                             });
-                        }
+                        },
                         FlatItem::Anonymous(ty, mods, children) => {
                             result.push(InlineItem::Anonymous {
                                 ty,
@@ -151,14 +150,15 @@ pub(crate) fn parser<'src>(
                                 modifiers: mods,
                                 children,
                             });
-                        }
+                        },
                         FlatItem::Prop(p, span) => {
                             if let Some(last) = result.last_mut() {
                                 match last {
                                     InlineItem::Labeled { props, .. } => props.push(p),
                                     InlineItem::Anonymous { props, .. } => props.push(p),
                                     _ => {
-                                        // Property dropped: attached to SlotMarker, ForLoop, or SlotFill
+                                        // Property dropped: attached to SlotMarker, ForLoop, or
+                                        // SlotFill
                                         let prop_name = p.name.clone();
                                         let location_span = p.value_span.unwrap_or(span);
                                         w.borrow_mut().push(
@@ -172,9 +172,13 @@ pub(crate) fn parser<'src>(
                                                      'Type, {prop_name}: value'"
                                                 ),
                                             )
-                                            .with_location(0, 0, location_span.start..location_span.end),
+                                            .with_location(
+                                                0,
+                                                0,
+                                                location_span.start..location_span.end,
+                                            ),
                                         );
-                                    }
+                                    },
                                 }
                             } else {
                                 // Property dropped: no preceding actor at all
@@ -191,22 +195,26 @@ pub(crate) fn parser<'src>(
                                              'Type, {prop_name}: value'"
                                         ),
                                     )
-                                    .with_location(0, 0, location_span.start..location_span.end),
+                                    .with_location(
+                                        0,
+                                        0,
+                                        location_span.start..location_span.end,
+                                    ),
                                 );
                             }
-                        }
+                        },
                         FlatItem::Children(children) => {
                             if let Some(last) = result.last_mut() {
                                 match last {
                                     InlineItem::Labeled { children: c, .. } => *c = children,
                                     InlineItem::Anonymous { children: c, .. } => *c = children,
-                                    _ => {}
+                                    _ => {},
                                 }
                             }
-                        }
+                        },
                         FlatItem::SlotMarker => {
                             result.push(InlineItem::SlotMarker);
-                        }
+                        },
                         FlatItem::ForLoop(var, index_var, iterable, body) => {
                             result.push(InlineItem::ForLoop {
                                 var,
@@ -214,13 +222,10 @@ pub(crate) fn parser<'src>(
                                 iterable,
                                 body,
                             });
-                        }
+                        },
                         FlatItem::SlotFill(name, items) => {
-                            result.push(InlineItem::SlotFill {
-                                slot: name,
-                                items,
-                            });
-                        }
+                            result.push(InlineItem::SlotFill { slot: name, items });
+                        },
                     }
                 }
                 result

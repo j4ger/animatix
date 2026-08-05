@@ -3,13 +3,10 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive, RenderCtx};
+use crate::timeline::kurbo_shapes::KurboShape;
 use crate::timeline::{
-    DEFAULT_LAYOUT_HALF_SIZE, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath,
-    kurbo_shapes::KurboShape,
-};
-use crate::timeline::{
-    Environment, Value,
-    lookup_evaluate_expr_with_lookup_diagnostic as evaluate_expr_with_lookup_diagnostic,
+    DEFAULT_LAYOUT_HALF_SIZE, Environment, SceneDimensions, TrackAccessor, Value, VectorShapeState,
+    VelloPath, lookup_evaluate_expr_with_lookup_diagnostic as evaluate_expr_with_lookup_diagnostic,
 };
 
 /// The `Ellipse` primitive.

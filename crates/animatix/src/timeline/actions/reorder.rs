@@ -13,7 +13,8 @@ impl BuiltinAction for Swap {
         ActionSignature {
             name: "swap".to_string(),
             category: "Reorder".to_string(),
-            description: "Swaps the layout positions of two children in their parent container.".to_string(),
+            description: "Swaps the layout positions of two children in their parent container."
+                .to_string(),
             params: vec![],
             modifiers: base_timing_params(),
         }
@@ -37,7 +38,11 @@ impl BuiltinAction for Swap {
                         action.targets.len()
                     ),
                 )
-                .with_subject(format!("{} {}", action.verb, action.targets.join(", "))),
+                .with_subject(format!(
+                    "{} {}",
+                    action.verb,
+                    action.targets.join(", ")
+                )),
             );
             return;
         }
@@ -52,10 +57,7 @@ impl BuiltinAction for Swap {
                     Diagnostic::warning(
                         DiagnosticCode::UnsupportedActionTarget,
                         DiagnosticPhase::Build,
-                        format!(
-                            "Swap action target '{}' is not declared.",
-                            target
-                        ),
+                        format!("Swap action target '{}' is not declared.", target),
                     )
                     .with_subject(target),
                 );
@@ -79,7 +81,7 @@ impl BuiltinAction for Swap {
                     .with_subject(format!("{} {}, {}", action.verb, child_a, child_b)),
                 );
                 return;
-            }
+            },
         };
 
         // Parse timing modifiers
@@ -133,7 +135,7 @@ impl BuiltinAction for Swap {
                     .with_subject(child_a),
                 );
                 return;
-            }
+            },
         };
 
         let idx_b = match current_order.iter().position(|l| l == child_b) {
@@ -151,7 +153,7 @@ impl BuiltinAction for Swap {
                     .with_subject(child_b),
                 );
                 return;
-            }
+            },
         };
 
         // Create new order
@@ -176,7 +178,8 @@ impl BuiltinAction for Reorder {
         let mut modifiers = base_timing_params();
         modifiers.push(ActionParam {
             name: "order".to_string(),
-            description: "New child order as a list of labels (e.g. [order: (c, b, a)]).".to_string(),
+            description: "New child order as a list of labels (e.g. [order: (c, b, a)])."
+                .to_string(),
             type_info: "list of identifiers".to_string(),
         });
         ActionSignature {
@@ -206,7 +209,11 @@ impl BuiltinAction for Reorder {
                         action.targets.len()
                     ),
                 )
-                .with_subject(format!("{} {}", action.verb, action.targets.join(", "))),
+                .with_subject(format!(
+                    "{} {}",
+                    action.verb,
+                    action.targets.join(", ")
+                )),
             );
             return;
         }
@@ -219,10 +226,7 @@ impl BuiltinAction for Reorder {
                 Diagnostic::warning(
                     DiagnosticCode::UnsupportedActionTarget,
                     DiagnosticPhase::Build,
-                    format!(
-                        "Reorder action target '{}' is not declared.",
-                        container
-                    ),
+                    format!("Reorder action target '{}' is not declared.", container),
                 )
                 .with_subject(container),
             );
@@ -255,11 +259,11 @@ impl BuiltinAction for Reorder {
                                 .with_subject(format!("{} {}", action.verb, container)),
                             );
                             return;
-                        }
+                        },
                     }
                 }
                 labels
-            }
+            },
             _ => {
                 diagnostics.push(
                     Diagnostic::warning(
@@ -271,7 +275,7 @@ impl BuiltinAction for Reorder {
                     .with_subject(format!("{} {}", action.verb, container)),
                 );
                 return;
-            }
+            },
         };
 
         // Get current order to validate against

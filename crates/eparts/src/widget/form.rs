@@ -95,17 +95,30 @@ pub struct Field<'a> {
 
 impl<'a> Field<'a> {
     /// Render a standard labeled input row.
-    pub fn field(&mut self, label: impl Into<egui::WidgetText>, add_contents: impl FnOnce(&mut egui::Ui)) {
+    pub fn field(
+        &mut self,
+        label: impl Into<egui::WidgetText>,
+        add_contents: impl FnOnce(&mut egui::Ui),
+    ) {
         self.render_row(label, false, add_contents);
     }
 
     /// Render a required labeled input row. The label gains a red asterisk.
-    pub fn required_field(&mut self, label: impl Into<egui::WidgetText>, add_contents: impl FnOnce(&mut egui::Ui)) {
+    pub fn required_field(
+        &mut self,
+        label: impl Into<egui::WidgetText>,
+        add_contents: impl FnOnce(&mut egui::Ui),
+    ) {
         self.render_row(label, true, add_contents);
     }
 
     /// Render a labeled input row only when `visible` is `true`.
-    pub fn field_opt(&mut self, label: impl Into<egui::WidgetText>, visible: bool, add_contents: impl FnOnce(&mut egui::Ui)) {
+    pub fn field_opt(
+        &mut self,
+        label: impl Into<egui::WidgetText>,
+        visible: bool,
+        add_contents: impl FnOnce(&mut egui::Ui),
+    ) {
         if visible {
             self.render_row(label, false, add_contents);
         }
@@ -131,7 +144,7 @@ impl<'a> Field<'a> {
                             .color(t.text.secondary)
                             .required(required),
                     );
-                }
+                },
             );
             ui.add_space(s.space_3);
             add_contents(ui);

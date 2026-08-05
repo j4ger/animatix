@@ -1,5 +1,6 @@
-use super::*;
 use egui_tiles::{Linear, LinearDir, Tiles, Tree};
+
+use super::*;
 
 /// Build a workspace tree.
 ///

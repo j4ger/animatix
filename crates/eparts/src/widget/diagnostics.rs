@@ -1,9 +1,10 @@
 use egui::{Color32, Rect, RichText, Sense, Stroke, Vec2};
 
-use crate::tokens::spatial::{STROKE_WIDTH};
-use crate::tokens::theme::{Theme, theme};
-use crate::{spatial, tokens::typography::TextRole};
 use super::layout::card;
+use crate::spatial;
+use crate::tokens::spatial::STROKE_WIDTH;
+use crate::tokens::theme::{Theme, theme};
+use crate::tokens::typography::TextRole;
 
 /// Where to place the cursor after clicking a diagnostic.
 #[derive(Clone, Copy, Debug)]
@@ -105,21 +106,24 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
                 );
             }
 
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui: &mut egui::Ui| {
-                if ui
-                    .add(
-                        egui::Button::new(
-                            RichText::new(egui_phosphor::regular::X)
-                                .size(TextRole::BodyS.size())
-                                .color(t.text.muted),
+            ui.with_layout(
+                egui::Layout::right_to_left(egui::Align::Center),
+                |ui: &mut egui::Ui| {
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                RichText::new(egui_phosphor::regular::X)
+                                    .size(TextRole::BodyS.size())
+                                    .color(t.text.muted),
+                            )
+                            .frame(false),
                         )
-                        .frame(false),
-                    )
-                    .clicked()
-                {
-                    *visible = false;
-                }
-            });
+                        .clicked()
+                    {
+                        *visible = false;
+                    }
+                },
+            );
         });
 
         ui.add_space(s.space_2);

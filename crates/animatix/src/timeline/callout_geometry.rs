@@ -4,8 +4,10 @@
 //! (handle drawing / hit-testing) use [`derive_callout_geometry`] so that the
 //! tip position is computed by exactly one formula.
 
-use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Timeline, TrackAccessor, Value};
 use crate::timeline::animation_track::{CalloutPlace, SceneAnchor};
+use crate::timeline::{
+    AnimationTrack, Environment, SceneDimensions, Timeline, TrackAccessor, Value,
+};
 
 // -- Resolver trait --
 
@@ -44,16 +46,16 @@ impl TargetResolver for Timeline {
             let hh = half_local[1] as f64;
             let corners = [
                 world * kurbo::Point::new(-hw, -hh),
-                world * kurbo::Point::new( hw, -hh),
-                world * kurbo::Point::new(-hw,  hh),
-                world * kurbo::Point::new( hw,  hh),
+                world * kurbo::Point::new(hw, -hh),
+                world * kurbo::Point::new(-hw, hh),
+                world * kurbo::Point::new(hw, hh),
             ];
             let x0 = corners.iter().map(|p| p.x).fold(f64::INFINITY, f64::min);
             let x1 = corners.iter().map(|p| p.x).fold(f64::NEG_INFINITY, f64::max);
             let y0 = corners.iter().map(|p| p.y).fold(f64::INFINITY, f64::min);
             let y1 = corners.iter().map(|p| p.y).fold(f64::NEG_INFINITY, f64::max);
-            let centre = [(( x0 + x1) / 2.0) as f32, ((y0 + y1) / 2.0) as f32];
-            let half   = [((x1 - x0) / 2.0) as f32,  ((y1 - y0) / 2.0) as f32];
+            let centre = [((x0 + x1) / 2.0) as f32, ((y0 + y1) / 2.0) as f32];
+            let half = [((x1 - x0) / 2.0) as f32, ((y1 - y0) / 2.0) as f32];
             Some((centre, half))
         } else {
             // Fallback for actors not yet in the scene graph: use raw position + size.
@@ -116,7 +118,8 @@ pub fn derive_callout_geometry(
 
     let (to, from, is_targeted, target_centre, target_half) = if !target_name.is_empty() {
         if let Some(res) = resolver {
-            if let Some((centre, half)) = res.target_bounds(&target_name, time_ms, scene_dimensions) {
+            if let Some((centre, half)) = res.target_bounds(&target_name, time_ms, scene_dimensions)
+            {
                 let attach = attach_point(place, centre, half);
                 let to = [attach[0] + to_offset[0], attach[1] + to_offset[1]];
                 let dir = place_direction(place);
@@ -176,11 +179,7 @@ pub fn bounds_anchor_point(anchor: SceneAnchor, centre: [f32; 2], half: [f32; 2]
 /// require the `Timeline` or `TargetResolver` — just the per-frame env.
 /// Because it reads the env (which reflects `always`-block overrides),
 /// it produces up-to-date positions even when modifiers move the actor.
-pub fn env_anchor_point(
-    env: &Environment,
-    actor: &str,
-    anchor: SceneAnchor,
-) -> Option<[f64; 2]> {
+pub fn env_anchor_point(env: &Environment, actor: &str, anchor: SceneAnchor) -> Option<[f64; 2]> {
     let at = env.get(&format!("{actor}.at"))?;
     let centre = match at {
         Value::Vec2(c) => c,
@@ -202,7 +201,7 @@ pub fn env_anchor_point(
 
 fn attach_point(place: CalloutPlace, centre: [f32; 2], half: [f32; 2]) -> [f32; 2] {
     match place {
-        CalloutPlace::Top  => [centre[0], centre[1] - half[1]],
+        CalloutPlace::Top => [centre[0], centre[1] - half[1]],
         CalloutPlace::Bottom => [centre[0], centre[1] + half[1]],
         CalloutPlace::Left => [centre[0] - half[0], centre[1]],
         CalloutPlace::Right | CalloutPlace::Auto => [centre[0] + half[0], centre[1]],
@@ -211,7 +210,7 @@ fn attach_point(place: CalloutPlace, centre: [f32; 2], half: [f32; 2]) -> [f32; 
 
 fn place_direction(place: CalloutPlace) -> [f32; 2] {
     match place {
-        CalloutPlace::Top  => [0.0, -1.0],
+        CalloutPlace::Top => [0.0, -1.0],
         CalloutPlace::Bottom => [0.0, 1.0],
         CalloutPlace::Left => [-1.0, 0.0],
         CalloutPlace::Right | CalloutPlace::Auto => [1.0, 0.0],
@@ -266,26 +265,11 @@ mod tests {
         env.set("r.at", Value::Vec2([100.0, 100.0]));
         env.set("r.size", Value::Vec2([40.0, 40.0]));
 
-        assert_eq!(
-            env_anchor_point(&env, "r", SceneAnchor::Right),
-            Some([120.0, 100.0])
-        );
-        assert_eq!(
-            env_anchor_point(&env, "r", SceneAnchor::Top),
-            Some([100.0, 80.0])
-        );
-        assert_eq!(
-            env_anchor_point(&env, "r", SceneAnchor::Center),
-            Some([100.0, 100.0])
-        );
-        assert_eq!(
-            env_anchor_point(&env, "r", SceneAnchor::Left),
-            Some([80.0, 100.0])
-        );
-        assert_eq!(
-            env_anchor_point(&env, "r", SceneAnchor::Bottom),
-            Some([100.0, 120.0])
-        );
+        assert_eq!(env_anchor_point(&env, "r", SceneAnchor::Right), Some([120.0, 100.0]));
+        assert_eq!(env_anchor_point(&env, "r", SceneAnchor::Top), Some([100.0, 80.0]));
+        assert_eq!(env_anchor_point(&env, "r", SceneAnchor::Center), Some([100.0, 100.0]));
+        assert_eq!(env_anchor_point(&env, "r", SceneAnchor::Left), Some([80.0, 100.0]));
+        assert_eq!(env_anchor_point(&env, "r", SceneAnchor::Bottom), Some([100.0, 120.0]));
     }
 
     #[test]
@@ -295,15 +279,9 @@ mod tests {
         env.set("r.size", Value::Vec2([40.0, 40.0]));
 
         // right should be (200+20, 100) = (220, 100)
-        assert_eq!(
-            env_anchor_point(&env, "r", SceneAnchor::Right),
-            Some([220.0, 100.0])
-        );
+        assert_eq!(env_anchor_point(&env, "r", SceneAnchor::Right), Some([220.0, 100.0]));
         // top should be (200, 100-20) = (200, 80)
-        assert_eq!(
-            env_anchor_point(&env, "r", SceneAnchor::Top),
-            Some([200.0, 80.0])
-        );
+        assert_eq!(env_anchor_point(&env, "r", SceneAnchor::Top), Some([200.0, 80.0]));
     }
 
     #[test]
@@ -317,14 +295,8 @@ mod tests {
         let mut env = Environment::new();
         env.set("r.at", Value::Vec2([100.0, 200.0]));
         // No r.size — defaults to point anchor
-        assert_eq!(
-            env_anchor_point(&env, "r", SceneAnchor::Center),
-            Some([100.0, 200.0])
-        );
+        assert_eq!(env_anchor_point(&env, "r", SceneAnchor::Center), Some([100.0, 200.0]));
         // With no half, all anchors collapse to centre
-        assert_eq!(
-            env_anchor_point(&env, "r", SceneAnchor::Right),
-            Some([100.0, 200.0])
-        );
+        assert_eq!(env_anchor_point(&env, "r", SceneAnchor::Right), Some([100.0, 200.0]));
     }
 }

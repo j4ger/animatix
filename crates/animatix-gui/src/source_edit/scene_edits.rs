@@ -3,8 +3,8 @@
 
 use animatix_syntax::ast::{Expr, Property, Stmt, Transition};
 
-use super::apply::{find_scene_mut, walk_stmts_mut};
 use super::SourceEditError;
+use super::apply::{find_scene_mut, walk_stmts_mut};
 
 // ---------------------------------------------------------------------------
 // Scene helpers
@@ -51,14 +51,21 @@ fn duplicate_name_in_order(order: &[String]) -> Option<String> {
 // ReorderScenes
 // ---------------------------------------------------------------------------
 
-pub(super) fn reorder_scenes(stmts: &mut Vec<Stmt>, new_order: Vec<String>) -> Result<(), SourceEditError> {
+pub(super) fn reorder_scenes(
+    stmts: &mut Vec<Stmt>,
+    new_order: Vec<String>,
+) -> Result<(), SourceEditError> {
     if let Some(duplicate) = duplicate_name_in_order(&new_order) {
         return Err(SourceEditError::DuplicateSceneName { name: duplicate });
     }
 
     let existing = scene_names(stmts);
-    if existing.len() != new_order.len() || existing.iter().any(|name| !new_order.iter().any(|n| n == name)) {
-        return Err(SourceEditError::Generic("Scene order does not match existing scenes".to_string()));
+    if existing.len() != new_order.len()
+        || existing.iter().any(|name| !new_order.iter().any(|n| n == name))
+    {
+        return Err(SourceEditError::Generic(
+            "Scene order does not match existing scenes".to_string(),
+        ));
     }
 
     // Separate scenes from non-scenes, preserving original interleaving positions
@@ -81,7 +88,7 @@ pub(super) fn reorder_scenes(stmts: &mut Vec<Stmt>, new_order: Vec<String>) -> R
                         reordered.push(scene.clone());
                     }
                 }
-            }
+            },
             other => reordered.push(other.clone()),
         }
     }
@@ -94,14 +101,24 @@ pub(super) fn reorder_scenes(stmts: &mut Vec<Stmt>, new_order: Vec<String>) -> R
 // SetPlayTarget
 // ---------------------------------------------------------------------------
 
-pub(super) fn set_play_target(stmts: &mut [Stmt], scene: &str, target: Option<&str>) -> Result<(), SourceEditError> {
+pub(super) fn set_play_target(
+    stmts: &mut [Stmt],
+    scene: &str,
+    target: Option<&str>,
+) -> Result<(), SourceEditError> {
     let scene_stmt = match find_scene_mut(stmts, scene) {
         Some(stmt) => stmt,
-        None => return Err(SourceEditError::SceneNotFound { scene: scene.to_string() }),
+        None => {
+            return Err(SourceEditError::SceneNotFound {
+                scene: scene.to_string(),
+            });
+        },
     };
 
     let Stmt::Scene { body, .. } = scene_stmt else {
-        return Err(SourceEditError::SceneNotFound { scene: scene.to_string() });
+        return Err(SourceEditError::SceneNotFound {
+            scene: scene.to_string(),
+        });
     };
 
     match target {
@@ -131,12 +148,12 @@ pub(super) fn set_play_target(stmts: &mut [Stmt], scene: &str, target: Option<&s
                             seen = true;
                             true
                         }
-                    }
+                    },
                     _ => true,
                 });
             }
             Ok(())
-        }
+        },
         None => {
             let before = body.len();
             body.retain(|stmt| !matches!(stmt, Stmt::Play { .. }));
@@ -145,7 +162,7 @@ pub(super) fn set_play_target(stmts: &mut [Stmt], scene: &str, target: Option<&s
             } else {
                 Err(SourceEditError::Generic("No play target to remove".to_string()))
             }
-        }
+        },
     }
 }
 
@@ -153,16 +170,30 @@ pub(super) fn set_play_target(stmts: &mut [Stmt], scene: &str, target: Option<&s
 // SetTransition
 // ---------------------------------------------------------------------------
 
-pub(super) fn set_transition(stmts: &mut [Stmt], from_scene: &str, transition: Option<Transition>) -> Result<(), SourceEditError> {
+pub(super) fn set_transition(
+    stmts: &mut [Stmt],
+    from_scene: &str,
+    transition: Option<Transition>,
+) -> Result<(), SourceEditError> {
     let scene_stmt = match find_scene_mut(stmts, from_scene) {
         Some(stmt) => stmt,
-        None => return Err(SourceEditError::SceneNotFound { scene: from_scene.to_string() }),
+        None => {
+            return Err(SourceEditError::SceneNotFound {
+                scene: from_scene.to_string(),
+            });
+        },
     };
     let Stmt::Scene { body, .. } = scene_stmt else {
-        return Err(SourceEditError::SceneNotFound { scene: from_scene.to_string() });
+        return Err(SourceEditError::SceneNotFound {
+            scene: from_scene.to_string(),
+        });
     };
 
-    if let Some(Stmt::Play { transition: play_transition, .. }) = body.iter_mut().find(|stmt| matches!(stmt, Stmt::Play { .. })) {
+    if let Some(Stmt::Play {
+        transition: play_transition,
+        ..
+    }) = body.iter_mut().find(|stmt| matches!(stmt, Stmt::Play { .. }))
+    {
         *play_transition = transition;
         return Ok(());
     }
@@ -174,13 +205,23 @@ pub(super) fn set_transition(stmts: &mut [Stmt], from_scene: &str, transition: O
 // SetSceneDuration
 // ---------------------------------------------------------------------------
 
-pub(super) fn set_scene_duration(stmts: &mut [Stmt], scene: &str, duration_s: Option<f64>) -> Result<(), SourceEditError> {
+pub(super) fn set_scene_duration(
+    stmts: &mut [Stmt],
+    scene: &str,
+    duration_s: Option<f64>,
+) -> Result<(), SourceEditError> {
     let scene_stmt = match find_scene_mut(stmts, scene) {
         Some(stmt) => stmt,
-        None => return Err(SourceEditError::SceneNotFound { scene: scene.to_string() }),
+        None => {
+            return Err(SourceEditError::SceneNotFound {
+                scene: scene.to_string(),
+            });
+        },
     };
     let Stmt::Scene { config, .. } = scene_stmt else {
-        return Err(SourceEditError::SceneNotFound { scene: scene.to_string() });
+        return Err(SourceEditError::SceneNotFound {
+            scene: scene.to_string(),
+        });
     };
 
     // Find existing duration property in config
@@ -192,7 +233,7 @@ pub(super) fn set_scene_duration(stmts: &mut [Stmt], scene: &str, duration_s: Op
             // Update existing
             config[idx].value = Expr::Num(val);
             Ok(())
-        }
+        },
         (Some(val), None) => {
             // Insert new
             config.push(Property {
@@ -202,16 +243,16 @@ pub(super) fn set_scene_duration(stmts: &mut [Stmt], scene: &str, duration_s: Op
                 trailing_comment: None,
             });
             Ok(())
-        }
+        },
         // Removing duration
         (None, Some(idx)) => {
             config.remove(idx);
             Ok(())
-        }
+        },
         (None, None) => {
             // Nothing to do
             Ok(())
-        }
+        },
     }
 }
 
@@ -219,12 +260,21 @@ pub(super) fn set_scene_duration(stmts: &mut [Stmt], scene: &str, duration_s: Op
 // RenameScene
 // ---------------------------------------------------------------------------
 
-pub(super) fn rename_scene(stmts: &mut [Stmt], old_name: &str, new_name: &str) -> Result<(), SourceEditError> {
+pub(super) fn rename_scene(
+    stmts: &mut [Stmt],
+    old_name: &str,
+    new_name: &str,
+) -> Result<(), SourceEditError> {
     if old_name == new_name {
         return Ok(());
     }
-    if stmts.iter().any(|stmt| matches!(stmt, Stmt::Scene { name, .. } if name == new_name)) {
-        return Err(SourceEditError::DuplicateSceneName { name: new_name.to_string() });
+    if stmts
+        .iter()
+        .any(|stmt| matches!(stmt, Stmt::Scene { name, .. } if name == new_name))
+    {
+        return Err(SourceEditError::DuplicateSceneName {
+            name: new_name.to_string(),
+        });
     }
 
     let mut renamed = false;
@@ -234,7 +284,9 @@ pub(super) fn rename_scene(stmts: &mut [Stmt], old_name: &str, new_name: &str) -
     if renamed {
         Ok(())
     } else {
-        Err(SourceEditError::SceneNotFound { scene: old_name.to_string() })
+        Err(SourceEditError::SceneNotFound {
+            scene: old_name.to_string(),
+        })
     }
 }
 
@@ -247,14 +299,14 @@ fn rename_scene_in_stmt(stmt: &mut Stmt, old_name: &str, new_name: &str) -> bool
                 *name = new_name.into();
                 renamed = true;
             }
-        }
+        },
         Stmt::Play { scene_name, .. } => {
             if scene_name == old_name {
                 *scene_name = new_name.into();
                 renamed = true;
             }
-        }
-        _ => {}
+        },
+        _ => {},
     }
     renamed
 }
@@ -264,8 +316,13 @@ fn rename_scene_in_stmt(stmt: &mut Stmt, old_name: &str, new_name: &str) -> bool
 // ---------------------------------------------------------------------------
 
 pub(super) fn add_scene(stmts: &mut Vec<Stmt>, name: &str) -> Result<(), SourceEditError> {
-    if stmts.iter().any(|stmt| matches!(stmt, Stmt::Scene { name: scene_name, .. } if scene_name == name)) {
-        return Err(SourceEditError::DuplicateSceneName { name: name.to_string() });
+    if stmts
+        .iter()
+        .any(|stmt| matches!(stmt, Stmt::Scene { name: scene_name, .. } if scene_name == name))
+    {
+        return Err(SourceEditError::DuplicateSceneName {
+            name: name.to_string(),
+        });
     }
     stmts.push(Stmt::Scene {
         name: name.into(),
@@ -277,12 +334,14 @@ pub(super) fn add_scene(stmts: &mut Vec<Stmt>, name: &str) -> Result<(), SourceE
 }
 
 pub(super) fn duplicate_scene(stmts: &mut Vec<Stmt>, name: &str) -> Result<(), SourceEditError> {
-    let original = stmts.iter().position(|stmt| {
-        matches!(stmt, Stmt::Scene { name: scene_name, .. } if scene_name == name)
-    });
+    let original = stmts.iter().position(
+        |stmt| matches!(stmt, Stmt::Scene { name: scene_name, .. } if scene_name == name),
+    );
 
     let Some(idx) = original else {
-        return Err(SourceEditError::SceneNotFound { scene: name.to_string() });
+        return Err(SourceEditError::SceneNotFound {
+            scene: name.to_string(),
+        });
     };
 
     let mut new_scene = stmts[idx].clone();
@@ -301,14 +360,18 @@ pub(super) fn duplicate_scene(stmts: &mut Vec<Stmt>, name: &str) -> Result<(), S
         candidate
     };
 
-    if let Stmt::Scene { name: scene_name, .. } = &mut new_scene {
+    if let Stmt::Scene {
+        name: scene_name, ..
+    } = &mut new_scene
+    {
         *scene_name = new_name.clone();
     }
 
     // Rename actor labels inside the duplicated scene to avoid conflicts
     // with labels in ANY scene (not just the duplicated one).
     let all_existing_labels = collect_all_labels(stmts);
-    let mut used_labels: std::collections::HashSet<String> = all_existing_labels.into_iter().collect();
+    let mut used_labels: std::collections::HashSet<String> =
+        all_existing_labels.into_iter().collect();
     walk_stmts_mut(std::slice::from_mut(&mut new_scene), &mut |stmt| {
         if let Stmt::ActorDecl { label, .. } = stmt {
             let base = label.clone();
@@ -331,27 +394,33 @@ pub(super) fn delete_scene(stmts: &mut Vec<Stmt>, name: &str) -> Result<(), Sour
     let mut removed = false;
     // 1. Remove the Scene declaration and any Play statements targeting it
     stmts.retain(|stmt| match stmt {
-        Stmt::Scene { name: scene_name, .. } => {
+        Stmt::Scene {
+            name: scene_name, ..
+        } => {
             if scene_name == name {
                 removed = true;
                 false
             } else {
                 true
             }
-        }
+        },
         Stmt::Play { scene_name, .. } => scene_name != name,
         _ => true,
     });
     // 2. Also remove Play statements from within remaining Scene bodies
     for stmt in stmts.iter_mut() {
         if let Stmt::Scene { body, .. } = stmt {
-            body.retain(|child| !matches!(child, Stmt::Play { scene_name, .. } if scene_name == name));
+            body.retain(
+                |child| !matches!(child, Stmt::Play { scene_name, .. } if scene_name == name),
+            );
         }
     }
     if removed {
         Ok(())
     } else {
-        Err(SourceEditError::SceneNotFound { scene: name.to_string() })
+        Err(SourceEditError::SceneNotFound {
+            scene: name.to_string(),
+        })
     }
 }
 
@@ -365,7 +434,11 @@ pub(super) fn delete_scene(stmts: &mut Vec<Stmt>, name: &str) -> Result<(), Sour
 /// 2. Create a new scene containing those actors.
 /// 3. Append the new scene after the current scene (or at top level).
 /// 4. Add a `play` statement to the *source* scene linking to the new scene.
-pub(super) fn extract_scene(stmts: &mut Vec<Stmt>, actor_labels: Vec<String>, new_scene_name: &str) -> Result<(), SourceEditError> {
+pub(super) fn extract_scene(
+    stmts: &mut Vec<Stmt>,
+    actor_labels: Vec<String>,
+    new_scene_name: &str,
+) -> Result<(), SourceEditError> {
     if actor_labels.is_empty() {
         return Err(SourceEditError::EmptyActorList);
     }
@@ -418,7 +491,11 @@ pub(super) fn extract_scene(stmts: &mut Vec<Stmt>, actor_labels: Vec<String>, ne
 }
 
 /// Move selected actors to an existing scene.
-pub(super) fn move_to_scene(stmts: &mut Vec<Stmt>, actor_labels: Vec<String>, target_scene: &str) -> Result<(), SourceEditError> {
+pub(super) fn move_to_scene(
+    stmts: &mut Vec<Stmt>,
+    actor_labels: Vec<String>,
+    target_scene: &str,
+) -> Result<(), SourceEditError> {
     if actor_labels.is_empty() {
         return Err(SourceEditError::EmptyActorList);
     }
@@ -437,7 +514,9 @@ pub(super) fn move_to_scene(stmts: &mut Vec<Stmt>, actor_labels: Vec<String>, ta
         return Ok(());
     }
 
-    Err(SourceEditError::SceneNotFound { scene: target_scene.to_string() })
+    Err(SourceEditError::SceneNotFound {
+        scene: target_scene.to_string(),
+    })
 }
 
 /// Recursively find and remove actor declarations matching `labels` from `stmts`,
@@ -461,27 +540,31 @@ fn extract_actors_from_stmts(stmts: &mut Vec<Stmt>, labels: &[String], out: &mut
         match &mut stmts[i] {
             Stmt::Scene { body, .. } => {
                 extract_actors_from_stmts(body, labels, out);
-            }
+            },
             Stmt::Keyframe { body, .. }
             | Stmt::RelativeKeyframe { body, .. }
             | Stmt::Sequence { body, .. }
             | Stmt::Stagger { body, .. }
             | Stmt::Always { body, .. } => {
                 extract_actors_from_stmts(body, labels, out);
-            }
-            Stmt::Conditional { then_branch, else_branch, .. } => {
+            },
+            Stmt::Conditional {
+                then_branch,
+                else_branch,
+                ..
+            } => {
                 extract_actors_from_stmts(then_branch, labels, out);
                 if let Some(else_b) = else_branch {
                     extract_actors_from_stmts(else_b, labels, out);
                 }
-            }
+            },
             Stmt::ForLoop { body, .. } => {
                 extract_actors_from_stmts(body, labels, out);
-            }
+            },
             Stmt::ComponentDef(def, _) => {
                 extract_actors_from_stmts(&mut def.body, labels, out);
-            }
-            _ => {}
+            },
+            _ => {},
         }
 
         i += 1;
@@ -520,31 +603,57 @@ fn scene_body_has_any_label(stmts: &[Stmt], labels: &[String]) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::super::apply::{SourceEdit, apply_edit};
     use animatix_syntax::ast::{Stmt, Transition};
     use animatix_syntax::parser::parser_simple;
     use animatix_syntax::to_source::stmts_to_source;
     use chumsky::Parser;
 
+    use super::super::apply::{SourceEdit, apply_edit};
+
     fn parse(source: &str) -> Vec<Stmt> {
-        parser_simple().parse(source).into_result().expect("failed to parse test source")
+        parser_simple()
+            .parse(source)
+            .into_result()
+            .expect("failed to parse test source")
     }
 
     #[test]
     fn add_scene_appends_new_scene() {
         let mut stmts = parse("import \"foo\"\n\n# Intro\nplay Outro");
-        assert!(apply_edit(&mut stmts, SourceEdit::AddScene { name: "Outro".into() }).is_ok());
-        assert!(matches!(stmts.last(), Some(Stmt::Scene { name, body, .. }) if name == "Outro" && body.is_empty()));
+        assert!(
+            apply_edit(
+                &mut stmts,
+                SourceEdit::AddScene {
+                    name: "Outro".into()
+                }
+            )
+            .is_ok()
+        );
+        assert!(
+            matches!(stmts.last(), Some(Stmt::Scene { name, body, .. }) if name == "Outro" && body.is_empty())
+        );
     }
 
     #[test]
     fn reorder_scenes_changes_scene_order() {
-        let mut stmts = parse("import \"foo\"\n\n# Intro\nplay Middle\n\n# Middle\nplay Outro\n\n# Outro");
-        assert!(apply_edit(
-            &mut stmts,
-            SourceEdit::ReorderScenes { new_order: vec!["Outro".into(), "Intro".into(), "Middle".into()] }
-        ).is_ok());
-        let scene_names: Vec<_> = stmts.iter().filter_map(|s| match s { Stmt::Scene { name, .. } => Some(name.as_str()), _ => None }).collect();
+        let mut stmts =
+            parse("import \"foo\"\n\n# Intro\nplay Middle\n\n# Middle\nplay Outro\n\n# Outro");
+        assert!(
+            apply_edit(
+                &mut stmts,
+                SourceEdit::ReorderScenes {
+                    new_order: vec!["Outro".into(), "Intro".into(), "Middle".into()]
+                }
+            )
+            .is_ok()
+        );
+        let scene_names: Vec<_> = stmts
+            .iter()
+            .filter_map(|s| match s {
+                Stmt::Scene { name, .. } => Some(name.as_str()),
+                _ => None,
+            })
+            .collect();
         assert_eq!(scene_names, vec!["Outro", "Intro", "Middle"]);
         // The import is kept as a standalone Stmt::Import at the top
         assert!(matches!(stmts.first(), Some(Stmt::Import { .. })));
@@ -553,38 +662,63 @@ mod tests {
     #[test]
     fn set_play_target_creates_and_removes_play() {
         let mut stmts = parse("# Intro");
-        assert!(apply_edit(
-            &mut stmts,
-            SourceEdit::SetPlayTarget { scene: "Intro".into(), target: Some("Outro".into()) }
-        ).is_ok());
+        assert!(
+            apply_edit(
+                &mut stmts,
+                SourceEdit::SetPlayTarget {
+                    scene: "Intro".into(),
+                    target: Some("Outro".into())
+                }
+            )
+            .is_ok()
+        );
         assert!(stmts_to_source(&stmts).contains("play Outro"));
-        assert!(apply_edit(
-            &mut stmts,
-            SourceEdit::SetPlayTarget { scene: "Intro".into(), target: None }
-        ).is_ok());
+        assert!(
+            apply_edit(
+                &mut stmts,
+                SourceEdit::SetPlayTarget {
+                    scene: "Intro".into(),
+                    target: None
+                }
+            )
+            .is_ok()
+        );
         assert!(!stmts_to_source(&stmts).contains("play "));
     }
 
     #[test]
     fn set_transition_updates_play_statement() {
         let mut stmts = parse("# Intro\nplay Outro\n\n# Outro");
-        assert!(apply_edit(
-            &mut stmts,
-            SourceEdit::SetTransition {
-                from_scene: "Intro".into(),
-                transition: Some(Transition { id: "fade".into(), duration_ms: 300, easing: animatix_syntax::easing::Easing::Linear }),
-            }
-        ).is_ok());
+        assert!(
+            apply_edit(
+                &mut stmts,
+                SourceEdit::SetTransition {
+                    from_scene: "Intro".into(),
+                    transition: Some(Transition {
+                        id: "fade".into(),
+                        duration_ms: 300,
+                        easing: animatix_syntax::easing::Easing::Linear
+                    }),
+                }
+            )
+            .is_ok()
+        );
         assert!(stmts_to_source(&stmts).contains("play Outro [fade, 300ms]"));
     }
 
     #[test]
     fn rename_scene_updates_play_references() {
         let mut stmts = parse("# Intro\nplay Outro\n\n# Outro");
-        assert!(apply_edit(
-            &mut stmts,
-            SourceEdit::RenameScene { old_name: "Outro".into(), new_name: "Finale".into() }
-        ).is_ok());
+        assert!(
+            apply_edit(
+                &mut stmts,
+                SourceEdit::RenameScene {
+                    old_name: "Outro".into(),
+                    new_name: "Finale".into()
+                }
+            )
+            .is_ok()
+        );
         let src = stmts_to_source(&stmts);
         assert!(src.contains("# Finale"));
         assert!(src.contains("play Finale"));
@@ -594,10 +728,15 @@ mod tests {
     #[test]
     fn delete_scene_removes_declaration_and_play_references() {
         let mut stmts = parse("# Intro\nplay Outro\n\n# Middle\n\n# Outro");
-        assert!(apply_edit(
-            &mut stmts,
-            SourceEdit::DeleteScene { name: "Outro".into() }
-        ).is_ok());
+        assert!(
+            apply_edit(
+                &mut stmts,
+                SourceEdit::DeleteScene {
+                    name: "Outro".into()
+                }
+            )
+            .is_ok()
+        );
         let src = stmts_to_source(&stmts);
         assert!(!src.contains("# Outro"));
         assert!(!src.contains("play Outro"));
@@ -608,37 +747,73 @@ mod tests {
     #[test]
     fn delete_scene_returns_false_when_scene_missing() {
         let mut stmts = parse("# Intro");
-        assert!(apply_edit(
-            &mut stmts,
-            SourceEdit::DeleteScene { name: "Missing".into() }
-        ).is_err());
+        assert!(
+            apply_edit(
+                &mut stmts,
+                SourceEdit::DeleteScene {
+                    name: "Missing".into()
+                }
+            )
+            .is_err()
+        );
     }
 
     #[test]
     fn scene_edits_fail_for_missing_or_duplicate_names() {
         let mut stmts = parse("# Intro\nplay Outro\n\n# Outro");
-        assert!(apply_edit(
-            &mut stmts,
-            SourceEdit::RenameScene { old_name: "Missing".into(), new_name: "X".into() }
-        ).is_err());
-        assert!(apply_edit(&mut stmts, SourceEdit::AddScene { name: "Intro".into() }).is_err());
-        assert!(apply_edit(
-            &mut stmts,
-            SourceEdit::ReorderScenes { new_order: vec!["Intro".into(), "Intro".into()] }
-        ).is_err());
-        assert!(apply_edit(
-            &mut stmts,
-            SourceEdit::SetPlayTarget { scene: "Missing".into(), target: Some("X".into()) }
-        ).is_err());
+        assert!(
+            apply_edit(
+                &mut stmts,
+                SourceEdit::RenameScene {
+                    old_name: "Missing".into(),
+                    new_name: "X".into()
+                }
+            )
+            .is_err()
+        );
+        assert!(
+            apply_edit(
+                &mut stmts,
+                SourceEdit::AddScene {
+                    name: "Intro".into()
+                }
+            )
+            .is_err()
+        );
+        assert!(
+            apply_edit(
+                &mut stmts,
+                SourceEdit::ReorderScenes {
+                    new_order: vec!["Intro".into(), "Intro".into()]
+                }
+            )
+            .is_err()
+        );
+        assert!(
+            apply_edit(
+                &mut stmts,
+                SourceEdit::SetPlayTarget {
+                    scene: "Missing".into(),
+                    target: Some("X".into())
+                }
+            )
+            .is_err()
+        );
     }
 
     #[test]
     fn set_scene_duration_adds_config() {
         let mut stmts = parse("# Intro\ntitle: Text, text: \"Hello\"");
-        assert!(apply_edit(
-            &mut stmts,
-            SourceEdit::SetSceneDuration { scene: "Intro".into(), duration_s: Some(5.0) }
-        ).is_ok());
+        assert!(
+            apply_edit(
+                &mut stmts,
+                SourceEdit::SetSceneDuration {
+                    scene: "Intro".into(),
+                    duration_s: Some(5.0)
+                }
+            )
+            .is_ok()
+        );
         let src = stmts_to_source(&stmts);
         assert!(src.contains("duration: 5"), "Expected duration in output: {}", src);
     }
@@ -646,10 +821,16 @@ mod tests {
     #[test]
     fn set_scene_duration_updates_existing_config() {
         let mut stmts = parse("# Intro\nconfig { duration: 3 }\ntitle: Text, text: \"Hello\"");
-        assert!(apply_edit(
-            &mut stmts,
-            SourceEdit::SetSceneDuration { scene: "Intro".into(), duration_s: Some(7.5) }
-        ).is_ok());
+        assert!(
+            apply_edit(
+                &mut stmts,
+                SourceEdit::SetSceneDuration {
+                    scene: "Intro".into(),
+                    duration_s: Some(7.5)
+                }
+            )
+            .is_ok()
+        );
         let src = stmts_to_source(&stmts);
         assert!(src.contains("duration: 7.5"), "Expected duration: 7.5 in output: {}", src);
         assert!(!src.contains("duration: 3"), "Old duration should be gone: {}", src);
@@ -658,10 +839,16 @@ mod tests {
     #[test]
     fn set_scene_duration_removes_when_none() {
         let mut stmts = parse("# Intro\nconfig { duration: 5 }\ntitle: Text, text: \"Hello\"");
-        assert!(apply_edit(
-            &mut stmts,
-            SourceEdit::SetSceneDuration { scene: "Intro".into(), duration_s: None }
-        ).is_ok());
+        assert!(
+            apply_edit(
+                &mut stmts,
+                SourceEdit::SetSceneDuration {
+                    scene: "Intro".into(),
+                    duration_s: None
+                }
+            )
+            .is_ok()
+        );
         let src = stmts_to_source(&stmts);
         assert!(!src.contains("duration"), "Duration should be removed: {}", src);
     }
@@ -669,22 +856,32 @@ mod tests {
     #[test]
     fn set_scene_duration_fails_for_missing_scene() {
         let mut stmts = parse("# Intro");
-        assert!(apply_edit(
-            &mut stmts,
-            SourceEdit::SetSceneDuration { scene: "Missing".into(), duration_s: Some(5.0) }
-        ).is_err());
+        assert!(
+            apply_edit(
+                &mut stmts,
+                SourceEdit::SetSceneDuration {
+                    scene: "Missing".into(),
+                    duration_s: Some(5.0)
+                }
+            )
+            .is_err()
+        );
     }
 
     #[test]
     fn extract_scene_inserts_play_into_source_scene_body() {
-        let mut stmts = parse("# Intro\ntitle: Text, text: \"Hello\"\nbox: Rect, size: (100, 100)\n\n# Outro");
-        assert!(apply_edit(
-            &mut stmts,
-            SourceEdit::ExtractScene {
-                actor_labels: vec!["box".into()],
-                new_scene_name: "Diagram".into(),
-            }
-        ).is_ok());
+        let mut stmts =
+            parse("# Intro\ntitle: Text, text: \"Hello\"\nbox: Rect, size: (100, 100)\n\n# Outro");
+        assert!(
+            apply_edit(
+                &mut stmts,
+                SourceEdit::ExtractScene {
+                    actor_labels: vec!["box".into()],
+                    new_scene_name: "Diagram".into(),
+                }
+            )
+            .is_ok()
+        );
         let src = stmts_to_source(&stmts);
         // The play statement should be inside the Intro scene, not at top level
         assert!(src.contains("play Diagram"), "Expected 'play Diagram' in output: {}", src);
@@ -694,18 +891,29 @@ mod tests {
         let intro_pos = src.find("# Intro").unwrap();
         let diagram_pos = src.find("# Diagram").unwrap();
         let play_pos = src.find("play Diagram").unwrap();
-        assert!(play_pos > intro_pos && play_pos < diagram_pos,
+        assert!(
+            play_pos > intro_pos && play_pos < diagram_pos,
             "play Diagram should be between # Intro and # Diagram, got positions: intro={}, play={}, diagram={}",
-            intro_pos, play_pos, diagram_pos);
+            intro_pos,
+            play_pos,
+            diagram_pos
+        );
     }
 
     #[test]
     fn duplicate_scene_renames_labels_across_all_scenes() {
-        let mut stmts = parse("# Intro\nbox: Rect, size: (100, 100)\n\n# Diagram\ncircle: Ellipse, size: (50, 50)");
-        assert!(apply_edit(
-            &mut stmts,
-            SourceEdit::DuplicateScene { name: "Intro".into() }
-        ).is_ok());
+        let mut stmts = parse(
+            "# Intro\nbox: Rect, size: (100, 100)\n\n# Diagram\ncircle: Ellipse, size: (50, 50)",
+        );
+        assert!(
+            apply_edit(
+                &mut stmts,
+                SourceEdit::DuplicateScene {
+                    name: "Intro".into()
+                }
+            )
+            .is_ok()
+        );
         let src = stmts_to_source(&stmts);
         // The duplicated scene should have renamed labels that don't conflict
         // with the original 'box' or 'circle' in other scenes

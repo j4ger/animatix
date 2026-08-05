@@ -18,9 +18,16 @@ fn test_keyframe_times_s_collects_all_fields() {
 
     // Add keyframes to various fields
     track.style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
-    track.geometry.position.ensure([0.0, 0.0]).add_keyframe(2000, [100.0, 0.0], Easing::Linear);
-    track.geometry.transform.ensure([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
-        .add_keyframe(3000, [2.0, 0.0, 0.0, 2.0, 0.0, 0.0], Easing::Linear);
+    track
+        .geometry
+        .position
+        .ensure([0.0, 0.0])
+        .add_keyframe(2000, [100.0, 0.0], Easing::Linear);
+    track.geometry.transform.ensure([1.0, 0.0, 0.0, 1.0, 0.0, 0.0]).add_keyframe(
+        3000,
+        [2.0, 0.0, 0.0, 2.0, 0.0, 0.0],
+        Easing::Linear,
+    );
 
     timeline.tracks.insert("test".to_string(), track);
     let times = timeline.keyframe_times_s();
@@ -38,9 +45,16 @@ fn test_keyframe_times_s_includes_highlight_fields() {
     let mut track = AnimationTrack::new("test".to_string());
     track.kind = ActorKindId::Equation;
 
-    track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0])
-        .add_keyframe(500, [1.0, 0.0, 0.0, 1.0], Easing::Linear);
-    track.highlight.highlight_opacity.ensure(0.0).add_keyframe(2500, 0.8, Easing::Linear);
+    track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(
+        500,
+        [1.0, 0.0, 0.0, 1.0],
+        Easing::Linear,
+    );
+    track
+        .highlight
+        .highlight_opacity
+        .ensure(0.0)
+        .add_keyframe(2500, 0.8, Easing::Linear);
 
     timeline.tracks.insert("test".to_string(), track);
     let times = timeline.keyframe_times_s();
@@ -79,7 +93,9 @@ fn test_keyframe_times_s_returns_seconds_not_milliseconds() {
 #[test]
 fn test_keyframe_times_s_includes_background_color() {
     let mut timeline = keyframe_times_s_timeline();
-    timeline.background_color.add_keyframe(3000, [1.0, 0.0, 0.0, 1.0], Easing::Linear);
+    timeline
+        .background_color
+        .add_keyframe(3000, [1.0, 0.0, 0.0, 1.0], Easing::Linear);
     let times = timeline.keyframe_times_s();
     assert!(times.contains(&3.0), "Got: {:?}", times);
 }
@@ -90,7 +106,11 @@ fn test_keyframe_times_s_includes_filter_fields() {
     // Filter fields apply to Filter actor kind
     let mut track = AnimationTrack::new("test".to_string());
     track.kind = ActorKindId::Filter;
-    track.filter.filter_brightness.ensure(1.0).add_keyframe(500, 2.0, Easing::Linear);
+    track
+        .filter
+        .filter_brightness
+        .ensure(1.0)
+        .add_keyframe(500, 2.0, Easing::Linear);
     track.filter.filter_contrast.ensure(1.0).add_keyframe(1200, 1.5, Easing::Linear);
     track.filter.filter_saturate.ensure(1.0).add_keyframe(800, 0.0, Easing::Linear);
     timeline.tracks.insert("test".to_string(), track);
@@ -104,7 +124,9 @@ fn test_keyframe_times_s_includes_filter_fields() {
 fn test_keyframe_times_s_includes_plot_param_tracks() {
     let mut timeline = keyframe_times_s_timeline();
     let mut track = AnimationTrack::new("test".to_string());
-    track.plot_param_tracks.entry("freq".to_string())
+    track
+        .plot_param_tracks
+        .entry("freq".to_string())
         .or_insert_with(|| PropertyTrack::new(1.0))
         .add_keyframe(2000, 2.0, Easing::Linear);
     timeline.tracks.insert("test".to_string(), track);

@@ -3,9 +3,10 @@
 //! Public entry points: `build()`, `build_with_font_context()`,
 //! `build_with_diagnostics()`, `build_with_diagnostics_and_font_context()`.
 
+use tracing::instrument;
+
 use super::*;
 use crate::timeline::layout::ChildExtent;
-use tracing::instrument;
 
 impl Timeline {
     pub(crate) fn register_container_metadata_and_apply_layout(
@@ -20,13 +21,10 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
         vertical_align: Option<&str>,
     ) {
-        let child_order = self
-            .tracks
-            .get(label)
-            .map(|t| t.children.clone())
-            .unwrap_or_default();
+        let child_order = self.tracks.get(label).map(|t| t.children.clone()).unwrap_or_default();
         // layout_children is computed on demand via Timeline::layout_children_for
-        let _layout_children = self.build_layout_children(label, container_ty, &child_order, diagnostics);
+        let _layout_children =
+            self.build_layout_children(label, container_ty, &child_order, diagnostics);
 
         let metadata = ContainerMetadata {
             layout_type: LayoutType::from_container_ty(container_ty),
@@ -57,16 +55,23 @@ impl Timeline {
                 Some(ChildExtent {
                     label: cl.clone(),
                     half_size,
-                    placement_mode: track.geometry.placement_mode.last(crate::timeline::PlacementMode::LayoutManaged),
+                    placement_mode: track
+                        .geometry
+                        .placement_mode
+                        .last(crate::timeline::PlacementMode::LayoutManaged),
                 })
             })
             .collect();
 
-        let container_size = crate::timeline::layout::compute_container_size(&child_extents, &metadata);
+        let container_size =
+            crate::timeline::layout::compute_container_size(&child_extents, &metadata);
 
         tracing::debug!(
             "Width propagation: {} '{}' container_size={:?}, {} children",
-            container_ty, label, container_size, child_extents.len()
+            container_ty,
+            label,
+            container_size,
+            child_extents.len()
         );
 
         // Propagate container width to text children
@@ -91,8 +96,13 @@ impl Timeline {
         ast: &[Stmt],
         font_context: std::sync::Arc<crate::renderer::text::FontContext>,
     ) -> Self {
-        Self::build_with_diagnostics_and_font_context(ast, &std::collections::HashMap::new(), font_context, super::BuildQuality::Production)
-            .output
+        Self::build_with_diagnostics_and_font_context(
+            ast,
+            &std::collections::HashMap::new(),
+            font_context,
+            super::BuildQuality::Production,
+        )
+        .output
     }
 
     /// Build a `Timeline` from an AST, collecting diagnostics and using the
@@ -147,7 +157,8 @@ impl Timeline {
         source_duration_ms: u64,
         dims: [f64; 2],
     ) -> BuildReport<Self> {
-        let carry_params = carry.zip(source_timeline).map(|(c, s)| (c, s, source_duration_ms, dims));
+        let carry_params =
+            carry.zip(source_timeline).map(|(c, s)| (c, s, source_duration_ms, dims));
         Self::build_impl(ast, namespaces, font_context, build_quality, carry_params)
     }
 
@@ -184,7 +195,7 @@ impl Timeline {
                 match evaluate_expr(expr, &timeline.env) {
                     Ok(value) => {
                         timeline.env.set(&key, value);
-                    }
+                    },
                     Err(e) => {
                         diagnostics.push(
                             Diagnostic::error(
@@ -197,7 +208,7 @@ impl Timeline {
                             )
                             .with_subject(&key),
                         );
-                    }
+                    },
                 }
             }
         }
@@ -217,19 +228,19 @@ impl Timeline {
         let mut has_seen_keyframe = false;
         for stmt in ast {
             match stmt {
-                Stmt::Config { .. } => {}
+                Stmt::Config { .. } => {},
                 Stmt::Keyframe { time, body, .. } => {
                     has_seen_keyframe = true;
                     timeline.default_opacity = 1.0;
                     current_build_time_ms = time_to_ms(time);
                     timeline.process_body(current_build_time_ms, body, None, &mut diagnostics);
-                }
+                },
                 Stmt::RelativeKeyframe { offset, body, .. } => {
                     has_seen_keyframe = true;
                     timeline.default_opacity = 1.0;
                     current_build_time_ms += time_to_ms(offset);
                     timeline.process_body(current_build_time_ms, body, None, &mut diagnostics);
-                }
+                },
                 Stmt::ActorDecl { .. }
                 | Stmt::Assignment { .. }
                 | Stmt::Sequence { .. }
@@ -248,8 +259,8 @@ impl Timeline {
                         &mut diagnostics,
                     );
                     timeline.default_opacity = saved_opacity;
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
 
@@ -276,19 +287,16 @@ impl Timeline {
                     ) {
                         Ok(bytecode) => {
                             timeline.modifier_bytecode_programs.push(bytecode);
-                        }
+                        },
                         Err(e) => {
                             diagnostics.push(Diagnostic::warning(
                                 DiagnosticCode::ModifierCompilationError,
                                 DiagnosticPhase::Build,
-                                format!(
-                                    "Bytecode compilation failed: {}. Using IR fallback.",
-                                    e
-                                ),
+                                format!("Bytecode compilation failed: {}. Using IR fallback.", e),
                             ));
-                        }
+                        },
                     }
-                }
+                },
                 Err(e) => {
                     // Fall back to AST interpretation for this batch
                     diagnostics.push(Diagnostic::warning(
@@ -299,13 +307,19 @@ impl Timeline {
                         e
                     ),
                 ));
-                }
+                },
             }
         }
 
         // Check for always-blocks overriding keyframed properties.
         for stmt in &timeline.modifiers {
-            if let crate::ast::Stmt::Assignment { target, property, span, .. } = stmt {
+            if let crate::ast::Stmt::Assignment {
+                target,
+                property,
+                span,
+                ..
+            } = stmt
+            {
                 let actor_key = crate::timeline::assignment_target_key(target);
                 if let Some(track) = timeline.tracks.get(&actor_key) {
                     if track.has_keyframes_for(property) {
@@ -329,9 +343,7 @@ impl Timeline {
         // P2.22: Freeze the base environment into an Arc for cheap sharing.
         // After build, env is stable; build_frame_env will reference this Arc
         // instead of copying all entries.
-        timeline.env_base = std::sync::Arc::new(
-            std::mem::take(&mut timeline.env.overrides)
-        );
+        timeline.env_base = std::sync::Arc::new(std::mem::take(&mut timeline.env.overrides));
         // Restore env with the frozen base layer
         timeline.env.base = Some(std::sync::Arc::clone(&timeline.env_base));
 

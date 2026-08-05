@@ -175,7 +175,6 @@ dependencies = [
  "eparts",
  "kurbo 0.13.0",
  "notify",
- "pollster",
  "rfd",
  "rodio",
  "ron",
