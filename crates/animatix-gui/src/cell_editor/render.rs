@@ -2,7 +2,6 @@ use egui::{Color32, Frame, Margin, RichText, ScrollArea, Stroke, Vec2};
 
 use crate::app::components::anim;
 use crate::app::design_tokens::motion;
-use crate::app::design_tokens::semantic::status;
 use crate::app::design_tokens::spatial::ROW_S;
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::design_tokens::util::lerp_color;
@@ -38,11 +37,15 @@ fn cell_analyzer_diagnostics(
 }
 
 /// Choose a left-border color based on diagnostic severity for this cell.
-fn diagnostic_border_color(index: usize, state: &CellEditorState) -> Option<Color32> {
+fn diagnostic_border_color(
+    index: usize,
+    state: &CellEditorState,
+    theme: eparts::Theme,
+) -> Option<Color32> {
     if state.error_cells.contains(&index) {
-        Some(status::ERROR)
+        Some(theme.status.error)
     } else if state.warning_cells.contains(&index) {
-        Some(status::WARNING)
+        Some(theme.status.warning)
     } else {
         None
     }
@@ -205,7 +208,7 @@ fn render_code_cell(
     let border_color = if state.focused_cell == Some(index) {
         Some(theme.accent.primary)
     } else {
-        diagnostic_border_color(index, state)
+        diagnostic_border_color(index, state, theme)
     };
     let cell_diags = cell_analyzer_diagnostics(index, state);
 
@@ -341,7 +344,7 @@ fn render_code_cell(
                             .cloned()
                             .collect();
                         if !cell_underlines.is_empty() {
-                            draw_wavy_underlines(ui, &cell_underlines, response.rect);
+                            draw_wavy_underlines(ui, &cell_underlines, response.rect, theme);
                         }
                     }
                 });
@@ -373,7 +376,7 @@ fn render_keyframe_cell(
     let border_color = if state.focused_cell == Some(index) {
         Some(theme.accent.primary)
     } else {
-        diagnostic_border_color(index, state)
+        diagnostic_border_color(index, state, theme)
     };
     let cell_diags = cell_analyzer_diagnostics(index, state);
 
@@ -549,7 +552,12 @@ fn render_keyframe_cell(
                                     .cloned()
                                     .collect();
                                 if !cell_underlines.is_empty() {
-                                    draw_wavy_underlines(ui, &cell_underlines, response.rect);
+                                    draw_wavy_underlines(
+                                        ui,
+                                        &cell_underlines,
+                                        response.rect,
+                                        theme,
+                                    );
                                 }
                             },
                         );
@@ -647,7 +655,12 @@ fn track_focus(index: usize, response: &egui::Response, state: &mut CellEditorSt
 ///
 /// Uses the egui painter to draw a series of small zigzag segments under each
 /// diagnostic span.  Error diagnostics get red waves, warnings get amber waves.
-fn draw_wavy_underlines(ui: &egui::Ui, diags: &[CellDiagnostic], text_rect: egui::Rect) {
+fn draw_wavy_underlines(
+    ui: &egui::Ui,
+    diags: &[CellDiagnostic],
+    text_rect: egui::Rect,
+    theme: eparts::Theme,
+) {
     let painter = ui.painter();
     let font_id = TextRole::Mono.font_id();
 
@@ -657,8 +670,8 @@ fn draw_wavy_underlines(ui: &egui::Ui, diags: &[CellDiagnostic], text_rect: egui
 
     for d in diags {
         let color = match d.severity {
-            animatix_syntax::diagnostics::DiagnosticSeverity::Error => status::ERROR,
-            animatix_syntax::diagnostics::DiagnosticSeverity::Warning => status::WARNING,
+            animatix_syntax::diagnostics::DiagnosticSeverity::Error => theme.status.error,
+            animatix_syntax::diagnostics::DiagnosticSeverity::Warning => theme.status.warning,
         };
 
         // Y position: baseline below the diagnostic line
@@ -759,14 +772,14 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
     let bg_idle = theme.surface.widget;
     let bg_hover = theme.surface.hover;
     let bg = if pressed {
-        status::WARNING
+        theme.status.warning
     } else {
         lerp_color(bg_idle, bg_hover, btn_t)
     };
 
     // Border (subtle idle, stronger hover)
     let border = if pressed {
-        status::WARNING
+        theme.status.warning
     } else if btn_t > 0.0 {
         theme.border.strong
     } else {

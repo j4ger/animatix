@@ -2,7 +2,6 @@ use egui::{RichText, Vec2};
 
 use crate::app::GuiShell;
 use crate::app::components::{self};
-use crate::app::design_tokens::semantic::{accent, text};
 use crate::app::design_tokens::spatial::dialog as dialog_token;
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::interaction::keyboard::shortcut_hints_for_name;
@@ -238,6 +237,7 @@ impl GuiShell {
 }
 
 fn shortcut_column(ui: &mut egui::Ui, groups: &[(&str, &[CheatSheetEntry])], width: f32) {
+    let theme = eparts::theme(ui);
     let sp = crate::app::design_tokens::spatial::spatial(ui);
     ui.vertical(|ui| {
         ui.set_min_width(width);
@@ -245,7 +245,7 @@ fn shortcut_column(ui: &mut egui::Ui, groups: &[(&str, &[CheatSheetEntry])], wid
             ui.label(
                 RichText::new(*title)
                     .size(TextRole::BodyS.size())
-                    .color(accent::PRIMARY)
+                    .color(theme.accent.primary)
                     .strong(),
             );
             ui.add_space(sp.base.space_1);
@@ -278,6 +278,7 @@ fn shortcut_row(ui: &mut egui::Ui, entry: CheatSheetEntry, col_w: f32) {
 }
 
 fn shortcut_row_inner(ui: &mut egui::Ui, key: &str, desc: &str, col_w: f32, row_height: f32) {
+    let theme = eparts::theme(ui);
     // Fixed-width key column — prevents long keys from overlapping the description.
     let key_w = (col_w * dialog_token::KEY_COL_FRAC).min(dialog_token::KEY_COL_MAX);
 
@@ -288,10 +289,10 @@ fn shortcut_row_inner(ui: &mut egui::Ui, key: &str, desc: &str, col_w: f32, row_
                 RichText::new(key)
                     .monospace()
                     .size(TextRole::BodyS.size())
-                    .color(text::SECONDARY),
+                    .color(theme.text.secondary),
             )
             .truncate(),
         );
-        ui.label(RichText::new(desc).size(TextRole::BodyS.size()).color(text::PRIMARY));
+        ui.label(RichText::new(desc).size(TextRole::BodyS.size()).color(theme.text.primary));
     });
 }

@@ -43,7 +43,6 @@ use crate::app::commands::{ActionQueue, DocumentCommand, Effect, UndoLabel, View
 use crate::app::components::button::Button;
 use crate::app::components::dialog;
 use crate::app::components::toast::Toast;
-use crate::app::design_tokens::semantic::{accent, border, status, surface, text};
 use crate::app::design_tokens::spatial::welcome::TOP_OFFSET_FRAC as WELCOME_TOP_OFFSET_FRAC;
 use crate::app::design_tokens::spatial::{
     RADIUS_L, RADIUS_S, ROW_L, SPACE_2, SPACE_3, SPACE_4, SPACE_5, STROKE_WIDTH, spatial,
@@ -587,6 +586,7 @@ impl GuiShell {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, preview_texture_id: Option<egui::TextureId>) {
+        let theme = eparts::theme(ui);
         let mut commands: ActionQueue = ActionQueue::default();
         commands.append(&mut self.ui_store.pending_actions);
 
@@ -622,7 +622,7 @@ impl GuiShell {
                                     egui_phosphor::regular::CHECK_CIRCLE,
                                 ))
                                 .size(TextRole::BodyS.size())
-                                .color(text::MUTED),
+                                .color(theme.text.muted),
                             );
                         });
                     } else if let Some(target) = components::diagnostics::diagnostics_list(
@@ -641,7 +641,7 @@ impl GuiShell {
         egui::Panel::bottom("status_bar")
             .frame(
                 egui::Frame::new()
-                    .fill(surface::PANEL)
+                    .fill(theme.surface.panel)
                     .inner_margin(egui::Margin::symmetric(8, 2)),
             )
             .resizable(false)
@@ -659,21 +659,21 @@ impl GuiShell {
                             ui.painter().rect_filled(
                                 bg_rect,
                                 RADIUS_S,
-                                status::DIAGNOSTIC_ERROR.linear_multiply(0.3),
+                                theme.status.diagnostic_error.linear_multiply(0.3),
                             );
                             ui.painter().text(
                                 egui::pos2(bg_rect.center().x, bg_rect.center().y),
                                 egui::Align2::CENTER_CENTER,
                                 egui_phosphor::regular::WARNING,
-                                egui::FontId::new(10.0, egui::FontFamily::Proportional),
-                                status::DIAGNOSTIC_ERROR,
+                                TextRole::Micro.font_id(),
+                                theme.status.diagnostic_error,
                             );
                             ui.add_space(SPACE_2);
                         }
                         let color = if is_error {
-                            status::DIAGNOSTIC_ERROR
+                            theme.status.diagnostic_error
                         } else {
-                            text::MUTED
+                            theme.text.muted
                         };
                         let label = ui.label(
                             egui::RichText::new(status.as_str())
@@ -692,7 +692,7 @@ impl GuiShell {
                         ui.label(
                             egui::RichText::new(format!("{}×{}", dims.width, dims.height))
                                 .size(TextRole::Micro.size())
-                                .color(text::MUTED),
+                                .color(theme.text.muted),
                         );
                     });
                 });
@@ -768,17 +768,18 @@ impl GuiShell {
 
     /// Welcome / onboarding screen shown when no document is loaded.
     fn welcome_screen_ui(&mut self, ui: &mut egui::Ui, commands: &mut ActionQueue) {
+        let theme = eparts::theme(ui);
         let sp = spatial(ui);
         let avail = ui.available_rect_before_wrap();
-        ui.painter().rect_filled(avail, 0.0, surface::BASE);
+        ui.painter().rect_filled(avail, 0.0, theme.surface.base);
 
         ui.vertical_centered(|ui| {
             ui.add_space(avail.height() * WELCOME_TOP_OFFSET_FRAC);
 
             // ── Centered card ──
             egui::Frame::new()
-                .fill(surface::SURFACE)
-                .stroke(Stroke::new(STROKE_WIDTH, border::DEFAULT))
+                .fill(theme.surface.surface)
+                .stroke(Stroke::new(STROKE_WIDTH, theme.border.default))
                 .corner_radius(RADIUS_L)
                 .inner_margin(egui::Margin::symmetric(40, 36))
                 .show(ui, |ui| {
@@ -794,14 +795,14 @@ impl GuiShell {
                         ui.painter().circle_filled(
                             icon_rect.center(),
                             icon_size * 0.5,
-                            surface::WIDGET,
+                            theme.surface.widget,
                         );
                         ui.painter().text(
                             icon_rect.center(),
                             egui::Align2::CENTER_CENTER,
                             egui_phosphor::regular::FILM_STRIP,
                             TextRole::Display.font_id(),
-                            accent::PRIMARY,
+                            theme.accent.primary,
                         );
                         ui.add_space(sp.base.space_5 * 1.5);
 
@@ -809,7 +810,7 @@ impl GuiShell {
                         ui.label(
                             egui::RichText::new("Welcome to Animatix")
                                 .font(TextRole::Heading.font_id())
-                                .color(text::PRIMARY)
+                                .color(theme.text.primary)
                                 .strong(),
                         );
                         ui.add_space(sp.base.space_2);
@@ -818,7 +819,7 @@ impl GuiShell {
                         ui.label(
                             egui::RichText::new("Layout-first animation for creative coders")
                                 .size(TextRole::Body.size())
-                                .color(text::SECONDARY),
+                                .color(theme.text.secondary),
                         );
                         ui.add_space(sp.base.space_5 * 2.5);
 
@@ -1064,6 +1065,7 @@ impl GuiShell {
 
     /// Workspace switcher dialog — small centered window for typing a directory path.
     fn workspace_switcher_ui(&mut self, ui: &mut egui::Ui) {
+        let theme = eparts::theme(ui);
         let spec = dialog::DialogSpec::new("workspace_switcher", [400.0, 140.0])
             .with_min_size([360.0, 120.0]);
 
@@ -1079,7 +1081,7 @@ impl GuiShell {
             ui.label(
                 egui::RichText::new("Directory path")
                     .size(TextRole::BodyS.size())
-                    .color(text::SECONDARY),
+                    .color(theme.text.secondary),
             );
             ui.add_space(SPACE_2);
             eparts::TextField::new(&mut self.ui_store.workspace_switcher_path)
@@ -1118,6 +1120,7 @@ impl GuiShell {
 
     /// Confirmation dialog for unsaved changes (Save / Discard / Cancel).
     fn unsaved_changes_dialog_ui(&mut self, ui: &mut egui::Ui) {
+        let theme = eparts::theme(ui);
         let spec = dialog::DialogSpec::new("unsaved_changes", [400.0, 200.0])
             .with_min_size([360.0, 180.0]);
 
@@ -1136,7 +1139,7 @@ impl GuiShell {
                 egui::Label::new(
                     egui::RichText::new(&self.ui_store.unsaved_changes.message)
                         .size(TextRole::Body.size())
-                        .color(text::SECONDARY),
+                        .color(theme.text.secondary),
                 )
                 .selectable(false),
             );

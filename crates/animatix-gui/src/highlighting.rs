@@ -4,11 +4,12 @@ use std::sync::LazyLock;
 
 use animatix_analyzer::Diagnostic;
 use egui::text::LayoutJob;
-use egui::{Color32, FontFamily, FontId, TextFormat};
+use egui::{Color32, FontId, TextFormat};
 use tracing::warn;
 use tree_sitter::{Language, Parser};
 use tree_sitter_animatix::{HIGHLIGHTS_QUERY, language};
 
+use crate::app::design_tokens::typography::TextRole;
 use crate::cell_editor::SemanticHighlight;
 
 static LANGUAGE: LazyLock<Language> = LazyLock::new(language);
@@ -142,7 +143,7 @@ pub fn highlight_source(
     semantic_highlights: &[SemanticHighlight],
 ) -> LayoutJob {
     let colors = HighlightColors::from_style(style);
-    let font_id = FontId::new(14.0, FontFamily::Monospace);
+    let font_id = TextRole::Mono.font_id();
 
     let mut parser = Parser::new();
     if parser.set_language(&LANGUAGE).is_err() {

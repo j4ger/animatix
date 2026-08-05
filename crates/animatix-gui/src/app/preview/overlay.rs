@@ -6,7 +6,6 @@
 use animatix::timeline::SceneDimensions;
 use egui::Color32;
 
-use crate::app::design_tokens::semantic::{accent, border, status, surface, text};
 use crate::app::preview::performance::PerformanceMetrics;
 
 /// Toggle-able overlays for the preview canvas.
@@ -30,6 +29,18 @@ pub struct PreviewOverlay {
     pub show_performance_hud: bool,
     /// Grid size in pixels.
     pub grid_size: f32,
+    /// Theme captured from the preview frame for drag/overlay rendering.
+    pub(crate) current_theme: eparts::Theme,
+}
+
+impl PreviewOverlay {
+    pub(crate) fn set_theme(&mut self, theme: eparts::Theme) {
+        self.current_theme = theme;
+    }
+
+    pub(crate) fn current_theme(&self) -> eparts::Theme {
+        self.current_theme
+    }
 }
 
 impl Default for PreviewOverlay {
@@ -44,6 +55,7 @@ impl Default for PreviewOverlay {
             show_motion_paths: true,
             show_performance_hud: false,
             grid_size: 20.0,
+            current_theme: eparts::Theme::dark(),
         }
     }
 }
@@ -51,6 +63,7 @@ impl Default for PreviewOverlay {
 /// Render the performance HUD in the top-right corner of the preview.
 pub fn render_performance_hud(
     painter: &egui::Painter,
+    theme: eparts::Theme,
     rect: egui::Rect,
     metrics: &PerformanceMetrics,
 ) {
@@ -60,15 +73,15 @@ pub fn render_performance_hud(
     );
 
     // Background
-    painter.rect_filled(hud_rect, 6.0, surface::BASE.linear_multiply(0.9));
+    painter.rect_filled(hud_rect, 6.0, theme.surface.base.linear_multiply(0.9));
     painter.rect_stroke(
         hud_rect,
         6.0,
-        egui::Stroke::new(1.0, border::DEFAULT),
+        egui::Stroke::new(1.0, theme.border.default),
         egui::StrokeKind::Outside,
     );
 
-    let text_color = text::PRIMARY;
+    let text_color = theme.text.primary;
     let font = egui::FontId::monospace(11.0);
     let label_w = 90.0;
     let x = hud_rect.left() + 8.0;
@@ -82,7 +95,7 @@ pub fn render_performance_hud(
                 egui::Align2::LEFT_TOP,
                 label,
                 font.clone(),
-                text::MUTED,
+                theme.text.muted,
             );
             painter.text(
                 egui::Pos2::new(x + label_w, y),
@@ -108,9 +121,9 @@ pub fn render_performance_hud(
         "Preview",
         if metrics.is_stale { "STALE" } else { "FRESH" },
         if metrics.is_stale {
-            status::WARNING
+            theme.status.warning
         } else {
-            status::SUCCESS
+            theme.status.success
         },
     );
     y += line_h;
@@ -141,7 +154,7 @@ pub fn render_performance_hud(
             .collect();
 
         if points.len() >= 2 {
-            painter.add(egui::Shape::line(points, egui::Stroke::new(1.5, status::SUCCESS)));
+            painter.add(egui::Shape::line(points, egui::Stroke::new(1.5, theme.status.success)));
         }
     }
 }
@@ -152,6 +165,7 @@ pub fn render_performance_hud(
 /// by 2 internally to compute top-left/bottom-right corners.
 pub fn render_layout_debug(
     painter: &egui::Painter,
+    theme: eparts::Theme,
     timeline: &animatix::timeline::Timeline,
     time_ms: u64,
     preview_rect: egui::Rect,
@@ -164,16 +178,16 @@ pub fn render_layout_debug(
     let tx = crate::app::preview::PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan);
 
     // Container color (blue-ish)
-    let container_color = accent::PRIMARY;
+    let container_color = theme.accent.primary;
     // Child slot color (amber)
     let slot_color = Color32::from_rgba_premultiplied(
-        status::WARNING.r(),
-        status::WARNING.g(),
-        status::WARNING.b(),
+        theme.status.warning.r(),
+        theme.status.warning.g(),
+        theme.status.warning.b(),
         150,
     );
     // Size label color
-    let size_color = status::WARNING;
+    let size_color = theme.status.warning;
     // Spacing region color (semi-transparent red)
     let spacing_color = egui::Color32::from_rgba_premultiplied(200, 80, 80, 60);
 

@@ -6,8 +6,6 @@ use crate::app::commands::{
 };
 use crate::app::components::button::Button;
 use crate::app::components::dialog::{self, DialogSpec};
-use crate::app::design_tokens::semantic::text;
-
 use crate::app::design_tokens::typography::TextRole;
 
 struct PaletteItem {
@@ -19,6 +17,7 @@ struct PaletteItem {
 
 impl GuiShell {
     pub(crate) fn command_palette_ui(&mut self, ui: &mut egui::Ui) {
+        let theme = eparts::theme(ui);
         let sp = crate::app::design_tokens::spatial::spatial(ui);
 
         let spec = DialogSpec::new("command_palette", [480.0, 400.0])
@@ -93,7 +92,7 @@ impl GuiShell {
                 ui.label(
                     egui::RichText::new("No commands match your search")
                         .size(TextRole::BodyS.size())
-                        .color(text::MUTED),
+                        .color(theme.text.muted),
                 );
             } else {
                 egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {

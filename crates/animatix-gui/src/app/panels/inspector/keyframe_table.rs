@@ -7,7 +7,6 @@ use animatix_syntax::easing::Easing;
 use egui::Vec2;
 
 use crate::app::commands::{ActionQueue, KeyframeCommand, PlaybackCommand};
-use crate::app::design_tokens::semantic::{status, surface, text};
 use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;
 
@@ -106,13 +105,14 @@ fn render_compact_track_row(
     commands: &mut ActionQueue,
 ) {
     let sp = spatial(ui);
+    let theme = eparts::theme(ui);
     let row_height = sp.base.row_s;
     let available = ui.available_width();
     let (row_rect, response) =
         ui.allocate_exact_size(Vec2::new(available, row_height), egui::Sense::hover());
 
     if response.hovered() {
-        ui.painter().rect_filled(row_rect, 0.0, surface::HOVER);
+        ui.painter().rect_filled(row_rect, 0.0, theme.surface.hover);
     }
 
     let baseline_y = row_rect.center().y;
@@ -125,7 +125,7 @@ fn render_compact_track_row(
         egui::Align2::CENTER_CENTER,
         group.icon,
         TextRole::Micro.font_id(),
-        text::MUTED,
+        theme.text.muted,
     );
     cursor_x += 18.0;
 
@@ -135,7 +135,7 @@ fn render_compact_track_row(
         egui::Align2::LEFT_CENTER,
         track.name,
         TextRole::BodyS.font_id(),
-        text::SECONDARY,
+        theme.text.secondary,
     );
 
     // Keyframe count badge (right-aligned)
@@ -146,7 +146,7 @@ fn render_compact_track_row(
         egui::Align2::RIGHT_CENTER,
         count_label,
         TextRole::Micro.font_id(),
-        text::MUTED,
+        theme.text.muted,
     );
 
     // Mini timeline strip (subtle, behind everything)
@@ -157,7 +157,7 @@ fn render_compact_track_row(
             egui::pos2(strip_left, row_rect.min.y + 5.0),
             egui::pos2(strip_right, row_rect.max.y - 5.0),
         );
-        ui.painter().rect_filled(strip_rect, RADIUS_S, surface::WIDGET);
+        ui.painter().rect_filled(strip_rect, RADIUS_S, theme.surface.widget);
 
         // Keyframe dots on the strip
         for (time_ms, value, easing) in &track.keyframes {
@@ -165,9 +165,9 @@ fn render_compact_track_row(
             let x = egui::lerp(strip_rect.left()..=strip_rect.right(), fraction as f32);
             let is_current = *time_ms == current_time_ms;
             let color = if is_current {
-                status::WARNING
+                theme.status.warning
             } else {
-                text::MUTED
+                theme.text.muted
             };
             let size = if is_current { 3.5 } else { 2.5 };
             let dot_pos = egui::pos2(x, strip_rect.center().y);
@@ -205,12 +205,14 @@ fn render_compact_track_row(
             dot_response.on_hover_ui(|ui| {
                 ui.label(format!("{:.2}s", *time_ms as f64 / 1000.0));
                 ui.label(
-                    egui::RichText::new(value).size(TextRole::Micro.size()).color(text::SECONDARY),
+                    egui::RichText::new(value)
+                        .size(TextRole::Micro.size())
+                        .color(theme.text.secondary),
                 );
                 ui.label(
                     egui::RichText::new(format!("ease: {}", easing_display_name(*easing)))
                         .size(TextRole::Micro.size())
-                        .color(text::MUTED),
+                        .color(theme.text.muted),
                 );
             });
         }
@@ -225,7 +227,7 @@ fn render_compact_track_row(
                     egui::pos2(playhead_x, strip_rect.top()),
                     egui::pos2(playhead_x, strip_rect.bottom()),
                 ],
-                egui::Stroke::new(STROKE_WIDTH, status::WARNING),
+                egui::Stroke::new(STROKE_WIDTH, theme.status.warning),
             );
         }
 
@@ -251,16 +253,16 @@ fn render_compact_track_row(
             ui.label(
                 egui::RichText::new(format!("{} keyframes", track.keyframes.len()))
                     .size(TextRole::Micro.size())
-                    .color(text::MUTED),
+                    .color(theme.text.muted),
             );
         });
         ui.add_space(sp.base.space_1);
         for (time_ms, value, easing) in &track.keyframes {
             let is_current = *time_ms == current_time_ms;
             let color = if is_current {
-                status::WARNING
+                theme.status.warning
             } else {
-                text::SECONDARY
+                theme.text.secondary
             };
             ui.horizontal(|ui| {
                 let icon = egui_phosphor::regular::DIAMOND;
@@ -272,12 +274,14 @@ fn render_compact_track_row(
                         .color(color),
                 );
                 ui.label(
-                    egui::RichText::new(value).size(TextRole::Micro.size()).color(text::SECONDARY),
+                    egui::RichText::new(value)
+                        .size(TextRole::Micro.size())
+                        .color(theme.text.secondary),
                 );
                 ui.label(
                     egui::RichText::new(easing_display_name(*easing))
                         .size(TextRole::Micro.size())
-                        .color(text::MUTED),
+                        .color(theme.text.muted),
                 );
             });
         }

@@ -11,7 +11,7 @@ use animatix_syntax::easing::Easing;
 use egui::{Color32, Pos2, Sense, Stroke, Vec2};
 
 use crate::app::commands::ActionQueue;
-use crate::app::design_tokens::semantic::{accent, border, canvas, curve, status, surface, text};
+use crate::app::design_tokens::semantic::{canvas, curve};
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;
 
@@ -33,17 +33,18 @@ pub fn render_multi_fcurve(
     _commands: &mut ActionQueue,
 ) {
     let sp = spatial(ui);
+    let theme = eparts::theme(ui);
     let available = ui.available_width();
     let height = 160.0f32;
     let (rect, response) = ui.allocate_exact_size(Vec2::new(available, height), Sense::hover());
     let painter = ui.painter_at(rect);
 
     // Background
-    painter.rect_filled(rect, RADIUS_M, surface::BASE);
+    painter.rect_filled(rect, RADIUS_M, theme.surface.base);
     painter.rect_stroke(
         rect,
         RADIUS_M,
-        Stroke::new(STROKE_WIDTH, border::DEFAULT),
+        Stroke::new(STROKE_WIDTH, theme.border.default),
         egui::StrokeKind::Outside,
     );
 
@@ -75,7 +76,7 @@ pub fn render_multi_fcurve(
                 if points.len() >= 2 {
                     curves.push(CurveInfo {
                         label: schema.name.to_string(),
-                        color: accent::PRIMARY,
+                        color: theme.accent.primary,
                         points,
                         field: schema.field,
                     });
@@ -95,7 +96,7 @@ pub fn render_multi_fcurve(
                 if x_points.len() >= 2 {
                     curves.push(CurveInfo {
                         label: format!("{}.X", schema.name),
-                        color: status::ERROR,
+                        color: theme.status.error,
                         points: x_points,
                         field: schema.field,
                     });
@@ -128,7 +129,7 @@ pub fn render_multi_fcurve(
                 if r_points.len() >= 2 {
                     curves.push(CurveInfo {
                         label: format!("{}.R", schema.name),
-                        color: status::ERROR,
+                        color: theme.status.error,
                         points: r_points,
                         field: schema.field,
                     });
@@ -162,7 +163,7 @@ pub fn render_multi_fcurve(
             egui::Align2::CENTER_CENTER,
             "No keyframes to graph",
             TextRole::BodyS.font_id(),
-            text::MUTED,
+            theme.text.muted,
         );
         return;
     }
@@ -190,12 +191,12 @@ pub fn render_multi_fcurve(
             Vec2::new(item_width, legend_height),
         );
         if ui.rect_contains_pointer(item_rect) {
-            ui.painter().rect_filled(item_rect, RADIUS_S, surface::HOVER);
+            ui.painter().rect_filled(item_rect, RADIUS_S, theme.surface.hover);
         }
         let color_dot = if is_visible {
             curve.color
         } else {
-            text::DISABLED
+            theme.text.disabled
         };
         ui.painter().circle_filled(
             egui::pos2(item_rect.min.x + 6.0, item_rect.center().y),
@@ -208,9 +209,9 @@ pub fn render_multi_fcurve(
             &curve.label,
             TextRole::Micro.font_id(),
             if is_visible {
-                text::SECONDARY
+                theme.text.secondary
             } else {
-                text::DISABLED
+                theme.text.disabled
             },
         );
 
@@ -241,7 +242,7 @@ pub fn render_multi_fcurve(
             egui::Align2::CENTER_CENTER,
             "All curves hidden",
             TextRole::BodyS.font_id(),
-            text::MUTED,
+            theme.text.muted,
         );
         return;
     }
@@ -279,7 +280,7 @@ pub fn render_multi_fcurve(
             egui::Align2::LEFT_CENTER,
             val_label,
             TextRole::Micro.font_id(),
-            text::MUTED,
+            theme.text.muted,
         );
     }
 
@@ -312,7 +313,11 @@ pub fn render_multi_fcurve(
             let size = if is_current { 4.0 } else { 2.5 };
             painter.circle_filled(p, size, curve.color);
             if is_current {
-                painter.circle_stroke(p, size + 2.0, Stroke::new(STROKE_WIDTH, status::WARNING));
+                painter.circle_stroke(
+                    p,
+                    size + 2.0,
+                    Stroke::new(STROKE_WIDTH, theme.status.warning),
+                );
             }
         }
     }
@@ -325,7 +330,7 @@ pub fn render_multi_fcurve(
                 Pos2::new(current_x, plot_rect.top()),
                 Pos2::new(current_x, plot_rect.bottom()),
             ],
-            Stroke::new(1.5, status::WARNING),
+            Stroke::new(1.5, theme.status.warning),
         );
     }
 

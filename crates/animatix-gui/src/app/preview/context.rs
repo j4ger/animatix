@@ -11,7 +11,6 @@ use egui::{Pos2, Stroke, Vec2};
 use crate::app::commands::{
     ActionQueue, DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue, SceneCommand,
 };
-use crate::app::design_tokens::semantic::{accent, status, surface, text};
 use crate::app::design_tokens::spatial::preview::{
     HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS, MIN_ZOOM as PREVIEW_MIN_ZOOM,
 };
@@ -52,6 +51,10 @@ pub(crate) struct PreviewContext<'a> {
 // ─── Helper methods ─────────────────────────────────────────────────────────
 
 impl PreviewContext<'_> {
+    pub(crate) fn current_theme(&self) -> eparts::Theme {
+        self.preview.overlay.current_theme()
+    }
+
     pub(crate) fn get_actor_props(&self, actor: &str) -> Option<ActorProps> {
         let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
         self.get_actor_props_at_time(actor, time_ms)
@@ -176,12 +179,14 @@ impl PreviewContext<'_> {
         )
         .intersect(preview_rect);
 
+        let theme = eparts::theme(ui);
+
         // Draw background
-        ui.painter().rect_filled(editor_rect, RADIUS_M as u8, surface::SURFACE);
+        ui.painter().rect_filled(editor_rect, RADIUS_M as u8, theme.surface.surface);
         ui.painter().rect_stroke(
             editor_rect,
             RADIUS_M as u8,
-            Stroke::new(STROKE_WIDTH, accent::PRIMARY),
+            Stroke::new(STROKE_WIDTH, theme.accent.primary),
             egui::StrokeKind::Outside,
         );
 
@@ -582,6 +587,7 @@ impl PreviewContext<'_> {
     }
 
     pub(crate) fn render_preview_content(&self, ui: &mut egui::Ui, preview_rect: egui::Rect) {
+        let theme = eparts::theme(ui);
         match self.preview_texture_id {
             Some(texture_id) => {
                 let zoom = self.preview.viewport.preview_zoom;
@@ -622,7 +628,7 @@ impl PreviewContext<'_> {
                         egui::Align2::CENTER_CENTER,
                         "No scene to preview",
                         egui::TextStyle::Body.resolve(ui.style()),
-                        text::MUTED,
+                        theme.text.muted,
                     );
                     let hint_pos = preview_rect.center() + egui::vec2(0.0, 20.0);
                     ui.painter().text(
@@ -630,7 +636,7 @@ impl PreviewContext<'_> {
                         egui::Align2::CENTER_CENTER,
                         "Open a file or create a scene to get started",
                         egui::TextStyle::Body.resolve(ui.style()),
-                        text::MUTED,
+                        theme.text.muted,
                     );
                 } else {
                     ui.painter().text(
@@ -638,7 +644,7 @@ impl PreviewContext<'_> {
                         egui::Align2::CENTER_CENTER,
                         "Preview initializing…",
                         egui::TextStyle::Body.resolve(ui.style()),
-                        text::MUTED,
+                        theme.text.muted,
                     );
                 }
             },
@@ -646,6 +652,7 @@ impl PreviewContext<'_> {
     }
 
     pub(crate) fn render_preview_overlays(&mut self, ui: &mut egui::Ui, preview_rect: egui::Rect) {
+        let theme = eparts::theme(ui);
         if self.selection.context_menu_open {
             return;
         }
@@ -659,6 +666,7 @@ impl PreviewContext<'_> {
             {
                 selection::draw_cycle_indicator(
                     ui.painter(),
+                    theme,
                     mouse,
                     self.selection.cycle_index,
                     self.selection.click_candidates.len(),
@@ -678,7 +686,7 @@ impl PreviewContext<'_> {
                         self.preview.viewport.preview_zoom,
                         self.preview.viewport.preview_pan,
                     ) {
-                        selection::draw_hover_highlight(ui.painter(), hovered, hover_rect);
+                        selection::draw_hover_highlight(ui.painter(), theme, hovered, hover_rect);
                     }
                 }
             }
@@ -699,7 +707,7 @@ impl PreviewContext<'_> {
                     let galley = ui.painter().layout_no_wrap(
                         label.clone(),
                         TextRole::BodyS.font_id(),
-                        status::SUCCESS,
+                        theme.status.success,
                     );
                     let padding = Vec2::new(8.0, 4.0);
                     let bg_rect = egui::Rect::from_min_size(hud_pos, galley.size() + padding * 2.0);
@@ -717,7 +725,7 @@ impl PreviewContext<'_> {
                         ),
                         egui::StrokeKind::Outside,
                     );
-                    ui.painter().galley(hud_pos + padding, galley, status::SUCCESS);
+                    ui.painter().galley(hud_pos + padding, galley, theme.status.success);
                 }
             }
         }
@@ -726,6 +734,7 @@ impl PreviewContext<'_> {
         if self.preview.overlay.show_performance_hud {
             preview::overlay::render_performance_hud(
                 ui.painter(),
+                theme,
                 preview_rect,
                 self.performance_metrics,
             );
@@ -737,7 +746,7 @@ impl PreviewContext<'_> {
             let galley = ui.painter().layout_no_wrap(
                 pill_text.to_string(),
                 TextRole::Micro.font_id(),
-                text::MUTED,
+                theme.text.muted,
             );
             let padding = Vec2::new(8.0, 4.0);
             let pill_size = galley.size() + padding * 2.0;
@@ -745,11 +754,11 @@ impl PreviewContext<'_> {
                 preview_rect.right_bottom() - pill_size - egui::vec2(8.0, 8.0),
                 pill_size,
             );
-            ui.painter().rect_filled(pill_rect, 3.0, surface::WIDGET);
+            ui.painter().rect_filled(pill_rect, 3.0, theme.surface.widget);
             ui.painter().galley(
                 pill_rect.left_center() + egui::vec2(padding.x, -galley.size().y / 2.0),
                 galley,
-                text::MUTED,
+                theme.text.muted,
             );
         }
     }
@@ -811,8 +820,9 @@ impl PreviewContext<'_> {
                 .unwrap_or(preview_rect)
         };
 
+        let theme = eparts::theme(ui);
         let threshold = 8.0;
-        let guide_color = crate::app::design_tokens::semantic::accent::subtle();
+        let guide_color = theme.accent.subtle;
         let guide_stroke = egui::Stroke::new(STROKE_WIDTH, guide_color);
 
         for (label, bounds) in self.hit_regions {
@@ -880,6 +890,7 @@ impl PreviewContext<'_> {
     }
 
     pub(crate) fn render_motion_paths(&mut self, ui: &mut egui::Ui, preview_rect: egui::Rect) {
+        let theme = eparts::theme(ui);
         if !self.preview.overlay.show_motion_paths {
             return;
         }
@@ -910,7 +921,7 @@ impl PreviewContext<'_> {
             kf_points.sort_by_key(|(t, _)| *t);
 
             // Draw path lines
-            let path_color = accent::PRIMARY.gamma_multiply(0.6);
+            let path_color = theme.accent.primary.gamma_multiply(0.6);
             let path_stroke = egui::Stroke::new(1.5, path_color);
             for i in 0..kf_points.len().saturating_sub(1) {
                 let p1_screen = preview::scene_to_screen(
@@ -945,9 +956,9 @@ impl PreviewContext<'_> {
                 let current_time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
                 let is_current = *time_ms == current_time_ms;
                 let dot_color = if is_current {
-                    status::WARNING
+                    theme.status.warning
                 } else {
-                    accent::PRIMARY
+                    theme.accent.primary
                 };
                 let dot_radius = if is_current { 5.0 } else { 3.5 };
                 ui.painter().circle_filled(screen, dot_radius, dot_color);
@@ -955,7 +966,7 @@ impl PreviewContext<'_> {
                     ui.painter().circle_stroke(
                         screen,
                         dot_radius + 2.0,
-                        egui::Stroke::new(1.0, status::WARNING),
+                        egui::Stroke::new(1.0, theme.status.warning),
                     );
                 }
 
@@ -966,7 +977,7 @@ impl PreviewContext<'_> {
                     egui::Align2::CENTER_BOTTOM,
                     time_label,
                     TextRole::Micro.font_id(),
-                    text::MUTED,
+                    theme.text.muted,
                 );
             }
         }
@@ -978,6 +989,7 @@ impl PreviewContext<'_> {
         preview_rect: egui::Rect,
         is_dragging: bool,
     ) {
+        let theme = eparts::theme(ui);
         if self.selected_actors.len() > 1 {
             let mut screen_rects = Vec::new();
             for actor in self.selected_actors.iter() {
@@ -1032,6 +1044,7 @@ impl PreviewContext<'_> {
             }
             preview::draw_multi_selection_overlay(
                 ui.painter(),
+                theme,
                 &screen_rects,
                 is_dragging,
                 ui.ctx().pixels_per_point(),
@@ -1062,6 +1075,7 @@ impl PreviewContext<'_> {
             });
             preview::draw_selection_overlay(
                 ui.painter(),
+                theme,
                 props.as_ref(),
                 fallback,
                 is_dragging,
@@ -1096,6 +1110,7 @@ impl PreviewContext<'_> {
                 };
                 preview::draw_vertex_handles(
                     ui.painter(),
+                    theme,
                     p,
                     &pts,
                     preview_rect,
@@ -1150,6 +1165,7 @@ impl PreviewContext<'_> {
                         let active_label = matches!(&self.drag_state, DragState::CalloutLabel { actor: a, .. } if a == actor);
                         preview::draw_callout_handles(
                             ui.painter(),
+                            theme,
                             tip_screen,
                             label_screen,
                             active_tip,
@@ -1177,6 +1193,7 @@ impl PreviewContext<'_> {
                                 };
                             preview::draw_callout_place_handles(
                                 ui.painter(),
+                                theme,
                                 place_screens,
                                 active_place,
                                 ui.ctx().pixels_per_point(),
@@ -1195,6 +1212,7 @@ impl PreviewContext<'_> {
                             let active_standoff = matches!(&self.drag_state, DragState::CalloutStandoff { actor: a, .. } if a == actor);
                             preview::draw_callout_standoff_handle(
                                 ui.painter(),
+                                theme,
                                 standoff_screen,
                                 active_standoff,
                                 ui.ctx().pixels_per_point(),
@@ -1205,8 +1223,8 @@ impl PreviewContext<'_> {
             }
 
             if is_dragging {
-                let measurement_color = accent::PRIMARY;
-                let text_color = text::PRIMARY;
+                let measurement_color = theme.accent.primary;
+                let text_color = theme.text.primary;
                 let font = egui::FontId::monospace(TextRole::Micro.size());
                 match &self.drag_state {
                     DragState::Move {
@@ -1409,6 +1427,7 @@ impl PreviewContext<'_> {
                         if let Some(props) = props.as_ref() {
                             preview::draw_reorder_overlay(
                                 ui.painter(),
+                                theme,
                                 props,
                                 target_index,
                                 &siblings,
@@ -1429,18 +1448,11 @@ impl PreviewContext<'_> {
             (self.selection.marquee_start, self.selection.marquee_current)
         {
             let marquee_rect = egui::Rect::from_two_pos(start, current);
-            ui.painter().rect_filled(
-                marquee_rect,
-                0.0,
-                crate::app::design_tokens::semantic::accent::faint(),
-            );
+            ui.painter().rect_filled(marquee_rect, 0.0, theme.accent.faint);
             ui.painter().rect_stroke(
                 marquee_rect,
                 0.0,
-                egui::Stroke::new(
-                    STROKE_WIDTH,
-                    crate::app::design_tokens::semantic::accent::subtle(),
-                ),
+                egui::Stroke::new(STROKE_WIDTH, theme.accent.subtle),
                 egui::StrokeKind::Outside,
             );
         }
@@ -1448,6 +1460,7 @@ impl PreviewContext<'_> {
 
     /// Render layout debug overlay showing container bounds, slot outlines, and sizes.
     pub(crate) fn render_layout_debug(&self, ui: &mut egui::Ui, preview_rect: egui::Rect) {
+        let theme = eparts::theme(ui);
         let Some(timeline) = self.timeline else {
             return;
         };
@@ -1457,6 +1470,7 @@ impl PreviewContext<'_> {
         let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
         crate::app::preview::overlay::render_layout_debug(
             ui.painter(),
+            theme,
             timeline,
             time_ms,
             preview_rect,

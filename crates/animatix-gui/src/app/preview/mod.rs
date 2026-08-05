@@ -16,11 +16,6 @@ use animatix::timeline::{PlacementMode, SceneDimensions, Timeline, TrackAccessor
 use egui::{Color32, Pos2, Stroke, Vec2};
 
 use super::DEFAULT_PREVIEW_SIZE;
-use crate::app::design_tokens::semantic::accent::hover as accent_hover;
-use crate::app::design_tokens::semantic::overlay::{badge_bg, tooltip_bg};
-use crate::app::design_tokens::semantic::status::warning_subtle as amber_subtle;
-use crate::app::design_tokens::semantic::text::faint as text_faint;
-use crate::app::design_tokens::semantic::{accent, status, surface, text};
 use crate::app::design_tokens::spatial::STROKE_WIDTH;
 use crate::app::design_tokens::typography::TextRole;
 
@@ -308,8 +303,6 @@ use crate::app::design_tokens::spatial::preview::{
     ROTATION_RADIUS as PREVIEW_ROTATION_RADIUS, VERTEX_HIT_BUFFER as PREVIEW_VERTEX_HIT_BUFFER,
 };
 
-const SELECTION_COLOR: Color32 = accent::PRIMARY;
-
 pub(super) fn is_layout_managed(actor: &str, timeline: &Timeline, time_ms: u64) -> bool {
     timeline
         .get_track(actor)
@@ -473,6 +466,7 @@ fn draw_corner_arc(
 /// `pixels_per_point` scales visual handle sizes for HiDPI displays.
 pub(super) fn draw_selection_overlay(
     painter: &egui::Painter,
+    theme: eparts::Theme,
     props: Option<&ActorProps>,
     fallback_rect: Option<egui::Rect>,
     is_dragging: bool,
@@ -483,10 +477,16 @@ pub(super) fn draw_selection_overlay(
     zoom: f32,
     pan: Vec2,
 ) {
+    let selection_color = theme.accent.primary;
+    let accent_hover_color = theme.accent.hover;
+    let text_primary = theme.text.primary;
+    let text_faint = theme.text.faint;
+    let cross_color = theme.status.warning;
+
     let stroke = if is_dragging {
-        Stroke::new(1.5, accent_hover())
+        Stroke::new(1.5, accent_hover_color)
     } else {
-        Stroke::new(1.5, SELECTION_COLOR)
+        Stroke::new(1.5, selection_color)
     };
 
     if let Some(p) = props {
@@ -512,7 +512,7 @@ pub(super) fn draw_selection_overlay(
 
         // Dashed overlay during drag
         if is_dragging {
-            let dash_stroke = Stroke::new(STROKE_WIDTH, text_faint());
+            let dash_stroke = Stroke::new(STROKE_WIDTH, text_faint);
             for i in 0..4 {
                 let start = screen_corners[i];
                 let end = screen_corners[(i + 1) % 4];
@@ -544,8 +544,8 @@ pub(super) fn draw_selection_overlay(
         // Corner handles (indices 0-3): filled circles with slight larger presence
         let corner_radius = PREVIEW_HANDLE_SIZE * 0.6 * pixels_per_point;
         for &pos in handle_screen[..4].iter() {
-            painter.circle_filled(pos, corner_radius, text::PRIMARY);
-            painter.circle_stroke(pos, corner_radius, Stroke::new(1.5, SELECTION_COLOR));
+            painter.circle_filled(pos, corner_radius, text_primary);
+            painter.circle_stroke(pos, corner_radius, Stroke::new(1.5, selection_color));
         }
 
         // Edge handles (indices 4-7): smaller filled squares, more subtle
@@ -553,11 +553,11 @@ pub(super) fn draw_selection_overlay(
         for &pos in handle_screen[4..].iter() {
             let handle_rect =
                 egui::Rect::from_center_size(pos, Vec2::new(edge_handle_px, edge_handle_px));
-            painter.rect_filled(handle_rect, 1.0, text::PRIMARY);
+            painter.rect_filled(handle_rect, 1.0, text_primary);
             painter.rect_stroke(
                 handle_rect,
                 1.0,
-                Stroke::new(STROKE_WIDTH, SELECTION_COLOR),
+                Stroke::new(STROKE_WIDTH, selection_color),
                 egui::StrokeKind::Outside,
             );
         }
@@ -565,7 +565,7 @@ pub(super) fn draw_selection_overlay(
         // Rotation ring arcs at corners (only when not dragging)
         if !is_dragging {
             let arc_radius = PREVIEW_HANDLE_SIZE * 1.5 * pixels_per_point;
-            let arc_stroke = Stroke::new(STROKE_WIDTH, SELECTION_COLOR.gamma_multiply(0.5));
+            let arc_stroke = Stroke::new(STROKE_WIDTH, selection_color.gamma_multiply(0.5));
             // Arc orientations (screen coordinates, y-down): 0°=right, 90°=down
             // TL (index 0): from 180° (left) up to 270° (up)    — outside of top-left
             // TR (index 1): from 270° (up)   to 0° (right)       — outside of top-right
@@ -603,11 +603,11 @@ pub(super) fn draw_selection_overlay(
             scene_to_screen(top_center_world, preview_rect, scene_dimensions, desired, zoom, pan);
         painter.line_segment(
             [top_center_screen, rot_screen],
-            Stroke::new(STROKE_WIDTH, SELECTION_COLOR),
+            Stroke::new(STROKE_WIDTH, selection_color),
         );
         let rot_radius = PREVIEW_ROTATION_RADIUS * pixels_per_point;
-        painter.circle_filled(rot_screen, rot_radius, text::PRIMARY);
-        painter.circle_stroke(rot_screen, rot_radius, Stroke::new(STROKE_WIDTH, SELECTION_COLOR));
+        painter.circle_filled(rot_screen, rot_radius, text_primary);
+        painter.circle_stroke(rot_screen, rot_radius, Stroke::new(STROKE_WIDTH, selection_color));
 
         // Pivot marker (crosshair) — always drawn so it can be dragged
         {
@@ -621,7 +621,6 @@ pub(super) fn draw_selection_overlay(
                 pan,
             );
             let cross_size = PREVIEW_CROSS_SIZE * pixels_per_point;
-            let cross_color = status::WARNING;
             painter.line_segment(
                 [
                     Pos2::new(pivot_screen.x - cross_size, pivot_screen.y),
@@ -649,7 +648,7 @@ pub(super) fn draw_selection_overlay(
         painter.rect_stroke(sel_rect, 0.0, stroke, egui::StrokeKind::Outside);
 
         if is_dragging {
-            let dash_stroke = Stroke::new(STROKE_WIDTH, text_faint());
+            let dash_stroke = Stroke::new(STROKE_WIDTH, text_faint);
             let corners = [
                 sel_rect.left_top(),
                 sel_rect.right_top(),
@@ -685,11 +684,11 @@ pub(super) fn draw_selection_overlay(
                 *pos,
                 Vec2::new(PREVIEW_HANDLE_SIZE, PREVIEW_HANDLE_SIZE),
             );
-            painter.rect_filled(handle_rect, 1.0, text::PRIMARY);
+            painter.rect_filled(handle_rect, 1.0, text_primary);
             painter.rect_stroke(
                 handle_rect,
                 1.0,
-                Stroke::new(STROKE_WIDTH, SELECTION_COLOR),
+                Stroke::new(STROKE_WIDTH, selection_color),
                 egui::StrokeKind::Outside,
             );
         }
@@ -697,12 +696,12 @@ pub(super) fn draw_selection_overlay(
         // Rotation handle
         let top_center = Pos2::new(sel_rect.center().x, sel_rect.top());
         let rot_center = Pos2::new(top_center.x, top_center.y - PREVIEW_ROTATION_OFFSET);
-        painter.line_segment([top_center, rot_center], Stroke::new(STROKE_WIDTH, SELECTION_COLOR));
-        painter.circle_filled(rot_center, PREVIEW_ROTATION_RADIUS, text::PRIMARY);
+        painter.line_segment([top_center, rot_center], Stroke::new(STROKE_WIDTH, selection_color));
+        painter.circle_filled(rot_center, PREVIEW_ROTATION_RADIUS, text_primary);
         painter.circle_stroke(
             rot_center,
             PREVIEW_ROTATION_RADIUS,
-            Stroke::new(STROKE_WIDTH, SELECTION_COLOR),
+            Stroke::new(STROKE_WIDTH, selection_color),
         );
     }
 }
@@ -710,6 +709,7 @@ pub(super) fn draw_selection_overlay(
 /// Draw a union bounding box and handles for multi-selection.
 pub(super) fn draw_multi_selection_overlay(
     painter: &egui::Painter,
+    theme: eparts::Theme,
     screen_rects: &[egui::Rect],
     is_dragging: bool,
     pixels_per_point: f32,
@@ -729,17 +729,22 @@ pub(super) fn draw_multi_selection_overlay(
     }
     let union_rect = egui::Rect::from_min_max(min, max);
 
+    let selection_color = theme.accent.primary;
+    let accent_hover_color = theme.accent.hover;
+    let text_primary = theme.text.primary;
+    let text_faint = theme.text.faint;
+
     let stroke = if is_dragging {
-        Stroke::new(1.5, accent_hover())
+        Stroke::new(1.5, accent_hover_color)
     } else {
-        Stroke::new(1.5, SELECTION_COLOR)
+        Stroke::new(1.5, selection_color)
     };
 
     painter.rect_stroke(union_rect, 0.0, stroke, egui::StrokeKind::Outside);
 
     // Dashed overlay during drag
     if is_dragging {
-        let dash_stroke = Stroke::new(STROKE_WIDTH, text_faint());
+        let dash_stroke = Stroke::new(STROKE_WIDTH, text_faint);
         let corners = [
             union_rect.left_top(),
             union_rect.right_top(),
@@ -769,11 +774,11 @@ pub(super) fn draw_multi_selection_overlay(
     let handle_px = PREVIEW_HANDLE_SIZE * pixels_per_point;
     for pos in &handle_positions {
         let handle_rect = egui::Rect::from_center_size(*pos, Vec2::new(handle_px, handle_px));
-        painter.rect_filled(handle_rect, 1.0, text::PRIMARY);
+        painter.rect_filled(handle_rect, 1.0, text_primary);
         painter.rect_stroke(
             handle_rect,
             1.0,
-            Stroke::new(STROKE_WIDTH, SELECTION_COLOR),
+            Stroke::new(STROKE_WIDTH, selection_color),
             egui::StrokeKind::Outside,
         );
     }
@@ -822,6 +827,7 @@ pub(super) fn draw_ghost_overlay(
 
 pub(super) fn draw_reorder_overlay(
     painter: &egui::Painter,
+    theme: eparts::Theme,
     props: &ActorProps,
     target_index: usize,
     sibling_positions: &[(String, [f32; 2])],
@@ -832,7 +838,7 @@ pub(super) fn draw_reorder_overlay(
     zoom: f32,
     pan: Vec2,
 ) {
-    let ghost_color = accent_hover();
+    let ghost_color = theme.accent.hover;
     let hw = props.size[0] / 2.0;
     let hh = props.size[1] / 2.0;
     let local_corners: [[f32; 2]; 4] = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
@@ -875,7 +881,7 @@ pub(super) fn draw_reorder_overlay(
         (coords[target_index - 1] + coords[target_index]) * 0.5
     };
 
-    let accent = accent::PRIMARY;
+    let accent_color = theme.accent.primary;
     let insertion_screen = if is_row {
         let insertion_pt = scene_to_screen(
             kurbo::Point::new(insertion_coord as f64, 0.0),
@@ -890,7 +896,7 @@ pub(super) fn draw_reorder_overlay(
                 Pos2::new(insertion_pt.x, preview_rect.top()),
                 Pos2::new(insertion_pt.x, preview_rect.bottom()),
             ],
-            Stroke::new(2.5, accent),
+            Stroke::new(2.5, accent_color),
         );
         Pos2::new(insertion_pt.x, preview_rect.top() + 16.0)
     } else {
@@ -907,7 +913,7 @@ pub(super) fn draw_reorder_overlay(
                 Pos2::new(preview_rect.left(), insertion_pt.y),
                 Pos2::new(preview_rect.right(), insertion_pt.y),
             ],
-            Stroke::new(2.5, accent),
+            Stroke::new(2.5, accent_color),
         );
         Pos2::new(preview_rect.left() + 16.0, insertion_pt.y)
     };
@@ -918,13 +924,13 @@ pub(super) fn draw_reorder_overlay(
         painter,
         insertion_screen,
         &badge_text,
-        badge_bg(),
-        text::PRIMARY,
-        Some(Stroke::new(STROKE_WIDTH, accent)),
+        theme.overlay.badge_bg,
+        theme.text.primary,
+        Some(Stroke::new(STROKE_WIDTH, accent_color)),
     );
 
     // Draw subtle shift arrows on affected siblings
-    let shift_color = amber_subtle();
+    let shift_color = theme.status.warning_subtle;
     for (i, (_, pos)) in sibling_positions.iter().enumerate() {
         let screen_pos = scene_to_screen(
             kurbo::Point::new(pos[0] as f64, pos[1] as f64),
@@ -956,16 +962,17 @@ pub(super) fn draw_reorder_overlay(
 
     let tooltip_pos = preview_rect.left_top() + Vec2::new(10.0, 10.0);
     let tooltip_text = format!("Reorder: move to position {}", target_index + 1);
-    let galley = painter.layout_no_wrap(tooltip_text, TextRole::BodyS.font_id(), text::PRIMARY);
+    let galley =
+        painter.layout_no_wrap(tooltip_text, TextRole::BodyS.font_id(), theme.text.primary);
     let tooltip_rect = egui::Rect::from_min_size(tooltip_pos, galley.size() + Vec2::new(12.0, 8.0));
-    painter.rect_filled(tooltip_rect, 4.0, tooltip_bg());
+    painter.rect_filled(tooltip_rect, 4.0, theme.overlay.tooltip_bg);
     painter.rect_stroke(
         tooltip_rect,
         4.0,
-        Stroke::new(STROKE_WIDTH, accent),
+        Stroke::new(STROKE_WIDTH, accent_color),
         egui::StrokeKind::Outside,
     );
-    painter.galley(tooltip_rect.min + Vec2::new(6.0, 4.0), galley, text::PRIMARY);
+    painter.galley(tooltip_rect.min + Vec2::new(6.0, 4.0), galley, theme.text.primary);
 }
 
 /// Returns the 8 scale handle centre positions for an axis-aligned rect (legacy fallback).
@@ -1040,6 +1047,7 @@ pub(super) fn hit_test_vertex(
 /// `pixels_per_point` scales vertex handle sizes for HiDPI displays.
 pub(super) fn draw_vertex_handles(
     painter: &egui::Painter,
+    theme: eparts::Theme,
     props: &ActorProps,
     points: &[[f32; 2]],
     preview_rect: egui::Rect,
@@ -1056,14 +1064,14 @@ pub(super) fn draw_vertex_handles(
         let screen = scene_to_screen(world, preview_rect, scene_dimensions, desired, zoom, pan);
         let is_active = active_vertex == Some(i);
         let fill = if is_active {
-            accent::PRIMARY
+            theme.accent.primary
         } else {
-            text::PRIMARY
+            theme.text.primary
         };
         let stroke_color = if is_active {
-            status::WARNING
+            theme.status.warning
         } else {
-            SELECTION_COLOR
+            theme.accent.primary
         };
         let radius = if is_active {
             (VERTEX_RADIUS + 1.5) * pixels_per_point
@@ -1085,6 +1093,7 @@ pub(super) fn draw_vertex_handles(
 /// - Label handle: circle at `to + label_at` (scene space)
 pub(super) fn draw_callout_handles(
     painter: &egui::Painter,
+    theme: eparts::Theme,
     tip_screen: Pos2,
     label_screen: Pos2,
     active_tip: bool,
@@ -1094,9 +1103,9 @@ pub(super) fn draw_callout_handles(
     let r = PREVIEW_HANDLE_SIZE * 0.7 * pixels_per_point;
     // Tip: diamond
     let tip_color = if active_tip {
-        accent_hover()
+        theme.accent.hover
     } else {
-        text::PRIMARY
+        theme.text.primary
     };
     let tip_pts = [
         Pos2::new(tip_screen.x, tip_screen.y - r * 1.4),
@@ -1109,12 +1118,12 @@ pub(super) fn draw_callout_handles(
     }
     // Label: circle
     let lbl_color = if active_label {
-        accent_hover()
+        theme.accent.hover
     } else {
-        text::PRIMARY
+        theme.text.primary
     };
     painter.circle_filled(label_screen, r, lbl_color);
-    painter.circle_stroke(label_screen, r, Stroke::new(STROKE_WIDTH, SELECTION_COLOR));
+    painter.circle_stroke(label_screen, r, Stroke::new(STROKE_WIDTH, theme.accent.primary));
 }
 
 /// Draw four side handles around a targeted callout's target bounds.
@@ -1122,6 +1131,7 @@ pub(super) fn draw_callout_handles(
 /// `active_place` is the currently-active `CalloutPlace` (highlights the active side).
 pub(super) fn draw_callout_place_handles(
     painter: &egui::Painter,
+    theme: eparts::Theme,
     place_screens: [Pos2; 4],
     active_place: Option<animatix::timeline::animation_track::CalloutPlace>,
     pixels_per_point: f32,
@@ -1137,14 +1147,14 @@ pub(super) fn draw_callout_place_handles(
     for (i, screen) in place_screens.iter().enumerate() {
         let active = active_place.map(|p| p == places[i]).unwrap_or(false);
         let fill = if active {
-            accent_hover()
+            theme.accent.hover
         } else {
-            surface::WIDGET
+            theme.surface.widget
         };
         let stroke_color = if active {
-            accent_hover()
+            theme.accent.hover
         } else {
-            SELECTION_COLOR
+            theme.accent.primary
         };
         painter.circle_filled(*screen, r, fill);
         painter.circle_stroke(*screen, r, Stroke::new(STROKE_WIDTH, stroke_color));
@@ -1184,18 +1194,19 @@ pub(super) fn callout_place_handle_screens(
 /// Draw the standoff drag handle on the callout tail (at `from` scene position).
 pub(super) fn draw_callout_standoff_handle(
     painter: &egui::Painter,
+    theme: eparts::Theme,
     standoff_screen: Pos2,
     active: bool,
     pixels_per_point: f32,
 ) {
     let r = PREVIEW_HANDLE_SIZE * 0.6 * pixels_per_point;
     let fill = if active {
-        accent_hover()
+        theme.accent.hover
     } else {
-        surface::WIDGET
+        theme.surface.widget
     };
     painter.circle_filled(standoff_screen, r, fill);
-    painter.circle_stroke(standoff_screen, r, Stroke::new(STROKE_WIDTH, SELECTION_COLOR));
+    painter.circle_stroke(standoff_screen, r, Stroke::new(STROKE_WIDTH, theme.accent.primary));
 }
 
 // ─── Preview Helpers ────────────────────────────────────────────────────────────

@@ -6,7 +6,6 @@ use crate::app::commands::{
     ActorCommand, DocumentCommand, KeyframeCommand, PlaybackCommand, SceneCommand, ShellAction,
     ViewAction, ViewCommand,
 };
-use crate::app::design_tokens::semantic::surface;
 use crate::app::design_tokens::spatial::spatial_from_ctx;
 use crate::app::persistence::{
     clear_app_state, load_app_state, load_workspace_persistence, persistence_path, save_app_state,
@@ -577,8 +576,8 @@ impl AnimatixApp {
 }
 
 impl eframe::App for AnimatixApp {
-    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        let [r, g, b, a] = surface::BASE.to_normalized_gamma_f32();
+    fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
+        let [r, g, b, a] = visuals.panel_fill.to_normalized_gamma_f32();
         [r, g, b, a]
     }
 

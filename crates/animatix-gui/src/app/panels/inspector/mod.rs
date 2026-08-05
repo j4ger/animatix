@@ -10,15 +10,12 @@ use crate::app::commands::{
 };
 use crate::app::components::easing_curve_editor::EasingCurveState;
 use crate::app::components::{easing_curve_editor, layout, timeline};
-use crate::app::design_tokens::semantic::surface::WIDGET;
-use crate::app::design_tokens::semantic::text::DISABLED;
-use crate::app::design_tokens::semantic::{accent, border, status, surface, text};
 use crate::app::design_tokens::spatial::inspector::INPUT_WIDTH_FLOAT as INSPECTOR_INPUT_WIDTH_FLOAT;
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::icons::actor_icon_str;
 use crate::app::panels::panel_frame;
-use crate::app::utils::text::truncate_chars;
+use crate::app::utils::text as app_text;
 
 pub(crate) mod graph_editor;
 pub(crate) mod keyframe_table;
@@ -93,6 +90,7 @@ fn render_scene_inspector(
     _preview: &PreviewPaneState,
 ) {
     use crate::app::components::layout;
+    let theme = eparts::theme(ui);
     let sp = spatial(ui);
 
     let Some(scene) = composition.scenes.get(active_scene) else {
@@ -116,7 +114,7 @@ fn render_scene_inspector(
             egui::Align2::LEFT_CENTER,
             format!("{} {}", egui_phosphor::regular::FILM_STRIP, active_scene),
             TextRole::Heading.font_id(),
-            accent::PRIMARY,
+            theme.accent.primary,
         );
         ui.add_space(sp.base.space_3);
 
@@ -178,7 +176,7 @@ fn render_scene_inspector(
                         RichText::new(format!("{:.2} s", start_s))
                             .monospace()
                             .size(TextRole::BodyS.size())
-                            .color(text::SECONDARY),
+                            .color(theme.text.secondary),
                     )
                     .selectable(false),
                 );
@@ -211,7 +209,7 @@ fn render_scene_inspector(
                         ))
                         .monospace()
                         .size(TextRole::BodyS.size())
-                        .color(text::MUTED),
+                        .color(theme.text.muted),
                     )
                     .selectable(false),
                 );
@@ -383,7 +381,7 @@ fn render_scene_inspector(
                             edge.to_scene
                         ))
                         .size(TextRole::BodyS.size())
-                        .color(accent::PRIMARY),
+                        .color(theme.accent.primary),
                     )
                     .clicked()
                 {
@@ -413,9 +411,9 @@ fn render_scene_inspector(
                     egui::Sense::click(),
                 );
                 let bg = if is_active {
-                    accent::selection()
+                    theme.accent.selection
                 } else if response.hovered() {
-                    surface::HOVER
+                    theme.surface.hover
                 } else {
                     Color32::TRANSPARENT
                 };
@@ -428,9 +426,9 @@ fn render_scene_inspector(
                     scene_name,
                     TextRole::BodyS.font_id(),
                     if is_active {
-                        accent::PRIMARY
+                        theme.accent.primary
                     } else {
-                        text::SECONDARY
+                        theme.text.secondary
                     },
                 );
                 if response.clicked() && !is_active {
@@ -464,6 +462,7 @@ pub(super) fn inspector_ui(
     keyframe_view_mode: &mut KeyframeViewMode,
 ) {
     let sp = spatial(ui);
+    let theme = eparts::theme(ui);
     let should_reset = selected_actors
         .iter()
         .next()
@@ -490,7 +489,7 @@ pub(super) fn inspector_ui(
                 egui::Label::new(
                     RichText::new(egui_phosphor::regular::FILM_STRIP)
                         .size(layout::EMPTY_STATE_ICON_SIZE)
-                        .color(text::MUTED),
+                        .color(theme.text.muted),
                 )
                 .selectable(false),
             );
@@ -499,7 +498,7 @@ pub(super) fn inspector_ui(
                 egui::Label::new(
                     RichText::new("No actors in scene")
                         .size(TextRole::Title.size())
-                        .color(text::SECONDARY),
+                        .color(theme.text.secondary),
                 )
                 .selectable(false),
             );
@@ -508,7 +507,7 @@ pub(super) fn inspector_ui(
                 .button(
                     RichText::new(format!("{} Add Actor", egui_phosphor::regular::PLUS))
                         .size(TextRole::Title.size())
-                        .color(accent::PRIMARY),
+                        .color(theme.accent.primary),
                 )
                 .on_hover_text("Add a new actor to the scene")
                 .clicked()
@@ -573,14 +572,14 @@ pub(super) fn inspector_ui(
                     ui.label(
                         RichText::new("Multi-selected — drag/nudge in preview applies to all. Select a single actor to edit properties.")
                             .size(TextRole::Micro.size())
-                            .color(text::MUTED),
+                            .color(theme.text.muted),
                     );
                     ui.add_space(sp.base.space_1);
                     let names: Vec<&str> = selected_actors.iter().map(String::as_str).collect();
                     ui.label(
                         RichText::new(names.join(", "))
                             .size(TextRole::Micro.size())
-                            .color(text::MUTED),
+                            .color(theme.text.muted),
                     );
                 });
             });
@@ -645,7 +644,7 @@ pub(super) fn inspector_ui(
                             egui::Label::new(
                                 RichText::new("No editable properties")
                                     .size(TextRole::Body.size())
-                                    .color(text::MUTED),
+                                    .color(theme.text.muted),
                             )
                             .selectable(false),
                         );
@@ -700,7 +699,9 @@ pub(super) fn inspector_ui(
                     });
                     if ui
                         .button(
-                            RichText::new("Reset").size(TextRole::BodyS.size()).color(text::MUTED),
+                            RichText::new("Reset")
+                                .size(TextRole::BodyS.size())
+                                .color(theme.text.muted),
                         )
                         .on_hover_text("Reset pivot to center")
                         .clicked()
@@ -835,6 +836,7 @@ fn render_property_stream(
     property_view_mode: &mut PropertyViewMode,
 ) {
     let sp = spatial(ui);
+    let theme = eparts::theme(ui);
     // Flatten all entries and sort by keyframe count descending
     let mut all_entries: Vec<(&PropertyGroup, &PropertyEntry)> = Vec::new();
     for group in groups {
@@ -855,7 +857,7 @@ fn render_property_stream(
             ui.allocate_exact_size(Vec2::new(available, row_height), egui::Sense::hover());
 
         if row_response.hovered() {
-            ui.painter().rect_filled(row_rect, 0.0, surface::HOVER);
+            ui.painter().rect_filled(row_rect, 0.0, theme.surface.hover);
         }
 
         let baseline_y = row_rect.center().y;
@@ -873,9 +875,9 @@ fn render_property_stream(
                 egui::pos2(row_rect.min.x + sp.base.space_2 + bar_w, baseline_y + 3.0),
             );
             let bar_color = if entry.keyframe_count >= max_kf / 2 {
-                status::WARNING
+                theme.status.warning
             } else {
-                text::MUTED
+                theme.text.muted
             };
             ui.painter().rect_filled(bar_rect, RADIUS_S, bar_color);
         }
@@ -887,7 +889,7 @@ fn render_property_stream(
             egui::Align2::LEFT_CENTER,
             format!("{} {}", group.icon, entry.name),
             TextRole::BodyS.font_id(),
-            text::SECONDARY,
+            theme.text.secondary,
         );
 
         // Current value (middle area)
@@ -899,7 +901,7 @@ fn render_property_stream(
                 egui::Align2::LEFT_CENTER,
                 &value_text,
                 egui::FontId::monospace(TextRole::Micro.size()),
-                text::MUTED,
+                theme.text.muted,
             );
         }
 
@@ -912,7 +914,7 @@ fn render_property_stream(
                 egui::Align2::RIGHT_CENTER,
                 count_text,
                 TextRole::Micro.font_id(),
-                text::MUTED,
+                theme.text.muted,
             );
         }
 
@@ -934,7 +936,7 @@ fn render_property_stream(
                     egui::pos2(divider_rect.min.x + sp.base.space_2, divider_rect.min.y + 4.0),
                     egui::pos2(divider_rect.max.x - sp.base.space_2, divider_rect.min.y + 4.0),
                 ],
-                egui::Stroke::new(STROKE_WIDTH, border::DEFAULT),
+                egui::Stroke::new(STROKE_WIDTH, theme.border.default),
             );
         }
         ui.add_space(sp.base.space_2);
@@ -950,6 +952,7 @@ fn render_actor_header(
     commands: &mut ActionQueue,
 ) {
     let sp = spatial(ui);
+    let theme = eparts::theme(ui);
     let current_time_ms = (current_time_s * 1000.0) as u64;
     let available = ui.available_width();
     let row_h = sp.base.row_l;
@@ -966,7 +969,7 @@ fn render_actor_header(
                     egui::Label::new(
                         RichText::new(actor_icon_str(track.kind))
                             .size(TextRole::Heading.size())
-                            .color(status::WARNING),
+                            .color(theme.status.warning),
                     )
                     .selectable(false),
                 );
@@ -983,7 +986,7 @@ fn render_actor_header(
                     let response = ui.add(
                         egui::TextEdit::singleline(&mut edit_buffer)
                             .font(TextRole::Heading.font_id())
-                            .text_color(text::PRIMARY)
+                            .text_color(theme.text.primary)
                             .desired_width(120.0),
                     );
                     response.request_focus();
@@ -1009,7 +1012,7 @@ fn render_actor_header(
                         egui::Label::new(
                             RichText::new(&track.label)
                                 .size(TextRole::Heading.size())
-                                .color(text::PRIMARY),
+                                .color(theme.text.primary),
                         )
                         .selectable(false)
                         .sense(egui::Sense::click()),
@@ -1040,7 +1043,7 @@ fn render_actor_header(
                                 track.first_seen_ms as f64 / 1000.0
                             ))
                             .size(TextRole::Micro.size())
-                            .color(text::MUTED),
+                            .color(theme.text.muted),
                         )
                         .selectable(false),
                     );
@@ -1053,7 +1056,7 @@ fn render_actor_header(
                         egui::Label::new(
                             RichText::new(shape.to_string())
                                 .size(TextRole::BodyS.size())
-                                .color(text::MUTED),
+                                .color(theme.text.muted),
                         )
                         .selectable(false),
                     );
@@ -1130,6 +1133,7 @@ fn render_container_children(
     keyframe_mode: bool,
 ) {
     let sp = spatial(ui);
+    let theme = eparts::theme(ui);
     ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, sp.base.space_2);
     for (i, label) in order.iter().enumerate() {
         let row_id = ui.id().with(format!("child_{}", i));
@@ -1139,7 +1143,7 @@ fn render_container_children(
 
         // Background
         let bg = if ui.rect_contains_pointer(row_rect) {
-            surface::HOVER
+            theme.surface.hover
         } else {
             Color32::TRANSPARENT
         };
@@ -1156,8 +1160,8 @@ fn render_container_children(
             ui.painter(),
             egui::pos2(cursor_x, baseline_y - 9.0),
             &badge_text,
-            WIDGET,
-            text::MUTED,
+            theme.surface.widget,
+            theme.text.muted,
             None,
         );
         cursor_x += sp.base.row_s + sp.base.space_2;
@@ -1168,7 +1172,7 @@ fn render_container_children(
             egui::Align2::LEFT_CENTER,
             label,
             TextRole::BodyS.font_id(),
-            text::SECONDARY,
+            theme.text.secondary,
         );
 
         // Up / Down buttons (right-aligned)
@@ -1182,11 +1186,11 @@ fn render_container_children(
             .interact(down_rect, row_id.with("down"), egui::Sense::click())
             .on_hover_text("Move down");
         let down_color = if i + 1 >= order.len() {
-            DISABLED
+            theme.text.disabled
         } else if down_resp.hovered() {
-            text::PRIMARY
+            theme.text.primary
         } else {
-            text::SECONDARY
+            theme.text.secondary
         };
         ui.painter().text(
             down_rect.center(),
@@ -1203,11 +1207,11 @@ fn render_container_children(
             .interact(up_rect, row_id.with("up"), egui::Sense::click())
             .on_hover_text("Move up");
         let up_color = if i == 0 {
-            DISABLED
+            theme.text.disabled
         } else if up_resp.hovered() {
-            text::PRIMARY
+            theme.text.primary
         } else {
-            text::SECONDARY
+            theme.text.secondary
         };
         ui.painter().text(
             up_rect.center(),
@@ -1267,7 +1271,7 @@ fn format_property_value(kind: &PropertyKind) -> String {
         },
         PropertyKind::Text(s) => {
             if s.chars().count() > 16 {
-                format!("{}…", truncate_chars(s, 15))
+                format!("{}…", app_text::truncate_chars(s, 15))
             } else {
                 s.clone()
             }

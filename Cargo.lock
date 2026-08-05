@@ -173,6 +173,7 @@ dependencies = [
  "egui_extras",
  "egui_tiles",
  "eparts",
+ "image",
  "kurbo 0.13.0",
  "notify",
  "rfd",

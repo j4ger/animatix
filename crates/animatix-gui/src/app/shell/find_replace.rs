@@ -4,11 +4,11 @@ use crate::app::GuiShell;
 use crate::app::commands::UndoLabel;
 use crate::app::components::button::Button;
 use crate::app::components::dialog;
-use crate::app::design_tokens::semantic::text;
 use crate::app::design_tokens::typography::TextRole;
 
 impl GuiShell {
     pub(crate) fn find_replace_ui(&mut self, ui: &mut egui::Ui) {
+        let theme = eparts::theme(ui);
         let sp = crate::app::design_tokens::spatial::spatial(ui);
 
         let spec =
@@ -21,7 +21,9 @@ impl GuiShell {
             ui.add_space(sp.base.space_3);
 
             ui.label(
-                egui::RichText::new("Find").size(TextRole::BodyS.size()).color(text::SECONDARY),
+                egui::RichText::new("Find")
+                    .size(TextRole::BodyS.size())
+                    .color(theme.text.secondary),
             );
             ui.add(
                 egui::TextEdit::singleline(&mut self.ui_store.find_query)
@@ -33,7 +35,7 @@ impl GuiShell {
             ui.label(
                 egui::RichText::new("Replace with")
                     .size(TextRole::BodyS.size())
-                    .color(text::SECONDARY),
+                    .color(theme.text.secondary),
             );
             ui.add(
                 egui::TextEdit::singleline(&mut self.ui_store.replace_query)

@@ -1,7 +1,6 @@
 use egui::RichText;
 
 use crate::app::components::layout;
-use crate::app::design_tokens::semantic::text;
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::{GuiShell, components};
 
@@ -9,6 +8,7 @@ const SETTINGS_INPUT_WIDTH: f32 = 120.0;
 
 impl GuiShell {
     pub(crate) fn settings_dialog_ui(&mut self, ui: &mut egui::Ui) {
+        let theme = eparts::theme(ui);
         let sp = crate::app::design_tokens::spatial::spatial(ui);
 
         let spec = components::dialog::DialogSpec::new("Settings", [420.0, 520.0])
@@ -140,7 +140,7 @@ impl GuiShell {
             ];
             layout::labeled_row(
                 ui,
-                RichText::new("Theme").size(TextRole::BodyS.size()).color(text::SECONDARY),
+                RichText::new("Theme").size(TextRole::BodyS.size()).color(theme.text.secondary),
                 SETTINGS_INPUT_WIDTH,
                 |ui| {
                     egui::ComboBox::from_id_salt(ui.id().with("colorscheme"))

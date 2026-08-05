@@ -3,19 +3,19 @@
 use animatix::timeline::SceneDimensions;
 use egui::{Pos2, Stroke};
 
-use crate::app::design_tokens::semantic::canvas::grid_line;
 use crate::app::design_tokens::spatial::STROKE_WIDTH;
 
 /// Draw a grid overlay on the preview canvas.
 pub fn draw_grid(
     painter: &egui::Painter,
+    theme: eparts::Theme,
     scene_dimensions: SceneDimensions,
     preview_rect: egui::Rect,
     zoom: f32,
     pan: egui::Vec2,
     grid_size: f32,
 ) {
-    let grid_color = grid_line();
+    let grid_color = theme.lines.grid;
     let tx = super::PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan);
 
     let scene_tl = tx.screen_to_scene(preview_rect.left_top());

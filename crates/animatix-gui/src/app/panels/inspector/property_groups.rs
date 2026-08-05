@@ -1,3 +1,4 @@
+use animatix::renderer::text as animatix_text;
 use animatix::timeline::{
     ActorField, AnimationTrack, PROPERTY_REGISTRY, PropertyValue, ShapeType, ValueType,
     allowed_property_indices, property_has_keyframes, read_property_value_or_default,
@@ -12,7 +13,6 @@ use crate::app::commands::{
 };
 use crate::app::components::button::Button;
 use crate::app::components::row;
-use crate::app::design_tokens::semantic::{status, surface, text};
 use crate::app::design_tokens::spatial::inspector::{
     COL_GAP as INSPECTOR_COL_GAP, KF_BTN_WIDTH as INSPECTOR_KF_BTN_WIDTH,
     KF_COL_WIDTH as INSPECTOR_KF_COL_WIDTH, LABEL_MAX_WIDTH as INSPECTOR_LABEL_MAX_WIDTH,
@@ -275,6 +275,7 @@ pub(crate) fn render_property_group(
     keyframe_mode: bool,
     current_time_s: f64,
 ) {
+    let theme = eparts::theme(ui);
     let group_id = ui.id().with(("prop_group", group.name));
     let mut expanded = ui.data(|d| d.get_temp::<bool>(group_id)).unwrap_or(true);
     let sp = spatial(ui);
@@ -289,7 +290,7 @@ pub(crate) fn render_property_group(
                 egui::Label::new(
                     egui::RichText::new(group.properties.len().to_string())
                         .size(TextRole::Micro.size())
-                        .color(text::MUTED),
+                        .color(theme.text.muted),
                 )
                 .selectable(false),
             );
@@ -306,7 +307,7 @@ pub(crate) fn render_property_group(
         let flat_style = {
             let mut s = (**ui.style()).clone();
             s.visuals.extreme_bg_color = Color32::TRANSPARENT;
-            s.visuals.widgets.inactive.bg_fill = surface::WIDGET;
+            s.visuals.widgets.inactive.bg_fill = theme.surface.widget;
             s.visuals.widgets.inactive.bg_stroke = Stroke::NONE;
             s.visuals.widgets.hovered.bg_fill = Color32::TRANSPARENT;
             s.visuals.widgets.hovered.bg_stroke = Stroke::NONE;
@@ -343,13 +344,14 @@ pub(crate) fn render_property_row(
     flat_style: &egui::Style,
 ) {
     let sp = spatial(ui);
+    let theme = eparts::theme(ui);
     let row_height = sp.inspector.row_height;
     let available = ui.available_width();
     let (row_rect, row_response) =
         ui.allocate_exact_size(Vec2::new(available, row_height), egui::Sense::hover());
 
     if row_response.hovered() {
-        ui.painter().rect_filled(row_rect, 0.0, surface::HOVER);
+        ui.painter().rect_filled(row_rect, 0.0, theme.surface.hover);
     }
 
     let baseline_y = row_rect.center().y;
@@ -369,10 +371,10 @@ pub(crate) fn render_property_row(
     let dot_center = egui::pos2(row_rect.min.x + INSPECTOR_KF_COL_WIDTH / 2.0, baseline_y);
     if entry.has_keyframe_at_current_time {
         let dot = egui::Rect::from_center_size(dot_center, Vec2::new(6.0, 6.0));
-        ui.painter().rect_filled(dot, 2.0, status::WARNING);
+        ui.painter().rect_filled(dot, 2.0, theme.status.warning);
     } else if entry.has_keyframes {
         let dot = egui::Rect::from_center_size(dot_center, Vec2::new(5.0, 5.0));
-        ui.painter().rect_filled(dot, 2.5, text::MUTED);
+        ui.painter().rect_filled(dot, 2.5, theme.text.muted);
     }
 
     // ── Property label (truncated, vertically centered) ──
@@ -388,7 +390,7 @@ pub(crate) fn render_property_row(
                     egui::Label::new(
                         egui::RichText::new(entry.name)
                             .size(TextRole::BodyS.size())
-                            .color(text::SECONDARY),
+                            .color(theme.text.secondary),
                     )
                     .truncate()
                     .selectable(false),
@@ -409,7 +411,7 @@ pub(crate) fn render_property_row(
         ui.painter().rect_filled(
             input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0)),
             RADIUS_S,
-            surface::WIDGET,
+            theme.surface.widget,
         );
     }
 
@@ -425,22 +427,22 @@ pub(crate) fn render_property_row(
 
     // Draw diamond icon — dimmed when keyframe_mode is off and no keyframe exists
     let kf_color = if entry.has_keyframe_at_current_time {
-        status::WARNING
+        theme.status.warning
     } else if entry.has_keyframes {
         if kf_btn_resp.hovered() {
-            status::WARNING
+            theme.status.warning
         } else {
-            text::MUTED
+            theme.text.muted
         }
     } else if !keyframe_mode {
         // Show faint outline when keyframe mode is off
         if kf_btn_resp.hovered() {
-            text::DISABLED
+            theme.text.disabled
         } else {
             Color32::TRANSPARENT
         }
     } else if kf_btn_resp.hovered() {
-        text::SECONDARY
+        theme.text.secondary
     } else {
         Color32::TRANSPARENT
     };
@@ -547,7 +549,7 @@ pub(crate) fn render_property_row(
                                 egui::Label::new(
                                     egui::RichText::new(a_label)
                                         .size(TextRole::Micro.size())
-                                        .color(text::MUTED),
+                                        .color(theme.text.muted),
                                 )
                                 .selectable(false),
                             );
@@ -562,7 +564,7 @@ pub(crate) fn render_property_row(
                                 egui::Label::new(
                                     egui::RichText::new(b_label)
                                         .size(TextRole::Micro.size())
-                                        .color(text::MUTED),
+                                        .color(theme.text.muted),
                                 )
                                 .selectable(false),
                             );
@@ -630,7 +632,7 @@ pub(crate) fn render_property_row(
                                         egui::RichText::new(format!("{:.2}", nv))
                                             .monospace()
                                             .size(TextRole::Micro.size())
-                                            .color(text::PRIMARY),
+                                            .color(theme.text.primary),
                                     )
                                     .selectable(false),
                                 );
@@ -769,7 +771,7 @@ pub(crate) fn render_property_row(
                                     egui::RichText::new(&hex)
                                         .monospace()
                                         .size(TextRole::Micro.size())
-                                        .color(text::MUTED),
+                                        .color(theme.text.muted),
                                 )
                                 .selectable(false),
                             );
@@ -846,13 +848,11 @@ pub(crate) fn render_property_row(
                                 }
                             } else if entry.name == "font_family" {
                                 use std::sync::OnceLock;
-                                static FONT_CONTEXT: OnceLock<
-                                    animatix::renderer::text::FontContext,
-                                > = OnceLock::new();
-                                let font_ctx = FONT_CONTEXT
-                                    .get_or_init(animatix::renderer::text::FontContext::new);
-                                let families =
-                                    animatix::renderer::text::available_font_families(font_ctx);
+                                static FONT_CONTEXT: OnceLock<animatix_text::FontContext> =
+                                    OnceLock::new();
+                                let font_ctx =
+                                    FONT_CONTEXT.get_or_init(animatix_text::FontContext::new);
+                                let families = animatix_text::available_font_families(font_ctx);
                                 egui::ComboBox::from_id_salt(ui.id().with(("font", entry.name)))
                                     .selected_text(text.as_str())
                                     .width(ui.available_width())
@@ -898,7 +898,7 @@ pub(crate) fn render_property_row(
                                     egui::Label::new(
                                         egui::RichText::new(text.as_str())
                                             .size(TextRole::Body.size())
-                                            .color(text::MUTED),
+                                            .color(theme.text.muted),
                                     )
                                     .selectable(false),
                                 );

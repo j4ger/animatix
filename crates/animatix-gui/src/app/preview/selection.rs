@@ -10,9 +10,6 @@ use egui::{Pos2, Vec2};
 
 use super::*;
 use crate::app::components::context_menu::{MenuEntry, render_floating_menu};
-use crate::app::design_tokens::semantic::accent::{ghost as accent_ghost, strong as accent_strong};
-use crate::app::design_tokens::semantic::overlay::badge_bg;
-use crate::app::design_tokens::semantic::{border, text};
 use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 
@@ -223,11 +220,12 @@ pub(crate) fn draw_context_menu(
 /// Draw hover highlight for the actor under the cursor.
 pub(crate) fn draw_hover_highlight(
     painter: &egui::Painter,
+    theme: eparts::Theme,
     hovered_actor: &str,
     hover_rect: egui::Rect,
 ) {
     // Subtle dashed outline for hover
-    let hover_color = accent_ghost();
+    let hover_color = theme.accent.ghost;
     let dash_len = 4.0;
     let gap_len = 3.0;
     let corners = [
@@ -254,23 +252,26 @@ pub(crate) fn draw_hover_highlight(
 
     // Tooltip with actor name
     let tooltip_pos = egui::pos2(hover_rect.center().x, hover_rect.top() - 20.0);
-    let galley =
-        painter.layout_no_wrap(hovered_actor.to_string(), TextRole::BodyS.font_id(), text::PRIMARY);
+    let galley = painter.layout_no_wrap(
+        hovered_actor.to_string(),
+        TextRole::BodyS.font_id(),
+        theme.text.primary,
+    );
     let tooltip_size = galley.size();
     let tooltip_rect =
         egui::Rect::from_center_size(tooltip_pos, tooltip_size + Vec2::new(8.0, 4.0));
 
-    painter.rect_filled(tooltip_rect, RADIUS_M, badge_bg());
+    painter.rect_filled(tooltip_rect, RADIUS_M, theme.overlay.badge_bg);
     painter.rect_stroke(
         tooltip_rect,
         RADIUS_M,
-        Stroke::new(STROKE_WIDTH, border::DEFAULT),
+        Stroke::new(STROKE_WIDTH, theme.border.default),
         egui::StrokeKind::Outside,
     );
     painter.galley(
         tooltip_rect.left_center() + Vec2::new(4.0, -tooltip_size.y / 2.0),
         galley,
-        text::PRIMARY,
+        theme.text.primary,
     );
 }
 
@@ -279,6 +280,7 @@ pub(crate) fn draw_hover_highlight(
 /// Draw the cycle indicator showing "2/5" near the cursor.
 pub(crate) fn draw_cycle_indicator(
     painter: &egui::Painter,
+    theme: eparts::Theme,
     mouse_pos: Pos2,
     cycle_index: usize,
     total_candidates: usize,
@@ -290,12 +292,13 @@ pub(crate) fn draw_cycle_indicator(
     let indicator_text = format!("{}/{}", cycle_index + 1, total_candidates);
     let indicator_pos = egui::pos2(mouse_pos.x + 16.0, mouse_pos.y - 8.0);
 
-    let galley = painter.layout_no_wrap(indicator_text, TextRole::BodyS.font_id(), text::PRIMARY);
+    let galley =
+        painter.layout_no_wrap(indicator_text, TextRole::BodyS.font_id(), theme.text.primary);
     let size = galley.size();
     let rect = egui::Rect::from_center_size(indicator_pos, size + Vec2::new(6.0, 3.0));
 
-    painter.rect_filled(rect, RADIUS_M, accent_strong());
-    painter.galley(rect.left_center() + Vec2::new(3.0, -size.y / 2.0), galley, text::PRIMARY);
+    painter.rect_filled(rect, RADIUS_M, theme.accent.strong);
+    painter.galley(rect.left_center() + Vec2::new(3.0, -size.y / 2.0), galley, theme.text.primary);
 }
 
 #[cfg(test)]

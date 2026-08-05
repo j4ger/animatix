@@ -20,7 +20,6 @@ use crate::app::commands::{
     ActionQueue, ActorCommand, DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue,
 };
 use crate::app::components::layout;
-use crate::app::design_tokens::semantic::{accent, status, surface, text};
 use crate::app::design_tokens::spatial::spatial;
 use crate::app::design_tokens::typography::TextRole;
 
@@ -57,13 +56,14 @@ pub(crate) fn render_property_spreadsheet(
     property_view_mode: &mut PropertyViewMode,
 ) {
     let sp = spatial(ui);
+    let theme = eparts::theme(ui);
     // ── View-mode toggle bar ──
     ui.horizontal(|ui| {
         ui.add_space(sp.base.space_2);
         let btn = egui::Button::new(
             RichText::new(format!("{} Semantic", egui_phosphor::regular::ROWS))
                 .size(TextRole::Micro.size())
-                .color(text::SECONDARY),
+                .color(theme.text.secondary),
         )
         .min_size(Vec2::new(0.0, sp.base.row_s));
         if ui.add(btn).on_hover_text("Switch to semantic property view").clicked() {
@@ -75,13 +75,15 @@ pub(crate) fn render_property_spreadsheet(
             egui::Label::new(
                 RichText::new(egui_phosphor::regular::TABLE)
                     .size(TextRole::BodyS.size())
-                    .color(status::WARNING),
+                    .color(theme.status.warning),
             )
             .selectable(false),
         );
         ui.add(
             egui::Label::new(
-                RichText::new("Spreadsheet").size(TextRole::BodyS.size()).color(status::WARNING),
+                RichText::new("Spreadsheet")
+                    .size(TextRole::BodyS.size())
+                    .color(theme.status.warning),
             )
             .selectable(false),
         );
@@ -104,7 +106,7 @@ pub(crate) fn render_property_spreadsheet(
         .button(
             RichText::new(format!("{} Add", egui_phosphor::regular::PLUS))
                 .size(TextRole::Micro.size())
-                .color(accent::PRIMARY),
+                .color(theme.accent.primary),
         )
         .on_hover_text("Add a new actor")
         .clicked()
@@ -136,7 +138,7 @@ pub(crate) fn render_property_spreadsheet(
                 egui::Label::new(
                     RichText::new(egui_phosphor::regular::FILM_STRIP)
                         .size(layout::EMPTY_STATE_ICON_SIZE)
-                        .color(text::MUTED),
+                        .color(theme.text.muted),
                 )
                 .selectable(false),
             );
@@ -145,7 +147,7 @@ pub(crate) fn render_property_spreadsheet(
                 egui::Label::new(
                     RichText::new("No actors in scene")
                         .size(TextRole::Title.size())
-                        .color(text::SECONDARY),
+                        .color(theme.text.secondary),
                 )
                 .selectable(false),
             );
@@ -175,13 +177,13 @@ pub(crate) fn render_property_spreadsheet(
                         egui::Sense::hover(),
                     )
                     .0;
-                ui.painter().rect_filled(corner_rect, 0.0, surface::SURFACE);
+                ui.painter().rect_filled(corner_rect, 0.0, theme.surface.surface);
                 ui.painter().text(
                     corner_rect.center(),
                     egui::Align2::CENTER_CENTER,
                     egui_phosphor::regular::TABLE,
                     TextRole::BodyS.font_id(),
-                    text::MUTED,
+                    theme.text.muted,
                 );
 
                 // Property name headers
@@ -192,13 +194,13 @@ pub(crate) fn render_property_spreadsheet(
                             egui::Sense::hover(),
                         )
                         .0;
-                    ui.painter().rect_filled(header_rect, 0.0, surface::SURFACE);
+                    ui.painter().rect_filled(header_rect, 0.0, theme.surface.surface);
                     ui.painter().text(
                         header_rect.center(),
                         egui::Align2::CENTER_CENTER,
                         prop_name,
                         TextRole::Micro.font_id(),
-                        text::SECONDARY,
+                        theme.text.secondary,
                     );
                 }
                 ui.end_row();
@@ -219,9 +221,9 @@ pub(crate) fn render_property_spreadsheet(
 
                     // Background for selected or hovered row
                     let label_bg = if is_selected {
-                        accent::selection()
+                        theme.accent.selection
                     } else if label_response.hovered() {
-                        surface::HOVER
+                        theme.surface.hover
                     } else {
                         Color32::TRANSPARENT
                     };
@@ -232,9 +234,9 @@ pub(crate) fn render_property_spreadsheet(
                     // Actor icon + label text
                     let icon = crate::app::icons::actor_icon_str(track.kind);
                     let label_color = if is_selected {
-                        accent::PRIMARY
+                        theme.accent.primary
                     } else {
-                        text::PRIMARY
+                        theme.text.primary
                     };
                     ui.painter().text(
                         Pos2::new(label_rect.min.x + sp.base.space_2, label_rect.center().y),
@@ -269,7 +271,7 @@ pub(crate) fn render_property_spreadsheet(
 
                         // Subtle hover
                         if cell_response.hovered() {
-                            ui.painter().rect_filled(cell_rect, 0.0, surface::HOVER);
+                            ui.painter().rect_filled(cell_rect, 0.0, theme.surface.hover);
                         }
 
                         // Get the value at current time
@@ -280,11 +282,11 @@ pub(crate) fn render_property_spreadsheet(
                         });
 
                         let value_color = if has_keyframes {
-                            status::WARNING
+                            theme.status.warning
                         } else if !has_animated_track || value_text == "—" {
-                            text::MUTED
+                            theme.text.muted
                         } else {
-                            text::SECONDARY
+                            theme.text.secondary
                         };
 
                         ui.painter().text(

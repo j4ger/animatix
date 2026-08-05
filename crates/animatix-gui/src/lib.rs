@@ -1,6 +1,8 @@
 pub mod app;
 pub mod cell_editor;
 pub mod completion_popup;
+#[cfg(feature = "dev-screenshots")]
+pub mod dev;
 pub mod document;
 pub mod editor;
 pub mod error;

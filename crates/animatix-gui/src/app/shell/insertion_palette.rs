@@ -4,10 +4,8 @@ use egui::{Color32, Pos2, Rect, RichText, Stroke, Vec2};
 
 use crate::app::GuiShell;
 use crate::app::commands::UndoLabel;
+use crate::app::design_tokens::semantic::category;
 use crate::app::design_tokens::semantic::editor::SNIPPET_BLUE;
-use crate::app::design_tokens::semantic::{
-    accent, border, category, overlay, status, surface, text,
-};
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, RADIUS_XL, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::insertion::{InsertionContext, InsertionRequest};
@@ -96,6 +94,7 @@ impl InsertionPalette {
         &mut self,
         _timeline: Option<&animatix::timeline::Timeline>,
         components: &std::collections::HashMap<String, animatix_syntax::module::ComponentEntry>,
+        theme: eparts::Theme,
     ) {
         self.param_form = None;
         self.items.clear();
@@ -106,7 +105,7 @@ impl InsertionPalette {
                 label: prim.display_name().to_string(),
                 detail: prim.type_name().to_string(),
                 icon: prim.icon_id().to_string(),
-                color: category_color(prim.category()),
+                color: category_color(prim.category(), theme),
                 kind: ItemKind::Primitive {
                     type_name: prim.type_name().to_string(),
                 },
@@ -119,7 +118,7 @@ impl InsertionPalette {
                 label: sig.name.clone(),
                 detail: sig.description.clone(),
                 icon: "⚡".to_string(),
-                color: action_category_color(&sig.category),
+                color: action_category_color(&sig.category, theme),
                 kind: ItemKind::Action {
                     verb: sig.name.clone(),
                 },
@@ -175,7 +174,7 @@ impl InsertionPalette {
                     format!("Component — {}", params_display.join(", "))
                 },
                 icon: egui_phosphor::regular::CUBE.to_string(),
-                color: accent::CYAN,
+                color: theme.accent.cyan,
                 kind: ItemKind::Component {
                     type_name: name.clone(),
                     params: params_info,
@@ -230,31 +229,32 @@ impl InsertionPalette {
     }
 }
 
-fn category_color(category: animatix::timeline::ActorCategory) -> Color32 {
+fn category_color(category: animatix::timeline::ActorCategory, theme: eparts::Theme) -> Color32 {
     match category {
-        animatix::timeline::ActorCategory::Shape => accent::PRIMARY,
-        animatix::timeline::ActorCategory::Container => status::SUCCESS,
-        animatix::timeline::ActorCategory::Text => status::WARNING,
+        animatix::timeline::ActorCategory::Shape => theme.accent.primary,
+        animatix::timeline::ActorCategory::Container => theme.status.success,
+        animatix::timeline::ActorCategory::Text => theme.status.warning,
         animatix::timeline::ActorCategory::Media => category::ACTION,
-        animatix::timeline::ActorCategory::Plot => accent::CYAN,
-        animatix::timeline::ActorCategory::Annotation => accent::CYAN,
+        animatix::timeline::ActorCategory::Plot => theme.accent.cyan,
+        animatix::timeline::ActorCategory::Annotation => theme.accent.cyan,
     }
 }
 
-fn action_category_color(category: &str) -> Color32 {
+fn action_category_color(category: &str, theme: eparts::Theme) -> Color32 {
     match category {
-        "Entrance" => status::SUCCESS,
-        "Exit" => status::ERROR,
-        "Motion" => accent::PRIMARY,
-        "Effects" => status::WARNING,
+        "Entrance" => theme.status.success,
+        "Exit" => theme.status.error,
+        "Motion" => theme.accent.primary,
+        "Effects" => theme.status.warning,
         "Reveal" => category::ACTION,
-        "Reorder" => status::SUCCESS,
-        _ => text::SECONDARY,
+        "Reorder" => theme.status.success,
+        _ => theme.text.secondary,
     }
 }
 
 impl GuiShell {
     pub(crate) fn insertion_palette_ui(&mut self, ui: &mut egui::Ui) {
+        let theme = eparts::theme(ui);
         let sp = crate::app::design_tokens::spatial::spatial(ui);
 
         if !self.insertion_palette.open {
@@ -265,12 +265,13 @@ impl GuiShell {
         self.insertion_palette.populate(
             self.document_store.source.document.active_timeline(),
             &self.document_store.source.document.components,
+            theme,
         );
 
         let screen_rect = ui.ctx().viewport_rect();
 
         // Dark semi-transparent backdrop
-        ui.painter().rect_filled(screen_rect, 0.0, overlay::backdrop());
+        ui.painter().rect_filled(screen_rect, 0.0, theme.overlay.backdrop);
 
         // Capture clicks on backdrop to close
         let backdrop_response = ui.interact(
@@ -297,11 +298,11 @@ impl GuiShell {
         let palette_rect = Rect::from_min_size(palette_pos, Vec2::new(palette_w, palette_h));
 
         // Background
-        ui.painter().rect_filled(palette_rect, RADIUS_XL as u8, surface::BASE);
+        ui.painter().rect_filled(palette_rect, RADIUS_XL as u8, theme.surface.base);
         ui.painter().rect_stroke(
             palette_rect,
             RADIUS_XL as u8,
-            Stroke::new(STROKE_WIDTH, border::DEFAULT),
+            Stroke::new(STROKE_WIDTH, theme.border.default),
             egui::StrokeKind::Outside,
         );
 
@@ -315,7 +316,7 @@ impl GuiShell {
             ui.label(
                 RichText::new("Insert")
                     .size(TextRole::Heading.size())
-                    .color(text::PRIMARY)
+                    .color(theme.text.primary)
                     .strong(),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -332,7 +333,7 @@ impl GuiShell {
             content.label(
                 RichText::new(format!("Configure {}", type_name))
                     .size(TextRole::Title.size())
-                    .color(text::PRIMARY)
+                    .color(theme.text.primary)
                     .strong(),
             );
             content.add_space(sp.base.space_3);
@@ -345,7 +346,9 @@ impl GuiShell {
                         format!("{}:", param_name)
                     };
                     ui.label(
-                        RichText::new(label).size(TextRole::BodyS.size()).color(text::SECONDARY),
+                        RichText::new(label)
+                            .size(TextRole::BodyS.size())
+                            .color(theme.text.secondary),
                     );
 
                     // Type-specific widget
@@ -531,23 +534,23 @@ impl GuiShell {
                 let btn = ui.add(
                     egui::Button::new(RichText::new(label).size(TextRole::BodyS.size()).color(
                         if selected {
-                            text::PRIMARY
+                            theme.text.primary
                         } else {
-                            text::SECONDARY
+                            theme.text.secondary
                         },
                     ))
                     .fill(if selected {
-                        surface::WIDGET
+                        theme.surface.widget
                     } else {
-                        surface::BASE
+                        theme.surface.base
                     })
                     .corner_radius(RADIUS_M)
                     .stroke(Stroke::new(
                         STROKE_WIDTH,
                         if selected {
-                            border::HOVER
+                            theme.border.strong
                         } else {
-                            border::DEFAULT
+                            theme.border.default
                         },
                     )),
                 );
@@ -623,9 +626,9 @@ impl GuiShell {
                         row_rect,
                         RADIUS_S as u8,
                         if is_selected {
-                            accent::PRIMARY.linear_multiply(0.2)
+                            theme.accent.primary.linear_multiply(0.2)
                         } else {
-                            surface::WIDGET
+                            theme.surface.widget
                         },
                     );
                 }
@@ -646,9 +649,9 @@ impl GuiShell {
                                 RichText::new(&item.label)
                                     .size(TextRole::BodyS.size())
                                     .color(if is_selected {
-                                        text::PRIMARY
+                                        theme.text.primary
                                     } else {
-                                        text::SECONDARY
+                                        theme.text.secondary
                                     })
                                     .strong(),
                             );
@@ -656,7 +659,7 @@ impl GuiShell {
                                 ui.label(
                                     RichText::new(&item.detail)
                                         .size(TextRole::Micro.size())
-                                        .color(text::MUTED),
+                                        .color(theme.text.muted),
                                 );
                             }
                         });

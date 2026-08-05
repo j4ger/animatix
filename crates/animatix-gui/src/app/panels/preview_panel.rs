@@ -4,7 +4,6 @@ use animatix::timeline::SceneDimensions;
 use egui::Vec2;
 
 use crate::app::commands::{ActorCommand, DocumentCommand, PlaybackCommand};
-use crate::app::design_tokens::semantic::{border, status, surface, text};
 use crate::app::design_tokens::spatial::{RADIUS_L, STROKE_WIDTH, preview as preview_spatial};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::panels::{RULER_SIZE, nice_tick_interval};
@@ -38,6 +37,8 @@ fn preview_scene_to_screen(
 // ─── Main preview_panel_ui function ─────────────────────────────────────────
 
 pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
+    let theme = eparts::theme(ui);
+    ctx.preview.overlay.set_theme(theme);
     // Preview uses zero-margin frame to maximize canvas area.
     egui::Frame::new()
         .fill(egui::Color32::TRANSPARENT)
@@ -77,16 +78,16 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                 ui.painter().rect_stroke(
                     preview_rect,
                     RADIUS_L,
-                    egui::Stroke::new(STROKE_WIDTH, border::DEFAULT),
+                    egui::Stroke::new(STROKE_WIDTH, theme.border.default),
                     egui::StrokeKind::Outside,
                 );
-                ui.painter().rect_filled(preview_rect, RADIUS_L, surface::BASE);
+                ui.painter().rect_filled(preview_rect, RADIUS_L, theme.surface.base);
 
                 // ── Rulers ──
-                let ruler_bg = surface::PANEL;
-                let ruler_tick_color = text::MUTED;
-                let ruler_text_color = text::MUTED;
-                let ruler_label_color = text::SECONDARY;
+                let ruler_bg = theme.surface.panel;
+                let ruler_tick_color = theme.text.muted;
+                let ruler_text_color = theme.text.muted;
+                let ruler_label_color = theme.text.secondary;
 
                 let h_ruler_rect = egui::Rect::from_min_size(
                     egui::pos2(preview_rect.min.x, preview_rect.min.y - RULER_SIZE),
@@ -100,7 +101,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                     egui::pos2(preview_rect.min.x - RULER_SIZE, preview_rect.min.y - RULER_SIZE),
                     Vec2::new(RULER_SIZE, RULER_SIZE),
                 );
-                let ruler_stroke = egui::Stroke::new(STROKE_WIDTH, border::DEFAULT);
+                let ruler_stroke = egui::Stroke::new(STROKE_WIDTH, theme.border.default);
 
                 ui.painter().rect_filled(corner_rect, 0.0, ruler_bg);
                 ui.painter()
@@ -269,7 +270,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                 if let Some((is_vertical, _start_val, _start_pos)) = ruler_drag_active {
                     if let Some(mouse) = raw_pointer_pos {
                         let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
-                        let guide_color = status::WARNING;
+                        let guide_color = theme.status.warning;
                         if is_vertical {
                             let ghost_screen = ctx.preview_scene_to_screen(
                                 preview_rect,
@@ -330,7 +331,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
 
                 // ── Draw existing guides ──
                 if ctx.preview.overlay.show_guides {
-                    let guide_color = status::WARNING;
+                    let guide_color = theme.status.warning;
                     for &guide_y in &ctx.preview.guides.horizontal_guides {
                         let screen_pt = ctx.preview_scene_to_screen(
                             preview_rect,
@@ -541,7 +542,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                         ui.painter().rect_stroke(
                             bounds_screen,
                             0.0,
-                            egui::Stroke::new(STROKE_WIDTH, border::HOVER),
+                            egui::Stroke::new(STROKE_WIDTH, theme.border.strong),
                             egui::StrokeKind::Inside,
                         );
                     }
@@ -563,7 +564,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                             egui::Align2::CENTER_BOTTOM,
                             label,
                             TextRole::Micro.font_id(),
-                            text::MUTED,
+                            theme.text.muted,
                         );
                     }
                 }
@@ -572,6 +573,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                 if ctx.preview.overlay.show_grid {
                     preview::grid::draw_grid(
                         ui.painter(),
+                        theme,
                         ctx.scene_dimensions,
                         preview_rect,
                         ctx.preview.viewport.preview_zoom,

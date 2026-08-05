@@ -7,7 +7,6 @@ use animatix::timeline::{PositionBinding, TrackAccessor};
 use egui::Pos2;
 
 use crate::app::commands::{DocumentCommand, PropertyEdit, PropertyValue};
-use crate::app::design_tokens::semantic::{accent, status};
 use crate::app::preview::context::PreviewContext;
 use crate::app::preview::{ActorProps, DragState};
 
@@ -90,6 +89,7 @@ pub(crate) fn resolve_snap(
     let mut snapped_container = false;
     let mut snapped_keyframe = false;
     let mut snap_hud_text: Option<String> = None;
+    let theme = ctx.current_theme();
 
     for &guide_y in &ctx.preview.guides.horizontal_guides {
         if (ny - guide_y).abs() < threshold {
@@ -228,13 +228,13 @@ pub(crate) fn resolve_snap(
         || snapped_keyframe
     {
         ctx.preview.snap.snap_line_color = Some(if snapped_guide_h || snapped_guide_v {
-            status::WARNING
+            theme.status.warning
         } else if snapped_keyframe {
-            accent::CYAN
+            theme.accent.cyan
         } else if snapped_container {
-            accent::PRIMARY
+            theme.accent.primary
         } else {
-            status::SUCCESS
+            theme.status.success
         });
         ctx.preview.snap.snap_hud_label = snap_hud_text.clone();
     }
