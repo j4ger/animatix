@@ -8,7 +8,7 @@ A visualizer wants one `Callout` that follows whichever array actor is the
 current algorithm key. The natural source is to retarget with the actor label:
 
 ```animatix
-note.target = bar__2 [300ms]
+note.target = bar[2] [300ms]
 ```
 
 ## Minimal Repro

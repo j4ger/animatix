@@ -1,4 +1,4 @@
-use crate::ast::{Expr, InlineItem, Modifier, Property};
+use crate::ast::{Expr, InlineItem, Modifier, Property, array_actor_label};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::primitives::arrow::build_arrow_path;
 use crate::primitives::{
@@ -43,6 +43,57 @@ fn parse_string(expr: &Expr) -> Option<String> {
         Expr::Str(s) => Some(s.clone()),
         Expr::Ident(s) => Some(s.clone()),
         Expr::Path(parts) => Some(parts.join(".")),
+        _ => None,
+    }
+}
+
+/// Parse a source-level actor reference into its internal track label.
+/// `box` -> `"box"`, `group.box` -> `"group.box"`, `bar[2]` -> `"bar__2"`.
+/// The `__` scheme remains internal; user source keeps writing `bar[2]`.
+fn parse_actor_ref_literal(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Str(s) => Some(s.clone()),
+        Expr::Ident(s) => Some(s.clone()),
+        Expr::Path(parts) => Some(parts.join(".")),
+        Expr::Index(base, index) => {
+            let base_name = match base.as_ref() {
+                Expr::Ident(name) => name.clone(),
+                _ => return None,
+            };
+            let n = match index.as_ref() {
+                Expr::Num(n) if n.trunc() == *n && *n >= 0.0 => Some(*n as usize),
+                _ => None,
+            };
+            n.map(|n| array_actor_label(&base_name, n))
+        },
+        _ => None,
+    }
+}
+
+/// Resolve an actor reference at assignment time, including runtime indices
+/// such as `bar[i]` where `i` is bound in the evaluation environment.
+fn parse_actor_ref_with_env(expr: &Expr, env: &Environment) -> Option<String> {
+    match expr {
+        Expr::Str(s) => Some(s.clone()),
+        Expr::Ident(name) => match env.get(name) {
+            Some(Value::Str(s)) => Some(s.clone()),
+            _ => Some(name.clone()),
+        },
+        Expr::Path(parts) => match crate::timeline::evaluate_expr(expr, env) {
+            Ok(Value::Str(s)) => Some(s),
+            _ => Some(parts.join(".")),
+        },
+        Expr::Index(base, index) => {
+            let base_name = match base.as_ref() {
+                Expr::Ident(name) => name.clone(),
+                _ => return None,
+            };
+            let n = match crate::timeline::evaluate_expr(index, env).ok()? {
+                Value::Num(n) if n >= 0.0 && n.floor() == n => n as usize,
+                _ => return None,
+            };
+            Some(array_actor_label(&base_name, n))
+        },
         _ => None,
     }
 }
@@ -133,7 +184,7 @@ impl Primitive for CalloutPrimitive {
                     }
                 },
                 "target" => {
-                    if let Some(s) = parse_string(&prop.value) {
+                    if let Some(s) = parse_actor_ref_literal(&prop.value) {
                         callout_target = s;
                     }
                 },
@@ -233,18 +284,12 @@ impl Primitive for CalloutPrimitive {
         }
 
         // Actor references are idiomatic in declarations (`target: box`).
-        // Accept the same form on assignments instead of requiring `"box"`.
-        let target_expr = match value {
-            Expr::Str(_) => value.clone(),
-            Expr::Ident(name) => match env.get(name) {
-                Some(Value::Str(s)) => Expr::Str(s.clone()),
-                _ => Expr::Str(name.clone()),
-            },
-            Expr::Path(parts) => match crate::timeline::evaluate_expr(value, env) {
-                Ok(Value::Str(s)) => Expr::Str(s),
-                _ => Expr::Str(parts.join(".")),
-            },
-            _ => value.clone(),
+        // Accept the same form on assignments instead of requiring `"box"`,
+        // and keep source-level array syntax (`bar[2]`) separate from the
+        // internal `bar__2` track key.
+        let target_expr = match parse_actor_ref_with_env(value, env) {
+            Some(target) => Expr::Str(target),
+            None => value.clone(),
         };
 
         if let Some(target) = parse_property_value(

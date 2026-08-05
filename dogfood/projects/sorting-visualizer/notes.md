@@ -5,11 +5,12 @@ the idiomatic forms, and check/lint/render pass.
 
 ## What worked
 
-- `for v, i in {4, 1, 3, 2}` inside a `Row` generates real `bar__N` actors.
+- `for v, i in {4, 1, 3, 2}` inside a `Row` generates real internal `bar__N`
+  tracks while source continues to use `bar[i]`.
 - `fade-in bar[0]`, `swap bar[0], bar[1]`, and `bar[i].scale` in `always`
   parse and build with indexed targets.
-- A `Callout` can target a generated array actor (`target: bar__1`) and can be
-  retargeted by bare actor label assignment (`key_note.target = bar__2`).
+- A `Callout` can target a generated array actor (`target: bar[1]`) and can be
+  retargeted by source-level array reference (`key_note.target = bar[2]`).
 - `import "../../../examples/lib/tokens.amx" as tokens` gives namespaced token
   access across the dogfood project.
 - Multi-scene `play` transitions work across the project.

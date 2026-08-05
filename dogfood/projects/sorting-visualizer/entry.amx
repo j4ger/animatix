@@ -43,7 +43,7 @@ bars: Row, at: (640, 440), gap: 28, align: "end" {
 
 key_note: Callout {
   from: (180, 170),
-  target: bar__1,
+  target: bar[1],
   place: top,
   standoff: 10,
   label: "key = 1",
@@ -64,11 +64,11 @@ fade-in step_caption [400ms, delay: 300ms]
 swap bar[0], bar[1] [600ms, ease: ease-in-out]
 
 #3.2s
-key_note.target = bar__2 [300ms]
+key_note.target = bar[2] [300ms]
 swap bar[1], bar[2] [600ms, ease: ease-in-out]
 
 #4.9s
-key_note.target = bar__3 [300ms]
+key_note.target = bar[3] [300ms]
 swap bar[2], bar[3] [600ms, ease: ease-in-out]
 
 #6.4s

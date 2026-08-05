@@ -545,6 +545,7 @@ img: Image, url: "examples/assets/checker.png", at: (100, 100), size: (200, 150)
 - The engine resolves the target's world-space bounds by composing its full ancestor transform chain, so nested actors inside scaled or rotated containers attach correctly.
 - `standoff` (default `40.0`) offsets the tip from the resolved edge; `to_offset` adds a fine-grained manual tweak on top.
 - A missing or unknown `target` name is reported as a build-time `CalloutTargetNotFound` diagnostic rather than a per-frame render warning.
+- Array actors use source-level syntax: `target: bars[2]` in declarations, and `note.target = bars[i]` when `i` is bound in an assignment. Internal generated labels like `bars__2` are an implementation detail and should not appear in user source.
 - **GUI affordances:** selecting a targeted `Callout` in the preview shows four edge handles around the target for clicking/dragging `place`, a standoff drag handle on the tail axis, and a label drag handle. Hold **Shift** while dragging to detach from the target — the current `from`/`to` values are baked into the source and `target` is removed, converting to manual mode without a visual jump.
 | `Legend` | `at` |
 | `Polygon` | `points: {(x, y), ...}` |

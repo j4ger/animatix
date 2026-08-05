@@ -681,13 +681,14 @@ fn test_image_stmt() {
 #[test]
 fn test_callout_block_props_parse_as_actor_props() {
     let stmt = parse_single_stmt(
-        "note: Callout { target: box, place: right, label: \"Look here\" }",
+        "note: Callout { target: bar[2], place: right, label: \"Look here\" }",
     );
     match stmt {
         Stmt::ActorDecl { ty, props, children, .. } => {
             assert_eq!(ty, "Callout");
             assert_eq!(props.len(), 3);
-            assert!(props.iter().any(|p| p.name == "target"));
+            let target = props.iter().find(|p| p.name == "target").expect("target prop");
+            assert!(matches!(target.value, Expr::Index(_, _)));
             assert!(props.iter().any(|p| p.name == "place"));
             assert!(children.is_empty());
         },

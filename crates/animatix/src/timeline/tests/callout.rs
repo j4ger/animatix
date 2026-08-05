@@ -430,6 +430,110 @@ fn test_callout_target_assignment_accepts_bare_actor_label() {
 }
 
 #[test]
+fn test_callout_target_accepts_array_actor_refs() {
+    let actor = |label: &str| Stmt::ActorDecl {
+        is_pub: false,
+        is_anonymous: false,
+        label: label.to_string(),
+        array_index: None,
+        ty: "Rect".to_string(),
+        props: vec![
+            Property {
+                name: "position".to_string(),
+                value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(100.0)]),
+                value_span: None,
+                trailing_comment: None,
+            },
+            Property {
+                name: "size".to_string(),
+                value: Expr::Tuple(vec![Expr::Num(80.0), Expr::Num(40.0)]),
+                value_span: None,
+                trailing_comment: None,
+            },
+        ],
+        modifiers: vec![],
+        children: vec![],
+        span: None,
+    };
+
+    let note = Stmt::ActorDecl {
+        is_pub: false,
+        is_anonymous: false,
+        label: "note".to_string(),
+        array_index: None,
+        ty: "Callout".to_string(),
+        props: vec![
+            Property {
+                name: "target".to_string(),
+                value: Expr::Index(
+                    Box::new(Expr::Ident("bar".to_string())),
+                    Box::new(Expr::Num(0.0)),
+                ),
+                value_span: None,
+                trailing_comment: None,
+            },
+            Property {
+                name: "place".to_string(),
+                value: Expr::Ident("right".to_string()),
+                value_span: None,
+                trailing_comment: None,
+            },
+            Property {
+                name: "standoff".to_string(),
+                value: Expr::Num(40.0),
+                value_span: None,
+                trailing_comment: None,
+            },
+            Property {
+                name: "label".to_string(),
+                value: Expr::Str("key".to_string()),
+                value_span: None,
+                trailing_comment: None,
+            },
+        ],
+        modifiers: vec![],
+        children: vec![],
+        span: None,
+    };
+
+    let ast = vec![
+        make_config(),
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(0.0),
+            body: vec![actor("bar__0"), actor("bar__2"), note],
+            span: None,
+        },
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(1.0),
+            body: vec![Stmt::Assignment {
+                target: vec![crate::ast::TargetSegment::Static("note".to_string())],
+                property: "target".to_string(),
+                value: Expr::Index(
+                    Box::new(Expr::Ident("bar".to_string())),
+                    Box::new(Expr::Num(2.0)),
+                ),
+                modifiers: vec![],
+                easing: None,
+                value_span: None,
+                span: None,
+            }],
+            span: None,
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no build diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    let note = timeline.get_track("note").expect("note track should exist");
+    assert_eq!(note.geometry.callout_target.get(0, String::new()), "bar__0");
+    assert_eq!(note.geometry.callout_target.get(1000, String::new()), "bar__2");
+}
+
+#[test]
 fn test_callout_target_mode_seeds_tracks() {
     // Verify that target/place/standoff/to_offset are seeded into tracks
     // when a targeted Callout is declared.
