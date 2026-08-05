@@ -391,47 +391,6 @@ pub enum Command {
 
     // ── Find / Replace ────────────────────────────────────────────────
     FindReplaceAll,
-
-    // ── View / Panel State (panel migration phase) ──────────────────
-    // #[allow(dead_code)] — infrastructure added in P2 for panel migration to
-    // view models + CommandBus. These variants will replace direct mutable
-    // context field access once panels are migrated incrementally.
-    #[allow(dead_code)] // Infrastructure for panel migration to view models + CommandBus (P2)
-    SetTimelineZoom(f32),
-    #[allow(dead_code)] // Infrastructure for panel migration to view models + CommandBus (P2)
-    SetTimelineScroll(f32),
-    #[allow(dead_code)] // Infrastructure for panel migration to view models + CommandBus (P2)
-    SetLoopRegion {
-        start: Option<f64>,
-        end: Option<f64>,
-    },
-    #[allow(dead_code)] // Infrastructure for panel migration to view models + CommandBus (P2)
-    ToggleCollapseActor(String),
-    #[allow(dead_code)] // Infrastructure for panel migration to view models + CommandBus (P2)
-    TogglePropertyLane(String),
-    #[allow(dead_code)] // Infrastructure for panel migration to view models + CommandBus (P2)
-    SetPreviewZoom(f32),
-    #[allow(dead_code)] // Infrastructure for panel migration to view models + CommandBus (P2)
-    SetPreviewZoomCentered {
-        zoom: f32,
-        center_x: f32,
-        center_y: f32,
-    },
-    #[allow(dead_code)] // Infrastructure for panel migration to view models + CommandBus (P2)
-    SetPreviewPan(egui::Vec2),
-    #[allow(dead_code)] // Infrastructure for panel migration to view models + CommandBus (P2)
-    SetToolMode(crate::app::preview::ToolMode),
-    #[allow(dead_code)] // Infrastructure for panel migration to view models + CommandBus (P2)
-    SetSidebarTab(crate::app::panels::SidebarTab),
-    #[allow(dead_code)] // Infrastructure for panel migration to view models + CommandBus (P2)
-    SetPropertyViewMode(crate::app::panels::inspector::PropertyViewMode),
-    #[allow(dead_code)] // Infrastructure for panel migration to view models + CommandBus (P2)
-    SetKeyframeViewMode(crate::app::panels::inspector::KeyframeViewMode),
-    #[allow(dead_code)] // Infrastructure for panel migration to view models + CommandBus (P2)
-    SetPivotOffset {
-        actor: String,
-        offset: [f32; 2],
-    },
 }
 
 /// Horizontal or vertical axis for distribute.

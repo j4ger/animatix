@@ -306,35 +306,6 @@ pub fn handle_rebuild(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    use super::*;
-    use crate::editor::EditorBuffer;
-
-    #[test]
-    fn save_document_reports_error_without_clearing_dirty() {
-        let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
-        let dir = std::env::temp_dir().join(format!(
-            "animatix_save_failure_{}_{}",
-            std::process::id(),
-            unique
-        ));
-        std::fs::create_dir_all(&dir).unwrap();
-        let target = dir.join("scene.amx");
-        std::fs::create_dir_all(&target).unwrap();
-
-        let document = DocumentSession::from_source(target.clone(), "#0s\n".to_string()).unwrap();
-        let editor = EditorBuffer::new(&target, document.source_text.clone());
-        let mut store = DocumentStore::new(document, editor);
-        store.source.document.is_dirty = true;
-
-        assert!(save_document(&mut store).is_err());
-        assert!(store.source.document.is_dirty);
-    }
-}
-
 /// Submit a rebuild request to the background worker.
 pub fn handle_rebuild_submit(
     worker: &mut RebuildWorker,
@@ -385,5 +356,34 @@ pub fn handle_rebuild_response(
             document_store.source.document.apply_rebuild_failure(&failure);
             rebuild_failed(document_store, preview_store, ui_store, &failure.error)
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use super::*;
+    use crate::editor::EditorBuffer;
+
+    #[test]
+    fn save_document_reports_error_without_clearing_dirty() {
+        let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let dir = std::env::temp_dir().join(format!(
+            "animatix_save_failure_{}_{}",
+            std::process::id(),
+            unique
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("scene.amx");
+        std::fs::create_dir_all(&target).unwrap();
+
+        let document = DocumentSession::from_source(target.clone(), "#0s\n".to_string()).unwrap();
+        let editor = EditorBuffer::new(&target, document.source_text.clone());
+        let mut store = DocumentStore::new(document, editor);
+        store.source.document.is_dirty = true;
+
+        assert!(save_document(&mut store).is_err());
+        assert!(store.source.document.is_dirty);
     }
 }

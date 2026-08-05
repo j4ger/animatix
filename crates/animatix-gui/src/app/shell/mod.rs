@@ -373,48 +373,6 @@ impl GuiShell {
 
             // FindReplaceAll is handled in-place by perform_find_replace_all, not dispatched.
             Command::FindReplaceAll => vec![],
-
-            // ── View / Panel State ───────────────────────────────────
-            Command::SetTimelineZoom(zoom) => {
-                ui::handle_set_timeline_zoom(&mut self.preview_store, zoom)
-            },
-            Command::SetTimelineScroll(scroll) => {
-                ui::handle_set_timeline_scroll(&mut self.preview_store, scroll)
-            },
-            Command::SetLoopRegion { start, end } => {
-                ui::handle_set_loop_region(&mut self.preview_store, start, end)
-            },
-            Command::ToggleCollapseActor(actor) => {
-                ui::handle_toggle_collapse_actor(&mut self.ui_store, actor)
-            },
-            Command::TogglePropertyLane(actor) => {
-                ui::handle_toggle_property_lane(&mut self.ui_store, actor)
-            },
-            Command::SetPreviewZoom(zoom) => {
-                ui::handle_set_preview_zoom(&mut self.preview_store, zoom)
-            },
-            Command::SetPreviewZoomCentered {
-                zoom,
-                center_x,
-                center_y,
-            } => ui::handle_set_preview_zoom_centered(
-                &mut self.preview_store,
-                zoom,
-                center_x,
-                center_y,
-            ),
-            Command::SetPreviewPan(pan) => ui::handle_set_preview_pan(&mut self.preview_store, pan),
-            Command::SetToolMode(mode) => ui::handle_set_tool_mode(&mut self.ui_store, mode),
-            Command::SetSidebarTab(tab) => ui::handle_set_sidebar_tab(&mut self.ui_store, tab),
-            Command::SetPropertyViewMode(mode) => {
-                ui::handle_set_property_view_mode(&mut self.ui_store, mode)
-            },
-            Command::SetKeyframeViewMode(mode) => {
-                ui::handle_set_keyframe_view_mode(&mut self.ui_store, mode)
-            },
-            Command::SetPivotOffset { actor, offset } => {
-                ui::handle_set_pivot_offset(&mut self.ui_store, actor, offset)
-            },
         }
     }
 

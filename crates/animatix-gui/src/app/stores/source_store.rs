@@ -18,10 +18,6 @@ pub struct SourceStore {
     pub source_epoch: SourceEpoch,
 
     // ── Cached hot-path allocations ──
-    /// Cached actor labels from the timeline, to avoid re-collecting every frame.
-    pub cached_actor_labels: Vec<String>,
-    /// Cached per-actor keyframe property lists (actor_label, keyframes).
-    pub cached_actor_keyframes: Vec<(String, Vec<(u64, &'static str)>)>,
     /// Cached per-actor world-space hit regions (actor_label, bounds rect).
     pub cached_hit_regions: Vec<(String, Rect)>,
     /// Cached per-actor world-space bounds, keyed by actor label.
@@ -36,8 +32,6 @@ impl SourceStore {
             document,
             editor,
             source_epoch: SourceEpoch::initial(),
-            cached_actor_labels: Vec::new(),
-            cached_actor_keyframes: Vec::new(),
             cached_hit_regions: Vec::new(),
             cached_actor_bounds: HashMap::new(),
             cache_valid: false,
@@ -47,8 +41,6 @@ impl SourceStore {
     /// Mark all cached hot-path data as stale.
     /// Call this whenever the timeline is rebuilt or the document text changes.
     pub fn invalidate_cache(&mut self) {
-        self.cached_actor_labels.clear();
-        self.cached_actor_keyframes.clear();
         self.cached_hit_regions.clear();
         self.cached_actor_bounds.clear();
         self.cache_valid = false;
@@ -108,59 +100,21 @@ impl SourceStore {
     }
 }
 
-/// Rebuild cached actor labels, per-actor keyframe lists, hit regions, and actor
-/// bounds from the timeline.  This is a free function to
-/// avoid borrow conflicts when called from behavior.rs.
+/// Rebuild cached hit regions and actor bounds from the timeline. This is a free
+/// function to avoid borrow conflicts when called from behavior.rs.
 pub fn rebuild_cache(
-    cached_actor_labels: &mut Vec<String>,
-    cached_actor_keyframes: &mut Vec<(String, Vec<(u64, &'static str)>)>,
     cached_hit_regions: &mut Vec<(String, Rect)>,
     cached_actor_bounds: &mut HashMap<String, Rect>,
     cache_valid: &mut bool,
     timeline: Option<&animatix::timeline::Timeline>,
 ) {
-    let labels: Vec<String> =
-        timeline.map(|tl| tl.root_actor_labels().to_vec()).unwrap_or_default();
-    let keyframes: Vec<(String, Vec<(u64, &'static str)>)> = labels
-        .iter()
-        .map(|label| {
-            let props = timeline
-                .and_then(|tl| tl.get_track(label))
-                .map(|track| {
-                    let mut result = Vec::new();
-                    push_kf_props(track, &mut result);
-                    result
-                })
-                .unwrap_or_default();
-            (label.clone(), props)
-        })
-        .collect();
-
     // Populate hit_regions and actor_bounds from the timeline
     let hit_regions: Vec<(String, Rect)> = timeline.map(|tl| tl.hit_regions()).unwrap_or_default();
     let actor_bounds: HashMap<String, Rect> =
         hit_regions.iter().map(|(label, bounds)| (label.clone(), *bounds)).collect();
 
-    *cached_actor_labels = labels;
-    *cached_actor_keyframes = keyframes;
     *cached_hit_regions = hit_regions;
     *cached_actor_bounds = actor_bounds;
 
     *cache_valid = true;
-}
-
-// ── Helper: push keyframe times for all animated properties on a track ──
-fn push_kf_props(
-    track: &animatix::timeline::AnimationTrack,
-    result: &mut Vec<(u64, &'static str)>,
-) {
-    let indices = animatix::timeline::allowed_property_indices(track.kind);
-    for idx in indices {
-        let schema = &animatix::timeline::PROPERTY_REGISTRY[idx];
-        for ms in animatix::timeline::property_keyframe_times(track, schema.field) {
-            result.push((ms, schema.name));
-        }
-    }
-    result.sort_by_key(|(ms, _)| *ms);
-    result.dedup_by(|a, b| a.0 == b.0);
 }

@@ -28,9 +28,7 @@ use crate::app::PreviewPaneState;
 use crate::app::commands::{ActionQueue, Command, PlaybackCommand, ShellAction};
 use crate::app::components::button::{self, Button, toolbar_separator};
 use crate::app::components::layout;
-use crate::app::design_tokens::semantic::{
-    accent, border, category, status, surface, text, timeline,
-};
+use crate::app::design_tokens::semantic::{category, timeline};
 use crate::app::design_tokens::spatial::timeline::KF_HALF as KF_DIAMOND_HALF;
 use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
@@ -40,12 +38,8 @@ use crate::app::design_tokens::typography::TextRole;
 enum PropertyGroup {
     Transform,
     Style,
-    #[allow(dead_code)] // Reserved for future filter property lanes
-    Filter,
     Shape,
     Text,
-    #[allow(dead_code)] // Reserved for future layout property lanes
-    Layout,
 }
 
 const PROPERTY_GROUPS: &[(PropertyGroup, &str, &[&str])] = &[
@@ -105,16 +99,6 @@ const PROPERTY_GROUPS: &[(PropertyGroup, &str, &[&str])] = &[
     ),
 ];
 
-#[allow(dead_code)] // Reserved for future property lane group headers
-fn property_group_name(prop: &str) -> Option<&'static str> {
-    for (_, group_name, props) in PROPERTY_GROUPS {
-        if props.contains(&prop) {
-            return Some(group_name);
-        }
-    }
-    None
-}
-
 fn property_group_for_prop(prop: &str) -> Option<PropertyGroup> {
     for (group, _, props) in PROPERTY_GROUPS {
         if props.contains(&prop) {
@@ -124,14 +108,12 @@ fn property_group_for_prop(prop: &str) -> Option<PropertyGroup> {
     None
 }
 
-fn property_group_color(group: PropertyGroup) -> Color32 {
+fn property_group_color(group: PropertyGroup, theme: eparts::Theme) -> Color32 {
     match group {
-        PropertyGroup::Transform => accent::PRIMARY,
-        PropertyGroup::Style => status::SUCCESS,
-        PropertyGroup::Filter => category::ACTION,
-        PropertyGroup::Shape => status::WARNING,
-        PropertyGroup::Text => accent::CYAN,
-        PropertyGroup::Layout => accent::PRIMARY,
+        PropertyGroup::Transform => theme.accent.primary,
+        PropertyGroup::Style => theme.status.success,
+        PropertyGroup::Shape => theme.status.warning,
+        PropertyGroup::Text => theme.accent.cyan,
     }
 }
 
@@ -139,18 +121,10 @@ pub(crate) struct TimelineContext<'a> {
     pub preview: &'a mut PreviewPaneState,
     pub timeline: Option<&'a Timeline>,
     pub composition: Option<&'a Composition>,
-    #[allow(dead_code)] // Kept for future composition workrange display
-    pub active_scene: Option<&'a str>,
     pub commands: &'a mut ActionQueue,
     pub collapsed_actors: &'a mut HashSet<String>,
     pub expanded_properties: &'a mut HashSet<String>,
     pub selected_actors: &'a mut HashSet<String>,
-    /// Cached actor labels (recomputed in behavior.rs when stale).
-    #[allow(dead_code)] // Reserved for future search/filter in timeline
-    pub actor_labels: &'a [String],
-    /// Cached per-actor keyframe property lists.
-    #[allow(dead_code)] // Reserved for future per-actor keyframe count display
-    pub actor_keyframes: &'a [(String, Vec<(u64, &'static str)>)],
     /// Cached per-scene keyframe time positions (for density strip rendering).
     pub scene_keyframe_times: &'a HashMap<String, Vec<f64>>,
     pub snap_fps: f32,
@@ -167,15 +141,15 @@ pub(crate) fn timeline_panel_ui(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui
 // Width of the track label column on the left.
 // (Imported via spatial::timeline at the top of the file)
 
-fn action_category_color(cat: animatix::timeline::ActionCategory) -> Color32 {
+fn action_category_color(cat: animatix::timeline::ActionCategory, theme: eparts::Theme) -> Color32 {
     use animatix::timeline::ActionCategory;
     match cat {
-        ActionCategory::Entrance => status::SUCCESS,
-        ActionCategory::Motion => accent::PRIMARY,
-        ActionCategory::Exit => status::ERROR,
-        ActionCategory::Effect => status::WARNING,
+        ActionCategory::Entrance => theme.status.success,
+        ActionCategory::Motion => theme.accent.primary,
+        ActionCategory::Exit => theme.status.error,
+        ActionCategory::Effect => theme.status.warning,
         ActionCategory::Reorder => category::ACTION,
-        ActionCategory::Reveal => accent::CYAN,
+        ActionCategory::Reveal => theme.accent.cyan,
     }
 }
 
@@ -343,6 +317,7 @@ fn render_transport_strip(
     preview: &mut PreviewPaneState,
     commands: &mut ActionQueue,
 ) {
+    let theme = eparts::theme(ui);
     let sp = crate::app::design_tokens::spatial::spatial(ui);
     let strip_rect = Rect::from_min_size(
         Pos2::new(scroll_rect.left(), strip_top),
@@ -357,7 +332,7 @@ fn render_transport_strip(
                 Pos2::new(scroll_rect.right(), strip_bot),
             ),
             0.0,
-            surface::BASE,
+            theme.surface.base,
         );
 
         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
@@ -455,7 +430,7 @@ fn render_transport_strip(
                 RichText::new(SPEEDS[si].1)
                     .monospace()
                     .size(TextRole::BodyS.size())
-                    .color(text::SECONDARY),
+                    .color(theme.text.secondary),
                 |ui| {
                     for (speed, label) in &SPEEDS {
                         let is_active =
@@ -515,7 +490,7 @@ fn render_transport_strip(
                     egui::RichText::new(zoom_text)
                         .monospace()
                         .size(TextRole::BodyS.size())
-                        .color(text::SECONDARY),
+                        .color(theme.text.secondary),
                 )
                 .on_hover_text("Reset zoom")
                 .clicked()
@@ -569,7 +544,7 @@ fn render_transport_strip(
                             current_tc, duration_tc, fps_val
                         ))
                         .font(TextRole::Mono.font_id())
-                        .color(text::PRIMARY),
+                        .color(theme.text.primary),
                     )
                     .selectable(false),
                 );
@@ -584,22 +559,20 @@ fn render_transport_strip(
             Pos2::new(scroll_rect.left(), strip_bot - 1.0),
             Pos2::new(scroll_rect.right(), strip_bot - 1.0),
         ],
-        Stroke::new(STROKE_WIDTH, border::DEFAULT),
+        Stroke::new(STROKE_WIDTH, theme.border.default),
     );
 }
 
 fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
+    let theme = eparts::theme(ui);
     let TimelineContext {
         preview,
         timeline,
         composition,
-        active_scene: _,
         commands,
         collapsed_actors,
         expanded_properties,
         selected_actors,
-        actor_labels: _,
-        actor_keyframes: _,
         scene_keyframe_times,
         ..
     } = ctx;
@@ -661,8 +634,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         ui.data(|d| d.get_temp(kf_multi_select_id)).unwrap_or_default();
     let shift_held = ui.input(|i| i.modifiers.shift);
 
-    // actor_labels and actor_keyframes are precomputed by behavior.rs but we
-    // compute the actor tree directly from the timeline for correctness.
+    // The actor tree is computed directly from the timeline for correctness.
 
     // ── Helper: draw loop region (function, not closure, to avoid borrow conflicts) ──
     fn draw_loop_region(
@@ -694,6 +666,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         composition: &Composition,
         track_rect: egui::Rect,
         time_to_x: &dyn Fn(f64) -> f32,
+        theme: eparts::Theme,
         label_color: Color32,
         duration_s: f64,
         scene_keyframe_times: &HashMap<String, Vec<f64>>,
@@ -741,7 +714,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     if kf_x >= sr.left() && kf_x <= sr.right() {
                         painter.line_segment(
                             [Pos2::new(kf_x, strip_y), Pos2::new(kf_x, strip_y + strip_h)],
-                            Stroke::new(1.0, accent::PRIMARY),
+                            Stroke::new(1.0, theme.accent.primary),
                         );
                     }
                 }
@@ -937,7 +910,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     Pos2::new(scroll_rect.right(), ruler_bot),
                 ),
                 0.0,
-                surface::SURFACE,
+                theme.surface.surface,
             );
             painter.rect_filled(
                 Rect::from_min_max(
@@ -945,7 +918,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     Pos2::new(bar_origin_x, ruler_bot),
                 ),
                 0.0,
-                surface::BASE,
+                theme.surface.base,
             );
 
             let tick_step = if visible_s <= 2.0 {
@@ -965,7 +938,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 if x >= bar_origin_x && x <= bar_origin_x + bar_width {
                     painter.line_segment(
                         [Pos2::new(x, ruler_bot - 6.0), Pos2::new(x, ruler_bot)],
-                        Stroke::new(STROKE_WIDTH, border::DEFAULT),
+                        Stroke::new(STROKE_WIDTH, theme.border.default),
                     );
                     painter.text(
                         Pos2::new(x, ruler_top + sp.timeline.ruler_height * 0.35),
@@ -976,7 +949,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             format!("{:.1}s", t)
                         },
                         FontId::monospace(10.0), // 10px mono: no TextRole
-                        text::MUTED,
+                        theme.text.muted,
                     );
                 }
                 t += tick_step;
@@ -1002,13 +975,13 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 Pos2::new(scroll_rect.left(), st_top),
                 Pos2::new(bar_origin_x, st_bot),
             );
-            painter.rect_filled(label_rect, 0.0, surface::BASE);
+            painter.rect_filled(label_rect, 0.0, theme.surface.base);
             painter.text(
                 Pos2::new(scroll_rect.left() + sp.base.space_2, (st_top + st_bot) / 2.0),
                 Align2::LEFT_CENTER,
                 format!("{} Scenes", egui_phosphor::regular::FILM_STRIP),
                 TextRole::BodyS.font_id(),
-                text::MUTED,
+                theme.text.muted,
             );
 
             let bar_area = Rect::from_min_max(
@@ -1027,7 +1000,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 comp,
                 bar_area,
                 &time_to_x,
-                text::dim(),
+                theme,
+                theme.text.dim,
                 duration_s,
                 scene_keyframe_times,
             );
@@ -1050,7 +1024,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                         painter.rect_stroke(
                             ghost_rect,
                             2.0,
-                            Stroke::new(1.5, accent::PRIMARY),
+                            Stroke::new(1.5, theme.accent.primary),
                             egui::StrokeKind::Outside,
                         );
                         if ghost_rect.width() > 24.0 {
@@ -1059,7 +1033,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                 Align2::CENTER_CENTER,
                                 drag_name.as_str(),
                                 FontId::monospace(10.0), // 10px mono: no TextRole
-                                accent::PRIMARY,
+                                theme.accent.primary,
                             );
                         }
                     }
@@ -1085,7 +1059,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 // Draw edge arrow line
                 painter.line_segment(
                     [Pos2::new(src_right, cy), Pos2::new(tgt_left, cy)],
-                    Stroke::new(STROKE_WIDTH, text::MUTED),
+                    Stroke::new(STROKE_WIDTH, theme.text.muted),
                 );
                 painter.add(egui::Shape::convex_polygon(
                     vec![
@@ -1093,7 +1067,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                         Pos2::new(tgt_left - 4.0, cy - 2.5),
                         Pos2::new(tgt_left - 4.0, cy + 2.5),
                     ],
-                    text::MUTED,
+                    theme.text.muted,
                     Stroke::NONE,
                 ));
 
@@ -1113,8 +1087,12 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 };
 
                 // Badge background circle
-                painter.circle_filled(Pos2::new(mid_x, cy), badge_r, surface::SURFACE);
-                painter.circle_stroke(Pos2::new(mid_x, cy), badge_r, Stroke::new(1.0, text::MUTED));
+                painter.circle_filled(Pos2::new(mid_x, cy), badge_r, theme.surface.surface);
+                painter.circle_stroke(
+                    Pos2::new(mid_x, cy),
+                    badge_r,
+                    Stroke::new(1.0, theme.text.muted),
+                );
 
                 // Badge icon text
                 painter.text(
@@ -1122,7 +1100,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     Align2::CENTER_CENTER,
                     icon,
                     FontId::monospace(10.0), // 10px mono: no TextRole
-                    text::PRIMARY,
+                    theme.text.primary,
                 );
 
                 // Tooltip on hover
@@ -1241,14 +1219,14 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     Pos2::new(playhead_x, bar_area.top() - 2.0),
                     Pos2::new(playhead_x, bar_area.bottom() + 2.0),
                 ],
-                Stroke::new(1.5, text::PRIMARY),
+                Stroke::new(1.5, theme.text.primary),
             );
             painter.line_segment(
                 [
                     Pos2::new(scroll_rect.left(), st_bot),
                     Pos2::new(scroll_rect.right(), st_bot),
                 ],
-                Stroke::new(STROKE_WIDTH, border::DEFAULT),
+                Stroke::new(STROKE_WIDTH, theme.border.default),
             );
         }
 
@@ -1274,10 +1252,10 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
 
             // Selection highlight
             if is_selected {
-                painter.rect_filled(track_rect, 0.0, accent::selection());
+                painter.rect_filled(track_rect, 0.0, theme.accent.selection);
                 let accent =
                     Rect::from_min_size(track_rect.min, Vec2::new(2.0, track_rect.height()));
-                painter.rect_filled(accent, 0.0, accent::PRIMARY);
+                painter.rect_filled(accent, 0.0, theme.accent.primary);
             }
 
             // Label column background
@@ -1287,7 +1265,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     Pos2::new(bar_origin_x, at_bot),
                 ),
                 0.0,
-                surface::BASE,
+                theme.surface.base,
             );
 
             // Indent based on depth
@@ -1316,9 +1294,9 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     chevron_icon,
                     TextRole::BodyS.font_id(),
                     if chevron_resp.hovered() {
-                        text::PRIMARY
+                        theme.text.primary
                     } else {
-                        text::MUTED
+                        theme.text.muted
                     },
                 );
                 if chevron_resp.clicked() {
@@ -1348,9 +1326,9 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 egui_phosphor::regular::LIST,
                 TextRole::Micro.font_id(),
                 if prop_expanded {
-                    accent::PRIMARY
+                    theme.accent.primary
                 } else {
-                    text::MUTED
+                    theme.text.muted
                 },
             );
             if prop_toggle_resp.clicked() {
@@ -1374,9 +1352,9 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 &label_text,
                 TextRole::BodyS.font_id(),
                 if is_selected {
-                    text::PRIMARY
+                    theme.text.primary
                 } else {
-                    text::SECONDARY
+                    theme.text.secondary
                 },
             );
 
@@ -1433,7 +1411,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             Pos2::new(left.max(bar_area.left()), bar_area.top() + 3.0),
                             Pos2::new(right.min(bar_area.right()), bar_area.bottom() - 3.0),
                         );
-                        let color = action_category_color(event.category);
+                        let color = action_category_color(event.category, theme);
 
                         // Check if this block is being dragged
                         let is_action_drag =
@@ -1453,7 +1431,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                 br.right_bottom(),
                             );
                             let handle_color = if is_action_drag {
-                                accent::PRIMARY
+                                theme.accent.primary
                             } else {
                                 color.linear_multiply(0.7)
                             };
@@ -1469,7 +1447,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             Stroke::new(
                                 if is_action_drag { 2.0 } else { STROKE_WIDTH },
                                 if is_action_drag {
-                                    accent::PRIMARY
+                                    theme.accent.primary
                                 } else {
                                     color
                                 },
@@ -1482,7 +1460,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                 Align2::CENTER_CENTER,
                                 &event.verb,
                                 FontId::monospace(10.0), // 10px mono: no TextRole
-                                text::PRIMARY,
+                                theme.text.primary,
                             );
                         }
 
@@ -1529,7 +1507,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                                     Pos2::new(new_end_x, br.top()),
                                                     Pos2::new(new_end_x, br.bottom()),
                                                 ],
-                                                Stroke::new(2.0, accent::PRIMARY),
+                                                Stroke::new(2.0, theme.accent.primary),
                                             );
                                             let new_dur = (orig_dur + dt).max(0.1);
                                             let dur_text = if new_dur < 1.0 {
@@ -1542,7 +1520,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                                 Align2::CENTER_BOTTOM,
                                                 dur_text,
                                                 FontId::monospace(10.0), // 10px mono: no TextRole
-                                                accent::PRIMARY,
+                                                theme.accent.primary,
                                             );
                                         },
                                         Edge::Left => {
@@ -1552,7 +1530,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                                     Pos2::new(new_start_x, br.top()),
                                                     Pos2::new(new_start_x, br.bottom()),
                                                 ],
-                                                Stroke::new(2.0, accent::PRIMARY),
+                                                Stroke::new(2.0, theme.accent.primary),
                                             );
                                         },
                                     }
@@ -1634,11 +1612,11 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                         let kc = if is_flashed {
                             timeline::KF_FLASH
                         } else if is_ms {
-                            accent::PRIMARY
+                            theme.accent.primary
                         } else if is_act {
-                            text::PRIMARY
+                            theme.text.primary
                         } else {
-                            status::WARNING
+                            theme.status.warning
                         };
                         let cy = bar_area.center().y;
                         let hit_size = (ds * 2.5).max(8.0);
@@ -1755,19 +1733,22 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                         Pos2::new(gx, bar_area.top()),
                                         Pos2::new(gx, bar_area.bottom()),
                                     ],
-                                    Stroke::new(STROKE_WIDTH, status::WARNING.linear_multiply(0.5)),
+                                    Stroke::new(
+                                        STROKE_WIDTH,
+                                        theme.status.warning.linear_multiply(0.5),
+                                    ),
                                 );
                                 let g = painter.layout_no_wrap(
                                     format!("{:.2}s → {:.2}s", kf_s, snapped),
                                     FontId::monospace(10.0), // 10px mono: no TextRole
-                                    text::PRIMARY,
+                                    theme.text.primary,
                                 );
                                 let tr = Rect::from_min_size(
                                     Pos2::new(gx - g.size().x / 2.0, bar_area.top() - 16.0),
                                     g.size() + Vec2::new(8.0, 4.0),
                                 );
-                                painter.rect_filled(tr, RADIUS_S, surface::SURFACE);
-                                painter.galley(tr.min + Vec2::new(4.0, 2.0), g, text::PRIMARY);
+                                painter.rect_filled(tr, RADIUS_S, theme.surface.surface);
+                                painter.galley(tr.min + Vec2::new(4.0, 2.0), g, theme.text.primary);
                             }
                         }
                         if dresp.drag_stopped() && is_drag {
@@ -1848,7 +1829,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     Pos2::new(playhead_x, bar_area.top()),
                     Pos2::new(playhead_x, bar_area.bottom()),
                 ],
-                Stroke::new(STROKE_WIDTH, text::faint()),
+                Stroke::new(STROKE_WIDTH, theme.text.faint),
             );
 
             // Track separator
@@ -1857,7 +1838,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     Pos2::new(scroll_rect.left(), at_bot),
                     Pos2::new(scroll_rect.right(), at_bot),
                 ],
-                Stroke::new(STROKE_WIDTH, border::DEFAULT),
+                Stroke::new(STROKE_WIDTH, theme.border.default),
             );
 
             // Advance y past the main track
@@ -1888,14 +1869,15 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                     Pos2::new(bar_origin_x, prop_bot),
                                 ),
                                 0.0,
-                                surface::BASE,
+                                theme.surface.base,
                             );
 
                             // Property label (indented deeper than actor label)
                             let prop_indent = *depth as f32 * 14.0 + 18.0;
                             let group = property_group_for_prop(prop_name);
-                            let group_col =
-                                group.map(property_group_color).unwrap_or(status::WARNING);
+                            let group_col = group
+                                .map(|g| property_group_color(g, theme))
+                                .unwrap_or(theme.status.warning);
 
                             // Small colored dot indicator
                             let dot_x = scroll_rect.left() + sp.base.space_2 + prop_indent;
@@ -1911,7 +1893,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                 Align2::LEFT_CENTER,
                                 *prop_name,
                                 TextRole::Micro.font_id(),
-                                text::MUTED,
+                                theme.text.muted,
                             );
 
                             // Keyframe diamonds for this property
@@ -1941,12 +1923,13 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                 } else {
                                     KF_DIAMOND_HALF
                                 };
-                                let base_color =
-                                    group.map(property_group_color).unwrap_or(status::WARNING);
+                                let base_color = group
+                                    .map(|g| property_group_color(g, theme))
+                                    .unwrap_or(theme.status.warning);
                                 let kc = if is_flashed {
                                     timeline::KF_FLASH
                                 } else if is_act {
-                                    text::PRIMARY
+                                    theme.text.primary
                                 } else {
                                     base_color
                                 };
@@ -2033,7 +2016,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                     Pos2::new(playhead_x, prop_bar_area.top()),
                                     Pos2::new(playhead_x, prop_bar_area.bottom()),
                                 ],
-                                Stroke::new(STROKE_WIDTH, text::faint()),
+                                Stroke::new(STROKE_WIDTH, theme.text.faint),
                             );
 
                             // Property lane separator
@@ -2042,7 +2025,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                     Pos2::new(scroll_rect.left(), prop_bot),
                                     Pos2::new(scroll_rect.right(), prop_bot),
                                 ],
-                                Stroke::new(STROKE_WIDTH, border::DEFAULT),
+                                Stroke::new(STROKE_WIDTH, theme.border.default),
                             );
 
                             current_y = prop_bot;
@@ -2060,14 +2043,14 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     Pos2::new(bar_origin_x, rs_bot),
                 ),
                 0.0,
-                surface::BASE,
+                theme.surface.base,
             );
             painter.text(
                 Pos2::new(scroll_rect.left() + sp.base.space_2, (rs_top + rs_bot) / 2.0),
                 Align2::LEFT_CENTER,
                 "Region",
                 TextRole::Micro.font_id(),
-                text::MUTED,
+                theme.text.muted,
             );
 
             let range_bar = Rect::from_min_max(
@@ -2077,7 +2060,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
             let loop_active =
                 preview.playback.loop_start_s.is_some() && preview.playback.loop_end_s.is_some();
 
-            painter.rect_filled(range_bar, RADIUS_S, surface::WIDGET);
+            painter.rect_filled(range_bar, RADIUS_S, theme.surface.widget);
 
             if loop_active {
                 // Loop is active — show draggable range handles
@@ -2093,7 +2076,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             Pos2::new(wy, range_bar.bottom() - 2.0),
                         ),
                         RADIUS_S,
-                        accent::PRIMARY.linear_multiply(0.3),
+                        theme.accent.primary.linear_multiply(0.3),
                     );
                 }
 
@@ -2107,7 +2090,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                         preview.playback.loop_start_s = Some(x_to_time(pos.x).min(end - 0.05));
                     }
                 }
-                painter.rect_filled(sh, RADIUS_S, accent::PRIMARY);
+                painter.rect_filled(sh, RADIUS_S, theme.accent.primary);
 
                 let eh = Rect::from_center_size(Pos2::new(wy, range_bar.center().y), hs);
                 let er = ui.interact(eh, ui.id().with("range_end_handle"), Sense::click_and_drag());
@@ -2117,7 +2100,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                         preview.playback.loop_end_s = Some(x_to_time(pos.x).max(start + 0.05));
                     }
                 }
-                painter.rect_filled(eh, RADIUS_S, accent::PRIMARY);
+                painter.rect_filled(eh, RADIUS_S, theme.accent.primary);
 
                 // Reciprocal enforcement: ensure end > start + 0.05
                 if let (Some(ls), Some(le)) =
@@ -2134,7 +2117,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 painter.rect_filled(
                     range_bar.shrink2(Vec2::new(0.0, 2.0)),
                     RADIUS_S,
-                    surface::WIDGET,
+                    theme.surface.widget,
                 );
                 let mid = range_bar.center();
                 painter.text(
@@ -2142,7 +2125,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     Align2::CENTER_CENTER,
                     "Enable loop to set region",
                     FontId::monospace(10.0), // 10px mono: no TextRole
-                    text::MUTED,
+                    theme.text.muted,
                 );
             }
         }
@@ -2154,7 +2137,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     Pos2::new(playhead_x, ruler_top),
                     Pos2::new(playhead_x, content_bottom),
                 ],
-                Stroke::new(1.5, status::WARNING),
+                Stroke::new(1.5, theme.status.warning),
             );
         } else if playhead_x < bar_origin_x {
             // Off-screen to the left: draw left-pointing arrow at visible edge
@@ -2166,7 +2149,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     Pos2::new(tip_x - 6.0, tip_y),
                     Pos2::new(tip_x, tip_y + 4.0),
                 ],
-                status::WARNING,
+                theme.status.warning,
                 Stroke::NONE,
             ));
         } else if playhead_x > bar_origin_x + bar_width {
@@ -2179,7 +2162,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     Pos2::new(tip_x + 6.0, tip_y),
                     Pos2::new(tip_x, tip_y + 4.0),
                 ],
-                status::WARNING,
+                theme.status.warning,
                 Stroke::NONE,
             ));
         }
@@ -2224,7 +2207,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         ui.painter().rect_stroke(
             scroll_rect,
             0.0,
-            Stroke::new(STROKE_WIDTH, border::DEFAULT),
+            Stroke::new(STROKE_WIDTH, theme.border.default),
             egui::StrokeKind::Inside,
         );
     });

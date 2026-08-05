@@ -78,7 +78,7 @@ mod tests {
 
         assert!(matches!(
             store.export_status,
-            ExportStatus::Complete { path } if path == PathBuf::from("out.png")
+            ExportStatus::Complete { path } if path.as_path() == std::path::Path::new("out.png")
         ));
         assert!(store.export_thread.is_none());
     }

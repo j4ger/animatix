@@ -4,7 +4,6 @@ use egui::{Color32, Rect, Stroke, Visuals};
 use egui_tiles::{Behavior, SimplificationOptions, TileId, UiResponse};
 
 use crate::app::commands::ActionQueue;
-use crate::app::design_tokens::semantic::accent;
 use crate::app::design_tokens::spatial::timeline::RULER_HEIGHT as TIMELINE_RULER_HEIGHT;
 use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::app::panels::{editor, inspector, preview_panel, sidebar, timeline_panel};
@@ -138,8 +137,6 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                 // Populate hot-path caches if stale (use free fn to avoid borrow conflict)
                 if !self.document_store.source.cache_valid {
                     crate::app::source_store::rebuild_cache(
-                        &mut self.document_store.source.cached_actor_labels,
-                        &mut self.document_store.source.cached_actor_keyframes,
                         &mut self.document_store.source.cached_hit_regions,
                         &mut self.document_store.source.cached_actor_bounds,
                         &mut self.document_store.source.cache_valid,
@@ -185,13 +182,10 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     preview: &mut self.preview_store.preview,
                     timeline: resolved_timeline,
                     composition: self.document_store.source.document.composition.as_ref(),
-                    active_scene: self.document_store.source.document.active_scene.as_deref(),
                     commands: self.commands,
                     collapsed_actors: self.collapsed_actors,
                     expanded_properties: self.expanded_properties,
                     selected_actors: self.selected_actors,
-                    actor_labels: &self.document_store.source.cached_actor_labels,
-                    actor_keyframes: &self.document_store.source.cached_actor_keyframes,
                     scene_keyframe_times: &scene_keyframe_times,
                     snap_fps: self.snap_fps,
                     timeline_focused: self.timeline_focused,
@@ -280,21 +274,22 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
     }
 
     fn resize_stroke(&self, style: &egui::Style, resize_state: egui_tiles::ResizeState) -> Stroke {
+        let accent = style.visuals.hyperlink_color;
         match resize_state {
             egui_tiles::ResizeState::Idle => {
                 Stroke::new(STROKE_WIDTH, style.visuals.widgets.noninteractive.bg_stroke.color)
             },
-            egui_tiles::ResizeState::Hovering => Stroke::new(STROKE_WIDTH, accent::PRIMARY),
-            egui_tiles::ResizeState::Dragging => Stroke::new(STROKE_WIDTH, accent::PRIMARY),
+            egui_tiles::ResizeState::Hovering => Stroke::new(STROKE_WIDTH, accent),
+            egui_tiles::ResizeState::Dragging => Stroke::new(STROKE_WIDTH, accent),
         }
     }
 
-    fn drag_preview_stroke(&self, _visuals: &Visuals) -> Stroke {
-        Stroke::new(STROKE_WIDTH, accent::PRIMARY)
+    fn drag_preview_stroke(&self, visuals: &Visuals) -> Stroke {
+        Stroke::new(STROKE_WIDTH, visuals.hyperlink_color)
     }
 
-    fn drag_preview_color(&self, _visuals: &Visuals) -> Color32 {
-        accent::faint()
+    fn drag_preview_color(&self, visuals: &Visuals) -> Color32 {
+        visuals.selection.bg_fill
     }
 
     fn paint_on_top_of_tile(
