@@ -24,6 +24,10 @@ themes, CI platform parity, and `StyledExt` helpers.
 
 | Item | Status / Notes |
 |------|----------------|
+| Migrate remaining GUI panels to runtime theme | Open; editor, completion popup, toolbar, sidebar, and main shell dialogs are done. Inspector, timeline, preview overlays, export, insertion palette, and remaining sub-panels still use static dark tokens. |
+| Replace remaining raw font-size bypasses | Open; welcome, completion popup, and cell editor are fixed. Timeline, preview overlays, sidebar sub-actions, and other surfaces still use raw `FontId`/`.size()` values. |
+| Restore dev screenshot/visual regression harness | Open; the old `dev-screenshots` feature was removed. Without it, theme and layout regressions remain invisible to CI. |
+| Clean up dead timeline/panel scaffolding | Open; filter/layout lanes, search/keyframe-count cache fields, and unused panel migration targets should be removed or wired. |
 | Opportunistic eparts widget adoption | Open, not scheduled; migrate when the surrounding GUI area is next edited. |
 | Verify `Theme::light()` contrast matrix | Open; needs WCAG AA verification for all text/background pairs. |
 

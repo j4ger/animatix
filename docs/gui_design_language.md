@@ -885,6 +885,9 @@ implementation.
   are shipped.
 
 **Remaining / verify:**
+- Finish runtime-theme migration for inspector, timeline, preview overlays, export, insertion palette, and remaining sub-panels.
+- Replace remaining raw font-size/`FontId` bypasses with `TextRole`.
+- Restore a dev screenshot/visual-regression harness so theme and layout changes are visible to CI.
 - Verify the light-theme contrast matrix against WCAG AA (4.5:1) for
   `Theme::light()` values.
 - Opportunistic eparts widget adoption is not scheduled; migrate as surrounding GUI files are next edited.

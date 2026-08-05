@@ -642,10 +642,11 @@ library in the app. State as of commit `5ef1565f`:
   `request_focus` + arrow-key filtered-nav that `TextField`/`SearchableList` would disrupt. High friction,
   low gain.
 
-**Remaining low-value GUI adoption (opportunistic, do when the area is next touched — NOT scheduled):**
-- ~40 GUI files still read const `design_tokens::` directly. This is harmless: those consts resolve
-  through the runtime `Theme` (the GUI re-exports eparts roles), so the app is already theme-complete.
-  Converting reads to `eparts::theme(ui)` is cosmetic; do it opportunistically.
+**Remaining GUI adoption (tracked in `docs/roadmap.md`):**
+- The 2026-08-05 GUI audit corrected an earlier assumption: static `design_tokens::` const reads were
+  not cosmetic. They kept custom panels dark even when light mode was selected. Editor, completion
+  popup, toolbar, sidebar, and main shell dialogs now read `eparts::theme(ui)`; inspector, timeline,
+  preview overlays, export, insertion palette, and remaining sub-panels are still pending.
 - Inline status banners → `Alert`; counts → `Badge`/`Tag`; inspector section grouping → `Collapsible`/
   `GroupBox`; raw `on_hover_text` → `Tooltip` with grace period — adopt as those files are edited.
 
