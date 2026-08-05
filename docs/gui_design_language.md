@@ -884,15 +884,23 @@ implementation.
   `preview/gesture.rs` and extracted drag-mode handlers in `preview/gestures/`
   are shipped.
 
+**Visual verification:**
+- Run `bash scripts/gui-screenshots.sh` to render dark/light PNGs for the eparts
+  component overview, buttons, rows, cards, section headers, fields, empty
+  states, and theme palette into `target/gui-screenshots/`.
+- The underlying binary is bounded: it captures one screenshot and exits, and
+  the script wraps it with `timeout 45s`. Use `xvfb-run` when no display is
+  available.
+
 **Remaining / verify:**
-- Finish runtime-theme migration for inspector, timeline, preview overlays, export, insertion palette, and remaining sub-panels.
-- Replace remaining raw font-size/`FontId` bypasses with `TextRole`.
-- Restore a dev screenshot/visual-regression harness so theme and layout changes are visible to CI.
 - Verify the light-theme contrast matrix against WCAG AA (4.5:1) for
   `Theme::light()` values.
 - Opportunistic eparts widget adoption is not scheduled; migrate as surrounding GUI files are next edited.
 
 **Completed since the original audit:**
+- All custom GUI panels read `eparts::theme(ui)` or theme-aware egui visuals; static generic color constants are no longer used by render paths.
+- Raw `FontId`/numeric `.size()` bypasses were replaced with `TextRole`.
+- Restored a bounded `dev-screenshots` harness with `widget-screenshot` and `scripts/gui-screenshots.sh`.
 - Inspector property fields and Settings migrated to eparts `Form`/`Field` and input widgets.
 - Toolbar shortcut hints and the shortcut cheat sheet derive from `SHORTCUT_REGISTRY`.
 - `ButtonVariant::Danger` is exposed and themed.

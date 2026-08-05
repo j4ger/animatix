@@ -24,10 +24,10 @@ themes, CI platform parity, and `StyledExt` helpers.
 
 | Item | Status / Notes |
 |------|----------------|
-| Migrate remaining GUI panels to runtime theme | Open; editor, completion popup, toolbar, sidebar, and main shell dialogs are done. Inspector, timeline, preview overlays, export, insertion palette, and remaining sub-panels still use static dark tokens. |
-| Replace remaining raw font-size bypasses | Open; welcome, completion popup, and cell editor are fixed. Timeline, preview overlays, sidebar sub-actions, and other surfaces still use raw `FontId`/`.size()` values. |
-| Restore dev screenshot/visual regression harness | Open; the old `dev-screenshots` feature was removed. Without it, theme and layout regressions remain invisible to CI. |
-| Clean up dead timeline/panel scaffolding | Open; filter/layout lanes, search/keyframe-count cache fields, and unused panel migration targets should be removed or wired. |
+| Runtime-theme migration for custom GUI surfaces | Done; all custom GUI panels now read `eparts::theme(ui)` or theme-aware egui visuals instead of static generic token constants. App-specific palette roles (`category`, `timeline`, `canvas`, `curve`) remain intentionally fixed. |
+| Replace raw font-size bypasses | Done; the last raw `FontId::new` in highlighting now uses `TextRole::Mono`, and numeric `.size()` bypasses are gone from GUI code. |
+| Restore dev screenshot/visual regression harness | Done; `dev-screenshots` feature, `widget-screenshot` binary, and `scripts/gui-screenshots.sh` render bounded theme-aware PNGs. |
+| Clean up dead timeline/panel scaffolding | Done; filter/layout property lane variants, unused `property_group_name`, timeline actor label/keyframe caches, and unwired view/panel command variants were removed. Remaining `#[allow(dead_code)]` entries have concrete forward-looking justifications. |
 | Opportunistic eparts widget adoption | Open, not scheduled; migrate when the surrounding GUI area is next edited. |
 | Verify `Theme::light()` contrast matrix | Open; needs WCAG AA verification for all text/background pairs. |
 

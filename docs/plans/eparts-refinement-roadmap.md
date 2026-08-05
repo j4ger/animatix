@@ -644,9 +644,8 @@ library in the app. State as of commit `5ef1565f`:
 
 **Remaining GUI adoption (tracked in `docs/roadmap.md`):**
 - The 2026-08-05 GUI audit corrected an earlier assumption: static `design_tokens::` const reads were
-  not cosmetic. They kept custom panels dark even when light mode was selected. Editor, completion
-  popup, toolbar, sidebar, and main shell dialogs now read `eparts::theme(ui)`; inspector, timeline,
-  preview overlays, export, insertion palette, and remaining sub-panels are still pending.
+  not cosmetic. They kept custom panels dark even when light mode was selected. That migration is now
+  complete: every custom GUI panel reads `eparts::theme(ui)` or theme-aware egui visuals.
 - Inline status banners → `Alert`; counts → `Badge`/`Tag`; inspector section grouping → `Collapsible`/
   `GroupBox`; raw `on_hover_text` → `Tooltip` with grace period — adopt as those files are edited.
 
@@ -654,8 +653,9 @@ library in the app. State as of commit `5ef1565f`:
 until the second app firms up or capacity opens; recommended ordering is listed above.
 
 **Verification baseline (current, post GUI-adoption pass + bug fixes):** `cargo check --workspace` clean
-(+ `--features video`), `cargo test -p eparts` 184, `cargo test -p animatix-gui` 206,
-`cargo test --no-fail-fast` 1221 passed / 44 ignored, `cargo clippy --workspace --all-targets` clean.
+(+ `--features animatix-gui/dev-screenshots`), `cargo test -p eparts` 216, `cargo test -p animatix-gui` 218,
+`cargo test --no-fail-fast` 1291 passed / 44 ignored, `cargo clippy -p animatix-gui --features
+dev-screenshots --all-targets -- -D warnings` clean.
 
 ---
 
