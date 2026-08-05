@@ -5,67 +5,187 @@ use crate::app::components::{self};
 use crate::app::design_tokens::semantic::{accent, text};
 use crate::app::design_tokens::spatial::dialog as dialog_token;
 use crate::app::design_tokens::typography::TextRole;
+use crate::app::interaction::keyboard::shortcut_hints_for_name;
+
+/// A cheat-sheet row. Registry entries render the actual key binding from
+/// `SHORTCUT_REGISTRY`; gesture entries are pointer interactions or stateful
+/// keys that are not registered as one-shot shortcuts.
+#[derive(Clone, Copy)]
+enum CheatSheetEntry {
+    Bindings {
+        names: &'static [&'static str],
+        desc: &'static str,
+    },
+    Gesture {
+        key: &'static str,
+        desc: &'static str,
+    },
+}
 
 /// Keyboard shortcut groups.
-const SHORTCUT_GROUPS: &[(&str, &[(&str, &str)])] = &[
+const SHORTCUT_GROUPS: &[(&str, &[CheatSheetEntry])] = &[
     (
         "Playback",
         &[
-            ("Space", "Play / Pause"),
-            (", / .", "Prev / Next keyframe"),
-            ("T (hold)", "Time lens scrub"),
-            ("\u{2190} / \u{2192}", "Scrub timeline"),
+            CheatSheetEntry::Bindings {
+                names: &["Play/Pause"],
+                desc: "Play / Pause",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Prev Keyframe", "Next Keyframe"],
+                desc: "Prev / Next keyframe",
+            },
+            CheatSheetEntry::Gesture {
+                key: "T (hold)",
+                desc: "Time lens scrub",
+            },
+            CheatSheetEntry::Gesture {
+                key: "\u{2190} / \u{2192}",
+                desc: "Scrub timeline",
+            },
         ],
     ),
     (
         "Tools",
         &[
-            ("Esc", "Select (default)"),
-            ("M", "Move"),
-            ("Shift + S", "Scale"),
-            ("R", "Rotate"),
-            ("V", "Vertex edit"),
-            ("P", "Pivot"),
+            CheatSheetEntry::Gesture {
+                key: "Esc",
+                desc: "Select (default)",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Move Tool"],
+                desc: "Move",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Scale Tool"],
+                desc: "Scale",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Rotate Tool"],
+                desc: "Rotate",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Vertex Tool"],
+                desc: "Vertex edit",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Pivot Tool"],
+                desc: "Pivot",
+            },
         ],
     ),
     (
         "Canvas",
         &[
-            ("Drag body", "Move actor"),
-            ("Drag handle", "Scale / Rotate"),
-            ("Shift + drag", "Constrain / Snap"),
-            ("Alt + drag", "Duplicate"),
-            ("Middle-drag", "Pan canvas"),
-            ("Scroll", "Zoom"),
-            ("F / Shift+F", "Zoom to sel. / all"),
+            CheatSheetEntry::Gesture {
+                key: "Drag body",
+                desc: "Move actor",
+            },
+            CheatSheetEntry::Gesture {
+                key: "Drag handle",
+                desc: "Scale / Rotate",
+            },
+            CheatSheetEntry::Gesture {
+                key: "Shift + drag",
+                desc: "Constrain / Snap",
+            },
+            CheatSheetEntry::Gesture {
+                key: "Alt + drag",
+                desc: "Duplicate",
+            },
+            CheatSheetEntry::Gesture {
+                key: "Middle-drag",
+                desc: "Pan canvas",
+            },
+            CheatSheetEntry::Gesture {
+                key: "Scroll",
+                desc: "Zoom",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Zoom to Selection", "Zoom to All"],
+                desc: "Zoom to sel. / all",
+            },
         ],
     ),
     (
         "Timeline",
         &[
-            ("Click ruler", "Scrub to time"),
-            ("Drag ruler", "Scrub"),
-            (", / .", "Prev / Next keyframe"),
-            ("1 / 2 / 3", "Jump to scene"),
-            ("\u{2190} / \u{2192}", "Scrub (no selection)"),
+            CheatSheetEntry::Gesture {
+                key: "Click ruler",
+                desc: "Scrub to time",
+            },
+            CheatSheetEntry::Gesture {
+                key: "Drag ruler",
+                desc: "Scrub",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Prev Keyframe", "Next Keyframe"],
+                desc: "Prev / Next keyframe",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Scene 1", "Scene 2", "Scene 3"],
+                desc: "Jump to scene",
+            },
+            CheatSheetEntry::Gesture {
+                key: "\u{2190} / \u{2192}",
+                desc: "Scrub (no selection)",
+            },
         ],
     ),
     (
         "General",
         &[
-            ("Ctrl+S", "Save"),
-            ("Ctrl+Z / Ctrl+Shift+Z", "Undo / Redo"),
-            ("Ctrl+C / Ctrl+V", "Copy / Paste actors"),
-            ("Ctrl+D", "Duplicate selected"),
-            ("Ctrl+R / Ctrl+Shift+R", "Reload / Rebuild"),
-            ("Ctrl+F", "Find / Replace"),
-            ("Ctrl+G / Ctrl+Shift+G", "Group / Ungroup"),
-            ("Ctrl+Shift+P", "Command palette"),
-            ("A", "Action palette"),
-            ("/", "Insertion palette"),
-            ("Y", "Toggle editor sync"),
-            ("Delete", "Delete selected"),
-            ("Esc", "Deselect / Select tool"),
+            CheatSheetEntry::Bindings {
+                names: &["Save"],
+                desc: "Save",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Undo", "Redo"],
+                desc: "Undo / Redo",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Copy", "Paste"],
+                desc: "Copy / Paste actors",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Duplicate"],
+                desc: "Duplicate selected",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Reload", "Rebuild"],
+                desc: "Reload / Rebuild",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Find/Replace"],
+                desc: "Find / Replace",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Group", "Ungroup"],
+                desc: "Group / Ungroup",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Command Palette"],
+                desc: "Command palette",
+            },
+            CheatSheetEntry::Bindings {
+                names: &[
+                    "Insertion Palette (Actions)",
+                    "Insertion Palette (Universal)",
+                ],
+                desc: "Insertion palette",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Editor Sync"],
+                desc: "Toggle editor sync",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Delete"],
+                desc: "Delete selected",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Escape"],
+                desc: "Deselect / Select tool",
+            },
         ],
     ),
 ];
@@ -117,7 +237,7 @@ impl GuiShell {
     }
 }
 
-fn shortcut_column(ui: &mut egui::Ui, groups: &[(&str, &[(&str, &str)])], width: f32) {
+fn shortcut_column(ui: &mut egui::Ui, groups: &[(&str, &[CheatSheetEntry])], width: f32) {
     let sp = crate::app::design_tokens::spatial::spatial(ui);
     ui.vertical(|ui| {
         ui.set_min_width(width);
@@ -130,22 +250,40 @@ fn shortcut_column(ui: &mut egui::Ui, groups: &[(&str, &[(&str, &str)])], width:
             );
             ui.add_space(sp.base.space_1);
 
-            for (key, desc) in *shortcuts {
-                shortcut_row(ui, key, desc, width);
+            for entry in *shortcuts {
+                shortcut_row(ui, *entry, width);
             }
             ui.add_space(sp.base.space_3);
         }
     });
 }
 
-fn shortcut_row(ui: &mut egui::Ui, key: &str, desc: &str, col_w: f32) {
+fn shortcut_row(ui: &mut egui::Ui, entry: CheatSheetEntry, col_w: f32) {
     let sp = crate::app::design_tokens::spatial::spatial(ui);
+    match entry {
+        CheatSheetEntry::Bindings { names, desc } => {
+            let hints: Vec<String> =
+                names.iter().flat_map(|name| shortcut_hints_for_name(name, ui.ctx())).collect();
+            let key = if hints.is_empty() {
+                names.join(" / ")
+            } else {
+                hints.join(" / ")
+            };
+            shortcut_row_inner(ui, &key, desc, col_w, sp.base.row_s);
+        },
+        CheatSheetEntry::Gesture { key, desc } => {
+            shortcut_row_inner(ui, key, desc, col_w, sp.base.row_s);
+        },
+    }
+}
+
+fn shortcut_row_inner(ui: &mut egui::Ui, key: &str, desc: &str, col_w: f32, row_height: f32) {
     // Fixed-width key column — prevents long keys from overlapping the description.
     let key_w = (col_w * dialog_token::KEY_COL_FRAC).min(dialog_token::KEY_COL_MAX);
 
     ui.horizontal(|ui| {
         ui.add_sized(
-            [key_w, sp.base.row_s],
+            [key_w, row_height],
             egui::Label::new(
                 RichText::new(key)
                     .monospace()

@@ -14,7 +14,6 @@ pub enum ShortcutScope {
 /// A registered shortcut binding.
 #[derive(Debug, Clone)]
 pub struct Shortcut {
-    #[allow(dead_code)] // Reserved for shortcut cheat-sheet display
     pub name: &'static str,
     pub scope: ShortcutScope,
     pub action: KeyboardAction,
@@ -269,32 +268,6 @@ impl ShortcutRegistry {
             },
         );
 
-        // Tool switching (Canvas)
-        self.register(
-            KeyboardShortcut::new(Modifiers::NONE, Key::V),
-            Shortcut {
-                name: "Move Tool",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::SetMoveTool,
-            },
-        );
-        self.register(
-            KeyboardShortcut::new(Modifiers::NONE, Key::S),
-            Shortcut {
-                name: "Scale Tool",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::SetScaleTool,
-            },
-        );
-        self.register(
-            KeyboardShortcut::new(Modifiers::NONE, Key::R),
-            Shortcut {
-                name: "Rotate Tool",
-                scope: ShortcutScope::Canvas,
-                action: KeyboardAction::SetRotateTool,
-            },
-        );
-
         // Scene switching (Canvas)
         self.register(
             KeyboardShortcut::new(Modifiers::NONE, Key::Num1),
@@ -492,6 +465,15 @@ impl ShortcutRegistry {
         None
     }
 
+    /// Look up every registered [`KeyboardShortcut`] with the given display name.
+    pub fn shortcuts_for_name(&self, name: &str) -> Vec<&KeyboardShortcut> {
+        self.shortcuts
+            .iter()
+            .filter(|(_, info)| info.name == name)
+            .map(|(shortcut, _)| shortcut)
+            .collect()
+    }
+
     /// Look up the first registered [`KeyboardShortcut`] for the given [`KeyboardAction`].
     ///
     /// Matching is performed by *discriminant* (variant-level equality) using
@@ -524,6 +506,15 @@ pub fn shortcut_hint(action: &KeyboardAction, ctx: &Context) -> Option<String> {
     SHORTCUT_REGISTRY
         .shortcut_for(action)
         .map(|sc| eparts::widget::format_shortcut(sc, ctx))
+}
+
+/// Human-readable, platform-aware labels for every shortcut sharing `name`.
+pub fn shortcut_hints_for_name(name: &str, ctx: &Context) -> Vec<String> {
+    SHORTCUT_REGISTRY
+        .shortcuts_for_name(name)
+        .into_iter()
+        .map(|sc| eparts::widget::format_shortcut(sc, ctx))
+        .collect()
 }
 
 /// A tooltip string with the action's shortcut appended in parentheses when one
@@ -563,6 +554,32 @@ mod tests {
         );
         // The first nudge entry is ArrowLeft.
         assert_eq!(shortcut.unwrap().logical_key, Key::ArrowLeft);
+    }
+
+    #[test]
+    fn shortcuts_for_name_returns_all_redo_bindings() {
+        let registry = ShortcutRegistry::new();
+        let redo = registry.shortcuts_for_name("Redo");
+        assert_eq!(redo.len(), 2, "Expected Ctrl+Shift+Z and Ctrl+Y Redo bindings");
+    }
+
+    #[test]
+    fn tool_shortcuts_are_unambiguous() {
+        let registry = ShortcutRegistry::new();
+        assert_eq!(registry.shortcuts_for_name("Move Tool").len(), 1);
+        assert_eq!(registry.shortcuts_for_name("Scale Tool").len(), 1);
+        assert_eq!(registry.shortcuts_for_name("Rotate Tool").len(), 1);
+        assert_eq!(registry.shortcuts_for_name("Vertex Tool").len(), 1);
+        assert_eq!(registry.shortcuts_for_name("Pivot Tool").len(), 1);
+
+        let vertex = registry.shortcut_for(&KeyboardAction::SetVertexTool).unwrap();
+        assert_eq!(vertex.logical_key, Key::V);
+    }
+
+    #[test]
+    fn shortcuts_for_name_returns_empty_for_unknown() {
+        let registry = ShortcutRegistry::new();
+        assert!(registry.shortcuts_for_name("Not a real shortcut").is_empty());
     }
 
     #[test]
