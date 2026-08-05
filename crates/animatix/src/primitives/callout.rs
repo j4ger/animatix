@@ -2,13 +2,15 @@ use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::primitives::arrow::build_arrow_path;
 use crate::primitives::{
-    ActorCategory, ActorKindId, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx,
-    evaluate_text_paths, sample_shape_style,
+    ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, EvaluateCtx, Primitive, RenderCommand,
+    TextCompileCtx, evaluate_text_paths, sample_shape_style,
 };
 use crate::renderer::error::RenderError;
 use crate::renderer::text::TextKind;
 use crate::timeline::animation_track::CalloutPlace;
 use crate::timeline::callout_geometry::derive_callout_geometry;
+use crate::timeline::property_engine::{parse_property_value, write_property_field};
+use crate::timeline::property_registry::{ActorField, ValueType};
 use crate::timeline::{
     AnimationTrack, Environment, SceneDimensions, TrackAccessor, Value, VectorShapeState, VelloPath,
 };
@@ -214,6 +216,55 @@ impl Primitive for CalloutPrimitive {
         );
 
         Ok(())
+    }
+
+    fn handle_assignment(
+        &self,
+        track: &mut AnimationTrack,
+        property: &str,
+        value: &Expr,
+        ctx: &mut AssignmentCtx,
+        env: &Environment,
+        diagnostics: &mut Vec<Diagnostic>,
+        subject: &str,
+    ) -> bool {
+        if property != "target" {
+            return false;
+        }
+
+        // Actor references are idiomatic in declarations (`target: box`).
+        // Accept the same form on assignments instead of requiring `"box"`.
+        let target_expr = match value {
+            Expr::Str(_) => value.clone(),
+            Expr::Ident(name) => match env.get(name) {
+                Some(Value::Str(s)) => Expr::Str(s.clone()),
+                _ => Expr::Str(name.clone()),
+            },
+            Expr::Path(parts) => match crate::timeline::evaluate_expr(value, env) {
+                Ok(Value::Str(s)) => Expr::Str(s),
+                _ => Expr::Str(parts.join(".")),
+            },
+            _ => value.clone(),
+        };
+
+        if let Some(target) = parse_property_value(
+            ValueType::String,
+            &target_expr,
+            env,
+            diagnostics,
+            subject,
+        ) {
+            write_property_field(
+                track,
+                ActorField::CalloutTarget,
+                target,
+                ctx.t_start_ms,
+                ctx.t_end_ms,
+                ctx.easing,
+                diagnostics,
+            );
+        }
+        true
     }
 
     fn evaluate(

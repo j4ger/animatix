@@ -669,12 +669,21 @@ impl SymbolTable {
 
     fn collect_refs_from_stmt(&mut self, stmt: &Stmt) {
         match stmt {
+            Stmt::ActorDecl { ty, props, .. } => {
+                if ty == "Callout" {
+                    for prop in props {
+                        if prop.name == "target" {
+                            self.collect_callout_target_ref(&prop.value);
+                        }
+                    }
+                }
+            },
             Stmt::Action(action, ..) => {
                 for target in &action.targets {
                     self.referenced_labels.insert(target.clone());
                 }
             },
-            Stmt::Assignment { target, .. } => {
+            Stmt::Assignment { target, property, value, .. } => {
                 for seg in target {
                     match seg {
                         TargetSegment::Static(label) => {
@@ -685,6 +694,9 @@ impl SymbolTable {
                             self.collect_refs_from_expr(index);
                         },
                     }
+                }
+                if property == "target" && self.target_is_callout(target) {
+                    self.collect_callout_target_ref(value);
                 }
             },
             Stmt::Play { scene_name, .. } => {
@@ -739,15 +751,43 @@ impl SymbolTable {
                     self.collect_refs_from_stmt(stmt);
                 }
             },
-            Stmt::ReactiveBinding { target, .. } => {
+            Stmt::ReactiveBinding { target, property, value, .. } => {
                 for seg in target {
                     self.referenced_labels.insert(seg.label_str().to_string());
                     if let TargetSegment::Indexed { index, .. } = seg {
                         self.collect_refs_from_expr(index);
                     }
                 }
+                if property == "target" && self.target_is_callout(target) {
+                    self.collect_callout_target_ref(value);
+                }
             },
             _ => {},
+        }
+    }
+
+    fn target_is_callout(&self, target: &[TargetSegment]) -> bool {
+        target.first().is_some_and(|seg| {
+            self.labels
+                .get(seg.label_str())
+                .is_some_and(|info| info.ty.as_deref() == Some("Callout"))
+        })
+    }
+
+    fn collect_callout_target_ref(&mut self, expr: &Expr) {
+        match expr {
+            Expr::Ident(name) => {
+                self.referenced_labels.insert(name.clone());
+            },
+            Expr::Path(parts) => {
+                if let Some(first) = parts.first() {
+                    self.referenced_labels.insert(first.clone());
+                }
+            },
+            Expr::Str(name) => {
+                self.referenced_labels.insert(name.clone());
+            },
+            _ => self.collect_refs_from_expr(expr),
         }
     }
 
@@ -1157,6 +1197,51 @@ mod tests {
         // single-segment stays Any
         let single = Expr::Path(vec!["accent".to_string()]);
         assert_eq!(infer_expr_type(&single), PropertyType::Any);
+    }
+
+    #[test]
+    fn callout_target_references_count_as_usage() {
+        let actor = |label: &str| Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: label.to_string(),
+            array_index: None,
+            ty: "Rect".to_string(),
+            props: vec![],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        };
+        let callout = Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "note".to_string(),
+            array_index: None,
+            ty: "Callout".to_string(),
+            props: vec![Property {
+                name: "target".to_string(),
+                value: Expr::Ident("box1".to_string()),
+                value_span: None,
+                trailing_comment: None,
+            }],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        };
+        let assignment = Stmt::Assignment {
+            target: vec![TargetSegment::Static("note".to_string())],
+            property: "target".to_string(),
+            value: Expr::Str("box2".to_string()),
+            modifiers: vec![],
+            easing: None,
+            value_span: None,
+            span: None,
+        };
+        let stmts = vec![actor("box1"), actor("box2"), callout, assignment];
+        let mut table = SymbolTable::build_from_ast(&stmts);
+        table.collect_references(&stmts);
+        assert!(table.referenced_labels.contains("box1"));
+        assert!(table.referenced_labels.contains("box2"));
     }
 
     #[test]

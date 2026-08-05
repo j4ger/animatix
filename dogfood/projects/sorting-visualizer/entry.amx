@@ -1,0 +1,100 @@
+// Dogfood project: one insertion-sort pass, authored idiomatically where the
+// grammar supports it. Findings and workarounds are tracked in notes.md.
+
+import "../../../examples/lib/tokens.amx" as tokens
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+// ── Scene 1: Title ──────────────────────────────────────────────────────────
+
+# Title
+
+title: Text, text: "Insertion Sort, One Pass", font_size: 56,
+  color: text.primary, anchor: scene.center, offset: (0, -60)
+
+subtitle: Text, text: "4  ·  1  ·  3  ·  2  ->  1  ·  2  ·  3  ·  4",
+  font_size: 22, color: text.secondary, anchor: scene.center, offset: (0, 10)
+
+hint: Text, text: "Watch the key move into place", font_size: 18,
+  color: text.muted, anchor: scene.center, offset: (0, 70)
+
+#0s
+fade-in title [700ms, ease: ease-out]
+fade-in subtitle [600ms, delay: 200ms]
+fade-in hint [500ms, delay: 350ms]
+
+#2.5s
+play Steps [fade, 400ms]
+
+// ── Scene 2: Steps ──────────────────────────────────────────────────────────
+
+# Steps
+config { colorscheme: "editorial-dark" }
+
+step_title: Text, text: "Insert 1, then 3, then 2", font_size: 40,
+  color: text.primary, anchor: scene.top, offset: (0, 56)
+
+bars: Row, at: (640, 440), gap: 28, align: "end" {
+  for v, i in {4, 1, 3, 2} {
+    bar[i]: Rect, size: (110, v * 42),
+      color: if i == 1 { tokens.warning } else { tokens.info }
+  }
+}
+
+key_note: Callout {
+  from: (180, 170),
+  target: bar__1,
+  place: top,
+  standoff: 10,
+  label: "key = 1",
+  label_at: (0, -20),
+  color: tokens.warning
+}
+
+step_caption: Text, text: "Compare the key with the sorted part, then swap.",
+  font_size: 18, color: text.secondary, anchor: scene.bottom, offset: (0, -60)
+
+#0s
+fade-in step_title [500ms]
+fade-in bars [500ms]
+fade-in key_note [400ms, delay: 200ms]
+fade-in step_caption [400ms, delay: 300ms]
+
+#1.5s
+swap bar[0], bar[1] [600ms, ease: ease-in-out]
+
+#3.2s
+key_note.target = bar__2 [300ms]
+swap bar[1], bar[2] [600ms, ease: ease-in-out]
+
+#4.9s
+key_note.target = bar__3 [300ms]
+swap bar[2], bar[3] [600ms, ease: ease-in-out]
+
+#6.4s
+swap bar[1], bar[2] [600ms, ease: ease-in-out]
+
+#8s
+play Result [fade, 400ms]
+
+// ── Scene 3: Result ─────────────────────────────────────────────────────────
+
+# Result
+config { colorscheme: "editorial-dark" }
+
+result_title: Text, text: "Sorted", font_size: 48,
+  color: text.primary, anchor: scene.top, offset: (0, 72)
+
+result_bars: Row, at: (640, 440), gap: 28, align: "end" {
+  for v, i in {1, 2, 3, 4} {
+    sorted_bar[i]: Rect, size: (110, v * 42), color: tokens.success
+  }
+}
+
+result_note: Text, text: "One pass is enough for this array because every key only moves left a little.",
+  font_size: 18, color: text.secondary, anchor: scene.bottom, offset: (0, -60)
+
+#0s
+fade-in result_title [500ms]
+fade-in result_bars [600ms, ease: ease-out]
+fade-in result_note [500ms, delay: 250ms]

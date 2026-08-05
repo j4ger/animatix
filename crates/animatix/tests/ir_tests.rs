@@ -299,6 +299,43 @@ fn modifier_bytecode_compiles_assignment_subset() {
 }
 
 #[test]
+fn vm_indexed_override_compiles_and_matches_ir() {
+    let program = vec![Stmt::Always {
+        body: vec![Stmt::Assignment {
+            target: vec![animatix_syntax::ast::TargetSegment::Indexed {
+                base: "bars".to_string(),
+                index: Box::new(Expr::Ident("i".to_string())),
+            }],
+            property: "scale".to_string(),
+            value: Expr::Num(1.5),
+            modifiers: vec![],
+            easing: None,
+            value_span: None,
+            span: None,
+        }],
+        span: None,
+    }];
+
+    let ir = lower_modifier_ir(&program).expect("IR lowering should succeed");
+    let bytecode = compile_modifier_bytecode(&ir).expect("bytecode compilation should succeed");
+    let rendered = format!("{bytecode}");
+    assert!(rendered.contains("WriteOverrideIndexed bars scale"));
+
+    let mut ir_env = Environment::new();
+    let mut ir_overrides = ModifierOverrides::default();
+    ir_env.set("i", Value::Num(2.0));
+    execute_modifier_ir(&ir, &mut ir_env, &mut ir_overrides).expect("IR execution should succeed");
+    assert_eq!(ir_overrides["bars__2"]["scale"], Value::Num(1.5));
+
+    let mut vm_env = Environment::new();
+    let mut vm_overrides = ModifierOverrides::default();
+    vm_env.set("i", Value::Num(2.0));
+    animatix::vm::execute_modifier_bytecode(&bytecode, &mut vm_env, &mut vm_overrides)
+        .expect("VM execution should succeed");
+    assert_eq!(vm_overrides["bars__2"]["scale"], Value::Num(1.5));
+}
+
+#[test]
 fn modifier_bytecode_executes_let_and_if() {
     let program = vec![Stmt::Always {
         body: vec![

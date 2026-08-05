@@ -1,0 +1,19 @@
+// Probe: linter does not count Callout.target references as label usage.
+
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+box1: Rect, size: (100, 100), color: accent.primary, at: (200, 180)
+box2: Rect, size: (100, 100), color: accent.success, at: (440, 180)
+
+note: Callout {
+  from: (100, 60),
+  target: box1,
+  place: bottom,
+  standoff: 8,
+  label: "key",
+  label_at: (0, -16),
+  color: accent.warning
+}
+
+#0s
+note.target = box2 [0ms]

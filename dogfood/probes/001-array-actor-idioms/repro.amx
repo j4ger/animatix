@@ -1,0 +1,22 @@
+// Probe: array actor generation, indexed targets, and layout reorder
+// Purpose: verify the current grammar lets a real algorithm project generate
+// bars with `for`, target them by index, drive them reactively, and swap them.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+#0s
+row: Row, anchor: scene.center, gap: 18, align: "center" {
+  for v, i in {30, 60, 90, 120, 60} {
+    bar[i]: Rect, size: (90, v), color: accent.primary
+  }
+}
+
+fade-in row [400ms]
+fade-in bar[0] [400ms]
+swap bar[0], bar[4] [700ms, ease: ease-in-out]
+
+always {
+  for i in {0, 1, 2, 3, 4} {
+    bar[i].scale = 1.0 + 0.05 * sin(t * 2.0 + i)
+  }
+}

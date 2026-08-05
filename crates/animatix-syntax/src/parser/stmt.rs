@@ -282,6 +282,25 @@ pub(crate) fn parser<'src>(
             })
             .padded();
 
+        let callout_stmt = ident
+            .clone()
+            .then_ignore(just(':').padded())
+            .or_not()
+            .then_ignore(text::keyword("Callout"))
+            .then(block_props.clone())
+            .map(|(label, props)| Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: label.unwrap_or_else(|| "unnamed_callout".to_string()),
+                array_index: None,
+                ty: "Callout".to_string(),
+                props,
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            })
+            .padded();
+
         // Shorthand: label: $$ content $$ → label: Typst, content: content
         let typst_shorthand = ident
             .clone()
@@ -689,6 +708,7 @@ pub(crate) fn parser<'src>(
             reactive_binding,
             svg_stmt,
             image_stmt,
+            callout_stmt,
             always_stmt,
             conditional_stmt,
             match_stmt,

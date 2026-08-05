@@ -6,7 +6,7 @@ use super::ir::{
     eval_floor, eval_format, eval_lerp, eval_log, eval_max, eval_min, eval_rad, eval_sin,
     eval_sqrt, eval_tan, make_vec_value,
 };
-use crate::ast::{BinaryOp, Expr, LoopPattern};
+use crate::ast::{BinaryOp, Expr, LoopPattern, array_actor_label};
 use crate::timeline::animation_track::SceneAnchor;
 use crate::timeline::callout_geometry::env_anchor_point;
 use crate::timeline::env::CapturedEnv;
@@ -100,6 +100,13 @@ pub enum Instruction {
         /// Property name to override.
         property: String,
     },
+    /// Pop a runtime index and a value, resolve `{base}__{index}`, and write it.
+    WriteOverrideIndexed {
+        /// Array base label to write the override to.
+        base: String,
+        /// Property name to override.
+        property: String,
+    },
     /// Snapshot the current environment and push a closure value.
     MakeClosure {
         /// Closure parameter names.
@@ -133,7 +140,7 @@ pub struct ModifierBytecodeProgram {
 pub enum VmCompileError {
     /// Encountered an unsupported expression.
     UnsupportedExpr,
-    /// Encountered an unsupported statement type (e.g., AssignIndexed).
+    /// Encountered an unsupported statement type.
     UnsupportedStmt(&'static str),
 }
 
@@ -206,11 +213,18 @@ impl BytecodeCompiler {
                     property: property.clone(),
                 });
             },
-            // AssignIndexed requires frame-time index evaluation that the VM
-            // does not natively support. Signal unsupported so the runtime
-            // falls back to the IR eval path (which handles AssignIndexed).
-            ModifierIrStmt::AssignIndexed { .. } => {
-                return Err(VmCompileError::UnsupportedStmt("AssignIndexed — use IR fallback"));
+            ModifierIrStmt::AssignIndexed {
+                base,
+                index,
+                property,
+                value,
+            } => {
+                self.compile_modifier_expr(value)?;
+                self.compile_expr(index)?;
+                self.instructions.push(Instruction::WriteOverrideIndexed {
+                    base: base.clone(),
+                    property: property.clone(),
+                });
             },
             ModifierIrStmt::Let { name, value } => {
                 self.compile_modifier_expr(value)?;
@@ -632,6 +646,40 @@ impl ModifierVm {
                     );
                     self.ip += 1;
                 },
+                Instruction::WriteOverrideIndexed { base, property } => {
+                    let idx_val = self.pop()?;
+                    let value = self.pop()?;
+                    let n = match idx_val {
+                        Value::Num(n) if n >= 0.0 && n == n.floor() => n as usize,
+                        Value::Num(n) => {
+                            tracing::warn!(
+                                "Array index for '{}' must be a non-negative integer, got {}",
+                                base,
+                                n
+                            );
+                            self.ip += 1;
+                            continue;
+                        },
+                        other => {
+                            tracing::warn!(
+                                "Array index for '{}' must evaluate to a number, got {:?}",
+                                base,
+                                other
+                            );
+                            self.ip += 1;
+                            continue;
+                        },
+                    };
+                    let label = array_actor_label(base, n);
+                    overrides
+                        .entry(label.clone())
+                        .or_default()
+                        .insert(property.clone(), value.clone());
+                    crate::timeline::frame_env::apply_override_incremental(
+                        frame_env, &label, property, value,
+                    );
+                    self.ip += 1;
+                },
                 Instruction::MakeClosure { params, body } => {
                     let captures = CapturedEnv::snapshot(frame_env);
                     self.stack.push(Value::Closure(params.clone(), body.clone(), captures));
@@ -710,6 +758,9 @@ impl fmt::Display for ModifierBytecodeProgram {
                 },
                 Instruction::WriteOverride { target, property } => {
                     writeln!(f, "{idx}: WriteOverride {target} {property}")?
+                },
+                Instruction::WriteOverrideIndexed { base, property } => {
+                    writeln!(f, "{idx}: WriteOverrideIndexed {base} {property}")?
                 },
                 Instruction::MakeClosure { params, body: _ } => {
                     writeln!(f, "{idx}: MakeClosure {:?}", params)?
