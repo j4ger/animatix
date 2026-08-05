@@ -7,7 +7,8 @@
 | [`properties.md`](properties.md) | Users | Property registry reference: all actor properties, types, and applicability |
 | [`architecture.md`](architecture.md) | Contributors | System architecture: pipeline, data structures, runtime, layout, rendering, property system, composition |
 | [`contributing.md`](contributing.md) | Contributors | Build/test workflows, project structure, LSP setup, error model, commit messages |
-| [`roadmap.md`](roadmap.md) | Both | Planned features, known gaps, migration plans |
+| [`roadmap.md`](roadmap.md) | Both | Canonical planned work, known gaps, migration plans |
+| [`plans/README.md`](plans/README.md) | Contributors | Detailed planning docs and historical archives |
 | [`gui_design_language.md`](gui_design_language.md) | Contributors | GUI visual design language, token system, component taxonomy, interaction model |
 
 ## Quick Reference

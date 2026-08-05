@@ -461,6 +461,7 @@ site needs them, not speculatively.
 ButtonVariant::Primary   filled accent background — primary actions
 ButtonVariant::Ghost     transparent, accent underline when active — toolbar toggles
 ButtonVariant::Icon      square icon-only — small icon commands
+ButtonVariant::Danger    destructive actions — delete, remove, reset
 ```
 
 **Sizes** (1):
@@ -475,6 +476,7 @@ ButtonSize::Medium  (ROW_M height, default)
 Button::primary(label: impl Into<String>) -> Self   // filled accent
 Button::ghost(label: impl Into<String>)  -> Self    // transparent with underline
 Button::icon(icon: &'static str)         -> Self    // icon-only square
+Button::danger(label: impl Into<String>) -> Self    // destructive action
 ```
 
 **Builder methods** (all return `Self`):
@@ -494,21 +496,21 @@ when the `disabled` field is set externally (e.g. via a form-level
 disability gate). The loading state (`loading(true)`) disables interaction
 and shows a spinner simultaneously.
 
-**Policy note.** A `danger`/destructive variant is *seeded in the Theme*
-(`theme.button.danger` — see §6.4) but is **not** yet exposed as a
-`ButtonVariant`. Destructive actions in the GUI currently use raw `egui::Button`.
-This is tracked as a follow-up (T2.10).
+**Policy note.** `Danger` is a shipped `ButtonVariant` backed by the
+`theme.button.danger` slots (see §6.4). Destructive GUI actions use
+`Button::danger(...)`.
 
 ```rust
 // crates/eparts/src/widget/button.rs — source of truth
 
-pub enum ButtonVariant { Primary, Ghost, Icon }
+pub enum ButtonVariant { Primary, Ghost, Icon, Danger }
 pub enum ButtonSize     { Medium }
 
 impl Button {
     pub fn primary(label: impl Into<String>) -> Self { ... }
     pub fn ghost(label: impl Into<String>)  -> Self { ... }
     pub fn icon(icon: &'static str)         -> Self { ... }
+    pub fn danger(label: impl Into<String>) -> Self { ... }
     pub fn with_icon(self, icon: &'static str)          -> Self { ... }
     pub fn with_tooltip(self, tip: &'static str)        -> Self { ... }
     pub fn active(self, active: bool)                    -> Self { ... }
@@ -866,7 +868,7 @@ interactions.
 ## 11. Status & Remaining Work
 
 Phases 1–3 of the original migration plan are complete. See
-`.picopi/plans/eparts-refinement-roadmap.md` (M1–M7) for the eparts component
+[`plans/eparts-refinement-roadmap.md`](plans/eparts-refinement-roadmap.md) (M1–M7) for the eparts component
 work detail and `crates/animatix-gui/src/app/commands/` for the command-split
 implementation.
 
@@ -883,13 +885,12 @@ implementation.
   are shipped.
 
 **Remaining / verify:**
-- Migrate inspector/dialog fields onto `Form` / `Field` (input slot tokens).
-- Gesture-router migration: the legacy `drag_handler.rs` has been fully retired; drag modes now live under `preview/gestures/`. Remaining: confirm no drag mode regressed once the gesture router covers all remaining drag
-  modes (verify: `preview/gestures/` covers move/scale/rotate/pivot/reorder/
-  marquee/vertex/motion_path — confirm no residual usage of the old file).
-- Drive toolbar tooltip cheat-sheet from `ShortcutRegistry` instead of
-  ad-hoc strings.
-- Wire `ButtonVariant::Danger` (T2.10): `theme.button.danger` slots are seeded;
-  the variant is not yet exposed.
-- Contrast matrix for light theme: verify all text/background pairs meet
-  WCAG AA (4.5:1) for `Theme::light()` values.
+- Verify the light-theme contrast matrix against WCAG AA (4.5:1) for
+  `Theme::light()` values.
+- Opportunistic eparts widget adoption is not scheduled; migrate as surrounding GUI files are next edited.
+
+**Completed since the original audit:**
+- Inspector property fields and Settings migrated to eparts `Form`/`Field` and input widgets.
+- Toolbar shortcut hints and the shortcut cheat sheet derive from `SHORTCUT_REGISTRY`.
+- `ButtonVariant::Danger` is exposed and themed.
+- Gesture router covers move/scale/rotate/pivot/reorder/marquee/vertex/motion_path; legacy `drag_handler.rs` is retired.

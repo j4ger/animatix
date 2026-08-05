@@ -571,7 +571,7 @@ Colorschemes provide declarative color contracts with two pieces:
 
 - Built-in schemes: `default-dark`, `default-light`, `editorial-dark`
 - Inline definition: `let ocean = Colorscheme { extends: "default-dark", ... }`
-- Module import (future): `import "theme.amx" as theme`
+- Aliased module imports: `import "theme.amx" as theme` (see `spec.md` §11)
 
 ---
 
@@ -734,7 +734,7 @@ Targeted `Callout` actors (those with a `target` property) need to compute the a
 
 - `derive_callout_geometry(input, resolver)` is the single source of truth for `from`, `to`, `label_point`, attach side, and standoff. Both the renderer and the GUI (preview handles, drag gestures) call this helper so they stay in sync.
 - The `TargetResolver` trait (implemented by `SceneEval`) exposes only what primitives need: actor existence, kind, and world-space bounds/affine at a given time. Primitives no longer receive an unrestricted `&Timeline` reference.
-- Bounds are resolved via the target's accumulated world transform (`actor_world_affine`), so actors nested inside scaled or rotated parents attach correctly. Precise shape/path/text bounds are a known deferred item (see Icebox in roadmap).
+- Bounds are resolved via the target's accumulated world transform (`actor_world_affine`), so actors nested inside scaled or rotated parents attach correctly. Precise shape/path/text bounds are a known deferred item (see Active Work in `docs/roadmap.md`).
 - A missing target name is diagnosed at build time (`CalloutTargetNotFound`) so the error surfaces in the editor rather than producing per-frame render log spam.
 
 ---

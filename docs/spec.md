@@ -55,7 +55,7 @@ Use these rules when generating `.amx` files:
 | Multi-Scene | `play SceneName [transition, duration]` | Yes | Runtime-real | Yes | Yes | Scene-level play statements with transition types |
 | Multi-Scene | `Composition::build()` / `BuildTarget` | — | Runtime-real | Yes | Yes | Per-scene timeline building, edge resolution, global time mapping |
 | Multi-Scene | CLI export (video/GIF/image) | — | Runtime-real | Yes | Yes | `render_*_composition` functions; auto-routing via `BuildTarget` |
-| Multi-Scene | GUI scene list / composition timeline | — | Pending | No | Planned | Phase 4–6 of implementation plan |
+| Multi-Scene | GUI scene list / composition timeline | Yes | Runtime-real | Yes | Yes | Sidebar scene tab, composition scene track, and scene source edits shipped |
 | Multi-Scene | Transition blending (dual render) | Yes | Runtime-real | Yes | Yes | Phase 7; `TransitionCompositor` + WGSL shader; wired in CLI preview, GUI preview, and export |
 | Multi-Scene | Cross-file scene composition | Yes | Runtime-real | Yes | Yes | `import "file.amx" as alias` + `play alias.SceneName`; namespace scene registry |
 
@@ -805,9 +805,24 @@ scene.left         scene.center    scene.right
 scene.bottom_left  scene.bottom    scene.bottom_right
 ```
 
+**Actor anchor points** (available as `Vec2`):
+Every actor exposes world-space bounding-box anchor points using the scene
+vocabulary: `label.top_left`, `label.top`, `label.top_right`, `label.left`,
+`label.center`, `label.right`, `label.bottom_left`, `label.bottom`,
+`label.bottom_right`. They resolve lazily from the frame environment, so they
+follow layout, transforms, keyframes, and `always` overrides.
+
+```animatix
+always {
+  cursor.at = n0.top + (0, -20)
+  link.from = n0.right
+  link.to = n1.left
+}
+```
+
 **Actor property lookups:** Any actor label and property is accessible: `ball.position`, `title.color`, etc.
 
-> **Note:** `always` is stateless — variables do not persist between frames. Physics-style integration should use analytical expressions of `t` (e.g., `position = p0 + v0*t + 0.5*a*t²`) or keyframe tracks. Per-actor stateful updaters are not planned. See `docs/roadmap.md` §4.1 (dropped).
+> **Note:** `always` is stateless — variables do not persist between frames. Physics-style integration should use analytical expressions of `t` (e.g., `position = p0 + v0*t + 0.5*a*t²`) or keyframe tracks. Per-actor stateful updaters are not planned. See the Icebox notes on interactive step control and eval-path unification in `docs/roadmap.md`.
 
 ### Animation State Flags
 
@@ -890,6 +905,20 @@ Array-indexed declarations work inside containers (`Row`, `Col`, `Grid`,
 - Very large generated arrays should prefer specialized primitives like
   `BarChart` for performance.
 
+**Runtime-indexed assignment targets:** Inside `always`, an assignment target
+may use a runtime index expression:
+
+```animatix
+always {
+  bars[i].color = accent.danger
+  bars[i].opacity = 1.0
+}
+```
+
+The target resolves to `bars__{i}` at frame time and requires the matching
+for-loop-generated actor set. Non-integer or out-of-range indices warn and are
+skipped. Actions remain build-time only.
+
 ---
 
 ## 11. Imports, Modules & Namespaces
@@ -932,7 +961,7 @@ Re-export chains are resolved transitively. Values are evaluated at build time i
 
 **Current limitations:**
 - Namespace access is one level: `alias.export_name`
-- Property assignment for `text`/`latex`/`math`/`code` stores the value but does not trigger re-compilation of text paths at render time; infrastructure is in place but render-time font compilation is deferred.
+- Text/Typst/Code property assignment recompiles glyph paths at timeline build/assignment time. Changing text content directly inside `always` is not supported as a render-time path.
 
 ---
 
@@ -1408,6 +1437,39 @@ let x = pos[0]          // 100
 
 Supported: `List`, `Str` (char), `Vec2/3/4`, `Color`.
 
+### List Mutation Helpers
+
+`list_swap(list, i, j)` returns a new list with two elements swapped.
+`list_set(list, i, value)` returns a new list with one element replaced. Both
+are intended for build-time algorithm precomputation.
+
+```animatix
+let arr = {5, 2, 8}
+let swapped = list_swap(arr, 0, 2)   // {8, 2, 5}
+let replaced = list_set(arr, 1, 9)   // {5, 9, 8}
+```
+
+### Match
+
+Animatix supports Rust-style `match` as both an expression and a statement.
+Patterns include literal values, ranges (`1..=3`), or-patterns (`0 | 2`), and
+tuples. A `_` wildcard arm is required.
+
+```animatix
+color = match floor(t) % 2 {
+  0 => red,
+  _ => blue,
+}
+```
+
+```animatix
+match floor(t) % 3 {
+  0 => { bars[0].color = red }
+  1 => { bars[1].color = red }
+  _ => {}
+}
+```
+
 ### Method Calls
 
 Methods dispatch on the receiver's type:
@@ -1437,14 +1499,14 @@ Named structs can be constructed with field syntax:
 let p = Point { x: 10, y: 20 }
 ```
 
-Returns a `Value::Object` with typed fields. Field reads (`p.x`) are implemented; e.g. `p.x + p.y` works after `let p = Point { x: 10, y: 20 }`. Field writes (`p.x = 30`) are not yet supported.
+Returns a `Value::Object` with typed fields. Field reads (`p.x`) are implemented; e.g. `p.x + p.y` works after `let p = Point { x: 10, y: 20 }`. Field writes (`p.x = 30`) are supported for build-time variable tracks; runtime `always` object field writes are not yet implemented.
 
 ---
 
 ## 16. Known Gaps & Limitations
 
-- **Object Field Write:** `Value::Object` supports construction and field reads (`p.x`) but field writes (`p.x = 30`) are not yet implemented.
-- **Re-declaration for Morphing/Media:** Morphing text and `Svg.url` assignment currently require re-declaration at a new keyframe (text morphing) or produce immediate/static changes (SVG url). `Image.url` assignment supports full keyframe animation with timed interpolation between sources.
+- **Object Field Write:** `Value::Object` supports construction, field reads (`p.x`), and build-time variable-track field writes. Runtime `always` object field writes remain unimplemented.
+- **Media source assignment:** `Svg.url` assignment produces immediate/static changes; `Image.url` assignment supports full keyframe animation with timed interpolation between sources. Text/Typst/Code assignment recompiles glyph paths at timeline build/assignment time.
 - ~~**Static Geometry:** Structural geometry inputs like `Polygon.points` and `Path.commands` are declaration-time only and cannot be animated dynamically frame-by-frame.~~ Both now support timed assignments with path morphing.
 
 ---
@@ -1513,7 +1575,7 @@ animatix gif examples/19_cross_file_scenes.amx --width 640 --height 360 --fps 10
 
 ## 18. Multi-Scene Composition
 
-> **Status:** Parser, composition engine, CLI export, transition blending, and cross-file scene composition are shipped. GUI scene list/composition timeline work remains pending.
+> **Status:** Parser, composition engine, CLI export, transition blending, cross-file scene composition, GUI scene list, composition scene track, and scene editing are shipped.
 
 ### Scene Declarations
 

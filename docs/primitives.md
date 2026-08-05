@@ -232,7 +232,7 @@ A coordinate container that maps child actor positions to math coordinates. Use 
 - `at`: Tuple `(x, y)`
 - `grid`: Boolean — draw grid lines at regular intervals
 - `ticks`: Boolean — draw tick marks on axes
-- `tick_labels`: Boolean — draw numeric labels at ticks (not yet implemented)
+- `tick_labels`: `"auto" | "true" | "false" | "x" | "y" | "both"` — draw numeric labels on axes
 
 ## PlotCurve
 
@@ -527,6 +527,6 @@ For bracket modifier details (`duration`, `delay`, `ease`, morphing strategies),
 
 ---
 
-# 5. Planned
+# 5. Known Media Gaps
 
-- `Image` / `Svg` source assignment (currently requires re-declaration)
+- `Svg.url` source assignment currently loads immediately/static on assignment. `Image.url` assignment already supports keyframed transitions.
