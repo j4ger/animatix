@@ -3,7 +3,6 @@ use egui::{Align, RichText, Stroke, Vec2};
 use crate::app::GuiShell;
 use crate::app::commands::{ActionQueue, DocumentCommand, SceneCommand, ShellAction, ViewAction};
 use crate::app::components::button::Button;
-use crate::app::design_tokens::semantic::{accent, status, surface, text};
 use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 
@@ -11,9 +10,10 @@ use crate::app::design_tokens::typography::TextRole;
 
 impl GuiShell {
     pub(crate) fn toolbar_ui(&mut self, ui: &mut egui::Ui, commands: &mut ActionQueue) {
-        let toolbar_bg = surface::BASE;
-        let border_color = surface::WIDGET;
-        let text_primary = text::PRIMARY;
+        let t = eparts::theme(ui);
+        let toolbar_bg = t.surface.base;
+        let border_color = t.surface.widget;
+        let text_primary = t.text.primary;
 
         let sp = crate::app::design_tokens::spatial::spatial(ui);
 
@@ -30,7 +30,7 @@ impl GuiShell {
                     // App mark
                     let (mark_rect, _response) =
                         ui.allocate_exact_size(Vec2::new(8.0, 8.0), egui::Sense::hover());
-                    ui.painter().rect_filled(mark_rect, 2.0, accent::PRIMARY);
+                    ui.painter().rect_filled(mark_rect, 2.0, t.accent.primary);
 
                     // Filename with dirty indicator
                     let filename = self
@@ -48,7 +48,7 @@ impl GuiShell {
                         filename.to_string()
                     };
                     let filename_color = if self.document_store.source.document.is_dirty {
-                        status::WARNING
+                        t.status.warning
                     } else {
                         text_primary
                     };
@@ -65,7 +65,7 @@ impl GuiShell {
                     // Status badge: last-good or stale
                     if self.document_store.showing_last_good() {
                         let response = egui::Frame::new()
-                            .fill(status::DIAGNOSTIC_ERROR)
+                            .fill(t.status.diagnostic_error)
                             .corner_radius(RADIUS_M)
                             .inner_margin(egui::Margin::symmetric(4, 1))
                             .show(ui, |ui| {
@@ -73,7 +73,7 @@ impl GuiShell {
                                     egui::Label::new(
                                         RichText::new("last good")
                                             .size(TextRole::Micro.size())
-                                            .color(surface::BASE),
+                                            .color(t.surface.base),
                                     )
                                     .selectable(false),
                                 );
@@ -83,7 +83,7 @@ impl GuiShell {
                         );
                     } else if self.document_store.snapshot_is_stale() {
                         let response = egui::Frame::new()
-                            .fill(status::WARNING)
+                            .fill(t.status.warning)
                             .corner_radius(RADIUS_M)
                             .inner_margin(egui::Margin::symmetric(4, 1))
                             .show(ui, |ui| {
@@ -91,7 +91,7 @@ impl GuiShell {
                                     egui::Label::new(
                                         RichText::new("stale")
                                             .size(TextRole::Micro.size())
-                                            .color(surface::BASE),
+                                            .color(t.surface.base),
                                     )
                                     .selectable(false),
                                 );
@@ -101,14 +101,15 @@ impl GuiShell {
 
                     // Building indicator (pulsing)
                     if self.preview_store.rebuild_in_progress {
-                        let t = ui.ctx().animate_value_with_time(
+                        let anim_t = ui.ctx().animate_value_with_time(
                             ui.id().with("build_spinner"),
                             0.0,
                             0.8,
                         );
-                        let pulse = ((t as f64 * std::f64::consts::TAU).sin() * 0.3 + 0.7) as f32;
+                        let pulse =
+                            ((anim_t as f64 * std::f64::consts::TAU).sin() * 0.3 + 0.7) as f32;
                         let response = egui::Frame::new()
-                            .fill(accent::PRIMARY.linear_multiply(pulse))
+                            .fill(t.accent.primary.linear_multiply(pulse))
                             .corner_radius(RADIUS_M)
                             .inner_margin(egui::Margin::symmetric(4, 1))
                             .show(ui, |ui| {
@@ -116,7 +117,7 @@ impl GuiShell {
                                     egui::Label::new(
                                         RichText::new(egui_phosphor::regular::ARROW_CLOCKWISE)
                                             .size(TextRole::Micro.size())
-                                            .color(surface::BASE),
+                                            .color(t.surface.base),
                                     )
                                     .selectable(false),
                                 );
@@ -214,14 +215,14 @@ impl GuiShell {
                                         ui.label(
                                             RichText::new(egui_phosphor::regular::ARROW_RIGHT)
                                                 .size(TextRole::BodyS.size())
-                                                .color(text::MUTED),
+                                                .color(t.text.muted),
                                         );
                                     }
                                     let is_active = active_scene == Some(name.as_str());
                                     let color = if is_active {
-                                        text::PRIMARY
+                                        t.text.primary
                                     } else {
-                                        text::MUTED
+                                        t.text.muted
                                     };
                                     let label = RichText::new(name.as_str())
                                         .size(TextRole::BodyS.size())
@@ -280,7 +281,7 @@ impl GuiShell {
                         ui.menu_button(
                             RichText::new("Debug")
                                 .size(TextRole::BodyS.size())
-                                .color(text::SECONDARY),
+                                .color(t.text.secondary),
                             |ui| {
                                 let mut bounds = self.ui_store.view.debug_bounds;
                                 if ui.checkbox(&mut bounds, "Bounds").clicked() {
@@ -319,7 +320,7 @@ impl GuiShell {
                         ui.menu_button(
                             RichText::new(zoom_label)
                                 .size(TextRole::BodyS.size())
-                                .color(text::SECONDARY),
+                                .color(t.text.secondary),
                             |ui| {
                                 ui.set_min_width(80.0);
                                 if ui.selectable_label(false, "Fit").clicked() {

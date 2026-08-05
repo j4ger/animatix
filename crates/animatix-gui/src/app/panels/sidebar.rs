@@ -17,7 +17,6 @@ use crate::app::components::button::Button;
 use crate::app::components::context_menu::{MenuEntry, render_menu};
 use crate::app::components::{anim, layout, row};
 use crate::app::design_tokens::motion;
-use crate::app::design_tokens::semantic::{accent, status, text};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::icons::actor_icon_str;
 use crate::app::panels::SidebarTab;
@@ -235,6 +234,7 @@ fn editor_content_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
 }
 
 fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::Ui) {
+    let t = eparts::theme(ui);
     let sp = crate::app::design_tokens::spatial::spatial(ui);
     // ── Filter input ────────────────────────────────────────────────────────
     let filter_id = egui::Id::new(EXPLORER_FILTER_ID);
@@ -336,7 +336,7 @@ fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::Ui) {
                 } else {
                     egui_phosphor::regular::FILE
                 };
-                let color = if is_amx { Some(accent::PRIMARY) } else { None };
+                let color = if is_amx { Some(t.accent.primary) } else { None };
                 (Some(file_icon), color)
             };
 
@@ -347,7 +347,7 @@ fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::Ui) {
                 .indent(entry.depth as f32 * sp.base.component.icon_slot_width)
                 .selected(is_selected)
                 .icon(icon)
-                .label_color(label_color.unwrap_or(text::SECONDARY))
+                .label_color(label_color.unwrap_or(t.text.secondary))
                 .has_children(has_children)
                 .expanded(is_expanded)
                 .show(ui, row_id);
@@ -399,6 +399,7 @@ fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::Ui) {
 }
 
 fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
+    let t = eparts::theme(ui);
     let sp = crate::app::design_tokens::spatial::spatial(ui);
     let Some(composition) = ctx.composition else {
         layout::empty_state(
@@ -461,9 +462,9 @@ fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
                 .selected(is_active)
                 .icon(Some(egui_phosphor::regular::FILM_STRIP))
                 .label_color(if is_active {
-                    accent::PRIMARY
+                    t.accent.primary
                 } else {
-                    text::SECONDARY
+                    t.text.secondary
                 })
                 .sense(egui::Sense::click_and_drag())
                 .show(ui, row_id);
@@ -492,7 +493,7 @@ fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
                             egui::pos2(response.row_rect.left(), line_y),
                             egui::pos2(response.row_rect.right(), line_y),
                         ],
-                        egui::Stroke::new(2.0, accent::PRIMARY),
+                        egui::Stroke::new(2.0, t.accent.primary),
                     );
                 }
             }
@@ -534,14 +535,14 @@ fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
                     ui.label(
                         RichText::new(&duration_hint)
                             .size(TextRole::Micro.size())
-                            .color(text::MUTED),
+                            .color(t.text.muted),
                     );
                 });
                 if let Some(hint) = transition_hint {
                     ui.horizontal(|ui| {
                         ui.add_space(sp.base.component.icon_slot_width + sp.base.space_2);
                         ui.label(
-                            RichText::new(hint).size(TextRole::Micro.size()).color(text::MUTED),
+                            RichText::new(hint).size(TextRole::Micro.size()).color(t.text.muted),
                         );
                     });
                 }
@@ -577,6 +578,7 @@ fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
 }
 
 fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
+    let t = eparts::theme(ui);
     let sp = crate::app::design_tokens::spatial::spatial(ui);
     let Some(timeline) = ctx.timeline else {
         layout::empty_state(ui, egui_phosphor::regular::FILM_STRIP, "No timeline loaded", "");
@@ -619,7 +621,7 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
                             scene_name
                         ))
                         .size(TextRole::BodyS.size())
-                        .color(text::MUTED),
+                        .color(t.text.muted),
                     )
                     .selectable(false),
                 );
@@ -636,7 +638,7 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
                 egui::Label::new(
                     RichText::new(egui_phosphor::regular::FILM_STRIP)
                         .size(sp.base.row_l)
-                        .color(text::MUTED),
+                        .color(t.text.muted),
                 )
                 .selectable(false),
             );
@@ -645,7 +647,7 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
                 egui::Label::new(
                     RichText::new("No actors in scene")
                         .size(TextRole::Title.size())
-                        .color(text::SECONDARY),
+                        .color(t.text.secondary),
                 )
                 .selectable(false),
             );
@@ -654,7 +656,7 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
                 .button(
                     RichText::new(format!("{} Add Actor", egui_phosphor::regular::PLUS))
                         .size(TextRole::Title.size())
-                        .color(accent::PRIMARY),
+                        .color(t.accent.primary),
                 )
                 .clicked()
             {
@@ -710,6 +712,7 @@ fn render_actor_tree(
     filter_lower: &str,
     has_filter: bool,
 ) {
+    let t = eparts::theme(ui);
     let sp = crate::app::design_tokens::spatial::spatial(ui);
     let Some(track) = timeline.get_track(label) else {
         return;
@@ -752,7 +755,7 @@ fn render_actor_tree(
     let is_visible = track.visible;
 
     let (icon, display_label, label_color) = if is_anonymous {
-        (Some(egui_phosphor::regular::GHOST), "anon", Some(text::MUTED))
+        (Some(egui_phosphor::regular::GHOST), "anon", Some(t.text.muted))
     } else {
         let icon = Some(actor_icon_str(track.kind));
         (icon, label, None)
@@ -768,9 +771,9 @@ fn render_actor_tree(
         egui_phosphor::regular::EYE_CLOSED
     };
     let eye_color = if is_visible {
-        text::SECONDARY
+        t.text.secondary
     } else {
-        text::DISABLED
+        t.text.disabled
     };
 
     let is_locked = track.locked;
@@ -780,9 +783,9 @@ fn render_actor_tree(
         egui_phosphor::regular::LOCK_KEY_OPEN
     };
     let lock_color = if is_locked {
-        status::WARNING
+        t.status.warning
     } else {
-        text::DISABLED
+        t.text.disabled
     };
 
     let response = row::Row::new(display_label)
@@ -790,9 +793,9 @@ fn render_actor_tree(
         .selected(is_selected)
         .icon(icon)
         .label_color(label_color.unwrap_or(if is_visible {
-            text::SECONDARY
+            t.text.secondary
         } else {
-            text::DISABLED
+            t.text.disabled
         }))
         .has_children(has_children)
         .expanded(is_expanded)
@@ -807,7 +810,7 @@ fn render_actor_tree(
                         "Show layer"
                     })
                     .icon_color(eye_color)
-                    .hover_icon_color(text::PRIMARY),
+                    .hover_icon_color(t.text.primary),
             );
             if eye_btn.clicked() {
                 commands.push_back(ActorCommand::ToggleActorVisibility(label.to_string()).into());
@@ -820,7 +823,7 @@ fn render_actor_tree(
                         "Lock layer"
                     })
                     .icon_color(lock_color)
-                    .hover_icon_color(text::PRIMARY),
+                    .hover_icon_color(t.text.primary),
             );
             if lock_btn.clicked() {
                 commands.push_back(ActorCommand::ToggleActorLock(label.to_string()).into());
@@ -846,7 +849,7 @@ fn render_actor_tree(
             ui.painter().rect_stroke(
                 response.row_rect.expand(1.0),
                 2,
-                egui::Stroke::new(1.5, accent::PRIMARY),
+                egui::Stroke::new(1.5, t.accent.primary),
                 egui::StrokeKind::Outside,
             );
         }
@@ -866,7 +869,7 @@ fn render_actor_tree(
                     egui::pos2(response.row_rect.right(), response.row_rect.top() + 2.0),
                 ),
                 0.0,
-                accent::PRIMARY,
+                t.accent.primary,
             );
         }
     }
@@ -1040,6 +1043,7 @@ fn actor_matches_filter(timeline: &Timeline, label: &str, filter_lower: &str) ->
 // ─── Components Tab ───────────────────────────────────────────────────────
 
 fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
+    let t = eparts::theme(ui);
     let sp = crate::app::design_tokens::spatial::spatial(ui);
     if ctx.components.is_empty() {
         layout::empty_state(
@@ -1059,14 +1063,14 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
             let row_id = ui.id().with(name);
             let response = row::Row::new(name)
                 .icon(Some(egui_phosphor::regular::CUBE))
-                .label_color(text::SECONDARY)
+                .label_color(t.text.secondary)
                 .right(|ui| {
                     if ui
                         .add(
                             egui::Button::new(
                                 egui::RichText::new(egui_phosphor::regular::ARROW_SQUARE_OUT)
-                                    .size(11.0)
-                                    .color(text::MUTED),
+                                    .size(TextRole::Micro.size())
+                                    .color(t.text.muted),
                             )
                             .frame(false),
                         )
@@ -1137,7 +1141,7 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
                     ui.label(
                         egui::RichText::new(format!("@slots: {}", slots.join(", ")))
                             .size(TextRole::Micro.size())
-                            .color(accent::CYAN),
+                            .color(t.accent.cyan),
                     );
                 });
             }
@@ -1162,7 +1166,7 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
                     ui.label(
                         egui::RichText::new(params.join(", "))
                             .size(TextRole::Micro.size())
-                            .color(text::MUTED),
+                            .color(t.text.muted),
                     );
                 });
             }
@@ -1197,6 +1201,7 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
 // ─── Assets Tab ───────────────────────────────────────────────────────────
 
 fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
+    let t = eparts::theme(ui);
     let sp = crate::app::design_tokens::spatial::spatial(ui);
     let Some(cache) = ctx.asset_cache else {
         layout::empty_state(
@@ -1232,7 +1237,7 @@ fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
                     std::path::Path::new(path).file_name().and_then(|n| n.to_str()).unwrap_or(path);
                 let response = row::Row::new(filename)
                     .icon(Some(egui_phosphor::regular::IMAGE))
-                    .label_color(text::SECONDARY)
+                    .label_color(t.text.secondary)
                     .show(ui, row_id);
 
                 if response.response.double_clicked() {
@@ -1268,7 +1273,7 @@ fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
                     std::path::Path::new(path).file_name().and_then(|n| n.to_str()).unwrap_or(path);
                 let response = row::Row::new(filename)
                     .icon(Some(egui_phosphor::regular::FILE_SVG))
-                    .label_color(text::SECONDARY)
+                    .label_color(t.text.secondary)
                     .show(ui, row_id);
 
                 if response.response.double_clicked() {
