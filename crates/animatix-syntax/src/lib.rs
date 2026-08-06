@@ -23,6 +23,8 @@ pub mod to_source;
 pub mod transition_registry;
 /// Tree-sitter CST → Animatix AST converter for incremental parsing.
 pub mod ts_convert;
+/// Symbol-aware type inference shared by the typechecker and analyzer.
+pub mod typing;
 /// Gradual type checker for component/action parameter validation.
 pub mod typecheck;
 pub mod walk;

@@ -748,6 +748,9 @@ pub fn parse_color(expr: &Expr) -> [f32; 4] {
 }
 
 fn named_color(name: &str) -> Option<[f32; 4]> {
+    if !animatix_syntax::typing::NAMED_COLOR_NAMES.contains(&name) {
+        return None;
+    }
     match name {
         "red" | "RED" => Some([1.0, 0.0, 0.0, 1.0]),
         "green" | "GREEN" => Some([0.0, 1.0, 0.0, 1.0]),

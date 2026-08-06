@@ -1,6 +1,6 @@
-# Probe: named colors in lists infer as List<Any>, not List<Color>
+# Probe: named colors in lists infer as List<Color>
 
-Status: open.
+Status: resolved for type checking; remaining linter gap is unrelated.
 
 ## Intent
 
@@ -25,24 +25,21 @@ s: Swatches, colors: {red, green, blue}
 
 `{red, green, blue}` should infer as `List<Color>`.
 
-## Current Workaround
+## Resolution
 
-Use colorscheme tokens (`{accent.primary, accent.success, accent.warning}`)
-or `rgb(...)` calls so each list element is typed as a color.
+`animatix check` now accepts the named color list. The shared symbol-aware
+`TypeEnv` in `animatix-syntax::typing` knows named colors, color namespaces,
+color constructors, component params, actor labels, and list common types.
 
-## Diagnostics / Behavior
+## Remaining
 
-```text
-error[build:type-mismatch] Type mismatch: parameter 'colors' of component
-'Swatches' expects List<Color>, got List<Any> (from list of 3 items)
-```
+`animatix lint` still reports `unused-label: 's'` because the component
+instance is not animated or directly referenced afterward. That is the broader
+component/static-actor linter gap, not a type inference issue.
 
-## Impact
+## Regression coverage
 
-Component parameter typing rejects the most readable list form for colors.
-
-## Recommendation
-
-Infer `Expr::Ident` values that match built-in named colors as `Color` when
-typechecking list literals and component parameter lists. Add a regression
-test for `List<Color>` with named colors.
+- `typing::tests::named_colors_are_colors`
+- `typing::tests::list_infers_common_color_type`
+- `typecheck::tests::named_color_list_accepted_for_list_color_param`
+- The repro remains as a dogfood regression fixture.

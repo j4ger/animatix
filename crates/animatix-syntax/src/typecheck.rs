@@ -8,10 +8,9 @@
 
 use std::collections::HashMap;
 
-use crate::ast::{
-    ComponentDef, Expr, MatchPattern, Modifier, ParamDef, Property, Stmt, TypeAnnotation,
-};
+use crate::ast::{ComponentDef, Expr, MatchPattern, Modifier, ParamDef, Property, Stmt};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use crate::typing::{self, Type as TypedType, TypeEnv as TypedEnv};
 
 /// Type-checking environment.
 pub struct TypeEnv<'a> {
@@ -21,6 +20,8 @@ pub struct TypeEnv<'a> {
     module_actions: &'a HashMap<String, crate::module::ActionTemplate>,
     /// Actor label → component type name (accumulated during AST walk).
     labels: HashMap<String, String>,
+    /// Symbol-aware type environment used for expression inference.
+    typed: TypedEnv,
     /// When true, unannotated parameters produce warnings.
     strict_types: bool,
 }
@@ -31,10 +32,27 @@ impl<'a> TypeEnv<'a> {
         components: &'a HashMap<String, crate::module::ComponentEntry>,
         module_actions: &'a HashMap<String, crate::module::ActionTemplate>,
     ) -> Self {
+        let mut typed = TypedEnv::with_stdlib();
+        for (name, entry) in components {
+            let mut signature = typing::ComponentSignature::default();
+            for param in &entry.definition.params {
+                if let Some(annotation) = &param.param_type {
+                    signature
+                        .params
+                        .insert(param.name.clone(), TypedType::from_annotation(annotation));
+                } else if let Some(default) = &param.default {
+                    signature
+                        .params
+                        .insert(param.name.clone(), typing::infer_expr_type(default, &typed));
+                }
+            }
+            typed.register_component(name, signature);
+        }
         Self {
             components,
             module_actions,
             labels: HashMap::new(),
+            typed,
             strict_types: false,
         }
     }
@@ -58,6 +76,7 @@ impl<'a> TypeEnv<'a> {
         match stmt {
             Stmt::ActorDecl {
                 label,
+                array_index,
                 ty,
                 props,
                 children,
@@ -65,6 +84,13 @@ impl<'a> TypeEnv<'a> {
             } => {
                 // Track label → type for action invocation validation
                 self.labels.insert(label.clone(), ty.clone());
+                if array_index.is_some() {
+                    self.typed.declare_array(label, TypedType::Actor(ty.clone()));
+                } else if self.components.contains_key(ty) {
+                    self.typed.declare_component_instance(label, ty);
+                } else {
+                    self.typed.declare_actor(label, ty);
+                }
                 // Check if this actor decl instantiates a component
                 if let Some(entry) = self.components.get(ty) {
                     self.check_component_props(ty, &entry.definition, props, diagnostics);
@@ -73,6 +99,10 @@ impl<'a> TypeEnv<'a> {
                 for child in children {
                     self.check_inline_item(child, diagnostics);
                 }
+            },
+            Stmt::LetDecl { name, value, .. } => {
+                let ty = typing::infer_expr_type(value, &self.typed);
+                self.typed.bind(name, ty);
             },
             Stmt::Action(action, _span) => {
                 for target in &action.targets {
@@ -148,10 +178,36 @@ impl<'a> TypeEnv<'a> {
                     }
                 }
             },
-            Stmt::ForLoop { body, .. } => {
+            Stmt::ForLoop {
+                var,
+                index_var,
+                iterable,
+                body,
+                ..
+            } => {
+                let iterable_ty = typing::infer_expr_type(iterable, &self.typed);
+                let element_ty = match iterable_ty {
+                    TypedType::List(inner) => *inner,
+                    _ => TypedType::Any,
+                };
+                self.typed.push_scope();
+                match var {
+                    crate::ast::LoopPattern::Single(name) => {
+                        self.typed.bind(name, element_ty.clone());
+                    },
+                    crate::ast::LoopPattern::Tuple(names) => {
+                        for name in names {
+                            self.typed.bind(name, element_ty.clone());
+                        }
+                    },
+                }
+                if let Some(index_var) = index_var {
+                    self.typed.bind(index_var, TypedType::Num);
+                }
                 for stmt in body {
                     self.check_stmt(stmt, diagnostics);
                 }
+                self.typed.pop_scope();
             },
             Stmt::Scene { body, .. } => {
                 for stmt in body {
@@ -162,9 +218,24 @@ impl<'a> TypeEnv<'a> {
                 if self.strict_types {
                     self.check_param_annotations(&def.name, "component", &def.params, diagnostics);
                 }
+                self.typed.push_scope();
+                for param in &def.params {
+                    let ty = param
+                        .param_type
+                        .as_ref()
+                        .map(TypedType::from_annotation)
+                        .or_else(|| {
+                            param.default.as_ref().map(|value| {
+                                typing::infer_expr_type(value, &self.typed)
+                            })
+                        })
+                        .unwrap_or(TypedType::Any);
+                    self.typed.bind(&param.name, ty);
+                }
                 for stmt in &def.body {
                     self.check_stmt(stmt, diagnostics);
                 }
+                self.typed.pop_scope();
             },
             Stmt::ComponentAction {
                 name, params, body, ..
@@ -172,9 +243,24 @@ impl<'a> TypeEnv<'a> {
                 if self.strict_types {
                     self.check_param_annotations(name, "action", params, diagnostics);
                 }
+                self.typed.push_scope();
+                for param in params {
+                    let ty = param
+                        .param_type
+                        .as_ref()
+                        .map(TypedType::from_annotation)
+                        .or_else(|| {
+                            param.default.as_ref().map(|value| {
+                                typing::infer_expr_type(value, &self.typed)
+                            })
+                        })
+                        .unwrap_or(TypedType::Any);
+                    self.typed.bind(&param.name, ty);
+                }
                 for stmt in body {
                     self.check_stmt(stmt, diagnostics);
                 }
+                self.typed.pop_scope();
             },
             Stmt::Config { .. } => {
                 // Config is handled at the program level, not per-statement
@@ -183,18 +269,36 @@ impl<'a> TypeEnv<'a> {
         }
     }
 
-    fn check_inline_item(&self, item: &crate::ast::InlineItem, diagnostics: &mut Vec<Diagnostic>) {
+    fn check_inline_item(
+        &mut self,
+        item: &crate::ast::InlineItem,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
         match item {
-            crate::ast::InlineItem::Anonymous { ty, children, .. }
-            | crate::ast::InlineItem::Labeled { ty, children, .. } => {
+            crate::ast::InlineItem::Anonymous { ty, props, children, .. } => {
                 if let Some(entry) = self.components.get(ty) {
-                    // Inline items don't carry properties in the same way;
-                    // they have props field but we need to extract them.
-                    let props = match item {
-                        crate::ast::InlineItem::Anonymous { props, .. } => props,
-                        crate::ast::InlineItem::Labeled { props, .. } => props,
-                        _ => unreachable!(),
-                    };
+                    self.check_component_props(ty, &entry.definition, props, diagnostics);
+                }
+                for child in children {
+                    self.check_inline_item(child, diagnostics);
+                }
+            },
+            crate::ast::InlineItem::Labeled {
+                label,
+                array_index,
+                ty,
+                props,
+                children,
+                ..
+            } => {
+                if array_index.is_some() {
+                    self.typed.declare_array(label, TypedType::Actor(ty.clone()));
+                } else if self.components.contains_key(ty) {
+                    self.typed.declare_component_instance(label, ty);
+                } else {
+                    self.typed.declare_actor(label, ty);
+                }
+                if let Some(entry) = self.components.get(ty) {
                     self.check_component_props(ty, &entry.definition, props, diagnostics);
                 }
                 for child in children {
@@ -228,8 +332,9 @@ impl<'a> TypeEnv<'a> {
         for param in params {
             if let Some(expected) = &param.param_type {
                 if let Some(value) = provided.get(param.name.as_str()) {
-                    let actual = expr_type(value);
-                    if !is_subtype(&actual, expected) {
+                    let actual = typing::infer_expr_type(value, &self.typed);
+                    let expected = TypedType::from_annotation(expected);
+                    if !typing::is_subtype(&actual, &expected) {
                         diagnostics.push(
                             Diagnostic::error(
                                 DiagnosticCode::TypeMismatch,
@@ -303,8 +408,9 @@ impl<'a> TypeEnv<'a> {
         for prop in props {
             if let Some(param) = param_map.get(prop.name.as_str()) {
                 if let Some(expected) = &param.param_type {
-                    let actual = expr_type(&prop.value);
-                    if !is_subtype(&actual, expected) {
+                    let actual = typing::infer_expr_type(&prop.value, &self.typed);
+                    let expected = TypedType::from_annotation(expected);
+                    if !typing::is_subtype(&actual, &expected) {
                         diagnostics.push(
                             Diagnostic::error(
                                 DiagnosticCode::TypeMismatch,
@@ -344,92 +450,6 @@ impl<'a> TypeEnv<'a> {
     }
 }
 
-/// Determine the syntactic type of an expression.
-fn expr_type(expr: &Expr) -> TypeAnnotation {
-    match expr {
-        Expr::Num(_) => TypeAnnotation::Num,
-        Expr::Percent(_) => TypeAnnotation::Num,
-        Expr::Str(_) => TypeAnnotation::Str,
-        Expr::Bool(_) => TypeAnnotation::Bool,
-        Expr::Null => TypeAnnotation::Any,
-        Expr::List(items) => {
-            if items.is_empty() {
-                TypeAnnotation::List(Box::new(TypeAnnotation::Any))
-            } else {
-                // Infer element type from first item, check homogeneity
-                let elem_type = expr_type(&items[0]);
-                TypeAnnotation::List(Box::new(elem_type))
-            }
-        },
-        Expr::Tuple(items) => match items.len() {
-            2 if items.iter().all(|e| matches!(e, Expr::Num(_) | Expr::Percent(_))) => {
-                TypeAnnotation::Vec2
-            },
-            4 if items.iter().all(|e| matches!(e, Expr::Num(_) | Expr::Percent(_))) => {
-                TypeAnnotation::Vec4
-            },
-            _ => TypeAnnotation::Any,
-        },
-        Expr::Ident(_) => {
-            // Actor label references resolve to Actor type at build time
-            // (we can't know for sure without symbol table, so we guess)
-            TypeAnnotation::Any
-        },
-        // Known colorscheme namespaces (accent.*, text.*, surface.*, stroke.*) infer Color.
-        // scene.* is excluded — it mixes colors and anchors.
-        Expr::Path(parts)
-            if parts.len() >= 2
-                && matches!(parts[0].as_str(), "accent" | "text" | "surface" | "stroke") =>
-        {
-            TypeAnnotation::Color
-        },
-        Expr::Path(parts) if parts.len() == 1 => TypeAnnotation::Any,
-        Expr::Construct(name, _) => {
-            // Construct expressions like Colorscheme "name" { ... }
-            // or Point { x: 10, y: 20 }
-            // We map known constructor names to types
-            match name.as_str() {
-                "Color" | "Colorscheme" => TypeAnnotation::Color,
-                _ => TypeAnnotation::Any,
-            }
-        },
-        // Binary operations on numeric types produce Num
-        Expr::Binary(left, _, right) => {
-            let left_ty = expr_type(left);
-            let right_ty = expr_type(right);
-            if left_ty == TypeAnnotation::Num && right_ty == TypeAnnotation::Num {
-                TypeAnnotation::Num
-            } else {
-                TypeAnnotation::Any
-            }
-        },
-        Expr::Unary(_, inner) => expr_type(inner),
-        Expr::Call(name, _) => {
-            // Known functions
-            match name.as_str() {
-                "rgb" | "rgba" | "hsv" | "hsl" => TypeAnnotation::Color,
-                _ => TypeAnnotation::Any,
-            }
-        },
-        _ => TypeAnnotation::Any,
-    }
-}
-
-/// Check if `actual` is a subtype of `expected`.
-fn is_subtype(actual: &TypeAnnotation, expected: &TypeAnnotation) -> bool {
-    match (actual, expected) {
-        (_, TypeAnnotation::Any) => true,
-        (a, b) if a == b => true,
-        // Color is a subtype of Vec4 (same runtime representation)
-        (TypeAnnotation::Color, TypeAnnotation::Vec4) => true,
-        // Numeric literal is subtype of Num
-        (TypeAnnotation::Num, TypeAnnotation::Num) => true,
-        // List subtyping: List<A> <: List<B> if A <: B
-        (TypeAnnotation::List(a), TypeAnnotation::List(b)) => is_subtype(a, b),
-        _ => false,
-    }
-}
-
 /// Short summary of an expression for error messages.
 fn expr_summary(expr: &Expr) -> String {
     match expr {
@@ -457,7 +477,7 @@ mod tests {
     use chumsky::Parser;
 
     use super::*;
-    use crate::ast::{ComponentDef, ParamDef, Property, Stmt};
+    use crate::ast::{ComponentDef, ParamDef, Property, Stmt, TypeAnnotation};
     use crate::module::{ActionTemplate, ComponentEntry};
 
     fn make_env() -> TypeEnv<'static> {
@@ -741,17 +761,69 @@ mod tests {
     #[test]
     fn colorscheme_paths_infer_color_in_strict_mode() {
         use crate::ast::Expr;
+        use crate::typing::{Type, TypeEnv, infer_expr_type};
+        let env = TypeEnv::with_stdlib();
         // Known colorscheme namespaces with ≥2 segments → Color
         for ns in &["accent", "text", "surface", "stroke"] {
             let path = Expr::Path(vec![ns.to_string(), "primary".to_string()]);
-            assert_eq!(expr_type(&path), TypeAnnotation::Color, "{ns}.primary should be Color");
+            assert_eq!(
+                infer_expr_type(&path, &env),
+                Type::Color,
+                "{ns}.primary should be Color"
+            );
         }
         // scene.* stays Any (mixes colors and anchors)
         let scene = Expr::Path(vec!["scene".to_string(), "background".to_string()]);
-        assert_eq!(expr_type(&scene), TypeAnnotation::Any);
+        assert_eq!(infer_expr_type(&scene, &env), Type::Any);
         // single-segment stays Any
         let single = Expr::Path(vec!["accent".to_string()]);
-        assert_eq!(expr_type(&single), TypeAnnotation::Any);
+        assert_eq!(infer_expr_type(&single, &env), Type::Any);
+    }
+
+    #[test]
+    fn named_color_list_accepted_for_list_color_param() {
+        let mut components = HashMap::new();
+        components.insert(
+            "Swatches".to_string(),
+            ComponentEntry {
+                definition: ComponentDef {
+                    name: "Swatches".to_string(),
+                    params: vec![ParamDef {
+                        name: "colors".to_string(),
+                        param_type: Some(TypeAnnotation::List(Box::new(TypeAnnotation::Color))),
+                        default: None,
+                    }],
+                    body: vec![],
+                    is_pub: false,
+                },
+                source_path: std::path::PathBuf::new(),
+                actions: HashMap::new(),
+            },
+        );
+        let mut env =
+            TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())));
+        let stmts = vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "s".to_string(),
+            array_index: None,
+            ty: "Swatches".to_string(),
+            props: vec![Property {
+                name: "colors".to_string(),
+                value: Expr::List(vec![Expr::Ident("red".to_string()), Expr::Ident("blue".to_string())]),
+                value_span: None,
+                trailing_comment: None,
+            }],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }];
+        let diagnostics = env.check_statements(&stmts);
+        assert!(
+            diagnostics.is_empty(),
+            "named color list should satisfy List<Color>, got: {:?}",
+            diagnostics
+        );
     }
 
     #[test]

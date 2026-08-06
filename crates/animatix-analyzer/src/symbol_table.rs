@@ -5,6 +5,7 @@ use std::sync::OnceLock;
 
 use animatix_syntax::ast::*;
 use animatix_syntax::to_source::ToSource;
+use animatix_syntax::typing;
 
 /// Expected type for a property value.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,6 +20,10 @@ pub enum PropertyType {
     Bool,
     /// 2D vector (x, y).
     Vec2,
+    /// 3D vector (x, y, z).
+    Vec3,
+    /// 4D vector (x, y, z, w).
+    Vec4,
     /// Color value (named color, hex, or color token).
     Color,
     /// Duration in milliseconds or seconds.
@@ -1015,84 +1020,55 @@ impl SymbolTable {
     }
 }
 
-// NOTE: This function returns PropertyType and recurses by calling itself on
-// child nodes. The shared walk_expr is incompatible because it uses a
-// FnMut(&Expr) -> () visitor pattern that cannot propagate return values.
+impl From<&typing::Type> for PropertyType {
+    fn from(ty: &typing::Type) -> Self {
+        match ty {
+            typing::Type::Any => PropertyType::Any,
+            typing::Type::Num => PropertyType::Num,
+            typing::Type::Str => PropertyType::String,
+            typing::Type::Bool => PropertyType::Bool,
+            typing::Type::Vec2 => PropertyType::Vec2,
+            typing::Type::Vec3 => PropertyType::Vec3,
+            typing::Type::Vec4 => PropertyType::Vec4,
+            typing::Type::Color => PropertyType::Color,
+            typing::Type::Actor(_) | typing::Type::Component(_) => PropertyType::Actor,
+            typing::Type::List(_) => PropertyType::Array,
+            typing::Type::Tuple(_) | typing::Type::Function { .. } => PropertyType::Any,
+        }
+    }
+}
 
-/// Infer the type of an expression for type checking.
-pub fn infer_expr_type(expr: &Expr) -> PropertyType {
-    match expr {
-        Expr::Num(_) => PropertyType::Num,
-        Expr::Percent(_) => PropertyType::Num,
-        Expr::Str(_) => PropertyType::String,
-        Expr::Bool(_) => PropertyType::Bool,
-        Expr::Null => PropertyType::Any,
-        Expr::Tuple(elements) => {
-            if elements.len() == 2 {
-                PropertyType::Vec2
-            } else {
-                PropertyType::Array
-            }
-        },
-        Expr::List(_) => PropertyType::Array,
-        Expr::Ident(_) => PropertyType::Any,
-        // Known colorscheme namespaces always yield Color; scene.* is excluded (mixes colors and
-        // anchors).
-        Expr::Path(parts)
-            if parts.len() >= 2
-                && matches!(parts[0].as_str(), "accent" | "text" | "surface" | "stroke") =>
-        {
-            PropertyType::Color
-        },
-        Expr::Path(_) => PropertyType::Any, // e.g., text.primary (single-segment), scene.*
-        Expr::Index(_, _) => PropertyType::Any,
-        Expr::Binary(left, op, right) => {
-            let lt = infer_expr_type(left);
-            let rt = infer_expr_type(right);
-            match op {
-                // Arithmetic: result is Num if both operands are numeric, Any otherwise
-                BinaryOp::Add
-                | BinaryOp::Sub
-                | BinaryOp::Mul
-                | BinaryOp::Div
-                | BinaryOp::Mod
-                | BinaryOp::Pow => {
-                    if lt == PropertyType::Num && rt == PropertyType::Num {
-                        PropertyType::Num
-                    } else if lt == PropertyType::String || rt == PropertyType::String {
-                        PropertyType::String // string concatenation
-                    } else {
-                        PropertyType::Any
-                    }
-                },
-                // Comparison: result is Bool
-                BinaryOp::Eq
-                | BinaryOp::Neq
-                | BinaryOp::Lt
-                | BinaryOp::Gt
-                | BinaryOp::Lte
-                | BinaryOp::Gte => PropertyType::Bool,
-                // Logical: result is Bool
-                BinaryOp::And | BinaryOp::Or => PropertyType::Bool,
-            }
-        },
-        Expr::Unary(op, inner) => match op {
-            UnaryOp::Neg => {
-                let t = infer_expr_type(inner);
-                if t == PropertyType::Num {
-                    PropertyType::Num
+impl SymbolTable {
+    /// Build a symbol-aware type environment from the current table.
+    pub fn type_env(&self) -> typing::TypeEnv {
+        let mut env = typing::TypeEnv::with_stdlib();
+        for (name, info) in &self.labels {
+            if let Some(ty) = &info.ty {
+                if self.components.contains_key(ty) {
+                    env.declare_component_instance(name, ty);
                 } else {
-                    PropertyType::Any
+                    env.declare_actor(name, ty);
                 }
-            },
-            UnaryOp::Not => PropertyType::Bool,
-        },
-        Expr::Call(_, _) => PropertyType::Any,
-        Expr::Method(_, _, _) => PropertyType::Any,
-        Expr::Closure(_, _) => PropertyType::Any,
-        Expr::Conditional(_, _, _) => PropertyType::Any,
-        Expr::Match(_, _) => PropertyType::Any,
-        Expr::Construct(_, _) => PropertyType::Actor,
+            }
+        }
+        for (name, info) in &self.components {
+            let mut signature = typing::ComponentSignature::default();
+            for param in &info.params {
+                if let Some(annotation) = &param.param_type {
+                    signature
+                        .params
+                        .insert(param.name.clone(), typing::Type::from_annotation(annotation));
+                }
+            }
+            env.register_component(name, signature);
+        }
+        env
+    }
+
+    /// Infer an expression type using this table's symbols.
+    pub fn infer_expr_type(&self, expr: &Expr) -> PropertyType {
+        let env = self.type_env();
+        PropertyType::from(&typing::infer_expr_type(expr, &env))
     }
 }
 
@@ -1194,17 +1170,28 @@ mod tests {
 
     #[test]
     fn colorscheme_paths_infer_color() {
+        let env = typing::TypeEnv::with_stdlib();
         // accent.*, text.*, surface.*, stroke.* with ≥2 segments → Color
         for ns in &["accent", "text", "surface", "stroke"] {
             let path = Expr::Path(vec![ns.to_string(), "primary".to_string()]);
-            assert_eq!(infer_expr_type(&path), PropertyType::Color, "{ns}.primary should be Color");
+            assert_eq!(
+                PropertyType::from(&typing::infer_expr_type(&path, &env)),
+                PropertyType::Color,
+                "{ns}.primary should be Color"
+            );
         }
         // scene.* stays Any (mixes colors and anchors)
         let scene = Expr::Path(vec!["scene".to_string(), "background".to_string()]);
-        assert_eq!(infer_expr_type(&scene), PropertyType::Any);
+        assert_eq!(
+            PropertyType::from(&typing::infer_expr_type(&scene, &env)),
+            PropertyType::Any
+        );
         // single-segment stays Any
         let single = Expr::Path(vec!["accent".to_string()]);
-        assert_eq!(infer_expr_type(&single), PropertyType::Any);
+        assert_eq!(
+            PropertyType::from(&typing::infer_expr_type(&single, &env)),
+            PropertyType::Any
+        );
     }
 
     #[test]

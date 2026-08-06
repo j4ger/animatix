@@ -442,7 +442,7 @@ fn check_stmt(
                             // Check property type
                             let key = (ty.clone(), property.clone());
                             if let Some(expected_type) = symbols.property_types.get(&key) {
-                                let actual_type = crate::symbol_table::infer_expr_type(value);
+                                let actual_type = symbols.infer_expr_type(value);
                                 if actual_type != crate::symbol_table::PropertyType::Any
                                     && expected_type != &crate::symbol_table::PropertyType::Any
                                     && actual_type != *expected_type
@@ -506,7 +506,7 @@ fn check_stmt(
                     // Check property type if we have type info
                     let key = (ty.clone(), prop.name.clone());
                     if let Some(expected_type) = symbols.property_types.get(&key) {
-                        let actual_type = crate::symbol_table::infer_expr_type(&prop.value);
+                        let actual_type = symbols.infer_expr_type(&prop.value);
                         if actual_type != crate::symbol_table::PropertyType::Any
                             && expected_type != &crate::symbol_table::PropertyType::Any
                             && actual_type != *expected_type
