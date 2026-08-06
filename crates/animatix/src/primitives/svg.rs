@@ -2,10 +2,15 @@
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use crate::easing::Easing;
 use crate::primitives::{ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, Primitive};
 use crate::timeline::property_lookup::evaluate_expr_with_lookup_diagnostic;
-use crate::timeline::svg::parse_svg;
-use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
+use crate::timeline::property_track::TrackAccessor;
+use crate::timeline::svg::{measure_svg_paths, parse_svg};
+use crate::timeline::{
+    AnimationTrack, DEFAULT_LAYOUT_HALF_SIZE, Environment, SceneDimensions, Value,
+    preserve_instant_delayed_value,
+};
 
 /// The `Svg` primitive.
 pub struct SvgPrimitive;
@@ -58,7 +63,7 @@ impl Primitive for SvgPrimitive {
         track: &mut AnimationTrack,
         property: &str,
         value: &Expr,
-        _ctx: &mut AssignmentCtx,
+        ctx: &mut AssignmentCtx,
         env: &Environment,
         diagnostics: &mut Vec<Diagnostic>,
         subject: &str,
@@ -74,11 +79,9 @@ impl Primitive for SvgPrimitive {
             return true;
         }
 
-        match std::fs::read_to_string(&target_url) {
+        let parsed_paths = match std::fs::read_to_string(&target_url) {
             Ok(svg_content) => match parse_svg(&svg_content) {
-                Ok(parsed_paths) => {
-                    track.svg_paths = parsed_paths;
-                },
+                Ok(parsed_paths) => parsed_paths,
                 Err(error) => {
                     diagnostics.push(
                         Diagnostic::error(
@@ -89,6 +92,7 @@ impl Primitive for SvgPrimitive {
                         .with_subject(subject)
                         .with_path(&target_url),
                     );
+                    return true;
                 },
             },
             Err(error) => {
@@ -101,8 +105,67 @@ impl Primitive for SvgPrimitive {
                     .with_subject(subject)
                     .with_path(&target_url),
                 );
+                return true;
             },
+        };
+
+        let current_paths = track
+            .svg_paths_track
+            .as_ref()
+            .and_then(|track| track.evaluate(ctx.t_start_ms))
+            .or_else(|| {
+                if track.svg_paths.is_empty() {
+                    None
+                } else {
+                    Some(track.svg_paths.clone())
+                }
+            });
+
+        if ctx.duration_ms > 0.0 {
+            track.svg_paths_track.ensure(None).add_keyframe(
+                ctx.t_start_ms,
+                current_paths,
+                Easing::Linear,
+            );
+        } else if ctx.instant_delayed {
+            preserve_instant_delayed_value(&mut track.svg_paths_track, ctx.t_start_ms);
         }
+        track.svg_paths_track.ensure(None).add_keyframe(
+            ctx.t_end_ms,
+            Some(parsed_paths.clone()),
+            ctx.easing,
+        );
+
+        let measured_half_size = measure_svg_paths(&parsed_paths);
+        if ctx.duration_ms > 0.0 {
+            let start_size = track.geometry.size.get(ctx.t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
+            track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                ctx.t_start_ms,
+                start_size,
+                Easing::Linear,
+            );
+            if let Some(layout_start) = track.layout_size_get(ctx.t_start_ms) {
+                track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                    ctx.t_start_ms,
+                    layout_start,
+                    Easing::Linear,
+                );
+            }
+        } else if ctx.instant_delayed {
+            preserve_instant_delayed_value(&mut track.geometry.size, ctx.t_start_ms);
+            preserve_instant_delayed_value(&mut track.geometry.layout_size, ctx.t_start_ms);
+        }
+        track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+            ctx.t_end_ms,
+            measured_half_size,
+            ctx.easing,
+        );
+        track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+            ctx.t_end_ms,
+            measured_half_size,
+            ctx.easing,
+        );
+
         true
     }
 
@@ -114,12 +177,13 @@ impl Primitive for SvgPrimitive {
     {
         use crate::primitives::RenderCommand;
 
-        if ctx.track.svg_paths.is_empty() {
+        let Some(paths) = ctx.track.svg_paths_at(ctx.time_ms) else {
+            return Ok(None);
+        };
+        if paths.is_empty() {
             Ok(None)
         } else {
-            Ok(Some(vec![RenderCommand::Paths {
-                paths: ctx.track.svg_paths.clone(),
-            }]))
+            Ok(Some(vec![RenderCommand::Paths { paths }]))
         }
     }
 

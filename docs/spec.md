@@ -1507,7 +1507,7 @@ Returns a `Value::Object` with typed fields. Field reads (`p.x`) are implemented
 ## 16. Known Gaps & Limitations
 
 - **Object Field Write:** `Value::Object` supports construction, field reads (`p.x`), and build-time variable-track field writes. Runtime `always` object field writes remain unimplemented.
-- **Media source assignment:** `Svg.url` assignment produces immediate/static changes; `Image.url` assignment supports full keyframe animation with timed interpolation between sources. Text/Typst/Code assignment recompiles glyph paths at timeline build/assignment time.
+- **Media source assignment:** `Image.url` and `Svg.url` assignments support timed keyframe animation. Image sources and SVG path sets snap between sources at the midpoint of a timed assignment; SVG assignments also update measured size. Text/Typst/Code assignment recompiles glyph paths at timeline build/assignment time.
 - ~~**Static Geometry:** Structural geometry inputs like `Polygon.points` and `Path.commands` are declaration-time only and cannot be animated dynamically frame-by-frame.~~ Both now support timed assignments with path morphing.
 
 ---

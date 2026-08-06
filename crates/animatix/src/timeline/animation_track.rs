@@ -301,6 +301,12 @@ impl Interpolate for Option<crate::timeline::image::SceneImage> {
     }
 }
 
+impl Interpolate for Option<Vec<crate::renderer::types::VelloPath>> {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        if t < 0.5 { self.clone() } else { other.clone() }
+    }
+}
+
 // ─────────────────────────────────────────────────────────────
 // FilterTracks sub-struct
 // ─────────────────────────────────────────────────────────────

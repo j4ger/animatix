@@ -529,4 +529,4 @@ For bracket modifier details (`duration`, `delay`, `ease`, morphing strategies),
 
 # 5. Known Media Gaps
 
-- `Svg.url` source assignment currently loads immediately/static on assignment. `Image.url` assignment already supports keyframed transitions.
+- `Svg.url` source assignment now supports timed keyframe transitions like `Image.url`; SVG path sets snap at the midpoint of a timed assignment and update measured size.

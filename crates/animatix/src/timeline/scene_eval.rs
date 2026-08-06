@@ -164,7 +164,7 @@ impl Timeline {
     /// Add debug bounds and hit regions for a node.
     fn add_node_debug_overlays(
         &self,
-        track: &AnimationTrack,
+        svg_paths: &[VelloPath],
         half_size: [f32; 2],
         local_transform: &kurbo::Affine,
         scene: &mut vello::Scene,
@@ -172,12 +172,8 @@ impl Timeline {
         text_paths: &[TextPath],
         has_image: bool,
     ) -> Option<kurbo::Rect> {
-        let local_bounds = node_local_bounds(
-            vector_paths,
-            text_paths,
-            &track.svg_paths,
-            has_image.then_some(half_size),
-        );
+        let local_bounds =
+            node_local_bounds(vector_paths, text_paths, svg_paths, has_image.then_some(half_size));
 
         if let Some(bounds) = local_bounds {
             let stroke = vello::kurbo::Stroke::new(1.25);
@@ -577,8 +573,9 @@ impl Timeline {
 
                 // Debug overlays
                 if debug_options.draw_bounds {
+                    let svg_paths = track.svg_paths_at(time_ms).unwrap_or_default();
                     let _ = self.add_node_debug_overlays(
-                        track,
+                        &svg_paths,
                         half_size,
                         &local_transform,
                         scene,

@@ -250,7 +250,7 @@ pub(crate) fn ensure_vector_reveal_target(
             .as_ref()
             .map(|t| t.default_value.is_empty() && t.keyframes.is_empty())
             .unwrap_or(true)
-        && track.svg_paths.is_empty()
+        && !track.has_svg_path_content()
     {
         push_unsupported_action_target_diagnostic(
             verb,

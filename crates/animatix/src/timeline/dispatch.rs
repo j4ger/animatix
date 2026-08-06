@@ -85,9 +85,12 @@ pub struct AnimationTrack {
     // ── Text tier (sub-struct) ──
     /// Text property tracks (text_content, font_family, font_size, etc.).
     pub text: TextTracks,
-    /// Static SVG paths.
+    /// Static SVG paths from declarations.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub svg_paths: Vec<crate::timeline::VelloPath>,
+    /// Keyframed SVG paths from timed `Svg.url` assignments.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub svg_paths_track: Option<PropertyTrack<Option<Vec<crate::timeline::VelloPath>>>>,
     /// Raster image data.
     #[cfg(feature = "render")]
     #[cfg_attr(feature = "serde", serde(skip))]
@@ -193,6 +196,7 @@ impl AnimationTrack {
             // Text tier (sub-struct)
             text: TextTracks::default(),
             svg_paths: Vec::new(),
+            svg_paths_track: None,
             #[cfg(feature = "render")]
             image: None,
 
@@ -295,6 +299,30 @@ impl AnimationTrack {
         }
 
         paths
+    }
+
+    /// Evaluate SVG paths at `time_ms`, preferring timed assignments over the
+    /// declaration-level static path set.
+    pub fn svg_paths_at(&self, time_ms: u64) -> Option<Vec<VelloPath>> {
+        self.svg_paths_track
+            .as_ref()
+            .and_then(|track| track.evaluate(time_ms))
+            .or_else(|| {
+                if self.svg_paths.is_empty() {
+                    None
+                } else {
+                    Some(self.svg_paths.clone())
+                }
+            })
+    }
+
+    /// Whether this actor has any declaration or assignment SVG path content.
+    pub fn has_svg_path_content(&self) -> bool {
+        !self.svg_paths.is_empty()
+            || self
+                .svg_paths_track
+                .as_ref()
+                .is_some_and(|track| track.default_value.is_some() || !track.keyframes.is_empty())
     }
 
     /// Evaluate vector paths at `time_ms`, applying morphing if configured.
@@ -918,8 +946,16 @@ impl AnimationTrack {
             "overflow" => Overflow,
             "placement_mode" => PlacementMode,
             "morph_options" => MorphOptions,
+            "url" => ImageData,
             _ => return false,
         };
+
+        if field == ImageData && self.kind == ActorKindId::Svg {
+            return self
+                .svg_paths_track
+                .as_ref()
+                .is_some_and(|track| track.keyframes.contains_key(&time_ms));
+        }
 
         self.field_ref(field).is_some_and(|f| f.has_keyframe_at(time_ms))
     }
@@ -968,8 +1004,13 @@ impl AnimationTrack {
             "overflow" => Overflow,
             "placement_mode" => PlacementMode,
             "morph_options" => MorphOptions,
+            "url" => ImageData,
             _ => return false,
         };
+
+        if field == ImageData && self.kind == ActorKindId::Svg {
+            return self.svg_paths_track.as_ref().is_some_and(|track| !track.keyframes.is_empty());
+        }
 
         self.field_ref(field).is_some_and(|f| f.keyframe_count() > 0)
     }
@@ -1019,11 +1060,17 @@ impl AnimationTrack {
             "overflow" => Overflow,
             "placement_mode" => PlacementMode,
             "morph_options" => MorphOptions,
+            "url" => ImageData,
             _ => return Vec::new(),
         };
 
-        let mut times: Vec<u64> =
-            self.field_ref(field).map(|f| f.keyframe_times()).unwrap_or_default();
+        let mut times: Vec<u64> = if field == ImageData && self.kind == ActorKindId::Svg {
+            self.svg_paths_track
+                .as_ref()
+                .map_or(Vec::new(), |track| track.keyframes.keys().copied().collect())
+        } else {
+            self.field_ref(field).map(|f| f.keyframe_times()).unwrap_or_default()
+        };
         times.sort_unstable();
         times.dedup();
         times
@@ -1033,6 +1080,17 @@ impl AnimationTrack {
 // ─────────────────────────────────────────────────────────────
 // Free functions: Property value reading & keyframe introspection
 // ─────────────────────────────────────────────────────────────
+
+fn svg_paths_track_for(
+    track: &AnimationTrack,
+    field: ActorField,
+) -> Option<&PropertyTrack<Option<Vec<VelloPath>>>> {
+    if track.kind == ActorKindId::Svg && field == ActorField::ImageData {
+        track.svg_paths_track.as_ref()
+    } else {
+        None
+    }
+}
 
 /// Read the current value of a property from a track at the given time.
 /// Returns `None` if the property has no track (not set on this actor).
@@ -1062,16 +1120,27 @@ pub fn property_has_keyframes(track: &AnimationTrack, field: ActorField) -> bool
 
 /// Returns whether a property has a keyframe at exactly the given time.
 pub fn property_has_keyframe_at(track: &AnimationTrack, field: ActorField, time_ms: u64) -> bool {
+    if let Some(svg_track) = svg_paths_track_for(track, field) {
+        return svg_track.keyframes.contains_key(&time_ms);
+    }
     track.field_ref(field).is_some_and(|f| f.has_keyframe_at(time_ms))
 }
 
 /// Returns the number of keyframes for a property on the given track.
 pub fn property_keyframe_count(track: &AnimationTrack, field: ActorField) -> usize {
+    if let Some(svg_track) = svg_paths_track_for(track, field) {
+        return svg_track.keyframes.len();
+    }
     track.field_ref(field).map_or(0, |f| f.keyframe_count())
 }
 
 /// Returns all keyframe times (in ms) for a property, sorted.
 pub fn property_keyframe_times(track: &AnimationTrack, field: ActorField) -> Vec<u64> {
+    if let Some(svg_track) = svg_paths_track_for(track, field) {
+        let mut times: Vec<u64> = svg_track.keyframes.keys().copied().collect();
+        times.sort_unstable();
+        return times;
+    }
     track.field_ref(field).map_or(Vec::new(), |f| f.keyframe_times())
 }
 
@@ -1081,5 +1150,8 @@ pub fn property_keyframe_easing(
     field: ActorField,
     time_ms: u64,
 ) -> Option<Easing> {
+    if let Some(svg_track) = svg_paths_track_for(track, field) {
+        return svg_track.keyframes.get(&time_ms).map(|(_, easing)| *easing);
+    }
     track.field_ref(field).and_then(|f| f.keyframe_easing(time_ms))
 }
