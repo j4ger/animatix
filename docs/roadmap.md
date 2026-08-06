@@ -38,12 +38,6 @@ themes, CI platform parity, and `StyledExt` helpers.
 | Data-dependent algorithm timelines | Open; no runtime mutable state or branching timeline, so algorithm animations must be hand-unrolled recordings. Confirmed by `dogfood/projects/sorting-visualizer`. |
 | Namespace access depth | Open; aliased imports expose one level (`alias.export_name` only). |
 
-### Process and Maintenance
-
-| Item | Status / Notes |
-|------|----------------|
-| Roadmap/doc reference and status consistency check | Open; add a script or link checker so future audits do not rely on manual scans. |
-
 ---
 
 ## Audit History

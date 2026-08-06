@@ -205,6 +205,16 @@ For demo work: keep runnable demos under `examples/`, verify with both `ast` and
 
 ---
 
+## Documentation Validation
+
+```bash
+bash scripts/check-docs.sh
+```
+
+This checks relative Markdown links under `docs/`, rejects completed-status rows still listed as active roadmap work, and fails on stale known-gap wording for completed roadmap items. CI runs it in the `doc` job.
+
+---
+
 ## GUI Actor Creation
 
 Users can create actors from the GUI via toolbar `+`, inspector CTA, or right-click canvas. New actors are inserted into the current keyframe block (or wrapped in `#0s` if none exist).

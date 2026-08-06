@@ -76,6 +76,8 @@ jobs:
         run: cargo doc --workspace --no-deps
         env:
           RUSTDOCFLAGS: -D warnings
+      - name: Check docs links and roadmap status
+        run: bash scripts/check-docs.sh
 
   audit:
     name: Audit
