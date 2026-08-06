@@ -33,6 +33,35 @@ pub const NAMED_COLOR_NAMES: &[&str] = &[
     "ORANGE",
 ];
 
+/// Named color literal values in RGBA order.
+pub fn named_color_rgba(name: &str) -> Option<[f64; 4]> {
+    match name {
+        "red" | "RED" => Some([1.0, 0.0, 0.0, 1.0]),
+        "green" | "GREEN" => Some([0.0, 1.0, 0.0, 1.0]),
+        "blue" | "BLUE" => Some([0.0, 0.0, 1.0, 1.0]),
+        "black" | "BLACK" => Some([0.0, 0.0, 0.0, 1.0]),
+        "white" | "WHITE" => Some([1.0, 1.0, 1.0, 1.0]),
+        "yellow" | "YELLOW" => Some([1.0, 1.0, 0.0, 1.0]),
+        "orange" | "ORANGE" => Some([1.0, 0.65, 0.0, 1.0]),
+        _ => None,
+    }
+}
+
+/// A namespaced value, either a concrete type or a nested namespace.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum NamespaceType {
+    /// A concrete exported value type.
+    Value(Type),
+    /// A nested namespace with named members.
+    Namespace(HashMap<String, NamespaceType>),
+}
+
+impl Default for NamespaceType {
+    fn default() -> Self {
+        NamespaceType::Namespace(HashMap::new())
+    }
+}
+
 /// Internal inferred type for expressions.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
@@ -150,6 +179,7 @@ pub struct TypeEnv {
     components: HashMap<String, ComponentSignature>,
     instances: HashMap<String, String>,
     arrays: HashMap<String, Type>,
+    namespaces: HashMap<String, NamespaceType>,
     builtins: HashMap<String, Type>,
     functions: HashMap<String, Type>,
     construct_types: HashMap<String, Type>,
@@ -264,12 +294,50 @@ impl TypeEnv {
         self.builtins.get(name).cloned()
     }
 
+    /// Register a concrete value in an aliased namespace.
+    pub fn register_namespace_value(&mut self, alias: &str, name: &str, ty: Type) {
+        let entry = self
+            .namespaces
+            .entry(alias.to_string())
+            .or_insert_with(|| NamespaceType::Namespace(HashMap::new()));
+        if let NamespaceType::Namespace(values) = entry {
+            values.insert(name.to_string(), NamespaceType::Value(ty));
+        }
+    }
+
+    /// Register a nested namespace value.
+    pub fn register_namespace(&mut self, alias: &str, namespace: NamespaceType) {
+        self.namespaces.insert(alias.to_string(), namespace);
+    }
+
     /// Look up a namespaced path such as `deck.bar` or `accent.primary`.
     fn lookup_path(&self, parts: &[String]) -> Option<Type> {
         if parts.len() >= 2 && COLOR_NAMESPACES.contains(&parts[0].as_str()) {
             return Some(Type::Color);
         }
         let first = parts.first()?;
+        if let Some(namespace) = self.namespaces.get(first) {
+            let mut current = namespace;
+            for part in &parts[1..parts.len() - 1] {
+                match current {
+                    NamespaceType::Namespace(values) => current = values.get(part)?,
+                    NamespaceType::Value(_) => return None,
+                }
+            }
+            if let Some(last) = parts.last() {
+                match current {
+                    NamespaceType::Namespace(values) => {
+                        if let Some(NamespaceType::Value(ty)) = values.get(last) {
+                            return Some(ty.clone());
+                        }
+                    },
+                    NamespaceType::Value(ty) if parts.len() == 2 => {
+                        return Some(ty.clone());
+                    },
+                    NamespaceType::Value(_) => {},
+                }
+            }
+        }
         let base = self.lookup_ident(first)?;
         if parts.len() == 1 {
             return Some(base);
@@ -353,6 +421,7 @@ pub fn common_type(types: &[Type]) -> Type {
 pub fn is_subtype(actual: &Type, expected: &Type) -> bool {
     match (actual, expected) {
         (_, Type::Any) => true,
+        (Type::Any, _) => true,
         (a, b) if a == b => true,
         (Type::Color, Type::Vec4) => true,
         (Type::List(a), Type::List(b)) => is_subtype(a, b),
@@ -380,7 +449,7 @@ pub fn infer_expr_type(expr: &Expr, env: &TypeEnv) -> Type {
         Expr::Tuple(items) => {
             let types = items.iter().map(|item| infer_expr_type(item, env)).collect::<Vec<_>>();
             match types.as_slice() {
-                [a, b] if *a == Type::Num && *b == Type::Num => Type::Vec2,
+                [_, _] => Type::Vec2,
                 [a, b, c] if *a == Type::Num && *b == Type::Num && *c == Type::Num => Type::Vec3,
                 [a, b, c, d]
                     if *a == Type::Num && *b == Type::Num && *c == Type::Num && *d == Type::Num =>
@@ -524,6 +593,24 @@ mod tests {
         let mut env = std_env();
         env.bind("red", Type::Num);
         assert_eq!(infer_expr_type(&Expr::Ident("red".to_string()), &env), Type::Num);
+    }
+
+    #[test]
+    fn namespace_paths_resolve() {
+        let mut env = std_env();
+        env.register_namespace_value("theme", "accent", Type::Color);
+        let path = Expr::Path(vec!["theme".to_string(), "accent".to_string()]);
+        assert_eq!(infer_expr_type(&path, &env), Type::Color);
+    }
+
+    #[test]
+    fn nested_namespace_paths_resolve() {
+        let mut env = std_env();
+        let mut nested = HashMap::new();
+        nested.insert("accent".to_string(), NamespaceType::Value(Type::Color));
+        env.register_namespace("project", NamespaceType::Namespace(nested));
+        let path = Expr::Path(vec!["project".to_string(), "accent".to_string()]);
+        assert_eq!(infer_expr_type(&path, &env), Type::Color);
     }
 
     #[test]

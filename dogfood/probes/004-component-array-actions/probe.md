@@ -41,12 +41,9 @@ pub component Bars(values: List<Num>, colors: List<Color>) {
 
 ## Remaining Findings
 
-- `unused-label` still flags component-internal actors like `row` even though
-  they are template labels; this is a broader component linter gap already
-  visible in `examples/components/09_components.amx`.
-- Named color lists such as `{red, green, blue}` are inferred as `List<Any>`
-  instead of `List<Color>`; the repro uses colorscheme tokens to avoid that
-  separate finding.
+- Named color lists such as `{red, green, blue}` are inferred as `List<Color>`
+  by the shared symbol-aware type layer; that finding is tracked separately as
+  probe 005.
 
 ## Regression coverage
 

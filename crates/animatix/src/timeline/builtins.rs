@@ -263,11 +263,11 @@ pub fn load_standard_library(env: &mut Environment) {
         })),
     );
 
-    env.set("RED", Value::Color([1.0, 0.0, 0.0, 1.0]));
-    env.set("GREEN", Value::Color([0.0, 1.0, 0.0, 1.0]));
-    env.set("BLUE", Value::Color([0.0, 0.0, 1.0, 1.0]));
-    env.set("BLACK", Value::Color([0.0, 0.0, 0.0, 1.0]));
-    env.set("WHITE", Value::Color([1.0, 1.0, 1.0, 1.0]));
+    for name in ["RED", "GREEN", "BLUE", "BLACK", "WHITE"] {
+        if let Some(color) = animatix_syntax::typing::named_color_rgba(name) {
+            env.set(name, Value::Color(color));
+        }
+    }
 
     env.set(
         "rgb",

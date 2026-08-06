@@ -4,6 +4,7 @@ use std::collections::HashSet;
 
 use animatix_syntax::ast::*;
 use animatix_syntax::parser::ParseError;
+use animatix_syntax::typing;
 use animatix_syntax::walk;
 
 use crate::symbol_table::{LabelKind, SymbolTable};
@@ -242,6 +243,7 @@ fn collect_semantic_diagnostics(
             if info.kind == LabelKind::For
                 || info.kind == LabelKind::Always
                 || symbols.array_labels.contains(name)
+                || symbols.component_internal_labels.contains(name)
             {
                 continue;
             }
@@ -443,10 +445,7 @@ fn check_stmt(
                             let key = (ty.clone(), property.clone());
                             if let Some(expected_type) = symbols.property_types.get(&key) {
                                 let actual_type = symbols.infer_expr_type(value);
-                                if actual_type != crate::symbol_table::PropertyType::Any
-                                    && expected_type != &crate::symbol_table::PropertyType::Any
-                                    && actual_type != *expected_type
-                                {
+                                if !typing::is_subtype(&actual_type, expected_type) {
                                     diagnostics.push(Diagnostic {
                                         severity: DiagnosticSeverity::Warning,
                                         line,
@@ -507,10 +506,7 @@ fn check_stmt(
                     let key = (ty.clone(), prop.name.clone());
                     if let Some(expected_type) = symbols.property_types.get(&key) {
                         let actual_type = symbols.infer_expr_type(&prop.value);
-                        if actual_type != crate::symbol_table::PropertyType::Any
-                            && expected_type != &crate::symbol_table::PropertyType::Any
-                            && actual_type != *expected_type
-                        {
+                        if !typing::is_subtype(&actual_type, expected_type) {
                             diagnostics.push(Diagnostic {
                                 severity: DiagnosticSeverity::Warning,
                                 line,
@@ -715,7 +711,7 @@ mod tests {
         assert_eq!(type_mismatches.len(), 1);
         assert!(type_mismatches[0].message.contains("font_size"));
         assert!(type_mismatches[0].message.contains("Num"));
-        assert!(type_mismatches[0].message.contains("String"));
+        assert!(type_mismatches[0].message.contains("Str"));
     }
 
     #[test]

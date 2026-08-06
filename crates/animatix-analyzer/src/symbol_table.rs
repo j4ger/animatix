@@ -7,35 +7,6 @@ use animatix_syntax::ast::*;
 use animatix_syntax::to_source::ToSource;
 use animatix_syntax::typing;
 
-/// Expected type for a property value.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PropertyType {
-    /// Any type is acceptable.
-    Any,
-    /// Numeric value (integer or float).
-    Num,
-    /// String literal.
-    String,
-    /// Boolean value.
-    Bool,
-    /// 2D vector (x, y).
-    Vec2,
-    /// 3D vector (x, y, z).
-    Vec3,
-    /// 4D vector (x, y, z, w).
-    Vec4,
-    /// Color value (named color, hex, or color token).
-    Color,
-    /// Duration in milliseconds or seconds.
-    Duration,
-    /// Easing function name.
-    Easing,
-    /// Array/list of values.
-    Array,
-    /// Nested actor or component.
-    Actor,
-}
-
 /// Extracted symbols from a source file.
 #[derive(Debug, Default, Clone)]
 pub struct SymbolTable {
@@ -49,8 +20,8 @@ pub struct SymbolTable {
     pub scenes: HashMap<String, SceneInfo>,
     /// Properties available per type: "Text" → ["content", "position", ...].
     pub properties: HashMap<String, Vec<String>>,
-    /// Expected types per property: ("Text", "font_size") → PropertyType::Num.
-    pub property_types: HashMap<(String, String), PropertyType>,
+    /// Expected types per property: ("Text", "font_size") → `typing::Type::Num`.
+    pub property_types: HashMap<(String, String), typing::Type>,
     /// Keywords and built-in actions.
     pub keywords: HashSet<String>,
     /// Built-in action verbs (e.g., "fade-in", "move", "rotate").
@@ -62,6 +33,8 @@ pub struct SymbolTable {
     /// Labels of array-indexed actors (e.g., `bars[i]: Rect`).
     /// Targets like `bars__0`, `bars__1` are considered defined.
     pub array_labels: HashSet<String>,
+    /// Labels declared inside component templates, which are not scene actors.
+    pub component_internal_labels: HashSet<String>,
     /// Namespaced symbols from aliased imports (e.g., "foo" → SymbolTable).
     pub namespaces: HashMap<String, SymbolTable>,
 }
@@ -92,6 +65,8 @@ pub struct LabelInfo {
     pub span: Option<Span>,
     /// The type of the actor (e.g., "Text", "Button"), if applicable.
     pub ty: Option<String>,
+    /// Inferred expression type for variables and actors.
+    pub inferred_type: Option<typing::Type>,
 }
 
 /// The kind of labeled entity.
@@ -356,8 +331,8 @@ fn known_properties() -> &'static HashMap<String, Vec<String>> {
 }
 
 /// Known property types per (type, property) pair.
-fn known_property_types() -> &'static HashMap<(String, String), PropertyType> {
-    static CACHE: OnceLock<HashMap<(String, String), PropertyType>> = OnceLock::new();
+fn known_property_types() -> &'static HashMap<(String, String), typing::Type> {
+    static CACHE: OnceLock<HashMap<(String, String), typing::Type>> = OnceLock::new();
     CACHE.get_or_init(|| {
         let mut map = HashMap::new();
 
@@ -375,86 +350,86 @@ fn known_property_types() -> &'static HashMap<(String, String), PropertyType> {
             "Graph",
             "PlotCurve",
         ] {
-            map.insert((ty.to_string(), "position".to_string()), PropertyType::Vec2);
-            map.insert((ty.to_string(), "offset".to_string()), PropertyType::Vec2);
-            map.insert((ty.to_string(), "scale".to_string()), PropertyType::Num);
-            map.insert((ty.to_string(), "rotation".to_string()), PropertyType::Num);
-            map.insert((ty.to_string(), "opacity".to_string()), PropertyType::Num);
-            map.insert((ty.to_string(), "color".to_string()), PropertyType::Color);
-            map.insert((ty.to_string(), "at".to_string()), PropertyType::Vec2);
+            map.insert((ty.to_string(), "position".to_string()), typing::Type::Vec2);
+            map.insert((ty.to_string(), "offset".to_string()), typing::Type::Vec2);
+            map.insert((ty.to_string(), "scale".to_string()), typing::Type::Num);
+            map.insert((ty.to_string(), "rotation".to_string()), typing::Type::Num);
+            map.insert((ty.to_string(), "opacity".to_string()), typing::Type::Num);
+            map.insert((ty.to_string(), "color".to_string()), typing::Type::Color);
+            map.insert((ty.to_string(), "at".to_string()), typing::Type::Vec2);
         }
 
         // Text-specific
-        map.insert(("Text".to_string(), "text".to_string()), PropertyType::String);
-        map.insert(("Text".to_string(), "content".to_string()), PropertyType::String);
-        map.insert(("Text".to_string(), "font_size".to_string()), PropertyType::Num);
-        map.insert(("Text".to_string(), "font_family".to_string()), PropertyType::String);
-        map.insert(("Text".to_string(), "font_weight".to_string()), PropertyType::Num);
-        map.insert(("Text".to_string(), "font_style".to_string()), PropertyType::String);
-        map.insert(("Text".to_string(), "line_height".to_string()), PropertyType::Num);
-        map.insert(("Text".to_string(), "letter_spacing".to_string()), PropertyType::Num);
-        map.insert(("Text".to_string(), "word_spacing".to_string()), PropertyType::Num);
-        map.insert(("Text".to_string(), "max_width".to_string()), PropertyType::Num);
-        map.insert(("Text".to_string(), "text_align".to_string()), PropertyType::String);
-        map.insert(("Text".to_string(), "overflow".to_string()), PropertyType::String);
+        map.insert(("Text".to_string(), "text".to_string()), typing::Type::Str);
+        map.insert(("Text".to_string(), "content".to_string()), typing::Type::Str);
+        map.insert(("Text".to_string(), "font_size".to_string()), typing::Type::Num);
+        map.insert(("Text".to_string(), "font_family".to_string()), typing::Type::Str);
+        map.insert(("Text".to_string(), "font_weight".to_string()), typing::Type::Num);
+        map.insert(("Text".to_string(), "font_style".to_string()), typing::Type::Str);
+        map.insert(("Text".to_string(), "line_height".to_string()), typing::Type::Num);
+        map.insert(("Text".to_string(), "letter_spacing".to_string()), typing::Type::Num);
+        map.insert(("Text".to_string(), "word_spacing".to_string()), typing::Type::Num);
+        map.insert(("Text".to_string(), "max_width".to_string()), typing::Type::Num);
+        map.insert(("Text".to_string(), "text_align".to_string()), typing::Type::Str);
+        map.insert(("Text".to_string(), "overflow".to_string()), typing::Type::Str);
 
         // Typst-specific
-        map.insert(("Typst".to_string(), "content".to_string()), PropertyType::String);
-        map.insert(("Typst".to_string(), "font_size".to_string()), PropertyType::Num);
-        map.insert(("Typst".to_string(), "font_family".to_string()), PropertyType::String);
-        map.insert(("Typst".to_string(), "font_weight".to_string()), PropertyType::Num);
-        map.insert(("Typst".to_string(), "font_style".to_string()), PropertyType::String);
-        map.insert(("Typst".to_string(), "line_height".to_string()), PropertyType::Num);
-        map.insert(("Typst".to_string(), "letter_spacing".to_string()), PropertyType::Num);
-        map.insert(("Typst".to_string(), "word_spacing".to_string()), PropertyType::Num);
-        map.insert(("Typst".to_string(), "max_width".to_string()), PropertyType::Num);
-        map.insert(("Typst".to_string(), "text_align".to_string()), PropertyType::String);
-        map.insert(("Typst".to_string(), "overflow".to_string()), PropertyType::String);
+        map.insert(("Typst".to_string(), "content".to_string()), typing::Type::Str);
+        map.insert(("Typst".to_string(), "font_size".to_string()), typing::Type::Num);
+        map.insert(("Typst".to_string(), "font_family".to_string()), typing::Type::Str);
+        map.insert(("Typst".to_string(), "font_weight".to_string()), typing::Type::Num);
+        map.insert(("Typst".to_string(), "font_style".to_string()), typing::Type::Str);
+        map.insert(("Typst".to_string(), "line_height".to_string()), typing::Type::Num);
+        map.insert(("Typst".to_string(), "letter_spacing".to_string()), typing::Type::Num);
+        map.insert(("Typst".to_string(), "word_spacing".to_string()), typing::Type::Num);
+        map.insert(("Typst".to_string(), "max_width".to_string()), typing::Type::Num);
+        map.insert(("Typst".to_string(), "text_align".to_string()), typing::Type::Str);
+        map.insert(("Typst".to_string(), "overflow".to_string()), typing::Type::Str);
 
         // Code-specific
-        map.insert(("Code".to_string(), "code".to_string()), PropertyType::String);
-        map.insert(("Code".to_string(), "content".to_string()), PropertyType::String);
-        map.insert(("Code".to_string(), "language".to_string()), PropertyType::String);
-        map.insert(("Code".to_string(), "font_weight".to_string()), PropertyType::Num);
-        map.insert(("Code".to_string(), "font_style".to_string()), PropertyType::String);
-        map.insert(("Code".to_string(), "line_height".to_string()), PropertyType::Num);
-        map.insert(("Code".to_string(), "letter_spacing".to_string()), PropertyType::Num);
-        map.insert(("Code".to_string(), "word_spacing".to_string()), PropertyType::Num);
-        map.insert(("Code".to_string(), "max_width".to_string()), PropertyType::Num);
-        map.insert(("Code".to_string(), "text_align".to_string()), PropertyType::String);
-        map.insert(("Code".to_string(), "overflow".to_string()), PropertyType::String);
+        map.insert(("Code".to_string(), "code".to_string()), typing::Type::Str);
+        map.insert(("Code".to_string(), "content".to_string()), typing::Type::Str);
+        map.insert(("Code".to_string(), "language".to_string()), typing::Type::Str);
+        map.insert(("Code".to_string(), "font_weight".to_string()), typing::Type::Num);
+        map.insert(("Code".to_string(), "font_style".to_string()), typing::Type::Str);
+        map.insert(("Code".to_string(), "line_height".to_string()), typing::Type::Num);
+        map.insert(("Code".to_string(), "letter_spacing".to_string()), typing::Type::Num);
+        map.insert(("Code".to_string(), "word_spacing".to_string()), typing::Type::Num);
+        map.insert(("Code".to_string(), "max_width".to_string()), typing::Type::Num);
+        map.insert(("Code".to_string(), "text_align".to_string()), typing::Type::Str);
+        map.insert(("Code".to_string(), "overflow".to_string()), typing::Type::Str);
 
         // Shape-specific
         for shape in &["Rect", "Ellipse", "Polygon"] {
-            map.insert((shape.to_string(), "fill".to_string()), PropertyType::Color);
-            map.insert((shape.to_string(), "stroke".to_string()), PropertyType::Color);
-            map.insert((shape.to_string(), "stroke_width".to_string()), PropertyType::Num);
-            map.insert((shape.to_string(), "size".to_string()), PropertyType::Vec2);
-            map.insert((shape.to_string(), "radius".to_string()), PropertyType::Num);
+            map.insert((shape.to_string(), "fill".to_string()), typing::Type::Color);
+            map.insert((shape.to_string(), "stroke".to_string()), typing::Type::Color);
+            map.insert((shape.to_string(), "stroke_width".to_string()), typing::Type::Num);
+            map.insert((shape.to_string(), "size".to_string()), typing::Type::Vec2);
+            map.insert((shape.to_string(), "radius".to_string()), typing::Type::Num);
         }
 
         // Line
-        map.insert(("Line".to_string(), "start".to_string()), PropertyType::Vec2);
-        map.insert(("Line".to_string(), "end".to_string()), PropertyType::Vec2);
-        map.insert(("Line".to_string(), "stroke".to_string()), PropertyType::Color);
-        map.insert(("Line".to_string(), "stroke_width".to_string()), PropertyType::Num);
+        map.insert(("Line".to_string(), "start".to_string()), typing::Type::Vec2);
+        map.insert(("Line".to_string(), "end".to_string()), typing::Type::Vec2);
+        map.insert(("Line".to_string(), "stroke".to_string()), typing::Type::Color);
+        map.insert(("Line".to_string(), "stroke_width".to_string()), typing::Type::Num);
 
         // Button
-        map.insert(("Button".to_string(), "text".to_string()), PropertyType::String);
-        map.insert(("Button".to_string(), "size".to_string()), PropertyType::Vec2);
-        map.insert(("Button".to_string(), "fill".to_string()), PropertyType::Color);
-        map.insert(("Button".to_string(), "stroke".to_string()), PropertyType::Color);
+        map.insert(("Button".to_string(), "text".to_string()), typing::Type::Str);
+        map.insert(("Button".to_string(), "size".to_string()), typing::Type::Vec2);
+        map.insert(("Button".to_string(), "fill".to_string()), typing::Type::Color);
+        map.insert(("Button".to_string(), "stroke".to_string()), typing::Type::Color);
 
         // Svg/Image
         for media in &["Svg", "Image"] {
-            map.insert((media.to_string(), "url".to_string()), PropertyType::String);
-            map.insert((media.to_string(), "size".to_string()), PropertyType::Vec2);
+            map.insert((media.to_string(), "url".to_string()), typing::Type::Str);
+            map.insert((media.to_string(), "size".to_string()), typing::Type::Vec2);
         }
 
         // Graph
-        map.insert(("Graph".to_string(), "x_range".to_string()), PropertyType::Vec2);
-        map.insert(("Graph".to_string(), "y_range".to_string()), PropertyType::Vec2);
-        map.insert(("Graph".to_string(), "function".to_string()), PropertyType::String);
+        map.insert(("Graph".to_string(), "x_range".to_string()), typing::Type::Vec2);
+        map.insert(("Graph".to_string(), "y_range".to_string()), typing::Type::Vec2);
+        map.insert(("Graph".to_string(), "function".to_string()), typing::Type::Str);
 
         map
     })
@@ -482,7 +457,8 @@ impl SymbolTable {
 
     fn collect_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::LetDecl { name, span, .. } => {
+            Stmt::LetDecl { name, value, span, .. } => {
+                let inferred = typing::infer_expr_type(value, &typing::TypeEnv::with_stdlib());
                 self.labels.insert(
                     name.clone(),
                     LabelInfo {
@@ -492,6 +468,7 @@ impl SymbolTable {
                         col: 0,  // populated by Analyzer::enrich_positions from tree-sitter
                         span: *span,
                         ty: None,
+                        inferred_type: Some(inferred),
                     },
                 );
             },
@@ -513,6 +490,11 @@ impl SymbolTable {
                         col: 0,  // populated by Analyzer::enrich_positions from tree-sitter
                         span: *span,
                         ty: Some(ty.clone()),
+                        inferred_type: Some(if self.components.contains_key(ty) {
+                            typing::Type::Component(ty.clone())
+                        } else {
+                            typing::Type::Actor(ty.clone())
+                        }),
                     },
                 );
                 if array_index.is_some() {
@@ -525,6 +507,7 @@ impl SymbolTable {
 
             Stmt::ComponentDef(def, span) => {
                 self.types.insert(def.name.clone());
+                collect_component_internal_labels(&def.body, &mut self.component_internal_labels);
                 self.components.insert(
                     def.name.clone(),
                     ComponentInfo {
@@ -578,6 +561,7 @@ impl SymbolTable {
                             col: 0,  // populated by Analyzer::enrich_positions from tree-sitter
                             span: *span,
                             ty: None,
+                            inferred_type: None,
                         },
                     );
                 }
@@ -592,6 +576,7 @@ impl SymbolTable {
                             col: 0,  // populated by Analyzer::enrich_positions from tree-sitter
                             span: *span,
                             ty: None,
+                            inferred_type: None,
                         },
                     );
                 }
@@ -886,6 +871,7 @@ impl SymbolTable {
                         col: 0,
                         span: None,
                         ty: None,
+                        inferred_type: None,
                     },
                 );
                 if array_index.is_some() {
@@ -920,6 +906,7 @@ impl SymbolTable {
                             col: 0,
                             span: None,
                             ty: None,
+                            inferred_type: None,
                         },
                     );
                 }
@@ -933,6 +920,7 @@ impl SymbolTable {
                             col: 0,
                             span: None,
                             ty: None,
+                            inferred_type: None,
                         },
                     );
                 }
@@ -1020,30 +1008,24 @@ impl SymbolTable {
     }
 }
 
-impl From<&typing::Type> for PropertyType {
-    fn from(ty: &typing::Type) -> Self {
-        match ty {
-            typing::Type::Any => PropertyType::Any,
-            typing::Type::Num => PropertyType::Num,
-            typing::Type::Str => PropertyType::String,
-            typing::Type::Bool => PropertyType::Bool,
-            typing::Type::Vec2 => PropertyType::Vec2,
-            typing::Type::Vec3 => PropertyType::Vec3,
-            typing::Type::Vec4 => PropertyType::Vec4,
-            typing::Type::Color => PropertyType::Color,
-            typing::Type::Actor(_) | typing::Type::Component(_) => PropertyType::Actor,
-            typing::Type::List(_) => PropertyType::Array,
-            typing::Type::Tuple(_) | typing::Type::Function { .. } => PropertyType::Any,
-        }
-    }
-}
-
 impl SymbolTable {
     /// Build a symbol-aware type environment from the current table.
     pub fn type_env(&self) -> typing::TypeEnv {
         let mut env = typing::TypeEnv::with_stdlib();
         for (name, info) in &self.labels {
-            if let Some(ty) = &info.ty {
+            if let Some(inferred) = &info.inferred_type {
+                match inferred {
+                    typing::Type::Component(component) => {
+                        env.declare_component_instance(name, component);
+                    },
+                    typing::Type::Actor(actor_ty) => {
+                        env.declare_actor(name, actor_ty);
+                    },
+                    _ => {
+                        env.bind(name, inferred.clone());
+                    },
+                }
+            } else if let Some(ty) = &info.ty {
                 if self.components.contains_key(ty) {
                     env.declare_component_instance(name, ty);
                 } else {
@@ -1062,14 +1044,51 @@ impl SymbolTable {
             }
             env.register_component(name, signature);
         }
+        for (alias, namespace) in &self.namespaces {
+            env.register_namespace(alias, namespace_type_from_symbols(namespace));
+        }
         env
     }
 
     /// Infer an expression type using this table's symbols.
-    pub fn infer_expr_type(&self, expr: &Expr) -> PropertyType {
+    pub fn infer_expr_type(&self, expr: &Expr) -> typing::Type {
         let env = self.type_env();
-        PropertyType::from(&typing::infer_expr_type(expr, &env))
+        typing::infer_expr_type(expr, &env)
     }
+}
+
+fn collect_component_internal_labels(stmts: &[Stmt], out: &mut HashSet<String>) {
+    animatix_syntax::walk::walk_stmts(stmts, &mut |stmt| {
+        if let Stmt::ActorDecl { label, children, .. } = stmt {
+            out.insert(label.clone());
+            animatix_syntax::walk::walk_inline_items(children, &mut |item| {
+                if let InlineItem::Labeled { label, .. } = item {
+                    out.insert(label.clone());
+                }
+            });
+        }
+    });
+}
+
+fn namespace_type_from_symbols(table: &SymbolTable) -> typing::NamespaceType {
+    let mut values = HashMap::new();
+    for (name, info) in &table.labels {
+        let ty = match &info.inferred_type {
+            Some(ty) => ty.clone(),
+            None => match &info.ty {
+                Some(actor_ty) if table.components.contains_key(actor_ty) => {
+                    typing::Type::Component(actor_ty.clone())
+                },
+                Some(actor_ty) => typing::Type::Actor(actor_ty.clone()),
+                None => typing::Type::Any,
+            },
+        };
+        values.insert(name.clone(), typing::NamespaceType::Value(ty));
+    }
+    for (alias, namespace) in &table.namespaces {
+        values.insert(alias.clone(), namespace_type_from_symbols(namespace));
+    }
+    typing::NamespaceType::Namespace(values)
 }
 
 #[cfg(test)]
@@ -1175,23 +1194,17 @@ mod tests {
         for ns in &["accent", "text", "surface", "stroke"] {
             let path = Expr::Path(vec![ns.to_string(), "primary".to_string()]);
             assert_eq!(
-                PropertyType::from(&typing::infer_expr_type(&path, &env)),
-                PropertyType::Color,
+                typing::infer_expr_type(&path, &env),
+                typing::Type::Color,
                 "{ns}.primary should be Color"
             );
         }
         // scene.* stays Any (mixes colors and anchors)
         let scene = Expr::Path(vec!["scene".to_string(), "background".to_string()]);
-        assert_eq!(
-            PropertyType::from(&typing::infer_expr_type(&scene, &env)),
-            PropertyType::Any
-        );
+        assert_eq!(typing::infer_expr_type(&scene, &env), typing::Type::Any);
         // single-segment stays Any
         let single = Expr::Path(vec!["accent".to_string()]);
-        assert_eq!(
-            PropertyType::from(&typing::infer_expr_type(&single, &env)),
-            PropertyType::Any
-        );
+        assert_eq!(typing::infer_expr_type(&single, &env), typing::Type::Any);
     }
 
     #[test]

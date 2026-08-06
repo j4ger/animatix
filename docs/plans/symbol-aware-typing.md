@@ -1,11 +1,8 @@
 # Symbol-Aware Type System for Animatix
 
-Status: phases 1-3 are partially landed. `animatix-syntax::typing` now provides
-`Type`, `TypeEnv`, and shared `infer_expr_type`; the syntax typechecker and
-analyzer use it for named colors, component params, actor labels, loop vars,
-and list common types. Remaining work: full namespace/module path resolution,
-runtime literal sharing, and removing the remaining `PropertyType` mapping
-layer.
+Status: the canonical `Type`/`TypeEnv` foundation, namespace path resolution,
+runtime literal sharing, analyzer `PropertyType` removal, and component-internal
+linter handling have landed.
 
 ## Problem
 

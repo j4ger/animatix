@@ -748,19 +748,7 @@ pub fn parse_color(expr: &Expr) -> [f32; 4] {
 }
 
 fn named_color(name: &str) -> Option<[f32; 4]> {
-    if !animatix_syntax::typing::NAMED_COLOR_NAMES.contains(&name) {
-        return None;
-    }
-    match name {
-        "red" | "RED" => Some([1.0, 0.0, 0.0, 1.0]),
-        "green" | "GREEN" => Some([0.0, 1.0, 0.0, 1.0]),
-        "blue" | "BLUE" => Some([0.0, 0.0, 1.0, 1.0]),
-        "black" | "BLACK" => Some([0.0, 0.0, 0.0, 1.0]),
-        "white" | "WHITE" => Some([1.0, 1.0, 1.0, 1.0]),
-        "yellow" | "YELLOW" => Some([1.0, 1.0, 0.0, 1.0]),
-        "orange" | "ORANGE" => Some([1.0, 0.65, 0.0, 1.0]),
-        _ => None,
-    }
+    animatix_syntax::typing::named_color_rgba(name).map(|c| c.map(|v| v as f32))
 }
 
 fn color_from_value(value: Value) -> Option<[f32; 4]> {
