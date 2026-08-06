@@ -314,9 +314,14 @@ Surface:
 Text:
   PRIMARY    #14181E   — primary text (dark on light)
   SECONDARY  #5A6170   — secondary
-  MUTED      #828A99   — muted
+  MUTED      #676B7B   — muted
   DISABLED   #B4B9C0   — disabled
-  ON_ACCENT  #FFFFFF   — text on accent fills
+  ON_ACCENT  #0A0C10   — text on accent fills
+
+Core text roles (`primary`, `secondary`, `muted`) are verified against WCAG
+AA (4.5:1) on `base`, `panel`, `surface`, and `widget`. Disabled text is
+intentionally exempt, and active accent-button text uses the WCAG UI
+threshold (3:1).
 
 Border:
   DEFAULT    #C8CCD1
@@ -840,14 +845,16 @@ integrator in `anim.rs` (optional future follow-up).
 
 ### 10.1 Contrast
 
-All text/background pairs must meet WCAG AA (4.5:1).
+Non-disabled body text must meet WCAG AA (4.5:1). Large text and active UI
+components use the WCAG 3:1 threshold; disabled text is exempt while still
+clearly de-emphasized.
 
-Current violations to fix:
+Current dark-theme gap to fix:
 
 | Pair | Current Ratio | Fix |
 |------|--------------|-----|
 | `TEXT_MUTED` on `BG_BASE` | 3.2:1 | Darken BG or lighten TEXT_MUTED |
-| `TEXT_DISABLED` on `BG_WIDGET` | 1.8:1 | Only used for truly disabled elements |
+| `TEXT_DISABLED` on `BG_WIDGET` | 1.8:1 | Exempt for disabled elements; kept clearly de-emphasized |
 
 ### 10.2 Minimum Touch Targets
 
@@ -893,11 +900,11 @@ implementation.
   available.
 
 **Remaining / verify:**
-- Verify the light-theme contrast matrix against WCAG AA (4.5:1) for
-  `Theme::light()` values.
-- Opportunistic eparts widget adoption is not scheduled; migrate as surrounding GUI files are next edited.
+- Opportunistic eparts widget adoption is not scheduled; remaining call sites migrate as surrounding GUI files are next edited.
 
 **Completed since the original audit:**
+- Light-theme contrast is verified by eparts tests for the critical text/surface and accent-button pairs.
+- Alert/Badge/Tooltip eparts widgets are adopted at natural GUI call sites.
 - All custom GUI panels read `eparts::theme(ui)` or theme-aware egui visuals; static generic color constants are no longer used by render paths.
 - Raw `FontId`/numeric `.size()` bypasses were replaced with `TextRole`.
 - Restored a bounded `dev-screenshots` harness with `widget-screenshot` and `scripts/gui-screenshots.sh`.

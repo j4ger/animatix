@@ -213,7 +213,7 @@ let forest = Colorscheme {
 config { colorscheme: "forest" }
 ```
 
-> **Parser note:** keys inside `Colorscheme { ... }` must currently be simple identifiers such as `extends` or `auto`; dotted token overrides like `scene.background` are runtime/API-supported but not source-parseable yet. See [`architecture.md`](architecture.md) §Colorscheme System.
+> **Parser note:** keys inside `Colorscheme { ... }` accept dotted token overrides like `scene.background`, matching the runtime/API behavior.
 
 ---
 

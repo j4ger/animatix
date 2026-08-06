@@ -24,8 +24,7 @@ themes, CI platform parity, and `StyledExt` helpers.
 
 | Item | Status / Notes |
 |------|----------------|
-| Opportunistic eparts widget adoption | Open, not scheduled; migrate when the surrounding GUI area is next edited. |
-| Verify `Theme::light()` contrast matrix | Open; needs WCAG AA verification for all text/background pairs. |
+| Opportunistic eparts widget adoption | Partially complete; remaining call sites migrate when the surrounding GUI area is next edited. |
 
 ### Language and Runtime Gaps
 
@@ -39,7 +38,6 @@ themes, CI platform parity, and `StyledExt` helpers.
 | Custom action multi-target invocation | Open; custom component actions are single-target (`pulse btn, icon` is not supported). |
 | Data-dependent algorithm timelines | Open; no runtime mutable state or branching timeline, so algorithm animations must be hand-unrolled recordings. Confirmed by `dogfood/projects/sorting-visualizer`. |
 | Namespace access depth | Open; aliased imports expose one level (`alias.export_name` only). |
-| Colorscheme dotted token parser | Open; runtime/API accepts `scene.background`-style overrides, source parser does not yet. |
 
 ### Process and Maintenance
 
