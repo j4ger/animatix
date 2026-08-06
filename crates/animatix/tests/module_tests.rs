@@ -329,6 +329,88 @@ pulse btn [200ms]
 }
 
 #[test]
+fn load_program_expands_component_for_loop_array_actors() {
+    let dir = temp_project_dir("component_for_loop_actors");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("bars.amx");
+
+    write_file(
+        &library,
+        r#"
+pub component Bars(values: List<Num>) {
+    row: Row, anchor: scene.center, gap: 24 {
+        for v, i in values {
+            bar[i]: Rect, size: (100, v)
+        }
+    }
+}
+"#,
+    );
+
+    write_file(
+        &entry,
+        r#"
+import "./bars.amx"
+
+deck: Bars, values: {10, 20, 30}
+"#,
+    );
+
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let timeline = Timeline::build(&expanded);
+    assert!(timeline.tracks().contains_key("deck.bar__0"));
+    assert!(timeline.tracks().contains_key("deck.bar__2"));
+}
+
+#[test]
+fn load_program_custom_component_action_indexed_array_target() {
+    let dir = temp_project_dir("component_indexed_action");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("bars.amx");
+
+    write_file(
+        &library,
+        r#"
+pub component Bars(values: List<Num>) {
+    row: Row, anchor: scene.center, gap: 24 {
+        for v, i in values {
+            bar[i]: Rect, size: (100, v)
+        }
+    }
+
+    action pulseAt(index: Num) {
+        bar[index].scale = 1.1 [100ms]
+        bar[index].scale = 1.0 [100ms]
+    }
+}
+"#,
+    );
+
+    write_file(
+        &entry,
+        r#"
+import "./bars.amx"
+
+deck: Bars, values: {10, 20, 30}
+
+#0s
+pulseAt deck [index: 1]
+"#,
+    );
+
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let expanded_debug = format!("{expanded:#?}");
+    let timeline = Timeline::build(&expanded);
+    assert!(timeline.tracks().contains_key("deck.bar__1"));
+    assert!(
+        expanded_debug.contains("deck.bar__1"),
+        "indexed custom action target should become deck.bar__1, got: {expanded_debug}"
+    );
+}
+
+#[test]
 fn load_program_custom_component_action_self_keyword() {
     let dir = temp_project_dir("custom_action_self");
     let entry = dir.join("scene.amx");

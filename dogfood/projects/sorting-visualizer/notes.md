@@ -29,8 +29,16 @@ the idiomatic forms, and check/lint/render pass.
 - The algorithm itself is still hand-unrolled into keyframes. There is no
   runtime mutable array or branching timeline, so this is a recording of one
   insertion sort pass, not the algorithm running live.
-- A reusable `Bars` component with custom indexed action bodies is still not
-  proven; this is a likely follow-up probe.
+- A reusable `Bars` component is now viable at runtime, and the analyzer
+  recognizes component types, actions, and generated array labels. The
+  remaining linter gap is false `unused-label` on component-internal template
+  actors. See probe 004.
+
+## Next dogfood candidates
+
+- Make sorting visualizer use the reusable `Bars` component after the analyzer
+  component-awareness gap is addressed.
+- Probe `List<Color>` inference for named colors in lists.
 
 ## Verification
 

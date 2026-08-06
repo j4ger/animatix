@@ -43,7 +43,12 @@ fn stmt_needs_rewrite(
                         || root_label == Some(s.as_str())
                         || known_labels.contains(s.as_str())
                 },
-                TargetSegment::Indexed { .. } => false,
+                TargetSegment::Indexed { base, index } => {
+                    base == "self"
+                        || root_label == Some(base.as_str())
+                        || known_labels.contains(base.as_str())
+                        || expr_needs_rewrite(index, root_label, known_labels, bindings)
+                },
             }) || expr_needs_rewrite(value, root_label, known_labels, bindings)
                 || modifiers
                     .iter()
@@ -56,7 +61,12 @@ fn stmt_needs_rewrite(
                         || root_label == Some(s.as_str())
                         || known_labels.contains(s.as_str())
                 },
-                TargetSegment::Indexed { .. } => false,
+                TargetSegment::Indexed { base, index } => {
+                    base == "self"
+                        || root_label == Some(base.as_str())
+                        || known_labels.contains(base.as_str())
+                        || expr_needs_rewrite(index, root_label, known_labels, bindings)
+                },
             }) || expr_needs_rewrite(value, root_label, known_labels, bindings)
         },
         Stmt::LetDecl { value, .. } => {
@@ -771,10 +781,33 @@ fn rewrite_label_path(
         return Vec::new();
     };
 
-    // Only static segments are rewritten; indexed segments pass through unchanged.
+    // Indexed segments are source-level actor refs (`bar[i]`) and must have
+    // their base label namespaced when a component rewrites `bar` -> `deck.bar`.
     let first_str = match first {
         TargetSegment::Static(s) => s.as_str(),
-        TargetSegment::Indexed { .. } => return parts.to_vec(),
+        TargetSegment::Indexed { base, index } => {
+            let base_rewritten = rewrite_label_ref(base, prefix, root_label, known_labels);
+            let mut result =
+                vec![TargetSegment::Indexed { base: base_rewritten, index: index.clone() }];
+            for seg in rest {
+                match seg {
+                    TargetSegment::Static(s) => {
+                        result.push(TargetSegment::Static(rewrite_path_segment(
+                            s,
+                            prefix,
+                            root_label,
+                        )));
+                    },
+                    TargetSegment::Indexed { base, index } => {
+                        result.push(TargetSegment::Indexed {
+                            base: rewrite_path_segment(base, prefix, root_label),
+                            index: index.clone(),
+                        });
+                    },
+                }
+            }
+            return result;
+        },
     };
     let rewritten_first = rewrite_label_ref(first_str, prefix, root_label, known_labels);
 
@@ -817,7 +850,10 @@ fn rewrite_label_path(
             TargetSegment::Static(s) => {
                 rewritten.push(TargetSegment::Static(rewrite_path_segment(s, prefix, root_label)))
             },
-            TargetSegment::Indexed { .. } => rewritten.push(seg.clone()),
+            TargetSegment::Indexed { base, index } => rewritten.push(TargetSegment::Indexed {
+                base: rewrite_path_segment(base, prefix, root_label),
+                index: index.clone(),
+            }),
         }
     }
     rewritten

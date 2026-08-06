@@ -1,0 +1,27 @@
+// Probe: component-generated array actors + indexed custom actions.
+// Purpose: can a reusable Bars component generate bar[i] actors, expose an
+// action that targets bar[index], and still participate in swap/reorder?
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+pub component Bars(values: List<Num>, colors: List<Color>) {
+  row: Row, anchor: scene.center, gap: 24, align: "end" {
+    for v, i in values {
+      bar[i]: Rect, size: (100, v * 2), color: colors[i]
+    }
+  }
+
+  action pulseAt(index: Num) {
+    bar[index].scale = 1.1 [120ms]
+    bar[index].scale = 1.0 [180ms]
+  }
+}
+
+deck: Bars, values: {40, 80, 60}, colors: {accent.primary, accent.success, accent.warning}
+
+#0s
+fade-in deck [300ms]
+pulseAt deck [index: 1, 400ms]
+
+#1s
+swap deck.bar[0], deck.bar[2] [500ms]

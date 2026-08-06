@@ -519,6 +519,7 @@ impl SymbolTable {
             },
 
             Stmt::ComponentDef(def, span) => {
+                self.types.insert(def.name.clone());
                 self.components.insert(
                     def.name.clone(),
                     ComponentInfo {
@@ -540,6 +541,13 @@ impl SymbolTable {
 
                 // Recurse into component body
                 for stmt in &def.body {
+                    self.collect_stmt(stmt);
+                }
+            },
+
+            Stmt::ComponentAction { name, body, .. } => {
+                self.actions.insert(name.clone());
+                for stmt in body {
                     self.collect_stmt(stmt);
                 }
             },

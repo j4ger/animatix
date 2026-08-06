@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ast::{Expr, Modifier, Span, Stmt};
+use crate::ast::{Expr, Modifier, Span, Stmt, TargetSegment, array_actor_label};
 use crate::module::{ActionTemplate, InstanceActionRegistry};
 
 // NOTE: This function takes ownership of Vec<Stmt> and produces a new
@@ -146,7 +146,7 @@ fn substitute_params_in_stmt(stmt: &Stmt, bindings: &HashMap<String, Expr>) -> S
             value_span,
             span,
         } => Stmt::Assignment {
-            target,
+            target: substitute_params_in_target(&target, bindings),
             property,
             value: substitute_params_in_expr(&value, bindings),
             modifiers: modifiers
@@ -207,7 +207,7 @@ fn substitute_params_in_stmt(stmt: &Stmt, bindings: &HashMap<String, Expr>) -> S
             value_span,
             span,
         } => Stmt::ReactiveBinding {
-            target,
+            target: substitute_params_in_target(&target, bindings),
             property,
             value: substitute_params_in_expr(&value, bindings),
             value_span,
@@ -260,6 +260,30 @@ fn substitute_params_in_stmt(stmt: &Stmt, bindings: &HashMap<String, Expr>) -> S
         },
         other => other,
     }
+}
+
+fn substitute_params_in_target(
+    target: &[TargetSegment],
+    bindings: &HashMap<String, Expr>,
+) -> Vec<TargetSegment> {
+    target
+        .iter()
+        .map(|seg| match seg {
+            TargetSegment::Static(s) => TargetSegment::Static(s.clone()),
+            TargetSegment::Indexed { base, index } => {
+                let index = substitute_params_in_expr(index, bindings);
+                if let Expr::Num(n) = &index {
+                    if n.trunc() == *n && *n >= 0.0 {
+                        return TargetSegment::Static(array_actor_label(base, *n as usize));
+                    }
+                }
+                TargetSegment::Indexed {
+                    base: base.clone(),
+                    index: Box::new(index),
+                }
+            },
+        })
+        .collect()
 }
 
 fn substitute_params_in_expr(expr: &Expr, bindings: &HashMap<String, Expr>) -> Expr {

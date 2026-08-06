@@ -42,6 +42,8 @@ themes, CI platform parity, and `StyledExt` helpers.
 | Legend automatic entry extraction | Open; legend uses placeholder entries, scene scanning for color-bearing actors is not implemented. |
 | Custom action multi-target invocation | Open; custom component actions are single-target (`pulse btn, icon` is not supported). |
 | Data-dependent algorithm timelines | Open; no runtime mutable state or branching timeline, so algorithm animations must be hand-unrolled recordings. Confirmed by `dogfood/projects/sorting-visualizer`. |
+| Analyzer component awareness | Partially fixed; local component types/actions and component-generated array labels are recognized. Component-internal template labels still produce false `unused-label` warnings. Found by dogfood probe 004. |
+| Named color list inference | Open; lists like `{red, green, blue}` infer `List<Any>` instead of `List<Color>`. Found by dogfood probe 004. |
 | Namespace access depth | Open; aliased imports expose one level (`alias.export_name` only). |
 | Colorscheme dotted token parser | Open; runtime/API accepts `scene.background`-style overrides, source parser does not yet. |
 

@@ -1,0 +1,11 @@
+// Probe: named colors in a List<Color> are inferred as List<Any>.
+
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+pub component Swatches(colors: List<Color>) {
+  for c, i in colors {
+    dot[i]: Ellipse, size: (40, 40), color: c, at: (120 + i * 80, 180)
+  }
+}
+
+s: Swatches, colors: {red, green, blue}

@@ -289,6 +289,24 @@ fn span_to_diag(span: &Option<animatix_syntax::ast::Span>) -> (usize, usize, usi
     }
 }
 
+/// True when a label like `deck.bar__2` belongs to a generated array actor
+/// inside a component instance. The analyzer does not expand components, so it
+/// accepts these labels when the leading segment is a known component instance.
+fn is_component_array_member(symbols: &SymbolTable, label: &str) -> bool {
+    let Some(base) = is_array_member_label(label) else {
+        return false;
+    };
+    let Some((instance, _)) = base.rsplit_once('.') else {
+        return false;
+    };
+    let Some(info) = symbols.labels.get(instance) else {
+        return false;
+    };
+    info.ty
+        .as_deref()
+        .is_some_and(|ty| symbols.components.contains_key(ty))
+}
+
 /// Search the tree-sitter tree for a node of the given kind containing `text`.
 /// Returns 0-based (line, col, end_line, end_col) if found.
 fn find_token_range(
@@ -351,7 +369,8 @@ fn check_stmt(
             for target in &action.targets {
                 let is_defined = symbols.labels.contains_key(target)
                     || is_array_member_label(target)
-                        .is_some_and(|base| symbols.array_labels.contains(base));
+                        .is_some_and(|base| symbols.array_labels.contains(base))
+                    || is_component_array_member(symbols, target);
                 if !is_defined {
                     // Use tree-sitter for precise target positioning when available
                     let (tline, tcol, tend_line, tend_col) = tree
@@ -384,7 +403,8 @@ fn check_stmt(
                 let label = seg.label_str();
                 let is_defined = symbols.labels.contains_key(label)
                     || is_array_member_label(label)
-                        .is_some_and(|base| symbols.array_labels.contains(base));
+                        .is_some_and(|base| symbols.array_labels.contains(base))
+                    || is_component_array_member(symbols, label);
                 if !is_defined {
                     diagnostics.push(Diagnostic {
                         severity: DiagnosticSeverity::Warning,

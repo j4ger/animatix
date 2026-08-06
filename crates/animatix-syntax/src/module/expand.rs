@@ -463,8 +463,9 @@ fn first_labeled_stmt(body: &[Stmt]) -> Option<String> {
 fn collect_labels(body: &[Stmt]) -> HashSet<String> {
     let mut labels = HashSet::new();
     crate::walk::walk_stmts(body, &mut |stmt| match stmt {
-        Stmt::ActorDecl { label, .. } => {
+        Stmt::ActorDecl { label, children, .. } => {
             labels.insert(label.clone());
+            collect_inline_labels(children, &mut labels);
         },
         Stmt::ReactiveBinding { target, .. } => {
             if let Some(TargetSegment::Static(label)) = target.first() {
@@ -474,6 +475,14 @@ fn collect_labels(body: &[Stmt]) -> HashSet<String> {
         _ => {},
     });
     labels
+}
+
+fn collect_inline_labels(items: &[InlineItem], labels: &mut HashSet<String>) {
+    crate::walk::walk_inline_items(items, &mut |item| {
+        if let InlineItem::Labeled { label, .. } = item {
+            labels.insert(label.clone());
+        }
+    });
 }
 
 fn has_slot_marker(children: &[InlineItem]) -> bool {
