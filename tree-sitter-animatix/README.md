@@ -14,12 +14,12 @@ The grammar supports all Animatix language constructs:
 - **Keyframes**: `#0.5s`, `#+0.3s`
 - **Scenes**: `# SceneName`
 - **Actions**: `fade-in target [800ms, ease: ease-out]`
-- **Control flow**: `if`, `for`, `sequence`, `stagger`, `always`, `drive`
+- **Control flow**: `if`, `for`, `sequence`, `stagger`, `always`
 - **Components**: `component Name(params) { ... }`
 - **Expressions**: numbers, strings, booleans, tuples, arrays, sets, paths, calls, closures, if-expressions
 - **Modifiers**: `[duration, delay: 500ms, ease: bounce]`
 - **Slots**: `@slot`, `@name { ... }`
-- **Imports**: `import "path" as alias`, `use module.path`
+- **Imports**: `import "path" as alias`
 - **Reactive bindings**: `prop := expression`
 
 ## Regenerating the Parser
@@ -40,7 +40,7 @@ Test cases are in `test/corpus/` and cover:
 - `statements.txt` — all statement types
 - `expressions.txt` — expression types and precedence
 - `keyframes.txt` — keyframes, scenes, and play statements
-- `control_flow.txt` — if, for, sequence, stagger, always, drive
+- `control_flow.txt` — if, for, sequence, stagger, always
 - `slots_and_actions.txt` — slots and action invocations
 
 ## Known Limitations

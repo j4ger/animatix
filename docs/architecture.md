@@ -841,7 +841,7 @@ crates/
 ├── animatix-analyzer/     # Shared language intelligence (depends on syntax)
 ├── animatix-lsp/          # LSP server (tower-lsp)
 ├── animatix-gui/          # Desktop GUI (eframe/egui)
-├── animatix-macros/       # Proc macros
+├── eparts/                # Themed egui widget framework
 └── tree-sitter-animatix/  # Tree-sitter grammar
 ```
 
@@ -855,7 +855,7 @@ The `walk.rs` module in `animatix-syntax` provides shared AST traversal primitiv
 incompatible:
 
 - **Value-returning recursion**: Functions that walk and return a value (e.g.,
-  `format_expr` returns `String`, `infer_expr_type` returns `PropertyType`)
+  `format_expr` returns `String`, `infer_expr_type` returns `typing::Type`)
 - **Owned tree transformation**: Functions that take ownership and produce new
   trees (e.g., `inline_custom_actions`)
 

@@ -20,3 +20,4 @@
 - **System architecture**: `architecture.md`
 - **How to build/test**: `contributing.md` §Development Workflows
 - **What's next**: `roadmap.md`
+- **Dogfooding**: `../dogfood/README.md`

@@ -66,12 +66,12 @@ cargo test
 
 ```
 crates/
-├── animatix-syntax/       # Syntax layer (parser, AST, module system)
+├── animatix-syntax/       # Syntax layer (parser, AST, module system, typing)
 ├── animatix/              # Runtime engine (timeline, renderer, primitives)
 ├── animatix-analyzer/     # Shared language intelligence
 ├── animatix-lsp/          # LSP server (tower-lsp)
 ├── animatix-gui/          # Desktop GUI (eframe/egui)
-├── animatix-macros/       # Proc macros
+├── eparts/                # Themed egui widget framework
 └── tree-sitter-animatix/  # Tree-sitter grammar
 ```
 
@@ -80,6 +80,7 @@ crates/
 - `crates/animatix/src/main.rs` — CLI entrypoint
 - `crates/animatix-syntax/src/parser/` — Chumsky parser (split into submodules)
 - `crates/animatix-syntax/src/ast.rs` — AST types
+- `crates/animatix-syntax/src/typing.rs` — shared `Type`/`TypeEnv` inference
 - `crates/animatix-syntax/src/walk.rs` — shared AST traversal primitives
 - `crates/animatix/src/timeline/` — keyframed runtime, actions, morphing, plotting
 - `crates/animatix/src/renderer/` — Vello/WGPU rendering backend
@@ -196,7 +197,7 @@ cargo clippy --all-targets -- -D warnings
 ```
 
 - **animatix**: Core timeline, parser, and rendering tests
-- **animatix-analyzer**: 18+ unit tests (symbol extraction, completions, diagnostics)
+- **animatix-analyzer**: 48+ unit tests (symbol extraction, type inference, completions, diagnostics)
 - **animatix-lsp**: Compiles, manual testing with editors
 - **animatix-gui**: Integrated with workspace tests
 

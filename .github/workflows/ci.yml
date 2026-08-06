@@ -103,15 +103,7 @@ jobs:
       - name: Build animatix CLI
         run: cargo build --bin animatix
       - name: Validate all examples
-        run: |
-          exit_code=0
-          for f in examples/*.amx; do
-            echo "Checking $f..."
-            if ! cargo run --bin animatix -- check "$f"; then
-              exit_code=1
-            fi
-          done
-          exit $exit_code
+        run: bash scripts/check_examples.sh
 
   commit-check:
     name: Conventional Commits

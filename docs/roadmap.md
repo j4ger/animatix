@@ -24,10 +24,6 @@ themes, CI platform parity, and `StyledExt` helpers.
 
 | Item | Status / Notes |
 |------|----------------|
-| Runtime-theme migration for custom GUI surfaces | Done; all custom GUI panels now read `eparts::theme(ui)` or theme-aware egui visuals instead of static generic token constants. App-specific palette roles (`category`, `timeline`, `canvas`, `curve`) remain intentionally fixed. |
-| Replace raw font-size bypasses | Done; the last raw `FontId::new` in highlighting now uses `TextRole::Mono`, and numeric `.size()` bypasses are gone from GUI code. |
-| Restore dev screenshot/visual regression harness | Done; `dev-screenshots` feature, `widget-screenshot` binary, and `scripts/gui-screenshots.sh` render bounded theme-aware PNGs. |
-| Clean up dead timeline/panel scaffolding | Done; filter/layout property lane variants, unused `property_group_name`, timeline actor label/keyframe caches, and unwired view/panel command variants were removed. Remaining `#[allow(dead_code)]` entries have concrete forward-looking justifications. |
 | Opportunistic eparts widget adoption | Open, not scheduled; migrate when the surrounding GUI area is next edited. |
 | Verify `Theme::light()` contrast matrix | Open; needs WCAG AA verification for all text/background pairs. |
 
@@ -42,7 +38,6 @@ themes, CI platform parity, and `StyledExt` helpers.
 | Legend automatic entry extraction | Open; legend uses placeholder entries, scene scanning for color-bearing actors is not implemented. |
 | Custom action multi-target invocation | Open; custom component actions are single-target (`pulse btn, icon` is not supported). |
 | Data-dependent algorithm timelines | Open; no runtime mutable state or branching timeline, so algorithm animations must be hand-unrolled recordings. Confirmed by `dogfood/projects/sorting-visualizer`. |
-| Analyzer component awareness | Done; local component types/actions, component-generated array labels, and component-internal template labels are handled by the analyzer. |
 | Namespace access depth | Open; aliased imports expose one level (`alias.export_name` only). |
 | Colorscheme dotted token parser | Open; runtime/API accepts `scene.background`-style overrides, source parser does not yet. |
 
@@ -51,8 +46,6 @@ themes, CI platform parity, and `StyledExt` helpers.
 | Item | Status / Notes |
 |------|----------------|
 | Roadmap/doc reference and status consistency check | Open; add a script or link checker so future audits do not rely on manual scans. |
-| Dogfood scaffolding | Done; `dogfood/` contains project/probe templates and READMEs. First project (`sorting-visualizer`) completed; three findings fixed and remaining algorithm-timeline gap tracked above. |
-| Symbol-aware type foundation | Done; shared `Type`/`TypeEnv` in `animatix-syntax::typing` drives syntax and analyzer inference, including namespaces, runtime literal values, and direct analyzer `Type` usage. |
 
 ---
 

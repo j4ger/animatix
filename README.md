@@ -21,15 +21,15 @@ accent.size = (640, 3) [800ms, ease: ease-out]
 cargo build
 
 # Live preview
-cargo run --bin animatix -- render examples/00_hello.amx
+cargo run --bin animatix -- render examples/basics/00_hello.amx
 
 # Export
-cargo run --bin animatix -- video examples/16_showcase.amx -o showcase.mp4 --fps 30
-cargo run --bin animatix -- gif examples/20_feature_reel.amx -o reel.gif --fps 15
-cargo run --bin animatix -- image examples/07_plots.amx -o frame.png
+cargo run --bin animatix -- video examples/animation/16_showcase.amx -o showcase.mp4 --fps 30
+cargo run --bin animatix -- gif examples/composition/20_feature_reel.amx -o reel.gif --fps 15
+cargo run --bin animatix -- image examples/data/07_plots.amx -o frame.png
 
 # GUI
-cargo run --bin animatix-gui -- examples/16_showcase.amx
+cargo run --bin animatix-gui -- examples/animation/16_showcase.amx
 ```
 
 Nix users: `nix develop` sets up all dependencies.
@@ -54,7 +54,7 @@ Full language spec: [`docs/spec.md`](docs/spec.md) · All primitives: [`docs/pri
 
 ## Examples
 
-24 progressive demos in [`examples/`](examples/) covering shapes, layout, timing, morphing, reactive expressions, plotting, effects, components, modules, multi-scene, and more. See [`examples/README.md`](examples/README.md).
+A curated set of 37 runnable entry demos in [`examples/`](examples/) covering shapes, layout, timing, morphing, reactive expressions, plotting, effects, components, modules, multi-scene, and more. See [`examples/README.md`](examples/README.md).
 
 ## Documentation
 
@@ -65,6 +65,7 @@ Full language spec: [`docs/spec.md`](docs/spec.md) · All primitives: [`docs/pri
 | [`docs/contributing.md`](docs/contributing.md) | Development workflows and project structure |
 | [`docs/roadmap.md`](docs/roadmap.md) | Planned features and known gaps |
 | [`docs/gui_design_language.md`](docs/gui_design_language.md) | GUI design language and migration plan |
+| [`dogfood/README.md`](dogfood/README.md) | In-progress real-content projects and grammar probes |
 
 ## For Developers
 
