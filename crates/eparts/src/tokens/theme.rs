@@ -362,9 +362,11 @@ impl Theme {
         // Text (dark on light).
         let primary = Color32::from_rgb(20, 24, 30);
         let secondary = Color32::from_rgb(90, 97, 112);
-        let muted = Color32::from_rgb(130, 138, 153);
+        let muted = Color32::from_rgb(103, 109, 123);
         let disabled = Color32::from_rgb(180, 185, 192);
-        let on_accent = Color32::from_rgb(255, 255, 255);
+        // Dark text on accent fills matches the dark theme's ON_ACCENT role and
+        // keeps primary/hover/accent button states within WCAG AA UI contrast.
+        let on_accent = Color32::from_rgb(10, 12, 16);
         // Borders (mid grays).
         let border_default = Color32::from_rgb(200, 204, 209);
         let border_strong = Color32::from_rgb(160, 165, 172);
@@ -1121,6 +1123,73 @@ impl AppThemeChoice {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tokens::util::{WCAG_AA_TEXT, WCAG_AA_UI, contrast_ratio};
+
+    fn assert_contrast(fg: Color32, bg: Color32, threshold: f64, label: &str) {
+        let ratio = contrast_ratio(fg, bg);
+        assert!(
+            ratio >= threshold,
+            "{label} contrast is {ratio:.2}:1, expected at least {threshold:.1}:1"
+        );
+    }
+
+    #[test]
+    fn light_core_text_surface_pairs_meet_wcag_aa() {
+        let t = Theme::light();
+        let surfaces = [
+            ("base", t.surface.base),
+            ("panel", t.surface.panel),
+            ("surface", t.surface.surface),
+            ("widget", t.surface.widget),
+        ];
+
+        for (surface_name, bg) in surfaces {
+            assert_contrast(t.text.primary, bg, WCAG_AA_TEXT, &format!("primary/{surface_name}"));
+            assert_contrast(
+                t.text.secondary,
+                bg,
+                WCAG_AA_TEXT,
+                &format!("secondary/{surface_name}"),
+            );
+            assert_contrast(t.text.muted, bg, WCAG_AA_TEXT, &format!("muted/{surface_name}"));
+        }
+
+        assert_contrast(
+            t.text.primary,
+            t.surface.hover,
+            WCAG_AA_TEXT,
+            "primary/hover",
+        );
+        assert_contrast(
+            t.text.primary,
+            t.surface.active,
+            WCAG_AA_TEXT,
+            "primary/active",
+        );
+    }
+
+    #[test]
+    fn light_accent_button_pairs_meet_wcag_aa() {
+        let t = Theme::light();
+        assert_contrast(
+            t.button.primary.normal.fg,
+            t.button.primary.normal.bg,
+            WCAG_AA_TEXT,
+            "primary button normal",
+        );
+        assert_contrast(
+            t.button.primary.hover.fg,
+            t.button.primary.hover.bg,
+            WCAG_AA_UI,
+            "primary button hover",
+        );
+        assert_contrast(
+            t.button.primary.active.fg,
+            t.button.primary.active.bg,
+            WCAG_AA_UI,
+            "primary button active",
+        );
+    }
 
     #[test]
     fn dark_matches_semantic_constants() {
