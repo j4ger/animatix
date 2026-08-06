@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use animatix::timeline::{AnimationTrack, Timeline, collect_all_keyframe_times};
 use egui::{Color32, Pos2, RichText, ScrollArea, Vec2};
+use eparts::widget::text_tooltip;
 
 use crate::app::PreviewPaneState;
 use crate::app::commands::{
@@ -139,14 +140,17 @@ fn render_scene_inspector(
                     "Auto-detected from keyframes (drag to set explicit)"
                 };
                 let changed = drag.changed();
-                drag.on_hover_text(tooltip);
+                text_tooltip(ui, ui.id().with("scene_duration_tooltip"), &drag, tooltip);
                 if is_explicit {
                     // Small button to remove explicit duration
-                    if ui
-                        .small_button("⨯")
-                        .on_hover_text("Revert to auto-detected duration")
-                        .clicked()
-                    {
+                    let revert = ui.small_button("⨯");
+                    text_tooltip(
+                        ui,
+                        ui.id().with("scene_duration_revert_tooltip"),
+                        &revert,
+                        "Revert to auto-detected duration",
+                    );
+                    if revert.clicked() {
                         commands.push_back(
                             SceneCommand::SetSceneDuration {
                                 scene: active_scene.to_string(),
@@ -697,15 +701,16 @@ pub(super) fn inspector_ui(
                     layout::labeled_row(ui, "Y", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
                         ui.add(egui::DragValue::new(&mut pivot[1]).speed(1.0).suffix(" px"));
                     });
-                    if ui
-                        .button(
-                            RichText::new("Reset")
-                                .size(TextRole::BodyS.size())
-                                .color(theme.text.muted),
-                        )
-                        .on_hover_text("Reset pivot to center")
-                        .clicked()
-                    {
+                    let reset_pivot = ui.button(
+                        RichText::new("Reset").size(TextRole::BodyS.size()).color(theme.text.muted),
+                    );
+                    text_tooltip(
+                        ui,
+                        ui.id().with(("reset_pivot_tooltip", sel)),
+                        &reset_pivot,
+                        "Reset pivot to center",
+                    );
+                    if reset_pivot.clicked() {
                         *pivot = [0.0, 0.0];
                     }
                 });

@@ -5,6 +5,7 @@ use animatix::timeline::{
 };
 use animatix_syntax::easing::Easing;
 use egui::Vec2;
+use eparts::widget::Tooltip;
 
 use crate::app::commands::{ActionQueue, KeyframeCommand, PlaybackCommand};
 use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH, spatial};
@@ -202,19 +203,23 @@ fn render_compact_track_row(
             });
 
             // Per-dot hover tooltip with value and easing info
-            dot_response.on_hover_ui(|ui| {
-                ui.label(format!("{:.2}s", *time_ms as f64 / 1000.0));
-                ui.label(
-                    egui::RichText::new(value)
-                        .size(TextRole::Micro.size())
-                        .color(theme.text.secondary),
-                );
-                ui.label(
-                    egui::RichText::new(format!("ease: {}", easing_display_name(*easing)))
-                        .size(TextRole::Micro.size())
-                        .color(theme.text.muted),
-                );
-            });
+            Tooltip::new(ui.id().with(("kf_dot_tooltip", track.name, *time_ms))).show(
+                ui,
+                &dot_response,
+                |ui| {
+                    ui.label(format!("{:.2}s", *time_ms as f64 / 1000.0));
+                    ui.label(
+                        egui::RichText::new(value)
+                            .size(TextRole::Micro.size())
+                            .color(theme.text.secondary),
+                    );
+                    ui.label(
+                        egui::RichText::new(format!("ease: {}", easing_display_name(*easing)))
+                            .size(TextRole::Micro.size())
+                            .color(theme.text.muted),
+                    );
+                },
+            );
         }
 
         // Current time indicator
@@ -247,7 +252,7 @@ fn render_compact_track_row(
     }
 
     // Hover tooltip showing keyframe values
-    response.on_hover_ui(|ui| {
+    Tooltip::new(ui.id().with(("compact_track_tooltip", track.name))).show(ui, &response, |ui| {
         ui.horizontal(|ui| {
             ui.strong(track.name);
             ui.label(

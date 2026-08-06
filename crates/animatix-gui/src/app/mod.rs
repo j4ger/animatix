@@ -30,6 +30,7 @@ use animatix_syntax::diagnostics::{
 };
 use directories::ProjectDirs;
 use egui::{Color32, Stroke, Vec2};
+use eparts::widget::{Alert, AlertLevel, text_tooltip};
 use file_tree::{build_file_tree, workspace_root_for};
 use persistence::{
     SettingsPersistence, WorkspacePersistence, default_tree, load_workspace_persistence,
@@ -614,17 +615,14 @@ impl GuiShell {
                 .show_inside(ui, |ui| {
                     ui.set_width(ui.available_width());
                     if diagnostics.is_empty() {
-                        ui.vertical_centered(|ui| {
-                            ui.add_space(SPACE_4);
-                            ui.label(
-                                egui::RichText::new(format!(
-                                    "No diagnostics — all clear {}",
-                                    egui_phosphor::regular::CHECK_CIRCLE,
-                                ))
-                                .size(TextRole::BodyS.size())
-                                .color(theme.text.muted),
-                            );
-                        });
+                        ui.add_space(SPACE_4);
+                        ui.add(Alert::new(
+                            format!(
+                                "No diagnostics — all clear {}",
+                                egui_phosphor::regular::CHECK_CIRCLE
+                            ),
+                            AlertLevel::Success,
+                        ));
                     } else if let Some(target) = components::diagnostics::diagnostics_list(
                         ui,
                         &diagnostics,
@@ -681,7 +679,10 @@ impl GuiShell {
                                 .color(color),
                         );
                         if is_error && self.preview_store.preview.error.is_some() {
-                            label.on_hover_text(
+                            text_tooltip(
+                                ui,
+                                ui.id().with("status_error_tooltip"),
+                                &label,
                                 self.preview_store.preview.error.as_deref().unwrap_or(""),
                             );
                         }

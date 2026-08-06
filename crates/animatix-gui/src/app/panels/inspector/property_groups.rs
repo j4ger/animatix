@@ -4,7 +4,7 @@ use animatix::timeline::{
     allowed_property_indices, property_has_keyframes, read_property_value_or_default,
 };
 use egui::{Color32, Stroke, Vec2};
-use eparts::widget::Select;
+use eparts::widget::{Badge, Select};
 use eparts::{NumberField, TextField};
 
 use crate::app::commands::{
@@ -286,14 +286,7 @@ pub(crate) fn render_property_group(
         .has_children(true)
         .expanded(expanded)
         .right(|ui| {
-            ui.add(
-                egui::Label::new(
-                    egui::RichText::new(group.properties.len().to_string())
-                        .size(TextRole::Micro.size())
-                        .color(theme.text.muted),
-                )
-                .selectable(false),
-            );
+            ui.add(Badge::new(group.properties.len().to_string()));
         });
     let response = header.show(ui, group_id.with("header"));
 

@@ -23,6 +23,7 @@ use std::time::Duration;
 use animatix::composition::Composition;
 use animatix::timeline::Timeline;
 use egui::{Align2, Color32, FontId, Pos2, Rect, RichText, Sense, Stroke, Vec2};
+use eparts::widget::text_tooltip;
 
 use crate::app::PreviewPaneState;
 use crate::app::commands::{ActionQueue, Command, PlaybackCommand, ShellAction};
@@ -1115,10 +1116,12 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 } else {
                     format!("{:.1}s", dur_s)
                 };
-                badge_resp.on_hover_text(format!(
-                    "{:?} → {} [{}]",
-                    edge.transition.id, edge.to_scene, dur_text,
-                ));
+                text_tooltip(
+                    ui,
+                    ui.id().with(("transition_tooltip", src_name, &edge.to_scene)),
+                    &badge_resp,
+                    &format!("{:?} → {} [{}]", edge.transition.id, edge.to_scene, dur_text,),
+                );
             }
 
             draw_loop_region(painter, bar_area.top(), bar_area.bottom(), preview, &time_to_x);
