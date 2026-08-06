@@ -33,9 +33,8 @@ color constructors, component params, actor labels, and list common types.
 
 ## Remaining
 
-`animatix lint` still reports `unused-label: 's'` because the component
-instance is not animated or directly referenced afterward. That is the broader
-component/static-actor linter gap, not a type inference issue.
+None for this probe. The repro references `s` with `fade-in` so the linter
+has a direct use; the original type mismatch is gone.
 
 ## Regression coverage
 

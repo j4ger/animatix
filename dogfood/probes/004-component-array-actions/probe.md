@@ -1,6 +1,6 @@
 # Probe: component-generated array actors and indexed custom actions
 
-Status: runtime findings fixed; analyzer follow-up open.
+Status: resolved.
 
 ## Intent
 

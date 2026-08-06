@@ -177,8 +177,7 @@ with `TypeEnv` builtins so static typing and evaluation stay in sync.
   property lookup.
 - `scene.*` remains `Any`.
 - Probe 005 no longer reports a type mismatch.
-- Probe 004's component instance/action typing continues to lint clean except
-  the known component-internal `unused-label` gap.
+- Probe 004's component instance/action typing now lints clean.
 
 ## Phases
 
