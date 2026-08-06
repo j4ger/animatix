@@ -225,9 +225,10 @@ impl<'a> TypeEnv<'a> {
                         .as_ref()
                         .map(TypedType::from_annotation)
                         .or_else(|| {
-                            param.default.as_ref().map(|value| {
-                                typing::infer_expr_type(value, &self.typed)
-                            })
+                            param
+                                .default
+                                .as_ref()
+                                .map(|value| typing::infer_expr_type(value, &self.typed))
                         })
                         .unwrap_or(TypedType::Any);
                     self.typed.bind(&param.name, ty);
@@ -250,9 +251,10 @@ impl<'a> TypeEnv<'a> {
                         .as_ref()
                         .map(TypedType::from_annotation)
                         .or_else(|| {
-                            param.default.as_ref().map(|value| {
-                                typing::infer_expr_type(value, &self.typed)
-                            })
+                            param
+                                .default
+                                .as_ref()
+                                .map(|value| typing::infer_expr_type(value, &self.typed))
                         })
                         .unwrap_or(TypedType::Any);
                     self.typed.bind(&param.name, ty);
@@ -275,7 +277,12 @@ impl<'a> TypeEnv<'a> {
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         match item {
-            crate::ast::InlineItem::Anonymous { ty, props, children, .. } => {
+            crate::ast::InlineItem::Anonymous {
+                ty,
+                props,
+                children,
+                ..
+            } => {
                 if let Some(entry) = self.components.get(ty) {
                     self.check_component_props(ty, &entry.definition, props, diagnostics);
                 }
@@ -766,11 +773,7 @@ mod tests {
         // Known colorscheme namespaces with ≥2 segments → Color
         for ns in &["accent", "text", "surface", "stroke"] {
             let path = Expr::Path(vec![ns.to_string(), "primary".to_string()]);
-            assert_eq!(
-                infer_expr_type(&path, &env),
-                Type::Color,
-                "{ns}.primary should be Color"
-            );
+            assert_eq!(infer_expr_type(&path, &env), Type::Color, "{ns}.primary should be Color");
         }
         // scene.* stays Any (mixes colors and anchors)
         let scene = Expr::Path(vec!["scene".to_string(), "background".to_string()]);
@@ -810,7 +813,10 @@ mod tests {
             ty: "Swatches".to_string(),
             props: vec![Property {
                 name: "colors".to_string(),
-                value: Expr::List(vec![Expr::Ident("red".to_string()), Expr::Ident("blue".to_string())]),
+                value: Expr::List(vec![
+                    Expr::Ident("red".to_string()),
+                    Expr::Ident("blue".to_string()),
+                ]),
                 value_span: None,
                 trailing_comment: None,
             }],

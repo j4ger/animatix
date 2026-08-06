@@ -457,7 +457,9 @@ impl SymbolTable {
 
     fn collect_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::LetDecl { name, value, span, .. } => {
+            Stmt::LetDecl {
+                name, value, span, ..
+            } => {
                 let inferred = typing::infer_expr_type(value, &typing::TypeEnv::with_stdlib());
                 self.labels.insert(
                     name.clone(),
@@ -681,7 +683,12 @@ impl SymbolTable {
                     self.referenced_labels.insert(target.clone());
                 }
             },
-            Stmt::Assignment { target, property, value, .. } => {
+            Stmt::Assignment {
+                target,
+                property,
+                value,
+                ..
+            } => {
                 for seg in target {
                     match seg {
                         TargetSegment::Static(label) => {
@@ -749,7 +756,12 @@ impl SymbolTable {
                     self.collect_refs_from_stmt(stmt);
                 }
             },
-            Stmt::ReactiveBinding { target, property, value, .. } => {
+            Stmt::ReactiveBinding {
+                target,
+                property,
+                value,
+                ..
+            } => {
                 for seg in target {
                     self.referenced_labels.insert(seg.label_str().to_string());
                     if let TargetSegment::Indexed { index, .. } = seg {
@@ -1059,7 +1071,10 @@ impl SymbolTable {
 
 fn collect_component_internal_labels(stmts: &[Stmt], out: &mut HashSet<String>) {
     animatix_syntax::walk::walk_stmts(stmts, &mut |stmt| {
-        if let Stmt::ActorDecl { label, children, .. } = stmt {
+        if let Stmt::ActorDecl {
+            label, children, ..
+        } = stmt
+        {
             out.insert(label.clone());
             animatix_syntax::walk::walk_inline_items(children, &mut |item| {
                 if let InlineItem::Labeled { label, .. } = item {

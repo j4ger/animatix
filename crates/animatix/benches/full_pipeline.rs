@@ -104,10 +104,10 @@ fn bench_full_pipeline(c: &mut Criterion) {
     let examples_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
     let showcase =
         std::fs::read_to_string(examples_dir.join("animation/16_showcase.amx")).unwrap_or_default();
-    let components =
-        std::fs::read_to_string(examples_dir.join("components/09_components.amx")).unwrap_or_default();
-    let _modules = std::fs::read_to_string(examples_dir.join("components/10_modules.amx"))
+    let components = std::fs::read_to_string(examples_dir.join("components/09_components.amx"))
         .unwrap_or_default();
+    let _modules =
+        std::fs::read_to_string(examples_dir.join("components/10_modules.amx")).unwrap_or_default();
 
     let mut group = c.benchmark_group("full_pipeline");
 

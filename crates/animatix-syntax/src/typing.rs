@@ -17,20 +17,8 @@ pub const COLOR_CONSTRUCTOR_FNS: &[&str] = &["rgb", "rgba", "hsv", "hsl", "hsla"
 
 /// Named color literals accepted by the runtime and static type layer.
 pub const NAMED_COLOR_NAMES: &[&str] = &[
-    "red",
-    "RED",
-    "green",
-    "GREEN",
-    "blue",
-    "BLUE",
-    "black",
-    "BLACK",
-    "white",
-    "WHITE",
-    "yellow",
-    "YELLOW",
-    "orange",
-    "ORANGE",
+    "red", "RED", "green", "GREEN", "blue", "BLUE", "black", "BLACK", "white", "WHITE", "yellow",
+    "YELLOW", "orange", "ORANGE",
 ];
 
 /// Named color literal values in RGBA order.
@@ -153,9 +141,7 @@ impl Type {
             TypeAnnotation::Color => Type::Color,
             TypeAnnotation::Actor => Type::Actor("Actor".to_string()),
             TypeAnnotation::Scene => Type::Any,
-            TypeAnnotation::List(inner) => {
-                Type::List(Box::new(Type::from_annotation(inner)))
-            },
+            TypeAnnotation::List(inner) => Type::List(Box::new(Type::from_annotation(inner))),
             TypeAnnotation::Any => Type::Any,
         }
     }
@@ -232,7 +218,8 @@ impl TypeEnv {
             self.functions.insert(name.to_string(), Type::Num);
         }
         self.construct_types.insert("Color".to_string(), Type::Color);
-        self.construct_types.insert("Point".to_string(), Type::Tuple(vec![Type::Num, Type::Num]));
+        self.construct_types
+            .insert("Point".to_string(), Type::Tuple(vec![Type::Num, Type::Num]));
     }
 
     /// Push a lexical scope.
@@ -349,9 +336,7 @@ impl TypeEnv {
                 if let Some(ty) = sig.params.get(&parts[1]) {
                     Some(ty.clone())
                 } else {
-                    self.arrays
-                        .get(&format!("{}.{}", first, parts[1]))
-                        .cloned()
+                    self.arrays.get(&format!("{}.{}", first, parts[1])).cloned()
                 }
             },
             _ => None,
@@ -392,7 +377,10 @@ pub fn property_type(actor_type: &str, property: &str) -> Option<Type> {
         _ => match actor_type {
             "Graph" | "PlotCurve" => match property {
                 "x_domain" | "y_domain" | "t_domain" => Some(Type::Vec2),
-                "func" => Some(Type::Function { params: vec![], ret: Box::new(Type::Num) }),
+                "func" => Some(Type::Function {
+                    params: vec![],
+                    ret: Box::new(Type::Num),
+                }),
                 _ => None,
             },
             _ => None,
@@ -467,7 +455,11 @@ pub fn infer_expr_type(expr: &Expr, env: &TypeEnv) -> Type {
             let left_ty = infer_expr_type(left, env);
             let right_ty = infer_expr_type(right, env);
             match op {
-                BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div | BinaryOp::Mod
+                BinaryOp::Add
+                | BinaryOp::Sub
+                | BinaryOp::Mul
+                | BinaryOp::Div
+                | BinaryOp::Mod
                 | BinaryOp::Pow => {
                     if left_ty == Type::Str && *op == BinaryOp::Add {
                         Type::Str
@@ -479,8 +471,14 @@ pub fn infer_expr_type(expr: &Expr, env: &TypeEnv) -> Type {
                         Type::Any
                     }
                 },
-                BinaryOp::Eq | BinaryOp::Neq | BinaryOp::Lt | BinaryOp::Gt | BinaryOp::Lte
-                | BinaryOp::Gte | BinaryOp::And | BinaryOp::Or => Type::Bool,
+                BinaryOp::Eq
+                | BinaryOp::Neq
+                | BinaryOp::Lt
+                | BinaryOp::Gt
+                | BinaryOp::Lte
+                | BinaryOp::Gte
+                | BinaryOp::And
+                | BinaryOp::Or => Type::Bool,
             }
         },
         Expr::Unary(_, inner) => match infer_expr_type(inner, env) {
@@ -508,14 +506,12 @@ pub fn infer_expr_type(expr: &Expr, env: &TypeEnv) -> Type {
             }
         },
         Expr::Closure(_, _) => Type::Any,
-        Expr::Conditional(_, then_expr, else_expr) => {
-            common_type(&[infer_expr_type(then_expr, env), infer_expr_type(else_expr, env)])
-        },
+        Expr::Conditional(_, then_expr, else_expr) => common_type(&[
+            infer_expr_type(then_expr, env),
+            infer_expr_type(else_expr, env),
+        ]),
         Expr::Match(_, arms) => {
-            let types = arms
-                .iter()
-                .map(|(_, arm)| infer_expr_type(arm, env))
-                .collect::<Vec<_>>();
+            let types = arms.iter().map(|(_, arm)| infer_expr_type(arm, env)).collect::<Vec<_>>();
             common_type(&types)
         },
         Expr::Construct(name, _) => env.construct_type(name).unwrap_or(Type::Any),
@@ -564,10 +560,7 @@ mod tests {
             Expr::Ident("red".to_string()),
             Expr::Ident("blue".to_string()),
         ]);
-        assert_eq!(
-            infer_expr_type(&list, &env),
-            Type::List(Box::new(Type::Color))
-        );
+        assert_eq!(infer_expr_type(&list, &env), Type::List(Box::new(Type::Color)));
     }
 
     #[test]
@@ -582,10 +575,7 @@ mod tests {
                 Expr::Num(1.0),
             ]),
         ]);
-        assert_eq!(
-            infer_expr_type(&list, &env),
-            Type::List(Box::new(Type::Vec4))
-        );
+        assert_eq!(infer_expr_type(&list, &env), Type::List(Box::new(Type::Vec4)));
     }
 
     #[test]

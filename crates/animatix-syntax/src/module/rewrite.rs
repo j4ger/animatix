@@ -787,15 +787,15 @@ fn rewrite_label_path(
         TargetSegment::Static(s) => s.as_str(),
         TargetSegment::Indexed { base, index } => {
             let base_rewritten = rewrite_label_ref(base, prefix, root_label, known_labels);
-            let mut result =
-                vec![TargetSegment::Indexed { base: base_rewritten, index: index.clone() }];
+            let mut result = vec![TargetSegment::Indexed {
+                base: base_rewritten,
+                index: index.clone(),
+            }];
             for seg in rest {
                 match seg {
                     TargetSegment::Static(s) => {
                         result.push(TargetSegment::Static(rewrite_path_segment(
-                            s,
-                            prefix,
-                            root_label,
+                            s, prefix, root_label,
                         )));
                     },
                     TargetSegment::Indexed { base, index } => {

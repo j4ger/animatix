@@ -304,9 +304,7 @@ fn is_component_array_member(symbols: &SymbolTable, label: &str) -> bool {
     let Some(info) = symbols.labels.get(instance) else {
         return false;
     };
-    info.ty
-        .as_deref()
-        .is_some_and(|ty| symbols.components.contains_key(ty))
+    info.ty.as_deref().is_some_and(|ty| symbols.components.contains_key(ty))
 }
 
 /// Search the tree-sitter tree for a node of the given kind containing `text`.

@@ -1154,18 +1154,8 @@ mod tests {
             assert_contrast(t.text.muted, bg, WCAG_AA_TEXT, &format!("muted/{surface_name}"));
         }
 
-        assert_contrast(
-            t.text.primary,
-            t.surface.hover,
-            WCAG_AA_TEXT,
-            "primary/hover",
-        );
-        assert_contrast(
-            t.text.primary,
-            t.surface.active,
-            WCAG_AA_TEXT,
-            "primary/active",
-        );
+        assert_contrast(t.text.primary, t.surface.hover, WCAG_AA_TEXT, "primary/hover");
+        assert_contrast(t.text.primary, t.surface.active, WCAG_AA_TEXT, "primary/active");
     }
 
     #[test]

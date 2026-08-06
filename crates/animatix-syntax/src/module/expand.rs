@@ -463,7 +463,9 @@ fn first_labeled_stmt(body: &[Stmt]) -> Option<String> {
 fn collect_labels(body: &[Stmt]) -> HashSet<String> {
     let mut labels = HashSet::new();
     crate::walk::walk_stmts(body, &mut |stmt| match stmt {
-        Stmt::ActorDecl { label, children, .. } => {
+        Stmt::ActorDecl {
+            label, children, ..
+        } => {
             labels.insert(label.clone());
             collect_inline_labels(children, &mut labels);
         },

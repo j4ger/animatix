@@ -292,13 +292,9 @@ impl Primitive for CalloutPrimitive {
             None => value.clone(),
         };
 
-        if let Some(target) = parse_property_value(
-            ValueType::String,
-            &target_expr,
-            env,
-            diagnostics,
-            subject,
-        ) {
+        if let Some(target) =
+            parse_property_value(ValueType::String, &target_expr, env, diagnostics, subject)
+        {
             write_property_field(
                 track,
                 ActorField::CalloutTarget,
