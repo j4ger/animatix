@@ -180,3 +180,83 @@ fn test_keyframe_scoped_variables_injected_into_frame_env() {
         panic!("Expected Vec2 override for tracker.at, got {:?}", tracker_at);
     }
 }
+
+#[test]
+fn always_object_field_writes_update_frame_environment() {
+    let ast = vec![Stmt::Keyframe {
+        time: crate::ast::Time::Seconds(0.0),
+        body: vec![
+            Stmt::LetDecl {
+                is_pub: false,
+                name: "p".to_string(),
+                value: Expr::Construct(
+                    "Point".to_string(),
+                    vec![
+                        Property {
+                            name: "x".to_string(),
+                            value: Expr::Num(10.0),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                        Property {
+                            name: "y".to_string(),
+                            value: Expr::Num(20.0),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                    ],
+                ),
+                span: None,
+            },
+            Stmt::Always {
+                body: vec![
+                    Stmt::Assignment {
+                        target: vec![crate::ast::TargetSegment::Static("p".to_string())],
+                        property: "x".to_string(),
+                        value: Expr::Num(30.0),
+                        modifiers: vec![],
+                        easing: None,
+                        value_span: None,
+                        span: None,
+                    },
+                    Stmt::LetDecl {
+                        is_pub: false,
+                        name: "q".to_string(),
+                        value: Expr::Binary(
+                            Box::new(Expr::Path(vec!["p".to_string(), "x".to_string()])),
+                            BinaryOp::Add,
+                            Box::new(Expr::Num(1.0)),
+                        ),
+                        span: None,
+                    },
+                ],
+                span: None,
+            },
+        ],
+        span: None,
+    }];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+
+    let mut overrides = std::collections::HashMap::new();
+    let mut env = timeline.build_frame_env(0, SceneDimensions::default(), &overrides);
+    for modifier in &timeline.modifiers {
+        timeline.apply_modifier_stmt(modifier, &mut env, &mut overrides);
+    }
+
+    match env.get("p") {
+        Some(Value::Object(name, fields)) => {
+            assert_eq!(name, "Point");
+            assert_eq!(fields["x"], Value::Num(30.0));
+            assert_eq!(fields["y"], Value::Num(20.0));
+        },
+        other => panic!("Expected Point object, got {:?}", other),
+    }
+    assert_eq!(env.get("q"), Some(Value::Num(31.0)));
+}

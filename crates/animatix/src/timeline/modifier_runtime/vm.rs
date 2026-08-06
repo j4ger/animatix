@@ -405,7 +405,7 @@ impl ModifierVm {
                 },
                 Instruction::LoadEnv(name) => {
                     let value = frame_env
-                        .get(name)
+                        .get_path(name)
                         .ok_or_else(|| EvalError::UndefinedVariable(name.clone()))?;
                     self.stack.push(value);
                     self.ip += 1;
@@ -637,6 +637,10 @@ impl ModifierVm {
                 },
                 Instruction::WriteOverride { target, property } => {
                     let value = self.pop()?;
+                    if frame_env.set_object_field(target, property, value.clone()) {
+                        self.ip += 1;
+                        continue;
+                    }
                     overrides
                         .entry(target.clone())
                         .or_default()

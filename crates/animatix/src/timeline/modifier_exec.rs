@@ -36,6 +36,17 @@ impl Timeline {
             } => {
                 match evaluate_expr(value, frame_env) {
                     Ok(val) => {
+                        if target.len() == 1
+                            && matches!(target[0], crate::ast::TargetSegment::Static(_))
+                            && frame_env.set_object_field(
+                                target[0].label_str(),
+                                property,
+                                val.clone(),
+                            )
+                        {
+                            return;
+                        }
+
                         // Use the frame-time variant to handle Indexed segments (e.g.
                         // bars[i].color). For all-Static targets this is
                         // equivalent to assignment_target_key.

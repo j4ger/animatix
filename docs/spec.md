@@ -1500,13 +1500,12 @@ Named structs can be constructed with field syntax:
 let p = Point { x: 10, y: 20 }
 ```
 
-Returns a `Value::Object` with typed fields. Field reads (`p.x`) are implemented; e.g. `p.x + p.y` works after `let p = Point { x: 10, y: 20 }`. Field writes (`p.x = 30`) are supported for build-time variable tracks; runtime `always` object field writes are not yet implemented.
+Returns a `Value::Object` with typed fields. Field reads (`p.x`) are implemented; e.g. `p.x + p.y` works after `let p = Point { x: 10, y: 20 }`. Field writes (`p.x = 30`) are supported for build-time variable tracks and frame-local `always` object variables.
 
 ---
 
 ## 16. Known Gaps & Limitations
 
-- **Object Field Write:** `Value::Object` supports construction, field reads (`p.x`), and build-time variable-track field writes. Runtime `always` object field writes remain unimplemented.
 - **Media source assignment:** `Image.url` and `Svg.url` assignments support timed keyframe animation. Image sources and SVG path sets snap between sources at the midpoint of a timed assignment; SVG assignments also update measured size. Text/Typst/Code assignment recompiles glyph paths at timeline build/assignment time.
 - ~~**Static Geometry:** Structural geometry inputs like `Polygon.points` and `Path.commands` are declaration-time only and cannot be animated dynamically frame-by-frame.~~ Both now support timed assignments with path morphing.
 

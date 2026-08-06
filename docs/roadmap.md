@@ -30,7 +30,6 @@ themes, CI platform parity, and `StyledExt` helpers.
 
 | Item | Status / Notes |
 |------|----------------|
-| Runtime object field writes | Open; build-time variable-track writes like `let p = Point { x: 10 }; p.x = 30` are implemented, but `always` object field writes are not. |
 | Precise shape/path/text bounds | Open; callout geometry and actor anchor points use world-space affine plus available local bounds. Exact text/path bounds remain deferred. |
 | Text/Typst/Code frame-time content overrides | Open; timed assignments recompile glyph paths, but changing `text` directly inside `always` is not a supported path. |
 | Legend automatic entry extraction | Open; legend uses placeholder entries, scene scanning for color-bearing actors is not implemented. |

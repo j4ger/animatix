@@ -38,6 +38,10 @@ fn execute_modifier_stmt(
             value,
         } => {
             let val = evaluate_modifier_expr(value, frame_env)?;
+            if target.len() == 1 && frame_env.set_object_field(&target[0], property, val.clone()) {
+                return Ok(());
+            }
+
             let label = target.join(".");
             overrides
                 .entry(label.clone())
@@ -154,10 +158,9 @@ fn execute_modifier_stmt(
 pub fn evaluate_compiled_expr(expr: &CompiledExpr, env: &Environment) -> Result<Value, EvalError> {
     match expr {
         CompiledExpr::Const(value) => Ok(value.clone()),
-        CompiledExpr::LoadEnv(name) => env
-            .get_ref(name)
-            .cloned()
-            .ok_or_else(|| EvalError::UndefinedVariable(name.clone())),
+        CompiledExpr::LoadEnv(name) => {
+            env.get_path(name).ok_or_else(|| EvalError::UndefinedVariable(name.clone()))
+        },
         CompiledExpr::MakeVec(items) => {
             let values = items
                 .iter()

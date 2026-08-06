@@ -307,6 +307,24 @@ impl Environment {
         self.overrides.insert(name.to_string(), value);
     }
 
+    /// Update one field on a frame-local `Value::Object` variable.
+    ///
+    /// Returns `false` when `name` does not resolve to an object, leaving the
+    /// caller free to fall back to actor/property override semantics.
+    pub fn set_object_field(&mut self, name: &str, field: &str, value: Value) -> bool {
+        let Some(current) = self.get(name) else {
+            return false;
+        };
+        if !matches!(current, Value::Object(_, _)) {
+            return false;
+        }
+
+        let updated = current.with_field(field, value.clone());
+        self.set(name, updated);
+        self.set(&format!("{name}.{field}"), value);
+        true
+    }
+
     /// Extend this environment with all values from another.
     /// If other has a base, we adopt it (or merge if we already have one).
     pub fn extend_from(&mut self, other: &Environment) {
@@ -352,6 +370,21 @@ impl Environment {
         self.overrides
             .get(name)
             .or_else(|| self.base.as_ref().and_then(|b| b.get(name)))
+    }
+
+    /// Look up a dotted path like `p.x`, first as an injected key and then by
+    /// walking `Value::Object` fields.
+    pub fn get_path(&self, path: &str) -> Option<Value> {
+        if let Some(value) = self.get(path) {
+            return Some(value);
+        }
+
+        let (first, rest) = path.split_once('.')?;
+        let mut current = self.get(first)?;
+        for field in rest.split('.') {
+            current = current.get_field(field)?.clone();
+        }
+        Some(current)
     }
 
     /// Set a variable binding overlay. Uses the first available slot, or
