@@ -6,6 +6,9 @@ fn main() {
     cc_build.file(src_dir.join("parser.c"));
     cc_build.file(src_dir.join("scanner.c"));
 
+    // glibc's _FORTIFY_SOURCE guard warns when C is compiled without optimization.
+    cc_build.opt_level(2);
+
     // Suppress warnings from generated C code
     cc_build.flag_if_supported("-Wno-unused-parameter");
     cc_build.flag_if_supported("-Wno-unused-but-set-variable");
