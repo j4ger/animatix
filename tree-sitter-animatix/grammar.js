@@ -23,6 +23,25 @@ module.exports = grammar({
     [$._statement, $._expression],
     // a.b ambiguity in expression context
     [$._expression, $.path_expression],
+    [$.action_invocation, $._expression],
+    [$.action_invocation],
+
+
+    [$.play_statement, $._expression],
+    [$.play_statement, $.object_expression],
+    [$.play_statement],
+    [$.target_list, $._expression],
+    [$.target_list, $.object_expression],
+    [$.set_expression, $.object_expression],
+    [$.argument_list, $.tuple_expression, $.parenthesized_expression],
+    [$.argument_list, $.tuple_expression],
+    [$.actor_declaration],
+    [$.reactive_binding],
+    [$.property_assignment],
+    [$.inline_actor_declaration, $.inline_anonymous_actor],
+    [$.inline_anonymous_actor, $._expression],
+    [$.inline_children_block, $.set_expression],
+    [$.typst_shorthand],
     // Foo {} could be object expression or block
     [$._expression, $.object_expression],
     // expr[index] needs conflict with index_value
@@ -198,8 +217,8 @@ module.exports = grammar({
     ),
 
     target_list: $ => seq(
-      choice($.identifier, $.path_expression),
-      repeat(seq(',', choice($.identifier, $.path_expression)))
+      choice($.identifier, $.path_expression, $.index_expression),
+      repeat(seq(',', choice($.identifier, $.path_expression, $.index_expression)))
     ),
 
     sequence_block: $ => seq(

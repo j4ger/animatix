@@ -3692,6 +3692,10 @@
           "named": true
         },
         {
+          "type": "index_expression",
+          "named": true
+        },
+        {
           "type": "path_expression",
           "named": true
         }

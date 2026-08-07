@@ -155,3 +155,24 @@ fade-in hello [800ms]
       (modifier_list
         (modifier
           (time_literal))))))
+
+==================
+Action invocation indexed target
+==================
+
+pulse bar[0] [200ms]
+
+---
+
+(source_file
+  (action_invocation
+    verb: (identifier)
+    targets: (target_list
+      (index_expression
+        object: (identifier)
+        index: (index_value
+          (number))))
+    (modifier_block
+      (modifier_list
+        (modifier
+          (time_literal))))))

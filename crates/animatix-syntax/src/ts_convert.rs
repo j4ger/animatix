@@ -391,6 +391,7 @@ impl<'a> TsConverter<'a> {
     fn convert_assignment(&mut self, node: Node) -> Stmt {
         let target_node = node.child_by_field_name("target");
         let target = target_node.map(|n| self.convert_target_segments(n)).unwrap_or_default();
+        let (target, property) = self.split_target_property(target);
         let value = node
             .child_by_field_name("value")
             .and_then(|n| self.convert_expr(n))
@@ -399,7 +400,7 @@ impl<'a> TsConverter<'a> {
         let modifiers = self.convert_modifier_block_node(node);
         Stmt::Assignment {
             target,
-            property: String::new(), // Will be resolved later
+            property,
             value,
             modifiers,
             easing: None,
@@ -411,6 +412,7 @@ impl<'a> TsConverter<'a> {
     fn convert_reactive_binding(&mut self, node: Node) -> Stmt {
         let target_node = node.child_by_field_name("target");
         let target = target_node.map(|n| self.convert_target_segments(n)).unwrap_or_default();
+        let (target, property) = self.split_target_property(target);
         let value = node
             .child_by_field_name("value")
             .and_then(|n| self.convert_expr(n))
@@ -418,11 +420,25 @@ impl<'a> TsConverter<'a> {
         let value_span = node.child_by_field_name("value").map(|n| node_byte_span(n));
         Stmt::ReactiveBinding {
             target,
-            property: String::new(),
+            property,
             value,
             value_span,
             span: node_span(node),
         }
+    }
+
+    fn split_target_property(
+        &self,
+        mut target: Vec<TargetSegment>,
+    ) -> (Vec<TargetSegment>, String) {
+        let Some(last) = target.pop() else {
+            return (target, String::new());
+        };
+        let property = match last {
+            TargetSegment::Static(s) => s,
+            TargetSegment::Indexed { .. } => String::new(),
+        };
+        (target, property)
     }
 
     fn convert_action_invocation(&mut self, node: Node) -> Stmt {
@@ -1080,9 +1096,7 @@ impl<'a> TsConverter<'a> {
             if child.kind() == "target_list" {
                 let mut inner_cursor = child.walk();
                 for target_node in child.named_children(&mut inner_cursor) {
-                    if target_node.kind() == "identifier" {
-                        targets.push(self.node_text(target_node).to_string());
-                    }
+                    targets.push(self.convert_target_path_string(target_node));
                 }
             }
         }
@@ -1101,6 +1115,56 @@ impl<'a> TsConverter<'a> {
             }
         }
         targets
+    }
+
+    fn convert_target_path_string(&self, node: Node) -> String {
+        let mut segments = Vec::new();
+        self.collect_target_path_string(node, &mut segments);
+        segments.join(".")
+    }
+
+    fn collect_target_path_string(&self, node: Node, segments: &mut Vec<String>) {
+        match node.kind() {
+            "identifier" => segments.push(self.node_text(node).to_string()),
+            "path_expression" | "target_path" | "indexed_target_path" => {
+                if let Some(base) = node.child_by_field_name("base") {
+                    self.collect_target_path_string(base, segments);
+                }
+                if let Some(index) = node.child_by_field_name("index") {
+                    let base = segments.pop().unwrap_or_default();
+                    let index_text = self.index_literal_text(index);
+                    segments.push(format!("{base}__{index_text}"));
+                }
+                if let Some(name) = node.child_by_field_name("name") {
+                    segments.push(self.node_text(name).to_string());
+                }
+            },
+            "index_expression" => {
+                if let Some(object) = node.child_by_field_name("object") {
+                    self.collect_target_path_string(object, segments);
+                }
+                if let Some(index) = node.child_by_field_name("index") {
+                    let base = segments.pop().unwrap_or_default();
+                    let index_text = self.index_literal_text(index);
+                    segments.push(format!("{base}__{index_text}"));
+                }
+            },
+            _ => {},
+        }
+    }
+
+    fn index_literal_text(&self, node: Node) -> String {
+        if node.kind() == "number" || node.kind() == "identifier" {
+            return self.node_text(node).to_string();
+        }
+        let mut cursor = node.walk();
+        for child in node.named_children(&mut cursor) {
+            let text = self.index_literal_text(child);
+            if !text.is_empty() {
+                return text;
+            }
+        }
+        String::new()
     }
 
     /// Convert the body of a block node into `Vec<Stmt>`.
@@ -1210,9 +1274,54 @@ impl<'a> TsConverter<'a> {
         segments
     }
 
-    fn convert_target_segments(&self, node: Node) -> Vec<TargetSegment> {
-        let strings = self.convert_path_segments(node);
-        strings.into_iter().map(TargetSegment::Static).collect()
+    fn convert_target_segments(&mut self, node: Node) -> Vec<TargetSegment> {
+        let mut segments = Vec::new();
+        self.collect_target_segments(node, &mut segments);
+        segments
+    }
+
+    fn collect_target_segments(&mut self, node: Node, segments: &mut Vec<TargetSegment>) {
+        match node.kind() {
+            "identifier" => {
+                segments.push(TargetSegment::Static(self.node_text(node).to_string()));
+            },
+            "path_expression" | "target_path" | "indexed_target_path" => {
+                let base_string = node
+                    .child_by_field_name("base")
+                    .map(|n| self.convert_target_path_string(n))
+                    .unwrap_or_default();
+                if let Some(base) = node.child_by_field_name("base") {
+                    self.collect_target_segments(base, segments);
+                }
+                if let Some(index) = node.child_by_field_name("index") {
+                    if index.kind() == "number" {
+                        segments.push(TargetSegment::Static(format!(
+                            "{base_string}__{}",
+                            self.node_text(index)
+                        )));
+                    } else if let Some(index_expr) = self.convert_index_value_expr(index) {
+                        segments.push(TargetSegment::Indexed {
+                            base: base_string,
+                            index: Box::new(index_expr),
+                        });
+                    }
+                }
+                if let Some(name) = node.child_by_field_name("name") {
+                    segments.push(TargetSegment::Static(self.node_text(name).to_string()));
+                }
+            },
+            _ => {},
+        }
+    }
+
+    fn convert_index_value_expr(&mut self, node: Node) -> Option<Expr> {
+        let mut cursor = node.walk();
+        for child in node.named_children(&mut cursor) {
+            if let Some(expr) = self.convert_expr(child) {
+                return Some(expr);
+            }
+        }
+        None
     }
 
     fn collect_path_segments(&self, node: Node, segments: &mut Vec<String>) {
@@ -1650,6 +1759,53 @@ title: Text, text: "Hello"
         assert!(!result.statements.is_empty(), "expected statements");
         // Could be a scene declaration or a keyframe — depends on grammar
         // Scene declarations have a name field
+    }
+
+    #[test]
+    fn parse_indexed_action_target() {
+        let source = "pulse bar[0] [200ms]\n";
+        let result = parse_source(source).expect("parse should succeed");
+        let action = match &result.statements[0] {
+            Stmt::Keyframe { body, .. } => body.iter().find_map(|s| match s {
+                Stmt::Action(action, _) => Some(action),
+                _ => None,
+            }),
+            Stmt::Action(action, _) => Some(action),
+            _ => None,
+        }
+        .expect("expected action");
+        assert_eq!(action.targets, vec!["bar__0"]);
+    }
+
+    #[test]
+    fn parse_dotted_action_target() {
+        let source = "fade-in parent.child [800ms]\n";
+        let result = parse_source(source).expect("parse should succeed");
+        let action = match &result.statements[0] {
+            Stmt::Keyframe { body, .. } => body.iter().find_map(|s| match s {
+                Stmt::Action(action, _) => Some(action),
+                _ => None,
+            }),
+            Stmt::Action(action, _) => Some(action),
+            _ => None,
+        }
+        .expect("expected action");
+        assert_eq!(action.targets, vec!["parent.child"]);
+    }
+
+    #[test]
+    fn parse_assignment_extracts_property() {
+        let source = "title.opacity = 0.5\n";
+        let result = parse_source(source).expect("parse should succeed");
+        match &result.statements[0] {
+            Stmt::Assignment {
+                target, property, ..
+            } => {
+                assert_eq!(target, &[TargetSegment::Static("title".to_string())]);
+                assert_eq!(property, "opacity");
+            },
+            other => panic!("expected assignment, got: {:?}", other),
+        }
     }
 
     #[test]

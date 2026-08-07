@@ -63,7 +63,7 @@ pub fn format_modifier(m: &Modifier) -> String {
 
 /// Serialize an action to source text.
 pub fn format_action(a: &Action) -> String {
-    let targets = a.targets.join(" ");
+    let targets = a.targets.join(", ");
     let mut parts = vec![a.verb.clone()];
     if !targets.is_empty() {
         parts.push(targets);
