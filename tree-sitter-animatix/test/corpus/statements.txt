@@ -321,6 +321,80 @@ eq: $$ x^2 $$ [2s]
           (time_literal))))))
 
 ==================
+Indexed property assignment
+==================
+
+bars[i].color = red
+
+---
+
+(source_file
+  (property_assignment
+    target: (indexed_target_path
+      base: (identifier)
+      index: (index_value
+        (identifier))
+      name: (identifier))
+    value: (identifier)))
+
+==================
+Indexed property assignment with literal
+==================
+
+bars[0].opacity = 0.5
+
+---
+
+(source_file
+  (property_assignment
+    target: (indexed_target_path
+      base: (identifier)
+      index: (index_value
+        (number))
+      name: (identifier))
+    value: (number)))
+
+==================
+Nested indexed assignment
+==================
+
+bars[i].rows[j].x = red
+
+---
+
+(source_file
+  (property_assignment
+    target: (indexed_target_path
+      base: (indexed_target_path
+        base: (identifier)
+        index: (index_value
+          (identifier))
+        name: (identifier))
+      index: (index_value
+        (identifier))
+      name: (identifier))
+    value: (identifier)))
+
+==================
+Indexed reactive binding
+==================
+
+a.bars[i].color := red
+
+---
+
+(source_file
+  (reactive_binding
+    target: (indexed_target_path
+      base: (path_expression
+        base: (identifier)
+        name: (identifier))
+      index: (index_value
+        (identifier))
+      name: (identifier))
+    value: (identifier)))
+
+==================
 Inline for loop in children block
 ==================
 

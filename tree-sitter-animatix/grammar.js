@@ -204,7 +204,7 @@ module.exports = grammar({
     ),
 
     property_assignment: $ => seq(
-      field('target', $.path_expression),
+      field('target', choice($.path_expression, $.indexed_target_path)),
       '=',
       field('value', $._expression),
       optional($.modifier_block)
@@ -488,6 +488,14 @@ module.exports = grammar({
       field('name', $.identifier)
     )),
 
+    indexed_target_path: $ => prec.left(seq(
+      field('base', choice($.identifier, $.path_expression, $.indexed_target_path)),
+      '[',
+      field('index', $.index_value),
+      ']',
+      optional(seq('.', field('name', choice($.identifier, $.path_expression, $.indexed_target_path))))
+    )),
+
     unary_expression: $ => prec.left(3, seq(
       field('operator', choice('-', '!')),
       field('operand', $._expression)
@@ -588,7 +596,7 @@ module.exports = grammar({
     // Note: use_statement is now deprecated and moved next to play_statement.
 
     reactive_binding: $ => seq(
-      field('target', choice($.identifier, $.path_expression)),
+      field('target', choice($.identifier, $.path_expression, $.indexed_target_path)),
       ':=',
       field('value', $._expression),
       optional($.modifier_block)

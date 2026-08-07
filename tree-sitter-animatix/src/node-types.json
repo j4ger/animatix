@@ -1318,6 +1318,58 @@
     }
   },
   {
+    "type": "indexed_target_path",
+    "named": true,
+    "fields": {
+      "base": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "indexed_target_path",
+            "named": true
+          },
+          {
+            "type": "path_expression",
+            "named": true
+          }
+        ]
+      },
+      "index": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "index_value",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "indexed_target_path",
+            "named": true
+          },
+          {
+            "type": "path_expression",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "inline_actor_declaration",
     "named": true,
     "fields": {
@@ -3080,6 +3132,10 @@
         "required": true,
         "types": [
           {
+            "type": "indexed_target_path",
+            "named": true
+          },
+          {
             "type": "path_expression",
             "named": true
           }
@@ -3212,6 +3268,10 @@
         "types": [
           {
             "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "indexed_target_path",
             "named": true
           },
           {

@@ -112,6 +112,8 @@ GRAMMAR_PROBES=(
     "fade-in parent.child [800ms]"
     "pulse btn1, btn2 [200ms]"
     "title.opacity = 0.5"
+    "bars[i].color = red"
+    "bars[i].rows[j].x = red"
 )
 
 for probe in "${GRAMMAR_PROBES[@]}"; do

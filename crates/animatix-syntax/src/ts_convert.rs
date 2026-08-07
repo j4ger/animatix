@@ -1136,7 +1136,7 @@ impl<'a> TsConverter<'a> {
                     segments.push(format!("{base}__{index_text}"));
                 }
                 if let Some(name) = node.child_by_field_name("name") {
-                    segments.push(self.node_text(name).to_string());
+                    self.collect_target_path_string(name, segments);
                 }
             },
             "index_expression" => {
@@ -1151,6 +1151,19 @@ impl<'a> TsConverter<'a> {
             },
             _ => {},
         }
+    }
+
+    fn index_number_text(&self, node: Node) -> Option<String> {
+        if node.kind() == "number" {
+            return Some(self.node_text(node).to_string());
+        }
+        let mut cursor = node.walk();
+        for child in node.named_children(&mut cursor) {
+            if child.kind() == "number" {
+                return Some(self.node_text(child).to_string());
+            }
+        }
+        None
     }
 
     fn index_literal_text(&self, node: Node) -> String {
@@ -1286,28 +1299,25 @@ impl<'a> TsConverter<'a> {
                 segments.push(TargetSegment::Static(self.node_text(node).to_string()));
             },
             "path_expression" | "target_path" | "indexed_target_path" => {
-                let base_string = node
-                    .child_by_field_name("base")
-                    .map(|n| self.convert_target_path_string(n))
-                    .unwrap_or_default();
                 if let Some(base) = node.child_by_field_name("base") {
                     self.collect_target_segments(base, segments);
                 }
                 if let Some(index) = node.child_by_field_name("index") {
-                    if index.kind() == "number" {
-                        segments.push(TargetSegment::Static(format!(
-                            "{base_string}__{}",
-                            self.node_text(index)
-                        )));
+                    let base = match segments.pop() {
+                        Some(TargetSegment::Static(label)) => label,
+                        _ => String::new(),
+                    };
+                    if let Some(number) = self.index_number_text(index) {
+                        segments.push(TargetSegment::Static(format!("{base}__{number}")));
                     } else if let Some(index_expr) = self.convert_index_value_expr(index) {
                         segments.push(TargetSegment::Indexed {
-                            base: base_string,
+                            base,
                             index: Box::new(index_expr),
                         });
                     }
                 }
                 if let Some(name) = node.child_by_field_name("name") {
-                    segments.push(TargetSegment::Static(self.node_text(name).to_string()));
+                    self.collect_target_segments(name, segments);
                 }
             },
             _ => {},
@@ -1805,6 +1815,90 @@ title: Text, text: "Hello"
                 assert_eq!(property, "opacity");
             },
             other => panic!("expected assignment, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_indexed_runtime_assignment() {
+        let source = "bars[i].color = red\n";
+        let result = parse_source(source).expect("parse should succeed");
+        match &result.statements[0] {
+            Stmt::Assignment {
+                target, property, ..
+            } => {
+                assert_eq!(property, "color");
+                assert_eq!(target.len(), 1);
+                match &target[0] {
+                    TargetSegment::Indexed { base, index } => {
+                        assert_eq!(base, "bars");
+                        assert!(matches!(index.as_ref(), Expr::Ident(_)));
+                    },
+                    other => panic!("unexpected target segment: {:?}", other),
+                }
+            },
+            other => panic!("expected assignment, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_literal_indexed_assignment() {
+        let source = "bars[0].opacity = 0.5\n";
+        let result = parse_source(source).expect("parse should succeed");
+        match &result.statements[0] {
+            Stmt::Assignment {
+                target, property, ..
+            } => {
+                assert_eq!(property, "opacity");
+                assert_eq!(target, &[TargetSegment::Static("bars__0".to_string())]);
+            },
+            other => panic!("expected assignment, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_nested_indexed_assignment() {
+        let source = "bars[i].rows[j].x = red\n";
+        let result = parse_source(source).expect("parse should succeed");
+        match &result.statements[0] {
+            Stmt::Assignment {
+                target, property, ..
+            } => {
+                assert_eq!(property, "x");
+                assert_eq!(target.len(), 2);
+                match (&target[0], &target[1]) {
+                    (
+                        TargetSegment::Indexed { base: first, .. },
+                        TargetSegment::Indexed { base: second, .. },
+                    ) => {
+                        assert_eq!(first, "bars");
+                        assert_eq!(second, "rows");
+                    },
+                    other => panic!("unexpected target segments: {:?}", other),
+                }
+            },
+            other => panic!("expected assignment, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_indexed_reactive_binding() {
+        let source = "a.bars[i].color := red\n";
+        let result = parse_source(source).expect("parse should succeed");
+        match &result.statements[0] {
+            Stmt::ReactiveBinding {
+                target, property, ..
+            } => {
+                assert_eq!(property, "color");
+                assert_eq!(target.len(), 2);
+                match (&target[0], &target[1]) {
+                    (TargetSegment::Static(scope), TargetSegment::Indexed { base, .. }) => {
+                        assert_eq!(scope, "a");
+                        assert_eq!(base, "bars");
+                    },
+                    other => panic!("unexpected target segments: {:?}", other),
+                }
+            },
+            other => panic!("expected reactive binding, got: {:?}", other),
         }
     }
 
