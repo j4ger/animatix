@@ -33,7 +33,6 @@ themes, CI platform parity, and `StyledExt` helpers.
 | Precise shape/path/text bounds | Open; callout geometry and actor anchor points use world-space affine plus available local bounds. Exact text/path bounds remain deferred. |
 | Text/Typst/Code frame-time content overrides | Open; timed assignments recompile glyph paths, but changing `text` directly inside `always` is not a supported path. |
 | Legend automatic entry extraction | Open; legend uses placeholder entries, scene scanning for color-bearing actors is not implemented. |
-| Custom action multi-target invocation | Open; custom component actions are single-target (`pulse btn, icon` is not supported). |
 | Data-dependent algorithm timelines | Open; no runtime mutable state or branching timeline, so algorithm animations must be hand-unrolled recordings. Confirmed by `dogfood/projects/sorting-visualizer`. |
 | Namespace access depth | Open; aliased imports expose one level (`alias.export_name` only). |
 

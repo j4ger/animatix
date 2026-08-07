@@ -329,6 +329,58 @@ pulse btn [200ms]
 }
 
 #[test]
+fn load_program_custom_component_action_multi_target() {
+    let dir = temp_project_dir("custom_action_multi_target");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("button.amx");
+
+    write_file(
+        &library,
+        r#"
+pub component Button(text: "OK") {
+    action pulse {
+        self.scale = 1.2 [100ms]
+        self.scale = 1.0 [100ms]
+    }
+    frame: Rect, size: (100, 40)
+}
+"#,
+    );
+
+    write_file(
+        &entry,
+        r#"
+import "./button.amx"
+
+btn1: Button, text: "One"
+btn2: Button, text: "Two"
+rect: Rect
+
+#0s
+pulse btn1, btn2, rect [200ms]
+"#,
+    );
+
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let expanded = program.expand_components();
+    let expanded_debug = format!("{expanded:#?}");
+
+    let scale_count = expanded_debug.matches("\"scale\"").count();
+    assert!(
+        scale_count >= 4,
+        "Expected both custom action bodies inlined, got {scale_count} scale references"
+    );
+    assert!(
+        expanded_debug.contains("pulse"),
+        "Builtin fallback action should remain for the non-component target"
+    );
+    assert!(
+        expanded_debug.contains("rect"),
+        "Remaining target should still be present in the fallback action"
+    );
+}
+
+#[test]
 fn load_program_expands_component_for_loop_array_actors() {
     let dir = temp_project_dir("component_for_loop_actors");
     let entry = dir.join("scene.amx");

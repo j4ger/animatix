@@ -85,6 +85,7 @@ STALE_PATTERNS=(
     'Colorscheme dotted token parser'
     'Verify `Theme::light\(\)` contrast'
     'Verify the light-theme contrast'
+    'Multi-target invocation.*not supported'
 )
 
 ACTIVE_DOCS=(

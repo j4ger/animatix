@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ast::{Expr, Modifier, Span, Stmt, TargetSegment, array_actor_label};
+use crate::ast::{Action, Expr, Modifier, Span, Stmt, TargetSegment, array_actor_label};
 use crate::module::{ActionTemplate, InstanceActionRegistry};
 
 // NOTE: This function takes ownership of Vec<Stmt> and produces a new
@@ -12,8 +12,10 @@ use crate::module::{ActionTemplate, InstanceActionRegistry};
 /// Replace custom component action invocations with their inlined bodies.
 ///
 /// When `pulse btn [200ms]` is encountered and `btn` has a custom action `pulse`,
-/// the invocation is replaced with the action's body statements. Invocation modifiers
-/// override body modifiers (e.g. `[200ms]` replaces any duration in the body).
+/// the invocation is replaced with the action's body statements. Multi-target
+/// invocations like `pulse btn1, btn2` expand once per matching target.
+/// Invocation modifiers override body modifiers (e.g. `[200ms]` replaces any duration
+/// in the body).
 ///
 /// Named modifiers that match action parameters are substituted into the body
 /// before modifier override is applied: `pulse btn [200ms, scale: 1.5]` binds
@@ -38,19 +40,34 @@ fn inline_stmt(
 ) -> Vec<Stmt> {
     match stmt {
         Stmt::Action(action, span) => {
-            // Try component instance actions first (more specific)
-            if let Some(target) = action.targets.first() {
+            let mut inlined = Vec::new();
+            let mut remaining = Vec::new();
+
+            for target in &action.targets {
+                // Component instance actions are more specific than module actions.
                 if let Some(template) = registry.get(target).and_then(|m| m.get(&action.verb)) {
-                    let (body, unconsumed) = substitute_action_params(template, &action.modifiers);
-                    return apply_modifiers_to_body(body, &unconsumed, span);
+                    inlined.extend(inline_target_body(template, target, &action, span, false));
+                } else if let Some(template) = module_actions.get(&action.verb) {
+                    inlined.extend(inline_target_body(template, target, &action, span, true));
+                } else {
+                    remaining.push(target.clone());
                 }
             }
-            // Fall back to module-scoped actions
-            if let Some(template) = module_actions.get(&action.verb) {
-                let (body, unconsumed) = substitute_action_params(template, &action.modifiers);
-                return apply_modifiers_to_body(body, &unconsumed, span);
+
+            if !remaining.is_empty() {
+                inlined.push(Stmt::Action(
+                    Action {
+                        verb: action.verb,
+                        targets: remaining,
+                        args: action.args,
+                        modifiers: action.modifiers,
+                        byte_span: action.byte_span,
+                    },
+                    span,
+                ));
             }
-            vec![Stmt::Action(action, span)]
+
+            inlined
         },
         // For all other statements, recurse into bodies using shared walk
         mut stmt => {
@@ -61,6 +78,38 @@ fn inline_stmt(
             vec![stmt]
         },
     }
+}
+
+/// Inline one custom action template for a concrete invocation target.
+///
+/// Component templates are already prefix-rewritten during expansion, so only
+/// module-scoped templates need a `self` rewrite here.
+fn inline_target_body(
+    template: &ActionTemplate,
+    target: &str,
+    action: &Action,
+    span: Option<Span>,
+    rewrite_self: bool,
+) -> Vec<Stmt> {
+    let (body, unconsumed) = substitute_action_params(template, &action.modifiers);
+    let body = if rewrite_self {
+        rewrite_self_targets(body, target)
+    } else {
+        body
+    };
+    apply_modifiers_to_body(body, &unconsumed, span)
+}
+
+/// Rewrite `self` references in a custom action body to the concrete target.
+///
+/// Component templates are already prefix-rewritten during expansion; this is
+/// still safe because it only changes `self` when present.
+fn rewrite_self_targets(body: Vec<Stmt>, target: &str) -> Vec<Stmt> {
+    let known_labels = std::collections::HashSet::new();
+    let bindings = HashMap::new();
+    body.into_iter()
+        .map(|stmt| super::rewrite::rewrite_stmt(&stmt, target, None, &known_labels, &bindings))
+        .collect()
 }
 
 /// Substitute action parameter values from invocation modifiers into the body.
@@ -433,6 +482,19 @@ mod tests {
         )
     }
 
+    fn make_multi_action(verb: &str, targets: &[&str], modifiers: Vec<Modifier>) -> Stmt {
+        Stmt::Action(
+            Action {
+                verb: verb.to_string(),
+                targets: targets.iter().map(|t| t.to_string()).collect(),
+                args: vec![],
+                modifiers,
+                byte_span: None,
+            },
+            None,
+        )
+    }
+
     fn make_assignment(target: &str, property: &str, value: Expr) -> Stmt {
         Stmt::Assignment {
             target: vec![crate::ast::TargetSegment::Static(target.to_string())],
@@ -655,12 +717,112 @@ mod tests {
         assert_eq!(result.len(), 1);
         match &result[0] {
             Stmt::Assignment {
-                property, value, ..
+                target,
+                property,
+                value,
+                ..
             } => {
+                assert_eq!(target, &[crate::ast::TargetSegment::Static("btn".to_string())]);
                 assert_eq!(property, "opacity");
                 assert_eq!(*value, Expr::Num(0.5));
             },
             other => panic!("expected assignment, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn multi_target_component_action_inlines_each_target() {
+        let template_btn1 = ActionTemplate {
+            params: vec![],
+            body: vec![make_assignment("btn1", "scale", Expr::Num(1.2))],
+        };
+        let template_btn2 = ActionTemplate {
+            params: vec![],
+            body: vec![make_assignment("btn2", "scale", Expr::Num(1.2))],
+        };
+        let registry: InstanceActionRegistry = [
+            ("btn1".to_string(), [("pulse".to_string(), template_btn1)].into_iter().collect()),
+            ("btn2".to_string(), [("pulse".to_string(), template_btn2)].into_iter().collect()),
+        ]
+        .into_iter()
+        .collect();
+
+        let invocation = make_multi_action("pulse", &["btn1", "btn2"], vec![]);
+        let module_actions: HashMap<String, ActionTemplate> = HashMap::new();
+        let result = inline_stmt(invocation, &registry, &module_actions);
+
+        assert_eq!(result.len(), 2);
+        for (i, target) in ["btn1", "btn2"].into_iter().enumerate() {
+            match &result[i] {
+                Stmt::Assignment {
+                    target: assignment_target,
+                    ..
+                } => {
+                    assert_eq!(
+                        assignment_target,
+                        &[crate::ast::TargetSegment::Static(target.to_string())]
+                    );
+                },
+                other => panic!("expected assignment, got {:?}", other),
+            }
+        }
+    }
+
+    #[test]
+    fn multi_target_action_keeps_unmatched_targets_for_builtin_dispatch() {
+        let template = ActionTemplate {
+            params: vec![],
+            body: vec![make_assignment("btn1", "scale", Expr::Num(1.2))],
+        };
+        let registry: InstanceActionRegistry =
+            [("btn1".to_string(), [("pulse".to_string(), template)].into_iter().collect())]
+                .into_iter()
+                .collect();
+        let modifiers = vec![Modifier {
+            name: None,
+            value: Expr::Ident("200ms".to_string()),
+        }];
+        let invocation = make_multi_action("pulse", &["btn1", "rect"], modifiers);
+        let module_actions: HashMap<String, ActionTemplate> = HashMap::new();
+        let result = inline_stmt(invocation, &registry, &module_actions);
+
+        assert_eq!(result.len(), 2);
+        match &result[1] {
+            Stmt::Action(action, _) => {
+                assert_eq!(action.verb, "pulse");
+                assert_eq!(action.targets, vec!["rect".to_string()]);
+                assert_eq!(action.modifiers.len(), 1);
+            },
+            other => panic!("expected remaining action, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn multi_target_module_action_rewrites_self_for_each_target() {
+        let template = ActionTemplate {
+            params: vec![],
+            body: vec![make_assignment("self", "opacity", Expr::Num(0.5))],
+        };
+        let registry: InstanceActionRegistry = HashMap::new();
+        let module_actions: HashMap<String, ActionTemplate> =
+            [("fade".to_string(), template)].into_iter().collect();
+        let invocation = make_multi_action("fade", &["a", "b"], vec![]);
+
+        let result = inline_stmt(invocation, &registry, &module_actions);
+        assert_eq!(result.len(), 2);
+        for (i, target) in ["a", "b"].into_iter().enumerate() {
+            match &result[i] {
+                Stmt::Assignment {
+                    target: assignment_target,
+                    ..
+                } => {
+                    assert_eq!(
+                        assignment_target,
+                        &[crate::ast::TargetSegment::Static(target.to_string())]
+                    );
+                },
+                other => panic!("expected assignment, got {:?}", other),
+            }
         }
     }
 }

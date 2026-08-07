@@ -1033,10 +1033,10 @@ pulse btn [amount: 1.3, 200ms]
 - Invocation timing modifiers **override** body timing modifiers. `pulse btn [200ms]` replaces any `[100ms]` in the body with `[200ms]`.
 - Named invocation modifiers bind to action parameters. `pulse btn [amount: 1.3, 200ms]` binds `amount` and overrides timing.
 - Use `self` to refer to the component instance. `self.scale` rewrites to `btn.scale`.
+- Multi-target invocation (`pulse btn1, btn2`) expands the action body once per matching target, rewriting `self` to each concrete target.
 - Actions work inside `sequence`, `stagger`, and keyframes with correct timing.
 
 **Limitations:**
-- Multi-target invocation (`pulse btn, icon`) is not supported
 - Actions cannot be defined at module scope (only inside components)
 
 ### 12.1 Slots
