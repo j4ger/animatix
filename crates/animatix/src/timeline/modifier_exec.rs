@@ -36,15 +36,20 @@ impl Timeline {
             } => {
                 match evaluate_expr(value, frame_env) {
                     Ok(val) => {
-                        if target.len() == 1
-                            && matches!(target[0], crate::ast::TargetSegment::Static(_))
-                            && frame_env.set_object_field(
+                        if matches!(target[0], crate::ast::TargetSegment::Static(_)) {
+                            let object_path = target
+                                .iter()
+                                .skip(1)
+                                .map(|seg| seg.label_str().to_string())
+                                .collect::<Vec<_>>();
+                            if frame_env.set_object_path(
+                                &object_path,
                                 target[0].label_str(),
                                 property,
                                 val.clone(),
-                            )
-                        {
-                            return;
+                            ) {
+                                return;
+                            }
                         }
 
                         // Use the frame-time variant to handle Indexed segments (e.g.

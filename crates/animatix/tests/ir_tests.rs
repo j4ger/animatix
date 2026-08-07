@@ -462,6 +462,74 @@ fn ir_and_vm_support_runtime_object_field_writes() {
 }
 
 #[test]
+fn ir_and_vm_support_nested_object_field_writes() {
+    let program = vec![Stmt::Always {
+        body: vec![
+            Stmt::Assignment {
+                target: vec![
+                    animatix_syntax::ast::TargetSegment::Static("p".to_string()),
+                    animatix_syntax::ast::TargetSegment::Static("a".to_string()),
+                ],
+                property: "b".to_string(),
+                value: Expr::Num(30.0),
+                modifiers: vec![],
+                easing: None,
+                value_span: None,
+                span: None,
+            },
+            Stmt::LetDecl {
+                is_pub: false,
+                name: "q".to_string(),
+                value: Expr::Binary(
+                    Box::new(Expr::Path(vec!["p".to_string(), "a".to_string(), "b".to_string()])),
+                    BinaryOp::Add,
+                    Box::new(Expr::Num(1.0)),
+                ),
+                span: None,
+            },
+        ],
+        span: None,
+    }];
+
+    let ir = lower_modifier_ir(&program).expect("lowering should succeed");
+    let bytecode = compile_modifier_bytecode(&ir).expect("bytecode compilation should succeed");
+
+    let make_env = || {
+        let mut env = Environment::new();
+        env.set(
+            "p",
+            Value::Object(
+                "Point".to_string(),
+                HashMap::from([(
+                    "a".to_string(),
+                    Value::Object(
+                        "Inner".to_string(),
+                        HashMap::from([
+                            ("b".to_string(), Value::Num(10.0)),
+                            ("c".to_string(), Value::Num(20.0)),
+                        ]),
+                    ),
+                )]),
+            ),
+        );
+        env
+    };
+
+    let mut ir_env = make_env();
+    let mut ir_overrides = ModifierOverrides::default();
+    execute_modifier_ir(&ir, &mut ir_env, &mut ir_overrides).expect("IR execution should succeed");
+    assert_eq!(ir_env.get("q"), Some(Value::Num(31.0)));
+    assert!(ir_overrides.is_empty());
+
+    let mut vm_env = make_env();
+    let mut vm_overrides = ModifierOverrides::default();
+    animatix::vm::execute_modifier_bytecode(&bytecode, &mut vm_env, &mut vm_overrides)
+        .expect("VM execution should succeed");
+    assert_eq!(vm_env.get("q"), Some(Value::Num(31.0)));
+    assert!(vm_overrides.is_empty());
+}
+
+#[test]
 fn modifier_bytecode_supports_construct_ir_expr() {
     let program = vec![Stmt::Always {
         body: vec![Stmt::Assignment {

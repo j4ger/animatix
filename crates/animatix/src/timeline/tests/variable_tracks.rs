@@ -260,3 +260,101 @@ fn always_object_field_writes_update_frame_environment() {
     }
     assert_eq!(env.get("q"), Some(Value::Num(31.0)));
 }
+
+#[test]
+fn always_nested_object_field_writes_update_frame_environment() {
+    let ast = vec![Stmt::Keyframe {
+        time: crate::ast::Time::Seconds(0.0),
+        body: vec![
+            Stmt::LetDecl {
+                is_pub: false,
+                name: "p".to_string(),
+                value: Expr::Construct(
+                    "Point".to_string(),
+                    vec![Property {
+                        name: "a".to_string(),
+                        value: Expr::Construct(
+                            "Inner".to_string(),
+                            vec![
+                                Property {
+                                    name: "b".to_string(),
+                                    value: Expr::Num(10.0),
+                                    value_span: None,
+                                    trailing_comment: None,
+                                },
+                                Property {
+                                    name: "c".to_string(),
+                                    value: Expr::Num(20.0),
+                                    value_span: None,
+                                    trailing_comment: None,
+                                },
+                            ],
+                        ),
+                        value_span: None,
+                        trailing_comment: None,
+                    }],
+                ),
+                span: None,
+            },
+            Stmt::Always {
+                body: vec![
+                    Stmt::Assignment {
+                        target: vec![
+                            crate::ast::TargetSegment::Static("p".to_string()),
+                            crate::ast::TargetSegment::Static("a".to_string()),
+                        ],
+                        property: "b".to_string(),
+                        value: Expr::Num(30.0),
+                        modifiers: vec![],
+                        easing: None,
+                        value_span: None,
+                        span: None,
+                    },
+                    Stmt::LetDecl {
+                        is_pub: false,
+                        name: "q".to_string(),
+                        value: Expr::Binary(
+                            Box::new(Expr::Path(vec![
+                                "p".to_string(),
+                                "a".to_string(),
+                                "b".to_string(),
+                            ])),
+                            BinaryOp::Add,
+                            Box::new(Expr::Num(1.0)),
+                        ),
+                        span: None,
+                    },
+                ],
+                span: None,
+            },
+        ],
+        span: None,
+    }];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+
+    let mut overrides = std::collections::HashMap::new();
+    let mut env = timeline.build_frame_env(0, SceneDimensions::default(), &overrides);
+    for modifier in &timeline.modifiers {
+        timeline.apply_modifier_stmt(modifier, &mut env, &mut overrides);
+    }
+
+    assert_eq!(env.get("q"), Some(Value::Num(31.0)));
+    match env.get("p") {
+        Some(Value::Object(_, fields)) => match &fields["a"] {
+            Value::Object(name, inner) => {
+                assert_eq!(name, "Inner");
+                assert_eq!(inner["b"], Value::Num(30.0));
+                assert_eq!(inner["c"], Value::Num(20.0));
+            },
+            other => panic!("Expected Inner object, got {:?}", other),
+        },
+        other => panic!("Expected Point object, got {:?}", other),
+    }
+}

@@ -38,7 +38,9 @@ fn execute_modifier_stmt(
             value,
         } => {
             let val = evaluate_modifier_expr(value, frame_env)?;
-            if target.len() == 1 && frame_env.set_object_field(&target[0], property, val.clone()) {
+            if !target.is_empty()
+                && frame_env.set_object_path(&target[1..], &target[0], property, val.clone())
+            {
                 return Ok(());
             }
 

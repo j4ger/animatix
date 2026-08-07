@@ -637,7 +637,13 @@ impl ModifierVm {
                 },
                 Instruction::WriteOverride { target, property } => {
                     let value = self.pop()?;
-                    if frame_env.set_object_field(target, property, value.clone()) {
+                    if let Some((root, rest)) = target.split_once('.') {
+                        let path = rest.split('.').map(|s| s.to_string()).collect::<Vec<_>>();
+                        if frame_env.set_object_path(&path, root, property, value.clone()) {
+                            self.ip += 1;
+                            continue;
+                        }
+                    } else if frame_env.set_object_field(target, property, value.clone()) {
                         self.ip += 1;
                         continue;
                     }

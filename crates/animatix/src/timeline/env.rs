@@ -312,16 +312,34 @@ impl Environment {
     /// Returns `false` when `name` does not resolve to an object, leaving the
     /// caller free to fall back to actor/property override semantics.
     pub fn set_object_field(&mut self, name: &str, field: &str, value: Value) -> bool {
-        let Some(current) = self.get(name) else {
+        self.set_object_path(&[], name, field, value)
+    }
+
+    /// Update a field on a frame-local `Value::Object` reached through nested
+    /// object fields. `path` excludes the root variable name.
+    pub fn set_object_path(
+        &mut self,
+        path: &[String],
+        root: &str,
+        field: &str,
+        value: Value,
+    ) -> bool {
+        let Some(current) = self.get(root) else {
             return false;
         };
-        if !matches!(current, Value::Object(_, _)) {
+        let field_path = path.iter().map(String::as_str).collect::<Vec<_>>();
+        let Some(updated) = update_object_path(current, &field_path, field, value.clone()) else {
             return false;
+        };
+        self.set(root, updated);
+        let mut key = root.to_string();
+        for part in path {
+            key.push('.');
+            key.push_str(part);
         }
-
-        let updated = current.with_field(field, value.clone());
-        self.set(name, updated);
-        self.set(&format!("{name}.{field}"), value);
+        key.push('.');
+        key.push_str(field);
+        self.set(&key, value);
         true
     }
 
@@ -441,6 +459,22 @@ impl Environment {
     /// Returns true if no variables are defined in either layer.
     pub fn is_empty(&self) -> bool {
         self.overrides.is_empty() && self.base.as_ref().map(|b| b.is_empty()).unwrap_or(true)
+    }
+}
+
+fn update_object_path(current: Value, path: &[&str], field: &str, value: Value) -> Option<Value> {
+    match current {
+        Value::Object(name, mut fields) => {
+            if path.is_empty() {
+                fields.insert(field.to_string(), value);
+                return Some(Value::Object(name, fields));
+            }
+            let child = fields.get(path[0])?.clone();
+            let updated = update_object_path(child, &path[1..], field, value)?;
+            fields.insert(path[0].to_string(), updated);
+            Some(Value::Object(name, fields))
+        },
+        _ => None,
     }
 }
 
