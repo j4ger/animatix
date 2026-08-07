@@ -56,6 +56,7 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
   | `x => expr` single-ident closure | `closure_expression` (no-parens form) |
   | `play module.Scene` dotted path | `play_statement` (accepts `path_expression`) |
   | `verb actor.child [mods]` | `target_list` (accepts `path_expression`) |
+  | `verb actor[0] [mods]` | `target_list` (accepts `index_expression`) |
   | trailing comma in `config {}` | `property_list` (with `optional(',')`) |
   | newline-separated inline items | `inline_items` (optional comma separator) |
   | `label: $$ content $$` shorthand | `typst_shorthand` (with `token(/[^$]*/)` content) |

@@ -958,10 +958,9 @@ import "./theme.amx" as theme
 panel: Rect, color: theme.accent
 ```
 
-Re-export chains are resolved transitively. Values are evaluated at build time in the importing scene's environment.
+Re-export chains are resolved transitively. Nested aliased imports are available through arbitrary-depth paths such as `lib.inner.export_name`. Values are evaluated at build time in the importing scene's environment.
 
 **Current limitations:**
-- Namespace access is one level: `alias.export_name`
 - Text/Typst/Code property assignment recompiles glyph paths at timeline build/assignment time. Changing text content directly inside `always` is not supported as a render-time path.
 
 ---
@@ -1031,7 +1030,7 @@ pulse btn [amount: 1.3, 200ms]
 **Semantics:**
 - Custom actions are **inlined at component expansion time**. The invocation is replaced with the action's body statements.
 - Invocation timing modifiers **override** body timing modifiers. `pulse btn [200ms]` replaces any `[100ms]` in the body with `[200ms]`.
-- Named invocation modifiers bind to action parameters. `pulse btn [amount: 1.3, 200ms]` binds `amount` and overrides timing.
+- Named invocation modifiers bind to action parameters. `pulse btn [amount: 1.3, 200ms]` binds `amount` and overrides timing. Bound params may also be used as field paths in the body, e.g. `point.x` after `point` is bound.
 - Use `self` to refer to the component instance. `self.scale` rewrites to `btn.scale`.
 - Multi-target invocation (`pulse btn1, btn2`) expands the action body once per matching target, rewriting `self` to each concrete target.
 - Actions work inside `sequence`, `stagger`, and keyframes with correct timing.
@@ -1500,7 +1499,7 @@ Named structs can be constructed with field syntax:
 let p = Point { x: 10, y: 20 }
 ```
 
-Returns a `Value::Object` with typed fields. Field reads (`p.x`) are implemented; e.g. `p.x + p.y` works after `let p = Point { x: 10, y: 20 }`. Field writes (`p.x = 30`) are supported for build-time variable tracks and frame-local `always` object variables.
+Returns a `Value::Object` with typed fields. Field reads (`p.x`, `p.a.b`) are implemented; e.g. `p.x + p.y` works after `let p = Point { x: 10, y: 20 }`. Field writes (`p.x = 30`, `p.a.b = 10`) are supported for build-time variable tracks and frame-local `always` object variables.
 
 ---
 

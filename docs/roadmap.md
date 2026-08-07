@@ -34,7 +34,6 @@ themes, CI platform parity, and `StyledExt` helpers.
 | Text/Typst/Code frame-time content overrides | Open; timed assignments recompile glyph paths, but changing `text` directly inside `always` is not a supported path. |
 | Legend automatic entry extraction | Open; legend uses placeholder entries, scene scanning for color-bearing actors is not implemented. |
 | Data-dependent algorithm timelines | Open; no runtime mutable state or branching timeline, so algorithm animations must be hand-unrolled recordings. Confirmed by `dogfood/projects/sorting-visualizer`. |
-| Namespace access depth | Open; aliased imports expose one level (`alias.export_name` only). |
 
 ---
 

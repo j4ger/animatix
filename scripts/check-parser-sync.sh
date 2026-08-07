@@ -101,6 +101,43 @@ else
     fi
 fi
 
+# ── 4. Grammar parity probes ─────────────────────────────────────────────────
+echo ""
+echo "4. Tree-sitter grammar probes"
+echo "----------------------------------------"
+PROBE_FAIL=0
+PROBE_COUNT=0
+GRAMMAR_PROBES=(
+    "pulse bar[0] [200ms]"
+    "fade-in parent.child [800ms]"
+    "pulse btn1, btn2 [200ms]"
+    "title.opacity = 0.5"
+)
+
+for probe in "${GRAMMAR_PROBES[@]}"; do
+    PROBE_COUNT=$((PROBE_COUNT + 1))
+    tmp="$(mktemp --suffix=.amx)"
+    printf '%s\n' "$probe" > "$tmp"
+    set +e
+    result="$(cd "$TS_DIR" && tree-sitter parse --quiet "$tmp" 2>&1)"
+    probe_exit=$?
+    set -e
+    rm -f "$tmp"
+    if [ "$probe_exit" -eq 0 ] && ! echo "$result" | grep -q "ERROR"; then
+        echo "  OK:   $probe"
+    else
+        echo "  FAIL: $probe"
+        echo "$result" | head -5 | sed 's/^/    /'
+        PROBE_FAIL=$((PROBE_FAIL + 1))
+    fi
+done
+if [ "$PROBE_FAIL" -gt 0 ]; then
+    echo "Tree-sitter grammar probes: $PROBE_FAIL / $PROBE_COUNT FAILED"
+    TS_ERRORS=$((TS_ERRORS + 1))
+else
+    echo "Tree-sitter grammar probes: all $PROBE_COUNT PASSED"
+fi
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 echo ""
 echo "========================================"
