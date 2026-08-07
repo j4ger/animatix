@@ -330,14 +330,33 @@ impl TypeEnv {
             return Some(base);
         }
         match base {
-            Type::Actor(actor_ty) => property_type(&actor_ty, &parts[1]),
+            Type::Actor(actor_ty) => {
+                self.lookup_type_path(Type::Actor(actor_ty), first, &parts[1..])
+            },
+            Type::Component(component) => {
+                self.lookup_type_path(Type::Component(component), first, &parts[1..])
+            },
+            _ => None,
+        }
+    }
+
+    fn lookup_type_path(&self, receiver: Type, base_name: &str, parts: &[String]) -> Option<Type> {
+        let Some(first) = parts.first() else {
+            return Some(receiver);
+        };
+        match receiver {
+            Type::Actor(actor_ty) => {
+                let ty = property_type(&actor_ty, first)?;
+                self.lookup_type_path(ty, first, &parts[1..])
+            },
             Type::Component(component) => {
                 let sig = self.components.get(&component)?;
-                if let Some(ty) = sig.params.get(&parts[1]) {
-                    Some(ty.clone())
-                } else {
-                    self.arrays.get(&format!("{}.{}", first, parts[1])).cloned()
-                }
+                let ty = sig
+                    .params
+                    .get(first)
+                    .cloned()
+                    .or_else(|| self.arrays.get(&format!("{base_name}.{first}")).cloned())?;
+                self.lookup_type_path(ty, first, &parts[1..])
             },
             _ => None,
         }

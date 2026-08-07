@@ -346,7 +346,18 @@ fn substitute_params_in_expr(expr: &Expr, bindings: &HashMap<String, Expr>) -> E
                     if parts.len() == 1 {
                         return bound.clone();
                     }
-                    // Complex case: param.field access — not supported for now
+                    let rest = &parts[1..];
+                    return match bound {
+                        Expr::Ident(name) => Expr::Path(
+                            [name.clone()].into_iter().chain(rest.iter().cloned()).collect(),
+                        ),
+                        Expr::Path(inner) => {
+                            Expr::Path(inner.iter().chain(rest.iter()).cloned().collect())
+                        },
+                        other => {
+                            Expr::Method(Box::new(other.clone()), parts[1].clone(), Vec::new())
+                        },
+                    };
                 }
             }
             Expr::Path(parts.clone())
@@ -542,6 +553,49 @@ mod tests {
         match &result[0] {
             Stmt::Assignment { value, .. } => {
                 assert_eq!(*value, Expr::Num(1.5));
+            },
+            other => panic!("expected assignment, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn action_params_field_access_substitutes_into_body() {
+        let template = ActionTemplate {
+            params: vec![ParamDef {
+                name: "point".to_string(),
+                param_type: Some(TypeAnnotation::Num),
+                default: None,
+            }],
+            body: vec![make_assignment(
+                "self",
+                "scale",
+                Expr::Path(vec!["point".to_string(), "x".to_string()]),
+            )],
+        };
+
+        let registry: InstanceActionRegistry =
+            [("btn".to_string(), [("pulse".to_string(), template)].into_iter().collect())]
+                .into_iter()
+                .collect();
+
+        let invocation = make_action(
+            "pulse",
+            "btn",
+            vec![Modifier {
+                name: Some("point".to_string()),
+                value: Expr::Path(vec!["settings".to_string(), "point".to_string()]),
+            }],
+        );
+
+        let module_actions: HashMap<String, ActionTemplate> = HashMap::new();
+        let result = inline_stmt(invocation, &registry, &module_actions);
+        assert_eq!(result.len(), 1);
+        match &result[0] {
+            Stmt::Assignment { value, .. } => {
+                assert_eq!(
+                    *value,
+                    Expr::Path(vec!["settings".to_string(), "point".to_string(), "x".to_string(),])
+                );
             },
             other => panic!("expected assignment, got {:?}", other),
         }
