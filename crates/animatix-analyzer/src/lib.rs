@@ -617,6 +617,37 @@ title: Text {
     }
 
     #[test]
+    fn workspace_resolves_nested_namespace_depth() {
+        let mut workspace = Workspace::new();
+
+        let inner_source = r#"
+let accent = rgb(255, 0, 0)
+pub component InnerButton {
+    frame: Rect
+}
+"#;
+        let lib_source = r#"
+import "inner.amx" as inner
+"#;
+        let main_source = r#"
+import "lib.amx" as lib
+"#;
+
+        workspace.add_file(PathBuf::from("/project/inner.amx"), inner_source);
+        workspace.add_file(PathBuf::from("/project/lib.amx"), lib_source);
+        workspace.add_file(PathBuf::from("/project/main.amx"), main_source);
+
+        let resolved = workspace.resolve_symbols(Path::new("/project/main.amx"));
+        assert!(resolved.resolve_namespaced_label("lib.inner.accent").is_some());
+        assert!(resolved.resolve_namespaced_component("lib.inner.InnerButton").is_some());
+        assert!(resolved.resolve_namespaced_label("lib.inner.missing").is_none());
+        let mut labels = resolved.namespace_labels("lib.inner");
+        labels.sort();
+        assert_eq!(labels, vec!["accent", "frame"]);
+        assert_eq!(resolved.namespace_components("lib.inner"), vec!["InnerButton"]);
+    }
+
+    #[test]
     fn workspace_import_path_resolution() {
         let base = Path::new("/project/src/main.amx");
         let resolved = Workspace::resolve_import_path(base, "../lib.amx");

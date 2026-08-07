@@ -69,10 +69,10 @@ fn validate_play_target(
 ) -> bool {
     if target.contains('.') {
         let parts: Vec<&str> = target.split('.').collect();
-        if parts.len() == 2 {
-            let module_alias = parts[0];
-            if let Some(ns) = namespaces.get(module_alias) {
-                let scene_name = parts[1];
+        if parts.len() >= 2 {
+            let (namespace_parts, scene_name) = parts.split_at(parts.len() - 1);
+            let scene_name = scene_name[0];
+            if let Some(ns) = resolve_namespace(&namespaces, namespace_parts) {
                 // If the namespace has scene data, verify the specific scene exists.
                 // If scenes are empty (legacy/test namespace), accept any name.
                 if ns.scenes.is_empty() || ns.scenes.contains_key(scene_name) {
@@ -83,8 +83,10 @@ fn validate_play_target(
                         DiagnosticCode::PlayTargetNotFound,
                         DiagnosticPhase::Build,
                         format!(
-                            "Scene '{}' plays non-existent scene '{}' in module '{}'.",
-                            source_scene, scene_name, module_alias
+                            "Scene '{}' plays non-existent scene '{}' in namespace '{}'.",
+                            source_scene,
+                            scene_name,
+                            namespace_parts.join(".")
                         ),
                     )
                     .with_subject(source_scene),
@@ -119,6 +121,17 @@ fn validate_play_target(
         );
         false
     }
+}
+
+fn resolve_namespace<'a>(
+    namespaces: &'a HashMap<String, Namespace>,
+    parts: &[&str],
+) -> Option<&'a Namespace> {
+    let mut current = namespaces.get(*parts.first()?)?;
+    for part in &parts[1..] {
+        current = current.namespaces.get(*part)?;
+    }
+    Some(current)
 }
 
 /// Per-frame evaluation result in global time space.
@@ -418,53 +431,52 @@ impl Composition {
             .filter(|t| t.contains('.') && !scenes.contains_key(t))
             .collect();
         for target in cross_file_targets {
-            let parts: Vec<&str> = target.splitn(2, '.').collect();
-            if parts.len() != 2 {
+            let parts: Vec<&str> = target.split('.').collect();
+            if parts.len() < 2 {
                 continue;
             }
-            let module_alias = parts[0];
-            let scene_name = parts[1];
-            if let Some(ns) = namespaces.get(module_alias) {
-                if let Some(scene_data) = ns.scenes.get(scene_name) {
-                    // Build timeline from the cross-file scene's prelude + body
-                    let mut merged = scene_data.file_prelude.clone();
-                    // Insert scene config as a Stmt::Config before the scene body
-                    merged.push(Stmt::Config {
-                        settings: scene_data.config.clone(),
-                        span: scene_data.span,
-                    });
-                    merged.extend(scene_data.body.clone());
-                    merged_bodies.insert(target.clone(), merged.clone());
-                    let build_report = Timeline::build_with_diagnostics_and_font_context(
-                        &merged,
-                        namespaces,
-                        font_context.clone(),
-                        build_quality,
-                    );
-                    diagnostics.extend(
-                        build_report
-                            .diagnostics
-                            .into_iter()
-                            .map(|d| d.with_subject(format!("scene '{}'", target))),
-                    );
-                    let timeline = build_report.output;
-                    let explicit_duration_s =
-                        Self::extract_duration_from_config(&scene_data.config);
-                    let duration_s =
-                        explicit_duration_s.unwrap_or_else(|| timeline.duration_seconds());
-                    scenes.insert(
-                        target.clone(),
-                        CompositionScene {
-                            name: target.clone(),
-                            config: scene_data.config.clone(),
-                            timeline,
-                            duration_s,
-                            explicit_duration_s,
-                            source_span: scene_data.span,
-                        },
-                    );
-                    declaration_order.push(target.clone());
-                }
+            let (namespace_parts, scene_name) = parts.split_at(parts.len() - 1);
+            let scene_name = scene_name[0];
+            let Some(ns) = resolve_namespace(&namespaces, namespace_parts) else {
+                continue;
+            };
+            if let Some(scene_data) = ns.scenes.get(scene_name) {
+                // Build timeline from the cross-file scene's prelude + body
+                let mut merged = scene_data.file_prelude.clone();
+                // Insert scene config as a Stmt::Config before the scene body
+                merged.push(Stmt::Config {
+                    settings: scene_data.config.clone(),
+                    span: scene_data.span,
+                });
+                merged.extend(scene_data.body.clone());
+                merged_bodies.insert(target.clone(), merged.clone());
+                let build_report = Timeline::build_with_diagnostics_and_font_context(
+                    &merged,
+                    namespaces,
+                    font_context.clone(),
+                    build_quality,
+                );
+                diagnostics.extend(
+                    build_report
+                        .diagnostics
+                        .into_iter()
+                        .map(|d| d.with_subject(format!("scene '{}'", target))),
+                );
+                let timeline = build_report.output;
+                let explicit_duration_s = Self::extract_duration_from_config(&scene_data.config);
+                let duration_s = explicit_duration_s.unwrap_or_else(|| timeline.duration_seconds());
+                scenes.insert(
+                    target.clone(),
+                    CompositionScene {
+                        name: target.clone(),
+                        config: scene_data.config.clone(),
+                        timeline,
+                        duration_s,
+                        explicit_duration_s,
+                        source_span: scene_data.span,
+                    },
+                );
+                declaration_order.push(target.clone());
             }
         }
 

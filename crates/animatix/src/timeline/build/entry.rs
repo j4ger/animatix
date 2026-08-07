@@ -187,30 +187,9 @@ impl Timeline {
 
         timeline.load_colorscheme_declarations(ast, &mut diagnostics);
 
-        // Seed environment with namespace exports
+        // Seed environment with namespace exports, recursing into nested aliases.
         for (alias, namespace) in namespaces {
-            for (name, expr) in &namespace.exports {
-                let key = format!("{}.{}", alias, name);
-                // Evaluate the export expression in the current env
-                match evaluate_expr(expr, &timeline.env) {
-                    Ok(value) => {
-                        timeline.env.set(&key, value);
-                    },
-                    Err(e) => {
-                        diagnostics.push(
-                            Diagnostic::error(
-                                DiagnosticCode::ModuleExportEvalError,
-                                DiagnosticPhase::Build,
-                                format!(
-                                    "Failed to evaluate export '{}.{}': {}; using default.",
-                                    alias, name, e
-                                ),
-                            )
-                            .with_subject(&key),
-                        );
-                    },
-                }
-            }
+            seed_namespace_exports(&mut timeline, &mut diagnostics, alias, namespace);
         }
 
         for stmt in ast {
@@ -370,5 +349,35 @@ impl Timeline {
         }
 
         BuildReport::new(timeline, diagnostics)
+    }
+}
+
+fn seed_namespace_exports(
+    timeline: &mut Timeline,
+    diagnostics: &mut Vec<Diagnostic>,
+    prefix: &str,
+    namespace: &crate::module::Namespace,
+) {
+    for (name, expr) in &namespace.exports {
+        let key = format!("{prefix}.{name}");
+        match evaluate_expr(expr, &timeline.env) {
+            Ok(value) => {
+                timeline.env.set(&key, value);
+            },
+            Err(e) => {
+                diagnostics.push(
+                    Diagnostic::error(
+                        DiagnosticCode::ModuleExportEvalError,
+                        DiagnosticPhase::Build,
+                        format!("Failed to evaluate export '{key}': {e}; using default."),
+                    )
+                    .with_subject(&key),
+                );
+            },
+        }
+    }
+
+    for (alias, nested) in &namespace.namespaces {
+        seed_namespace_exports(timeline, diagnostics, &format!("{prefix}.{alias}"), nested);
     }
 }

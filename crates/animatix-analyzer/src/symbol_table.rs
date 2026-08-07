@@ -978,43 +978,48 @@ impl SymbolTable {
         }
     }
 
-    /// Look up a label by namespace-qualified name (e.g., "foo.bar").
+    /// Resolve a namespace table by qualified path (e.g., "lib.inner").
+    pub fn namespace_table(&self, qualified_name: &str) -> Option<&SymbolTable> {
+        let Some((namespace, rest)) = qualified_name.split_once('.') else {
+            return self.namespaces.get(qualified_name);
+        };
+        let ns = self.namespaces.get(namespace)?;
+        ns.namespace_table(rest)
+    }
+
+    /// Look up a label by namespace-qualified name (e.g., "lib.inner.value").
     /// Returns the label info if found in the specified namespace.
     pub fn resolve_namespaced_label(&self, qualified_name: &str) -> Option<&LabelInfo> {
-        let parts: Vec<&str> = qualified_name.splitn(2, '.').collect();
-        if parts.len() == 2 {
-            let namespace = parts[0];
-            let name = parts[1];
-            self.namespaces.get(namespace).and_then(|ns| ns.labels.get(name))
+        let (namespace, rest) = qualified_name.split_once('.')?;
+        let ns = self.namespaces.get(namespace)?;
+        if rest.contains('.') {
+            ns.resolve_namespaced_label(rest)
         } else {
-            None
+            ns.labels.get(rest)
         }
     }
 
-    /// Look up a component by namespace-qualified name (e.g., "foo.MyComponent").
+    /// Look up a component by namespace-qualified name (e.g., "lib.inner.MyComponent").
     pub fn resolve_namespaced_component(&self, qualified_name: &str) -> Option<&ComponentInfo> {
-        let parts: Vec<&str> = qualified_name.splitn(2, '.').collect();
-        if parts.len() == 2 {
-            let namespace = parts[0];
-            let name = parts[1];
-            self.namespaces.get(namespace).and_then(|ns| ns.components.get(name))
+        let (namespace, rest) = qualified_name.split_once('.')?;
+        let ns = self.namespaces.get(namespace)?;
+        if rest.contains('.') {
+            ns.resolve_namespaced_component(rest)
         } else {
-            None
+            ns.components.get(rest)
         }
     }
 
     /// Get all labels in a specific namespace (for completions).
     pub fn namespace_labels(&self, namespace: &str) -> Vec<&str> {
-        self.namespaces
-            .get(namespace)
+        self.namespace_table(namespace)
             .map(|ns| ns.labels.keys().map(|s| s.as_str()).collect())
             .unwrap_or_default()
     }
 
     /// Get all components in a specific namespace (for completions).
     pub fn namespace_components(&self, namespace: &str) -> Vec<&str> {
-        self.namespaces
-            .get(namespace)
+        self.namespace_table(namespace)
             .map(|ns| ns.components.keys().map(|s| s.as_str()).collect())
             .unwrap_or_default()
     }

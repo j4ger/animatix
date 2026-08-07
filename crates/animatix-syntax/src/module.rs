@@ -157,6 +157,8 @@ pub struct Namespace {
     pub exports: HashMap<String, Expr>,
     /// Scene definitions from this module, keyed by scene name.
     pub scenes: HashMap<String, SceneData>,
+    /// Nested namespaces from this module's aliased imports.
+    pub namespaces: HashMap<String, Namespace>,
 }
 
 /// Collects all `pub let` declarations from statements, recursing into
@@ -230,6 +232,9 @@ fn resolve_path_in_namespace(
 ) -> Option<Expr> {
     if segments.is_empty() {
         return None;
+    }
+    if let Some(nested) = ns.namespaces.get(&segments[0]) {
+        return resolve_path_in_namespace(nested, &segments[1..], import_namespaces);
     }
     if let Some(expr) = ns.exports.get(&segments[0]) {
         if segments.len() == 1 {
@@ -567,11 +572,13 @@ impl ModuleGraph {
                     {
                         let resolved_exports = self.collect_resolved_exports(import_id);
                         let resolved_scenes = self.collect_resolved_scenes(import_id);
+                        let resolved_namespaces = self.collect_resolved_namespaces(import_id);
                         namespaces.insert(
                             alias.clone(),
                             Namespace {
                                 exports: resolved_exports,
                                 scenes: resolved_scenes,
+                                namespaces: resolved_namespaces,
                             },
                         );
                     }
@@ -657,32 +664,43 @@ impl ModuleGraph {
             None => return HashMap::new(),
         };
 
-        // Recursively build namespaces for this module's aliased imports
-        let mut import_namespaces: HashMap<String, Namespace> = HashMap::new();
-        for imp in &module.imports {
-            if let Some(alias) = &imp.1 {
-                let import_path =
-                    Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
-                if let Some(sub_id) =
-                    fs::canonicalize(&import_path).ok().and_then(|p| self.paths.get(&p).copied())
-                {
-                    let sub_exports = self.collect_resolved_exports(sub_id);
-                    let sub_scenes = self.collect_resolved_scenes(sub_id);
-                    import_namespaces.insert(
-                        alias.clone(),
-                        Namespace {
-                            exports: sub_exports,
-                            scenes: sub_scenes,
-                        },
-                    );
-                }
-            }
-        }
+        let import_namespaces = self.collect_resolved_namespaces(file_id);
 
         let raw_exports = collect_pub_lets(&module.statements);
         let import_refs: HashMap<String, &Namespace> =
             import_namespaces.iter().map(|(k, v)| (k.clone(), v)).collect();
         resolve_exports(raw_exports, &import_refs)
+    }
+
+    /// Collect nested namespaces for a module's aliased imports.
+    fn collect_resolved_namespaces(&self, file_id: FileId) -> HashMap<String, Namespace> {
+        let mut namespaces = HashMap::new();
+        let Some(module) = self.files.get(&file_id) else {
+            return namespaces;
+        };
+
+        for imp in &module.imports {
+            let Some(alias) = &imp.1 else {
+                continue;
+            };
+            let import_path =
+                Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
+            let Some(sub_id) =
+                fs::canonicalize(&import_path).ok().and_then(|p| self.paths.get(&p).copied())
+            else {
+                continue;
+            };
+            namespaces.insert(
+                alias.clone(),
+                Namespace {
+                    exports: self.collect_resolved_exports(sub_id),
+                    scenes: self.collect_resolved_scenes(sub_id),
+                    namespaces: self.collect_resolved_namespaces(sub_id),
+                },
+            );
+        }
+
+        namespaces
     }
 
     /// Collect resolved scene data for a module, flattening the module's

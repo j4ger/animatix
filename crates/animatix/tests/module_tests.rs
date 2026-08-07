@@ -180,6 +180,23 @@ panel: Rect, size: (200, 100), color: theme.accent
 }
 
 #[test]
+fn load_program_nested_aliased_namespace_depth() {
+    let dir = temp_project_dir("nested_namespace");
+    let entry = dir.join("scene.amx");
+    let lib = dir.join("lib.amx");
+    let inner = dir.join("inner.amx");
+
+    write_file(&inner, "pub let accent = (1.0, 0.0, 0.0, 1.0)\n");
+    write_file(&lib, "import \"./inner.amx\" as inner\n");
+    write_file(&entry, "import \"./lib.amx\" as lib\n");
+
+    let program = ModuleGraph::new().load_program(&entry).unwrap();
+    let lib_ns = program.namespaces.get("lib").unwrap();
+    let inner_ns = lib_ns.namespaces.get("inner").unwrap();
+    assert!(inner_ns.exports.contains_key("accent"));
+}
+
+#[test]
 fn load_program_aliased_import_does_not_flatten() {
     let dir = temp_project_dir("aliased_no_flatten");
     let entry = dir.join("scene.amx");

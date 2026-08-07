@@ -1,6 +1,6 @@
 //! Workspace management for cross-file analysis.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::symbol_table::SymbolTable;
@@ -57,22 +57,33 @@ impl Workspace {
     /// Resolve imports for a file and return a merged symbol table
     /// containing local symbols plus exported symbols from imported files.
     pub fn resolve_symbols(&self, path: &Path) -> SymbolTable {
-        let mut merged = self.files.get(path).map(|e| e.symbols.clone()).unwrap_or_default();
+        let mut visited = HashSet::new();
+        self.resolve_symbols_inner(path, &mut visited)
+    }
 
-        for import in &merged.imports.clone() {
+    fn resolve_symbols_inner(&self, path: &Path, visited: &mut HashSet<PathBuf>) -> SymbolTable {
+        let mut merged = self.files.get(path).map(|e| e.symbols.clone()).unwrap_or_default();
+        if !visited.insert(path.to_path_buf()) {
+            return merged;
+        }
+
+        for import in merged.imports.clone() {
             // Try to find the imported file by path
             let import_path = Self::resolve_import_path(path, &import.path);
-            if let Some(entry) = self.files.get(&import_path) {
-                if let Some(ref alias) = import.alias {
-                    // Aliased import: store symbols under namespace for qualified access.
-                    merged.namespaces.insert(alias.clone(), entry.symbols.clone());
-                } else {
-                    // Direct import: merge all exported symbols
-                    merged.merge(&entry.symbols);
-                }
+            if !self.files.contains_key(&import_path) {
+                continue;
+            }
+            let resolved = self.resolve_symbols_inner(&import_path, visited);
+            if let Some(ref alias) = import.alias {
+                // Aliased import: store symbols under namespace for qualified access.
+                merged.namespaces.insert(alias.clone(), resolved);
+            } else {
+                // Direct import: merge all exported symbols
+                merged.merge(&resolved);
             }
         }
 
+        visited.remove(path);
         merged
     }
 
