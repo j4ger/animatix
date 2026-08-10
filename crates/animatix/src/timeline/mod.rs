@@ -96,7 +96,7 @@ pub(crate) mod property_lookup;
 #[cfg(feature = "render")]
 mod scene_eval;
 mod sequence;
-pub use legend::LegendTracks;
+pub use legend::{LegendMode, LegendTracks};
 
 /// Vector shape definitions and rendering.
 pub mod shapes;
@@ -686,6 +686,11 @@ impl Timeline {
             }
             // D4 exception: dynamic plot parameter tracks (not statically representable)
             for pt in track.plot_param_tracks.values() {
+                times_ms.extend(pt.keyframes.keys().copied());
+            }
+            // Tagged union tracks are registry-representable, but include them
+            // directly as a defensive catch for properties without a schema.
+            for pt in track.tagged_tracks.values().flatten() {
                 times_ms.extend(pt.keyframes.keys().copied());
             }
         }

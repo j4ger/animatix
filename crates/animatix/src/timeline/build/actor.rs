@@ -592,6 +592,33 @@ impl Timeline {
             track.parent = Some(pl.to_string());
         }
 
+        // Registry-backed tagged union properties are not part of the legacy
+        // per-primitive build loop, so write them through the generic engine.
+        for prop in props {
+            if let Some(schema) = crate::timeline::property_registry::lookup_property(&prop.name)
+                && let crate::timeline::ActorField::Tagged(_) = schema.field
+            {
+                let prop_subject = format!("{label}.{}", prop.name);
+                if let Some(pv) = crate::timeline::property_engine::parse_property_value(
+                    schema.value_type,
+                    &prop.value,
+                    &eval_env,
+                    diagnostics,
+                    &prop_subject,
+                ) {
+                    crate::timeline::property_engine::write_property_field(
+                        track,
+                        schema.field,
+                        pv,
+                        t_start_ms,
+                        t_end_ms,
+                        easing,
+                        diagnostics,
+                    );
+                }
+            }
+        }
+
         // Phase 7: Parse size spec from `size` property for percentage/auto/fill/fit sizing
         {
             let is_container = primitive.is_layout_container();

@@ -9,12 +9,13 @@ config {
 // Note: Legend entries are currently auto-generated placeholders.
 // Scene scanning for automatic entry extraction will be implemented
 // in a future update.
+// The `legend` property already records labels and exclusions for that scan.
 
 #0s
 // Colored lines representing data series
-line_a: Line, from: (100, 100), to: (200, 100), color: (1.0, 0.0, 0.0, 1.0), stroke_width: 4
-line_b: Line, from: (100, 150), to: (200, 150), color: (0.0, 1.0, 0.0, 1.0), stroke_width: 4
-line_c: Line, from: (100, 200), to: (200, 200), color: (0.0, 0.0, 1.0, 1.0), stroke_width: 4
+line_a: Line, from: (100, 100), to: (200, 100), color: (1.0, 0.0, 0.0, 1.0), stroke_width: 4, legend: "Series A"
+line_b: Line, from: (100, 150), to: (200, 150), color: (0.0, 1.0, 0.0, 1.0), stroke_width: 4, legend: "Series B"
+line_c: Line, from: (100, 200), to: (200, 200), color: (0.0, 0.0, 1.0, 1.0), stroke_width: 4, legend: "Series C"
 
 // Legend annotation positioning to the right of the lines
 legend: Legend, at: (320, 100)

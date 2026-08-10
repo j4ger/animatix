@@ -46,6 +46,29 @@ pub(crate) fn parse_value(
     subject: &str,
 ) -> Option<PropertyValue> {
     match value_type {
+        ValueType::Union(variants) => {
+            for variant in variants {
+                let mut branch_diagnostics = Vec::new();
+                if let Some(value) =
+                    parse_value(*variant, expr, env, &mut branch_diagnostics, subject)
+                {
+                    return Some(value);
+                }
+            }
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::InvalidPropertyValue,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "'{}' expects {}, got an unsupported value",
+                        subject,
+                        union_type_name(variants)
+                    ),
+                )
+                .with_subject(subject),
+            );
+            None
+        },
         ValueType::F32 => {
             let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
             Some(PropertyValue::F32(v.as_num() as f32))
@@ -80,7 +103,17 @@ pub(crate) fn parse_value(
         },
         ValueType::String => {
             let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
-            Some(PropertyValue::String(v.as_str()))
+            match v {
+                Value::Str(s) => Some(PropertyValue::String(s)),
+                _ => None,
+            }
+        },
+        ValueType::Bool => {
+            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
+            match v {
+                Value::Bool(b) => Some(PropertyValue::Bool(b)),
+                _ => None,
+            }
         },
         ValueType::PointList => {
             let items = match expr {
@@ -230,5 +263,55 @@ pub(crate) fn parse_value(
                 None
             }
         },
+    }
+}
+
+fn union_type_name(types: &[ValueType]) -> String {
+    types.iter().map(|ty| value_type_name(*ty)).collect::<Vec<_>>().join(" | ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn union_parses_bool_and_string_variants() {
+        let env = Environment::new();
+        let mut diagnostics = Vec::new();
+        let union = ValueType::Union(&[ValueType::Bool, ValueType::String]);
+
+        let parsed_bool = parse_value(union, &Expr::Bool(false), &env, &mut diagnostics, "legend");
+        assert_eq!(parsed_bool, Some(PropertyValue::Bool(false)));
+
+        let parsed_string =
+            parse_value(union, &Expr::Str("Revenue".to_string()), &env, &mut diagnostics, "legend");
+        assert_eq!(parsed_string, Some(PropertyValue::String("Revenue".to_string())));
+
+        let parsed_number = parse_value(union, &Expr::Num(42.0), &env, &mut diagnostics, "legend");
+        assert_eq!(parsed_number, None);
+        assert!(!diagnostics.is_empty(), "union should report an unsupported value");
+    }
+}
+
+fn value_type_name(value_type: ValueType) -> &'static str {
+    match value_type {
+        ValueType::F32 => "Num",
+        ValueType::U32 => "Int",
+        ValueType::Bool => "Bool",
+        ValueType::Vec2 => "Vec2",
+        ValueType::Vec4 => "Vec4",
+        ValueType::Color => "Color",
+        ValueType::String => "Str",
+        ValueType::ShapeType => "ShapeType",
+        ValueType::PlacementMode => "PlacementMode",
+        ValueType::SceneAnchor => "SceneAnchor",
+        ValueType::PositionBinding => "PositionBinding",
+        ValueType::MorphOptions => "MorphOptions",
+        ValueType::CalloutPlace => "CalloutPlace",
+        ValueType::PointList => "PointList",
+        ValueType::CommandList => "CommandList",
+        ValueType::Transform => "Transform",
+        ValueType::BuildTimeOnly => "BuildTimeOnly",
+        ValueType::Union(_) => "Union",
     }
 }

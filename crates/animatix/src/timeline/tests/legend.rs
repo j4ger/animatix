@@ -42,6 +42,64 @@ fn build_legend_timeline() -> Timeline {
 }
 
 #[test]
+fn test_legend_union_property_sets_actor_mode() {
+    let ast = vec![
+        make_config(),
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(0.0),
+            body: vec![
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    is_anonymous: false,
+                    label: "hidden_series".to_string(),
+                    array_index: None,
+                    ty: "Line".to_string(),
+                    props: vec![Property {
+                        name: "legend".to_string(),
+                        value: Expr::Bool(false),
+                        value_span: None,
+                        trailing_comment: None,
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                    span: None,
+                },
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    is_anonymous: false,
+                    label: "named_series".to_string(),
+                    array_index: None,
+                    ty: "Line".to_string(),
+                    props: vec![Property {
+                        name: "legend".to_string(),
+                        value: Expr::Str("Revenue".to_string()),
+                        value_span: None,
+                        trailing_comment: None,
+                    }],
+                    modifiers: vec![],
+                    children: vec![],
+                    span: None,
+                },
+            ],
+            span: None,
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+
+    let hidden = timeline.get_track("hidden_series").expect("hidden series track");
+    assert_eq!(hidden.legend.mode, super::super::LegendMode::Hidden);
+    let named = timeline.get_track("named_series").expect("named series track");
+    assert_eq!(named.legend.mode, super::super::LegendMode::Label("Revenue".to_string()));
+}
+
+#[test]
 fn test_legend_basic_rendering() {
     // Test that a Legend renders color swatches and labels
     let timeline = build_legend_timeline();

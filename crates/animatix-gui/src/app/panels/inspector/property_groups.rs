@@ -247,6 +247,7 @@ fn value_to_kind(value: PropertyValue, ty: ValueType, name: &str) -> PropertyKin
         },
         (PropertyValue::Color(v), _) => PropertyKind::Color(v),
         (PropertyValue::String(v), _) => PropertyKind::Text(v),
+        (PropertyValue::Bool(v), _) => PropertyKind::Text(v.to_string()),
         (PropertyValue::Vec4(v), ValueType::Color) => PropertyKind::Color(v),
         (PropertyValue::Vec4(v), _) => PropertyKind::Vec2 { x: v[0], y: v[1] },
         (PropertyValue::U32(v), ValueType::ShapeType) => {

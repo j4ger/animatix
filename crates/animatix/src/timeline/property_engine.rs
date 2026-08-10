@@ -41,7 +41,7 @@ use crate::easing::Easing;
 use crate::timeline::dispatch::read_property_value;
 use crate::timeline::env::{Environment, Value};
 use crate::timeline::property_registry::{ActorField, ValueType};
-use crate::timeline::{AnimationTrack, PropertyTrack, ShapeType, TrackAccessor};
+use crate::timeline::{AnimationTrack, Interpolate, PropertyTrack, ShapeType, TrackAccessor};
 
 // ─────────────────────────────────────────────────────────────
 // Parsed property values
@@ -49,9 +49,12 @@ use crate::timeline::{AnimationTrack, PropertyTrack, ShapeType, TrackAccessor};
 
 /// A parsed property value, typed by the ValueType that produced it.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum PropertyValue {
     /// Single 32-bit float.
     F32(f32),
+    /// Boolean flag.
+    Bool(bool),
     /// Single 32-bit unsigned integer.
     U32(u32),
     /// 2-component vector.
@@ -74,6 +77,48 @@ pub enum PropertyValue {
     MorphOptions(super::MorphOptions),
     /// 2D affine transform matrix (6 components).
     Transform([f32; 6]),
+}
+
+impl Interpolate for PropertyValue {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        let t = t.clamp(0.0, 1.0);
+        match (self, other) {
+            (PropertyValue::F32(a), PropertyValue::F32(b)) => {
+                PropertyValue::F32(a.interpolate(b, t))
+            },
+            (PropertyValue::U32(a), PropertyValue::U32(b)) => {
+                PropertyValue::U32(a.interpolate(b, t))
+            },
+            (PropertyValue::Vec2(a), PropertyValue::Vec2(b)) => {
+                PropertyValue::Vec2(a.interpolate(b, t))
+            },
+            (PropertyValue::Vec4(a), PropertyValue::Vec4(b)) => {
+                PropertyValue::Vec4(a.interpolate(b, t))
+            },
+            (PropertyValue::Color(a), PropertyValue::Color(b)) => {
+                PropertyValue::Color(a.interpolate(b, t))
+            },
+            (PropertyValue::Transform(a), PropertyValue::Transform(b)) => {
+                PropertyValue::Transform(a.interpolate(b, t))
+            },
+            (PropertyValue::PointList(a), PropertyValue::PointList(b)) => {
+                PropertyValue::PointList(a.interpolate(b, t))
+            },
+            (PropertyValue::String(a), PropertyValue::String(b)) => {
+                PropertyValue::String(a.interpolate(b, t))
+            },
+            (PropertyValue::CommandList(a), PropertyValue::CommandList(b)) => {
+                PropertyValue::CommandList(a.interpolate(b, t))
+            },
+            _ => {
+                if t < 0.5 {
+                    self.clone()
+                } else {
+                    other.clone()
+                }
+            },
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -177,6 +222,16 @@ pub(crate) fn write_property_field(
     // ── Tier 2: Uniform dispatch via TrackFieldMut ──
     use crate::timeline::dispatch::TrackFieldMut;
     let pv_default = ActorField::default_value(field);
+    let tagged_default = match field {
+        ActorField::Tagged(name) => crate::timeline::property_registry::lookup_property(name)
+            .map(|schema| (schema.default_value)(track.kind)),
+        _ => None,
+    };
+    if field == ActorField::Tagged("legend")
+        && let Some(mode) = crate::timeline::LegendMode::from_property_value(&value)
+    {
+        track.legend.mode = mode;
+    }
     if let Some(tf) = track.field_mut(field) {
         match tf {
             TrackFieldMut::F32(f) => {
@@ -282,6 +337,19 @@ pub(crate) fn write_property_field(
                     _ => Vec::new(),
                 };
                 write_point_list(
+                    f,
+                    value,
+                    t_start_ms,
+                    t_end_ms,
+                    easing,
+                    default,
+                    has_duration,
+                    has_delay,
+                );
+            },
+            TrackFieldMut::Tagged(_name, f) => {
+                let default = tagged_default.clone().unwrap_or(PropertyValue::Bool(true));
+                write_tagged(
                     f,
                     value,
                     t_start_ms,
@@ -472,6 +540,35 @@ pub(crate) fn write_command_list(
     field.ensure(default).add_keyframe(t_end_ms, v, easing);
 }
 
+pub(crate) fn write_tagged(
+    field: &mut Option<PropertyTrack<PropertyValue>>,
+    value: PropertyValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+    default: PropertyValue,
+    has_duration: bool,
+    has_delay: bool,
+) {
+    if has_duration {
+        let start_val = field.get(t_start_ms, default.clone());
+        field
+            .ensure(default.clone())
+            .add_keyframe(t_start_ms, start_val, Easing::Linear);
+    } else if has_delay && t_start_ms > 0 {
+        if field.is_none() {
+            *field = Some(PropertyTrack::new(default.clone()));
+        }
+        let previous_time = t_start_ms.saturating_sub(1);
+        let inner = field.as_mut().expect("tagged track exists");
+        if !inner.keyframes.contains_key(&previous_time) {
+            let previous_value = inner.evaluate(previous_time);
+            inner.add_keyframe(previous_time, previous_value, Easing::Linear);
+        }
+    }
+    field.ensure(default).add_keyframe(t_end_ms, value, easing);
+}
+
 pub(crate) fn write_shape_type(
     field: &mut Option<PropertyTrack<ShapeType>>,
     value: ShapeType,
@@ -647,6 +744,9 @@ fn inject_value(
         PropertyValue::String(v) => {
             env.set(&*key, Value::Str(v.clone()));
         },
+        PropertyValue::Bool(v) => {
+            env.set(&*key, Value::Bool(*v));
+        },
         _ => {},
     }
     key.truncate(restore);
@@ -821,6 +921,72 @@ mod tests {
             500,
         );
         assert_eq!(result, Some(PropertyValue::String("Arial".to_string())));
+    }
+
+    #[test]
+    fn test_write_read_roundtrip_tagged_bool() {
+        let mut track = AnimationTrack::new("test".to_string());
+        let result = write_read_roundtrip(
+            &mut track,
+            ActorField::Tagged("legend"),
+            PropertyValue::Bool(false),
+            500,
+        );
+        assert_eq!(result, Some(PropertyValue::Bool(false)));
+    }
+
+    #[test]
+    fn test_property_value_interpolation_rules() {
+        let a = PropertyValue::F32(0.0);
+        let b = PropertyValue::F32(100.0);
+        assert_eq!(a.interpolate(&b, 0.5), PropertyValue::F32(50.0));
+
+        let hidden = PropertyValue::Bool(false);
+        let shown = PropertyValue::Bool(true);
+        assert_eq!(hidden.interpolate(&shown, 0.25), PropertyValue::Bool(false));
+        assert_eq!(hidden.interpolate(&shown, 0.75), PropertyValue::Bool(true));
+
+        let left = PropertyValue::String("left".to_string());
+        let right = PropertyValue::String("right".to_string());
+        assert_eq!(left.interpolate(&right, 0.25), left);
+        assert_eq!(left.interpolate(&right, 0.75), right);
+
+        // Cross-variant transitions snap at the midpoint.
+        assert_eq!(hidden.interpolate(&right, 0.25), hidden);
+        assert_eq!(hidden.interpolate(&right, 0.75), right);
+    }
+
+    #[test]
+    fn test_tagged_auto_transition_snaps_cross_variant() {
+        let mut track = AnimationTrack::new("test".to_string());
+        let mut diag = Vec::new();
+        write_property_field(
+            &mut track,
+            ActorField::Tagged("legend"),
+            PropertyValue::Bool(false),
+            0,
+            1000,
+            Easing::Linear,
+            &mut diag,
+        );
+        write_property_field(
+            &mut track,
+            ActorField::Tagged("legend"),
+            PropertyValue::String("Revenue".to_string()),
+            1000,
+            2000,
+            Easing::Linear,
+            &mut diag,
+        );
+
+        assert_eq!(
+            read_property_value(&track, ActorField::Tagged("legend"), 1250),
+            Some(PropertyValue::Bool(false))
+        );
+        assert_eq!(
+            read_property_value(&track, ActorField::Tagged("legend"), 1750),
+            Some(PropertyValue::String("Revenue".to_string()))
+        );
     }
 
     #[test]

@@ -105,6 +105,10 @@ pub struct AnimationTrack {
     /// Maps parameter name (e.g. "freq") to an f64 property track.
     pub plot_param_tracks: HashMap<String, PropertyTrack<f64>>,
 
+    // ── Tagged union tracks ──
+    /// Generic tagged union property tracks, keyed by canonical property name.
+    pub tagged_tracks: HashMap<String, Option<PropertyTrack<PropertyValue>>>,
+
     // ── Func transition tracks (side-channel) ──
     /// Parallel transition storage for `func` property on `PlotCurve`.
     ///
@@ -205,6 +209,9 @@ impl AnimationTrack {
 
             // Plot parameter tracks
             plot_param_tracks: HashMap::new(),
+
+            // Tagged union tracks
+            tagged_tracks: HashMap::new(),
 
             // Func transition tracks
             func_transitions: Vec::new(),
@@ -354,6 +361,12 @@ impl AnimationTrack {
                 max = Some(max.map_or(t, |m| m.max(t)));
             }
         }
+        // Tagged union tracks (also registry-representable when a schema exists).
+        for track in self.tagged_tracks.values().flatten() {
+            if let Some(t) = track.last_keyframe_time() {
+                max = Some(max.map_or(t, |m| m.max(t)));
+            }
+        }
         // Func transitions: include the end time of each transition.
         for ft in &self.func_transitions {
             max = Some(max.map_or(ft.end_ms, |m| m.max(ft.end_ms)));
@@ -372,6 +385,7 @@ impl AnimationTrack {
             }
         }
         self.plot_param_tracks.values().any(|t| !t.is_effectively_static())
+            || self.tagged_tracks.values().flatten().any(|t| !t.is_effectively_static())
             || !self.func_transitions.is_empty()
     }
 }
@@ -419,6 +433,8 @@ pub enum TrackFieldRef<'a> {
     Image(&'a Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>),
     /// Position binding property track.
     PositionBinding(&'a Option<PropertyTrack<PositionBinding>>),
+    /// Generic tagged union property track.
+    Tagged(&'static str, &'a Option<PropertyTrack<PropertyValue>>),
 }
 
 /// Mutable reference to a track field, abstracting over the value type.
@@ -456,6 +472,8 @@ pub enum TrackFieldMut<'a> {
     Image(&'a mut Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>),
     /// Position binding property track.
     PositionBinding(&'a mut Option<PropertyTrack<PositionBinding>>),
+    /// Generic tagged union property track.
+    Tagged(&'static str, &'a mut Option<PropertyTrack<PropertyValue>>),
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -498,6 +516,7 @@ impl<'a> TrackFieldRef<'a> {
                 opt.as_ref().map(|pt| PropertyValue::CommandList(pt.evaluate(time_ms)))
             },
             Self::VectorPaths(_) | Self::TextPaths(_) | Self::PositionBinding(_) => None,
+            Self::Tagged(_, opt) => opt.as_ref().map(|pt| pt.evaluate(time_ms)),
             #[cfg(feature = "render")]
             Self::Image(_) => None,
         }
@@ -543,6 +562,9 @@ impl<'a> TrackFieldRef<'a> {
             Self::PositionBinding(opt) => {
                 opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms))
             },
+            Self::Tagged(_, opt) => {
+                opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms))
+            },
         }
     }
 
@@ -566,6 +588,7 @@ impl<'a> TrackFieldRef<'a> {
             #[cfg(feature = "render")]
             Self::Image(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
             Self::PositionBinding(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::Tagged(_, opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
         }
     }
 
@@ -621,6 +644,9 @@ impl<'a> TrackFieldRef<'a> {
             Self::PositionBinding(opt) => {
                 opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
             },
+            Self::Tagged(_, opt) => {
+                opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
+            },
         }
     }
 
@@ -674,6 +700,9 @@ impl<'a> TrackFieldRef<'a> {
                 opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
             },
             Self::PositionBinding(opt) => {
+                opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
+            },
+            Self::Tagged(_, opt) => {
                 opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
             },
         }
@@ -763,6 +792,12 @@ impl AnimationTrack {
             #[cfg(not(feature = "render"))]
             ImageData => return None,
             PositionBinding => TrackFieldRef::PositionBinding(&self.geometry.position_binding),
+            ActorField::Tagged(name) => {
+                return self
+                    .tagged_tracks
+                    .get(name)
+                    .map(|track| TrackFieldRef::Tagged(name, track));
+            },
             // Remaining variants without track storage
             SvgPaths | AudioSource | AudioVolume | PositionBindingGroup | VectorShapeGroup
             | PlotDomainGroup | ContainerLayoutGroup | NoStorage => return None,
@@ -771,6 +806,12 @@ impl AnimationTrack {
 
     /// Get a mutable reference to the track field identified by `field`.
     pub fn field_mut(&mut self, field: ActorField) -> Option<TrackFieldMut<'_>> {
+        if let ActorField::Tagged(name) = field {
+            return Some(TrackFieldMut::Tagged(
+                name,
+                self.tagged_tracks.entry(name.to_string()).or_default(),
+            ));
+        }
         use ActorField::*;
         Some(match field {
             Position => TrackFieldMut::Vec2(&mut self.geometry.position),
@@ -899,6 +940,9 @@ impl AnimationTrack {
             TrackFieldRef::PositionBinding(opt) => {
                 opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
             },
+            TrackFieldRef::Tagged(_, opt) => {
+                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
+            },
         })
     }
 
@@ -946,6 +990,7 @@ impl AnimationTrack {
             "overflow" => Overflow,
             "placement_mode" => PlacementMode,
             "morph_options" => MorphOptions,
+            "legend" => Tagged("legend"),
             "url" => ImageData,
             _ => return false,
         };
@@ -1004,6 +1049,7 @@ impl AnimationTrack {
             "overflow" => Overflow,
             "placement_mode" => PlacementMode,
             "morph_options" => MorphOptions,
+            "legend" => Tagged("legend"),
             "url" => ImageData,
             _ => return false,
         };
@@ -1060,6 +1106,7 @@ impl AnimationTrack {
             "overflow" => Overflow,
             "placement_mode" => PlacementMode,
             "morph_options" => MorphOptions,
+            "legend" => Tagged("legend"),
             "url" => ImageData,
             _ => return Vec::new(),
         };

@@ -17,6 +17,12 @@
 
 ---
 
+## Legend Participation
+
+| Property | Type | Animated | Assignable | Applies to |
+|----------|------|----------|------------|------------|
+| `legend` | `Bool \| Str` | ✓ | ✓ | Everything |
+
 ## Geometry
 
 | Property | Type | Animated | Assignable | Applies to |

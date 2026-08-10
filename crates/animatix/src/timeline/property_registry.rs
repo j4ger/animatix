@@ -52,6 +52,8 @@ pub enum ValueType {
     Color,
     /// String value.
     String,
+    /// Boolean value.
+    Bool,
     /// Shape kind identifier.
     ShapeType,
     /// Placement mode for layout positioning.
@@ -72,6 +74,8 @@ pub enum ValueType {
     Transform,
     /// A property that produces builder-time side effects (no animated value).
     BuildTimeOnly,
+    /// A tagged union of basic value types. Variants are tried in order.
+    Union(&'static [ValueType]),
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -360,6 +364,8 @@ pub enum ActorField {
     PlotDomainGroup,
     /// Compound group for container layout resolution.
     ContainerLayoutGroup,
+    /// Generic tagged union storage, keyed by canonical property name.
+    Tagged(&'static str),
     /// No storage field (build-time only, props-backed).
     NoStorage,
 }
@@ -466,6 +472,7 @@ impl ActorField {
             | ActorField::VectorShapeGroup
             | ActorField::PlotDomainGroup
             | ActorField::ContainerLayoutGroup
+            | ActorField::Tagged(_)
             | ActorField::NoStorage => return None,
         })
     }
@@ -1054,6 +1061,15 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         None,
         Applicable::Never,
         |_| super::property_engine::PropertyValue::String(String::new())
+    ),
+    schema!(
+        "legend",
+        ValueType::Union(&[ValueType::Bool, ValueType::String]),
+        F::ASSIGNABLE_A,
+        ActorField::Tagged("legend"),
+        None,
+        Applicable::Everything,
+        |_| super::property_engine::PropertyValue::Bool(true)
     ),
     schema!(
         "letter_spacing",
