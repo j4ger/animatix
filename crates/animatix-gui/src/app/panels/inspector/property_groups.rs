@@ -55,6 +55,10 @@ pub(crate) enum PropertyKind {
         variants: &'static [SumVariant],
         value: PropertyValue,
     },
+    Enum {
+        variants: &'static [&'static str],
+        value: String,
+    },
 }
 
 // ─── Group Builder (generic via registry) ─────────────────────────────────
@@ -96,6 +100,13 @@ pub(crate) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
         let kind = match schema.value_type {
             ValueType::Union(variants) => PropertyKind::Union { variants, value },
             ValueType::Sum(variants) => PropertyKind::Sum { variants, value },
+            ValueType::Enum(variants) => PropertyKind::Enum {
+                variants,
+                value: match value {
+                    PropertyValue::Enum(s) | PropertyValue::String(s) => s,
+                    other => format!("{other:?}"),
+                },
+            },
             _ => value_to_kind(value, schema.value_type, schema.name),
         };
         let entry = PropertyEntry {
@@ -346,6 +357,7 @@ fn value_to_kind(value: PropertyValue, ty: ValueType, name: &str) -> PropertyKin
         },
         (PropertyValue::Color(v), _) => PropertyKind::Color(v),
         (PropertyValue::String(v), _) => PropertyKind::Text(v),
+        (PropertyValue::Enum(v), _) => PropertyKind::Text(v),
         (PropertyValue::Bool(v), _) => PropertyKind::Text(v.to_string()),
         (PropertyValue::Variant { value, .. }, _) => match value.as_ref() {
             PropertyValue::Bool(v) => PropertyKind::Text(v.to_string()),
@@ -896,6 +908,35 @@ pub(crate) fn render_property_row(
                 },
             );
         },
+        PropertyKind::Enum { variants, value } => {
+            let mut selected = variants.iter().position(|variant| *variant == value);
+            ui.scope_builder(
+                egui::UiBuilder::new()
+                    .max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
+                |ui| {
+                    *ui.style_mut() = flat_style.clone();
+                    ui.add_sized(
+                        Vec2::new(ui.available_width(), row_height - sp.base.space_2),
+                        Select::new(ui.id().with(("enum", entry.name)), &mut selected, variants),
+                    );
+                },
+            );
+            if let Some(selected) = selected {
+                let chosen = variants[selected];
+                if chosen != value {
+                    commands.push_back(
+                        DocumentCommand::PropertyEdit(PropertyEdit {
+                            time_s: None,
+                            actor: actor_label.to_string(),
+                            property: entry.name.to_string(),
+                            value: GuiPropertyValue::Text(chosen.to_string()),
+                            create_keyframe: keyframe_mode,
+                        })
+                        .into(),
+                    );
+                }
+            }
+        },
         PropertyKind::Sum { variants, value } => {
             let current_variant = match value {
                 PropertyValue::Variant { name, .. } => name.as_str(),
@@ -1177,6 +1218,7 @@ fn entry_to_gui_value(entry: &PropertyEntry) -> Option<GuiPropertyValue> {
         PropertyKind::U32(v) => Some(GuiPropertyValue::Float(*v as f32)),
         PropertyKind::Color(rgba) => Some(GuiPropertyValue::Color(*rgba)),
         PropertyKind::Text(t) => Some(GuiPropertyValue::Text(t.clone())),
+        PropertyKind::Enum { value, .. } => Some(GuiPropertyValue::Text(value.clone())),
         PropertyKind::Sum { variants, value } => match value {
             PropertyValue::Variant { name, value: inner } => {
                 let index = variants.iter().position(|variant| variant.name == name).unwrap_or(0);

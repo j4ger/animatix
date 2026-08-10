@@ -1281,6 +1281,7 @@ fn format_property_value(kind: &PropertyKind) -> String {
                 s.clone()
             }
         },
+        PropertyKind::Enum { value, .. } => value.clone(),
         PropertyKind::Sum { value, .. } => match value {
             animatix::timeline::PropertyValue::Variant { name, value } => {
                 let payload = match value.as_ref() {

@@ -78,6 +78,8 @@ pub enum ValueType {
     Union(&'static [ValueType]),
     /// A named sum type with optional payloads, e.g. `Bool | Str` choices.
     Sum(&'static [SumVariant]),
+    /// A fixed set of allowed string choices.
+    Enum(&'static [&'static str]),
 }
 
 /// Exact literal used to select a named sum variant before payload parsing.

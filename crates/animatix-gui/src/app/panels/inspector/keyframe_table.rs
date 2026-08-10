@@ -436,6 +436,7 @@ fn format_value(value: &PropertyValue, name: &str) -> String {
             }
         },
         PropertyValue::Bool(v) => v.to_string(),
+        PropertyValue::Enum(v) => v.clone(),
         PropertyValue::Variant { value, .. } => match value.as_ref() {
             PropertyValue::Bool(v) => v.to_string(),
             PropertyValue::String(v) => v.clone(),

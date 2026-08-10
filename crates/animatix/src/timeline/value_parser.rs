@@ -46,6 +46,32 @@ pub(crate) fn parse_value(
     subject: &str,
 ) -> Option<PropertyValue> {
     match value_type {
+        ValueType::Enum(variants) => {
+            let text = match expr {
+                Expr::Ident(name) | Expr::Str(name) => name.clone(),
+                _ => {
+                    evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?.as_str()
+                },
+            };
+            if variants.contains(&text.as_str()) {
+                Some(PropertyValue::Enum(text))
+            } else {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::InvalidPropertyValue,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "'{}' expects one of {}, got '{}'",
+                            subject,
+                            variants.join(" | "),
+                            text
+                        ),
+                    )
+                    .with_subject(subject),
+                );
+                None
+            }
+        },
         ValueType::Sum(variants) => {
             for variant in variants {
                 if let Some(literal) = variant.literal {
@@ -323,6 +349,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn enum_parses_allowed_choice() {
+        let env = Environment::new();
+        let mut diagnostics = Vec::new();
+        let value = parse_value(
+            ValueType::Enum(&["visible", "hidden"]),
+            &Expr::Ident("hidden".to_string()),
+            &env,
+            &mut diagnostics,
+            "overflow",
+        );
+        assert_eq!(value, Some(PropertyValue::Enum("hidden".to_string())));
+    }
+
+    #[test]
     fn sum_parses_named_variants() {
         let env = Environment::new();
         let mut diagnostics = Vec::new();
@@ -388,5 +428,6 @@ fn value_type_name(value_type: ValueType) -> &'static str {
         ValueType::BuildTimeOnly => "BuildTimeOnly",
         ValueType::Union(_) => "Union",
         ValueType::Sum(_) => "Choice",
+        ValueType::Enum(_) => "Enum",
     }
 }

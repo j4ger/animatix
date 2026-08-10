@@ -77,6 +77,8 @@ pub enum PropertyValue {
     MorphOptions(super::MorphOptions),
     /// 2D affine transform matrix (6 components).
     Transform([f32; 6]),
+    /// A fixed choice selected from `ValueType::Enum`.
+    Enum(String),
     /// A named variant with a payload, produced by `ValueType::Sum`.
     Variant {
         /// Canonical variant name.
@@ -760,6 +762,9 @@ fn inject_value(
             );
         },
         PropertyValue::String(v) => {
+            env.set(&*key, Value::Str(v.clone()));
+        },
+        PropertyValue::Enum(v) => {
             env.set(&*key, Value::Str(v.clone()));
         },
         PropertyValue::Bool(v) => {
