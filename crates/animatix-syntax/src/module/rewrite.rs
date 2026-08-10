@@ -291,6 +291,17 @@ pub(super) fn rewrite_stmt(
             value: rewrite_expr(value, prefix, root_label, known_labels, bindings),
             span: *span,
         },
+        Stmt::TypeAlias {
+            is_pub,
+            name,
+            annotation,
+            span,
+        } => Stmt::TypeAlias {
+            is_pub: *is_pub,
+            name: name.clone(),
+            annotation: annotation.clone(),
+            span: *span,
+        },
         Stmt::Keyframe {
             time, body, span, ..
         } => Stmt::Keyframe {

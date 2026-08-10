@@ -440,7 +440,12 @@ The `PROPERTY_REGISTRY` is a static sorted slice. Lookup is O(log n) binary sear
 `ValueType::Sum` models named variants with optional payloads. Parsing selects a variant by literal
 or payload type, and `PropertyValue::Variant` stores the selected name plus payload. This lets
 semantic properties such as `legend` share generic storage, persistence, animation, and inspector
-editors instead of requiring a bespoke core enum and GUI enum per property.
+editors instead of requiring a bespoke core enum and GUI enum per property. `ValueType::Enum` covers
+fixed no-payload choices with the same generic editor path.
+
+User-facing aliases (`type LegendMode = Bool | Str`) are parsed into `Stmt::TypeAlias` and resolved
+by the type environment before component/action parameter checking, so aliases can compose primitives,
+unions, lists, and other aliases.
 
 ### ReadSource — separating write from read
 

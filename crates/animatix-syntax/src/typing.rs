@@ -154,6 +154,7 @@ impl Type {
             TypeAnnotation::Union(types) => {
                 Type::Union(types.iter().map(Type::from_annotation).collect())
             },
+            TypeAnnotation::Alias(_) => Type::Any,
             TypeAnnotation::Any => Type::Any,
         }
     }
@@ -177,6 +178,7 @@ pub struct TypeEnv {
     components: HashMap<String, ComponentSignature>,
     instances: HashMap<String, String>,
     arrays: HashMap<String, Type>,
+    aliases: HashMap<String, Type>,
     namespaces: HashMap<String, NamespaceType>,
     builtins: HashMap<String, Type>,
     functions: HashMap<String, Type>,
@@ -194,6 +196,19 @@ impl TypeEnv {
         let mut env = Self::new();
         env.register_stdlib();
         env
+    }
+
+    /// Register a user-facing type alias, resolving it against existing aliases.
+    pub fn register_alias(&mut self, name: &str, annotation: &TypeAnnotation) {
+        self.aliases.insert(name.to_string(), self.resolve_annotation(annotation));
+    }
+
+    /// Resolve a type annotation, following named aliases.
+    pub fn resolve_annotation(&self, annotation: &TypeAnnotation) -> Type {
+        match annotation {
+            TypeAnnotation::Alias(name) => self.aliases.get(name).cloned().unwrap_or(Type::Any),
+            _ => Type::from_annotation(annotation),
+        }
     }
 
     /// Seed built-in named colors, color constructors, numeric functions, and

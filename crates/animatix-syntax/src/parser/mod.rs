@@ -935,6 +935,30 @@ mod tests {
     }
 
     #[test]
+    fn test_type_alias_parses_union_annotation() {
+        let src = "pub type LegendMode = Bool | Str\n";
+        let res = parser_simple().parse(src);
+        assert!(!res.has_errors(), "parse errors: {:?}", res.errors().collect::<Vec<_>>());
+        let stmts = res.output().expect("expected parse output");
+        match &stmts[0] {
+            Stmt::TypeAlias {
+                is_pub,
+                name,
+                annotation,
+                ..
+            } => {
+                assert!(is_pub);
+                assert_eq!(name, "LegendMode");
+                assert_eq!(
+                    annotation,
+                    &TypeAnnotation::Union(vec![TypeAnnotation::Bool, TypeAnnotation::Str])
+                );
+            },
+            other => panic!("expected TypeAlias, got {:?}", other),
+        }
+    }
+
+    #[test]
     fn parse_action_with_multiple_dotted_targets() {
         // Comma-separated dotted targets: `highlight eq.f1, eq.f2 [500ms]`
         let result = parse_snippet("highlight eq.f1, eq.f2 [500ms]");

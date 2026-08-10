@@ -437,6 +437,15 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             let pub_kw = if *is_pub { "pub " } else { "" };
             format!("{}let {} = {}", pub_kw, name, format_expr(value))
         },
+        Stmt::TypeAlias {
+            is_pub,
+            name,
+            annotation,
+            ..
+        } => {
+            let pub_kw = if *is_pub { "pub " } else { "" };
+            format!("{}type {} = {}", pub_kw, name, annotation)
+        },
         Stmt::ActorDecl {
             is_pub,
             is_anonymous,

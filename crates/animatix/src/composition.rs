@@ -386,6 +386,7 @@ impl Composition {
                         // Top-level statements before the first scene are the shared prelude.
                         match other {
                             Stmt::Import { .. }
+                            | Stmt::TypeAlias { .. }
                             | Stmt::LetDecl { is_pub: true, .. }
                             | Stmt::Config { .. }
                             | Stmt::ComponentDef(..)

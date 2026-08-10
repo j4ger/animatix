@@ -115,6 +115,7 @@ GRAMMAR_PROBES=(
     "bars[i].color = red"
     "bars[i].rows[j].x = red"
     "action transform(value: Bool | Str) {}"
+    "type LegendMode = Bool | Str"
 )
 
 for probe in "${GRAMMAR_PROBES[@]}"; do

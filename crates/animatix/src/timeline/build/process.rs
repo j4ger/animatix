@@ -247,6 +247,7 @@ impl Timeline {
                 | Stmt::RelativeKeyframe { .. }
                 | Stmt::Comment(..)
                 | Stmt::Import { .. }
+                | Stmt::TypeAlias { .. }
                 | Stmt::Config { .. }
                 | Stmt::Scene { .. }
                 | Stmt::Play { .. }

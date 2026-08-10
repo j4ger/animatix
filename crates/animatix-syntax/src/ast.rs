@@ -393,6 +393,8 @@ pub enum TypeAnnotation {
     List(Box<TypeAnnotation>),
     /// Union of accepted types, e.g. `Bool | Str`.
     Union(Vec<TypeAnnotation>),
+    /// Named type alias reference.
+    Alias(String),
     /// Unannotated — accepts any value.
     Any,
 }
@@ -413,6 +415,7 @@ impl std::fmt::Display for TypeAnnotation {
                 let inner = types.iter().map(ToString::to_string).collect::<Vec<_>>().join(" | ");
                 write!(f, "{inner}")
             },
+            TypeAnnotation::Alias(name) => write!(f, "{name}"),
             TypeAnnotation::Any => write!(f, "Any"),
         }
     }
@@ -684,6 +687,18 @@ pub enum Stmt {
         modifiers: Vec<Modifier>,
         /// Nested child items (for containers: `Row { A, B }`).
         children: Vec<InlineItem>,
+        /// Source span for this declaration.
+        span: Option<Span>,
+    },
+
+    /// Type alias declaration: `type LegendMode = Bool | Str`
+    TypeAlias {
+        /// Whether the alias is exported.
+        is_pub: bool,
+        /// Alias name.
+        name: String,
+        /// Aliased type annotation.
+        annotation: TypeAnnotation,
         /// Source span for this declaration.
         span: Option<Span>,
     },

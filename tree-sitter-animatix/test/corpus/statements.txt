@@ -77,6 +77,19 @@ pub let bg = (0.04, 0.06, 0.09, 1.0)
     value: (tuple_expression (number) (number) (number) (number))))
 
 ==================
+Type alias
+==================
+
+type LegendMode = Bool | Str
+
+---
+
+(source_file
+  (type_alias
+    name: (identifier)
+    annotation: (type_annotation)))
+
+==================
 Property assignment
 ==================
 

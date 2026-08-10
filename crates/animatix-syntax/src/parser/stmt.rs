@@ -90,7 +90,9 @@ pub(crate) fn parser<'src>(
                 .ignore_then(type_annotation.clone())
                 .then_ignore(just('>').padded())
                 .map(|inner| TypeAnnotation::List(Box::new(inner)));
-            let atom = simple.or(list);
+            let atom = simple
+                .or(list)
+                .or(common::type_ident().map(TypeAnnotation::Alias));
             let union = atom
                 .clone()
                 .then(
@@ -145,6 +147,26 @@ pub(crate) fn parser<'src>(
                 span: None,
             })
             .labelled("let declaration")
+            .as_context()
+            .padded();
+
+        let type_alias = text::keyword("pub")
+            .padded()
+            .or_not()
+            .then(
+                text::keyword("type")
+                    .padded()
+                    .ignore_then(ident.clone())
+                    .then_ignore(just('=').padded())
+                    .then(type_annotation.clone()),
+            )
+            .map(|(is_pub, (name, annotation))| Stmt::TypeAlias {
+                is_pub: is_pub.is_some(),
+                name,
+                annotation,
+                span: None,
+            })
+            .labelled("type alias")
             .as_context()
             .padded();
 
@@ -722,6 +744,7 @@ pub(crate) fn parser<'src>(
         choice((
             block_comment_reject,
             let_decl,
+            type_alias,
             import_stmt,
             assignment,
             reactive_binding,

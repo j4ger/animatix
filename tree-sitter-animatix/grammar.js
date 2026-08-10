@@ -85,6 +85,7 @@ module.exports = grammar({
       // Deprecated: use_statement is not supported by the runtime PEG parser
       // $.use_statement,
       $.let_declaration,
+      $.type_alias,
       $.component_definition,
       $.action_definition,
       $.scene_declaration,
@@ -128,6 +129,14 @@ module.exports = grammar({
       field('value', $._expression)
     ),
 
+    type_alias: $ => seq(
+      optional('pub'),
+      'type',
+      field('name', $.identifier),
+      '=',
+      field('annotation', $.type_annotation)
+    ),
+
     component_definition: $ => seq(
       optional('pub'),
       'component',
@@ -154,12 +163,12 @@ module.exports = grammar({
       ))
     ),
 
-    type_annotation: $ => choice(
+    type_annotation: $ => prec(10, choice(
       seq($._type_annotation, repeat1(seq('|', $._type_annotation))),
       $._type_annotation
-    ),
+    )),
 
-    _type_annotation: $ => choice(
+    _type_annotation: $ => prec(20, choice(
       'Num',
       'Str',
       'Bool',
@@ -169,8 +178,9 @@ module.exports = grammar({
       'Actor',
       'Scene',
       'Any',
+      $.type_identifier,
       seq('List', '<', $.type_annotation, '>')
-    ),
+    )),
 
     action_definition: $ => seq(
       'action',
@@ -626,5 +636,7 @@ module.exports = grammar({
     boolean: $ => choice('true', 'false'),
 
     identifier: $ => /[a-zA-Z_][a-zA-Z0-9_-]*/,
+
+    type_identifier: $ => /[A-Z][a-zA-Z0-9_-]*/,
   }
 });

@@ -1143,6 +1143,19 @@ pub component Badge(color: Color) {
 }
 ```
 
+Named type aliases make reusable annotations explicit:
+
+```animatix
+type LegendMode = Bool | Str
+pub type Metric = Num | Str
+
+pub component MetricCard(value: Metric) {
+    // value accepts any alias-compatible type
+}
+```
+
+Aliases are resolved before type checking, so they can wrap primitive types, unions, lists, and other aliases.
+
 ### 13.2 Available Types
 
 | Type | Description | Literal Syntax |

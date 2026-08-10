@@ -10,6 +10,7 @@ pub(crate) fn sequence_stmt_kind(stmt: &Stmt) -> &'static str {
         Stmt::Sequence { .. } => "sequence",
         Stmt::Stagger { .. } => "stagger",
         Stmt::LetDecl { .. } => "let declaration",
+        Stmt::TypeAlias { .. } => "type alias",
         Stmt::ActorDecl { .. } => "actor declaration",
         Stmt::Import { .. } => "import",
         Stmt::Keyframe { .. } => "keyframe",

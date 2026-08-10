@@ -129,6 +129,7 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
         Stmt::Action(..) => Err(IrLowerError::UnsupportedStatement("action")),
         Stmt::ActorDecl { .. }
         | Stmt::Import { .. }
+        | Stmt::TypeAlias { .. }
         | Stmt::Keyframe { .. }
         | Stmt::RelativeKeyframe { .. }
         | Stmt::Sequence { .. }

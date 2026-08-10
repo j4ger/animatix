@@ -65,6 +65,14 @@ impl<'a> TypeEnv<'a> {
 
     /// Check all statements in a program, returning any type errors.
     pub fn check_statements(&mut self, stmts: &[Stmt]) -> Vec<Diagnostic> {
+        for stmt in stmts {
+            if let Stmt::TypeAlias {
+                name, annotation, ..
+            } = stmt
+            {
+                self.typed.register_alias(name, annotation);
+            }
+        }
         let mut diagnostics = Vec::new();
         for stmt in stmts {
             self.check_stmt(stmt, &mut diagnostics);
@@ -223,7 +231,7 @@ impl<'a> TypeEnv<'a> {
                     let ty = param
                         .param_type
                         .as_ref()
-                        .map(TypedType::from_annotation)
+                        .map(|annotation| self.typed.resolve_annotation(annotation))
                         .or_else(|| {
                             param
                                 .default
@@ -249,7 +257,7 @@ impl<'a> TypeEnv<'a> {
                     let ty = param
                         .param_type
                         .as_ref()
-                        .map(TypedType::from_annotation)
+                        .map(|annotation| self.typed.resolve_annotation(annotation))
                         .or_else(|| {
                             param
                                 .default
@@ -340,7 +348,7 @@ impl<'a> TypeEnv<'a> {
             if let Some(expected) = &param.param_type {
                 if let Some(value) = provided.get(param.name.as_str()) {
                     let actual = typing::infer_expr_type(value, &self.typed);
-                    let expected = TypedType::from_annotation(expected);
+                    let expected = self.typed.resolve_annotation(expected);
                     if !typing::is_subtype(&actual, &expected) {
                         diagnostics.push(
                             Diagnostic::error(
@@ -416,7 +424,7 @@ impl<'a> TypeEnv<'a> {
             if let Some(param) = param_map.get(prop.name.as_str()) {
                 if let Some(expected) = &param.param_type {
                     let actual = typing::infer_expr_type(&prop.value, &self.typed);
-                    let expected = TypedType::from_annotation(expected);
+                    let expected = self.typed.resolve_annotation(expected);
                     if !typing::is_subtype(&actual, &expected) {
                         diagnostics.push(
                             Diagnostic::error(
@@ -734,6 +742,58 @@ mod tests {
                 },
                 None,
             ),
+        ];
+        let diagnostics = env.check_statements(&stmts);
+        assert!(diagnostics.is_empty(), "Expected no errors, got: {:?}", diagnostics);
+    }
+
+    #[test]
+    fn type_alias_resolves_in_component_param() {
+        let def = ComponentDef {
+            name: "Card".to_string(),
+            params: vec![ParamDef {
+                name: "value".to_string(),
+                param_type: Some(TypeAnnotation::Alias("Metric".to_string())),
+                default: None,
+            }],
+            body: vec![],
+            is_pub: false,
+        };
+        let mut components = HashMap::new();
+        components.insert(
+            "Card".to_string(),
+            ComponentEntry {
+                definition: def.clone(),
+                source_path: std::path::PathBuf::new(),
+                actions: HashMap::new(),
+            },
+        );
+        let empty_actions = HashMap::new();
+        let mut env = TypeEnv::new(&components, &empty_actions);
+        let stmts = vec![
+            Stmt::TypeAlias {
+                is_pub: true,
+                name: "Metric".to_string(),
+                annotation: TypeAnnotation::Union(vec![TypeAnnotation::Bool, TypeAnnotation::Str]),
+                span: None,
+            },
+            Stmt::ComponentDef(def.clone(), None),
+            Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "card".to_string(),
+                array_index: None,
+                ty: "Card".to_string(),
+                props: vec![Property {
+                    name: "value".to_string(),
+                    value: Expr::Str("Revenue".to_string()),
+                    value_span: None,
+                    trailing_comment: None,
+                }],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            },
         ];
         let diagnostics = env.check_statements(&stmts);
         assert!(diagnostics.is_empty(), "Expected no errors, got: {:?}", diagnostics);

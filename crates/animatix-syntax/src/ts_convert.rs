@@ -214,6 +214,7 @@ impl<'a> TsConverter<'a> {
             "config" => Some(self.convert_config(node)),
             "import_statement" => Some(self.convert_import(node)),
             "let_declaration" => Some(self.convert_let(node)),
+            "type_alias" => Some(self.convert_type_alias(node)),
             "component_definition" => Some(self.convert_component_def(node)),
             "action_definition" => Some(self.convert_action_def(node)),
             "scene_declaration" => Some(self.convert_scene_decl(node)),
@@ -280,6 +281,37 @@ impl<'a> TsConverter<'a> {
             value,
             span: node_span(node),
         }
+    }
+
+    fn convert_type_alias(&mut self, node: Node) -> Stmt {
+        let is_pub = self.has_child_text(node, "pub");
+        let name = node
+            .child_by_field_name("name")
+            .map(|n| self.node_text(n).to_string())
+            .unwrap_or_default();
+        let annotation = node
+            .child_by_field_name("annotation")
+            .map(|n| self.convert_type_annotation(n))
+            .unwrap_or(TypeAnnotation::Any);
+        Stmt::TypeAlias {
+            is_pub,
+            name,
+            annotation,
+            span: node_span(node),
+        }
+    }
+
+    fn convert_type_annotation(&self, node: Node) -> TypeAnnotation {
+        let text = self.node_text(node).to_string();
+        if text.is_empty() {
+            return TypeAnnotation::Any;
+        }
+        if let Some(stmts) = crate::parser::parse_source(&format!("type __alias = {text}\n")).0 {
+            if let Some(Stmt::TypeAlias { annotation, .. }) = stmts.first() {
+                return annotation.clone();
+            }
+        }
+        TypeAnnotation::Alias(text)
     }
 
     fn convert_component_def(&mut self, node: Node) -> Stmt {
@@ -1769,6 +1801,24 @@ title: Text, text: "Hello"
         assert!(!result.statements.is_empty(), "expected statements");
         // Could be a scene declaration or a keyframe — depends on grammar
         // Scene declarations have a name field
+    }
+
+    #[test]
+    fn parse_type_alias() {
+        let source = "type LegendMode = Bool | Str\n";
+        let result = parse_source(source).expect("parse should succeed");
+        match &result.statements[0] {
+            Stmt::TypeAlias {
+                name, annotation, ..
+            } => {
+                assert_eq!(name, "LegendMode");
+                assert_eq!(
+                    annotation,
+                    &TypeAnnotation::Union(vec![TypeAnnotation::Bool, TypeAnnotation::Str])
+                );
+            },
+            other => panic!("expected type alias, got: {:?}", other),
+        }
     }
 
     #[test]
