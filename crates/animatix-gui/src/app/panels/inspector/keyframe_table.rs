@@ -436,6 +436,11 @@ fn format_value(value: &PropertyValue, name: &str) -> String {
             }
         },
         PropertyValue::Bool(v) => v.to_string(),
+        PropertyValue::Variant { value, .. } => match value.as_ref() {
+            PropertyValue::Bool(v) => v.to_string(),
+            PropertyValue::String(v) => v.clone(),
+            other => format!("{other:?}"),
+        },
         PropertyValue::PointList(v) => format!("[{} pts]", v.len()),
         PropertyValue::CommandList(v) => {
             if v.len() > 24 {

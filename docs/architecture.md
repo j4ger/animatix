@@ -437,6 +437,11 @@ struct PropertySchema {
 
 The `PROPERTY_REGISTRY` is a static sorted slice. Lookup is O(log n) binary search.
 
+`ValueType::Sum` models named variants with optional payloads. Parsing selects a variant by literal
+or payload type, and `PropertyValue::Variant` stores the selected name plus payload. This lets
+semantic properties such as `legend` share generic storage, persistence, animation, and inspector
+editors instead of requiring a bespoke core enum and GUI enum per property.
+
 ### ReadSource — separating write from read
 
 A property's `field` says where to write at BUILD time (parsing, keyframing).

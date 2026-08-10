@@ -76,7 +76,48 @@ pub enum ValueType {
     BuildTimeOnly,
     /// A tagged union of basic value types. Variants are tried in order.
     Union(&'static [ValueType]),
+    /// A named sum type with optional payloads, e.g. `Bool | Str` choices.
+    Sum(&'static [SumVariant]),
 }
+
+/// Exact literal used to select a named sum variant before payload parsing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SumLiteral {
+    /// Boolean literal discriminator.
+    Bool(bool),
+    /// String literal discriminator.
+    Str(&'static str),
+}
+
+/// One named variant in a [`ValueType::Sum`] schema.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct SumVariant {
+    /// Canonical variant name.
+    pub name: &'static str,
+    /// Payload type carried by this variant.
+    pub value_type: ValueType,
+    /// Optional exact literal that selects this variant before generic parsing.
+    pub literal: Option<SumLiteral>,
+}
+
+/// Named variants for the generic `legend` property.
+pub static LEGEND_SUM_VARIANTS: &[SumVariant] = &[
+    SumVariant {
+        name: "auto",
+        value_type: ValueType::Bool,
+        literal: Some(SumLiteral::Bool(true)),
+    },
+    SumVariant {
+        name: "hidden",
+        value_type: ValueType::Bool,
+        literal: Some(SumLiteral::Bool(false)),
+    },
+    SumVariant {
+        name: "label",
+        value_type: ValueType::String,
+        literal: None,
+    },
+];
 
 // ─────────────────────────────────────────────────────────────
 // Property flags
@@ -1064,7 +1105,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     ),
     schema!(
         "legend",
-        ValueType::Union(&[ValueType::Bool, ValueType::String]),
+        ValueType::Sum(LEGEND_SUM_VARIANTS),
         F::ASSIGNABLE_A,
         ActorField::Tagged("legend"),
         None,

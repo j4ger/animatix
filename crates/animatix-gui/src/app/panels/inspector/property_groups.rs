@@ -1,7 +1,8 @@
 use animatix::renderer::text as animatix_text;
 use animatix::timeline::{
-    ActorField, AnimationTrack, PROPERTY_REGISTRY, PropertyValue, ShapeType, ValueType,
-    allowed_property_indices, property_has_keyframes, read_property_value_or_default,
+    ActorField, AnimationTrack, LEGEND_SUM_VARIANTS, PROPERTY_REGISTRY, PropertyValue, ShapeType,
+    SumVariant, ValueType, allowed_property_indices, property_has_keyframes,
+    read_property_value_or_default,
 };
 use egui::{Color32, Stroke, Vec2};
 use eparts::widget::{Badge, Select};
@@ -50,6 +51,10 @@ pub(crate) enum PropertyKind {
         variants: &'static [ValueType],
         value: PropertyValue,
     },
+    Sum {
+        variants: &'static [SumVariant],
+        value: PropertyValue,
+    },
 }
 
 // ─── Group Builder (generic via registry) ─────────────────────────────────
@@ -90,6 +95,7 @@ pub(crate) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
         let value = convert_for_display(value, schema.name, track.kind);
         let kind = match schema.value_type {
             ValueType::Union(variants) => PropertyKind::Union { variants, value },
+            ValueType::Sum(variants) => PropertyKind::Sum { variants, value },
             _ => value_to_kind(value, schema.value_type, schema.name),
         };
         let entry = PropertyEntry {
@@ -193,8 +199,9 @@ pub(crate) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
     if track.kind == animatix::timeline::ActorKindId::Legend {
         legend_props.extend(legend_style_entries(track));
     }
-    if track.legend.color.is_some() || track.legend.mode != animatix::timeline::LegendMode::Auto {
-        legend_props.push(legend_participation_entry(track));
+    let mode = animatix::timeline::legend::legend_mode_for_track(track);
+    if track.legend.color.is_some() || mode != animatix::timeline::LegendMode::Auto {
+        legend_props.push(legend_participation_entry(track, mode));
     }
     if !legend_props.is_empty() {
         groups.push(PropertyGroup {
@@ -207,16 +214,28 @@ pub(crate) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
     groups
 }
 
-fn legend_participation_entry(track: &AnimationTrack) -> PropertyEntry {
-    let value = match &track.legend.mode {
-        animatix::timeline::LegendMode::Auto => PropertyValue::Bool(true),
-        animatix::timeline::LegendMode::Hidden => PropertyValue::Bool(false),
-        animatix::timeline::LegendMode::Label(label) => PropertyValue::String(label.clone()),
+fn legend_participation_entry(
+    _track: &AnimationTrack,
+    mode: animatix::timeline::LegendMode,
+) -> PropertyEntry {
+    let value = match &mode {
+        animatix::timeline::LegendMode::Auto => PropertyValue::Variant {
+            name: "auto".to_string(),
+            value: Box::new(PropertyValue::Bool(true)),
+        },
+        animatix::timeline::LegendMode::Hidden => PropertyValue::Variant {
+            name: "hidden".to_string(),
+            value: Box::new(PropertyValue::Bool(false)),
+        },
+        animatix::timeline::LegendMode::Label(label) => PropertyValue::Variant {
+            name: "label".to_string(),
+            value: Box::new(PropertyValue::String(label.clone())),
+        },
     };
     PropertyEntry {
         name: "legend",
-        kind: PropertyKind::Union {
-            variants: &[ValueType::Bool, ValueType::String],
+        kind: PropertyKind::Sum {
+            variants: LEGEND_SUM_VARIANTS,
             value,
         },
         has_keyframes: false,
@@ -328,6 +347,11 @@ fn value_to_kind(value: PropertyValue, ty: ValueType, name: &str) -> PropertyKin
         (PropertyValue::Color(v), _) => PropertyKind::Color(v),
         (PropertyValue::String(v), _) => PropertyKind::Text(v),
         (PropertyValue::Bool(v), _) => PropertyKind::Text(v.to_string()),
+        (PropertyValue::Variant { value, .. }, _) => match value.as_ref() {
+            PropertyValue::Bool(v) => PropertyKind::Text(v.to_string()),
+            PropertyValue::String(v) => PropertyKind::Text(v.clone()),
+            other => PropertyKind::Text(format!("{other:?}")),
+        },
         (PropertyValue::Vec4(v), ValueType::Color) => PropertyKind::Color(v),
         (PropertyValue::Vec4(v), _) => PropertyKind::Vec2 { x: v[0], y: v[1] },
         (PropertyValue::U32(v), ValueType::ShapeType) => {
@@ -872,6 +896,72 @@ pub(crate) fn render_property_row(
                 },
             );
         },
+        PropertyKind::Sum { variants, value } => {
+            let current_variant = match value {
+                PropertyValue::Variant { name, .. } => name.as_str(),
+                _ => "",
+            };
+            let mut selected =
+                variants.iter().position(|variant| variant.name == current_variant).unwrap_or(0);
+            let previous = selected;
+            let mut buf = match value {
+                PropertyValue::Variant { value: inner, .. } => match inner.as_ref() {
+                    PropertyValue::String(s) => s.clone(),
+                    _ => String::new(),
+                },
+                _ => String::new(),
+            };
+            let mut label_changed = false;
+            ui.scope_builder(
+                egui::UiBuilder::new()
+                    .max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
+                |ui| {
+                    *ui.style_mut() = flat_style.clone();
+                    ui.with_layout(
+                        egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
+                        |ui| {
+                            ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_1, 0.0);
+                            for (index, variant) in variants.iter().enumerate() {
+                                ui.selectable_value(&mut selected, index, variant.name);
+                            }
+                            if variants
+                                .get(selected)
+                                .is_some_and(|v| v.value_type == ValueType::String)
+                            {
+                                let tf_resp = TextField::new(&mut buf)
+                                    .desired_width(ui.available_width().max(60.0))
+                                    .show(ui);
+                                label_changed = tf_resp.changed;
+                            }
+                        },
+                    );
+                },
+            );
+            if selected != previous {
+                let edit_value = gui_value_for_sum_variant(&variants[selected], buf.clone());
+                commands.push_back(
+                    DocumentCommand::PropertyEdit(PropertyEdit {
+                        time_s: None,
+                        actor: actor_label.to_string(),
+                        property: entry.name.to_string(),
+                        value: edit_value,
+                        create_keyframe: keyframe_mode,
+                    })
+                    .into(),
+                );
+            } else if label_changed {
+                commands.push_back(
+                    DocumentCommand::PropertyEdit(PropertyEdit {
+                        time_s: None,
+                        actor: actor_label.to_string(),
+                        property: entry.name.to_string(),
+                        value: GuiPropertyValue::Text(buf),
+                        create_keyframe: keyframe_mode,
+                    })
+                    .into(),
+                );
+            }
+        },
         PropertyKind::Union { variants, value } => {
             if variants.contains(&ValueType::Bool) && variants.contains(&ValueType::String) {
                 let (mut selected, mut buf) = match value {
@@ -1063,6 +1153,22 @@ pub(crate) fn render_property_row(
     }
 }
 
+fn gui_value_for_sum_variant(variant: &SumVariant, buf: String) -> GuiPropertyValue {
+    match variant.literal {
+        Some(animatix::timeline::property_registry::SumLiteral::Bool(value)) => {
+            GuiPropertyValue::Bool(value)
+        },
+        Some(animatix::timeline::property_registry::SumLiteral::Str(value)) => {
+            GuiPropertyValue::Text(value.to_string())
+        },
+        None => match variant.value_type {
+            ValueType::String => GuiPropertyValue::Text(buf),
+            ValueType::Bool => GuiPropertyValue::Bool(true),
+            _ => GuiPropertyValue::Text(buf),
+        },
+    }
+}
+
 /// Convert a PropertyEntry's current value to a GuiPropertyValue for keyframe creation.
 fn entry_to_gui_value(entry: &PropertyEntry) -> Option<GuiPropertyValue> {
     match &entry.kind {
@@ -1071,6 +1177,17 @@ fn entry_to_gui_value(entry: &PropertyEntry) -> Option<GuiPropertyValue> {
         PropertyKind::U32(v) => Some(GuiPropertyValue::Float(*v as f32)),
         PropertyKind::Color(rgba) => Some(GuiPropertyValue::Color(*rgba)),
         PropertyKind::Text(t) => Some(GuiPropertyValue::Text(t.clone())),
+        PropertyKind::Sum { variants, value } => match value {
+            PropertyValue::Variant { name, value: inner } => {
+                let index = variants.iter().position(|variant| variant.name == name).unwrap_or(0);
+                let buf = match inner.as_ref() {
+                    PropertyValue::String(s) => s.clone(),
+                    _ => String::new(),
+                };
+                Some(gui_value_for_sum_variant(&variants[index], buf))
+            },
+            _ => None,
+        },
         PropertyKind::Union { value, .. } => match value {
             PropertyValue::Bool(b) => Some(GuiPropertyValue::Bool(*b)),
             PropertyValue::String(s) => Some(GuiPropertyValue::Text(s.clone())),

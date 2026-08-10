@@ -30,6 +30,17 @@ impl LegendMode {
             super::property_engine::PropertyValue::String(label) => {
                 Some(LegendMode::Label(label.clone()))
             },
+            super::property_engine::PropertyValue::Variant { name, value } => match name.as_str() {
+                "auto" => Some(LegendMode::Auto),
+                "hidden" => Some(LegendMode::Hidden),
+                "label" => match value.as_ref() {
+                    super::property_engine::PropertyValue::String(label) => {
+                        Some(LegendMode::Label(label.clone()))
+                    },
+                    _ => None,
+                },
+                _ => None,
+            },
             _ => None,
         }
     }
@@ -41,8 +52,6 @@ impl LegendMode {
 pub struct LegendTracks {
     /// Auto-generated legend entries (label, color) pairs
     pub entries: Vec<(String, [f32; 4])>,
-    /// Per-actor legend participation mode, updated when `legend` is declared.
-    pub mode: LegendMode,
     /// Explicit color captured from the actor declaration, if any.
     pub color: Option<[f32; 4]>,
     /// Whether `legend` was explicitly declared on this actor.
@@ -61,11 +70,21 @@ pub struct LegendTracks {
     pub text_max_width: f32,
 }
 
+/// Derive the current legend participation mode from the tagged `legend` property.
+pub fn legend_mode_for_track(track: &super::AnimationTrack) -> LegendMode {
+    let time_ms = track.first_seen_ms;
+    let value =
+        super::dispatch::read_property_value(track, super::ActorField::Tagged("legend"), time_ms);
+    value
+        .as_ref()
+        .and_then(LegendMode::from_property_value)
+        .unwrap_or(LegendMode::Auto)
+}
+
 impl Default for LegendTracks {
     fn default() -> Self {
         Self {
             entries: Vec::new(),
-            mode: LegendMode::Auto,
             color: None,
             legend_declared: false,
             title: String::new(),
@@ -153,8 +172,9 @@ pub fn scan_legend_entries(
     let order = source_order(tracks, roots);
     let mut candidates = Vec::new();
     for (label, track) in tracks {
+        let mode = legend_mode_for_track(track);
         if !legend_eligible(&track.kind)
-            || track.legend.mode == LegendMode::Hidden
+            || mode == LegendMode::Hidden
             || (is_full_viewport_background(track) && !track.legend.legend_declared)
         {
             continue;
@@ -162,7 +182,7 @@ pub fn scan_legend_entries(
         let Some(color) = track.legend.color else {
             continue;
         };
-        let display_label = match &track.legend.mode {
+        let display_label = match &mode {
             LegendMode::Label(label) => label.clone(),
             LegendMode::Auto | LegendMode::Hidden => prettify_label(label),
         };

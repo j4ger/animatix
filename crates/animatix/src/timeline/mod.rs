@@ -79,8 +79,8 @@ pub use dispatch::{
 pub use property_engine::PropertyValue;
 // Re-export property registry types for the GUI
 pub use property_registry::{
-    ActorField, PROPERTY_REGISTRY, PropertyFlags, PropertySchema, ValueType,
-    allowed_property_indices, lookup_property,
+    ActorField, LEGEND_SUM_VARIANTS, PROPERTY_REGISTRY, PropertyFlags, PropertySchema, SumVariant,
+    ValueType, allowed_property_indices, lookup_property,
 };
 /// Frame evaluation environment construction and modifier execution.
 ///

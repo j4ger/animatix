@@ -46,6 +46,54 @@ pub(crate) fn parse_value(
     subject: &str,
 ) -> Option<PropertyValue> {
     match value_type {
+        ValueType::Sum(variants) => {
+            for variant in variants {
+                if let Some(literal) = variant.literal {
+                    let value =
+                        evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject);
+                    let matches_literal = match (&literal, &value) {
+                        (
+                            super::property_registry::SumLiteral::Bool(expected),
+                            Some(Value::Bool(actual)),
+                        ) => expected == actual,
+                        (
+                            super::property_registry::SumLiteral::Str(expected),
+                            Some(Value::Str(actual)),
+                        ) => expected == actual,
+                        _ => false,
+                    };
+                    if matches_literal
+                        && let Some(payload) =
+                            parse_value(variant.value_type, expr, env, diagnostics, subject)
+                    {
+                        return Some(PropertyValue::Variant {
+                            name: variant.name.to_string(),
+                            value: Box::new(payload),
+                        });
+                    }
+                }
+            }
+            for variant in variants {
+                let mut branch_diagnostics = Vec::new();
+                if let Some(payload) =
+                    parse_value(variant.value_type, expr, env, &mut branch_diagnostics, subject)
+                {
+                    return Some(PropertyValue::Variant {
+                        name: variant.name.to_string(),
+                        value: Box::new(payload),
+                    });
+                }
+            }
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::InvalidPropertyValue,
+                    DiagnosticPhase::Build,
+                    format!("'{}' expects a supported choice, got an unsupported value", subject),
+                )
+                .with_subject(subject),
+            );
+            None
+        },
         ValueType::Union(variants) => {
             for variant in variants {
                 let mut branch_diagnostics = Vec::new();
@@ -275,6 +323,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn sum_parses_named_variants() {
+        let env = Environment::new();
+        let mut diagnostics = Vec::new();
+        let sum = ValueType::Sum(crate::timeline::property_registry::LEGEND_SUM_VARIANTS);
+
+        let parsed_hidden = parse_value(sum, &Expr::Bool(false), &env, &mut diagnostics, "legend");
+        assert_eq!(
+            parsed_hidden,
+            Some(PropertyValue::Variant {
+                name: "hidden".to_string(),
+                value: Box::new(PropertyValue::Bool(false)),
+            })
+        );
+
+        let parsed_label =
+            parse_value(sum, &Expr::Str("Revenue".to_string()), &env, &mut diagnostics, "legend");
+        assert_eq!(
+            parsed_label,
+            Some(PropertyValue::Variant {
+                name: "label".to_string(),
+                value: Box::new(PropertyValue::String("Revenue".to_string())),
+            })
+        );
+    }
+
+    #[test]
     fn union_parses_bool_and_string_variants() {
         let env = Environment::new();
         let mut diagnostics = Vec::new();
@@ -313,5 +387,6 @@ fn value_type_name(value_type: ValueType) -> &'static str {
         ValueType::Transform => "Transform",
         ValueType::BuildTimeOnly => "BuildTimeOnly",
         ValueType::Union(_) => "Union",
+        ValueType::Sum(_) => "Choice",
     }
 }

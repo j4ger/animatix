@@ -77,6 +77,13 @@ pub enum PropertyValue {
     MorphOptions(super::MorphOptions),
     /// 2D affine transform matrix (6 components).
     Transform([f32; 6]),
+    /// A named variant with a payload, produced by `ValueType::Sum`.
+    Variant {
+        /// Canonical variant name.
+        name: String,
+        /// Parsed payload value.
+        value: Box<PropertyValue>,
+    },
 }
 
 impl Interpolate for PropertyValue {
@@ -109,6 +116,19 @@ impl Interpolate for PropertyValue {
             },
             (PropertyValue::CommandList(a), PropertyValue::CommandList(b)) => {
                 PropertyValue::CommandList(a.interpolate(b, t))
+            },
+            (
+                PropertyValue::Variant {
+                    name: a_name,
+                    value: a_value,
+                },
+                PropertyValue::Variant {
+                    name: b_name,
+                    value: b_value,
+                },
+            ) if a_name == b_name => PropertyValue::Variant {
+                name: a_name.clone(),
+                value: Box::new(a_value.as_ref().interpolate(b_value.as_ref(), t)),
             },
             _ => {
                 if t < 0.5 {
@@ -229,9 +249,6 @@ pub(crate) fn write_property_field(
     };
     if field == ActorField::Tagged("legend") {
         track.legend.legend_declared = true;
-        if let Some(mode) = crate::timeline::LegendMode::from_property_value(&value) {
-            track.legend.mode = mode;
-        }
     }
     if let Some(tf) = track.field_mut(field) {
         match tf {
@@ -747,6 +764,10 @@ fn inject_value(
         },
         PropertyValue::Bool(v) => {
             env.set(&*key, Value::Bool(*v));
+        },
+        PropertyValue::Variant { value, .. } => {
+            inject_value(env, key, prefix_len, name, value);
+            return;
         },
         _ => {},
     }

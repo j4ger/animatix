@@ -1281,6 +1281,18 @@ fn format_property_value(kind: &PropertyKind) -> String {
                 s.clone()
             }
         },
+        PropertyKind::Sum { value, .. } => match value {
+            animatix::timeline::PropertyValue::Variant { name, value } => {
+                let payload = match value.as_ref() {
+                    animatix::timeline::PropertyValue::Bool(v) => v.to_string(),
+                    animatix::timeline::PropertyValue::String(v) => v.clone(),
+                    animatix::timeline::PropertyValue::F32(v) => format!("{v:.2}"),
+                    other => format!("{other:?}"),
+                };
+                format!("{name}: {payload}")
+            },
+            other => format!("{other:?}"),
+        },
         PropertyKind::Union { value, .. } => match value {
             animatix::timeline::PropertyValue::Bool(v) => v.to_string(),
             animatix::timeline::PropertyValue::String(v) => v.clone(),

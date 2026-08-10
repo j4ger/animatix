@@ -146,9 +146,15 @@ fn test_legend_union_property_sets_actor_mode() {
     let timeline = report.output;
 
     let hidden = timeline.get_track("hidden_series").expect("hidden series track");
-    assert_eq!(hidden.legend.mode, super::super::LegendMode::Hidden);
+    assert_eq!(
+        crate::timeline::legend::legend_mode_for_track(hidden),
+        super::super::LegendMode::Hidden
+    );
     let named = timeline.get_track("named_series").expect("named series track");
-    assert_eq!(named.legend.mode, super::super::LegendMode::Label("Revenue".to_string()));
+    assert_eq!(
+        crate::timeline::legend::legend_mode_for_track(named),
+        super::super::LegendMode::Label("Revenue".to_string())
+    );
 }
 
 #[test]

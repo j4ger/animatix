@@ -544,16 +544,30 @@ fn apply_property_edit_to_track(
 
     let linear = animatix_syntax::easing::Easing::Linear;
 
-    use animatix::timeline::LegendMode;
-
     if property == "legend" {
-        track.legend.legend_declared = true;
-        track.legend.mode = match value {
-            PV::Bool(true) => LegendMode::Auto,
-            PV::Bool(false) => LegendMode::Hidden,
-            PV::Text(label) => LegendMode::Label(label.clone()),
+        let pv = match value {
+            PV::Bool(true) => animatix::timeline::PropertyValue::Variant {
+                name: "auto".to_string(),
+                value: Box::new(animatix::timeline::PropertyValue::Bool(true)),
+            },
+            PV::Bool(false) => animatix::timeline::PropertyValue::Variant {
+                name: "hidden".to_string(),
+                value: Box::new(animatix::timeline::PropertyValue::Bool(false)),
+            },
+            PV::Text(label) => animatix::timeline::PropertyValue::Variant {
+                name: "label".to_string(),
+                value: Box::new(animatix::timeline::PropertyValue::String(label.clone())),
+            },
             _ => return,
         };
+        track.legend.legend_declared = true;
+        let tagged = track
+            .tagged_tracks
+            .entry("legend".to_string())
+            .or_default()
+            .get_or_insert_with(|| PropertyTrack::new(pv.clone()));
+        tagged.set_default_value(pv.clone());
+        tagged.add_keyframe(time_ms, pv, linear);
         return;
     }
 
