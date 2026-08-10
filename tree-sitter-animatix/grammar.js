@@ -14,19 +14,13 @@ module.exports = grammar({
   word: $ => $.identifier,
 
   conflicts: $ => [
-    // (x) could be tuple or closure params
     [$._expression, $.closure_expression],
     [$.binary_expression, $.closure_expression],
-    // (a) is ambiguous between tuple and parenthesized
     [$.tuple_expression, $.parenthesized_expression],
-    // foo: Bar {} could be actor declaration or expression
     [$._statement, $._expression],
-    // a.b ambiguity in expression context
     [$._expression, $.path_expression],
     [$.action_invocation, $._expression],
     [$.action_invocation],
-
-
     [$.play_statement, $._expression],
     [$.play_statement, $.object_expression],
     [$.play_statement],
@@ -42,37 +36,21 @@ module.exports = grammar({
     [$.inline_anonymous_actor, $._expression],
     [$.inline_children_block, $.set_expression],
     [$.typst_shorthand],
-    // Foo {} could be object expression or block
     [$._expression, $.object_expression],
-    // expr[index] needs conflict with index_value
     [$._expression, $.index_value],
-    // inline_item: label: Type vs property name: value
     [$.inline_actor_declaration, $.inline_property],
-    // inline_item: label: Type vs property name: value (identifier as expression)
     [$.inline_actor_declaration, $._expression],
-    // identifier { } in inline context: object_expression vs type + children_block
     [$.object_expression, $.children_block],
     [$.object_expression, $.inline_anonymous_actor],
-    // GLR conflicts for inline items inside comma-separated context
     [$.inline_anonymous_actor, $.inline_item],
     [$.inline_actor_declaration, $.inline_item],
-    // optional comma separator: 'identifier {' is ambiguous — children_block of
-    // the preceding inline item, or a new inline_children_block item.
     [$.inline_anonymous_actor],
     [$.inline_actor_declaration],
     [$.inline_actor_declaration, $._expression, $.object_expression],
-    // label[expr]: Type — array_index bracket vs modifier_block bracket
     [$.inline_actor_declaration, $.modifier],
-    // trailing comma in property_list: ',' is ambiguous after last property
     [$.property_list],
-
-    // inline_property inside inline_items vs property inside property_list (object_expression)
     [$.inline_property, $.property],
-
-    // match arm value: block vs set_expression
     [$.block, $.set_expression],
-
-    // _expression ambiguity: keyword `match` vs identifier `match`
     [$._expression, $.identifier],
   ],
 
