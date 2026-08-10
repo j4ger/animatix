@@ -69,14 +69,14 @@ impl Primitive for LegendPrimitive {
     fn evaluate(
         &self,
         ctx: &EvaluateCtx,
-        _text_ctx: Option<&mut TextCompileCtx>,
+        mut text_ctx: Option<&mut TextCompileCtx>,
     ) -> Result<Option<Vec<RenderCommand>>, RenderError> {
         let entries = &ctx.track.legend.entries;
         if entries.is_empty() {
             return Ok(None);
         }
 
-        use kurbo::{Rect, Shape};
+        use kurbo::{Affine, Rect, Shape};
         use vello::peniko::Color;
 
         let mut commands = Vec::new();
@@ -84,9 +84,10 @@ impl Primitive for LegendPrimitive {
         let spacing = 8.0f64;
         let label_offset = swatch_size + spacing;
         let line_height = swatch_size + spacing;
+        let label_color = [0.94, 0.95, 1.0, 1.0];
         let mut y_offset = 0.0f64;
 
-        for (_label, color_rgba) in entries {
+        for (label, color_rgba) in entries {
             // Draw color swatch (rectangle)
             let swatch_rect = Rect::new(0.0, y_offset, swatch_size, y_offset + swatch_size);
             let swatch_path = swatch_rect.to_path(0.1);
@@ -110,34 +111,85 @@ impl Primitive for LegendPrimitive {
                 paths: vec![swatch_vello],
             });
 
-            // Draw label text as filled paths positioned to the right of the swatch.
-            // For now, render a simple filled rectangle placeholder for each label.
-            // Full text rendering would use TextCompileCtx and evaluate_text_paths.
-            let text_width = 80.0f64;
-            let text_rect = Rect::new(
-                label_offset,
-                y_offset,
-                label_offset + text_width,
-                y_offset + swatch_size,
-            );
-            let text_bg_path = text_rect.to_path(0.1);
+            if let Some(text_ctx) = text_ctx.as_deref_mut() {
+                let paths = text_ctx.text_compiler.compile(
+                    label,
+                    crate::renderer::text::DEFAULT_FONT_FAMILY,
+                    14.0,
+                    400.0,
+                    "normal",
+                    1.2,
+                    0.0,
+                    0.0,
+                    label_color,
+                    crate::renderer::text::TextKind::Text,
+                    text_ctx.font_context,
+                    0.0,
+                    "left",
+                    "visible",
+                )?;
 
-            let text_bg_vello = crate::timeline::VelloPath {
-                path: text_bg_path,
-                fill: Some(Color::from_rgba8(
-                    (color_rgba[0] * 255.0) as u8,
-                    (color_rgba[1] * 255.0) as u8,
-                    (color_rgba[2] * 255.0) as u8,
-                    (color_rgba[3] * 64.0) as u8, // low opacity text background
-                )),
-                stroke: None,
-                line_cap: 0,
-                line_join: 0,
-            };
-
-            commands.push(RenderCommand::Paths {
-                paths: vec![text_bg_vello],
-            });
+                if !paths.is_empty() {
+                    let mut min_x = f64::INFINITY;
+                    let mut max_x = f64::NEG_INFINITY;
+                    let mut min_y = f64::INFINITY;
+                    let mut max_y = f64::NEG_INFINITY;
+                    for text_path in paths.iter() {
+                        let bounds = text_path.path.bounding_box();
+                        min_x = min_x.min(bounds.x0);
+                        max_x = max_x.max(bounds.x1);
+                        min_y = min_y.min(bounds.y0);
+                        max_y = max_y.max(bounds.y1);
+                    }
+                    if min_x.is_finite()
+                        && max_x.is_finite()
+                        && min_y.is_finite()
+                        && max_y.is_finite()
+                    {
+                        let text_height = (max_y - min_y).max(0.0);
+                        let translate = Affine::translate((
+                            label_offset - min_x,
+                            y_offset + (swatch_size - text_height) / 2.0 - min_y,
+                        ));
+                        let translated_paths = paths
+                            .iter()
+                            .map(|text_path| {
+                                let mut path = text_path.clone();
+                                path.path.apply_affine(translate);
+                                path
+                            })
+                            .collect::<Vec<_>>();
+                        commands.push(RenderCommand::Text {
+                            paths: std::sync::Arc::from(translated_paths.into_boxed_slice()),
+                        });
+                    }
+                }
+            } else {
+                // Fallback for contexts that do not provide a text compiler.
+                let text_width = 80.0f64;
+                let text_rect = Rect::new(
+                    label_offset,
+                    y_offset,
+                    label_offset + text_width,
+                    y_offset + swatch_size,
+                );
+                let text_bg_path = text_rect.to_path(0.1);
+                let text_bg_vello = crate::timeline::VelloPath {
+                    path: text_bg_path,
+                    fill: Some(Color::from_rgba8(
+                        (color_rgba[0] * 255.0) as u8,
+                        (color_rgba[1] * 255.0) as u8,
+                        (color_rgba[2] * 255.0) as u8,
+                        (color_rgba[3] * 64.0) as u8,
+                    )),
+                    stroke: None,
+                    line_cap: 0,
+                    line_join: 0,
+                };
+                commands.push(RenderCommand::Paths {
+                    paths: vec![text_bg_vello],
+                });
+            }
 
             y_offset += line_height;
         }

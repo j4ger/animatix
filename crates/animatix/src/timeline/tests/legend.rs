@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::ast::Property;
-use crate::primitives::{EvaluateCtx, LEGEND, Primitive, RenderCommand};
+use crate::primitives::{EvaluateCtx, LEGEND, Primitive, RenderCommand, TextCompileCtx};
 
 fn make_config() -> Stmt {
     Stmt::Config {
@@ -236,7 +236,7 @@ fn test_legend_render_commands_produced() {
     let mut track = AnimationTrack::new("legend".to_string());
     track.kind = ActorKindId::Legend;
 
-    // Set placeholder entries (matching what build() would set)
+    // Set manual entries to exercise label rendering without a scene build.
     track.legend.entries = vec![
         ("Series A".to_string(), [1.0, 0.0, 0.0, 1.0]),
         ("Series B".to_string(), [0.0, 1.0, 0.0, 1.0]),
@@ -257,21 +257,28 @@ fn test_legend_render_commands_produced() {
         target_resolver: None,
     };
 
-    let result = LEGEND.evaluate(&ctx, None).expect("evaluate should succeed");
+    let font_context = std::sync::Arc::new(crate::renderer::text::FontContext::new());
+    let mut text_compiler = crate::renderer::text::TextCompiler::new();
+    let mut text_ctx = TextCompileCtx {
+        text_compiler: &mut text_compiler,
+        font_context: &font_context,
+    };
+
+    let result = LEGEND.evaluate(&ctx, Some(&mut text_ctx)).expect("evaluate should succeed");
     assert!(result.is_some(), "legend with entries should return Some(commands)");
 
     let commands = result.unwrap();
-    // Each entry produces 2 Path commands (swatch rect + label bg rect)
-    // So 3 entries = 6 Path commands
     assert_eq!(commands.len(), 6, "3 entries should produce 6 RenderCommands (2 per entry)");
 
-    // Verify each command is a Paths variant
     for (i, cmd) in commands.iter().enumerate() {
         match cmd {
             RenderCommand::Paths { paths } => {
-                assert_eq!(paths.len(), 1, "each command should contain 1 path");
+                assert_eq!(paths.len(), 1, "each swatch command should contain 1 path");
             },
-            _ => panic!("Command {} should be Paths variant", i),
+            RenderCommand::Text { paths } => {
+                assert!(!paths.is_empty(), "legend label should compile glyph paths");
+            },
+            _ => panic!("Command {} should be Paths or Text variant", i),
         }
     }
 }
