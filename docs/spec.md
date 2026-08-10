@@ -665,7 +665,8 @@ Shorthand forms are accepted:
 ### Legend
 
 `Legend` is an **annotation primitive** that auto-generates a color-coded legend from scene content.
-It renders color swatches with compiled text labels, positioned at a configurable location.
+It renders color swatches with compiled text labels, positioned at a configurable location. Labels
+automatically choose a contrasting color based on the sampled scene background.
 
 ```animatix
 legend: Legend, at: (100, 100)

@@ -323,6 +323,8 @@ pub struct EvaluateCtx<'a> {
     pub opacity: f32,
     /// Scene dimensions.
     pub scene_dimensions: SceneDimensions,
+    /// Sampled scene background color at this frame.
+    pub background_color: [f32; 4],
     /// Property overrides from modifiers.
     pub overrides: Option<&'a std::collections::HashMap<String, Value>>,
     /// Pre-sampled vector paths (includes procedural plot sampling).

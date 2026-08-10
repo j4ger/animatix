@@ -150,6 +150,7 @@ fn test_legend_empty() {
             width: 1920,
             height: 1080,
         },
+        background_color: [0.04, 0.06, 0.09, 1.0],
         overrides: None,
         vector_paths: &[],
         target_resolver: None,
@@ -229,6 +230,37 @@ fn test_legend_auto_extraction_from_colored_actors() {
 }
 
 #[test]
+fn example_legend_entries_are_scanned() {
+    let source = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../examples/projects/legend_example.amx"
+    ))
+    .expect("legend example should exist");
+    let ast = animatix_syntax::parser::parse_source(&source).0.expect("example should parse");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    let track = timeline.get_track("legend").expect("legend track should exist");
+    assert_eq!(
+        track.legend.entries,
+        vec![
+            ("Series A".to_string(), [1.0, 0.0, 0.0, 1.0]),
+            ("Series B".to_string(), [0.0, 1.0, 0.0, 1.0]),
+            ("Series C".to_string(), [0.0, 0.0, 1.0, 1.0]),
+        ]
+    );
+    assert_eq!(
+        track.geometry.position.get(0, [0.0, 0.0]),
+        [320.0, 100.0],
+        "Legend 'at' should resolve to a stored position"
+    );
+}
+
+#[test]
 fn test_legend_render_commands_produced() {
     // Create a track with entries and verify evaluate returns Some(commands)
     use kurbo::Affine;
@@ -252,6 +284,7 @@ fn test_legend_render_commands_produced() {
             width: 1920,
             height: 1080,
         },
+        background_color: [0.04, 0.06, 0.09, 1.0],
         overrides: None,
         vector_paths: &[],
         target_resolver: None,

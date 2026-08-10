@@ -530,6 +530,7 @@ impl Timeline {
                         local_transform,
                         opacity,
                         scene_dimensions,
+                        background_color: self.background_color.evaluate(time_ms),
                         overrides: node_overrides,
                         vector_paths: &vector_paths,
                         target_resolver: Some(self),

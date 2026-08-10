@@ -1,6 +1,27 @@
 //! Legend primitive - auto-generates legend from scene content
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
+use crate::timeline::property_track::TrackAccessor;
+
+fn parse_vec2(expr: &Expr) -> Option<[f32; 2]> {
+    if let Expr::Tuple(items) = expr
+        && items.len() == 2
+        && let Expr::Num(x) = items[0]
+        && let Expr::Num(y) = items[1]
+    {
+        return Some([x as f32, y as f32]);
+    }
+    None
+}
+
+fn label_color_for_background(background: [f32; 4]) -> [f32; 4] {
+    let luminance = 0.299 * background[0] + 0.587 * background[1] + 0.114 * background[2];
+    if luminance > 0.5 {
+        [0.08, 0.1, 0.13, 1.0]
+    } else {
+        [0.94, 0.95, 1.0, 1.0]
+    }
+}
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{
     ActorCategory, ActorKindId, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx,
@@ -43,7 +64,7 @@ impl Primitive for LegendPrimitive {
         &self,
         ctx: &mut BuildCtx,
         label: &str,
-        _props: &[Property],
+        props: &[Property],
         _modifiers: &[Modifier],
         _children: &[InlineItem],
     ) -> Result<(), Vec<Diagnostic>> {
@@ -62,6 +83,22 @@ impl Primitive for LegendPrimitive {
         // Entries are populated by the post-build scene scan, so a rebuild
         // starts from an empty slate instead of retaining stale entries.
         track.legend.entries.clear();
+
+        // Legend is an annotation primitive, so it bypasses the generic actor
+        // build path and must resolve its own `at` position.
+        let mut at = [0.0f32, 0.0f32];
+        for prop in props {
+            if prop.name == "at"
+                && let Some(parsed) = parse_vec2(&prop.value)
+            {
+                at = parsed;
+            }
+        }
+        track.geometry.position.ensure([0.0, 0.0]).add_keyframe(
+            ctx.time_ms as u64,
+            at,
+            crate::easing::Easing::Linear,
+        );
 
         Ok(())
     }
@@ -84,7 +121,7 @@ impl Primitive for LegendPrimitive {
         let spacing = 8.0f64;
         let label_offset = swatch_size + spacing;
         let line_height = swatch_size + spacing;
-        let label_color = [0.94, 0.95, 1.0, 1.0];
+        let label_color = label_color_for_background(ctx.background_color);
         let mut y_offset = 0.0f64;
 
         for (label, color_rgba) in entries {
@@ -112,7 +149,7 @@ impl Primitive for LegendPrimitive {
             });
 
             if let Some(text_ctx) = text_ctx.as_deref_mut() {
-                let paths = text_ctx.text_compiler.compile(
+                let paths = match text_ctx.text_compiler.compile(
                     label,
                     crate::renderer::text::DEFAULT_FONT_FAMILY,
                     14.0,
@@ -127,7 +164,40 @@ impl Primitive for LegendPrimitive {
                     0.0,
                     "left",
                     "visible",
-                )?;
+                ) {
+                    Ok(paths) => paths,
+                    Err(err) => {
+                        tracing::warn!(
+                            "Legend '{}' label '{}' failed to compile: {}",
+                            ctx.track.label,
+                            label,
+                            err
+                        );
+                        let fallback_width = 80.0f64;
+                        let fallback_rect = Rect::new(
+                            label_offset,
+                            y_offset,
+                            label_offset + fallback_width,
+                            y_offset + swatch_size,
+                        );
+                        commands.push(RenderCommand::Paths {
+                            paths: vec![crate::timeline::VelloPath {
+                                path: fallback_rect.to_path(0.1),
+                                fill: Some(Color::from_rgba8(
+                                    (color_rgba[0] * 255.0) as u8,
+                                    (color_rgba[1] * 255.0) as u8,
+                                    (color_rgba[2] * 255.0) as u8,
+                                    (color_rgba[3] * 64.0) as u8,
+                                )),
+                                stroke: None,
+                                line_cap: 0,
+                                line_join: 0,
+                            }],
+                        });
+                        y_offset += line_height;
+                        continue;
+                    },
+                };
 
                 if !paths.is_empty() {
                     let mut min_x = f64::INFINITY;
