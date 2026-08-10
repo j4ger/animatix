@@ -26,6 +26,17 @@ themes, CI platform parity, and `StyledExt` helpers.
 |------|----------------|
 | Opportunistic eparts widget adoption | Partially complete; remaining call sites migrate when the surrounding GUI area is next edited. |
 
+### Structural Refactors
+
+| Item | Status / Notes |
+|------|----------------|
+| Generic primitive build path | Open; `Legend`, `Callout`, and other annotations bypass the generic actor build pipeline, causing duplicated `at`/property handling. Move all primitives through the common pipeline and keep primitive-specific hooks for domain logic only. |
+| Migrate remaining bespoke enum-like properties | Open; `ShapeType`, `PlacementMode`, `MorphOptions`, and related typed tracks still use bespoke enums instead of `ValueType::Enum`/`ValueType::Sum`. Needs a migration plan because these types are embedded in dispatch, interpolation, persistence, and GUI code. |
+| Unify GUI and core property value models | Open; GUI `PropertyValue` and core `PropertyValue` are separate and require manual conversions. Replace with one schema-driven value model used by commands, validation, inspector, spreadsheet, and gestures. |
+| Clean up tree-sitter grammar conflicts | Open; many conflict declarations are reported as unnecessary, but removing them breaks parsing without a deeper grammar redesign. Needs the canonical `::` type-path grammar and conflict cleanup as one workstream. |
+| Make `LegendTracks` metadata generic | Open; title, font size, label color, swatch size, gap, and wrapping are domain-specific fields. Fold them into the generic property schema once the primitive build path and value model are unified. |
+| Merge tree-walker and IR/VM into single execution engine | Needs design spike before scheduling. Batch 6 (#12) extracted shared helpers, but the dual-path-with-fallback is currently a safety feature for closures. |
+
 ### Language and Runtime Gaps
 
 | Item | Status / Notes |
@@ -66,5 +77,4 @@ Audit status is from 2026-08-05.
 | **Interactive step control (presentational mode)** | Manim-style `wait()` / `next_slide()`. Architecturally incompatible with Animatix's declarative deterministic playback model. GUI scrubbing covers most use cases. Unchanged. |
 | **Auto-arrow routing / smart connector layout** | Actor anchor-point endpoint refs (`from: n0.right`, `to: n1.left`) cover manual auto-tracking. Remaining value is automatic edge routing/relayout, still niche. |
 | **Per-actor exit before scene transition** | Animate individual actors out before `play SceneName [fade, ...]`. Workaround: `fade-out` actions timed at scene end. Transition blending is already uniform. Unchanged. |
-| **Merge tree-walker and IR/VM into single execution engine** | Long-term, high-risk unification. Batch 6 (#12) extracted shared helpers so duplication is bounded. The dual-path-with-fallback is currently a *safety feature* (it makes closures non-critical). Needs a design spike before scheduling. Unchanged. |
 | **Full `typst_shorthand` (`$$...$$`) parser sync** | Known Batch-8 leftover. Requires tree-sitter external scanner (C) changes, not just grammar edits. Highlighting-only impact today (PEG parser handles `$$...$$` correctly). Pull into a batch only after a scanner spike. Unchanged. |
