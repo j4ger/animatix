@@ -227,7 +227,7 @@ impl PreviewContext<'_> {
                     time_s: None,
                     actor,
                     property,
-                    value: GuiPropertyValue::Text(new_value),
+                    value: GuiPropertyValue::String(new_value),
                     create_keyframe: false,
                 })
                 .into(),

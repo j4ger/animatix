@@ -24,18 +24,20 @@ pub(crate) fn validate_roundtrip(expr: &Expr, expected: &PropertyValue) -> Resul
 fn property_value_to_runtime(value: &PropertyValue) -> Result<Value, String> {
     Ok(match value {
         PropertyValue::Vec2(v) => Value::Vec2([v[0] as f64, v[1] as f64]),
-        PropertyValue::Float(v) => Value::Num(*v as f64),
+        PropertyValue::F32(v) => Value::Num(*v as f64),
         PropertyValue::Bool(v) => Value::Bool(*v),
-        PropertyValue::Color(v) => {
+        PropertyValue::Color(v) | PropertyValue::Vec4(v) => {
             Value::Color([v[0] as f64, v[1] as f64, v[2] as f64, v[3] as f64])
         },
-        PropertyValue::Text(s) => Value::Str(s.clone()),
+        PropertyValue::String(s) => Value::Str(s.clone()),
+        PropertyValue::Enum(s) => Value::Str(s.clone()),
         PropertyValue::StringList(items) => {
             Value::List(items.iter().cloned().map(Value::Str).collect())
         },
         PropertyValue::PointList(points) => {
             Value::List(points.iter().map(|&[x, y]| Value::Vec2([x as f64, y as f64])).collect())
         },
+        other => return Err(format!("unsupported property value {other:?}")),
     })
 }
 

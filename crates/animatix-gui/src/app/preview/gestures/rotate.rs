@@ -133,7 +133,7 @@ impl GestureHandler for RotateGesture {
                         time_s: None,
                         actor,
                         property: "rotation".into(),
-                        value: PropertyValue::Float(new_rot),
+                        value: PropertyValue::F32(new_rot),
                         create_keyframe: ctx.keyframe_mode,
                     })
                     .into(),

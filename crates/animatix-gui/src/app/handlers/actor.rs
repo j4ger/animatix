@@ -331,7 +331,7 @@ pub fn handle_align_actors(
     if let Some(ref mut stmts) = document_store.source.document.raw_statements {
         let snapshot = stmts.clone();
         for edit in &edits {
-            let expr = match animatix_syntax::ast::Expr::try_from(edit.value.clone()) {
+            let expr = match crate::app::commands::property_value_to_expr(edit.value.clone()) {
                 Ok(e) => e,
                 Err(e) => {
                     *stmts = snapshot;
@@ -441,7 +441,7 @@ pub fn handle_distribute_actors(
     if let Some(ref mut stmts) = document_store.source.document.raw_statements {
         let snapshot = stmts.clone();
         for edit in &edits {
-            let expr = match animatix_syntax::ast::Expr::try_from(edit.value.clone()) {
+            let expr = match crate::app::commands::property_value_to_expr(edit.value.clone()) {
                 Ok(e) => e,
                 Err(e) => {
                     *stmts = snapshot;

@@ -505,72 +505,64 @@ pub struct PropertyEdit {
 }
 
 /// The typed value of a property edit.
-#[derive(Debug, Clone)]
-pub enum PropertyValue {
-    Vec2([f32; 2]),
-    Float(f32),
-    Bool(bool),
-    Color([f32; 4]),
-    Text(String),
-    StringList(Vec<String>),
-    PointList(Vec<[f32; 2]>),
-}
+///
+/// This is the same schema-driven value model used by the core timeline so GUI
+/// edits, inspector display, and engine evaluation do not need a parallel enum.
+pub type PropertyValue = animatix::timeline::PropertyValue;
 
-impl TryFrom<PropertyValue> for animatix_syntax::ast::Expr {
-    type Error = String;
-    fn try_from(pv: PropertyValue) -> Result<Self, Self::Error> {
-        let expr = match &pv {
-            PropertyValue::Vec2([x, y]) => animatix_syntax::ast::Expr::Tuple(vec![
-                animatix_syntax::ast::Expr::Num(*x as f64),
-                animatix_syntax::ast::Expr::Num(*y as f64),
-            ]),
-            PropertyValue::Float(v) => animatix_syntax::ast::Expr::Num(*v as f64),
-            PropertyValue::Color([r, g, b, a]) => {
-                if (*a - 1.0).abs() < 0.001
-                    && r.fract() == 0.0
-                    && g.fract() == 0.0
-                    && b.fract() == 0.0
-                {
-                    animatix_syntax::ast::Expr::Call(
-                        "rgb".into(),
-                        vec![
-                            animatix_syntax::ast::Expr::Num((*r * 255.0) as i64 as f64),
-                            animatix_syntax::ast::Expr::Num((*g * 255.0) as i64 as f64),
-                            animatix_syntax::ast::Expr::Num((*b * 255.0) as i64 as f64),
-                        ],
-                    )
-                } else {
-                    animatix_syntax::ast::Expr::Call(
-                        "rgba".into(),
-                        vec![
-                            animatix_syntax::ast::Expr::Num(*r as f64),
-                            animatix_syntax::ast::Expr::Num(*g as f64),
-                            animatix_syntax::ast::Expr::Num(*b as f64),
-                            animatix_syntax::ast::Expr::Num(*a as f64),
-                        ],
-                    )
-                }
-            },
-            PropertyValue::Bool(b) => animatix_syntax::ast::Expr::Bool(*b),
-            PropertyValue::Text(s) => animatix_syntax::ast::Expr::Str(s.clone()),
-            PropertyValue::StringList(items) => animatix_syntax::ast::Expr::List(
-                items.iter().map(|s| animatix_syntax::ast::Expr::Str(s.clone())).collect(),
-            ),
-            PropertyValue::PointList(points) => animatix_syntax::ast::Expr::List(
-                points
-                    .iter()
-                    .map(|&[x, y]| {
-                        animatix_syntax::ast::Expr::Tuple(vec![
-                            animatix_syntax::ast::Expr::Num(x as f64),
-                            animatix_syntax::ast::Expr::Num(y as f64),
-                        ])
-                    })
-                    .collect(),
-            ),
-        };
-        crate::validation::validate_roundtrip(&expr, &pv)?;
-        Ok(expr)
-    }
+pub(crate) fn property_value_to_expr(
+    pv: PropertyValue,
+) -> Result<animatix_syntax::ast::Expr, String> {
+    let expr = match &pv {
+        PropertyValue::Vec2([x, y]) => animatix_syntax::ast::Expr::Tuple(vec![
+            animatix_syntax::ast::Expr::Num(*x as f64),
+            animatix_syntax::ast::Expr::Num(*y as f64),
+        ]),
+        PropertyValue::F32(v) => animatix_syntax::ast::Expr::Num(*v as f64),
+        PropertyValue::Color([r, g, b, a]) | PropertyValue::Vec4([r, g, b, a]) => {
+            if (*a - 1.0).abs() < 0.001 && r.fract() == 0.0 && g.fract() == 0.0 && b.fract() == 0.0
+            {
+                animatix_syntax::ast::Expr::Call(
+                    "rgb".into(),
+                    vec![
+                        animatix_syntax::ast::Expr::Num((*r * 255.0) as i64 as f64),
+                        animatix_syntax::ast::Expr::Num((*g * 255.0) as i64 as f64),
+                        animatix_syntax::ast::Expr::Num((*b * 255.0) as i64 as f64),
+                    ],
+                )
+            } else {
+                animatix_syntax::ast::Expr::Call(
+                    "rgba".into(),
+                    vec![
+                        animatix_syntax::ast::Expr::Num(*r as f64),
+                        animatix_syntax::ast::Expr::Num(*g as f64),
+                        animatix_syntax::ast::Expr::Num(*b as f64),
+                        animatix_syntax::ast::Expr::Num(*a as f64),
+                    ],
+                )
+            }
+        },
+        PropertyValue::Bool(b) => animatix_syntax::ast::Expr::Bool(*b),
+        PropertyValue::String(s) => animatix_syntax::ast::Expr::Str(s.clone()),
+        PropertyValue::Enum(s) => animatix_syntax::ast::Expr::Str(s.clone()),
+        PropertyValue::StringList(items) => animatix_syntax::ast::Expr::List(
+            items.iter().map(|s| animatix_syntax::ast::Expr::Str(s.clone())).collect(),
+        ),
+        PropertyValue::PointList(points) => animatix_syntax::ast::Expr::List(
+            points
+                .iter()
+                .map(|&[x, y]| {
+                    animatix_syntax::ast::Expr::Tuple(vec![
+                        animatix_syntax::ast::Expr::Num(x as f64),
+                        animatix_syntax::ast::Expr::Num(y as f64),
+                    ])
+                })
+                .collect(),
+        ),
+        other => return Err(format!("cannot serialize property value {other:?}")),
+    };
+    crate::validation::validate_roundtrip(&expr, &pv)?;
+    Ok(expr)
 }
 
 // =========================================================================

@@ -380,7 +380,7 @@ pub(crate) fn finalize_drag_keyframes(old_drag_state: &DragState, ctx: &mut Prev
                                 time_s: None,
                                 actor: actor.clone(),
                                 property: "rotation".into(),
-                                value: PropertyValue::Float(current_props.rotation),
+                                value: PropertyValue::F32(current_props.rotation),
                                 create_keyframe: true,
                             })
                             .into(),

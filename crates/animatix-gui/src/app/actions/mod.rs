@@ -301,7 +301,7 @@ impl GuiShell {
         &mut self,
         edit: &panels::PropertyEdit,
     ) -> Result<(), crate::source_edit::SourceEditError> {
-        let expr = animatix_syntax::ast::Expr::try_from(edit.value.clone())
+        let expr = crate::app::commands::property_value_to_expr(edit.value.clone())
             .map_err(crate::source_edit::SourceEditError::Generic)?;
         let edit_time_s =
             edit.time_s.unwrap_or(self.preview_store.preview.playback.current_time_s());
@@ -344,7 +344,7 @@ impl GuiShell {
         &mut self,
         edit: &panels::PropertyEdit,
     ) -> Result<(), crate::source_edit::SourceEditError> {
-        let expr = animatix_syntax::ast::Expr::try_from(edit.value.clone())
+        let expr = crate::app::commands::property_value_to_expr(edit.value.clone())
             .map_err(crate::source_edit::SourceEditError::Generic)?;
 
         let (new_source, source_index, flashes) =
@@ -561,7 +561,7 @@ fn apply_property_edit_to_track(
     }
 
     if property == "place" {
-        if let PV::Text(choice) = value
+        if let PV::String(choice) = value
             && let Some(place) = animatix::timeline::animation_track::CalloutPlace::from_str(choice)
         {
             track
@@ -596,7 +596,7 @@ fn apply_property_edit_to_track(
                 name: "hidden".to_string(),
                 value: Box::new(animatix::timeline::PropertyValue::Bool(false)),
             },
-            PV::Text(label) => animatix::timeline::PropertyValue::Variant {
+            PV::String(label) => animatix::timeline::PropertyValue::Variant {
                 name: "label".to_string(),
                 value: Box::new(animatix::timeline::PropertyValue::String(label.clone())),
             },
@@ -616,7 +616,7 @@ fn apply_property_edit_to_track(
     if track.kind == animatix::timeline::ActorKindId::Legend {
         match property {
             "title" => {
-                if let PV::Text(v) = value {
+                if let PV::String(v) = value {
                     track.legend.title = v.clone();
                     write_tagged_value(
                         track,
@@ -629,7 +629,7 @@ fn apply_property_edit_to_track(
                 return;
             },
             "font_size" => {
-                if let PV::Float(v) = value {
+                if let PV::F32(v) = value {
                     track.legend.font_size = *v;
                     write_tagged_value(
                         track,
@@ -642,7 +642,7 @@ fn apply_property_edit_to_track(
                 return;
             },
             "swatch_size" => {
-                if let PV::Float(v) = value {
+                if let PV::F32(v) = value {
                     track.legend.swatch_size = *v;
                     write_tagged_value(
                         track,
@@ -655,7 +655,7 @@ fn apply_property_edit_to_track(
                 return;
             },
             "gap" => {
-                if let PV::Float(v) = value {
+                if let PV::F32(v) = value {
                     track.legend.gap = *v;
                     write_tagged_value(
                         track,
@@ -668,7 +668,7 @@ fn apply_property_edit_to_track(
                 return;
             },
             "text_max_width" => {
-                if let PV::Float(v) = value {
+                if let PV::F32(v) = value {
                     track.legend.text_max_width = *v;
                     write_tagged_value(
                         track,
@@ -681,7 +681,7 @@ fn apply_property_edit_to_track(
                 return;
             },
             "label_color" => {
-                if let PV::Text(v) = value {
+                if let PV::String(v) = value {
                     let parsed = parse_gui_color(v);
                     track.legend.label_color = parsed;
                     if let Some(color) = parsed {
@@ -753,7 +753,7 @@ fn apply_property_edit_to_track(
             return;
         },
         "radius" => {
-            if let PV::Float(v) = value {
+            if let PV::F32(v) = value {
                 let size = [*v, *v];
                 let pt = track.geometry.size.get_or_insert_with(|| PropertyTrack::new(size));
                 pt.set_default_value(size);
@@ -762,7 +762,7 @@ fn apply_property_edit_to_track(
             return;
         },
         "radius_x" => {
-            if let PV::Float(v) = value {
+            if let PV::F32(v) = value {
                 let current =
                     track.geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
                 let size = [*v, current[1]];
@@ -773,7 +773,7 @@ fn apply_property_edit_to_track(
             return;
         },
         "radius_y" => {
-            if let PV::Float(v) = value {
+            if let PV::F32(v) = value {
                 let current =
                     track.geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
                 let size = [current[0], *v];
@@ -784,7 +784,7 @@ fn apply_property_edit_to_track(
             return;
         },
         "start_angle" => {
-            if let PV::Float(v) = value {
+            if let PV::F32(v) = value {
                 let current = track.shape.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
                 let angles = [*v, current[1]];
                 let pt = track.shape.arc_angles.get_or_insert_with(|| PropertyTrack::new(angles));
@@ -794,7 +794,7 @@ fn apply_property_edit_to_track(
             return;
         },
         "sweep_angle" => {
-            if let PV::Float(v) = value {
+            if let PV::F32(v) = value {
                 let current = track.shape.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
                 let angles = [current[0], *v];
                 let pt = track.shape.arc_angles.get_or_insert_with(|| PropertyTrack::new(angles));
@@ -804,7 +804,7 @@ fn apply_property_edit_to_track(
             return;
         },
         "tip_length" => {
-            if let PV::Float(v) = value {
+            if let PV::F32(v) = value {
                 let current =
                     track.geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
                 let size = [*v, current[1]];
@@ -815,7 +815,7 @@ fn apply_property_edit_to_track(
             return;
         },
         "tip_width" => {
-            if let PV::Float(v) = value {
+            if let PV::F32(v) = value {
                 let current =
                     track.geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
                 let size = [current[0], *v];
@@ -837,7 +837,7 @@ fn apply_property_edit_to_track(
                     pt.set_default_value(*v);
                     pt.add_keyframe(time_ms, *v, linear);
                 },
-                (TrackFieldMut::F32(f), PV::Float(v)) => {
+                (TrackFieldMut::F32(f), PV::F32(v)) => {
                     let pt = f.get_or_insert_with(|| PropertyTrack::new(*v));
                     pt.set_default_value(*v);
                     pt.add_keyframe(time_ms, *v, linear);
@@ -847,7 +847,7 @@ fn apply_property_edit_to_track(
                     pt.set_default_value(*v);
                     pt.add_keyframe(time_ms, *v, linear);
                 },
-                (TrackFieldMut::String(f), PV::Text(v)) => {
+                (TrackFieldMut::String(f), PV::String(v)) => {
                     let pt = f.get_or_insert_with(|| PropertyTrack::new(v.clone()));
                     pt.set_default_value(v.clone());
                     pt.add_keyframe(time_ms, v.clone(), linear);
@@ -857,14 +857,14 @@ fn apply_property_edit_to_track(
                     pt.set_default_value(v.clone());
                     pt.add_keyframe(time_ms, v.clone(), linear);
                 },
-                (TrackFieldMut::ShapeType(f), PV::Text(v)) => {
+                (TrackFieldMut::ShapeType(f), PV::String(v)) => {
                     if let Ok(shape) = v.parse::<animatix::timeline::ShapeType>() {
                         let pt = f.get_or_insert_with(|| PropertyTrack::new(shape));
                         pt.set_default_value(shape);
                         pt.add_keyframe(time_ms, shape, linear);
                     }
                 },
-                (TrackFieldMut::PlacementMode(f), PV::Text(v)) => {
+                (TrackFieldMut::PlacementMode(f), PV::String(v)) => {
                     let mode = match v.as_str() {
                         "manual" => Some(animatix::timeline::PlacementMode::Manual),
                         "layout" => Some(animatix::timeline::PlacementMode::LayoutManaged),
@@ -876,7 +876,7 @@ fn apply_property_edit_to_track(
                         pt.add_keyframe(time_ms, mode, linear);
                     }
                 },
-                (TrackFieldMut::CalloutPlace(f), PV::Text(v)) => {
+                (TrackFieldMut::CalloutPlace(f), PV::String(v)) => {
                     if let Some(place) =
                         animatix::timeline::animation_track::CalloutPlace::from_str(v.as_str())
                     {

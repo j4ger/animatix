@@ -71,7 +71,7 @@ impl GestureHandler for MoveActorGesture {
                                 time_s: None,
                                 actor: actor.clone(),
                                 property: "placement_mode".into(),
-                                value: PropertyValue::Text("manual".into()),
+                                value: PropertyValue::String("manual".into()),
                                 create_keyframe: ctx.keyframe_mode,
                             })
                             .into(),

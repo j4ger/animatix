@@ -160,7 +160,7 @@ impl GestureHandler for CalloutGesture {
                                     time_s: None,
                                     actor,
                                     property: "place".into(),
-                                    value: PropertyValue::Text(place_str.to_string()),
+                                    value: PropertyValue::String(place_str.to_string()),
                                     create_keyframe: ctx.keyframe_mode,
                                 })
                                 .into(),
@@ -241,7 +241,7 @@ impl GestureHandler for CalloutGesture {
                                 time_s: None,
                                 actor,
                                 property: "standoff".into(),
-                                value: PropertyValue::Float(new_standoff),
+                                value: PropertyValue::F32(new_standoff),
                                 create_keyframe: ctx.keyframe_mode,
                             })
                             .into(),

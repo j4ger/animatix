@@ -370,6 +370,7 @@ fn value_to_kind(value: PropertyValue, ty: ValueType, name: &str) -> PropertyKin
             PropertyKind::Text(ShapeType::from(v).to_string())
         },
         (PropertyValue::U32(v), _) => PropertyKind::U32(v),
+        (PropertyValue::StringList(v), _) => PropertyKind::Text(format!("[{} items]", v.len())),
         (PropertyValue::PointList(v), _) => PropertyKind::Text(format!("[{} pts]", v.len())),
         (PropertyValue::CommandList(v), _) => PropertyKind::Text(v),
         (PropertyValue::Transform(v), _) => PropertyKind::Text(format!(
@@ -759,7 +760,7 @@ pub(crate) fn render_property_row(
                                             time_s: None,
                                             actor: actor_label.to_string(),
                                             property: entry.name.to_string(),
-                                            value: GuiPropertyValue::Float(nv),
+                                            value: GuiPropertyValue::F32(nv),
                                             create_keyframe: keyframe_mode,
                                         })
                                         .into(),
@@ -802,7 +803,7 @@ pub(crate) fn render_property_row(
                                             time_s: None,
                                             actor: actor_label.to_string(),
                                             property: entry.name.to_string(),
-                                            value: GuiPropertyValue::Float(out_val as f32),
+                                            value: GuiPropertyValue::F32(out_val as f32),
                                             create_keyframe: keyframe_mode,
                                         })
                                         .into(),
@@ -844,7 +845,7 @@ pub(crate) fn render_property_row(
                                         time_s: None,
                                         actor: actor_label.to_string(),
                                         property: entry.name.to_string(),
-                                        value: GuiPropertyValue::Float(nv as u32 as f32),
+                                        value: GuiPropertyValue::F32(nv as u32 as f32),
                                         create_keyframe: keyframe_mode,
                                     })
                                     .into(),
@@ -926,7 +927,7 @@ pub(crate) fn render_property_row(
                             time_s: None,
                             actor: actor_label.to_string(),
                             property: entry.name.to_string(),
-                            value: GuiPropertyValue::Text(chosen.to_string()),
+                            value: GuiPropertyValue::String(chosen.to_string()),
                             create_keyframe: keyframe_mode,
                         })
                         .into(),
@@ -993,7 +994,7 @@ pub(crate) fn render_property_row(
                         time_s: None,
                         actor: actor_label.to_string(),
                         property: entry.name.to_string(),
-                        value: GuiPropertyValue::Text(buf),
+                        value: GuiPropertyValue::String(buf),
                         create_keyframe: keyframe_mode,
                     })
                     .into(),
@@ -1036,7 +1037,7 @@ pub(crate) fn render_property_row(
                     let edit_value = match selected {
                         0 => GuiPropertyValue::Bool(true),
                         1 => GuiPropertyValue::Bool(false),
-                        _ => GuiPropertyValue::Text(buf.clone()),
+                        _ => GuiPropertyValue::String(buf.clone()),
                     };
                     commands.push_back(
                         DocumentCommand::PropertyEdit(PropertyEdit {
@@ -1054,7 +1055,7 @@ pub(crate) fn render_property_row(
                             time_s: None,
                             actor: actor_label.to_string(),
                             property: entry.name.to_string(),
-                            value: GuiPropertyValue::Text(buf),
+                            value: GuiPropertyValue::String(buf),
                             create_keyframe: keyframe_mode,
                         })
                         .into(),
@@ -1119,7 +1120,7 @@ pub(crate) fn render_property_row(
                                                 time_s: None,
                                                 actor: actor_label.to_string(),
                                                 property: entry.name.to_string(),
-                                                value: GuiPropertyValue::Text(chosen.to_string()),
+                                                value: GuiPropertyValue::String(chosen.to_string()),
                                                 create_keyframe: keyframe_mode,
                                             })
                                             .into(),
@@ -1146,7 +1147,7 @@ pub(crate) fn render_property_row(
                                                         time_s: None,
                                                         actor: actor_label.to_string(),
                                                         property: entry.name.to_string(),
-                                                        value: GuiPropertyValue::Text(family),
+                                                        value: GuiPropertyValue::String(family),
                                                         create_keyframe: keyframe_mode,
                                                     })
                                                     .into(),
@@ -1167,7 +1168,7 @@ pub(crate) fn render_property_row(
                                             time_s: None,
                                             actor: actor_label.to_string(),
                                             property: entry.name.to_string(),
-                                            value: GuiPropertyValue::Text(buf),
+                                            value: GuiPropertyValue::String(buf),
                                             create_keyframe: keyframe_mode,
                                         })
                                         .into(),
@@ -1197,12 +1198,12 @@ fn gui_value_for_sum_variant(variant: &SumVariant, buf: String) -> GuiPropertyVa
             GuiPropertyValue::Bool(value)
         },
         Some(animatix::timeline::property_registry::SumLiteral::Str(value)) => {
-            GuiPropertyValue::Text(value.to_string())
+            GuiPropertyValue::String(value.to_string())
         },
         None => match variant.value_type {
-            ValueType::String => GuiPropertyValue::Text(buf),
+            ValueType::String => GuiPropertyValue::String(buf),
             ValueType::Bool => GuiPropertyValue::Bool(true),
-            _ => GuiPropertyValue::Text(buf),
+            _ => GuiPropertyValue::String(buf),
         },
     }
 }
@@ -1211,11 +1212,11 @@ fn gui_value_for_sum_variant(variant: &SumVariant, buf: String) -> GuiPropertyVa
 fn entry_to_gui_value(entry: &PropertyEntry) -> Option<GuiPropertyValue> {
     match &entry.kind {
         PropertyKind::Vec2 { x, y } => Some(GuiPropertyValue::Vec2([*x, *y])),
-        PropertyKind::Float(v) => Some(GuiPropertyValue::Float(*v)),
-        PropertyKind::U32(v) => Some(GuiPropertyValue::Float(*v as f32)),
+        PropertyKind::Float(v) => Some(GuiPropertyValue::F32(*v)),
+        PropertyKind::U32(v) => Some(GuiPropertyValue::F32(*v as f32)),
         PropertyKind::Color(rgba) => Some(GuiPropertyValue::Color(*rgba)),
-        PropertyKind::Text(t) => Some(GuiPropertyValue::Text(t.clone())),
-        PropertyKind::Enum { value, .. } => Some(GuiPropertyValue::Text(value.clone())),
+        PropertyKind::Text(t) => Some(GuiPropertyValue::String(t.clone())),
+        PropertyKind::Enum { value, .. } => Some(GuiPropertyValue::String(value.clone())),
         PropertyKind::Sum { variants, value } => match value {
             PropertyValue::Variant { name, value: inner } => {
                 let index = variants.iter().position(|variant| variant.name == name).unwrap_or(0);
@@ -1229,9 +1230,9 @@ fn entry_to_gui_value(entry: &PropertyEntry) -> Option<GuiPropertyValue> {
         },
         PropertyKind::Union { value, .. } => match value {
             PropertyValue::Bool(b) => Some(GuiPropertyValue::Bool(*b)),
-            PropertyValue::String(s) => Some(GuiPropertyValue::Text(s.clone())),
-            PropertyValue::F32(v) => Some(GuiPropertyValue::Float(*v)),
-            PropertyValue::U32(v) => Some(GuiPropertyValue::Float(*v as f32)),
+            PropertyValue::String(s) => Some(GuiPropertyValue::String(s.clone())),
+            PropertyValue::F32(v) => Some(GuiPropertyValue::F32(*v)),
+            PropertyValue::U32(v) => Some(GuiPropertyValue::F32(*v as f32)),
             PropertyValue::Vec2(v) => Some(GuiPropertyValue::Vec2(*v)),
             PropertyValue::Color(v) | PropertyValue::Vec4(v) => Some(GuiPropertyValue::Color(*v)),
             _ => None,

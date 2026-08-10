@@ -220,9 +220,7 @@ impl GestureHandler for ScaleGesture {
                             time_s: None,
                             actor: actor.clone(),
                             property: "scale".into(),
-                            value: PropertyValue::Float(
-                                (start_scale * ratio).max(PREVIEW_MIN_SCALE),
-                            ),
+                            value: PropertyValue::F32((start_scale * ratio).max(PREVIEW_MIN_SCALE)),
                             create_keyframe: ctx.keyframe_mode,
                         })
                         .into(),

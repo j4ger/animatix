@@ -461,14 +461,14 @@ pub fn get_property_gui_value(
     match (property_name, value) {
         ("position", PropertyValue::Vec2(v)) => Some(GuiPropertyValue::Vec2(v)),
         ("size", PropertyValue::Vec2(v)) => Some(GuiPropertyValue::Vec2(v)),
-        ("rotation", PropertyValue::F32(v)) => Some(GuiPropertyValue::Float(v)),
-        ("scale", PropertyValue::F32(v)) => Some(GuiPropertyValue::Float(v)),
-        ("opacity", PropertyValue::F32(v)) => Some(GuiPropertyValue::Float(v)),
+        ("rotation", PropertyValue::F32(v)) => Some(GuiPropertyValue::F32(v)),
+        ("scale", PropertyValue::F32(v)) => Some(GuiPropertyValue::F32(v)),
+        ("opacity", PropertyValue::F32(v)) => Some(GuiPropertyValue::F32(v)),
         ("color", PropertyValue::Color(v)) => Some(GuiPropertyValue::Color(v)),
-        ("stroke_width", PropertyValue::F32(v)) => Some(GuiPropertyValue::Float(v)),
+        ("stroke_width", PropertyValue::F32(v)) => Some(GuiPropertyValue::F32(v)),
         ("stroke_color", PropertyValue::Color(v)) => Some(GuiPropertyValue::Color(v)),
-        ("stroke_progress", PropertyValue::F32(v)) => Some(GuiPropertyValue::Float(v)),
-        ("fill_opacity", PropertyValue::F32(v)) => Some(GuiPropertyValue::Float(v)),
+        ("stroke_progress", PropertyValue::F32(v)) => Some(GuiPropertyValue::F32(v)),
+        ("fill_opacity", PropertyValue::F32(v)) => Some(GuiPropertyValue::F32(v)),
         _ => None,
     }
 }

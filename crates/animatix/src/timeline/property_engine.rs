@@ -69,6 +69,8 @@ pub enum PropertyValue {
     Color([f32; 4]),
     /// Arbitrary string.
     String(String),
+    /// List of strings used for reordering/selection data.
+    StringList(Vec<String>),
     /// 2D affine transform matrix (6 components).
     Transform([f32; 6]),
     /// A fixed choice selected from `ValueType::Enum`.
@@ -157,6 +159,13 @@ impl Interpolate for PropertyValue {
             },
             (PropertyValue::String(a), PropertyValue::String(b)) => {
                 PropertyValue::String(a.interpolate(b, t))
+            },
+            (PropertyValue::StringList(a), PropertyValue::StringList(b)) => {
+                if t < 0.5 {
+                    PropertyValue::StringList(a.clone())
+                } else {
+                    PropertyValue::StringList(b.clone())
+                }
             },
             (PropertyValue::CommandList(a), PropertyValue::CommandList(b)) => {
                 PropertyValue::CommandList(a.interpolate(b, t))

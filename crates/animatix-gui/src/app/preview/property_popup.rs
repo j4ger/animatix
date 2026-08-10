@@ -281,9 +281,9 @@ fn popup_property_row(
             let value = match property {
                 "position" => PropertyValue::Vec2(values),
                 "size" => PropertyValue::Vec2(values),
-                "rotation" => PropertyValue::Float(values[0].to_radians()),
-                "opacity" => PropertyValue::Float(values[0] / 100.0),
-                _ => PropertyValue::Float(values[0]),
+                "rotation" => PropertyValue::F32(values[0].to_radians()),
+                "opacity" => PropertyValue::F32(values[0] / 100.0),
+                _ => PropertyValue::F32(values[0]),
             };
             commands.push_back(
                 DocumentCommand::PropertyEdit(PropertyEdit {
@@ -387,7 +387,7 @@ fn popup_property_row(
                         time_s: None,
                         actor: actor.to_string(),
                         property: "rotation".into(),
-                        value: PropertyValue::Float(new_deg.to_radians()),
+                        value: PropertyValue::F32(new_deg.to_radians()),
                         create_keyframe: false,
                     })
                     .into(),
@@ -400,7 +400,7 @@ fn popup_property_row(
                         time_s: None,
                         actor: actor.to_string(),
                         property: "opacity".into(),
-                        value: PropertyValue::Float(new_opac / 100.0),
+                        value: PropertyValue::F32(new_opac / 100.0),
                         create_keyframe: false,
                     })
                     .into(),
