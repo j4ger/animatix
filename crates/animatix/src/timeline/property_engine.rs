@@ -69,12 +69,6 @@ pub enum PropertyValue {
     Color([f32; 4]),
     /// Arbitrary string.
     String(String),
-    /// Placement mode for layout.
-    PlacementMode(super::PlacementMode),
-    /// Callout placement side.
-    CalloutPlace(super::animation_track::CalloutPlace),
-    /// Options controlling path morphing.
-    MorphOptions(super::MorphOptions),
     /// 2D affine transform matrix (6 components).
     Transform([f32; 6]),
     /// A fixed choice selected from `ValueType::Enum`.
@@ -86,6 +80,54 @@ pub enum PropertyValue {
         /// Parsed payload value.
         value: Box<PropertyValue>,
     },
+}
+
+/// Stable boundary between typed internal enums and generic property values.
+///
+/// Internal enums stay typed in their tracks, but any code that needs a
+/// schema-driven representation can cross through `to_property_value()` without
+/// matching on the concrete Rust enum.
+pub trait EnumPropertyValue: Copy + PartialEq + std::fmt::Debug {
+    /// Stable name of this value.
+    fn name(&self) -> &'static str;
+
+    /// Parse a stable name back into the typed value.
+    fn from_name(name: &str) -> Option<Self>;
+
+    /// Convert to the generic property-value representation.
+    fn to_property_value(&self) -> PropertyValue {
+        PropertyValue::Enum(self.name().to_string())
+    }
+}
+
+impl EnumPropertyValue for ShapeType {
+    fn name(&self) -> &'static str {
+        self.as_str()
+    }
+
+    fn from_name(name: &str) -> Option<Self> {
+        name.parse().ok()
+    }
+}
+
+impl EnumPropertyValue for super::PlacementMode {
+    fn name(&self) -> &'static str {
+        self.as_str()
+    }
+
+    fn from_name(name: &str) -> Option<Self> {
+        Self::from_str(name)
+    }
+}
+
+impl EnumPropertyValue for super::animation_track::CalloutPlace {
+    fn name(&self) -> &'static str {
+        self.as_str()
+    }
+
+    fn from_name(name: &str) -> Option<Self> {
+        Self::from_str(name)
+    }
 }
 
 impl Interpolate for PropertyValue {
@@ -189,10 +231,14 @@ pub(crate) fn write_property_field(
 
     // ── Tier 1: Special cases ──
     match field {
-        // ShapeType needs U32 -> ShapeType conversion
+        // ShapeType needs U32/Enum -> ShapeType conversion
         ActorField::ShapeType => {
-            if let PropertyValue::U32(v) = value {
-                let st = ShapeType::from(v);
+            let st = match value {
+                PropertyValue::U32(v) => Some(ShapeType::from(v)),
+                PropertyValue::Enum(name) => ShapeType::from_name(&name),
+                _ => None,
+            };
+            if let Some(st) = st {
                 write_shape_type(
                     &mut track.shape.shape_type,
                     st,
@@ -420,9 +466,11 @@ pub(crate) fn write_property_field(
             TrackFieldMut::PlacementMode(_) | TrackFieldMut::MorphOptions(_) => {},
             // CalloutPlace is written via write_callout_place below.
             TrackFieldMut::CalloutPlace(f) => {
-                if let PropertyValue::CalloutPlace(v) = value {
+                if let PropertyValue::Enum(choice) = &value
+                    && let Some(place) = super::animation_track::CalloutPlace::from_str(choice)
+                {
                     f.ensure(super::animation_track::CalloutPlace::Right)
-                        .add_keyframe(t_end_ms, v, easing);
+                        .add_keyframe(t_end_ms, place, easing);
                 }
             },
             // ShapeType is handled in tier 1 above
@@ -880,11 +928,37 @@ pub(crate) fn effective_transform(
 mod tests {
     use super::*;
     use crate::easing::Easing;
+    use crate::timeline::PlacementMode;
+    use crate::timeline::animation_track::CalloutPlace;
     use crate::timeline::dispatch::{
         property_has_keyframe_at, property_has_keyframes, property_keyframe_count,
         property_keyframe_easing, property_keyframe_times, read_property_value,
         read_property_value_or_default,
     };
+
+    #[test]
+    fn enum_boundary_shape_type_roundtrips() {
+        let value = ShapeType::Arrow;
+        assert_eq!(value.name(), "Arrow");
+        assert_eq!(ShapeType::from_name(value.name()), Some(value));
+        assert_eq!(value.to_property_value(), PropertyValue::Enum("Arrow".to_string()));
+    }
+
+    #[test]
+    fn enum_boundary_placement_mode_roundtrips() {
+        let value = PlacementMode::Manual;
+        assert_eq!(value.name(), "manual");
+        assert_eq!(PlacementMode::from_name(value.name()), Some(value));
+        assert_eq!(value.to_property_value(), PropertyValue::Enum("manual".to_string()));
+    }
+
+    #[test]
+    fn enum_boundary_callout_place_roundtrips() {
+        let value = CalloutPlace::Left;
+        assert_eq!(value.name(), "left");
+        assert_eq!(CalloutPlace::from_name(value.name()), Some(value));
+        assert_eq!(value.to_property_value(), PropertyValue::Enum("left".to_string()));
+    }
 
     // Helper: write a keyframe and read it back
     fn write_read_roundtrip(

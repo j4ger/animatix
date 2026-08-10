@@ -309,7 +309,7 @@ pub(crate) fn parse_value(
                         Some(v) => {
                             let owned = v.as_str();
                             return if let Some(p) = CalloutPlace::from_str(&owned) {
-                                Some(PropertyValue::CalloutPlace(p))
+                                Some(PropertyValue::Enum(p.as_str().to_string()))
                             } else {
                                 diagnostics.push(crate::diagnostics::Diagnostic::warning(
                                     crate::diagnostics::DiagnosticCode::InvalidPropertyValue,
@@ -324,7 +324,7 @@ pub(crate) fn parse_value(
                 },
             };
             if let Some(p) = CalloutPlace::from_str(s) {
-                Some(PropertyValue::CalloutPlace(p))
+                Some(PropertyValue::Enum(p.as_str().to_string()))
             } else {
                 diagnostics.push(
                     crate::diagnostics::Diagnostic::warning(

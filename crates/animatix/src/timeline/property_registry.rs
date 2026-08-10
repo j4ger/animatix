@@ -487,9 +487,7 @@ impl ActorField {
             // ── Callout ──
             ActorField::LabelAt => PropertyValue::Vec2([0.0, 0.0]),
             ActorField::CalloutTarget => PropertyValue::String(String::new()),
-            ActorField::CalloutPlace => {
-                PropertyValue::CalloutPlace(crate::timeline::animation_track::CalloutPlace::Right)
-            },
+            ActorField::CalloutPlace => PropertyValue::Enum("right".to_string()),
             ActorField::CalloutStandoff => PropertyValue::F32(40.0),
             ActorField::CalloutToOffset => PropertyValue::Vec2([0.0, 0.0]),
 

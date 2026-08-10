@@ -119,6 +119,31 @@ pub enum PlacementMode {
     Manual,
 }
 
+impl PlacementMode {
+    /// Return the stable source-level name of this mode.
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::LayoutManaged => "layout_managed",
+            Self::Manual => "manual",
+        }
+    }
+
+    /// Parse a stable source-level mode name.
+    pub fn from_str(value: &str) -> Option<Self> {
+        match value {
+            "layout_managed" => Some(Self::LayoutManaged),
+            "manual" => Some(Self::Manual),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for PlacementMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Controls how an actor's dimensions are interpreted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ResizeMode {

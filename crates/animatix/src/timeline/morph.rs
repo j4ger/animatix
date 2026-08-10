@@ -42,6 +42,17 @@ impl Default for MorphOptions {
     }
 }
 
+impl MorphOptions {
+    /// Stable display summary used when this compound option crosses the
+    /// generic property-value boundary.
+    pub fn summary(&self) -> String {
+        format!(
+            "strategy={:?}, path_arc={:.2}, stretch={}",
+            self.strategy, self.path_arc, self.stretch
+        )
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct PathBounds {
     min_x: f64,

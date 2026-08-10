@@ -450,9 +450,6 @@ fn format_value(value: &PropertyValue, name: &str) -> String {
                 v.clone()
             }
         },
-        PropertyValue::PlacementMode(v) => format!("{:?}", v),
-        PropertyValue::CalloutPlace(v) => v.as_str().to_string(),
-        PropertyValue::MorphOptions(v) => format!("{:?}", v),
         PropertyValue::Transform(v) => format!(
             "[{:.2}, {:.2}, {:.2}, {:.2}, {:.2}, {:.2}]",
             v[0], v[1], v[2], v[3], v[4], v[5]

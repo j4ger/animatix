@@ -32,9 +32,9 @@ use crate::easing::Easing;
 use crate::renderer::types::{TextPath, VelloPath};
 use crate::timeline::morph::MorphOptions;
 use crate::timeline::plot::{FuncTransition, ProceduralPlot};
+use crate::timeline::property_engine::EnumPropertyValue;
 pub use crate::timeline::property_engine::PropertyValue;
 use crate::timeline::property_registry::{ActorField, PropertySchema};
-use crate::timeline::shapes::ShapeType;
 
 // ─────────────────────────────────────────────────────────────
 // AnimationTrack
@@ -496,18 +496,18 @@ impl<'a> TrackFieldRef<'a> {
                 opt.as_ref().map(|pt| PropertyValue::Transform(pt.evaluate_copy(time_ms)))
             },
             Self::U32(opt) => opt.as_ref().map(|pt| PropertyValue::U32(pt.evaluate_copy(time_ms))),
-            Self::ShapeType(opt) => opt
-                .as_ref()
-                .map(|pt| PropertyValue::U32(shape_type_to_u32(pt.evaluate_copy(time_ms)))),
+            Self::ShapeType(opt) => {
+                opt.as_ref().map(|pt| pt.evaluate_copy(time_ms).to_property_value())
+            },
             Self::PlacementMode(opt) => {
-                opt.as_ref().map(|pt| PropertyValue::PlacementMode(pt.evaluate_copy(time_ms)))
+                opt.as_ref().map(|pt| pt.evaluate_copy(time_ms).to_property_value())
             },
             Self::CalloutPlace(opt) => {
-                opt.as_ref().map(|pt| PropertyValue::CalloutPlace(pt.evaluate_copy(time_ms)))
+                opt.as_ref().map(|pt| pt.evaluate_copy(time_ms).to_property_value())
             },
-            Self::MorphOptions(opt) => {
-                opt.as_ref().map(|pt| PropertyValue::MorphOptions(pt.evaluate_copy(time_ms)))
-            },
+            Self::MorphOptions(opt) => opt
+                .as_ref()
+                .map(|pt| PropertyValue::String(pt.evaluate_copy(time_ms).summary())),
             Self::String(opt) => opt.as_ref().map(|pt| PropertyValue::String(pt.evaluate(time_ms))),
             Self::PointList(opt) => {
                 opt.as_ref().map(|pt| PropertyValue::PointList(pt.evaluate(time_ms)))
@@ -706,20 +706,6 @@ impl<'a> TrackFieldRef<'a> {
                 opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
             },
         }
-    }
-}
-
-/// Helper: convert a `ShapeType` to its `u32` representation.
-fn shape_type_to_u32(st: ShapeType) -> u32 {
-    match st {
-        ShapeType::Rect => 0,
-        ShapeType::Ellipse => 1,
-        ShapeType::Line => 2,
-        ShapeType::Polygon => 3,
-        ShapeType::Path => 4,
-        ShapeType::Graph => 5,
-        ShapeType::Plot => 6,
-        ShapeType::Arrow => 7,
     }
 }
 

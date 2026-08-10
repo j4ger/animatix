@@ -372,9 +372,6 @@ fn value_to_kind(value: PropertyValue, ty: ValueType, name: &str) -> PropertyKin
         (PropertyValue::U32(v), _) => PropertyKind::U32(v),
         (PropertyValue::PointList(v), _) => PropertyKind::Text(format!("[{} pts]", v.len())),
         (PropertyValue::CommandList(v), _) => PropertyKind::Text(v),
-        (PropertyValue::PlacementMode(v), _) => PropertyKind::Text(format!("{:?}", v)),
-        (PropertyValue::CalloutPlace(v), _) => PropertyKind::Text(v.as_str().to_string()),
-        (PropertyValue::MorphOptions(v), _) => PropertyKind::Text(format!("{:?}", v)),
         (PropertyValue::Transform(v), _) => PropertyKind::Text(format!(
             "[{:.2}, {:.2}, {:.2}, {:.2}, {:.2}, {:.2}]",
             v[0], v[1], v[2], v[3], v[4], v[5]
