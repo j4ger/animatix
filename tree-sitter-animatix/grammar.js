@@ -179,6 +179,7 @@ module.exports = grammar({
       'Scene',
       'Any',
       $.type_identifier,
+      $.type_path,
       seq('List', '<', $.type_annotation, '>')
     )),
 
@@ -638,5 +639,16 @@ module.exports = grammar({
     identifier: $ => /[a-zA-Z_][a-zA-Z0-9_-]*/,
 
     type_identifier: $ => /[A-Z][a-zA-Z0-9_-]*/,
+
+    lower_identifier: $ => /[a-z_][a-zA-Z0-9_-]*/,
+
+    colon_colon: $ => token(seq(':', ':')),
+
+    type_path: $ => prec(30, seq(
+      $.identifier,
+      repeat(seq($.colon_colon, $.lower_identifier)),
+      $.colon_colon,
+      $.type_identifier
+    )),
   }
 });

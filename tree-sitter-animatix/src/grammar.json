@@ -547,6 +547,10 @@
             "name": "type_identifier"
           },
           {
+            "type": "SYMBOL",
+            "name": "type_path"
+          },
+          {
             "type": "SEQ",
             "members": [
               {
@@ -3091,6 +3095,63 @@
     "type_identifier": {
       "type": "PATTERN",
       "value": "[A-Z][a-zA-Z0-9_-]*"
+    },
+    "lower_identifier": {
+      "type": "PATTERN",
+      "value": "[a-z_][a-zA-Z0-9_-]*"
+    },
+    "colon_colon": {
+      "type": "TOKEN",
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "STRING",
+            "value": ":"
+          },
+          {
+            "type": "STRING",
+            "value": ":"
+          }
+        ]
+      }
+    },
+    "type_path": {
+      "type": "PREC",
+      "value": 30,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "SYMBOL",
+            "name": "identifier"
+          },
+          {
+            "type": "REPEAT",
+            "content": {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "SYMBOL",
+                  "name": "colon_colon"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "lower_identifier"
+                }
+              ]
+            }
+          },
+          {
+            "type": "SYMBOL",
+            "name": "colon_colon"
+          },
+          {
+            "type": "SYMBOL",
+            "name": "type_identifier"
+          }
+        ]
+      }
     }
   },
   "extras": [

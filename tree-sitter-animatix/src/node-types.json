@@ -3906,6 +3906,37 @@
         {
           "type": "type_identifier",
           "named": true
+        },
+        {
+          "type": "type_path",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "type_path",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "colon_colon",
+          "named": true
+        },
+        {
+          "type": "identifier",
+          "named": true
+        },
+        {
+          "type": "lower_identifier",
+          "named": true
+        },
+        {
+          "type": "type_identifier",
+          "named": true
         }
       ]
     }
@@ -4227,6 +4258,10 @@
     "named": false
   },
   {
+    "type": "colon_colon",
+    "named": true
+  },
+  {
     "type": "component",
     "named": false
   },
@@ -4265,6 +4300,10 @@
   {
     "type": "let",
     "named": false
+  },
+  {
+    "type": "lower_identifier",
+    "named": true
   },
   {
     "type": "match",

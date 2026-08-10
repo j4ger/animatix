@@ -960,6 +960,22 @@ mod tests {
 
     #[test]
     fn test_namespaced_type_alias_reference_parses() {
+        let src = "pub component Card(value: types::Metric) {}\n";
+        let res = parser_simple().parse(src);
+        assert!(!res.has_errors(), "parse errors: {:?}", res.errors().collect::<Vec<_>>());
+        let stmts = res.output().expect("expected parse output");
+        if let Stmt::ComponentDef(def, _) = &stmts[0] {
+            assert_eq!(
+                def.params[0].param_type,
+                Some(TypeAnnotation::Alias("types::Metric".to_string()))
+            );
+        } else {
+            panic!("expected component definition");
+        }
+    }
+
+    #[test]
+    fn test_legacy_dotted_type_alias_normalizes() {
         let src = "pub component Card(value: types.Metric) {}\n";
         let res = parser_simple().parse(src);
         assert!(!res.has_errors(), "parse errors: {:?}", res.errors().collect::<Vec<_>>());
@@ -967,7 +983,7 @@ mod tests {
         if let Stmt::ComponentDef(def, _) = &stmts[0] {
             assert_eq!(
                 def.params[0].param_type,
-                Some(TypeAnnotation::Alias("types.Metric".to_string()))
+                Some(TypeAnnotation::Alias("types::Metric".to_string()))
             );
         } else {
             panic!("expected component definition");

@@ -1066,7 +1066,7 @@ impl<'a> TsConverter<'a> {
         } else if let Some(default_node) = default_node
             && self.is_dotted_type_alias(default_node)
         {
-            Some(TypeAnnotation::Alias(self.node_text(default_node).to_string()))
+            Some(TypeAnnotation::Alias(self.node_text(default_node).replace('.', "::")))
         } else {
             None
         };
@@ -1850,12 +1850,12 @@ title: Text, text: "Hello"
 
     #[test]
     fn parse_namespaced_type_alias_reference() {
-        let source = "pub component Card(value: types.Metric) {}\n";
+        let source = "pub component Card(value: types::Metric) {}\n";
         let result = parse_source(source).expect("parse should succeed");
         if let Stmt::ComponentDef(def, _) = &result.statements[0] {
             assert_eq!(
                 def.params[0].param_type,
-                Some(TypeAnnotation::Alias("types.Metric".to_string()))
+                Some(TypeAnnotation::Alias("types::Metric".to_string()))
             );
         } else {
             panic!("expected component definition");

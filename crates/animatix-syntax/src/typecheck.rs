@@ -70,6 +70,7 @@ impl<'a> TypeEnv<'a> {
     ) {
         fn register_ns(prefix: &str, ns: &crate::module::Namespace, typed: &mut TypedEnv) {
             for (name, annotation) in &ns.type_exports {
+                typed.register_alias(&format!("{prefix}::{name}"), annotation);
                 typed.register_alias(&format!("{prefix}.{name}"), annotation);
                 typed.register_alias(name, annotation);
             }

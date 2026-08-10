@@ -1155,8 +1155,10 @@ pub component MetricCard(value: Metric) {
 ```
 
 Aliases are resolved before type checking, so they can wrap primitive types, unions, lists, and other aliases.
-`pub type` aliases are exported by aliased module imports and become available by simple or dotted
-namespaced name in the importing scene, e.g. `Metric` or `types.Metric` after `import "./types.amx" as types`.
+`pub type` aliases are exported by aliased module imports and become available by simple or `::`-
+namespaced name in the importing scene, e.g. `Metric` or `types::Metric` after
+`import "./types.amx" as types`. The legacy dotted form `types.Metric` is accepted and normalized to
+`types::Metric` for compatibility.
 
 ### 13.2 Available Types
 

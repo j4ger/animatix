@@ -90,6 +90,27 @@ type LegendMode = Bool | Str
     annotation: (type_annotation)))
 
 ==================
+Namespaced type alias reference
+==================
+
+pub component Card(value: types::Metric) {}
+
+---
+
+(source_file
+  (component_definition
+    name: (identifier)
+    (parameter_list
+      (parameter
+        name: (identifier)
+        type: (type_annotation
+          (type_path
+            (identifier)
+            (colon_colon)
+            (type_identifier)))))
+    (block)))
+
+==================
 Property assignment
 ==================
 

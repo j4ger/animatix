@@ -198,7 +198,7 @@ let private = 1
         r#"
 import "./types.amx" as types
 
-pub component Card(value: types.Metric) {}
+pub component Card(value: types::Metric) {}
 card: Card, value: "Revenue"
 "#,
     );
@@ -213,7 +213,7 @@ card: Card, value: "Revenue"
         r#"
 import "./types.amx" as types
 
-pub component Card(value: types.Metric) {}
+pub component Card(value: types::Metric) {}
 bad: Card, value: 42
 "#,
     );
