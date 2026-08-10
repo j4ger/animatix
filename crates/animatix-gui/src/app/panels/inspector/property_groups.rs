@@ -38,11 +38,18 @@ pub(crate) struct PropertyEntry {
 }
 
 pub(crate) enum PropertyKind {
-    Vec2 { x: f32, y: f32 },
+    Vec2 {
+        x: f32,
+        y: f32,
+    },
     Float(f32),
     U32(u32),
     Color([f32; 4]),
     Text(String),
+    Union {
+        variants: &'static [ValueType],
+        value: PropertyValue,
+    },
 }
 
 // ─── Group Builder (generic via registry) ─────────────────────────────────
@@ -81,7 +88,10 @@ pub(crate) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
         let kf_count = animatix::timeline::property_keyframe_count(track, schema.field);
 
         let value = convert_for_display(value, schema.name, track.kind);
-        let kind = value_to_kind(value, schema.value_type, schema.name);
+        let kind = match schema.value_type {
+            ValueType::Union(variants) => PropertyKind::Union { variants, value },
+            _ => value_to_kind(value, schema.value_type, schema.name),
+        };
         let entry = PropertyEntry {
             name: schema.name,
             kind,
@@ -179,7 +189,77 @@ pub(crate) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
         });
     }
 
+    let mut legend_props = Vec::new();
+    if track.kind == animatix::timeline::ActorKindId::Legend {
+        legend_props.extend(legend_style_entries(track));
+    }
+    if track.legend.color.is_some() || track.legend.mode != animatix::timeline::LegendMode::Auto {
+        legend_props.push(legend_participation_entry(track));
+    }
+    if !legend_props.is_empty() {
+        groups.push(PropertyGroup {
+            name: "Legend",
+            icon: egui_phosphor::regular::CHART_LINE,
+            properties: legend_props,
+        });
+    }
+
     groups
+}
+
+fn legend_participation_entry(track: &AnimationTrack) -> PropertyEntry {
+    let value = match &track.legend.mode {
+        animatix::timeline::LegendMode::Auto => PropertyValue::Bool(true),
+        animatix::timeline::LegendMode::Hidden => PropertyValue::Bool(false),
+        animatix::timeline::LegendMode::Label(label) => PropertyValue::String(label.clone()),
+    };
+    PropertyEntry {
+        name: "legend",
+        kind: PropertyKind::Union {
+            variants: &[ValueType::Bool, ValueType::String],
+            value,
+        },
+        has_keyframes: false,
+        has_keyframe_at_current_time: false,
+        keyframe_count: 0,
+    }
+}
+
+fn legend_style_entries(track: &AnimationTrack) -> Vec<PropertyEntry> {
+    fn entry(name: &'static str, kind: PropertyKind) -> PropertyEntry {
+        PropertyEntry {
+            name,
+            kind,
+            has_keyframes: false,
+            has_keyframe_at_current_time: false,
+            keyframe_count: 0,
+        }
+    }
+    let label_color = track
+        .legend
+        .label_color
+        .map(color_display)
+        .unwrap_or_else(|| "auto".to_string());
+    vec![
+        entry("title", PropertyKind::Text(track.legend.title.clone())),
+        entry("font_size", PropertyKind::Float(track.legend.font_size)),
+        entry("label_color", PropertyKind::Text(label_color)),
+        entry("swatch_size", PropertyKind::Float(track.legend.swatch_size)),
+        entry("gap", PropertyKind::Float(track.legend.gap)),
+        entry("text_max_width", PropertyKind::Float(track.legend.text_max_width)),
+    ]
+}
+
+fn color_display(color: [f32; 4]) -> String {
+    let r = (color[0] * 255.0).round() as u8;
+    let g = (color[1] * 255.0).round() as u8;
+    let b = (color[2] * 255.0).round() as u8;
+    let a = color[3];
+    if a >= 0.999 {
+        format!("#{r:02x}{g:02x}{b:02x}")
+    } else {
+        format!("rgba({r},{g},{b},{a:.2})")
+    }
 }
 
 /// Convert a stored property value to a display value.
@@ -792,6 +872,84 @@ pub(crate) fn render_property_row(
                 },
             );
         },
+        PropertyKind::Union { variants, value } => {
+            if variants.contains(&ValueType::Bool) && variants.contains(&ValueType::String) {
+                let (mut selected, mut buf) = match value {
+                    PropertyValue::Bool(true) => (0, String::new()),
+                    PropertyValue::Bool(false) => (1, String::new()),
+                    PropertyValue::String(label) => (2, label.clone()),
+                    _ => (0, String::new()),
+                };
+                let previous = selected;
+                let mut label_changed = false;
+                ui.scope_builder(
+                    egui::UiBuilder::new()
+                        .max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
+                    |ui| {
+                        *ui.style_mut() = flat_style.clone();
+                        ui.with_layout(
+                            egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
+                            |ui| {
+                                ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_1, 0.0);
+                                ui.selectable_value(&mut selected, 0, "Auto");
+                                ui.selectable_value(&mut selected, 1, "Hidden");
+                                ui.selectable_value(&mut selected, 2, "Label");
+                                if selected == 2 {
+                                    let tf_resp = TextField::new(&mut buf)
+                                        .desired_width(ui.available_width().max(60.0))
+                                        .show(ui);
+                                    label_changed = tf_resp.changed;
+                                }
+                            },
+                        );
+                    },
+                );
+                if selected != previous {
+                    let edit_value = match selected {
+                        0 => GuiPropertyValue::Bool(true),
+                        1 => GuiPropertyValue::Bool(false),
+                        _ => GuiPropertyValue::Text(buf.clone()),
+                    };
+                    commands.push_back(
+                        DocumentCommand::PropertyEdit(PropertyEdit {
+                            time_s: None,
+                            actor: actor_label.to_string(),
+                            property: entry.name.to_string(),
+                            value: edit_value,
+                            create_keyframe: keyframe_mode,
+                        })
+                        .into(),
+                    );
+                } else if label_changed {
+                    commands.push_back(
+                        DocumentCommand::PropertyEdit(PropertyEdit {
+                            time_s: None,
+                            actor: actor_label.to_string(),
+                            property: entry.name.to_string(),
+                            value: GuiPropertyValue::Text(buf),
+                            create_keyframe: keyframe_mode,
+                        })
+                        .into(),
+                    );
+                }
+            } else {
+                let text = match value {
+                    PropertyValue::Bool(v) => v.to_string(),
+                    PropertyValue::String(v) => v.clone(),
+                    PropertyValue::F32(v) => format!("{v:.2}"),
+                    PropertyValue::U32(v) => v.to_string(),
+                    other => format!("{other:?}"),
+                };
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(text.as_str())
+                            .size(TextRole::Body.size())
+                            .color(theme.text.muted),
+                    )
+                    .selectable(false),
+                );
+            }
+        },
         PropertyKind::Text(text) => {
             let mut buf = text.clone();
             ui.scope_builder(
@@ -913,6 +1071,15 @@ fn entry_to_gui_value(entry: &PropertyEntry) -> Option<GuiPropertyValue> {
         PropertyKind::U32(v) => Some(GuiPropertyValue::Float(*v as f32)),
         PropertyKind::Color(rgba) => Some(GuiPropertyValue::Color(*rgba)),
         PropertyKind::Text(t) => Some(GuiPropertyValue::Text(t.clone())),
+        PropertyKind::Union { value, .. } => match value {
+            PropertyValue::Bool(b) => Some(GuiPropertyValue::Bool(*b)),
+            PropertyValue::String(s) => Some(GuiPropertyValue::Text(s.clone())),
+            PropertyValue::F32(v) => Some(GuiPropertyValue::Float(*v)),
+            PropertyValue::U32(v) => Some(GuiPropertyValue::Float(*v as f32)),
+            PropertyValue::Vec2(v) => Some(GuiPropertyValue::Vec2(*v)),
+            PropertyValue::Color(v) | PropertyValue::Vec4(v) => Some(GuiPropertyValue::Color(*v)),
+            _ => None,
+        },
     }
 }
 

@@ -509,6 +509,7 @@ pub struct PropertyEdit {
 pub enum PropertyValue {
     Vec2([f32; 2]),
     Float(f32),
+    Bool(bool),
     Color([f32; 4]),
     Text(String),
     StringList(Vec<String>),
@@ -550,6 +551,7 @@ impl TryFrom<PropertyValue> for animatix_syntax::ast::Expr {
                     )
                 }
             },
+            PropertyValue::Bool(b) => animatix_syntax::ast::Expr::Bool(*b),
             PropertyValue::Text(s) => animatix_syntax::ast::Expr::Str(s.clone()),
             PropertyValue::StringList(items) => animatix_syntax::ast::Expr::List(
                 items.iter().map(|s| animatix_syntax::ast::Expr::Str(s.clone())).collect(),

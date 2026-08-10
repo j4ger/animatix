@@ -16,4 +16,4 @@ line_b: Line, from: (100, 150), to: (200, 150), color: (0.0, 1.0, 0.0, 1.0), str
 line_c: Line, from: (100, 200), to: (200, 200), color: (0.0, 0.0, 1.0, 1.0), stroke_width: 4, legend: "Series C"
 
 // Legend annotation positioning to the right of the lines
-legend: Legend, at: (320, 100)
+legend: Legend, at: (320, 100), title: "Series", swatch_size: 16, gap: 8, text_max_width: 240

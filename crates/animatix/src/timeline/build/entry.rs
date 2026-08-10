@@ -358,7 +358,10 @@ impl Timeline {
             })
             .collect::<Vec<_>>();
         if !legend_labels.is_empty() {
-            let entries = crate::timeline::legend::scan_legend_entries(&timeline.tracks);
+            let entries = crate::timeline::legend::scan_legend_entries(
+                &timeline.tracks,
+                &timeline.root_nodes,
+            );
             for label in legend_labels {
                 if let Some(track) = timeline.tracks.get_mut(&label) {
                     track.legend.entries = entries.clone();

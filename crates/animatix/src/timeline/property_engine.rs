@@ -227,10 +227,11 @@ pub(crate) fn write_property_field(
             .map(|schema| (schema.default_value)(track.kind)),
         _ => None,
     };
-    if field == ActorField::Tagged("legend")
-        && let Some(mode) = crate::timeline::LegendMode::from_property_value(&value)
-    {
-        track.legend.mode = mode;
+    if field == ActorField::Tagged("legend") {
+        track.legend.legend_declared = true;
+        if let Some(mode) = crate::timeline::LegendMode::from_property_value(&value) {
+            track.legend.mode = mode;
+        }
     }
     if let Some(tf) = track.field_mut(field) {
         match tf {

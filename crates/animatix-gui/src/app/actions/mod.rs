@@ -477,6 +477,52 @@ where
 }
 
 // ─────────────────────────────────────────────────────────────
+fn parse_gui_color(text: &str) -> Option<[f32; 4]> {
+    if text == "auto" {
+        return None;
+    }
+    if let Some(hex) = text.strip_prefix('#') {
+        let value = u32::from_str_radix(hex, 16).ok()?;
+        return match hex.len() {
+            6 => Some([
+                ((value >> 16) & 0xff) as f32 / 255.0,
+                ((value >> 8) & 0xff) as f32 / 255.0,
+                (value & 0xff) as f32 / 255.0,
+                1.0,
+            ]),
+            8 => Some([
+                ((value >> 24) & 0xff) as f32 / 255.0,
+                ((value >> 16) & 0xff) as f32 / 255.0,
+                ((value >> 8) & 0xff) as f32 / 255.0,
+                (value & 0xff) as f32 / 255.0,
+            ]),
+            _ => None,
+        };
+    }
+    if let Some(rest) = text.strip_prefix("rgba(").and_then(|s| s.strip_suffix(')')) {
+        let parts = rest.split(',').map(str::trim).collect::<Vec<_>>();
+        if parts.len() == 4 {
+            let r = parts[0].parse::<f32>().ok()?;
+            let g = parts[1].parse::<f32>().ok()?;
+            let b = parts[2].parse::<f32>().ok()?;
+            let a = parts[3].parse::<f32>().ok()?;
+            return Some([r, g, b, a]);
+        }
+    }
+    if let Some(rest) = text.strip_prefix("rgb(").and_then(|s| s.strip_suffix(')')) {
+        let parts = rest.split(',').map(str::trim).collect::<Vec<_>>();
+        if parts.len() == 3 {
+            let r = parts[0].parse::<f32>().ok()?;
+            let g = parts[1].parse::<f32>().ok()?;
+            let b = parts[2].parse::<f32>().ok()?;
+            return Some([r, g, b, 1.0]);
+        }
+    }
+    Some(animatix::timeline::parse_color(&animatix_syntax::ast::Expr::Ident(
+        text.to_string(),
+    )))
+}
+
 // Unified timeline update helper
 // ─────────────────────────────────────────────────────────────
 
@@ -497,6 +543,61 @@ fn apply_property_edit_to_track(
     use crate::app::panels::PropertyValue as PV;
 
     let linear = animatix_syntax::easing::Easing::Linear;
+
+    use animatix::timeline::LegendMode;
+
+    if property == "legend" {
+        track.legend.legend_declared = true;
+        track.legend.mode = match value {
+            PV::Bool(true) => LegendMode::Auto,
+            PV::Bool(false) => LegendMode::Hidden,
+            PV::Text(label) => LegendMode::Label(label.clone()),
+            _ => return,
+        };
+        return;
+    }
+
+    if track.kind == animatix::timeline::ActorKindId::Legend {
+        match property {
+            "title" => {
+                if let PV::Text(v) = value {
+                    track.legend.title = v.clone();
+                }
+                return;
+            },
+            "font_size" => {
+                if let PV::Float(v) = value {
+                    track.legend.font_size = *v;
+                }
+                return;
+            },
+            "swatch_size" => {
+                if let PV::Float(v) = value {
+                    track.legend.swatch_size = *v;
+                }
+                return;
+            },
+            "gap" => {
+                if let PV::Float(v) = value {
+                    track.legend.gap = *v;
+                }
+                return;
+            },
+            "text_max_width" => {
+                if let PV::Float(v) = value {
+                    track.legend.text_max_width = *v;
+                }
+                return;
+            },
+            "label_color" => {
+                if let PV::Text(v) = value {
+                    track.legend.label_color = parse_gui_color(v);
+                }
+                return;
+            },
+            _ => {},
+        }
+    }
 
     // ── Special / compound properties (not covered by generic registry dispatch) ──
     match property {

@@ -23,6 +23,17 @@
 |----------|------|----------|------------|------------|
 | `legend` | `Bool \| Str` | ✓ | ✓ | Everything |
 
+## Legend Primitive
+
+| Property | Type | Animated | Assignable | Applies to |
+|----------|------|----------|------------|------------|
+| `title` | Str | — | — | Legend |
+| `font_size` | F32 | — | — | Legend |
+| `label_color` | Color / auto | — | — | Legend |
+| `swatch_size` | F32 | — | — | Legend |
+| `gap` | F32 | — | — | Legend |
+| `text_max_width` | F32 | — | — | Legend |
+
 ## Geometry
 
 | Property | Type | Animated | Assignable | Applies to |

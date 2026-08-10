@@ -42,6 +42,58 @@ fn build_legend_timeline() -> Timeline {
 }
 
 #[test]
+fn test_legend_wrapped_label_respects_max_width() {
+    use kurbo::{Affine, Shape};
+
+    let mut track = AnimationTrack::new("legend".to_string());
+    track.kind = ActorKindId::Legend;
+    track.legend.entries =
+        vec![("A very long series label that should wrap".to_string(), [1.0, 0.0, 0.0, 1.0])];
+    track.legend.text_max_width = 80.0;
+
+    let ctx = EvaluateCtx {
+        track: &track,
+        time_ms: 0,
+        local_transform: Affine::IDENTITY,
+        opacity: 1.0,
+        scene_dimensions: SceneDimensions {
+            width: 1920,
+            height: 1080,
+        },
+        background_color: [0.04, 0.06, 0.09, 1.0],
+        overrides: None,
+        vector_paths: &[],
+        target_resolver: None,
+    };
+    let font_context = std::sync::Arc::new(crate::renderer::text::FontContext::new());
+    let mut text_compiler = crate::renderer::text::TextCompiler::new();
+    let mut text_ctx = TextCompileCtx {
+        text_compiler: &mut text_compiler,
+        font_context: &font_context,
+    };
+
+    let commands = LEGEND
+        .evaluate(&ctx, Some(&mut text_ctx))
+        .expect("evaluate should succeed")
+        .unwrap();
+    let text_command = commands
+        .iter()
+        .find_map(|cmd| match cmd {
+            RenderCommand::Text { paths } => Some(paths.as_ref()),
+            _ => None,
+        })
+        .expect("legend should emit a text command");
+    let mut min_x = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    for text_path in text_command {
+        let bounds = text_path.path.bounding_box();
+        min_x = min_x.min(bounds.x0);
+        max_x = max_x.max(bounds.x1);
+    }
+    assert!((max_x - min_x) <= 82.0, "wrapped label exceeded max width");
+}
+
+#[test]
 fn test_legend_union_property_sets_actor_mode() {
     let ast = vec![
         make_config(),
@@ -226,6 +278,260 @@ fn test_legend_auto_extraction_from_colored_actors() {
             ("Revenue".to_string(), [1.0, 0.0, 0.0, 1.0]),
             ("Line C".to_string(), [0.0, 0.0, 1.0, 1.0]),
         ]
+    );
+}
+
+#[test]
+fn test_legend_style_properties_are_parsed() {
+    let ast = vec![
+        make_config(),
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "legend".to_string(),
+                array_index: None,
+                ty: "Legend".to_string(),
+                props: vec![
+                    Property {
+                        name: "title".to_string(),
+                        value: Expr::Str("Metrics".to_string()),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "font_size".to_string(),
+                        value: Expr::Num(18.0),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "label_color".to_string(),
+                        value: Expr::Ident("white".to_string()),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "swatch_size".to_string(),
+                        value: Expr::Num(20.0),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "gap".to_string(),
+                        value: Expr::Num(12.0),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "text_max_width".to_string(),
+                        value: Expr::Num(180.0),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            }],
+            span: None,
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let track = report.output.get_track("legend").expect("legend track");
+    assert_eq!(track.legend.title, "Metrics");
+    assert_eq!(track.legend.font_size, 18.0);
+    assert_eq!(track.legend.label_color, Some([1.0, 1.0, 1.0, 1.0]));
+    assert_eq!(track.legend.swatch_size, 20.0);
+    assert_eq!(track.legend.gap, 12.0);
+    assert_eq!(track.legend.text_max_width, 180.0);
+}
+
+#[test]
+fn test_legend_excludes_full_viewport_background() {
+    let ast = vec![
+        make_config(),
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(0.0),
+            body: vec![
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    is_anonymous: false,
+                    label: "backdrop".to_string(),
+                    array_index: None,
+                    ty: "Rect".to_string(),
+                    props: vec![
+                        Property {
+                            name: "size".to_string(),
+                            value: Expr::Tuple(vec![
+                                Expr::Str("100%".to_string()),
+                                Expr::Str("100%".to_string()),
+                            ]),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                        Property {
+                            name: "color".to_string(),
+                            value: Expr::Ident("white".to_string()),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                    ],
+                    modifiers: vec![],
+                    children: vec![],
+                    span: None,
+                },
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    is_anonymous: false,
+                    label: "legend".to_string(),
+                    array_index: None,
+                    ty: "Legend".to_string(),
+                    props: vec![],
+                    modifiers: vec![],
+                    children: vec![],
+                    span: None,
+                },
+            ],
+            span: None,
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    let track = timeline.get_track("legend").expect("legend track");
+    assert!(track.legend.entries.is_empty(), "full-viewport background should be excluded");
+}
+
+#[test]
+fn test_legend_true_force_includes_background() {
+    let ast = vec![
+        make_config(),
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(0.0),
+            body: vec![
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    is_anonymous: false,
+                    label: "backdrop".to_string(),
+                    array_index: None,
+                    ty: "Rect".to_string(),
+                    props: vec![
+                        Property {
+                            name: "size".to_string(),
+                            value: Expr::Tuple(vec![
+                                Expr::Str("100%".to_string()),
+                                Expr::Str("100%".to_string()),
+                            ]),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                        Property {
+                            name: "color".to_string(),
+                            value: Expr::Ident("white".to_string()),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                        Property {
+                            name: "legend".to_string(),
+                            value: Expr::Bool(true),
+                            value_span: None,
+                            trailing_comment: None,
+                        },
+                    ],
+                    modifiers: vec![],
+                    children: vec![],
+                    span: None,
+                },
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    is_anonymous: false,
+                    label: "legend".to_string(),
+                    array_index: None,
+                    ty: "Legend".to_string(),
+                    props: vec![],
+                    modifiers: vec![],
+                    children: vec![],
+                    span: None,
+                },
+            ],
+            span: None,
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let track = report.output.get_track("legend").expect("legend track");
+    assert_eq!(track.legend.entries.len(), 1, "legend:true should force-include a background");
+}
+
+#[test]
+fn test_legend_source_order_is_preserved() {
+    let actor = |label: &str, color: &str| Stmt::ActorDecl {
+        is_pub: false,
+        is_anonymous: false,
+        label: label.to_string(),
+        array_index: None,
+        ty: "Line".to_string(),
+        props: vec![Property {
+            name: "color".to_string(),
+            value: Expr::Ident(color.to_string()),
+            value_span: None,
+            trailing_comment: None,
+        }],
+        modifiers: vec![],
+        children: vec![],
+        span: None,
+    };
+    let ast = vec![
+        make_config(),
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(0.0),
+            body: vec![
+                actor("line_z", "red"),
+                actor("line_a", "green"),
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    is_anonymous: false,
+                    label: "legend".to_string(),
+                    array_index: None,
+                    ty: "Legend".to_string(),
+                    props: vec![],
+                    modifiers: vec![],
+                    children: vec![],
+                    span: None,
+                },
+            ],
+            span: None,
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let track = report.output.get_track("legend").expect("legend track");
+    assert_eq!(
+        track.legend.entries.iter().map(|(label, _)| label.clone()).collect::<Vec<_>>(),
+        vec!["Line Z".to_string(), "Line A".to_string()]
     );
 }
 

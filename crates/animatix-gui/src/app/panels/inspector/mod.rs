@@ -1281,5 +1281,24 @@ fn format_property_value(kind: &PropertyKind) -> String {
                 s.clone()
             }
         },
+        PropertyKind::Union { value, .. } => match value {
+            animatix::timeline::PropertyValue::Bool(v) => v.to_string(),
+            animatix::timeline::PropertyValue::String(v) => v.clone(),
+            animatix::timeline::PropertyValue::F32(v) => format!("{v:.2}"),
+            animatix::timeline::PropertyValue::U32(v) => v.to_string(),
+            animatix::timeline::PropertyValue::Vec2(v) => format!("({:.1}, {:.1})", v[0], v[1]),
+            animatix::timeline::PropertyValue::Color(v)
+            | animatix::timeline::PropertyValue::Vec4(v) => {
+                let r = (v[0] * 255.0).round() as u8;
+                let g = (v[1] * 255.0).round() as u8;
+                let b = (v[2] * 255.0).round() as u8;
+                if v[3] >= 0.999 {
+                    format!("#{r:02x}{g:02x}{b:02x}")
+                } else {
+                    format!("#{r:02x}{g:02x}{b:02x}{:02x}", (v[3] * 255.0) as u8)
+                }
+            },
+            other => format!("{other:?}"),
+        },
     }
 }

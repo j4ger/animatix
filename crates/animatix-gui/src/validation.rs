@@ -25,6 +25,7 @@ fn property_value_to_runtime(value: &PropertyValue) -> Result<Value, String> {
     Ok(match value {
         PropertyValue::Vec2(v) => Value::Vec2([v[0] as f64, v[1] as f64]),
         PropertyValue::Float(v) => Value::Num(*v as f64),
+        PropertyValue::Bool(v) => Value::Bool(*v),
         PropertyValue::Color(v) => {
             Value::Color([v[0] as f64, v[1] as f64, v[2] as f64, v[3] as f64])
         },

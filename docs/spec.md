@@ -669,7 +669,9 @@ It renders color swatches with compiled text labels, positioned at a configurabl
 automatically choose a contrasting color based on the sampled scene background.
 
 ```animatix
-legend: Legend, at: (100, 100)
+legend: Legend, at: (100, 100), title: "Series",
+        font_size: 14, swatch_size: 16, gap: 8,
+        text_max_width: 240
 ```
 
 **Legend properties:**
@@ -677,11 +679,18 @@ legend: Legend, at: (100, 100)
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `at` | Vec2 | `(100, 100)` | Position of the top-left corner of the legend |
+| `title` | Str | `""` | Optional title rendered above the entries |
+| `font_size` | Num | `14` | Label font size in points |
+| `label_color` | Color / `auto` | `auto` | Label color; `auto` selects contrast against the scene background |
+| `swatch_size` | Num | `16` | Color swatch size in scene units |
+| `gap` | Num | `8` | Vertical gap between rows and title/entries |
+| `text_max_width` | Num | `240` | Maximum label width before wrapping; `0` disables wrapping |
 
 **Legend entries** are auto-generated after the scene is built. The scan includes color-bearing leaf
 actors such as shapes, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, and `BarChart`; structural
-actors such as graphs, grids, containers, and other legends are excluded. Auto labels are derived from
-the actor label (`line_a` → `Line A`).
+actors such as graphs, grids, containers, and other legends are excluded. Full-viewport background
+shapes using `fill` or `100%` sizing are excluded automatically. Auto labels are derived from the actor
+label (`line_a` → `Line A`).
 
 Actors can opt into or out of legend scanning with the generic `legend` property:
 
@@ -690,8 +699,9 @@ line_a: Line, color: red, legend: "Revenue"
 axis: Line, color: gray, legend: false
 ```
 
-`legend` accepts `Bool | Str`: `false` hides the actor, a string supplies an explicit label, and an omitted
-value (or `true`) leaves participation automatic.
+`legend` accepts `Bool | Str`: `false` hides the actor, a string supplies an explicit label, an omitted
+value leaves participation automatic, and `true` force-includes the actor even when a heuristic would
+exclude it (for example, a full-viewport background).
 
 ### Graph Coordinate Mapping
 
