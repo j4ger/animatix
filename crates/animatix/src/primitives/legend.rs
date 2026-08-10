@@ -81,6 +81,40 @@ fn label_color_for_background(background: [f32; 4]) -> [f32; 4] {
         [0.94, 0.95, 1.0, 1.0]
     }
 }
+
+fn tagged_string_opt(track: &AnimationTrack, key: &'static str, time_ms: u64) -> Option<String> {
+    match crate::timeline::dispatch::read_property_value(
+        track,
+        crate::timeline::property_registry::ActorField::Tagged(key),
+        time_ms,
+    ) {
+        Some(crate::timeline::property_engine::PropertyValue::String(value)) => Some(value),
+        _ => None,
+    }
+}
+
+fn tagged_f32_opt(track: &AnimationTrack, key: &'static str, time_ms: u64) -> Option<f32> {
+    match crate::timeline::dispatch::read_property_value(
+        track,
+        crate::timeline::property_registry::ActorField::Tagged(key),
+        time_ms,
+    ) {
+        Some(crate::timeline::property_engine::PropertyValue::F32(value)) => Some(value),
+        _ => None,
+    }
+}
+
+fn tagged_color_opt(track: &AnimationTrack, key: &'static str, time_ms: u64) -> Option<[f32; 4]> {
+    match crate::timeline::dispatch::read_property_value(
+        track,
+        crate::timeline::property_registry::ActorField::Tagged(key),
+        time_ms,
+    ) {
+        Some(crate::timeline::property_engine::PropertyValue::Color(value)) => Some(value),
+        Some(crate::timeline::property_engine::PropertyValue::Vec4(value)) => Some(value),
+        _ => None,
+    }
+}
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{
     ActorCategory, ActorKindId, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx,
@@ -194,6 +228,73 @@ impl Primitive for LegendPrimitive {
         // starts from an empty slate instead of retaining stale entries.
         track.legend.entries.clear();
 
+        let time_ms = ctx.time_ms as u64;
+        let default_fields = [
+            (
+                "legend_title",
+                crate::timeline::property_engine::PropertyValue::String(String::new()),
+            ),
+            ("legend_font_size", crate::timeline::property_engine::PropertyValue::F32(14.0)),
+            ("legend_swatch_size", crate::timeline::property_engine::PropertyValue::F32(16.0)),
+            ("legend_gap", crate::timeline::property_engine::PropertyValue::F32(8.0)),
+            (
+                "legend_text_max_width",
+                crate::timeline::property_engine::PropertyValue::F32(240.0),
+            ),
+        ];
+        for (key, value) in default_fields {
+            crate::timeline::property_engine::write_property_field(
+                track,
+                crate::timeline::property_registry::ActorField::Tagged(key),
+                value,
+                time_ms,
+                time_ms,
+                crate::easing::Easing::Linear,
+                ctx.diagnostics,
+            );
+        }
+
+        for prop in props {
+            let prop_subject = format!("{label}.{}", prop.name);
+            let (key, value_type) = match prop.name.as_str() {
+                "title" => ("legend_title", crate::timeline::property_registry::ValueType::String),
+                "font_size" => {
+                    ("legend_font_size", crate::timeline::property_registry::ValueType::F32)
+                },
+                "swatch_size" => {
+                    ("legend_swatch_size", crate::timeline::property_registry::ValueType::F32)
+                },
+                "gap" => ("legend_gap", crate::timeline::property_registry::ValueType::F32),
+                "text_max_width" => {
+                    ("legend_text_max_width", crate::timeline::property_registry::ValueType::F32)
+                },
+                "label_color" => {
+                    if matches!(&prop.value, Expr::Ident(name) if name == "auto") {
+                        continue;
+                    }
+                    ("legend_label_color", crate::timeline::property_registry::ValueType::Color)
+                },
+                _ => continue,
+            };
+            if let Some(pv) = crate::timeline::property_engine::parse_property_value(
+                value_type,
+                &prop.value,
+                &ctx.timeline.env,
+                ctx.diagnostics,
+                &prop_subject,
+            ) {
+                crate::timeline::property_engine::write_property_field(
+                    track,
+                    crate::timeline::property_registry::ActorField::Tagged(key),
+                    pv,
+                    time_ms,
+                    time_ms,
+                    crate::easing::Easing::Linear,
+                    ctx.diagnostics,
+                );
+            }
+        }
+
         track.legend.title = title;
         track.legend.font_size = font_size;
         track.legend.label_color = label_color;
@@ -204,7 +305,7 @@ impl Primitive for LegendPrimitive {
         // Legend is an annotation primitive, so it bypasses the generic actor
         // build path and must resolve its own `at` position.
         track.geometry.position.ensure([0.0, 0.0]).add_keyframe(
-            ctx.time_ms as u64,
+            time_ms,
             at,
             crate::easing::Easing::Linear,
         );
@@ -226,28 +327,27 @@ impl Primitive for LegendPrimitive {
         use vello::peniko::Color;
 
         let mut commands = Vec::new();
-        let swatch_size = ctx.track.legend.swatch_size as f64;
-        let gap = ctx.track.legend.gap as f64;
+        let title = tagged_string_opt(ctx.track, "legend_title", ctx.time_ms)
+            .unwrap_or_else(|| ctx.track.legend.title.clone());
+        let font_size = tagged_f32_opt(ctx.track, "legend_font_size", ctx.time_ms)
+            .unwrap_or(ctx.track.legend.font_size)
+            .max(1.0);
+        let swatch_size = tagged_f32_opt(ctx.track, "legend_swatch_size", ctx.time_ms)
+            .unwrap_or(ctx.track.legend.swatch_size) as f64;
+        let gap = tagged_f32_opt(ctx.track, "legend_gap", ctx.time_ms)
+            .unwrap_or(ctx.track.legend.gap) as f64;
         let label_offset = swatch_size + gap;
-        let font_size = ctx.track.legend.font_size.max(1.0);
-        let max_width = ctx.track.legend.text_max_width;
-        let label_color = ctx
-            .track
-            .legend
-            .label_color
+        let max_width = tagged_f32_opt(ctx.track, "legend_text_max_width", ctx.time_ms)
+            .unwrap_or(ctx.track.legend.text_max_width);
+        let label_color = tagged_color_opt(ctx.track, "legend_label_color", ctx.time_ms)
+            .or(ctx.track.legend.label_color)
             .unwrap_or_else(|| label_color_for_background(ctx.background_color));
         let mut y_offset = 0.0f64;
 
-        if !ctx.track.legend.title.is_empty()
+        if !title.is_empty()
             && let Some(text_ctx) = text_ctx.as_deref_mut()
         {
-            match compile_legend_text(
-                text_ctx,
-                &ctx.track.legend.title,
-                font_size + 2.0,
-                max_width,
-                label_color,
-            ) {
+            match compile_legend_text(text_ctx, &title, font_size + 2.0, max_width, label_color) {
                 Ok(paths) => {
                     if let Some((min_x, min_y, _, max_y)) = text_bounds(&paths) {
                         let title_height = (max_y - min_y).max(0.0);

@@ -30,11 +30,11 @@ themes, CI platform parity, and `StyledExt` helpers.
 
 | Item | Status / Notes |
 |------|----------------|
-| Generic primitive build path | Open; `Legend`, `Callout`, and other annotations bypass the generic actor build pipeline, causing duplicated `at`/property handling. Move all primitives through the common pipeline and keep primitive-specific hooks for domain logic only. |
+| Generic primitive build path | Partially complete; `Callout` now uses the generic actor build path and schema-driven keyframe writing. `Legend` still bypasses the generic pipeline for `at` and entry scanning, but its metadata now uses generic tagged tracks. |
 | Migrate remaining bespoke enum-like properties | Open; `ShapeType`, `PlacementMode`, `MorphOptions`, and related typed tracks still use bespoke enums instead of `ValueType::Enum`/`ValueType::Sum`. Needs a migration plan because these types are embedded in dispatch, interpolation, persistence, and GUI code. |
 | Unify GUI and core property value models | Open; GUI `PropertyValue` and core `PropertyValue` are separate and require manual conversions. Replace with one schema-driven value model used by commands, validation, inspector, spreadsheet, and gestures. |
 | Clean up tree-sitter grammar conflicts | Open; many conflict declarations are reported as unnecessary, but removing them breaks parsing without a deeper grammar redesign. Needs the canonical `::` type-path grammar and conflict cleanup as one workstream. |
-| Make `LegendTracks` metadata generic | Open; title, font size, label color, swatch size, gap, and wrapping are domain-specific fields. Fold them into the generic property schema once the primitive build path and value model are unified. |
+| Make `LegendTracks` metadata generic | Partially complete; title, font size, label color, swatch size, gap, and wrapping now live in generic tagged property tracks with cached `LegendTracks` fields retained for GUI/serde compatibility. |
 | Merge tree-walker and IR/VM into single execution engine | Needs design spike before scheduling. Batch 6 (#12) extracted shared helpers, but the dual-path-with-fallback is currently a safety feature for closures. |
 
 ### Language and Runtime Gaps

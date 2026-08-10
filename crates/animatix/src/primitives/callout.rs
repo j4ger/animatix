@@ -1,5 +1,5 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property, array_actor_label};
-use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use crate::diagnostics::Diagnostic;
 use crate::primitives::arrow::build_arrow_path;
 use crate::primitives::{
     ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, EvaluateCtx, Primitive, RenderCommand,
@@ -7,68 +7,12 @@ use crate::primitives::{
 };
 use crate::renderer::error::RenderError;
 use crate::renderer::text::TextKind;
-use crate::timeline::animation_track::CalloutPlace;
 use crate::timeline::callout_geometry::derive_callout_geometry;
 use crate::timeline::property_engine::{parse_property_value, write_property_field};
 use crate::timeline::property_registry::{ActorField, ValueType};
 use crate::timeline::{
     AnimationTrack, Environment, SceneDimensions, TrackAccessor, Value, VectorShapeState, VelloPath,
 };
-
-/// Parse a numeric value from an AST expression.
-fn parse_f32(expr: &Expr) -> Option<f32> {
-    match expr {
-        Expr::Num(n) => Some(*n as f32),
-        _ => None,
-    }
-}
-
-/// Parse a Vec2 from an AST expression (tuple of two numbers).
-fn parse_vec2(expr: &Expr) -> Option<[f32; 2]> {
-    match expr {
-        Expr::Tuple(items) if items.len() == 2 => {
-            let x = parse_f32(&items[0])?;
-            let y = parse_f32(&items[1])?;
-            Some([x, y])
-        },
-        _ => None,
-    }
-}
-
-/// Parse a string from an AST expression.
-/// Also accepts bare identifiers (`Ident`) and dot-path expressions (`Path`)
-/// for constructs like `target: box` or `target: group.box`.
-fn parse_string(expr: &Expr) -> Option<String> {
-    match expr {
-        Expr::Str(s) => Some(s.clone()),
-        Expr::Ident(s) => Some(s.clone()),
-        Expr::Path(parts) => Some(parts.join(".")),
-        _ => None,
-    }
-}
-
-/// Parse a source-level actor reference into its internal track label.
-/// `box` -> `"box"`, `group.box` -> `"group.box"`, `bar[2]` -> `"bar__2"`.
-/// The `__` scheme remains internal; user source keeps writing `bar[2]`.
-fn parse_actor_ref_literal(expr: &Expr) -> Option<String> {
-    match expr {
-        Expr::Str(s) => Some(s.clone()),
-        Expr::Ident(s) => Some(s.clone()),
-        Expr::Path(parts) => Some(parts.join(".")),
-        Expr::Index(base, index) => {
-            let base_name = match base.as_ref() {
-                Expr::Ident(name) => name.clone(),
-                _ => return None,
-            };
-            let n = match index.as_ref() {
-                Expr::Num(n) if n.trunc() == *n && *n >= 0.0 => Some(*n as usize),
-                _ => None,
-            };
-            n.map(|n| array_actor_label(&base_name, n))
-        },
-        _ => None,
-    }
-}
 
 /// Resolve an actor reference at assignment time, including runtime indices
 /// such as `bar[i]` where `i` is bound in the evaluation environment.
@@ -125,147 +69,13 @@ impl Primitive for CalloutPrimitive {
 
     fn build(
         &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
+        _ctx: &mut BuildCtx,
+        _label: &str,
+        _props: &[Property],
         _modifiers: &[Modifier],
         _children: &[InlineItem],
     ) -> Result<(), Vec<Diagnostic>> {
-        // Ensure track exists and set kind
-        let track = ctx
-            .timeline
-            .tracks
-            .entry(label.to_string())
-            .or_insert_with(|| AnimationTrack::new(label.to_string()));
-        track.kind = ActorKindId::Callout;
-
-        if track.first_seen_ms == u64::MAX {
-            track.first_seen_ms = ctx.time_ms as u64;
-        }
-
-        // Default values
-        let mut from = [-100.0, 0.0];
-        let mut to = [100.0, 0.0];
-        let mut head_size = 10.0f32;
-        let mut label_text = String::new();
-        let mut label_at = [0.0, 50.0];
-        let mut callout_target = String::new();
-        let mut callout_place = CalloutPlace::Right;
-        let mut callout_place_invalid = false;
-        let mut callout_standoff = 40.0f32;
-        let mut callout_to_offset = [0.0f32, 0.0f32];
-
-        // Parse properties (simple numeric/string parsing without env)
-        for prop in props {
-            match prop.name.as_str() {
-                "from" => {
-                    if let Some(parsed) = parse_vec2(&prop.value) {
-                        from = parsed;
-                    }
-                },
-                "to" => {
-                    if let Some(parsed) = parse_vec2(&prop.value) {
-                        to = parsed;
-                    }
-                },
-                "head_size" => {
-                    if let Some(val) = parse_f32(&prop.value) {
-                        head_size = val.max(1.0);
-                    }
-                },
-                "label" => {
-                    if let Some(s) = parse_string(&prop.value) {
-                        label_text = s;
-                    }
-                },
-                "label_at" => {
-                    if let Some(parsed) = parse_vec2(&prop.value) {
-                        label_at = parsed;
-                    }
-                },
-                "target" => {
-                    if let Some(s) = parse_actor_ref_literal(&prop.value) {
-                        callout_target = s;
-                    }
-                },
-                "place" => {
-                    if let Some(s) = parse_string(&prop.value) {
-                        match CalloutPlace::from_str(&s) {
-                            Some(p) => callout_place = p,
-                            None => callout_place_invalid = true,
-                        }
-                    }
-                },
-                "standoff" => {
-                    if let Some(val) = parse_f32(&prop.value) {
-                        callout_standoff = val;
-                    }
-                },
-                "to_offset" => {
-                    if let Some(parsed) = parse_vec2(&prop.value) {
-                        callout_to_offset = parsed;
-                    }
-                },
-                _ => {},
-            }
-        }
-
-        // Write initial keyframes to tracks so that the property engine
-        // can sample them at frame time.
-        track.shape.line_from.ensure([-100.0, 0.0]).add_keyframe(
-            0,
-            from,
-            crate::easing::Easing::Linear,
-        );
-        track
-            .shape
-            .line_to
-            .ensure([100.0, 0.0])
-            .add_keyframe(0, to, crate::easing::Easing::Linear);
-        track.shape.head_size.ensure(10.0).add_keyframe(
-            0,
-            head_size,
-            crate::easing::Easing::Linear,
-        );
-        track.text.text_content.ensure(String::new()).add_keyframe(
-            0,
-            label_text,
-            crate::easing::Easing::Linear,
-        );
-        track.geometry.label_at.ensure([0.0, 0.0]).add_keyframe(
-            0,
-            label_at,
-            crate::easing::Easing::Linear,
-        );
-        track.geometry.callout_target.ensure(String::new()).add_keyframe(
-            0,
-            callout_target,
-            crate::easing::Easing::Linear,
-        );
-        track.geometry.callout_place.ensure(CalloutPlace::Right).add_keyframe(
-            0,
-            callout_place,
-            crate::easing::Easing::Linear,
-        );
-
-        if callout_place_invalid {
-            return Err(vec![Diagnostic::warning(
-                DiagnosticCode::InvalidPropertyValue,
-                DiagnosticPhase::Build,
-                format!("callout '{}': 'place' must be right|left|top|bottom|auto", label),
-            )]);
-        }
-        track.geometry.callout_standoff.ensure(40.0).add_keyframe(
-            0,
-            callout_standoff,
-            crate::easing::Easing::Linear,
-        );
-        track.geometry.callout_to_offset.ensure([0.0, 0.0]).add_keyframe(
-            0,
-            callout_to_offset,
-            crate::easing::Easing::Linear,
-        );
-
+        // Callout now uses the generic actor build path in timeline/build/actor.rs.
         Ok(())
     }
 

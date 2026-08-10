@@ -602,6 +602,52 @@ impl Timeline {
         }
         track.legend.color = legend_color;
 
+        // Seed Callout defaults before user properties so fields used by targeted
+        // geometry and text evaluation are always present, even without explicit props.
+        if kind_id == super::ActorKindId::Callout {
+            let defaults = [
+                (
+                    crate::timeline::property_registry::ActorField::TextContent,
+                    crate::timeline::property_engine::PropertyValue::String(String::new()),
+                ),
+                (
+                    crate::timeline::property_registry::ActorField::LabelAt,
+                    crate::timeline::property_engine::PropertyValue::Vec2([0.0, 50.0]),
+                ),
+                (
+                    crate::timeline::property_registry::ActorField::CalloutTarget,
+                    crate::timeline::property_engine::PropertyValue::String(String::new()),
+                ),
+                (
+                    crate::timeline::property_registry::ActorField::Tagged("callout_place"),
+                    crate::timeline::property_engine::PropertyValue::Enum("right".to_string()),
+                ),
+                (
+                    crate::timeline::property_registry::ActorField::CalloutStandoff,
+                    crate::timeline::property_engine::PropertyValue::F32(40.0),
+                ),
+                (
+                    crate::timeline::property_registry::ActorField::CalloutToOffset,
+                    crate::timeline::property_engine::PropertyValue::Vec2([0.0, 0.0]),
+                ),
+                (
+                    crate::timeline::property_registry::ActorField::HeadSize,
+                    crate::timeline::property_engine::PropertyValue::F32(10.0),
+                ),
+            ];
+            for (field, pv) in defaults {
+                crate::timeline::property_engine::write_property_field(
+                    track,
+                    field,
+                    pv,
+                    t_start_ms,
+                    t_end_ms,
+                    easing,
+                    diagnostics,
+                );
+            }
+        }
+
         // Registry-backed tagged union properties are not part of the legacy
         // per-primitive build loop, so write them through the generic engine.
         for prop in props {
@@ -619,6 +665,78 @@ impl Timeline {
                     crate::timeline::property_engine::write_property_field(
                         track,
                         schema.field,
+                        pv,
+                        t_start_ms,
+                        t_end_ms,
+                        easing,
+                        diagnostics,
+                    );
+                }
+            }
+        }
+
+        // Callout annotation properties that live outside the tagged storage map.
+        // These are handled by the generic build path now; the primitive no longer
+        // re-implements keyframe writing for them.
+        if kind_id == super::ActorKindId::Callout {
+            for prop in props {
+                let prop_subject = format!("{label}.{}", prop.name);
+                if prop.name == "target" {
+                    if let Some(target) =
+                        crate::timeline::property_lookup::parse_actor_ref_literal(&prop.value)
+                    {
+                        crate::timeline::property_engine::write_property_field(
+                            track,
+                            crate::timeline::property_registry::ActorField::CalloutTarget,
+                            crate::timeline::property_engine::PropertyValue::String(target),
+                            t_start_ms,
+                            t_end_ms,
+                            easing,
+                            diagnostics,
+                        );
+                    }
+                    continue;
+                }
+                let (value_type, field) = match prop.name.as_str() {
+                    "from" => (
+                        crate::timeline::property_registry::ValueType::Vec2,
+                        crate::timeline::property_registry::ActorField::LineFrom,
+                    ),
+                    "to" => (
+                        crate::timeline::property_registry::ValueType::Vec2,
+                        crate::timeline::property_registry::ActorField::LineTo,
+                    ),
+                    "head_size" => (
+                        crate::timeline::property_registry::ValueType::F32,
+                        crate::timeline::property_registry::ActorField::HeadSize,
+                    ),
+                    "label" => (
+                        crate::timeline::property_registry::ValueType::String,
+                        crate::timeline::property_registry::ActorField::TextContent,
+                    ),
+                    "label_at" => (
+                        crate::timeline::property_registry::ValueType::Vec2,
+                        crate::timeline::property_registry::ActorField::LabelAt,
+                    ),
+                    _ => continue,
+                };
+                if let Some(pv) = crate::timeline::property_engine::parse_property_value(
+                    value_type,
+                    &prop.value,
+                    &eval_env,
+                    diagnostics,
+                    &prop_subject,
+                ) {
+                    if let crate::timeline::property_engine::PropertyValue::Vec2(v) = &pv {
+                        if field == crate::timeline::property_registry::ActorField::LineFrom {
+                            line_from = *v;
+                        } else if field == crate::timeline::property_registry::ActorField::LineTo {
+                            line_to = *v;
+                        }
+                    }
+                    crate::timeline::property_engine::write_property_field(
+                        track,
+                        field,
                         pv,
                         t_start_ms,
                         t_end_ms,

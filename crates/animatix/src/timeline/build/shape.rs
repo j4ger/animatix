@@ -19,7 +19,11 @@ impl Timeline {
     ) -> VectorShapeState {
         let eval_env = self.build_eval_env(time_ms as u64);
         let shape_type = shape_type_for_actor(ty).unwrap_or(ShapeType::Rect);
-        let mut vector_shape_state = VectorShapeState::new(shape_type, size);
+        let mut vector_shape_state = if ty == "Callout" {
+            VectorShapeState::Callout(crate::timeline::shapes::CalloutState::default())
+        } else {
+            VectorShapeState::new(shape_type, size)
+        };
         // Initialize shape-specific fields
         match &mut vector_shape_state {
             VectorShapeState::Line(line) => {

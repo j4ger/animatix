@@ -9,6 +9,28 @@ pub(crate) fn parse_numeric_vec2(expr: &Expr, env: &Environment) -> Option<[f32;
     }
 }
 
+/// Parse a source-level actor reference into its internal track label.
+/// `box` -> `"box"`, `group.box` -> `"group.box"`, `bar[2]` -> `"bar__2"`.
+pub(crate) fn parse_actor_ref_literal(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Str(s) => Some(s.clone()),
+        Expr::Ident(s) => Some(s.clone()),
+        Expr::Path(parts) => Some(parts.join(".")),
+        Expr::Index(base, index) => {
+            let base_name = match base.as_ref() {
+                Expr::Ident(name) => name.clone(),
+                _ => return None,
+            };
+            let n = match index.as_ref() {
+                Expr::Num(n) if n.trunc() == *n && *n >= 0.0 => Some(*n as usize),
+                _ => None,
+            };
+            n.map(|n| array_actor_label(&base_name, n))
+        },
+        _ => None,
+    }
+}
+
 /// Build a joined dot-separated key from target segments, using the base label
 /// for Indexed segments (e.g. `bars[i].color` → `"bars.color"`).
 ///

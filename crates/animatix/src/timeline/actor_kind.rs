@@ -27,9 +27,11 @@ pub trait ActorKind {
 /// Look up an actor kind by name. Returns None if no handler is registered.
 pub fn find_actor_kind(ty: &str) -> Option<Box<dyn ActorKind + Send + Sync>> {
     let primitive = crate::primitives::find_primitive(ty)?;
-    // Shapes and containers are handled inline by process_body, not via ActorKind dispatch
+    // Shapes, containers, and Callout are handled inline by process_body, not via ActorKind
+    // dispatch. Callout is an annotation but its properties now use the generic build path.
     match primitive.category() {
         ActorCategory::Shape | ActorCategory::Container => None,
+        _ if primitive.kind_id() == ActorKindId::Callout => None,
         _ => Some(Box::new(PrimitiveActorKind(primitive)) as Box<dyn ActorKind + Send + Sync>),
     }
 }

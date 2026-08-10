@@ -544,6 +544,22 @@ fn apply_property_edit_to_track(
 
     let linear = animatix_syntax::easing::Easing::Linear;
 
+    fn write_tagged_value(
+        track: &mut animatix::timeline::AnimationTrack,
+        key: &str,
+        pv: animatix::timeline::PropertyValue,
+        time_ms: u64,
+        linear: animatix_syntax::easing::Easing,
+    ) {
+        let tagged = track
+            .tagged_tracks
+            .entry(key.to_string())
+            .or_default()
+            .get_or_insert_with(|| PropertyTrack::new(pv.clone()));
+        tagged.set_default_value(pv.clone());
+        tagged.add_keyframe(time_ms, pv, linear);
+    }
+
     if property == "place" {
         if let PV::Text(choice) = value
             && let Some(place) = animatix::timeline::animation_track::CalloutPlace::from_str(choice)
@@ -602,36 +618,81 @@ fn apply_property_edit_to_track(
             "title" => {
                 if let PV::Text(v) = value {
                     track.legend.title = v.clone();
+                    write_tagged_value(
+                        track,
+                        "legend_title",
+                        animatix::timeline::PropertyValue::String(v.clone()),
+                        time_ms,
+                        linear,
+                    );
                 }
                 return;
             },
             "font_size" => {
                 if let PV::Float(v) = value {
                     track.legend.font_size = *v;
+                    write_tagged_value(
+                        track,
+                        "legend_font_size",
+                        animatix::timeline::PropertyValue::F32(*v),
+                        time_ms,
+                        linear,
+                    );
                 }
                 return;
             },
             "swatch_size" => {
                 if let PV::Float(v) = value {
                     track.legend.swatch_size = *v;
+                    write_tagged_value(
+                        track,
+                        "legend_swatch_size",
+                        animatix::timeline::PropertyValue::F32(*v),
+                        time_ms,
+                        linear,
+                    );
                 }
                 return;
             },
             "gap" => {
                 if let PV::Float(v) = value {
                     track.legend.gap = *v;
+                    write_tagged_value(
+                        track,
+                        "legend_gap",
+                        animatix::timeline::PropertyValue::F32(*v),
+                        time_ms,
+                        linear,
+                    );
                 }
                 return;
             },
             "text_max_width" => {
                 if let PV::Float(v) = value {
                     track.legend.text_max_width = *v;
+                    write_tagged_value(
+                        track,
+                        "legend_text_max_width",
+                        animatix::timeline::PropertyValue::F32(*v),
+                        time_ms,
+                        linear,
+                    );
                 }
                 return;
             },
             "label_color" => {
                 if let PV::Text(v) = value {
-                    track.legend.label_color = parse_gui_color(v);
+                    let parsed = parse_gui_color(v);
+                    track.legend.label_color = parsed;
+                    if let Some(color) = parsed {
+                        write_tagged_value(
+                            track,
+                            "legend_label_color",
+                            animatix::timeline::PropertyValue::Color(color),
+                            time_ms,
+                            linear,
+                        );
+                    }
                 }
                 return;
             },

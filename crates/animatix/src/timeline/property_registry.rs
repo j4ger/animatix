@@ -1097,6 +1097,15 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])
     ),
     schema!(
+        "label_color",
+        ValueType::Color,
+        F::ASSIGNABLE_A,
+        ActorField::Tagged("legend_label_color"),
+        None,
+        Applicable::ActorKinds(&[A::Legend]),
+        |_| super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])
+    ),
+    schema!(
         "latex",
         ValueType::String,
         F::ANIMATED,
@@ -1457,6 +1466,15 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         |_| super::property_engine::PropertyValue::F32(1.0)
     ),
     schema!(
+        "swatch_size",
+        ValueType::F32,
+        F::ASSIGNABLE_A,
+        ActorField::Tagged("legend_swatch_size"),
+        None,
+        Applicable::ActorKinds(&[A::Legend]),
+        |_| super::property_engine::PropertyValue::F32(16.0)
+    ),
+    schema!(
         "t_domain",
         ValueType::Vec2,
         F::empty(),
@@ -1495,6 +1513,15 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         |_| super::property_engine::PropertyValue::String("left".to_string())
     ),
     schema!(
+        "text_max_width",
+        ValueType::F32,
+        F::ASSIGNABLE_A,
+        ActorField::Tagged("legend_text_max_width"),
+        None,
+        Applicable::ActorKinds(&[A::Legend]),
+        |_| super::property_engine::PropertyValue::F32(240.0)
+    ),
+    schema!(
         "tick_labels",
         ValueType::String,
         F::empty(),
@@ -1515,6 +1542,15 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         }),
         Applicable::ActorKinds(&[A::Graph]),
         |_| super::property_engine::PropertyValue::String("auto".to_string())
+    ),
+    schema!(
+        "title",
+        ValueType::String,
+        F::ASSIGNABLE_A,
+        ActorField::Tagged("legend_title"),
+        None,
+        Applicable::ActorKinds(&[A::Legend]),
+        |_| super::property_engine::PropertyValue::String(String::new())
     ),
     schema!(
         "to",

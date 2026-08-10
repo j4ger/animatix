@@ -358,6 +358,18 @@ fn test_legend_style_properties_are_parsed() {
     assert_eq!(track.legend.swatch_size, 20.0);
     assert_eq!(track.legend.gap, 12.0);
     assert_eq!(track.legend.text_max_width, 180.0);
+
+    use crate::timeline::property_engine::PropertyValue;
+    use crate::timeline::property_registry::ActorField;
+    let read = |key: &'static str| {
+        crate::timeline::dispatch::read_property_value(track, ActorField::Tagged(key), 0)
+    };
+    assert_eq!(read("legend_title"), Some(PropertyValue::String("Metrics".to_string())));
+    assert_eq!(read("legend_font_size"), Some(PropertyValue::F32(18.0)));
+    assert_eq!(read("legend_label_color"), Some(PropertyValue::Color([1.0, 1.0, 1.0, 1.0])));
+    assert_eq!(read("legend_swatch_size"), Some(PropertyValue::F32(20.0)));
+    assert_eq!(read("legend_gap"), Some(PropertyValue::F32(12.0)));
+    assert_eq!(read("legend_text_max_width"), Some(PropertyValue::F32(180.0)));
 }
 
 #[test]

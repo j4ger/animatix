@@ -205,7 +205,7 @@ pub struct ArrowState {
 }
 
 /// State for a callout annotation (arrow geometry).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct CalloutState {
     /// Start point of the callout arrow.
     pub from: [f32; 2],
