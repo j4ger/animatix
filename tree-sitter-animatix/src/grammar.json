@@ -3190,28 +3190,6 @@
       "_expression"
     ],
     [
-      "action_invocation"
-    ],
-    [
-      "play_statement",
-      "_expression"
-    ],
-    [
-      "play_statement",
-      "object_expression"
-    ],
-    [
-      "play_statement"
-    ],
-    [
-      "target_list",
-      "_expression"
-    ],
-    [
-      "target_list",
-      "object_expression"
-    ],
-    [
       "set_expression",
       "object_expression"
     ],
@@ -3225,60 +3203,12 @@
       "tuple_expression"
     ],
     [
-      "actor_declaration"
-    ],
-    [
-      "reactive_binding"
-    ],
-    [
-      "property_assignment"
-    ],
-    [
-      "inline_actor_declaration",
-      "inline_anonymous_actor"
-    ],
-    [
-      "inline_anonymous_actor",
-      "_expression"
-    ],
-    [
-      "inline_children_block",
-      "set_expression"
-    ],
-    [
-      "typst_shorthand"
-    ],
-    [
       "_expression",
       "object_expression"
     ],
     [
       "_expression",
       "index_value"
-    ],
-    [
-      "inline_actor_declaration",
-      "inline_property"
-    ],
-    [
-      "inline_actor_declaration",
-      "_expression"
-    ],
-    [
-      "object_expression",
-      "children_block"
-    ],
-    [
-      "object_expression",
-      "inline_anonymous_actor"
-    ],
-    [
-      "inline_anonymous_actor",
-      "inline_item"
-    ],
-    [
-      "inline_actor_declaration",
-      "inline_item"
     ],
     [
       "inline_anonymous_actor"
@@ -3288,8 +3218,16 @@
     ],
     [
       "inline_actor_declaration",
+      "_expression"
+    ],
+    [
+      "inline_actor_declaration",
       "_expression",
       "object_expression"
+    ],
+    [
+      "object_expression",
+      "children_block"
     ],
     [
       "inline_actor_declaration",
@@ -3305,10 +3243,6 @@
     [
       "block",
       "set_expression"
-    ],
-    [
-      "_expression",
-      "identifier"
     ]
   ],
   "precedences": [],
