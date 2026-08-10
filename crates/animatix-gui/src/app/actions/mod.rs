@@ -544,6 +544,32 @@ fn apply_property_edit_to_track(
 
     let linear = animatix_syntax::easing::Easing::Linear;
 
+    if property == "place" {
+        if let PV::Text(choice) = value
+            && let Some(place) = animatix::timeline::animation_track::CalloutPlace::from_str(choice)
+        {
+            track
+                .geometry
+                .callout_place
+                .ensure(animatix::timeline::animation_track::CalloutPlace::Right)
+                .add_keyframe(time_ms, place, linear);
+            let tagged = track
+                .tagged_tracks
+                .entry("callout_place".to_string())
+                .or_default()
+                .get_or_insert_with(|| {
+                    PropertyTrack::new(animatix::timeline::PropertyValue::Enum(choice.clone()))
+                });
+            tagged.set_default_value(animatix::timeline::PropertyValue::Enum(choice.clone()));
+            tagged.add_keyframe(
+                time_ms,
+                animatix::timeline::PropertyValue::Enum(choice.clone()),
+                linear,
+            );
+        }
+        return;
+    }
+
     if property == "legend" {
         let pv = match value {
             PV::Bool(true) => animatix::timeline::PropertyValue::Variant {

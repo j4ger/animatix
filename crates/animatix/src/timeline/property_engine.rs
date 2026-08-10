@@ -252,6 +252,25 @@ pub(crate) fn write_property_field(
     if field == ActorField::Tagged("legend") {
         track.legend.legend_declared = true;
     }
+
+    if field == ActorField::Tagged("callout_place")
+        && let PropertyValue::Enum(choice) = &value
+        && let Some(place) = crate::timeline::animation_track::CalloutPlace::from_str(choice)
+    {
+        let callout_track = &mut track.geometry.callout_place;
+        if has_duration {
+            let start = callout_track
+                .get(t_start_ms, crate::timeline::animation_track::CalloutPlace::Right);
+            callout_track
+                .ensure(crate::timeline::animation_track::CalloutPlace::Right)
+                .add_keyframe(t_start_ms, start, Easing::Linear);
+        } else if has_delay {
+            preserve_instant_delayed_value(callout_track, t_start_ms);
+        }
+        callout_track
+            .ensure(crate::timeline::animation_track::CalloutPlace::Right)
+            .add_keyframe(t_end_ms, place, easing);
+    }
     if let Some(tf) = track.field_mut(field) {
         match tf {
             TrackFieldMut::F32(f) => {

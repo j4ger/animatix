@@ -1269,14 +1269,12 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     ),
     schema!(
         "place",
-        ValueType::CalloutPlace,
+        ValueType::Enum(&["auto", "top", "bottom", "left", "right", "above", "below"]),
         F::ASSIGNABLE,
-        ActorField::CalloutPlace,
+        ActorField::Tagged("callout_place"),
         None,
         Applicable::ActorKinds(&[A::Callout]),
-        |_| super::property_engine::PropertyValue::CalloutPlace(
-            crate::timeline::animation_track::CalloutPlace::Right
-        )
+        |_| super::property_engine::PropertyValue::Enum("right".to_string())
     ),
     schema!(
         "points",
