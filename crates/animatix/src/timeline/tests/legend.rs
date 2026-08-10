@@ -107,8 +107,8 @@ fn test_legend_basic_rendering() {
     let track = timeline.get_track("legend").expect("legend track should exist");
     assert_eq!(track.kind, ActorKindId::Legend, "track kind should be Legend");
 
-    // Verify the track has the placeholder entries
-    assert!(!track.legend.entries.is_empty(), "legend should have entries");
+    // A legend-only scene has no color-bearing candidates.
+    assert!(track.legend.entries.is_empty(), "legend should have no entries");
 
     // Evaluate at time 0 — should not panic and should produce RenderCommands
     let dims = SceneDimensions {
@@ -124,11 +124,8 @@ fn test_legend_entries() {
     let timeline = build_legend_timeline();
     let track = timeline.get_track("legend").expect("legend track should exist");
 
-    // Check that the placeholder entries are present
-    assert_eq!(track.legend.entries.len(), 3, "should have 3 placeholder entries");
-    assert_eq!(track.legend.entries[0].0, "Series A", "first entry label should be 'Series A'");
-    assert_eq!(track.legend.entries[1].0, "Series B", "second entry label should be 'Series B'");
-    assert_eq!(track.legend.entries[2].0, "Series C", "third entry label should be 'Series C'");
+    // A legend-only scene has no color-bearing candidates.
+    assert!(track.legend.entries.is_empty(), "legend should have no entries");
 }
 
 #[test]
@@ -163,28 +160,72 @@ fn test_legend_empty() {
 }
 
 #[test]
-fn test_legend_multiple_colors() {
-    // Verify that multiple colors are rendered
-    let timeline = build_legend_timeline();
+fn test_legend_auto_extraction_from_colored_actors() {
+    let actor = |label: &str, color: &str, legend: Expr| Stmt::ActorDecl {
+        is_pub: false,
+        is_anonymous: false,
+        label: label.to_string(),
+        array_index: None,
+        ty: "Line".to_string(),
+        props: vec![
+            Property {
+                name: "color".to_string(),
+                value: Expr::Ident(color.to_string()),
+                value_span: None,
+                trailing_comment: None,
+            },
+            Property {
+                name: "legend".to_string(),
+                value: legend,
+                value_span: None,
+                trailing_comment: None,
+            },
+        ],
+        modifiers: vec![],
+        children: vec![],
+        span: None,
+    };
+
+    let ast = vec![
+        make_config(),
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(0.0),
+            body: vec![
+                actor("line_a", "red", Expr::Str("Revenue".to_string())),
+                actor("line_b", "green", Expr::Bool(false)),
+                actor("line_c", "blue", Expr::Bool(true)),
+                Stmt::ActorDecl {
+                    is_pub: false,
+                    is_anonymous: false,
+                    label: "legend".to_string(),
+                    array_index: None,
+                    ty: "Legend".to_string(),
+                    props: vec![],
+                    modifiers: vec![],
+                    children: vec![],
+                    span: None,
+                },
+            ],
+            span: None,
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
     let track = timeline.get_track("legend").expect("legend track should exist");
 
-    let entries = &track.legend.entries;
-    assert_eq!(entries.len(), 3, "should have 3 entries");
-
-    // Each entry should have a color (the placeholder colors)
-    // Series A: red
-    assert_eq!(entries[0].1, [1.0, 0.0, 0.0, 1.0], "Series A should be red");
-    // Series B: green
-    assert_eq!(entries[1].1, [0.0, 1.0, 0.0, 1.0], "Series B should be green");
-    // Series C: blue
-    assert_eq!(entries[2].1, [0.0, 0.0, 1.0, 1.0], "Series C should be blue");
-
-    // Evaluate at time 0 — verify it doesn't panic with multiple colors
-    let dims = SceneDimensions {
-        width: 1920,
-        height: 1080,
-    };
-    let _scene = timeline.evaluate(0.0, dims);
+    assert_eq!(
+        track.legend.entries,
+        vec![
+            ("Revenue".to_string(), [1.0, 0.0, 0.0, 1.0]),
+            ("Line C".to_string(), [0.0, 0.0, 1.0, 1.0]),
+        ]
+    );
 }
 
 #[test]

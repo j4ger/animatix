@@ -348,6 +348,24 @@ impl Timeline {
             }
         }
 
+        // Populate Legend entries after every actor is built so generated and
+        // forward-declared actors participate in the same scan.
+        let legend_labels = timeline
+            .tracks
+            .iter()
+            .filter_map(|(label, track)| {
+                (track.kind == crate::timeline::ActorKindId::Legend).then(|| label.clone())
+            })
+            .collect::<Vec<_>>();
+        if !legend_labels.is_empty() {
+            let entries = crate::timeline::legend::scan_legend_entries(&timeline.tracks);
+            for label in legend_labels {
+                if let Some(track) = timeline.tracks.get_mut(&label) {
+                    track.legend.entries = entries.clone();
+                }
+            }
+        }
+
         BuildReport::new(timeline, diagnostics)
     }
 }

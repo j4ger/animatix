@@ -677,9 +677,10 @@ legend: Legend, at: (100, 100)
 |----------|------|---------|-------------|
 | `at` | Vec2 | `(100, 100)` | Position of the top-left corner of the legend |
 
-**Legend entries** are auto-generated — not manually specified. Currently uses placeholders entries
-("Series A", "Series B", "Series C") with hardcoded colors as a stand-in; scene scanning for automatic
-entry extraction from actors with color properties will be implemented in a future update.
+**Legend entries** are auto-generated after the scene is built. The scan includes color-bearing leaf
+actors such as shapes, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, and `BarChart`; structural
+actors such as graphs, grids, containers, and other legends are excluded. Auto labels are derived from
+the actor label (`line_a` → `Line A`).
 
 Actors can opt into or out of legend scanning with the generic `legend` property:
 

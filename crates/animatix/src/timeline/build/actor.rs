@@ -312,6 +312,7 @@ impl Timeline {
         };
         let mut stroke_width = existing_track.style.stroke_width.last(2.0);
         let mut stroke_color = existing_track.style.stroke_color.last(DEFAULT_WHITE);
+        let legend_color = existing_track.legend.color;
         let mut stroke_progress = existing_track.style.stroke_progress.last(1.0);
         let mut fill_opacity = existing_track.style.fill_opacity.last(1.0);
 
@@ -481,6 +482,14 @@ impl Timeline {
             }
         }
 
+        let legend_color = if has_explicit_color {
+            Some(color)
+        } else if has_explicit_stroke {
+            Some(stroke_color)
+        } else {
+            legend_color
+        };
+
         // For Line actors, inherit stroke_color from color since Line is stroke-only
         if !stroke_color_explicitly_set
             && kind_id == super::ActorKindId::Shape(super::ShapeKind::Line)
@@ -591,6 +600,7 @@ impl Timeline {
         if let Some(pl) = parent_label {
             track.parent = Some(pl.to_string());
         }
+        track.legend.color = legend_color;
 
         // Registry-backed tagged union properties are not part of the legacy
         // per-primitive build loop, so write them through the generic engine.

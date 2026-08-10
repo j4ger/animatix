@@ -43,4 +43,63 @@ pub struct LegendTracks {
     pub entries: Vec<(String, [f32; 4])>,
     /// Per-actor legend participation mode, updated when `legend` is declared.
     pub mode: LegendMode,
+    /// Explicit color captured from the actor declaration, if any.
+    pub color: Option<[f32; 4]>,
+}
+
+fn legend_eligible(kind: &super::ActorKindId) -> bool {
+    use super::ActorKindId::*;
+    matches!(kind, Shape(_) | PlotCurve | VectorField | Heatmap | ContourSet | BarChart)
+}
+
+fn prettify_label(label: &str) -> String {
+    label
+        .split(['_', '-', '.'])
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            let mut chars = part.chars();
+            match chars.next() {
+                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Scan completed actor tracks for color-bearing legend candidates.
+///
+/// Runs after the full timeline is built so forward declarations and generated
+/// actors are visible. Structural actors are excluded by kind, and actors can
+/// opt out or supply an explicit label via `legend`.
+pub fn scan_legend_entries(
+    tracks: &std::collections::BTreeMap<String, super::AnimationTrack>,
+) -> Vec<(String, [f32; 4])> {
+    let mut candidates = Vec::new();
+    for (label, track) in tracks {
+        if !legend_eligible(&track.kind) || track.legend.mode == LegendMode::Hidden {
+            continue;
+        }
+        let Some(color) = track.legend.color else {
+            continue;
+        };
+        let display_label = match &track.legend.mode {
+            LegendMode::Label(label) => label.clone(),
+            LegendMode::Auto | LegendMode::Hidden => prettify_label(label),
+        };
+        candidates.push((track.first_seen_ms, label.clone(), display_label, color));
+    }
+
+    candidates.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+    let mut entries: Vec<(String, [f32; 4])> = Vec::new();
+    for (_, _, display_label, color) in candidates {
+        if entries
+            .iter()
+            .any(|(label, existing)| label == &display_label && *existing == color)
+        {
+            continue;
+        }
+        entries.push((display_label, color));
+    }
+    entries
 }

@@ -59,14 +59,9 @@ impl Primitive for LegendPrimitive {
             track.first_seen_ms = ctx.time_ms as u64;
         }
 
-        // For now, use placeholder entries.
-        // Future work: scan scene for actors with color properties and
-        // extract (label, color) pairs automatically.
-        track.legend.entries = vec![
-            ("Series A".to_string(), [1.0, 0.0, 0.0, 1.0]),
-            ("Series B".to_string(), [0.0, 1.0, 0.0, 1.0]),
-            ("Series C".to_string(), [0.0, 0.0, 1.0, 1.0]),
-        ];
+        // Entries are populated by the post-build scene scan, so a rebuild
+        // starts from an empty slate instead of retaining stale entries.
+        track.legend.entries.clear();
 
         Ok(())
     }
