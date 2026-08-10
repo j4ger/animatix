@@ -681,6 +681,16 @@ legend: Legend, at: (100, 100)
 ("Series A", "Series B", "Series C") with hardcoded colors as a stand-in; scene scanning for automatic
 entry extraction from actors with color properties will be implemented in a future update.
 
+Actors can opt into or out of legend scanning with the generic `legend` property:
+
+```animatix
+line_a: Line, color: red, legend: "Revenue"
+axis: Line, color: gray, legend: false
+```
+
+`legend` accepts `Bool | Str`: `false` hides the actor, a string supplies an explicit label, and an omitted
+value (or `true`) leaves participation automatic.
+
 ### Graph Coordinate Mapping
 
 Actors declared inside a `Graph` block have their `at`/`position`/`from`/`to` properties automatically mapped from math coordinates to screen pixels.
@@ -1134,6 +1144,7 @@ pub component Badge(color: Color) {
 | `Actor` | Actor reference | `btn`, `self` |
 | `Scene` | Scene reference | `scene` |
 | `List<T>` | Homogeneous list of type `T` | `{1, 2, 3}` (inferred as `List<Num>`) |
+| `A \| B` | Union of accepted types | `Bool \| Str`, `Num \| Str` |
 | `Any` | Top type, accepts any value | — |
 
 **Properties of `Color`** (inherited from `Vec4`):
@@ -1154,6 +1165,7 @@ The subtyping relation `<:` is reflexive and transitive:
 | `T <: Any` | Every type is a subtype of `Any` |
 | `T <: T` | Identity — every type subtypes itself |
 | `List<A> <: List<B>` iff `A <: B` | List subtyping is covariant with respect to element type |
+| `T <: A \| B` iff `T <: A` or `T <: B` | An actual type is accepted when it matches any union branch |
 
 **Examples:**
 - A `Color` value may be assigned where `Vec4` is expected: `button.tint = rgb(1, 0, 0)` for a field typed `Vec4`.

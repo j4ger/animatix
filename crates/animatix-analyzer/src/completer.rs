@@ -624,6 +624,40 @@ fn value_for_property(
                     insert_text: None,
                 }));
             },
+            animatix_syntax::ast::TypeAnnotation::Union(types) => {
+                for ty in types {
+                    match ty {
+                        animatix_syntax::ast::TypeAnnotation::Bool => {
+                            items.extend(["true", "false"].iter().map(|v| CompletionItem {
+                                label: v.to_string(),
+                                kind: CompletionKind::Value,
+                                detail: Some("Boolean".to_string()),
+                                documentation: None,
+                                insert_text: None,
+                            }));
+                        },
+                        animatix_syntax::ast::TypeAnnotation::Str => {
+                            items.push(CompletionItem {
+                                label: "\"\"".to_string(),
+                                kind: CompletionKind::Snippet,
+                                detail: Some("String".to_string()),
+                                documentation: Some("String literal".to_string()),
+                                insert_text: Some("\"${1:text}\"".to_string()),
+                            });
+                        },
+                        animatix_syntax::ast::TypeAnnotation::Num => {
+                            items.extend(["0", "1", "0.5"].iter().map(|v| CompletionItem {
+                                label: v.to_string(),
+                                kind: CompletionKind::Value,
+                                detail: Some("Number".to_string()),
+                                documentation: None,
+                                insert_text: None,
+                            }));
+                        },
+                        _ => {},
+                    }
+                }
+            },
             _ => {},
         }
     }

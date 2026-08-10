@@ -391,6 +391,8 @@ pub enum TypeAnnotation {
     Scene,
     /// Homogeneous list.
     List(Box<TypeAnnotation>),
+    /// Union of accepted types, e.g. `Bool | Str`.
+    Union(Vec<TypeAnnotation>),
     /// Unannotated — accepts any value.
     Any,
 }
@@ -407,6 +409,10 @@ impl std::fmt::Display for TypeAnnotation {
             TypeAnnotation::Actor => write!(f, "Actor"),
             TypeAnnotation::Scene => write!(f, "Scene"),
             TypeAnnotation::List(inner) => write!(f, "List<{}>", inner),
+            TypeAnnotation::Union(types) => {
+                let inner = types.iter().map(ToString::to_string).collect::<Vec<_>>().join(" | ");
+                write!(f, "{inner}")
+            },
             TypeAnnotation::Any => write!(f, "Any"),
         }
     }

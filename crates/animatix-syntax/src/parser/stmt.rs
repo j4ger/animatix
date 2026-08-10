@@ -87,10 +87,29 @@ pub(crate) fn parser<'src>(
             ));
             let list = text::keyword("List")
                 .ignore_then(just('<').padded())
-                .ignore_then(type_annotation)
+                .ignore_then(type_annotation.clone())
                 .then_ignore(just('>').padded())
                 .map(|inner| TypeAnnotation::List(Box::new(inner)));
-            simple.or(list)
+            let atom = simple.or(list);
+            let union = atom
+                .clone()
+                .then(
+                    just('|')
+                        .padded()
+                        .ignore_then(atom.clone())
+                        .repeated()
+                        .collect::<Vec<_>>(),
+                )
+                .map(|(first, rest)| {
+                    if rest.is_empty() {
+                        first
+                    } else {
+                        let mut types = vec![first];
+                        types.extend(rest);
+                        TypeAnnotation::Union(types)
+                    }
+                });
+            union.or(atom)
         });
 
         let param_def = ident

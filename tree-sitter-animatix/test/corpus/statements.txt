@@ -276,6 +276,24 @@ action pulse(scale: 1.05) {
         value: (identifier)))))
 
 ==================
+Action definition with union parameter type
+==================
+
+action transform(value: Bool | Str = "x") {}
+
+---
+
+(source_file
+  (action_definition
+    name: (identifier)
+    (parameter_list
+      (parameter
+        name: (identifier)
+        type: (type_annotation)
+        default: (string)))
+    (block)))
+
+==================
 Config with trailing comma
 ==================
 

@@ -114,6 +114,7 @@ GRAMMAR_PROBES=(
     "title.opacity = 0.5"
     "bars[i].color = red"
     "bars[i].rows[j].x = red"
+    "action transform(value: Bool | Str) {}"
 )
 
 for probe in "${GRAMMAR_PROBES[@]}"; do

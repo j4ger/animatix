@@ -919,6 +919,22 @@ mod tests {
     }
 
     #[test]
+    fn test_union_type_annotation_in_action_param() {
+        let src = r#"action transform(x: Bool | Str = "x") { fade-in x [300ms] }"#;
+        let res = parser_simple().parse(src);
+        assert!(!res.has_errors(), "parse errors: {:?}", res.errors().collect::<Vec<_>>());
+        let stmts = res.output().expect("expected parse output");
+        if let Stmt::ComponentAction { params, .. } = &stmts[0] {
+            assert_eq!(
+                params[0].param_type,
+                Some(TypeAnnotation::Union(vec![TypeAnnotation::Bool, TypeAnnotation::Str,]))
+            );
+        } else {
+            panic!("expected ComponentAction, got {:?}", stmts[0]);
+        }
+    }
+
+    #[test]
     fn parse_action_with_multiple_dotted_targets() {
         // Comma-separated dotted targets: `highlight eq.f1, eq.f2 [500ms]`
         let result = parse_snippet("highlight eq.f1, eq.f2 [500ms]");

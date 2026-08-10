@@ -77,6 +77,8 @@ pub enum Type {
     List(Box<Type>),
     /// Heterogeneous tuple.
     Tuple(Vec<Type>),
+    /// Union of accepted types.
+    Union(Vec<Type>),
     /// Function value.
     Function {
         /// Function parameter types.
@@ -100,6 +102,10 @@ impl std::fmt::Display for Type {
             Type::Actor(name) => write!(f, "Actor({name})"),
             Type::Component(name) => write!(f, "Component({name})"),
             Type::List(inner) => write!(f, "List<{inner}>"),
+            Type::Union(items) => {
+                let inner = items.iter().map(ToString::to_string).collect::<Vec<_>>().join(" | ");
+                write!(f, "{inner}")
+            },
             Type::Tuple(items) => {
                 let inner = items.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ");
                 write!(f, "({inner})")
@@ -126,6 +132,9 @@ impl Type {
             Type::Color => TypeAnnotation::Color,
             Type::Actor(_) | Type::Component(_) => TypeAnnotation::Actor,
             Type::List(inner) => TypeAnnotation::List(Box::new(inner.to_annotation())),
+            Type::Union(types) => {
+                TypeAnnotation::Union(types.iter().map(Type::to_annotation).collect())
+            },
             Type::Tuple(_) | Type::Function { .. } => TypeAnnotation::Any,
         }
     }
@@ -142,6 +151,9 @@ impl Type {
             TypeAnnotation::Actor => Type::Actor("Actor".to_string()),
             TypeAnnotation::Scene => Type::Any,
             TypeAnnotation::List(inner) => Type::List(Box::new(Type::from_annotation(inner))),
+            TypeAnnotation::Union(types) => {
+                Type::Union(types.iter().map(Type::from_annotation).collect())
+            },
             TypeAnnotation::Any => Type::Any,
         }
     }
@@ -434,6 +446,15 @@ pub fn is_subtype(actual: &Type, expected: &Type) -> bool {
         (Type::List(a), Type::List(b)) => is_subtype(a, b),
         (Type::Actor(_), Type::Actor(_)) => true,
         (Type::Component(_), Type::Actor(_)) => true,
+        (Type::Union(actual_types), Type::Union(expected_types)) => actual_types
+            .iter()
+            .any(|actual| expected_types.iter().any(|expected| is_subtype(actual, expected))),
+        (Type::Union(actual_types), expected) => {
+            actual_types.iter().any(|actual| is_subtype(actual, expected))
+        },
+        (actual, Type::Union(expected_types)) => {
+            expected_types.iter().any(|expected| is_subtype(actual, expected))
+        },
         _ => false,
     }
 }

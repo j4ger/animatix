@@ -155,6 +155,11 @@ module.exports = grammar({
     ),
 
     type_annotation: $ => choice(
+      seq($._type_annotation, repeat1(seq('|', $._type_annotation))),
+      $._type_annotation
+    ),
+
+    _type_annotation: $ => choice(
       'Num',
       'Str',
       'Bool',

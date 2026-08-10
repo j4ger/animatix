@@ -59,6 +59,7 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
   | `verb actor[0] [mods]` | `target_list` (accepts `index_expression`) |
   | `bars[i].color = red` | `property_assignment` (target `indexed_target_path`) |
   | `bars[i].color := red` | `reactive_binding` (target `indexed_target_path`) |
+  | `value: Bool | Str` | `type_annotation` (union of `_type_annotation`) |
   | trailing comma in `config {}` | `property_list` (with `optional(',')`) |
   | newline-separated inline items | `inline_items` (optional comma separator) |
   | `label: $$ content $$` shorthand | `typst_shorthand` (with `token(/[^$]*/)` content) |
