@@ -116,6 +116,7 @@ GRAMMAR_PROBES=(
     "bars[i].rows[j].x = red"
     "action transform(value: Bool | Str) {}"
     "type LegendMode = Bool | Str"
+    "pub component Card(value: types.Metric) {}"
 )
 
 for probe in "${GRAMMAR_PROBES[@]}"; do

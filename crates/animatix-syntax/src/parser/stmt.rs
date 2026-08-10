@@ -92,7 +92,25 @@ pub(crate) fn parser<'src>(
                 .map(|inner| TypeAnnotation::List(Box::new(inner)));
             let atom = simple
                 .or(list)
-                .or(common::type_ident().map(TypeAnnotation::Alias));
+                .or(common::type_ident().map(TypeAnnotation::Alias))
+                .or(common::ident()
+                    .then(
+                        just('.')
+                            .padded()
+                            .ignore_then(common::ident().filter(|s: &String| {
+                                s.chars().next().is_some_and(|c| c.is_lowercase() || c == '_')
+                            }))
+                            .repeated()
+                            .collect::<Vec<_>>(),
+                    )
+                    .then_ignore(just('.').padded())
+                    .then(common::type_ident())
+                    .map(|((first, middle), last)| {
+                        let mut parts = vec![first];
+                        parts.extend(middle);
+                        parts.push(last);
+                        TypeAnnotation::Alias(parts.join("."))
+                    }));
             let union = atom
                 .clone()
                 .then(

@@ -198,7 +198,7 @@ let private = 1
         r#"
 import "./types.amx" as types
 
-pub component Card(value: Metric) {}
+pub component Card(value: types.Metric) {}
 card: Card, value: "Revenue"
 "#,
     );
@@ -207,6 +207,21 @@ card: Card, value: "Revenue"
     let types_ns = program.namespaces.get("types").unwrap();
     assert!(types_ns.type_exports.contains_key("Metric"));
     assert!(program.typecheck().is_empty(), "imported type alias should typecheck");
+
+    write_file(
+        &entry,
+        r#"
+import "./types.amx" as types
+
+pub component Card(value: types.Metric) {}
+bad: Card, value: 42
+"#,
+    );
+    let mut bad_program = ModuleGraph::new().load_program(&entry).unwrap();
+    assert!(
+        !bad_program.typecheck().is_empty(),
+        "namespaced alias should reject a non-matching value"
+    );
 }
 
 #[test]

@@ -1059,12 +1059,39 @@ impl<'a> TsConverter<'a> {
             .child_by_field_name("name")
             .map(|n| self.node_text(n).to_string())
             .unwrap_or_default();
-        let default = node.child_by_field_name("default").and_then(|n| self.convert_expr(n));
+        let type_node = node.child_by_field_name("type");
+        let default_node = node.child_by_field_name("default");
+        let param_type = if let Some(type_node) = type_node {
+            Some(self.convert_type_annotation(type_node))
+        } else if let Some(default_node) = default_node
+            && self.is_dotted_type_alias(default_node)
+        {
+            Some(TypeAnnotation::Alias(self.node_text(default_node).to_string()))
+        } else {
+            None
+        };
+        let default = if param_type.is_some() {
+            None
+        } else {
+            default_node.and_then(|n| self.convert_expr(n))
+        };
         ParamDef {
             name,
-            param_type: None, // Could be extracted from "type" field
+            param_type,
             default,
         }
+    }
+
+    fn is_dotted_type_alias(&self, node: Node) -> bool {
+        if node.kind() != "path_expression" {
+            return false;
+        }
+        let text = self.node_text(node);
+        text.contains('.')
+            && text
+                .rsplit('.')
+                .next()
+                .is_some_and(|last| last.chars().next().is_some_and(|c| c.is_uppercase()))
     }
 
     /// Convert a modifier_block node's modifiers into `Vec<Modifier>`.
@@ -1818,6 +1845,20 @@ title: Text, text: "Hello"
                 );
             },
             other => panic!("expected type alias, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_namespaced_type_alias_reference() {
+        let source = "pub component Card(value: types.Metric) {}\n";
+        let result = parse_source(source).expect("parse should succeed");
+        if let Stmt::ComponentDef(def, _) = &result.statements[0] {
+            assert_eq!(
+                def.params[0].param_type,
+                Some(TypeAnnotation::Alias("types.Metric".to_string()))
+            );
+        } else {
+            panic!("expected component definition");
         }
     }
 

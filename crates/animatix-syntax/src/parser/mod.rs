@@ -959,6 +959,22 @@ mod tests {
     }
 
     #[test]
+    fn test_namespaced_type_alias_reference_parses() {
+        let src = "pub component Card(value: types.Metric) {}\n";
+        let res = parser_simple().parse(src);
+        assert!(!res.has_errors(), "parse errors: {:?}", res.errors().collect::<Vec<_>>());
+        let stmts = res.output().expect("expected parse output");
+        if let Stmt::ComponentDef(def, _) = &stmts[0] {
+            assert_eq!(
+                def.params[0].param_type,
+                Some(TypeAnnotation::Alias("types.Metric".to_string()))
+            );
+        } else {
+            panic!("expected component definition");
+        }
+    }
+
+    #[test]
     fn parse_action_with_multiple_dotted_targets() {
         // Comma-separated dotted targets: `highlight eq.f1, eq.f2 [500ms]`
         let result = parse_snippet("highlight eq.f1, eq.f2 [500ms]");
