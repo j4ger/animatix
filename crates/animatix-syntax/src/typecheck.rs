@@ -63,6 +63,25 @@ impl<'a> TypeEnv<'a> {
         self
     }
 
+    /// Register type aliases exported by aliased module imports.
+    pub fn register_module_aliases(
+        &mut self,
+        namespaces: &HashMap<String, crate::module::Namespace>,
+    ) {
+        fn register_ns(prefix: &str, ns: &crate::module::Namespace, typed: &mut TypedEnv) {
+            for (name, annotation) in &ns.type_exports {
+                typed.register_alias(&format!("{prefix}.{name}"), annotation);
+                typed.register_alias(name, annotation);
+            }
+            for (name, nested) in &ns.namespaces {
+                register_ns(&format!("{prefix}.{name}"), nested, typed);
+            }
+        }
+        for (alias, ns) in namespaces {
+            register_ns(alias, ns, &mut self.typed);
+        }
+    }
+
     /// Check all statements in a program, returning any type errors.
     pub fn check_statements(&mut self, stmts: &[Stmt]) -> Vec<Diagnostic> {
         for stmt in stmts {

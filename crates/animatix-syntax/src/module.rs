@@ -18,7 +18,7 @@ use expand::expand_statements;
 
 use crate::ast::{
     Action, ComponentDef, Expr, InlineItem, MatchPattern, Modifier, ParamDef, Property, Span, Stmt,
-    TargetSegment,
+    TargetSegment, TypeAnnotation,
 };
 use crate::parser::{ParseError, parse_source};
 use crate::walk::walk_stmts_mut;
@@ -104,6 +104,7 @@ impl LoadedProgram {
         let strict_types = self.extract_strict_types();
         let mut env = crate::typecheck::TypeEnv::new(&self.components, &self.module_actions)
             .with_strict_types(strict_types);
+        env.register_module_aliases(&self.namespaces);
         env.check_statements(&self.statements)
     }
 
@@ -155,6 +156,8 @@ pub struct SceneData {
 pub struct Namespace {
     /// Exported values keyed by name.
     pub exports: HashMap<String, Expr>,
+    /// Exported type aliases keyed by name.
+    pub type_exports: HashMap<String, TypeAnnotation>,
     /// Scene definitions from this module, keyed by scene name.
     pub scenes: HashMap<String, SceneData>,
     /// Nested namespaces from this module's aliased imports.
@@ -166,6 +169,22 @@ pub struct Namespace {
 fn collect_pub_lets(statements: &[Stmt]) -> HashMap<String, Expr> {
     let mut result = HashMap::new();
     collect_pub_lets_inner(statements, &mut result);
+    result
+}
+
+fn collect_pub_type_aliases(statements: &[Stmt]) -> HashMap<String, TypeAnnotation> {
+    let mut result = HashMap::new();
+    for stmt in statements {
+        if let Stmt::TypeAlias {
+            is_pub: true,
+            name,
+            annotation,
+            ..
+        } = stmt
+        {
+            result.insert(name.clone(), annotation.clone());
+        }
+    }
     result
 }
 
@@ -571,12 +590,14 @@ impl ModuleGraph {
                         .and_then(|p| self.paths.get(&p).copied())
                     {
                         let resolved_exports = self.collect_resolved_exports(import_id);
+                        let resolved_type_exports = self.collect_resolved_type_exports(import_id);
                         let resolved_scenes = self.collect_resolved_scenes(import_id);
                         let resolved_namespaces = self.collect_resolved_namespaces(import_id);
                         namespaces.insert(
                             alias.clone(),
                             Namespace {
                                 exports: resolved_exports,
+                                type_exports: resolved_type_exports,
                                 scenes: resolved_scenes,
                                 namespaces: resolved_namespaces,
                             },
@@ -672,6 +693,14 @@ impl ModuleGraph {
         resolve_exports(raw_exports, &import_refs)
     }
 
+    /// Collect exported type aliases from a module.
+    fn collect_resolved_type_exports(&self, file_id: FileId) -> HashMap<String, TypeAnnotation> {
+        let Some(module) = self.files.get(&file_id) else {
+            return HashMap::new();
+        };
+        collect_pub_type_aliases(&module.statements)
+    }
+
     /// Collect nested namespaces for a module's aliased imports.
     fn collect_resolved_namespaces(&self, file_id: FileId) -> HashMap<String, Namespace> {
         let mut namespaces = HashMap::new();
@@ -694,6 +723,7 @@ impl ModuleGraph {
                 alias.clone(),
                 Namespace {
                     exports: self.collect_resolved_exports(sub_id),
+                    type_exports: self.collect_resolved_type_exports(sub_id),
                     scenes: self.collect_resolved_scenes(sub_id),
                     namespaces: self.collect_resolved_namespaces(sub_id),
                 },

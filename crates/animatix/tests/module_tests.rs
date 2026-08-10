@@ -180,6 +180,36 @@ panel: Rect, size: (200, 100), color: theme.accent
 }
 
 #[test]
+fn load_program_collects_and_typechecks_namespaced_type_aliases() {
+    let dir = temp_project_dir("namespaced_type_aliases");
+    let entry = dir.join("scene.amx");
+    let types = dir.join("types.amx");
+
+    write_file(
+        &types,
+        r#"
+pub type Metric = Bool | Str
+let private = 1
+"#,
+    );
+
+    write_file(
+        &entry,
+        r#"
+import "./types.amx" as types
+
+pub component Card(value: Metric) {}
+card: Card, value: "Revenue"
+"#,
+    );
+
+    let mut program = ModuleGraph::new().load_program(&entry).unwrap();
+    let types_ns = program.namespaces.get("types").unwrap();
+    assert!(types_ns.type_exports.contains_key("Metric"));
+    assert!(program.typecheck().is_empty(), "imported type alias should typecheck");
+}
+
+#[test]
 fn load_program_nested_aliased_namespace_depth() {
     let dir = temp_project_dir("nested_namespace");
     let entry = dir.join("scene.amx");
