@@ -51,7 +51,7 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
             .delimited_by(just('(').padded(), just(')').padded())
             .map(|items| {
                 if items.len() == 1 {
-                    items.into_iter().next().expect("tuple with len==1 has one item")
+                    items.into_iter().next().unwrap_or(Expr::Tuple(Vec::new()))
                 } else {
                     Expr::Tuple(items)
                 }

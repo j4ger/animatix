@@ -826,10 +826,9 @@ impl<'a> TsConverter<'a> {
 
     fn convert_path_expr(&mut self, node: Node) -> Expr {
         let segments = self.convert_path_segments(node);
-        if segments.len() == 1 {
-            Expr::Ident(segments.into_iter().next().unwrap())
-        } else {
-            Expr::Path(segments)
+        match segments.as_slice() {
+            [segment] => Expr::Ident(segment.clone()),
+            _ => Expr::Path(segments),
         }
     }
 

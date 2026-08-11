@@ -257,11 +257,15 @@ pub(crate) fn parser<'src>(
                         span: None,
                     })
                 } else {
-                    let property = match path.last().unwrap() {
-                        TargetSegment::Static(s) => s.clone(),
-                        TargetSegment::Indexed { .. } => return Err(Rich::custom(
+                    let property = match path.last() {
+                        Some(TargetSegment::Static(s)) => s.clone(),
+                        Some(TargetSegment::Indexed { .. }) => return Err(Rich::custom(
                             span,
                             "array index cannot appear on the property segment (e.g. use bars[i].color, not a.b[i])",
+                        )),
+                        None => return Err(Rich::custom(
+                            span,
+                            "assignment target must include a property name",
                         )),
                     };
                     let target = path[..path.len() - 1].to_vec();
@@ -296,11 +300,15 @@ pub(crate) fn parser<'src>(
                         "reactive binding target must include an actor label and a property (e.g. 'actor.prop := expr')",
                     ))
                 } else {
-                    let property = match path.last().unwrap() {
-                        TargetSegment::Static(s) => s.clone(),
-                        TargetSegment::Indexed { .. } => return Err(Rich::custom(
+                    let property = match path.last() {
+                        Some(TargetSegment::Static(s)) => s.clone(),
+                        Some(TargetSegment::Indexed { .. }) => return Err(Rich::custom(
                             span,
                             "array index cannot appear on the property segment (e.g. use bars[i].color, not a.b[i])",
+                        )),
+                        None => return Err(Rich::custom(
+                            span,
+                            "reactive binding target must include a property name",
                         )),
                     };
                     let target = path[..path.len() - 1].to_vec();

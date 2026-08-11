@@ -450,12 +450,13 @@ impl ModuleGraph {
                 Self::resolve_path(canonical.parent().unwrap_or(Path::new(".")), &import.0);
 
             let result = self.load_file(&import_path, visiting, source_override)?;
-            all_import_ids.push(
-                self.paths
-                    .get(&fs::canonicalize(&import_path).map_err(ModuleError::IoError)?)
-                    .copied()
-                    .expect("path was just inserted by load_file"),
-            );
+            let canonical_import = fs::canonicalize(&import_path).map_err(ModuleError::IoError)?;
+            let import_id = self
+                .paths
+                .get(&canonical_import)
+                .copied()
+                .ok_or_else(|| ModuleError::FileNotFound(import_path.clone()))?;
+            all_import_ids.push(import_id);
             all_import_ids.extend(result.import_ids);
         }
 
