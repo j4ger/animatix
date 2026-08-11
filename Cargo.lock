@@ -124,7 +124,6 @@ dependencies = [
  "fontdb",
  "image",
  "kurbo 0.13.0",
- "naga",
  "pollster",
  "roxmltree 0.20.0",
  "rsmpeg",

@@ -58,7 +58,15 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(0.0));
                     if let Value::Vec2([w, h]) = size_val {
-                        *vector_shape_state.size_mut() = [w as f32 / 2.0, h as f32 / 2.0];
+                        if let Some(size) = vector_shape_state.size_mut() {
+                            *size = [w as f32 / 2.0, h as f32 / 2.0];
+                        } else {
+                            diagnostics.push(Diagnostic::warning(
+                                DiagnosticCode::InvalidPropertyValue,
+                                DiagnosticPhase::Build,
+                                format!("size is not supported on {}", ty),
+                            ));
+                        }
                     }
                 },
                 _ => {

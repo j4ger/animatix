@@ -325,13 +325,18 @@ impl DocumentSession {
                 {
                     self.active_scene = composition.declaration_order.first().cloned();
                 }
+                // Reusing modifier IR/bytecode is only safe when the old data
+                // belongs to the same scene. Multi-scene files do not carry a
+                // per-scene cache here, so recompile each scene conservatively.
+                let scene_count = composition.scenes.len();
                 for scene in composition.scenes.values_mut() {
                     scene.timeline.plot_path_cache.clone_from(&old_plot_cache);
-                    // Reuse compiled modifier programs if modifier AST is unchanged.
-                    if let Some((old_hash, old_ir, old_bc)) = &old_modifier_data {
-                        if scene.timeline.modifier_hash == *old_hash && !old_ir.is_empty() {
-                            scene.timeline.modifier_programs = old_ir.clone();
-                            scene.timeline.modifier_bytecode_programs = old_bc.clone();
+                    if scene_count == 1 {
+                        if let Some((old_hash, old_ir, old_bc)) = &old_modifier_data {
+                            if scene.timeline.modifier_hash == *old_hash && !old_ir.is_empty() {
+                                scene.timeline.modifier_programs = old_ir.clone();
+                                scene.timeline.modifier_bytecode_programs = old_bc.clone();
+                            }
                         }
                     }
                 }
@@ -428,12 +433,17 @@ impl DocumentSession {
             {
                 self.active_scene = composition.declaration_order.first().cloned();
             }
+            // Multi-scene output recompiles modifier programs unless this
+            // composition has a single scene with a matching hash.
+            let scene_count = composition.scenes.len();
             for scene in composition.scenes.values_mut() {
                 scene.timeline.plot_path_cache.clone_from(&old_plot_cache);
-                if let Some((old_hash, old_ir, old_bc)) = &old_modifier_data {
-                    if scene.timeline.modifier_hash == *old_hash && !old_ir.is_empty() {
-                        scene.timeline.modifier_programs = old_ir.clone();
-                        scene.timeline.modifier_bytecode_programs = old_bc.clone();
+                if scene_count == 1 {
+                    if let Some((old_hash, old_ir, old_bc)) = &old_modifier_data {
+                        if scene.timeline.modifier_hash == *old_hash && !old_ir.is_empty() {
+                            scene.timeline.modifier_programs = old_ir.clone();
+                            scene.timeline.modifier_bytecode_programs = old_bc.clone();
+                        }
                     }
                 }
             }

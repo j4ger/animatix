@@ -655,11 +655,12 @@ pub(crate) fn write_tagged(
         if field.is_none() {
             *field = Some(PropertyTrack::new(default.clone()));
         }
-        let previous_time = t_start_ms.saturating_sub(1);
-        let inner = field.as_mut().expect("tagged track exists");
-        if !inner.keyframes.contains_key(&previous_time) {
-            let previous_value = inner.evaluate(previous_time);
-            inner.add_keyframe(previous_time, previous_value, Easing::Linear);
+        if let Some(inner) = field.as_mut() {
+            let previous_time = t_start_ms.saturating_sub(1);
+            if !inner.keyframes.contains_key(&previous_time) {
+                let previous_value = inner.evaluate(previous_time);
+                inner.add_keyframe(previous_time, previous_value, Easing::Linear);
+            }
         }
     }
     field.ensure(default).add_keyframe(t_end_ms, value, easing);

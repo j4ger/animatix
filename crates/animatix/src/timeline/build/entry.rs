@@ -239,7 +239,7 @@ impl Timeline {
                     );
                     timeline.default_opacity = saved_opacity;
                 },
-                _ => {},
+                _ => {}, // Config/import/type aliases are handled by earlier phases
             }
         }
 
@@ -259,12 +259,10 @@ impl Timeline {
         if !timeline.modifiers.is_empty() {
             match crate::timeline::modifier_runtime::ir::lower_modifier_body(&timeline.modifiers) {
                 Ok(program) => {
-                    timeline.modifier_programs.push(program);
-                    // Compile IR to bytecode for even faster execution
-                    match crate::timeline::modifier_runtime::vm::compile_modifier_bytecode(
-                        timeline.modifier_programs.last().expect("IR program just pushed above"),
-                    ) {
+                    match crate::timeline::modifier_runtime::vm::compile_modifier_bytecode(&program)
+                    {
                         Ok(bytecode) => {
+                            timeline.modifier_programs.push(program);
                             timeline.modifier_bytecode_programs.push(bytecode);
                         },
                         Err(e) => {

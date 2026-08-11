@@ -158,7 +158,7 @@ impl Timeline {
                     }
                 }
             },
-            _ => {},
+            _ => {}, // Non-modifier statements are not valid inside modifier bodies
         }
     }
 

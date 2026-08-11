@@ -17,7 +17,8 @@ use crate::timeline::env::{CapturedEnv, Environment, EvalError, Value};
 //
 // Caches `(expr_ptr, env_hash) → Value` to avoid re-evaluating the same
 // expression in the same environment during build. The cache is cleared
-// between builds via [`clear_eval_cache`].
+// between builds via [`clear_eval_cache`] and capped so long-running GUI
+// sessions cannot grow without bound.
 thread_local! {
     static EVAL_CACHE: RefCell<HashMap<(usize, u64), Value>> =
         RefCell::new(HashMap::new());
@@ -25,6 +26,8 @@ thread_local! {
     /// When false, evaluate_expr skips env_hash() and the cache entirely.
     static EVAL_CACHE_ENABLED: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
 }
+
+const EVAL_CACHE_LIMIT: usize = 4096;
 
 /// Clear the thread-local expression evaluation cache.
 /// Call this at the start of each build to avoid stale results.
@@ -280,7 +283,11 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
     // Evaluate and cache
     let result = evaluate_expr_inner(expr, env)?;
     EVAL_CACHE.with(|cache| {
-        cache.borrow_mut().insert(cache_key, result.clone());
+        let mut cache = cache.borrow_mut();
+        if cache.len() >= EVAL_CACHE_LIMIT {
+            cache.clear();
+        }
+        cache.insert(cache_key, result.clone());
     });
     Ok(result)
 }

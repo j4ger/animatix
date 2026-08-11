@@ -90,10 +90,11 @@ fn collect_persistent_entries(
         }
     }
 
-    let track = snapshot_track_at(
-        timeline.tracks.get(label).expect("persistent entry must exist in tracks"),
-        time_ms,
-    );
+    let Some(track) = timeline.tracks.get(label) else {
+        tracing::warn!("Skipping persistent entry for missing track '{}'", label);
+        return;
+    };
+    let track = snapshot_track_at(track, time_ms);
 
     let auto_color_slot = timeline.auto_color_assignments.get(label).copied();
 

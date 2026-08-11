@@ -301,16 +301,16 @@ impl VectorShapeState {
         }
     }
 
-    /// Shared mutable accessor: all shapes have a size.
-    pub fn size_mut(&mut self) -> &mut [f32; 2] {
+    /// Shared mutable accessor for shapes that own a size. Returns `None` for
+    /// Arrow/Callout, which derive their visual extent from line endpoints.
+    pub fn size_mut(&mut self) -> Option<&mut [f32; 2]> {
         match self {
-            Self::Rect(s) => &mut s.size,
-            Self::Ellipse(s) => &mut s.size,
-            Self::Line(s) => &mut s.size,
-            Self::Polygon(s) => &mut s.size,
-            Self::Path(s) => &mut s.size,
-            Self::Arrow(_) => panic!("Arrow has no size field"),
-            Self::Callout(_) => panic!("Callout has no size field"),
+            Self::Rect(s) => Some(&mut s.size),
+            Self::Ellipse(s) => Some(&mut s.size),
+            Self::Line(s) => Some(&mut s.size),
+            Self::Polygon(s) => Some(&mut s.size),
+            Self::Path(s) => Some(&mut s.size),
+            Self::Arrow(_) | Self::Callout(_) => None,
         }
     }
 }

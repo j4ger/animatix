@@ -45,11 +45,11 @@ impl AssetCache {
         content: &str,
         compile_fn: impl FnOnce(&str) -> Vec<TextPath>,
     ) -> &Vec<TextPath> {
-        if !self.text_glyphs.contains_key(key) {
-            let glyphs = compile_fn(content);
-            self.text_glyphs.insert(key.to_string(), glyphs);
+        use std::collections::hash_map::Entry;
+        match self.text_glyphs.entry(key.to_string()) {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => entry.insert(compile_fn(content)),
         }
-        self.text_glyphs.get(key).expect("just inserted")
     }
 
     /// Remove all cached entries.
