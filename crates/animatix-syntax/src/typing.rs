@@ -416,7 +416,7 @@ impl TypeEnv {
 pub fn property_type(actor_type: &str, property: &str) -> Option<Type> {
     match property {
         "color" | "fill" | "stroke" => Some(Type::Color),
-        "at" | "position" | "offset" | "size" => Some(Type::Vec2),
+        "at" | "anchor" | "position" | "offset" | "size" => Some(Type::Vec2),
         "opacity" | "scale" | "rotation" | "font_size" | "stroke_width" | "line_height"
         | "letter_spacing" | "word_spacing" | "head_size" | "standoff" => Some(Type::Num),
         "text" | "content" | "code" | "label" | "url" | "place" => Some(Type::Str),
@@ -436,111 +436,143 @@ pub fn property_type(actor_type: &str, property: &str) -> Option<Type> {
 
 /// Known property types per `(actor_type, property)` pair.
 ///
-/// This is the shared source for the syntax typechecker and analyzer-level
-/// property diagnostics. It intentionally remains additive relative to
-/// [`property_type`], which covers the generic schema used by actor processing.
+/// This is the shared source for the syntax typechecker, analyzer-level
+/// property diagnostics, and property completions. It intentionally remains
+/// additive relative to [`property_type`], which covers the generic schema used
+/// by actor processing.
 pub fn known_property_types() -> &'static HashMap<(String, String), Type> {
     static CACHE: std::sync::OnceLock<HashMap<(String, String), Type>> = std::sync::OnceLock::new();
     CACHE.get_or_init(|| {
         let mut map = HashMap::new();
-
-        // Common properties
-        for ty in &[
-            "Text",
-            "Code",
-            "Rect",
-            "Ellipse",
-            "Polygon",
-            "Line",
-            "Button",
-            "Svg",
-            "Image",
-            "Graph",
-            "PlotCurve",
-        ] {
-            map.insert((ty.to_string(), "position".to_string()), Type::Vec2);
-            map.insert((ty.to_string(), "offset".to_string()), Type::Vec2);
-            map.insert((ty.to_string(), "scale".to_string()), Type::Num);
-            map.insert((ty.to_string(), "rotation".to_string()), Type::Num);
-            map.insert((ty.to_string(), "opacity".to_string()), Type::Num);
-            map.insert((ty.to_string(), "color".to_string()), Type::Color);
-            map.insert((ty.to_string(), "at".to_string()), Type::Vec2);
+        for (ty, property, property_type) in property_specs() {
+            map.insert((ty.to_string(), property.to_string()), property_type);
         }
-
-        // Text-specific
-        map.insert(("Text".to_string(), "text".to_string()), Type::Str);
-        map.insert(("Text".to_string(), "content".to_string()), Type::Str);
-        map.insert(("Text".to_string(), "font_size".to_string()), Type::Num);
-        map.insert(("Text".to_string(), "font_family".to_string()), Type::Str);
-        map.insert(("Text".to_string(), "font_weight".to_string()), Type::Num);
-        map.insert(("Text".to_string(), "font_style".to_string()), Type::Str);
-        map.insert(("Text".to_string(), "line_height".to_string()), Type::Num);
-        map.insert(("Text".to_string(), "letter_spacing".to_string()), Type::Num);
-        map.insert(("Text".to_string(), "word_spacing".to_string()), Type::Num);
-        map.insert(("Text".to_string(), "max_width".to_string()), Type::Num);
-        map.insert(("Text".to_string(), "text_align".to_string()), Type::Str);
-        map.insert(("Text".to_string(), "overflow".to_string()), Type::Str);
-
-        // Typst-specific
-        map.insert(("Typst".to_string(), "content".to_string()), Type::Str);
-        map.insert(("Typst".to_string(), "font_size".to_string()), Type::Num);
-        map.insert(("Typst".to_string(), "font_family".to_string()), Type::Str);
-        map.insert(("Typst".to_string(), "font_weight".to_string()), Type::Num);
-        map.insert(("Typst".to_string(), "font_style".to_string()), Type::Str);
-        map.insert(("Typst".to_string(), "line_height".to_string()), Type::Num);
-        map.insert(("Typst".to_string(), "letter_spacing".to_string()), Type::Num);
-        map.insert(("Typst".to_string(), "word_spacing".to_string()), Type::Num);
-        map.insert(("Typst".to_string(), "max_width".to_string()), Type::Num);
-        map.insert(("Typst".to_string(), "text_align".to_string()), Type::Str);
-        map.insert(("Typst".to_string(), "overflow".to_string()), Type::Str);
-
-        // Code-specific
-        map.insert(("Code".to_string(), "code".to_string()), Type::Str);
-        map.insert(("Code".to_string(), "content".to_string()), Type::Str);
-        map.insert(("Code".to_string(), "language".to_string()), Type::Str);
-        map.insert(("Code".to_string(), "font_weight".to_string()), Type::Num);
-        map.insert(("Code".to_string(), "font_style".to_string()), Type::Str);
-        map.insert(("Code".to_string(), "line_height".to_string()), Type::Num);
-        map.insert(("Code".to_string(), "letter_spacing".to_string()), Type::Num);
-        map.insert(("Code".to_string(), "word_spacing".to_string()), Type::Num);
-        map.insert(("Code".to_string(), "max_width".to_string()), Type::Num);
-        map.insert(("Code".to_string(), "text_align".to_string()), Type::Str);
-        map.insert(("Code".to_string(), "overflow".to_string()), Type::Str);
-
-        // Shape-specific
-        for shape in &["Rect", "Ellipse", "Polygon"] {
-            map.insert((shape.to_string(), "fill".to_string()), Type::Color);
-            map.insert((shape.to_string(), "stroke".to_string()), Type::Color);
-            map.insert((shape.to_string(), "stroke_width".to_string()), Type::Num);
-            map.insert((shape.to_string(), "size".to_string()), Type::Vec2);
-            map.insert((shape.to_string(), "radius".to_string()), Type::Num);
-        }
-
-        // Line
-        map.insert(("Line".to_string(), "start".to_string()), Type::Vec2);
-        map.insert(("Line".to_string(), "end".to_string()), Type::Vec2);
-        map.insert(("Line".to_string(), "stroke".to_string()), Type::Color);
-        map.insert(("Line".to_string(), "stroke_width".to_string()), Type::Num);
-
-        // Button
-        map.insert(("Button".to_string(), "text".to_string()), Type::Str);
-        map.insert(("Button".to_string(), "size".to_string()), Type::Vec2);
-        map.insert(("Button".to_string(), "fill".to_string()), Type::Color);
-        map.insert(("Button".to_string(), "stroke".to_string()), Type::Color);
-
-        // Svg/Image
-        for media in &["Svg", "Image"] {
-            map.insert((media.to_string(), "url".to_string()), Type::Str);
-            map.insert((media.to_string(), "size".to_string()), Type::Vec2);
-        }
-
-        // Graph
-        map.insert(("Graph".to_string(), "x_range".to_string()), Type::Vec2);
-        map.insert(("Graph".to_string(), "y_range".to_string()), Type::Vec2);
-        map.insert(("Graph".to_string(), "function".to_string()), Type::Str);
-
         map
     })
+}
+
+/// Known property names per actor type, derived from [`known_property_types`].
+///
+/// Keeping this derived avoids the analyzer maintaining a second hand-written
+/// property registry that can drift from the type checker.
+pub fn known_properties() -> &'static HashMap<String, Vec<String>> {
+    static CACHE: std::sync::OnceLock<HashMap<String, Vec<String>>> = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| {
+        let mut map = HashMap::<String, Vec<String>>::new();
+        for (ty, property, _) in property_specs() {
+            let properties = map.entry(ty.to_string()).or_default();
+            if !properties.iter().any(|existing| existing == property) {
+                properties.push(property.to_string());
+            }
+        }
+        map
+    })
+}
+
+/// Single ordered source for the known property registry.
+fn property_specs() -> Vec<(&'static str, &'static str, Type)> {
+    let mut specs = Vec::new();
+
+    let common: &[(&'static str, Type)] = &[
+        ("position", Type::Vec2),
+        ("anchor", Type::Vec2),
+        ("offset", Type::Vec2),
+        ("scale", Type::Num),
+        ("rotation", Type::Num),
+        ("opacity", Type::Num),
+        ("color", Type::Color),
+        ("at", Type::Vec2),
+    ];
+    for ty in [
+        "Text", "Code", "Typst", "Rect", "Ellipse", "Polygon", "Line", "Button", "Svg", "Image",
+        "Graph", "PlotCurve",
+    ] {
+        specs.extend(
+            common
+                .iter()
+                .map(|(property, property_type)| (ty, *property, property_type.clone())),
+        );
+    }
+
+    specs.extend([
+        // Text-specific
+        ("Text", "text", Type::Str),
+        ("Text", "content", Type::Str),
+        ("Text", "font_size", Type::Num),
+        ("Text", "font_family", Type::Str),
+        ("Text", "font_weight", Type::Num),
+        ("Text", "font_style", Type::Str),
+        ("Text", "line_height", Type::Num),
+        ("Text", "letter_spacing", Type::Num),
+        ("Text", "word_spacing", Type::Num),
+        ("Text", "max_width", Type::Num),
+        ("Text", "text_align", Type::Str),
+        ("Text", "overflow", Type::Str),
+        // Typst-specific
+        ("Typst", "content", Type::Str),
+        ("Typst", "font_size", Type::Num),
+        ("Typst", "font_family", Type::Str),
+        ("Typst", "font_weight", Type::Num),
+        ("Typst", "font_style", Type::Str),
+        ("Typst", "line_height", Type::Num),
+        ("Typst", "letter_spacing", Type::Num),
+        ("Typst", "word_spacing", Type::Num),
+        ("Typst", "max_width", Type::Num),
+        ("Typst", "text_align", Type::Str),
+        ("Typst", "overflow", Type::Str),
+        // Code-specific
+        ("Code", "code", Type::Str),
+        ("Code", "content", Type::Str),
+        ("Code", "language", Type::Str),
+        ("Code", "font_weight", Type::Num),
+        ("Code", "font_style", Type::Str),
+        ("Code", "line_height", Type::Num),
+        ("Code", "letter_spacing", Type::Num),
+        ("Code", "word_spacing", Type::Num),
+        ("Code", "max_width", Type::Num),
+        ("Code", "text_align", Type::Str),
+        ("Code", "overflow", Type::Str),
+        // Shape-specific
+        ("Rect", "fill", Type::Color),
+        ("Rect", "stroke", Type::Color),
+        ("Rect", "stroke_width", Type::Num),
+        ("Rect", "size", Type::Vec2),
+        ("Rect", "radius", Type::Num),
+        ("Ellipse", "fill", Type::Color),
+        ("Ellipse", "stroke", Type::Color),
+        ("Ellipse", "stroke_width", Type::Num),
+        ("Ellipse", "size", Type::Vec2),
+        ("Ellipse", "radius", Type::Num),
+        ("Polygon", "fill", Type::Color),
+        ("Polygon", "stroke", Type::Color),
+        ("Polygon", "stroke_width", Type::Num),
+        ("Polygon", "size", Type::Vec2),
+        ("Polygon", "radius", Type::Num),
+        // Line
+        ("Line", "start", Type::Vec2),
+        ("Line", "end", Type::Vec2),
+        ("Line", "stroke", Type::Color),
+        ("Line", "stroke_width", Type::Num),
+        // Button
+        ("Button", "text", Type::Str),
+        ("Button", "size", Type::Vec2),
+        ("Button", "fill", Type::Color),
+        ("Button", "stroke", Type::Color),
+        // Svg/Image
+        ("Svg", "url", Type::Str),
+        ("Svg", "size", Type::Vec2),
+        ("Image", "url", Type::Str),
+        ("Image", "size", Type::Vec2),
+        // Graph
+        ("Graph", "x_range", Type::Vec2),
+        ("Graph", "y_range", Type::Vec2),
+        ("Graph", "function", Type::Str),
+        ("PlotCurve", "x_range", Type::Vec2),
+        ("PlotCurve", "y_range", Type::Vec2),
+        ("PlotCurve", "function", Type::Str),
+    ]);
+
+    specs
 }
 
 /// Compute the common supertype for a list of inferred types.
@@ -782,5 +814,38 @@ mod tests {
             &Type::List(Box::new(Type::Color)),
             &Type::List(Box::new(Type::Vec4))
         ));
+    }
+
+    #[test]
+    fn known_properties_are_derived_from_typed_registry() {
+        let typed = known_property_types();
+        for (ty, properties) in known_properties() {
+            for property in properties {
+                assert!(
+                    typed.contains_key(&(ty.clone(), property.clone())),
+                    "{} is listed for {} but has no expected type",
+                    property,
+                    ty
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn typst_shares_common_layout_properties() {
+        let properties = known_properties();
+        let typst = properties.get("Typst").expect("Typst property list");
+        for property in ["position", "anchor", "offset", "scale", "rotation", "opacity", "color"] {
+            assert!(typst.contains(&property.to_string()), "missing common {property}");
+        }
+    }
+
+    #[test]
+    fn plot_curve_has_graph_ranges() {
+        let properties = known_properties();
+        let plot_curve = properties.get("PlotCurve").expect("PlotCurve property list");
+        for property in ["x_range", "y_range", "function"] {
+            assert!(plot_curve.contains(&property.to_string()), "missing {property}");
+        }
     }
 }

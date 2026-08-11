@@ -1,7 +1,6 @@
 //! Symbol table extraction from the AST.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::OnceLock;
 
 use animatix_syntax::ast::*;
 use animatix_syntax::to_source::ToSource;
@@ -206,135 +205,6 @@ const KEYWORDS: &[&str] = &[
     "stagger",
 ];
 
-/// Known properties per type.
-fn known_properties() -> &'static HashMap<String, Vec<String>> {
-    static CACHE: OnceLock<HashMap<String, Vec<String>>> = OnceLock::new();
-    CACHE.get_or_init(|| {
-        let mut map = HashMap::new();
-
-        // Common properties shared by most actors
-        let common = vec![
-            "position".to_string(),
-            "anchor".to_string(),
-            "offset".to_string(),
-            "scale".to_string(),
-            "rotation".to_string(),
-            "opacity".to_string(),
-            "color".to_string(),
-            "at".to_string(),
-        ];
-
-        // Text-specific
-        let mut text_props = common.clone();
-        text_props.extend([
-            "content".to_string(),
-            "text".to_string(),
-            "font_size".to_string(),
-            "font_family".to_string(),
-            "font_weight".to_string(),
-            "font_style".to_string(),
-            "line_height".to_string(),
-            "letter_spacing".to_string(),
-            "word_spacing".to_string(),
-            "max_width".to_string(),
-            "text_align".to_string(),
-            "overflow".to_string(),
-        ]);
-        map.insert("Text".to_string(), text_props);
-
-        // Typst-specific (shares Text props)
-        let mut typst_props = common.clone();
-        typst_props.extend([
-            "content".to_string(),
-            "font_size".to_string(),
-            "font_family".to_string(),
-            "font_weight".to_string(),
-            "font_style".to_string(),
-            "line_height".to_string(),
-            "letter_spacing".to_string(),
-            "word_spacing".to_string(),
-            "max_width".to_string(),
-            "text_align".to_string(),
-            "overflow".to_string(),
-        ]);
-        map.insert("Typst".to_string(), typst_props);
-
-        // Code-specific
-        let mut code_props = common.clone();
-        code_props.extend([
-            "code".to_string(),
-            "content".to_string(),
-            "language".to_string(),
-            "font_weight".to_string(),
-            "font_style".to_string(),
-            "line_height".to_string(),
-            "letter_spacing".to_string(),
-            "word_spacing".to_string(),
-            "max_width".to_string(),
-            "text_align".to_string(),
-            "overflow".to_string(),
-        ]);
-        map.insert("Code".to_string(), code_props);
-
-        // Shape-specific (Rect, Ellipse, etc.)
-        let mut shape_props = common.clone();
-        shape_props.extend([
-            "fill".to_string(),
-            "stroke".to_string(),
-            "stroke_width".to_string(),
-            "size".to_string(),
-            "radius".to_string(),
-        ]);
-        for shape in &["Rect", "Ellipse", "Polygon"] {
-            map.insert(shape.to_string(), shape_props.clone());
-        }
-
-        // Line
-        let mut line_props = common.clone();
-        line_props.extend([
-            "start".to_string(),
-            "end".to_string(),
-            "stroke".to_string(),
-            "stroke_width".to_string(),
-        ]);
-        map.insert("Line".to_string(), line_props);
-
-        // Button
-        let mut button_props = common.clone();
-        button_props.extend([
-            "text".to_string(),
-            "size".to_string(),
-            "fill".to_string(),
-            "stroke".to_string(),
-        ]);
-        map.insert("Button".to_string(), button_props);
-
-        // Svg/Image
-        let mut media_props = common.clone();
-        media_props.extend(["url".to_string(), "size".to_string()]);
-        map.insert("Svg".to_string(), media_props.clone());
-        map.insert("Image".to_string(), media_props);
-
-        // Graph types
-        let mut graph_props = common.clone();
-        graph_props.extend([
-            "x_range".to_string(),
-            "y_range".to_string(),
-            "function".to_string(),
-        ]);
-        for graph in &["Graph", "PlotCurve"] {
-            map.insert(graph.to_string(), graph_props.clone());
-        }
-
-        map
-    })
-}
-
-/// Known property types per (type, property) pair.
-fn known_property_types() -> &'static HashMap<(String, String), typing::Type> {
-    typing::known_property_types()
-}
-
 impl SymbolTable {
     /// Build a symbol table from parsed AST statements.
     pub fn build_from_ast(stmts: &[Stmt]) -> Self {
@@ -342,8 +212,8 @@ impl SymbolTable {
             types: BUILTIN_TYPES.iter().map(|s| s.to_string()).collect(),
             keywords: KEYWORDS.iter().map(|s| s.to_string()).collect(),
             actions: BUILTIN_ACTIONS.iter().map(|s| s.to_string()).collect(),
-            properties: known_properties().clone(),
-            property_types: known_property_types().clone(),
+            properties: typing::known_properties().clone(),
+            property_types: typing::known_property_types().clone(),
             scenes: HashMap::new(),
             ..Default::default()
         };
