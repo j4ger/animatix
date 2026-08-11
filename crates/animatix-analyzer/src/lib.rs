@@ -1100,4 +1100,66 @@ title: Text { content: "Hello" }
         graph_nested.sort();
         assert_eq!(ws_nested, graph_nested, "nested namespace sets should agree");
     }
+
+    #[test]
+    fn workspace_and_module_graph_agree_on_direct_import_exports() {
+        let mut workspace = Workspace::new();
+        let mut graph = animatix_syntax::module::ModuleGraph::new();
+
+        let lib = "/project/lib.amx";
+        let main = "/project/main.amx";
+
+        for (path, source) in [
+            (
+                lib,
+                r#"
+pub component PublicCard {}
+component PrivateCard {}
+# SceneInLib
+#0s
+box: Rect, size: (10, 10)
+"#,
+            ),
+            (
+                main,
+                r#"
+import "./lib.amx"
+title: Text { content: "Hello" }
+"#,
+            ),
+        ] {
+            workspace.add_file(std::path::PathBuf::from(path), source);
+            graph.add_source(std::path::PathBuf::from(path), source.to_string());
+        }
+
+        let resolved = workspace.resolve_symbols(std::path::Path::new(main));
+        let program = graph.load_program(std::path::Path::new(main)).expect("program loads");
+
+        let mut ws_components: Vec<&str> =
+            resolved.components.keys().map(String::as_str).collect();
+        ws_components.sort();
+        let mut graph_components: Vec<&str> =
+            program.components.keys().map(String::as_str).collect();
+        graph_components.sort();
+        assert_eq!(
+            ws_components, graph_components,
+            "direct imports should expose the same component set (pub-only)"
+        );
+
+        let mut ws_scenes: Vec<&str> = resolved.scenes.keys().map(String::as_str).collect();
+        ws_scenes.sort();
+        let mut graph_scenes: Vec<&str> = program.namespaces
+            .values()
+            .flat_map(|ns| ns.scenes.keys().map(String::as_str).collect::<Vec<_>>())
+            .collect();
+        graph_scenes.sort();
+        // The direct import is flattened, so its scene is part of the loaded
+        // statements rather than a namespace export. Compare by checking the
+        // workspace scene set contains it and ModuleGraph still carries it.
+        assert!(
+            ws_scenes.contains(&"SceneInLib"),
+            "workspace should include the direct-import scene"
+        );
+        assert_eq!(graph_scenes, Vec::<&str>::new(), "direct scene is not a namespace export");
+    }
 }

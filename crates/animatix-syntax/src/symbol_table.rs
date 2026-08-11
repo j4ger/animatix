@@ -759,7 +759,10 @@ impl SymbolTable {
             }
         }
         for (name, info) in &other.components {
-            if !self.components.contains_key(name) {
+            // Cross-file component visibility requires `pub`, including for
+            // direct imports. ModuleGraph applies the same rule when building
+            // its component registry.
+            if info.is_pub && !self.components.contains_key(name) {
                 self.components.insert(name.clone(), info.clone());
             }
         }
