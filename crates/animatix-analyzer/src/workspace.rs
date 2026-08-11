@@ -86,10 +86,10 @@ impl Workspace {
             }
             let resolved = self.resolve_symbols_inner(&import_path, visited);
             if let Some(ref alias) = import.alias {
-                // Aliased import: store symbols under namespace for qualified access.
-                merged.namespaces.insert(alias.clone(), resolved);
+                // Aliased import: store only pub exports under the namespace.
+                merged.namespaces.insert(alias.clone(), resolved.exported_namespace());
             } else {
-                // Direct import: merge all exported symbols
+                // Direct import: merge all symbols (backward-compatible flatten).
                 merged.merge(&resolved);
             }
         }

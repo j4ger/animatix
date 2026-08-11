@@ -36,6 +36,8 @@ pub struct SymbolTable {
     pub component_internal_labels: HashSet<String>,
     /// Namespaced symbols from aliased imports (e.g., "foo" → SymbolTable).
     pub namespaces: HashMap<String, SymbolTable>,
+    /// Named type aliases declared in this file: name → annotation.
+    pub type_aliases: HashMap<String, TypeAnnotation>,
 }
 
 /// Information about an import declaration.
@@ -66,6 +68,8 @@ pub struct LabelInfo {
     pub ty: Option<String>,
     /// Inferred expression type for variables and actors.
     pub inferred_type: Option<typing::Type>,
+    /// Whether the declaration is exported with `pub`.
+    pub is_pub: bool,
 }
 
 /// The kind of labeled entity.
@@ -96,6 +100,8 @@ pub struct ComponentInfo {
     pub col: usize,
     /// Full source span (line/col range) for precise source write-back.
     pub span: Option<Span>,
+    /// Whether the component is exported with `pub`.
+    pub is_pub: bool,
 }
 
 /// Information about a component parameter.
@@ -228,7 +234,11 @@ impl SymbolTable {
     fn collect_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::LetDecl {
-                name, value, span, ..
+                is_pub,
+                name,
+                value,
+                span,
+                ..
             } => {
                 let inferred = typing::infer_expr_type(value, &typing::TypeEnv::with_stdlib());
                 self.labels.insert(
@@ -241,11 +251,13 @@ impl SymbolTable {
                         span: *span,
                         ty: None,
                         inferred_type: Some(inferred),
+                        is_pub: *is_pub,
                     },
                 );
             },
 
             Stmt::ActorDecl {
+                is_pub,
                 label,
                 array_index,
                 ty,
@@ -267,6 +279,7 @@ impl SymbolTable {
                         } else {
                             typing::Type::Actor(ty.clone())
                         }),
+                        is_pub: *is_pub,
                     },
                 );
                 if array_index.is_some() {
@@ -296,6 +309,7 @@ impl SymbolTable {
                         line: 0, // populated by Analyzer::enrich_positions from tree-sitter
                         col: 0,  // populated by Analyzer::enrich_positions from tree-sitter
                         span: *span,
+                        is_pub: def.is_pub,
                     },
                 );
 
@@ -334,6 +348,7 @@ impl SymbolTable {
                             span: *span,
                             ty: None,
                             inferred_type: None,
+                            is_pub: false,
                         },
                     );
                 }
@@ -349,6 +364,7 @@ impl SymbolTable {
                             span: *span,
                             ty: None,
                             inferred_type: None,
+                            is_pub: false,
                         },
                     );
                 }
@@ -423,6 +439,17 @@ impl SymbolTable {
                     alias: alias.clone(),
                     span: *span,
                 });
+            },
+
+            Stmt::TypeAlias {
+                is_pub,
+                name,
+                annotation,
+                ..
+            } => {
+                if *is_pub {
+                    self.type_aliases.insert(name.clone(), annotation.clone());
+                }
             },
 
             // Actions, assignments, etc. — no symbols to extract
@@ -654,6 +681,7 @@ impl SymbolTable {
                         span: None,
                         ty: None,
                         inferred_type: None,
+                        is_pub: false,
                     },
                 );
                 if array_index.is_some() {
@@ -689,6 +717,7 @@ impl SymbolTable {
                             span: None,
                             ty: None,
                             inferred_type: None,
+                            is_pub: false,
                         },
                     );
                 }
@@ -703,6 +732,7 @@ impl SymbolTable {
                             span: None,
                             ty: None,
                             inferred_type: None,
+                            is_pub: false,
                         },
                     );
                 }
@@ -738,6 +768,9 @@ impl SymbolTable {
                 self.scenes.insert(name.clone(), info.clone());
             }
         }
+        for (name, annotation) in &other.type_aliases {
+            self.type_aliases.entry(name.clone()).or_insert_with(|| annotation.clone());
+        }
         for (name, props) in &other.properties {
             let entry = self.properties.entry(name.clone()).or_default();
             for prop in props {
@@ -745,6 +778,30 @@ impl SymbolTable {
                     entry.push(prop.clone());
                 }
             }
+        }
+    }
+
+    /// Return a table containing only exports visible through an aliased
+    /// import: `pub let` values, `pub component` definitions, `pub type`
+    /// aliases, scenes, and nested namespaces.
+    pub fn exported_namespace(&self) -> SymbolTable {
+        SymbolTable {
+            labels: self
+                .labels
+                .iter()
+                .filter(|(_, info)| info.is_pub)
+                .map(|(name, info)| (name.clone(), info.clone()))
+                .collect(),
+            components: self
+                .components
+                .iter()
+                .filter(|(_, info)| info.is_pub)
+                .map(|(name, info)| (name.clone(), info.clone()))
+                .collect(),
+            type_aliases: self.type_aliases.clone(),
+            scenes: self.scenes.clone(),
+            namespaces: self.namespaces.clone(),
+            ..Default::default()
         }
     }
 

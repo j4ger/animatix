@@ -603,8 +603,8 @@ title: Text {
         let mut workspace = Workspace::new();
 
         let lib_source = r#"
-let accent = rgb(255, 0, 0)
-btn: Button {
+pub let accent = rgb(255, 0, 0)
+pub btn: Button {
     text: "Click"
 }
 "#;
@@ -641,11 +641,41 @@ title: Text {
     }
 
     #[test]
+    fn workspace_aliased_namespace_only_exposes_pub_symbols() {
+        let mut workspace = Workspace::new();
+
+        let lib_source = r#"
+let private_value = 1
+pub let shared_value = 2
+component InternalCard {}
+pub component ExternalCard {}
+"#;
+        let main_source = r#"
+import "lib.amx" as lib
+
+title: Text {
+    content: "Hello"
+}
+"#;
+
+        workspace.add_file(PathBuf::from("/project/lib.amx"), lib_source);
+        workspace.add_file(PathBuf::from("/project/main.amx"), main_source);
+
+        let resolved = workspace.resolve_symbols(Path::new("/project/main.amx"));
+        let lib_ns = &resolved.namespaces["lib"];
+
+        assert!(lib_ns.labels.contains_key("shared_value"));
+        assert!(!lib_ns.labels.contains_key("private_value"));
+        assert!(lib_ns.components.contains_key("ExternalCard"));
+        assert!(!lib_ns.components.contains_key("InternalCard"));
+    }
+
+    #[test]
     fn workspace_resolves_nested_namespace_depth() {
         let mut workspace = Workspace::new();
 
         let inner_source = r#"
-let accent = rgb(255, 0, 0)
+pub let accent = rgb(255, 0, 0)
 pub component InnerButton {
     frame: Rect
 }
@@ -667,7 +697,7 @@ import "lib.amx" as lib
         assert!(resolved.resolve_namespaced_label("lib.inner.missing").is_none());
         let mut labels = resolved.namespace_labels("lib.inner");
         labels.sort();
-        assert_eq!(labels, vec!["accent", "frame"]);
+        assert_eq!(labels, vec!["accent"], "component-internal labels should not be exported");
         assert_eq!(resolved.namespace_components("lib.inner"), vec!["InnerButton"]);
     }
 
