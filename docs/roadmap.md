@@ -29,7 +29,7 @@ target before implementation.
 | Item | Status / Notes |
 |------|----------------|
 | Semantic AST single source | Done. `parse_canonical` is the Chumsky semantic source; analyzer uses tree-sitter only as CST for positions/completions/incremental edits. |
-| Module/Workspace resolver unification | Partially done. `Workspace` and `ModuleGraph` now share `SourceMap` identity/import resolution and both use the canonical semantic AST. Full resolver merge remains deferred because alias namespace/scene/component semantics differ and need more behavior-equivalence coverage. |
+| Module/Workspace resolver unification | Behavior aligned. `Workspace` and `ModuleGraph` share `SourceMap` identity/import resolution, canonical semantic AST, and a behavior-equivalence corpus covering pub let/type/component/scene/nested namespace exports. Full structural merge remains deferred: `Workspace` is a cloneable virtual-path symbol model used by LSP, while `ModuleGraph` owns disk/source-map loading and loaded programs; merging them requires designing one shared resolved-program model without coupling LSP to I/O. |
 | Semantic diagnostics single emitter | Done. `animatix-syntax::semantic_diagnostics` is the canonical emitter; analyzer and LSP convert DTOs instead of re-implementing checks. |
 | Path/source-map model | Done. `animatix-syntax::module::source_map` owns normalized path identity, import resolution, and in-memory source overrides. |
 | Source override lifecycle | Done. `ModuleGraph::with_source` scopes temporary overrides and restores/removes them on both success and error. |
