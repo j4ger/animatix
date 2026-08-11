@@ -48,10 +48,10 @@ pub let forest = Colorscheme {
     )
 }
 
-// ── Intended token-override syntax (awaiting parser fix) ───────────
+// ── Dotted token-override syntax ──────────────────────────────────
 //
-// Once the construct parser accepts dotted property names, schemes
-// should use the full form:
+// Schemes may use dotted property names directly; the parser and runtime
+// both accept the full form:
 //
 //   pub let ocean = Colorscheme {
 //       extends: "editorial-dark",
@@ -74,3 +74,4 @@ pub let forest = Colorscheme {
 //           (1.00, 0.50, 0.55, 1.0)
 //       )
 //   }
+//

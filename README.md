@@ -24,9 +24,11 @@ cargo build
 cargo run --bin animatix -- render examples/basics/00_hello.amx
 
 # Export
-cargo run --bin animatix -- video examples/animation/16_showcase.amx -o showcase.mp4 --fps 30
-cargo run --bin animatix -- gif examples/composition/20_feature_reel.amx -o reel.gif --fps 15
 cargo run --bin animatix -- image examples/data/07_plots.amx -o frame.png
+
+# Video/GIF/WebM export (requires the `video` feature, see AGENTS.md)
+cargo run --features animatix/video --bin animatix -- video examples/animation/16_showcase.amx -o showcase.mp4 --fps 30
+cargo run --features animatix/video --bin animatix -- gif examples/composition/20_feature_reel.amx -o reel.gif --fps 15
 
 # GUI
 cargo run --bin animatix-gui -- examples/animation/16_showcase.amx
@@ -48,7 +50,7 @@ Nix users: `nix develop` sets up all dependencies.
 
 **Multi-scene:** Scene declarations, transitions (fade/wipe/cut), cross-file composition, auto-routed CLI export
 
-**Tooling:** CLI renderer (video/GIF/image/WebM), GUI shell, Tree-sitter grammar, LSP server
+**Tooling:** CLI renderer (image; video/GIF/WebM behind the `video` feature), GUI shell, Tree-sitter grammar, LSP server
 
 Full language spec: [`docs/spec.md`](docs/spec.md) · All primitives: [`docs/primitives.md`](docs/primitives.md) · All properties: [`docs/properties.md`](docs/properties.md)
 

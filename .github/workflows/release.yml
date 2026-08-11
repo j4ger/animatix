@@ -26,10 +26,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Build CLI (animatix)
-        run: nix develop --command cargo build --release -p animatix
+        run: nix develop --command cargo build --release -p animatix-cli --features video
 
       - name: Build GUI (animatix-gui)
-        run: nix develop --command cargo build --release -p animatix-gui
+        run: nix develop --command cargo build --release -p animatix-gui --features video
 
       - name: Strip binaries
         run: |

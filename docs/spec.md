@@ -42,14 +42,14 @@ Use these rules when generating `.amx` files:
 | 3D | `Graph3D`, `Line3D`, `Polyhedron` | — | **Not supported** | — | Yes | Explicitly not planned; all rendering is 2D |
 | Primitives | `Code` | Yes | Runtime-real | Yes | Yes | See `examples/basics/01_shapes.amx` |
 | Plotting | `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane` | Yes | Runtime-real | Yes | Yes | `PlotCurve` with `kind: cartesian|polar|parametric|implicit`. See `examples/data/07_plots.amx`, `examples/data/18_number_plane_contours.amx` |
-| Post-processing | `Filter` (blur, brightness, contrast, saturate, hue-rotate, sepia) | Yes | Runtime-real | Yes | Yes | Container primitive; renders children offscreen then applies CPU filters. See `examples/animation/08_effects.amx` |
+| Post-processing | `Filter` (blur, brightness, contrast, saturate, hue-rotate, sepia) | Yes | Runtime-real | Yes | Yes | Container primitive; renders children offscreen then applies GPU filtering with a CPU fallback when no GPU backend is available. See `examples/animation/08_effects.amx` |
 | Morphing | re-declaration morphing + path/text interpolation | Yes | Runtime-real | Yes | Yes | Core morph path via re-declaration |
 | Morphing | `strategy:auto\|match\|fade`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing | Yes | Yes | |
 | Actions | Entrance: `fade-in`, `draw-in`, `wipe-in`, `reveal-in`; Motion: `move`, `shift`, `rotate`, `scale`; Exit: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`; Effects: `shake`, `pulse`, `bounce`; Reorder: `swap`, `reorder` | Yes | Runtime-real | Yes | Yes | Built-ins |
 | Actions | broader verb-first surface | Yes | Partial | Partial | Yes | Shape exists; small subset implemented |
 | Composition | `sequence { ... }` | Yes | Runtime-real | Yes | Yes | Sequential composition; nested sequences and staggers supported |
 | Composition | `stagger [150ms] { ... }` | Yes | Runtime-real | Yes | Yes | Shared interval offset; nested sequences and staggers supported |
-| Colorscheme | `let name = Colorscheme { extends: "...", auto: (...) }` | Yes | Runtime-real | Yes | Yes | Source parser accepts simple construct keys; dotted token overrides are runtime/API-only until parser support lands |
+| Colorscheme | `let name = Colorscheme { extends: "...", auto: (...) }` | Yes | Runtime-real | Yes | Yes | Source parser accepts construct keys including dotted token overrides |
 | Components | `@slot` markers with named slot fills | Yes | Runtime-real | Yes | Yes | Component-internal containers with `@slot`; instantiation via `@slotname { items }` |
 | Multi-Scene | `# SceneName` scene declarations | Yes | Runtime-real | Yes | Yes | Top-level scene markers; `group_scenes()` post-processing |
 | Multi-Scene | `play SceneName [transition, duration]` | Yes | Runtime-real | Yes | Yes | Scene-level play statements with transition types |
@@ -1553,7 +1553,7 @@ Returns a `Value::Object` with typed fields. Field reads (`p.x`, `p.a.b`) are im
 
 ## 17. CLI Export
 
-**Video (`animatix video`) and GIF (`animatix gif`) exports:**
+**Video (`animatix video`) and GIF (`animatix gif`) exports require the `video` feature** (see AGENTS.md for the Nix/FFmpeg setup):
 
 | Flag | Default | Behavior |
 |------|---------|----------|

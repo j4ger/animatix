@@ -7,7 +7,7 @@ Animatix is a layout-first animation system with three core components:
 1. **Parser** (Chumsky-based) — Converts `.amx` source into an AST
 2. **Timeline** — Compiles AST into animated property tracks
 3. **Composition** — Orchestrates multi-scene timelines with transitions
-4. **Renderers** (Vello/WGPU, PPM, Frame sequences) — Rasterizes evaluated scenes
+4. **Renderers** (Vello/WGPU, PNG, Frame sequences) — Rasterizes evaluated scenes
 
 ---
 
@@ -195,7 +195,7 @@ vello.encode(&mut encoder) → render_pass.draw(encoder)
 
 ### Export
 
-- **PPM/PNG**: CPU-side RGBA buffer for single frames
+- **PNG/WebP**: CPU-side RGBA buffer for single frames
 - **Video/GIF**: Parallel frame rendering + FFmpeg muxing
 
 ### Post-Processing (Filter)
@@ -251,7 +251,7 @@ peniko::ImageData → drawn into parent scene at local transform
 | `timeline/filter.rs` | `FilterBackend` trait + `apply_cpu_filters()` |
 | `renderer/filter_backend.rs` | `GpuFilterBackend` — GPU render + CPU readback |
 | `timeline/scene_eval.rs` | `render_node_children()` detects `ActorKindId::Filter`, builds sub-scene, samples properties, dispatches backend |
-| `timeline/track.rs` | `AnimationTrack` holds `filter_blur`, `filter_brightness`, etc. property tracks |
+| `timeline/animation_track.rs` | `AnimationTrack` holds `filter_blur`, `filter_brightness`, etc. property tracks |
 | `timeline/property_registry.rs` | Registers filter properties in `PROPERTY_REGISTRY` |
 
 #### Performance Notes
@@ -721,7 +721,7 @@ impl Primitive for TrianglePrimitive {
 Steps:
 1. Create `primitives/<name>.rs` implementing `Primitive`.
 2. Add `&name::CONST` to the `PRIMITIVES` array in `primitives/mod.rs`.
-3. Add variants to `ActorKindId` / `ShapeKind` enums in `timeline/track.rs` (still needed for match arms).
+3. Add variants to `ActorKindId` / `ShapeKind` enums in `timeline/animation_track.rs` (still needed for match arms).
 
 Registry, dispatch, icon mapping, and GUI defaults are auto-generated from `PRIMITIVES`.
 

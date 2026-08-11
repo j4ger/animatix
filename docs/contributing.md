@@ -27,9 +27,9 @@ cargo run --bin animatix -- render examples/animation/16_showcase.amx --loop
 # Frame export
 cargo run --bin animatix -- image examples/animation/16_showcase.amx --time 1.5 --output frame.png
 
-# Video/GIF export
-cargo run --bin animatix -- video examples/animation/16_showcase.amx --fps 30 --duration 5 --output demo.mp4
-cargo run --bin animatix -- gif examples/animation/16_showcase.amx --fps 15 --duration 5 --output out.gif
+# Video/GIF export (requires the `video` feature, see AGENTS.md)
+cargo run --features animatix/video --bin animatix -- video examples/animation/16_showcase.amx --fps 30 --duration 5 --output demo.mp4
+cargo run --features animatix/video --bin animatix -- gif examples/animation/16_showcase.amx --fps 15 --duration 5 --output out.gif
 
 # GUI
 cargo run --bin animatix-gui -- examples/animation/16_showcase.amx
@@ -56,7 +56,8 @@ For runtime/layout/rendering changes:
 ```bash
 cargo run -- image path/to/scene.amx --time 0.0 --output /tmp/frame0.png
 cargo run -- image path/to/scene.amx --time 1.5 --output /tmp/frame1.png
-cargo run -- video path/to/scene.amx --output /tmp/check.mp4 --fps 30
+# Video export requires the `video` feature (see AGENTS.md)
+cargo run --features animatix/video -- video path/to/scene.amx --output /tmp/check.mp4 --fps 30
 cargo test
 ```
 
@@ -87,8 +88,8 @@ crates/
 - `crates/animatix/src/primitives/` — actor primitive system
 - `crates/animatix-gui/src/app/mod.rs` — GUI shell state and event loop
 - `crates/animatix-gui/src/app/panels/` — UI panels (inspector, timeline, sidebar, preview, editor)
-- `crates/animatix-gui/src/app/commands.rs` — command system (ShellAction / Command / ViewAction)
-- `crates/animatix-gui/src/app/design_tokens.rs` — GUI design token system
+- `crates/animatix-gui/src/app/commands/mod.rs` — command system (ShellAction / Command / ViewAction)
+- `crates/animatix-gui/src/app/design_tokens/mod.rs` — GUI design token system
 - `tree-sitter-animatix/` — editor grammar
 
 ---
@@ -223,7 +224,7 @@ Supported types: Rect, Ellipse, Line, Polygon, Path, Text, Row, Col. Code-only t
 
 To add GUI creation support for a new primitive:
 1. Ensure it implements `Primitive::default_props()` in `primitives/<name>.rs`.
-2. Add the `SourceEdit::InsertActor` handling in `source_edit.rs` if new behavior is needed.
+2. Add the `SourceEdit::InsertActor` handling in `source_edit/actor_edits.rs` if new behavior is needed.
 3. Wire the palette entry in `app/shell/toolbar.rs`.
 
 ---

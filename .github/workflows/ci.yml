@@ -48,7 +48,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libffmpeg-dev pkg-config
       - name: Run clippy
-        run: cargo clippy --workspace -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  parser-sync:
+    name: Parser Sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install tree-sitter CLI
+        run: npm install -g tree-sitter-cli
+      - name: Run parser sync check
+        run: bash scripts/check-parser-sync.sh
 
   fmt:
     name: Format
