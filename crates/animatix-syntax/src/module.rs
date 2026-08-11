@@ -534,7 +534,45 @@ impl ModuleGraph {
 
     /// Load an entry file and return all flattened top-level statements.
     pub fn load_entry(&mut self, path: &Path) -> Result<Vec<Stmt>, ModuleError> {
-        self.load_entry_with_source(path, None)
+        self.load_entry_inner(path)
+    }
+
+    fn load_entry_inner(&mut self, path: &Path) -> Result<Vec<Stmt>, ModuleError> {
+        let mut visiting = HashSet::new();
+        let key = self.path_key(path)?;
+
+        self.load_file(path, &mut visiting)?;
+
+        let entry_id = self
+            .paths
+            .get(&key)
+            .copied()
+            .ok_or_else(|| ModuleError::FileNotFound(path.to_path_buf()))?;
+
+        let mut result = Vec::new();
+        self.flatten_recursive(entry_id, &mut result, &mut Vec::new())?;
+
+        Ok(result)
+    }
+
+    /// Run a loading operation with a temporary in-memory source override.
+    ///
+    /// The previous source for `path` is restored afterwards, and a source that
+    /// did not exist before is removed, on both success and error paths.
+    pub fn with_source<T>(
+        &mut self,
+        path: &Path,
+        source: &str,
+        f: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        let previous = self.sources.get(path).map(str::to_owned);
+        self.set_source_for_path(path.to_path_buf(), source.to_string());
+        let result = f(self);
+        match previous {
+            Some(previous) => self.set_source_for_path(path.to_path_buf(), previous),
+            None => self.clear_source_for_path(path),
+        }
+        result
     }
 
     /// Load an entry file with optional source override and return all flattened top-level
@@ -544,44 +582,70 @@ impl ModuleGraph {
         path: &Path,
         source: Option<&str>,
     ) -> Result<Vec<Stmt>, ModuleError> {
-        let previous = self.sources.get(path).map(str::to_owned);
-        let inserted = if let Some(source) = source {
-            self.set_source_for_path(path.to_path_buf(), source.to_string());
-            true
-        } else {
-            false
-        };
-
-        let result = (|| {
-            let mut visiting = HashSet::new();
-            let key = self.path_key(path)?;
-
-            self.load_file(path, &mut visiting)?;
-
-            let entry_id = self
-                .paths
-                .get(&key)
-                .copied()
-                .ok_or_else(|| ModuleError::FileNotFound(path.to_path_buf()))?;
-
-            let mut result = Vec::new();
-            self.flatten_recursive(entry_id, &mut result, &mut Vec::new())?;
-
-            Ok(result)
-        })();
-
-        if inserted {
-            match previous {
-                Some(previous) => self.set_source_for_path(path.to_path_buf(), previous),
-                None => self.clear_source_for_path(path),
-            }
+        match source {
+            Some(source) => self.with_source(path, source, |graph| graph.load_entry_inner(path)),
+            None => self.load_entry(path),
         }
-        result
     }
 
     /// Load an entry file and return a fully resolved `LoadedProgram`.
     pub fn load_program(&mut self, path: &Path) -> Result<LoadedProgram, ModuleError> {
-        self.load_program_with_source(path, None)
+        self.load_program_inner(path)
+    }
+
+    fn load_program_inner(&mut self, path: &Path) -> Result<LoadedProgram, ModuleError> {
+        let mut visiting = HashSet::new();
+        let key = self.path_key(path)?;
+
+        self.load_file(path, &mut visiting)?;
+
+        let entry_id = self
+            .paths
+            .get(&key)
+            .copied()
+            .ok_or_else(|| ModuleError::FileNotFound(path.to_path_buf()))?;
+
+        let mut statements = Vec::new();
+        self.flatten_recursive(entry_id, &mut statements, &mut Vec::new())?;
+
+        let mut components = HashMap::new();
+        self.collect_components_recursive(entry_id, entry_id, &mut components, &mut Vec::new())?;
+
+        // Collect module-scoped actions from flattened statements
+        let module_actions = Self::collect_module_actions(&statements);
+
+        let mut namespaces = HashMap::new();
+        // Collect namespaces from the entry file's direct aliased imports,
+        // resolving re-exports transitively.
+        if let Some(entry_module) = self.files.get(&entry_id) {
+            for imp in &entry_module.imports {
+                if let Some(alias) = &imp.1 {
+                    let import_path = Self::resolve_path(&entry_module.path, &imp.0);
+                    if let Some(import_id) = self.file_id_for_path(&import_path) {
+                        let resolved_exports = self.collect_resolved_exports(import_id);
+                        let resolved_type_exports = self.collect_resolved_type_exports(import_id);
+                        let resolved_scenes = self.collect_resolved_scenes(import_id);
+                        let resolved_namespaces = self.collect_resolved_namespaces(import_id);
+                        namespaces.insert(
+                            alias.clone(),
+                            Namespace {
+                                exports: resolved_exports,
+                                type_exports: resolved_type_exports,
+                                scenes: resolved_scenes,
+                                namespaces: resolved_namespaces,
+                            },
+                        );
+                    }
+                }
+            }
+        }
+
+        Ok(LoadedProgram {
+            statements,
+            components,
+            module_actions,
+            namespaces,
+        })
     }
 
     /// Load an entry file with optional source override and return a fully resolved
@@ -591,76 +655,10 @@ impl ModuleGraph {
         path: &Path,
         source: Option<&str>,
     ) -> Result<LoadedProgram, ModuleError> {
-        let previous = self.sources.get(path).map(str::to_owned);
-        let inserted = if let Some(source) = source {
-            self.set_source_for_path(path.to_path_buf(), source.to_string());
-            true
-        } else {
-            false
-        };
-
-        let result = (|| {
-            let mut visiting = HashSet::new();
-            let key = self.path_key(path)?;
-
-            self.load_file(path, &mut visiting)?;
-
-            let entry_id = self
-                .paths
-                .get(&key)
-                .copied()
-                .ok_or_else(|| ModuleError::FileNotFound(path.to_path_buf()))?;
-
-            let mut statements = Vec::new();
-            self.flatten_recursive(entry_id, &mut statements, &mut Vec::new())?;
-
-            let mut components = HashMap::new();
-            self.collect_components_recursive(entry_id, entry_id, &mut components, &mut Vec::new())?;
-
-            // Collect module-scoped actions from flattened statements
-            let module_actions = Self::collect_module_actions(&statements);
-
-            let mut namespaces = HashMap::new();
-            // Collect namespaces from the entry file's direct aliased imports,
-            // resolving re-exports transitively.
-            if let Some(entry_module) = self.files.get(&entry_id) {
-                for imp in &entry_module.imports {
-                    if let Some(alias) = &imp.1 {
-                        let import_path = Self::resolve_path(&entry_module.path, &imp.0);
-                        if let Some(import_id) = self.file_id_for_path(&import_path) {
-                            let resolved_exports = self.collect_resolved_exports(import_id);
-                            let resolved_type_exports = self.collect_resolved_type_exports(import_id);
-                            let resolved_scenes = self.collect_resolved_scenes(import_id);
-                            let resolved_namespaces = self.collect_resolved_namespaces(import_id);
-                            namespaces.insert(
-                                alias.clone(),
-                                Namespace {
-                                    exports: resolved_exports,
-                                    type_exports: resolved_type_exports,
-                                    scenes: resolved_scenes,
-                                    namespaces: resolved_namespaces,
-                                },
-                            );
-                        }
-                    }
-                }
-            }
-
-            Ok(LoadedProgram {
-                statements,
-                components,
-                module_actions,
-                namespaces,
-            })
-        })();
-
-        if inserted {
-            match previous {
-                Some(previous) => self.set_source_for_path(path.to_path_buf(), previous),
-                None => self.clear_source_for_path(path),
-            }
+        match source {
+            Some(source) => self.with_source(path, source, |graph| graph.load_program_inner(path)),
+            None => self.load_program(path),
         }
-        result
     }
 
     /// Collect module-scoped actions from a list of statements.

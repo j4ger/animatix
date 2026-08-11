@@ -1256,3 +1256,29 @@ fn contains_actor(stmts: &[Stmt], label: &str, ty: &str) -> bool {
         _ => false,
     })
 }
+
+#[test]
+fn with_source_restores_previous_source_after_error() {
+    let dir = temp_project_dir("with_source_error");
+    let entry = dir.join("scene.amx");
+
+    write_file(
+        &entry,
+        r#"
+box: Rect, size: (100, 100)
+"#,
+    );
+
+    let mut graph = ModuleGraph::new();
+    let result = graph.with_source(
+        &entry,
+        "this is not valid @@@ syntax",
+        |graph| graph.load_program(&entry),
+    );
+
+    assert!(result.is_err(), "invalid override should fail");
+
+    let restored = graph.load_program(&entry).unwrap();
+    assert!(contains_actor(&restored.statements, "box", "Rect"));
+    assert!(!contains_actor(&restored.statements, "title", "Text"));
+}
