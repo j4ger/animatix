@@ -114,11 +114,9 @@ checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 name = "animatix"
 version = "0.1.0"
 dependencies = [
- "animatix-analyzer",
  "animatix-syntax",
  "bytemuck",
  "chumsky",
- "clap",
  "criterion",
  "fastrand",
  "fontdb",
@@ -132,13 +130,11 @@ dependencies = [
  "taffy",
  "thiserror 2.0.18",
  "tracing",
- "tracing-subscriber",
  "ttf-parser",
  "typst",
  "typst-layout",
  "usvg 0.47.0",
  "vello",
- "walkdir",
  "wgpu",
 ]
 
@@ -152,6 +148,20 @@ dependencies = [
  "toml",
  "tree-sitter",
  "tree-sitter-animatix",
+]
+
+[[package]]
+name = "animatix-cli"
+version = "0.1.0"
+dependencies = [
+ "animatix",
+ "animatix-analyzer",
+ "animatix-syntax",
+ "clap",
+ "serde_json",
+ "tracing",
+ "tracing-subscriber",
+ "walkdir",
 ]
 
 [[package]]

@@ -2,6 +2,7 @@
 members = [
     "crates/animatix",
     "crates/animatix-analyzer",
+    "crates/animatix-cli",
     "crates/animatix-gui",
     "crates/animatix-lsp",
     "crates/animatix-syntax",

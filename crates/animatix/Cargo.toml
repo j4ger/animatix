@@ -15,11 +15,7 @@ serde = ["dep:serde", "animatix-syntax/serde"]
 [dependencies]
 animatix-syntax = { path = "../animatix-syntax" }
 bytemuck = { version = "1.25.0", features = ["derive"], optional = true }
-clap = { version = "4.5.0", features = ["derive"] }
-walkdir = "2.5"
 serde = { version = "1", features = ["derive"], optional = true }
-serde_json = "1"
-animatix-analyzer = { path = "../animatix-analyzer" }
 fastrand = "2.4"
 fontdb = { version = "0.23", default-features = false, features = ["fs", "memmap", "fontconfig"], optional = true }
 image = { version = "0.25.10", default-features = false, features = ["png", "gif", "jpeg", "webp"], optional = true }
@@ -36,11 +32,11 @@ wgpu = { workspace = true, default-features = false, features = ["std", "parking
 taffy = { version = "0.10", default-features = false, features = ["flexbox", "grid", "std", "taffy_tree"] }
 thiserror = "2.0"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [dev-dependencies]
 chumsky = "0.12.0"
 criterion = { version = "0.5", features = ["html_reports"] }
+serde_json = "1"
 
 [[bench]]
 name = "timeline_eval"
