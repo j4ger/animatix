@@ -1024,6 +1024,7 @@ title: Text {
 pub let primary = (0.38, 0.78, 1.0, 1.0)
 let hidden = 1
 pub type Swatch = Bool | Str
+pub component ColorCard(color: Color) { frame: Rect, color: color }
 # SceneFromColors
 #0s
 box: Rect, size: (10, 10)
@@ -1071,6 +1072,20 @@ title: Text { content: "Hello" }
             graph_ns.type_exports.keys().map(String::as_str).collect();
         graph_aliases.sort();
         assert_eq!(ws_aliases, graph_aliases, "pub type export sets should agree");
+
+        let mut ws_components: Vec<&str> =
+            ws_ns.components.keys().map(String::as_str).collect();
+        ws_components.sort();
+        let mut graph_components: Vec<&str> = graph_ns
+            .component_exports
+            .keys()
+            .map(String::as_str)
+            .collect();
+        graph_components.sort();
+        assert_eq!(
+            ws_components, graph_components,
+            "pub component export sets should agree"
+        );
 
         let mut ws_scenes: Vec<&str> = ws_ns.scenes.keys().map(String::as_str).collect();
         ws_scenes.sort();

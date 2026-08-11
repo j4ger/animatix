@@ -159,6 +159,8 @@ pub struct Namespace {
     pub exports: HashMap<String, Expr>,
     /// Exported type aliases keyed by name.
     pub type_exports: HashMap<String, TypeAnnotation>,
+    /// Exported component definitions keyed by name.
+    pub component_exports: HashMap<String, ComponentDef>,
     /// Scene definitions from this module, keyed by scene name.
     pub scenes: HashMap<String, SceneData>,
     /// Nested namespaces from this module's aliased imports.
@@ -184,6 +186,18 @@ fn collect_pub_type_aliases(statements: &[Stmt]) -> HashMap<String, TypeAnnotati
         } = stmt
         {
             result.insert(name.clone(), annotation.clone());
+        }
+    }
+    result
+}
+
+fn collect_pub_components(statements: &[Stmt]) -> HashMap<String, ComponentDef> {
+    let mut result = HashMap::new();
+    for stmt in statements {
+        if let Stmt::ComponentDef(def, _) = stmt {
+            if def.is_pub {
+                result.insert(def.name.clone(), def.clone());
+            }
         }
     }
     result
@@ -622,6 +636,8 @@ impl ModuleGraph {
                     if let Some(import_id) = self.file_id_for_path(&import_path) {
                         let resolved_exports = self.collect_resolved_exports(import_id);
                         let resolved_type_exports = self.collect_resolved_type_exports(import_id);
+                        let resolved_component_exports =
+                            self.collect_resolved_component_exports(import_id);
                         let resolved_scenes = self.collect_resolved_scenes(import_id);
                         let resolved_namespaces = self.collect_resolved_namespaces(import_id);
                         namespaces.insert(
@@ -629,6 +645,7 @@ impl ModuleGraph {
                             Namespace {
                                 exports: resolved_exports,
                                 type_exports: resolved_type_exports,
+                                component_exports: resolved_component_exports,
                                 scenes: resolved_scenes,
                                 namespaces: resolved_namespaces,
                             },
@@ -745,6 +762,14 @@ impl ModuleGraph {
         collect_pub_type_aliases(&module.statements)
     }
 
+    /// Collect exported component definitions from a module.
+    fn collect_resolved_component_exports(&self, file_id: FileId) -> HashMap<String, ComponentDef> {
+        let Some(module) = self.files.get(&file_id) else {
+            return HashMap::new();
+        };
+        collect_pub_components(&module.statements)
+    }
+
     /// Collect nested namespaces for a module's aliased imports.
     fn collect_resolved_namespaces(&self, file_id: FileId) -> HashMap<String, Namespace> {
         let mut namespaces = HashMap::new();
@@ -766,6 +791,7 @@ impl ModuleGraph {
                 Namespace {
                     exports: self.collect_resolved_exports(sub_id),
                     type_exports: self.collect_resolved_type_exports(sub_id),
+                    component_exports: self.collect_resolved_component_exports(sub_id),
                     scenes: self.collect_resolved_scenes(sub_id),
                     namespaces: self.collect_resolved_namespaces(sub_id),
                 },
