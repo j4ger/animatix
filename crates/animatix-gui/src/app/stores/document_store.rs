@@ -104,6 +104,42 @@ impl DocumentStore {
         self.pending_snapshot = None;
     }
 
+    /// Run a source mutation with a scoped undo snapshot.
+    ///
+    /// The snapshot is finalized when the mutation commits source text and
+    /// drops the pending snapshot, or when the source text changed without an
+    /// explicit commit. It is aborted when the mutation returns an error or
+    /// leaves the source unchanged. This removes the need for every handler to
+    /// remember to call `abort_snapshot` on each failure branch.
+    pub fn with_mutation<T, E>(
+        &mut self,
+        label: UndoLabel,
+        ui_before: UiSnapshot,
+        ui_after: UiSnapshot,
+        mutate: impl FnOnce(&mut Self) -> Result<T, E>,
+    ) -> Result<T, E> {
+        self.snapshot(label, ui_before);
+        let result = mutate(self);
+        match result {
+            Ok(value) => {
+                let changed = self
+                    .pending_snapshot
+                    .as_ref()
+                    .is_some_and(|pending| pending.source_before != self.source.text());
+                if changed {
+                    self.finalize_snapshot(ui_after);
+                } else {
+                    self.abort_snapshot();
+                }
+                Ok(value)
+            },
+            Err(err) => {
+                self.abort_snapshot();
+                Err(err)
+            },
+        }
+    }
+
     /// Returns true when a mutation snapshot is waiting to be finalized.
     #[cfg(test)]
     pub fn pending_snapshot_is_none(&self) -> bool {
@@ -424,6 +460,54 @@ mod tests {
         store.abort_snapshot();
         store.replace_text("changed\n".to_string());
         assert!(store.history.undo_stack.is_empty());
+    }
+
+    #[test]
+    fn test_with_mutation_finalizes_on_changed_source() {
+        let mut store = make_store();
+        let result = store.with_mutation(
+            UndoLabel::FindReplaceAll,
+            UiSnapshot::default_with_tool(ToolMode::Move),
+            UiSnapshot::default_with_tool(ToolMode::Select),
+            |store| {
+                store.replace_text("changed\n".to_string());
+                Ok::<_, String>(())
+            },
+        );
+
+        assert!(result.is_ok());
+        assert_eq!(store.history.undo_stack.len(), 1);
+        assert!(store.pending_snapshot_is_none());
+    }
+
+    #[test]
+    fn test_with_mutation_aborts_on_error() {
+        let mut store = make_store();
+        let result = store.with_mutation(
+            UndoLabel::FindReplaceAll,
+            UiSnapshot::default_with_tool(ToolMode::Move),
+            UiSnapshot::default_with_tool(ToolMode::Select),
+            |_| Err::<(), _>("rejected"),
+        );
+
+        assert!(result.is_err());
+        assert!(store.history.undo_stack.is_empty());
+        assert!(store.pending_snapshot_is_none());
+    }
+
+    #[test]
+    fn test_with_mutation_aborts_without_source_change() {
+        let mut store = make_store();
+        let result = store.with_mutation(
+            UndoLabel::FindReplaceAll,
+            UiSnapshot::default_with_tool(ToolMode::Move),
+            UiSnapshot::default_with_tool(ToolMode::Select),
+            |_| Ok::<_, String>(()),
+        );
+
+        assert!(result.is_ok());
+        assert!(store.history.undo_stack.is_empty());
+        assert!(store.pending_snapshot_is_none());
     }
 
     #[test]

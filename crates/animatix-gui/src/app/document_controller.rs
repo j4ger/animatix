@@ -230,33 +230,44 @@ impl DocumentController<'_> {
         from_scene: &str,
         transition: animatix_syntax::ast::Transition,
     ) {
-        let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
-            self.document_store.abort_snapshot();
-            self.preview_store.preview.status =
-                "Failed to set transition — no AST available".to_string();
-            return;
+        let ui_after = self.ui_store.snapshot_with_preview(self.preview_store);
+        let ui_after_for_commit = ui_after.clone();
+        let label = crate::app::commands::UndoLabel::SetTransition {
+            from_scene: from_scene.to_string(),
+            transition: transition.clone(),
         };
-
-        let edit = source_edit::SourceEdit::SetTransition {
-            from_scene: from_scene.into(),
-            transition: Some(transition.clone()),
-        };
-
-        if source_edit::apply_edit(stmts, edit).is_ok() {
-            let (new_source, source_index) = {
-                (
+        let status = self.document_store.with_mutation(
+            label,
+            ui_after.clone(),
+            ui_after,
+            move |store| -> Result<String, String> {
+                let Some(ref mut stmts) = store.source.document.raw_statements else {
+                    return Err("Failed to set transition — no AST available".to_string());
+                };
+                let edit = source_edit::SourceEdit::SetTransition {
+                    from_scene: from_scene.into(),
+                    transition: Some(transition.clone()),
+                };
+                if source_edit::apply_edit(stmts, edit).is_err() {
+                    return Err(format!("Failed to set transition on '{}'", from_scene));
+                }
+                let (new_source, source_index) = (
                     animatix_syntax::to_source::stmts_to_source(stmts),
                     animatix_syntax::source_index::SourceIndex::build(stmts),
-                )
-            };
-            self.apply_source(new_source, source_index);
-            self.preview_store.preview.status =
-                format!("Set transition on '{}' → {}ms", from_scene, transition.duration_ms);
-        } else {
-            self.document_store.abort_snapshot();
-            self.preview_store.preview.status =
-                format!("Failed to set transition on '{}'", from_scene);
-        }
+                );
+                store.commit_source(new_source, source_index, ui_after_for_commit);
+                Ok(format!(
+                    "Set transition on '{}' → {}ms",
+                    from_scene,
+                    transition.duration_ms
+                ))
+            },
+        );
+
+        self.preview_store.preview.status = match status {
+            Ok(status) => status,
+            Err(err) => err,
+        };
     }
 
     /// Update the play target for a scene.
