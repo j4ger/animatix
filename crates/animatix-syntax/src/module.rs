@@ -316,8 +316,6 @@ pub enum ModuleError {
         /// Path of the second file that defined it.
         second_path: PathBuf,
     },
-    /// An underlying I/O error occurred.
-    IoError(std::io::Error),
 }
 
 impl fmt::Display for ModuleError {
@@ -369,9 +367,6 @@ impl fmt::Display for ModuleError {
                 first_path.display(),
                 second_path.display()
             ),
-            ModuleError::IoError(e) => {
-                write!(f, "IO error: {}", e)
-            },
         }
     }
 }
