@@ -396,10 +396,9 @@ impl ModuleGraph {
     /// cache a `FileId` for a now-replaced import, so conservatively clearing
     /// the cache avoids silently loading stale imports.
     pub fn add_source(&mut self, path: PathBuf, source: impl Into<String>) {
-        let path = normalize_path(&path);
+        self.set_source_for_path(path, source.into());
         self.files.clear();
         self.paths.clear();
-        self.sources.insert(path, source.into());
     }
 
     /// Remove a previously registered in-memory source, if any.
@@ -410,6 +409,27 @@ impl ModuleGraph {
         let path = normalize_path(path);
         self.files.clear();
         self.paths.clear();
+        self.sources.remove(&path);
+    }
+
+    /// Insert or replace a source without clearing unrelated parsed modules.
+    ///
+    /// Only the replaced path is invalidated. This is the right granularity for
+    /// temporary source overrides, where other imported files remain unchanged.
+    fn set_source_for_path(&mut self, path: PathBuf, source: String) {
+        let path = normalize_path(&path);
+        if let Some(old_id) = self.paths.remove(&path) {
+            self.files.remove(&old_id);
+        }
+        self.sources.insert(path, source);
+    }
+
+    /// Remove a source override without clearing unrelated parsed modules.
+    fn clear_source_for_path(&mut self, path: &Path) {
+        let path = normalize_path(path);
+        if let Some(old_id) = self.paths.remove(&path) {
+            self.files.remove(&old_id);
+        }
         self.sources.remove(&path);
     }
 
@@ -543,7 +563,7 @@ impl ModuleGraph {
     ) -> Result<Vec<Stmt>, ModuleError> {
         let previous = self.sources.get(path).cloned();
         let inserted = if let Some(source) = source {
-            self.add_source(path.to_path_buf(), source.to_string());
+            self.set_source_for_path(path.to_path_buf(), source.to_string());
             true
         } else {
             false
@@ -569,8 +589,8 @@ impl ModuleGraph {
 
         if inserted {
             match previous {
-                Some(previous) => self.add_source(path.to_path_buf(), previous),
-                None => self.remove_source(path),
+                Some(previous) => self.set_source_for_path(path.to_path_buf(), previous),
+                None => self.clear_source_for_path(path),
             }
         }
         result
@@ -590,7 +610,7 @@ impl ModuleGraph {
     ) -> Result<LoadedProgram, ModuleError> {
         let previous = self.sources.get(path).cloned();
         let inserted = if let Some(source) = source {
-            self.add_source(path.to_path_buf(), source.to_string());
+            self.set_source_for_path(path.to_path_buf(), source.to_string());
             true
         } else {
             false
@@ -656,8 +676,8 @@ impl ModuleGraph {
 
         if inserted {
             match previous {
-                Some(previous) => self.add_source(path.to_path_buf(), previous),
-                None => self.remove_source(path),
+                Some(previous) => self.set_source_for_path(path.to_path_buf(), previous),
+                None => self.clear_source_for_path(path),
             }
         }
         result
