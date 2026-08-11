@@ -547,6 +547,7 @@ pub(crate) fn property_value_to_expr(
             }
         },
         PropertyValue::Bool(b) => animatix_syntax::ast::Expr::Bool(*b),
+        PropertyValue::U32(v) => animatix_syntax::ast::Expr::Num(*v as f64),
         PropertyValue::String(s) => animatix_syntax::ast::Expr::Str(s.clone()),
         PropertyValue::Enum(s) => animatix_syntax::ast::Expr::Str(s.clone()),
         PropertyValue::StringList(items) => animatix_syntax::ast::Expr::List(
@@ -563,6 +564,10 @@ pub(crate) fn property_value_to_expr(
                 })
                 .collect(),
         ),
+        PropertyValue::Transform(matrix) => animatix_syntax::ast::Expr::List(
+            matrix.iter().map(|v| animatix_syntax::ast::Expr::Num(*v as f64)).collect(),
+        ),
+        PropertyValue::Variant { value, .. } => property_value_to_expr((**value).clone())?,
         other => return Err(format!("cannot serialize property value {other:?}")),
     };
     crate::validation::validate_roundtrip(&expr, &pv)?;

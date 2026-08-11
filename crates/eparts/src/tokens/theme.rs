@@ -163,6 +163,9 @@ pub struct Status {
     pub warning: Color32,
     pub error: Color32,
     pub info: Color32,
+    // Editor-specific semantic aliases retained for Animatix's diagnostics
+    // and transport UI. Generic consumers can map these onto the status slots
+    // above; future work should move them to the app semantic layer.
     pub playing_text: Color32,
     pub diagnostic_error: Color32,
     pub diagnostic_warning: Color32,

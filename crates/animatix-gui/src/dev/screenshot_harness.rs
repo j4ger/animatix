@@ -132,14 +132,10 @@ fn render_section_headers(ui: &mut egui::Ui) {
 fn render_field(ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         let mut val = 42.0;
-        layout::field_sized(ui, Some(80.0), |ui| {
-            ui.add(egui::DragValue::new(&mut val).speed(1.0).suffix(" px"));
-        });
+        eparts::NumberField::new(&mut val).suffix(" px").show(ui);
         ui.add_space(8.0);
         let mut text = "hello".to_string();
-        layout::field_sized(ui, Some(160.0), |ui| {
-            ui.add(egui::TextEdit::singleline(&mut text));
-        });
+        eparts::TextField::new(&mut text).desired_width(160.0).show(ui);
     });
 }
 
