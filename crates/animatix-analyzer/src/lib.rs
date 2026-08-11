@@ -604,9 +604,7 @@ title: Text {
 
         let lib_source = r#"
 pub let accent = rgb(255, 0, 0)
-pub btn: Button {
-    text: "Click"
-}
+pub component Button(text: "Click") {}
 "#;
         let main_source = r#"
 import "lib.amx" as lib
@@ -626,17 +624,17 @@ title: Text {
 
         // Imported symbols should NOT be in the global namespace (aliased)
         assert!(!resolved.labels.contains_key("accent"));
-        assert!(!resolved.labels.contains_key("btn"));
 
-        // Imported symbols should be in the "lib" namespace
-        assert!(resolved.namespaces.contains_key("lib"));
+        // Aliased imports expose only pub lets, pub components, pub types, scenes.
         let lib_ns = &resolved.namespaces["lib"];
         assert!(lib_ns.labels.contains_key("accent"));
-        assert!(lib_ns.labels.contains_key("btn"));
+        assert!(lib_ns.components.contains_key("Button"));
+        assert!(!lib_ns.labels.contains_key("btn"));
 
-        // Namespace-qualified lookup should work
+        // Namespace-qualified lookup should work for exports only.
         assert!(resolved.resolve_namespaced_label("lib.accent").is_some());
-        assert!(resolved.resolve_namespaced_label("lib.btn").is_some());
+        assert!(resolved.resolve_namespaced_component("lib.Button").is_some());
+        assert!(resolved.resolve_namespaced_label("lib.btn").is_none());
         assert!(resolved.resolve_namespaced_label("lib.unknown").is_none());
     }
 
@@ -1006,5 +1004,85 @@ title: Text {
         let analyzer = Analyzer::new("");
         let sym = analyzer.symbol_at(0, 0);
         assert!(sym.is_none());
+    }
+
+    // ── Resolver equivalence with ModuleGraph ───────────────────────────
+
+    #[test]
+    fn workspace_and_module_graph_agree_on_aliased_exports() {
+        let mut workspace = Workspace::new();
+        let mut graph = animatix_syntax::module::ModuleGraph::new();
+
+        let colors = "/project/colors.amx";
+        let theme = "/project/theme.amx";
+        let main = "/project/main.amx";
+
+        for (path, source) in [
+            (
+                colors,
+                r#"
+pub let primary = (0.38, 0.78, 1.0, 1.0)
+let hidden = 1
+pub type Swatch = Bool | Str
+# SceneFromColors
+#0s
+box: Rect, size: (10, 10)
+"#,
+            ),
+            (
+                theme,
+                r#"
+import "./colors.amx" as colors
+pub let accent = colors.primary
+"#,
+            ),
+            (
+                main,
+                r#"
+import "./theme.amx" as theme
+title: Text { content: "Hello" }
+"#,
+            ),
+        ] {
+            workspace.add_file(std::path::PathBuf::from(path), source);
+            graph.add_source(std::path::PathBuf::from(path), source.to_string());
+        }
+
+        let resolved = workspace.resolve_symbols(std::path::Path::new(main));
+        let program = graph.load_program(std::path::Path::new(main)).expect("program loads");
+
+        let ws_ns = resolved.namespaces.get("theme").expect("workspace theme namespace");
+        let graph_ns = program.namespaces.get("theme").expect("graph theme namespace");
+
+        let mut ws_values: Vec<&str> = ws_ns
+            .labels
+            .iter()
+            .filter(|(_, info)| info.is_pub)
+            .map(|(name, _)| name.as_str())
+            .collect();
+        ws_values.sort();
+        let mut graph_values: Vec<&str> = graph_ns.exports.keys().map(String::as_str).collect();
+        graph_values.sort();
+        assert_eq!(ws_values, graph_values, "pub let export sets should agree");
+
+        let mut ws_aliases: Vec<&str> = ws_ns.type_aliases.keys().map(String::as_str).collect();
+        ws_aliases.sort();
+        let mut graph_aliases: Vec<&str> =
+            graph_ns.type_exports.keys().map(String::as_str).collect();
+        graph_aliases.sort();
+        assert_eq!(ws_aliases, graph_aliases, "pub type export sets should agree");
+
+        let mut ws_scenes: Vec<&str> = ws_ns.scenes.keys().map(String::as_str).collect();
+        ws_scenes.sort();
+        let mut graph_scenes: Vec<&str> = graph_ns.scenes.keys().map(String::as_str).collect();
+        graph_scenes.sort();
+        assert_eq!(ws_scenes, graph_scenes, "scene export sets should agree");
+
+        let mut ws_nested: Vec<&str> = ws_ns.namespaces.keys().map(String::as_str).collect();
+        ws_nested.sort();
+        let mut graph_nested: Vec<&str> =
+            graph_ns.namespaces.keys().map(String::as_str).collect();
+        graph_nested.sort();
+        assert_eq!(ws_nested, graph_nested, "nested namespace sets should agree");
     }
 }

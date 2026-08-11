@@ -489,9 +489,7 @@ impl ModuleGraph {
         let mut all_import_ids = Vec::new();
 
         for import in &imports {
-            let import_path =
-                Self::resolve_path(&key, &import.0);
-            eprintln!("DBG import={:?} from={:?} resolved={:?}", import.0, key, import_path);
+            let import_path = Self::resolve_path(&key, &import.0);
 
             let result = self.load_file(&import_path, visiting)?;
             let import_id = self

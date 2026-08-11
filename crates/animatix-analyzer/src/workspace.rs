@@ -87,7 +87,16 @@ impl Workspace {
             let resolved = self.resolve_symbols_inner(&import_path, visited);
             if let Some(ref alias) = import.alias {
                 // Aliased import: store only pub exports under the namespace.
-                merged.namespaces.insert(alias.clone(), resolved.exported_namespace());
+                // Nested scenes are also exposed as `alias.SceneName`, matching
+                // ModuleGraph's namespace scene registry.
+                let exported = resolved.exported_namespace();
+                for (scene_name, info) in &exported.scenes {
+                    merged
+                        .scenes
+                        .entry(format!("{}.{}", alias, scene_name))
+                        .or_insert_with(|| info.clone());
+                }
+                merged.namespaces.insert(alias.clone(), exported);
             } else {
                 // Direct import: merge all symbols (backward-compatible flatten).
                 merged.merge(&resolved);

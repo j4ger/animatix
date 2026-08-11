@@ -789,7 +789,7 @@ impl SymbolTable {
             labels: self
                 .labels
                 .iter()
-                .filter(|(_, info)| info.is_pub)
+                .filter(|(_, info)| info.is_pub && matches!(info.kind, LabelKind::Let))
                 .map(|(name, info)| (name.clone(), info.clone()))
                 .collect(),
             components: self
