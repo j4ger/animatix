@@ -1,12 +1,24 @@
 use crate::app::commands::{Effect, UndoLabel};
-use crate::app::stores::{DocumentStore, PreviewStore};
+use crate::app::stores::{DocumentStore, PreviewStore, UiStore};
+
+fn begin_snapshot(
+    document_store: &mut DocumentStore,
+    preview_store: &PreviewStore,
+    ui_store: &UiStore,
+    label: UndoLabel,
+) {
+    document_store.snapshot(label, ui_store.snapshot_with_preview(preview_store));
+}
 
 pub fn handle_reorder_scenes(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
+    ui_store: &mut UiStore,
     new_order: Vec<String>,
 ) -> Vec<Effect> {
+    begin_snapshot(document_store, preview_store, ui_store, UndoLabel::ReorderScenes);
     let Some(ref mut stmts) = document_store.source.document.raw_statements else {
+        document_store.abort_snapshot();
         return vec![];
     };
 
@@ -17,11 +29,16 @@ pub fn handle_reorder_scenes(
                 animatix_syntax::to_source::stmts_to_source(stmts),
                 animatix_syntax::source_index::SourceIndex::build(stmts),
             );
-            document_store.commit_source(new_source, source_index);
+            document_store.commit_source(
+                new_source,
+                source_index,
+                ui_store.snapshot_with_preview(preview_store),
+            );
             preview_store.preview_dirty = true;
             vec![Effect::Status("Scenes reordered".to_string())]
         },
         Err(e) => {
+            document_store.abort_snapshot();
             tracing::warn!("ReorderScenes failed: {e}");
             vec![]
         },
@@ -64,10 +81,17 @@ pub fn handle_select_scene(
 pub fn handle_duplicate_scene(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
+    ui_store: &mut UiStore,
     scene: String,
 ) -> Vec<Effect> {
-    document_store.snapshot(UndoLabel::DuplicateScene(scene.clone()));
+    begin_snapshot(
+        document_store,
+        preview_store,
+        ui_store,
+        UndoLabel::DuplicateScene(scene.clone()),
+    );
     let Some(ref mut stmts) = document_store.source.document.raw_statements else {
+        document_store.abort_snapshot();
         return vec![];
     };
 
@@ -83,11 +107,16 @@ pub fn handle_duplicate_scene(
             animatix_syntax::to_source::stmts_to_source(stmts),
             animatix_syntax::source_index::SourceIndex::build(stmts),
         );
-        document_store.commit_source(new_source, source_index);
+        document_store.commit_source(
+            new_source,
+            source_index,
+            ui_store.snapshot_with_preview(preview_store),
+        );
         preview_store.preview_dirty = true;
         preview_store.preview.status = format!("Duplicated scene '{}'", scene);
         vec![Effect::Status(format!("Duplicated scene '{}'", scene))]
     } else {
+        document_store.abort_snapshot();
         preview_store.preview.status = format!("Failed to duplicate scene '{}'", scene);
         vec![]
     }
@@ -99,8 +128,9 @@ pub fn handle_delete_scene(
     ui_store: &mut crate::app::stores::UiStore,
     scene: String,
 ) -> Vec<Effect> {
-    document_store.snapshot(UndoLabel::DeleteScene(scene.clone()));
+    begin_snapshot(document_store, preview_store, ui_store, UndoLabel::DeleteScene(scene.clone()));
     let Some(ref mut stmts) = document_store.source.document.raw_statements else {
+        document_store.abort_snapshot();
         return vec![];
     };
 
@@ -116,12 +146,17 @@ pub fn handle_delete_scene(
             animatix_syntax::to_source::stmts_to_source(stmts),
             animatix_syntax::source_index::SourceIndex::build(stmts),
         );
-        document_store.commit_source(new_source, source_index);
+        document_store.commit_source(
+            new_source,
+            source_index,
+            ui_store.snapshot_with_preview(preview_store),
+        );
         preview_store.preview_dirty = true;
         ui_store.selection.selected_actors.clear();
         preview_store.preview.status = format!("Deleted scene '{}'", scene);
         vec![Effect::Status(format!("Deleted scene '{}'", scene))]
     } else {
+        document_store.abort_snapshot();
         preview_store.preview.status = format!("Failed to delete scene '{}'", scene);
         vec![]
     }

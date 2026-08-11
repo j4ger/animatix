@@ -14,7 +14,7 @@ use crate::editor::EditorBuffer;
 struct PendingSnapshot {
     command: UndoLabel,
     source_before: String,
-    default_ui: UiSnapshot,
+    ui_before: UiSnapshot,
 }
 
 /// Facade that combines `SourceStore` (document + editor + caches) and
@@ -77,26 +77,31 @@ impl DocumentStore {
 
     /// Begin an undo snapshot — captures source text before mutation.
     /// The snapshot is finalized when `commit_source()` or `replace_text()` is called.
-    pub fn snapshot(&mut self, label: UndoLabel) {
+    pub fn snapshot(&mut self, label: UndoLabel, ui_before: UiSnapshot) {
         self.pending_snapshot = Some(PendingSnapshot {
             command: label,
             source_before: self.source.text().to_string(),
-            default_ui: UiSnapshot::default_with_tool(crate::app::preview::ToolMode::Move),
+            ui_before,
         });
     }
 
     /// Finalize a pending snapshot by capturing source-after and committing to history.
-    fn finalize_snapshot(&mut self) {
+    fn finalize_snapshot(&mut self, ui_after: UiSnapshot) {
         if let Some(pending) = self.pending_snapshot.take() {
             let source_after = self.source.text().to_string();
             self.history.snapshot(
                 pending.command,
                 &pending.source_before,
                 &source_after,
-                pending.default_ui.clone(),
-                pending.default_ui,
+                pending.ui_before,
+                ui_after,
             );
         }
+    }
+
+    /// Drop a pending undo snapshot after a mutation attempt did not change source.
+    pub fn abort_snapshot(&mut self) {
+        self.pending_snapshot = None;
     }
 
     // ── Snapshot API ──
@@ -204,10 +209,11 @@ impl DocumentStore {
         &mut self,
         new_source: String,
         source_index: animatix_syntax::source_index::SourceIndex,
+        ui_after: UiSnapshot,
     ) {
         self.source.commit_source(new_source, source_index);
         self.mark_source_stale(self.source.epoch());
-        self.finalize_snapshot();
+        self.finalize_snapshot(ui_after);
     }
 
     /// Replace text through DocumentStore, marking the current snapshot as stale.
@@ -215,9 +221,21 @@ impl DocumentStore {
         &mut self,
         text: String,
     ) -> crate::app::document::source_change::SourceChange {
+        self.replace_text_with_ui(
+            text,
+            UiSnapshot::default_with_tool(crate::app::preview::ToolMode::Move),
+        )
+    }
+
+    /// Replace text and record the UI state that accompanies the resulting source change.
+    pub fn replace_text_with_ui(
+        &mut self,
+        text: String,
+        ui_after: UiSnapshot,
+    ) -> crate::app::document::source_change::SourceChange {
         let change = self.source.replace_text(text);
         self.mark_source_stale(change.after_epoch);
-        self.finalize_snapshot();
+        self.finalize_snapshot(ui_after);
         change
     }
 
@@ -277,8 +295,11 @@ fn snapshot_from_session(doc: &DocumentSession, source_hash: u64) -> DocumentSna
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::commands::UndoLabel;
+    use crate::app::document::history::UiSnapshot;
     use crate::app::document::snapshot::{BuildTargetSnapshot, SnapshotStatus};
     use crate::app::document::version::{DocumentGeneration, SourceEpoch, SourceHash};
+    use crate::app::preview::ToolMode;
 
     /// Create a minimal DocumentStore.  `publish_first_good` is a helper that
     /// publishes a basic Timeline snapshot (via publish_snapshot directly, not
@@ -344,6 +365,57 @@ mod tests {
                 height: 1080,
             },
         }
+    }
+
+    #[test]
+    fn test_snapshot_finalizes_after_commit_source() {
+        let mut store = make_store();
+        let before = store.source.text().to_string();
+        let ui = UiSnapshot {
+            active_scene: None,
+            selected_actors: Default::default(),
+            selected_keyframes: Vec::new(),
+            playhead_time_s: 1.25,
+            loop_start_s: Some(0.5),
+            loop_end_s: Some(2.0),
+            timeline_scroll_offset: 4.0,
+            tool_mode: ToolMode::Move,
+        };
+        store.snapshot(UndoLabel::FindReplaceAll, ui.clone());
+
+        let after = "rect(100, 100) at 0,0\n".to_string();
+        let source_index = animatix_syntax::source_index::SourceIndex::build(&[]);
+        store.commit_source(after.clone(), source_index, ui.clone());
+
+        assert_eq!(store.history.undo_stack.len(), 1);
+        let entry = store.history.undo_stack.back().unwrap();
+        assert_eq!(entry.source_before, before);
+        assert_eq!(entry.source_after, after);
+        assert_eq!(entry.ui_before.playhead_time_s, 1.25);
+        assert_eq!(entry.ui_after.timeline_scroll_offset, 4.0);
+    }
+
+    #[test]
+    fn test_abort_snapshot_does_not_push_history() {
+        let mut store = make_store();
+        store.snapshot(UndoLabel::FindReplaceAll, UiSnapshot::default_with_tool(ToolMode::Move));
+        store.abort_snapshot();
+        store.replace_text("changed\n".to_string());
+        assert!(store.history.undo_stack.is_empty());
+    }
+
+    #[test]
+    fn test_replace_text_finalizes_pending_snapshot() {
+        let mut store = make_store();
+        let before = store.source.text().to_string();
+        store.snapshot(UndoLabel::FindReplaceAll, UiSnapshot::default_with_tool(ToolMode::Move));
+        let after = "changed\n".to_string();
+        store.replace_text(after.clone());
+
+        assert_eq!(store.history.undo_stack.len(), 1);
+        let entry = store.history.undo_stack.back().unwrap();
+        assert_eq!(entry.source_before, before);
+        assert_eq!(entry.source_after, after);
     }
 
     #[test]

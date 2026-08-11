@@ -34,10 +34,8 @@ impl DocumentController<'_> {
         new_source: String,
         source_index: animatix_syntax::source_index::SourceIndex,
     ) {
-        self.document_store.source.document.source_text = new_source.clone();
-        self.document_store.source.editor.replace_text(new_source);
-        self.document_store.source.document.is_dirty = true;
-        self.document_store.source.document.source_index = Some(source_index);
+        let ui_after = self.ui_store.snapshot_with_preview(self.preview_store);
+        self.document_store.commit_source(new_source, source_index, ui_after);
         self.preview_store.pending_rebuild_at = Some(
             std::time::Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms),
         );
@@ -96,11 +94,13 @@ impl DocumentController<'_> {
                     label, ty, position[0], position[1]
                 );
             } else {
+                self.document_store.abort_snapshot();
                 self.preview_store.preview.status =
                     format!("Failed to create {} — source edit failed", label);
                 return;
             }
         } else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status =
                 "Failed to create actor — no AST available".to_string();
             return;
@@ -120,6 +120,7 @@ impl DocumentController<'_> {
         let new_label = self.unique_label(original_label);
 
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status =
                 "Failed to duplicate — no AST available".to_string();
             return;
@@ -129,6 +130,7 @@ impl DocumentController<'_> {
         let original_stmt = source_edit::find_actor_decl(stmts, original_label).cloned();
 
         let Some(mut new_stmt) = original_stmt else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status =
                 format!("Failed to duplicate — actor '{}' not found", original_label);
             return;
@@ -138,6 +140,7 @@ impl DocumentController<'_> {
         match &mut new_stmt {
             animatix_syntax::ast::Stmt::ActorDecl { label, .. } => *label = new_label.clone(),
             _ => {
+                self.document_store.abort_snapshot();
                 self.preview_store.preview.status =
                     "Failed to duplicate — unsupported actor type".to_string();
                 return;
@@ -192,6 +195,7 @@ impl DocumentController<'_> {
     /// NOTE: The caller should have called `snapshot()` before this.
     pub(crate) fn handle_delete_selected_actors(&mut self) {
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status = "Failed to delete — no AST available".to_string();
             return;
         };
@@ -199,6 +203,7 @@ impl DocumentController<'_> {
         let to_delete: Vec<String> =
             self.ui_store.selection.selected_actors.iter().cloned().collect();
         if to_delete.is_empty() {
+            self.document_store.abort_snapshot();
             return;
         }
 
@@ -213,6 +218,7 @@ impl DocumentController<'_> {
         }
 
         if deleted == 0 {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status = "No actors deleted".to_string();
             return;
         }
@@ -221,7 +227,8 @@ impl DocumentController<'_> {
             animatix_syntax::to_source::stmts_to_source(stmts),
             animatix_syntax::source_index::SourceIndex::build(stmts),
         );
-        self.document_store.commit_source(new_source, source_index);
+        let ui_after = self.ui_store.snapshot_with_preview(self.preview_store);
+        self.document_store.commit_source(new_source, source_index, ui_after);
         self.preview_store.pending_rebuild_at = Some(
             std::time::Instant::now()
                 + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),
@@ -264,6 +271,7 @@ impl DocumentController<'_> {
             self.preview_store.preview.status =
                 format!("Set transition on '{}' → {}ms", from_scene, transition.duration_ms);
         } else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status =
                 format!("Failed to set transition on '{}'", from_scene);
         }
@@ -273,6 +281,7 @@ impl DocumentController<'_> {
     /// NOTE: The caller should have called `snapshot()` before this.
     pub(crate) fn handle_set_play_target(&mut self, from_scene: &str, target: Option<String>) {
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status =
                 "Failed to set play target — no AST available".to_string();
             return;
@@ -299,6 +308,7 @@ impl DocumentController<'_> {
                     format!("Removed play target from '{}'", from_scene);
             }
         } else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status =
                 format!("Failed to set play target on '{}'", from_scene);
         }
@@ -308,6 +318,7 @@ impl DocumentController<'_> {
     /// NOTE: The caller should have called `snapshot()` before this.
     pub(crate) fn handle_set_scene_duration(&mut self, scene: &str, duration_s: Option<f64>) {
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status =
                 "Failed to set scene duration — no AST available".to_string();
             return;
@@ -337,6 +348,7 @@ impl DocumentController<'_> {
                 },
             }
         } else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status =
                 format!("Failed to set duration for scene '{}'", scene);
         }
@@ -354,6 +366,7 @@ impl DocumentController<'_> {
         easing: animatix_syntax::easing::Easing,
     ) {
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status =
                 "Failed to set keyframe easing — no AST available".to_string();
             return;
@@ -377,6 +390,7 @@ impl DocumentController<'_> {
             self.preview_store.preview.status =
                 format!("Set easing on '{}.{}' @ {:.2}s", actor, property, time_s);
         } else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status = format!(
                 "Failed to set easing on '{}.{}' @ {:.2}s — keyframe not found",
                 actor, property, time_s
@@ -391,6 +405,7 @@ impl DocumentController<'_> {
             self.preview_store
                 .preview
                 .set_status_error("Failed to delete keyframe — no AST available");
+            self.document_store.abort_snapshot();
             return;
         };
 
@@ -411,6 +426,7 @@ impl DocumentController<'_> {
             self.preview_store.preview.status =
                 format!("Deleted keyframe '{}.{}' @ {:.2}s", actor, property, time_s);
         } else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.set_status_error(format!(
                 "Failed to delete keyframe '{}.{}' @ {:.2}s — keyframe not found",
                 actor, property, time_s
@@ -428,6 +444,7 @@ impl DocumentController<'_> {
         new_time_s: f64,
     ) {
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status =
                 "Failed to move keyframe — no AST available".to_string();
             return;
@@ -449,6 +466,7 @@ impl DocumentController<'_> {
                 actor, property, old_time_s, new_time_s
             );
         } else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status = format!(
                 "Failed to move keyframe '{}.{}' from {:.2}s — not found",
                 actor, property, old_time_s
@@ -467,6 +485,7 @@ impl DocumentController<'_> {
         new_duration_s: f64,
     ) {
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status =
                 "Failed to resize action — no AST available".to_string();
             return;
@@ -491,6 +510,7 @@ impl DocumentController<'_> {
             self.preview_store.preview.status =
                 format!("Resized action '{verb}' to {:.2}s", new_duration_s);
         } else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status =
                 format!("Failed to resize action '{verb}' at {:.2}s", old_start_s);
         }
@@ -502,6 +522,7 @@ impl DocumentController<'_> {
     /// NOTE: The caller should have called `snapshot()` before this.
     pub(crate) fn handle_reparent_actor(&mut self, actor: &str, new_parent: Option<String>) {
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status = "Failed to reparent — no AST available".to_string();
             return;
         };
@@ -526,6 +547,7 @@ impl DocumentController<'_> {
                 self.preview_store.preview.status = format!("Reparented '{}' to top level", actor);
             }
         } else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status = format!("Failed to reparent '{}'", actor);
         }
     }
@@ -538,6 +560,7 @@ impl DocumentController<'_> {
         new_scene_name: String,
     ) {
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status =
                 "Failed to extract scene — no AST available".to_string();
             return;
@@ -562,6 +585,7 @@ impl DocumentController<'_> {
                 new_scene_name
             );
         } else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status = "Failed to extract scene".to_string();
         }
     }
@@ -570,6 +594,7 @@ impl DocumentController<'_> {
     /// NOTE: The caller should have called `snapshot()` before this.
     pub(crate) fn handle_move_to_scene(&mut self, actor_labels: Vec<String>, target_scene: String) {
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status =
                 "Failed to move actors — no AST available".to_string();
             return;
@@ -591,6 +616,7 @@ impl DocumentController<'_> {
             self.preview_store.preview.status =
                 format!("Moved {} actor(s) to scene '{}'", actor_labels.len(), target_scene);
         } else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status =
                 format!("Failed to move actors to scene '{}'", target_scene);
         }
@@ -619,6 +645,7 @@ impl DocumentController<'_> {
             .collect();
 
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status = "Failed to paste — no AST available".to_string();
             return;
         };
@@ -665,6 +692,7 @@ impl DocumentController<'_> {
         }
 
         if pasted_labels.is_empty() {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status =
                 "Failed to paste — actor(s) not found in AST".to_string();
             return;

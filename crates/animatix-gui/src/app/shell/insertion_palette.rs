@@ -475,7 +475,8 @@ impl GuiShell {
                 };
                 if let Some(edit) = request.into_source_edit(&ctx) {
                     // Snapshot for undo before palette mutation
-                    self.document_store.snapshot(UndoLabel::InsertionFromPalette);
+                    let ui_before = self.ui_store.snapshot_with_preview(&self.preview_store);
+                    self.document_store.snapshot(UndoLabel::InsertionFromPalette, ui_before);
                     if let Some(ref mut stmts) = self.document_store.source.document.raw_statements
                     {
                         if crate::source_edit::apply_edit(stmts, edit).is_ok() {
@@ -483,7 +484,8 @@ impl GuiShell {
                                 animatix_syntax::to_source::stmts_to_source(stmts),
                                 animatix_syntax::source_index::SourceIndex::build(stmts),
                             );
-                            self.document_store.commit_source(new_source, source_index);
+                            let ui_after = self.ui_store.snapshot_with_preview(&self.preview_store);
+                            self.document_store.commit_source(new_source, source_index, ui_after);
                             self.preview_store.pending_rebuild_at = Some(
                                 std::time::Instant::now()
                                     + std::time::Duration::from_millis(
@@ -492,9 +494,14 @@ impl GuiShell {
                             );
                             self.preview_store.preview.status = format!("Inserted {}", type_name);
                         } else {
+                            self.document_store.abort_snapshot();
                             self.preview_store.preview.status =
                                 format!("Failed to insert {}", type_name);
                         }
+                    } else {
+                        self.document_store.abort_snapshot();
+                        self.preview_store.preview.status =
+                            format!("Failed to insert {}", type_name);
                     }
                 }
                 self.insertion_palette.close();
@@ -734,7 +741,8 @@ impl GuiShell {
                 // Parse snippet into AST fragment and insert via SourceEdit.
                 self.insertion_palette.close();
                 // Snapshot for undo before palette mutation
-                self.document_store.snapshot(UndoLabel::InsertionFromPalette);
+                let ui_before = self.ui_store.snapshot_with_preview(&self.preview_store);
+                self.document_store.snapshot(UndoLabel::InsertionFromPalette, ui_before);
                 if let Some(fragment) = animatix_syntax::parser::parse_snippet(&text) {
                     let time_s = ctx.cursor_cell_time_s.or(Some(ctx.current_time_s));
                     let container = ctx.selected_container.clone();
@@ -750,7 +758,8 @@ impl GuiShell {
                                 animatix_syntax::to_source::stmts_to_source(stmts),
                                 animatix_syntax::source_index::SourceIndex::build(stmts),
                             );
-                            self.document_store.commit_source(new_source, source_index);
+                            let ui_after = self.ui_store.snapshot_with_preview(&self.preview_store);
+                            self.document_store.commit_source(new_source, source_index, ui_after);
                             self.preview_store.pending_rebuild_at = Some(
                                 std::time::Instant::now()
                                     + std::time::Duration::from_millis(
@@ -760,9 +769,14 @@ impl GuiShell {
                             self.preview_store.preview.status =
                                 format!("Inserted snippet: {}", item.label);
                         } else {
+                            self.document_store.abort_snapshot();
                             self.preview_store.preview.status =
                                 format!("Failed to insert snippet: {}", item.label);
                         }
+                    } else {
+                        self.document_store.abort_snapshot();
+                        self.preview_store.preview.status =
+                            format!("Failed to insert snippet: {}", item.label);
                     }
                 } else {
                     // Fallback: insert raw text if parsing fails.
@@ -772,9 +786,8 @@ impl GuiShell {
                     } else {
                         format!("{}\n{}\n", source, text)
                     };
-                    self.document_store.source.editor.replace_text(new_source.clone());
-                    self.document_store.source.document.source_text = new_source;
-                    self.document_store.source.document.is_dirty = true;
+                    let ui_after = self.ui_store.snapshot_with_preview(&self.preview_store);
+                    self.document_store.replace_text_with_ui(new_source, ui_after);
                     self.preview_store.pending_rebuild_at = Some(
                         std::time::Instant::now()
                             + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),
@@ -788,14 +801,16 @@ impl GuiShell {
 
         if let Some(edit) = request.into_source_edit(&ctx) {
             // Snapshot for undo before palette mutation
-            self.document_store.snapshot(UndoLabel::InsertionFromPalette);
+            let ui_before = self.ui_store.snapshot_with_preview(&self.preview_store);
+            self.document_store.snapshot(UndoLabel::InsertionFromPalette, ui_before);
             if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
                 if crate::source_edit::apply_edit(stmts, edit).is_ok() {
                     let (new_source, source_index) = (
                         animatix_syntax::to_source::stmts_to_source(stmts),
                         animatix_syntax::source_index::SourceIndex::build(stmts),
                     );
-                    self.document_store.commit_source(new_source, source_index);
+                    let ui_after = self.ui_store.snapshot_with_preview(&self.preview_store);
+                    self.document_store.commit_source(new_source, source_index, ui_after);
                     self.preview_store.pending_rebuild_at = Some(
                         std::time::Instant::now()
                             + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),
@@ -803,8 +818,12 @@ impl GuiShell {
                     self.preview_store.preview.status = format!("Inserted {}", item.label);
                 } else {
                     tracing::warn!("apply_edit failed for insertion: {}", item.label);
+                    self.document_store.abort_snapshot();
                     self.preview_store.preview.status = format!("Failed to insert {}", item.label);
                 }
+            } else {
+                self.document_store.abort_snapshot();
+                self.preview_store.preview.status = format!("Failed to insert {}", item.label);
             }
         } else {
             self.preview_store.preview.status = "No target selected for action".to_string();

@@ -157,31 +157,52 @@ impl GuiShell {
                                 if ui.selectable_label(id == current_scheme, name).clicked()
                                     && id != current_scheme
                                 {
-                                    if let Some(ref mut stmts) =
-                                        self.document_store.source.document.raw_statements
+                                    if self
+                                        .document_store
+                                        .source
+                                        .document
+                                        .raw_statements
+                                        .is_some()
                                     {
+                                        let ui_before =
+                                            self.ui_store.snapshot_with_preview(&self.preview_store);
+                                        self.document_store.snapshot(
+                                            crate::app::commands::UndoLabel::SetConfigProperty,
+                                            ui_before,
+                                        );
                                         let edit =
                                             crate::source_edit::SourceEdit::SetConfigProperty {
                                                 key: "colorscheme".into(),
                                                 value: animatix_syntax::ast::Expr::Str(id.into()),
                                             };
-                                        if crate::source_edit::apply_edit(stmts, edit).is_ok() {
-                                            let (new_source, source_index) = (
-                                                animatix_syntax::to_source::stmts_to_source(stmts),
-                                                animatix_syntax::source_index::SourceIndex::build(
-                                                    stmts,
-                                                ),
-                                            );
-                                            self.document_store
-                                                .commit_source(new_source, source_index);
-                                            self.preview_store.pending_rebuild_at = Some(
-                                                std::time::Instant::now()
-                                                    + std::time::Duration::from_millis(
-                                                        self.ui_store.rebuild_debounce_ms,
+                                        if let Some(ref mut stmts) =
+                                            self.document_store.source.document.raw_statements
+                                        {
+                                            if crate::source_edit::apply_edit(stmts, edit).is_ok() {
+                                                let (new_source, source_index) = (
+                                                    animatix_syntax::to_source::stmts_to_source(stmts),
+                                                    animatix_syntax::source_index::SourceIndex::build(
+                                                        stmts,
                                                     ),
-                                            );
-                                            self.preview_store.preview.status =
-                                                format!("Colorscheme changed to {}", name);
+                                                );
+                                                let ui_after = self
+                                                    .ui_store
+                                                    .snapshot_with_preview(&self.preview_store);
+                                                self.document_store
+                                                    .commit_source(new_source, source_index, ui_after);
+                                                self.preview_store.pending_rebuild_at = Some(
+                                                    std::time::Instant::now()
+                                                        + std::time::Duration::from_millis(
+                                                            self.ui_store.rebuild_debounce_ms,
+                                                        ),
+                                                );
+                                                self.preview_store.preview.status =
+                                                    format!("Colorscheme changed to {}", name);
+                                            } else {
+                                                self.document_store.abort_snapshot();
+                                            }
+                                        } else {
+                                            self.document_store.abort_snapshot();
                                         }
                                     }
                                 }

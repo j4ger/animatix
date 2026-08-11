@@ -112,6 +112,19 @@ impl PlaybackController {
         self.is_playing = false;
     }
 
+    /// Restore playback state captured by an undo/redo snapshot.
+    pub(crate) fn restore_snapshot_state(
+        &mut self,
+        time_s: f64,
+        loop_start_s: Option<f64>,
+        loop_end_s: Option<f64>,
+    ) {
+        self.current_time_s = time_s.clamp(0.0, self.duration_s.max(0.1));
+        self.loop_start_s = loop_start_s;
+        self.loop_end_s = loop_end_s;
+        self.is_playing = false;
+    }
+
     fn clamp_time(&mut self) {
         let max_duration = self.duration_s.max(0.1);
         self.current_time_s = self.current_time_s.clamp(0.0, max_duration);
@@ -1007,7 +1020,8 @@ impl GuiShell {
     /// Take a snapshot of the current source text for undo/redo.
     /// Call this BEFORE making a change to the source.
     fn snapshot(&mut self, label: UndoLabel) {
-        self.document_store.snapshot(label);
+        let ui_before = self.ui_store.snapshot_with_preview(&self.preview_store);
+        self.document_store.snapshot(label, ui_before);
     }
 
     fn sync_active_scene_from_time(&mut self) {

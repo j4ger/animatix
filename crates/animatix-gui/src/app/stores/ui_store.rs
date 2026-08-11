@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use egui_tiles::Tree;
 
+use super::PreviewStore;
 use crate::app::commands::{ActionQueue, ShellAction};
 use crate::app::components::toast::ToastQueue;
 use crate::app::panels::SidebarTab;
@@ -211,17 +212,20 @@ impl UiStore {
         }
     }
 
-    /// Capture current UI state as a snapshot.
-    pub fn snapshot(&self) -> crate::app::document::history::UiSnapshot {
+    /// Capture UI state plus playback/timeline state for undo/redo.
+    pub fn snapshot_with_preview(
+        &self,
+        preview: &PreviewStore,
+    ) -> crate::app::document::history::UiSnapshot {
         use crate::app::document::history::UiSnapshot;
         UiSnapshot {
             active_scene: self.view.active_scene.clone(),
             selected_actors: self.selection.selected_actors.clone(),
             selected_keyframes: self.selection.selected_keyframes.clone(),
-            playhead_time_s: 0.0, // caller should set this from preview store
-            loop_start_s: None,
-            loop_end_s: None,
-            timeline_scroll_offset: self.view.timeline_scroll_offset,
+            playhead_time_s: preview.preview.playback.current_time_s(),
+            loop_start_s: preview.preview.playback.loop_start_s,
+            loop_end_s: preview.preview.playback.loop_end_s,
+            timeline_scroll_offset: preview.preview.timeline_scroll_offset,
             tool_mode: self.view.tool_mode,
         }
     }
@@ -231,7 +235,7 @@ impl UiStore {
         self.view.active_scene = snapshot.active_scene;
         self.selection.selected_actors = snapshot.selected_actors;
         self.selection.selected_keyframes = snapshot.selected_keyframes;
-        self.view.timeline_scroll_offset = snapshot.timeline_scroll_offset;
+        self.view.timeline_scroll_offset = snapshot.timeline_scroll_offset as f32;
         self.view.tool_mode = snapshot.tool_mode;
         // Clear drag state on restore
         self.interaction.drag_state = crate::app::preview::DragState::None;

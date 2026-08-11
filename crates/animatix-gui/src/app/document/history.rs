@@ -7,7 +7,6 @@ use std::collections::HashSet;
 
 /// Snapshot of UI state that should be restored on undo/redo.
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Fields beyond active_scene/selected_actors/selected_keyframes/timeline_scroll/tool_mode are still unused
 pub struct UiSnapshot {
     pub active_scene: Option<String>,
     pub selected_actors: HashSet<String>,
@@ -15,7 +14,7 @@ pub struct UiSnapshot {
     pub playhead_time_s: f64,
     pub loop_start_s: Option<f64>,
     pub loop_end_s: Option<f64>,
-    pub timeline_scroll_offset: f32,
+    pub timeline_scroll_offset: f64,
     pub tool_mode: crate::app::preview::ToolMode,
 }
 

@@ -2,6 +2,15 @@ use crate::app::commands::{Effect, UndoLabel};
 use crate::app::document_controller::DocumentController;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore};
 
+fn begin_snapshot(
+    document_store: &mut DocumentStore,
+    preview_store: &PreviewStore,
+    ui_store: &UiStore,
+    label: UndoLabel,
+) {
+    document_store.snapshot(label, ui_store.snapshot_with_preview(preview_store));
+}
+
 pub fn handle_create_actor(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
@@ -11,12 +20,17 @@ pub fn handle_create_actor(
     position: [f32; 2],
     props: Vec<animatix_syntax::ast::Property>,
 ) -> Vec<Effect> {
-    document_store.snapshot(UndoLabel::CreateActor {
-        ty: ty.clone(),
-        label: label.clone(),
-        position,
-        props: props.clone(),
-    });
+    begin_snapshot(
+        document_store,
+        preview_store,
+        ui_store,
+        UndoLabel::CreateActor {
+            ty: ty.clone(),
+            label: label.clone(),
+            position,
+            props: props.clone(),
+        },
+    );
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
@@ -48,10 +62,15 @@ pub fn handle_rename_actor(
         }
     }
 
-    document_store.snapshot(UndoLabel::RenameActor {
-        old_label: old_label.clone(),
-        new_label: new_label.clone(),
-    });
+    begin_snapshot(
+        document_store,
+        preview_store,
+        ui_store,
+        UndoLabel::RenameActor {
+            old_label: old_label.clone(),
+            new_label: new_label.clone(),
+        },
+    );
 
     let old_label_for_edit = old_label.clone();
     let new_label_for_edit = new_label.clone();
@@ -62,6 +81,7 @@ pub fn handle_rename_actor(
             new_label: new_label_for_edit,
         };
         if crate::source_edit::apply_edit(stmts, edit).is_err() {
+            document_store.abort_snapshot();
             preview_store.preview.status =
                 format!("Rename failed — could not rename '{}' to '{}'", old_label, new_label);
             return vec![];
@@ -70,11 +90,16 @@ pub fn handle_rename_actor(
             animatix_syntax::to_source::stmts_to_source(stmts),
             animatix_syntax::source_index::SourceIndex::build(stmts),
         );
-        document_store.commit_source(new_source, source_index);
+        document_store.commit_source(
+            new_source,
+            source_index,
+            ui_store.snapshot_with_preview(preview_store),
+        );
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
         preview_store.preview.status = format!("Renamed {} → {}", old_label, new_label);
     } else {
+        document_store.abort_snapshot();
         preview_store.preview.status = "Rename failed — no AST available".to_string();
         return vec![];
     }
@@ -93,7 +118,12 @@ pub fn handle_duplicate_actor(
     ui_store: &mut UiStore,
     original_label: String,
 ) -> Vec<Effect> {
-    document_store.snapshot(UndoLabel::DuplicateActor(original_label.clone()));
+    begin_snapshot(
+        document_store,
+        preview_store,
+        ui_store,
+        UndoLabel::DuplicateActor(original_label.clone()),
+    );
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
@@ -108,7 +138,7 @@ pub fn handle_delete_selected_actors(
     preview_store: &mut PreviewStore,
     ui_store: &mut UiStore,
 ) -> Vec<Effect> {
-    document_store.snapshot(UndoLabel::DeleteSelectedActors);
+    begin_snapshot(document_store, preview_store, ui_store, UndoLabel::DeleteSelectedActors);
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
@@ -123,7 +153,7 @@ pub fn handle_paste_actors(
     preview_store: &mut PreviewStore,
     ui_store: &mut UiStore,
 ) -> Vec<Effect> {
-    document_store.snapshot(UndoLabel::PasteActors);
+    begin_snapshot(document_store, preview_store, ui_store, UndoLabel::PasteActors);
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
@@ -140,10 +170,15 @@ pub fn handle_reparent_actor(
     actor: String,
     new_parent: Option<String>,
 ) -> Vec<Effect> {
-    document_store.snapshot(UndoLabel::ReparentActor {
-        actor: actor.clone(),
-        new_parent: new_parent.clone(),
-    });
+    begin_snapshot(
+        document_store,
+        preview_store,
+        ui_store,
+        UndoLabel::ReparentActor {
+            actor: actor.clone(),
+            new_parent: new_parent.clone(),
+        },
+    );
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
@@ -160,10 +195,15 @@ pub fn handle_extract_scene(
     actor_labels: Vec<String>,
     new_scene_name: String,
 ) -> Vec<Effect> {
-    document_store.snapshot(UndoLabel::ExtractScene {
-        actor_labels: actor_labels.clone(),
-        new_scene_name: new_scene_name.clone(),
-    });
+    begin_snapshot(
+        document_store,
+        preview_store,
+        ui_store,
+        UndoLabel::ExtractScene {
+            actor_labels: actor_labels.clone(),
+            new_scene_name: new_scene_name.clone(),
+        },
+    );
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
@@ -180,10 +220,15 @@ pub fn handle_move_to_scene(
     actor_labels: Vec<String>,
     target_scene: String,
 ) -> Vec<Effect> {
-    document_store.snapshot(UndoLabel::MoveToScene {
-        actor_labels: actor_labels.clone(),
-        target_scene: target_scene.clone(),
-    });
+    begin_snapshot(
+        document_store,
+        preview_store,
+        ui_store,
+        UndoLabel::MoveToScene {
+            actor_labels: actor_labels.clone(),
+            target_scene: target_scene.clone(),
+        },
+    );
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
@@ -327,7 +372,7 @@ pub fn handle_align_actors(
         return vec![];
     }
 
-    document_store.snapshot(UndoLabel::AlignActors(alignment));
+    begin_snapshot(document_store, preview_store, ui_store, UndoLabel::AlignActors(alignment));
     if let Some(ref mut stmts) = document_store.source.document.raw_statements {
         let snapshot = stmts.clone();
         for edit in &edits {
@@ -335,6 +380,7 @@ pub fn handle_align_actors(
                 Ok(e) => e,
                 Err(e) => {
                     *stmts = snapshot;
+                    document_store.abort_snapshot();
                     preview_store.preview.status =
                         format!("Alignment failed: expression error for '{}': {}", edit.actor, e);
                     return vec![];
@@ -347,6 +393,7 @@ pub fn handle_align_actors(
             };
             if let Err(e) = crate::source_edit::apply_edit(stmts, source_edit) {
                 *stmts = snapshot;
+                document_store.abort_snapshot();
                 preview_store.preview.status = format!("Alignment failed: {}", e);
                 return vec![];
             }
@@ -355,9 +402,16 @@ pub fn handle_align_actors(
             animatix_syntax::to_source::stmts_to_source(stmts),
             animatix_syntax::source_index::SourceIndex::build(stmts),
         );
-        document_store.commit_source(new_source, source_index);
+        document_store.commit_source(
+            new_source,
+            source_index,
+            ui_store.snapshot_with_preview(preview_store),
+        );
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
+    } else {
+        document_store.abort_snapshot();
+        return vec![];
     }
     preview_store.preview.status = format!("Aligned {} actors", rects.len());
     vec![]
@@ -437,7 +491,7 @@ pub fn handle_distribute_actors(
         return vec![];
     }
 
-    document_store.snapshot(UndoLabel::DistributeActors(axis));
+    begin_snapshot(document_store, preview_store, ui_store, UndoLabel::DistributeActors(axis));
     if let Some(ref mut stmts) = document_store.source.document.raw_statements {
         let snapshot = stmts.clone();
         for edit in &edits {
@@ -445,6 +499,7 @@ pub fn handle_distribute_actors(
                 Ok(e) => e,
                 Err(e) => {
                     *stmts = snapshot;
+                    document_store.abort_snapshot();
                     preview_store.preview.status = format!(
                         "Distribution failed: expression error for '{}': {}",
                         edit.actor, e
@@ -459,6 +514,7 @@ pub fn handle_distribute_actors(
             };
             if let Err(e) = crate::source_edit::apply_edit(stmts, source_edit) {
                 *stmts = snapshot;
+                document_store.abort_snapshot();
                 preview_store.preview.status = format!("Distribution failed: {}", e);
                 return vec![];
             }
@@ -467,9 +523,16 @@ pub fn handle_distribute_actors(
             animatix_syntax::to_source::stmts_to_source(stmts),
             animatix_syntax::source_index::SourceIndex::build(stmts),
         );
-        document_store.commit_source(new_source, source_index);
+        document_store.commit_source(
+            new_source,
+            source_index,
+            ui_store.snapshot_with_preview(preview_store),
+        );
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
+    } else {
+        document_store.abort_snapshot();
+        return vec![];
     }
     preview_store.preview.status = format!("Distributed {} actors", rects.len());
     vec![]
@@ -517,7 +580,7 @@ pub fn handle_group_selected_actors(
         [0.0, 0.0]
     };
 
-    document_store.snapshot(UndoLabel::GroupSelectedActors);
+    begin_snapshot(document_store, preview_store, ui_store, UndoLabel::GroupSelectedActors);
 
     // Insert Group actor
     if let Some(ref mut stmts) = document_store.source.document.raw_statements {
@@ -541,6 +604,7 @@ pub fn handle_group_selected_actors(
         let snapshot = stmts.clone();
         if let Err(e) = crate::source_edit::apply_edit(stmts, edit) {
             *stmts = snapshot;
+            document_store.abort_snapshot();
             preview_store.preview.status = format!("Group failed: {}", e);
             return vec![];
         }
@@ -552,6 +616,7 @@ pub fn handle_group_selected_actors(
             };
             if let Err(e) = crate::source_edit::apply_edit(stmts, reparent) {
                 *stmts = snapshot;
+                document_store.abort_snapshot();
                 preview_store.preview.status =
                     format!("Group failed while reparenting '{}': {}", actor, e);
                 return vec![];
@@ -561,13 +626,20 @@ pub fn handle_group_selected_actors(
             animatix_syntax::to_source::stmts_to_source(stmts),
             animatix_syntax::source_index::SourceIndex::build(stmts),
         );
-        document_store.commit_source(new_source, source_index);
+        document_store.commit_source(
+            new_source,
+            source_index,
+            ui_store.snapshot_with_preview(preview_store),
+        );
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
         ui_store.selection.selected_actors.clear();
         ui_store.selection.selected_actors.insert(group_label.clone());
         preview_store.preview.status =
             format!("Grouped {} actors into {}", labels.len(), group_label);
+    } else {
+        document_store.abort_snapshot();
+        return vec![];
     }
     vec![]
 }
@@ -598,7 +670,7 @@ pub fn handle_ungroup_selected_actors(
         return vec![];
     }
 
-    document_store.snapshot(UndoLabel::UngroupSelectedActors);
+    begin_snapshot(document_store, preview_store, ui_store, UndoLabel::UngroupSelectedActors);
 
     // Collect children from timeline outside the mutable borrow on raw_statements.
     let mut group_children: Vec<(String, Vec<String>)> = Vec::new();
@@ -621,6 +693,7 @@ pub fn handle_ungroup_selected_actors(
                 };
                 if let Err(e) = crate::source_edit::apply_edit(stmts, reparent) {
                     *stmts = snapshot;
+                    document_store.abort_snapshot();
                     preview_store.preview.status = format!("Ungroup failed: {}", e);
                     return vec![];
                 }
@@ -633,6 +706,7 @@ pub fn handle_ungroup_selected_actors(
             };
             if let Err(e) = crate::source_edit::apply_edit(stmts, delete) {
                 *stmts = snapshot;
+                document_store.abort_snapshot();
                 preview_store.preview.status = format!("Ungroup failed: {}", e);
                 return vec![];
             }
@@ -642,13 +716,20 @@ pub fn handle_ungroup_selected_actors(
             animatix_syntax::to_source::stmts_to_source(stmts),
             animatix_syntax::source_index::SourceIndex::build(stmts),
         );
-        document_store.commit_source(new_source, source_index);
+        document_store.commit_source(
+            new_source,
+            source_index,
+            ui_store.snapshot_with_preview(preview_store),
+        );
         preview_store.pending_rebuild_at =
             Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
         for group in &groups {
             ui_store.selection.selected_actors.remove(group);
         }
         preview_store.preview.status = format!("Ungrouped {} children", ungrouped);
+    } else {
+        document_store.abort_snapshot();
+        return vec![];
     }
     vec![]
 }

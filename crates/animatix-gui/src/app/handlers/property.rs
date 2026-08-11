@@ -2,6 +2,15 @@ use crate::app::commands::{Effect, UndoLabel};
 use crate::app::document_controller::DocumentController;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore};
 
+fn begin_snapshot(
+    document_store: &mut DocumentStore,
+    preview_store: &PreviewStore,
+    ui_store: &UiStore,
+    label: UndoLabel,
+) {
+    document_store.snapshot(label, ui_store.snapshot_with_preview(preview_store));
+}
+
 pub fn handle_set_transition(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
@@ -9,10 +18,15 @@ pub fn handle_set_transition(
     from_scene: String,
     transition: animatix_syntax::ast::Transition,
 ) -> Vec<Effect> {
-    document_store.snapshot(UndoLabel::SetTransition {
-        from_scene: from_scene.clone(),
-        transition: transition.clone(),
-    });
+    begin_snapshot(
+        document_store,
+        preview_store,
+        ui_store,
+        UndoLabel::SetTransition {
+            from_scene: from_scene.clone(),
+            transition: transition.clone(),
+        },
+    );
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
@@ -29,10 +43,15 @@ pub fn handle_set_play_target(
     from_scene: String,
     target: Option<String>,
 ) -> Vec<Effect> {
-    document_store.snapshot(UndoLabel::SetPlayTarget {
-        from_scene: from_scene.clone(),
-        target: target.clone(),
-    });
+    begin_snapshot(
+        document_store,
+        preview_store,
+        ui_store,
+        UndoLabel::SetPlayTarget {
+            from_scene: from_scene.clone(),
+            target: target.clone(),
+        },
+    );
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
@@ -49,10 +68,15 @@ pub fn handle_set_scene_duration(
     scene: String,
     duration_s: Option<f64>,
 ) -> Vec<Effect> {
-    document_store.snapshot(UndoLabel::SetSceneDuration {
-        scene: scene.clone(),
-        duration_s,
-    });
+    begin_snapshot(
+        document_store,
+        preview_store,
+        ui_store,
+        UndoLabel::SetSceneDuration {
+            scene: scene.clone(),
+            duration_s,
+        },
+    );
     let mut ctrl = DocumentController {
         document_store,
         preview_store,

@@ -83,8 +83,10 @@ impl GuiShell {
         }
 
         let new_text = text.replace(find, replace);
-        self.document_store.snapshot(UndoLabel::FindReplaceAll);
-        self.document_store.replace_text(new_text);
+        let ui_before = self.ui_store.snapshot_with_preview(&self.preview_store);
+        self.document_store.snapshot(UndoLabel::FindReplaceAll, ui_before);
+        let ui_after = self.ui_store.snapshot_with_preview(&self.preview_store);
+        self.document_store.replace_text_with_ui(new_text, ui_after);
         self.document_store.source.document.raw_statements = None;
         self.document_store.source.document.expanded_statements = None;
         self.preview_store.pending_rebuild_at = Some(

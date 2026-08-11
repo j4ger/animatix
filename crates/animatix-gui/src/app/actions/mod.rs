@@ -425,10 +425,8 @@ impl GuiShell {
         source_index: animatix_syntax::source_index::SourceIndex,
         flashes: Vec<f64>,
     ) {
-        self.document_store.source.document.source_text = new_source.clone();
-        self.document_store.source.editor.replace_text(new_source);
-        self.document_store.source.document.is_dirty = true;
-        self.document_store.source.document.source_index = Some(source_index);
+        let ui_after = self.ui_store.snapshot_with_preview(&self.preview_store);
+        self.document_store.commit_source(new_source, source_index, ui_after);
         self.document_store.source.document.rescan_keyframe_lines();
         for time in flashes {
             self.preview_store.preview.flashed_keyframe_times.push((time, Instant::now()));

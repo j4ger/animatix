@@ -30,6 +30,7 @@ pub enum UndoLabel {
     // Document
     FindReplaceAll,
     InsertionFromPalette,
+    SetConfigProperty,
     PropertyEdit(PropertyEdit),
     /// Undo label for callout detach; constructed when undo integration is wired up.
     #[allow(dead_code)] // Undo wiring for DetachCallout is planned but not yet connected.
@@ -95,6 +96,7 @@ pub enum UndoLabel {
     },
 
     // Scene
+    ReorderScenes,
     DuplicateScene(String),
     DeleteScene(String),
     SetTransition {
@@ -116,6 +118,7 @@ impl From<UndoLabel> for Command {
         match l {
             UndoLabel::FindReplaceAll => Command::FindReplaceAll,
             UndoLabel::InsertionFromPalette => Command::InsertionFromPalette,
+            UndoLabel::SetConfigProperty => Command::InsertionFromPalette,
             UndoLabel::PropertyEdit(e) => Command::PropertyEdit(e),
             UndoLabel::DetachCallout { actor } => Command::DetachCallout {
                 actor,
@@ -211,6 +214,7 @@ impl From<UndoLabel> for Command {
             },
             UndoLabel::DuplicateScene(s) => Command::DuplicateScene(s),
             UndoLabel::DeleteScene(s) => Command::DeleteScene(s),
+            UndoLabel::ReorderScenes => Command::ReorderScenes(Vec::new()),
             UndoLabel::SetTransition {
                 from_scene,
                 transition,

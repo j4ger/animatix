@@ -49,17 +49,24 @@ pub fn handle_undo(
     }
     if let Some(entry) = document_store.history.undo_stack.pop_back() {
         // Push current state onto redo stack with correctly ordered before/after.
+        let ui_after = ui_store.snapshot_with_preview(preview_store);
         document_store.history.redo_stack.push_back(UndoEntry {
             command: entry.command,
             source_before: entry.source_before.clone(),
             source_after: document_store.source.text().to_string(),
             ui_before: entry.ui_before.clone(),
-            ui_after: ui_store.snapshot(),
+            ui_after: ui_after.clone(),
         });
         // Restore source via SourceStore to update epoch and invalidate caches.
-        document_store.replace_text(entry.source_before.clone());
+        document_store.replace_text_with_ui(entry.source_before.clone(), ui_after);
         // Restore UI state from the recorded before-snapshot.
-        ui_store.restore_snapshot(entry.ui_before);
+        ui_store.restore_snapshot(entry.ui_before.clone());
+        preview_store.preview.playback.restore_snapshot_state(
+            entry.ui_before.playhead_time_s,
+            entry.ui_before.loop_start_s,
+            entry.ui_before.loop_end_s,
+        );
+        preview_store.preview.timeline_scroll_offset = entry.ui_before.timeline_scroll_offset;
         preview_store.pending_rebuild_at = Some(
             std::time::Instant::now()
                 + std::time::Duration::from_millis(ui_store.rebuild_debounce_ms),
@@ -81,17 +88,24 @@ pub fn handle_redo(
     }
     if let Some(entry) = document_store.history.redo_stack.pop_back() {
         // Push current state onto undo stack with correctly ordered before/after.
+        let ui_after = ui_store.snapshot_with_preview(preview_store);
         document_store.history.undo_stack.push_back(UndoEntry {
             command: entry.command,
             source_before: entry.source_before.clone(),
             source_after: document_store.source.text().to_string(),
             ui_before: entry.ui_before.clone(),
-            ui_after: ui_store.snapshot(),
+            ui_after: ui_after.clone(),
         });
         // Restore source via SourceStore to update epoch and invalidate caches.
-        document_store.replace_text(entry.source_after.clone());
+        document_store.replace_text_with_ui(entry.source_after.clone(), ui_after);
         // Restore UI state from the recorded after-snapshot.
-        ui_store.restore_snapshot(entry.ui_after);
+        ui_store.restore_snapshot(entry.ui_after.clone());
+        preview_store.preview.playback.restore_snapshot_state(
+            entry.ui_after.playhead_time_s,
+            entry.ui_after.loop_start_s,
+            entry.ui_after.loop_end_s,
+        );
+        preview_store.preview.timeline_scroll_offset = entry.ui_after.timeline_scroll_offset;
         preview_store.pending_rebuild_at = Some(
             std::time::Instant::now()
                 + std::time::Duration::from_millis(ui_store.rebuild_debounce_ms),

@@ -288,6 +288,46 @@ circle: Ellipse, at: (200, 200), radius: 50, color: red
     // ── handle_create_actor ────────────────────────────────────────────
 
     #[test]
+    fn create_actor_finalizes_undo_snapshot_and_undo_restores_source() {
+        let mut document_store = make_parsed_document_store(TEST_SOURCE);
+        let mut preview_store = make_preview_store(5.0);
+        let mut ui_store = make_ui_store();
+        let original_source = document_store.source.document.source_text.clone();
+        preview_store.preview.playback.scrub_to(2.0);
+
+        actor::handle_create_actor(
+            &mut document_store,
+            &mut preview_store,
+            &mut ui_store,
+            "Rect".into(),
+            "undo_box".into(),
+            [300.0, 300.0],
+            vec![],
+        );
+
+        assert_eq!(
+            document_store.history.undo_stack.len(),
+            1,
+            "create actor should finalize one undo snapshot"
+        );
+        assert!(
+            document_store.source.document.source_text.contains("undo_box"),
+            "source should contain the new actor"
+        );
+
+        ui::handle_undo(&mut document_store, &mut preview_store, &mut ui_store);
+        assert_eq!(
+            document_store.source.document.source_text, original_source,
+            "undo should restore the original source"
+        );
+        assert!(
+            !ui_store.selection.selected_actors.contains("undo_box"),
+            "undo should clear the actor selection"
+        );
+        assert!((preview_store.preview.playback.current_time_s() - 2.0).abs() < 1e-9);
+    }
+
+    #[test]
     fn create_actor_adds_to_ast_and_updates_source() {
         let mut document_store = make_parsed_document_store(TEST_SOURCE);
         let mut preview_store = make_preview_store(5.0);

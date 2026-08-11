@@ -2,6 +2,15 @@ use crate::app::commands::{Effect, UndoLabel};
 use crate::app::document_controller::DocumentController;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore};
 
+fn begin_snapshot(
+    document_store: &mut DocumentStore,
+    preview_store: &PreviewStore,
+    ui_store: &UiStore,
+    label: UndoLabel,
+) {
+    document_store.snapshot(label, ui_store.snapshot_with_preview(preview_store));
+}
+
 pub fn handle_set_keyframe_easing(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
@@ -11,12 +20,17 @@ pub fn handle_set_keyframe_easing(
     time_s: f64,
     easing: animatix_syntax::easing::Easing,
 ) -> Vec<Effect> {
-    document_store.snapshot(UndoLabel::SetKeyframeEasing {
-        actor: actor.clone(),
-        property: property.clone(),
-        time_s,
-        easing,
-    });
+    begin_snapshot(
+        document_store,
+        preview_store,
+        ui_store,
+        UndoLabel::SetKeyframeEasing {
+            actor: actor.clone(),
+            property: property.clone(),
+            time_s,
+            easing,
+        },
+    );
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
@@ -34,11 +48,16 @@ pub fn handle_delete_keyframe(
     property: String,
     time_s: f64,
 ) -> Vec<Effect> {
-    document_store.snapshot(UndoLabel::DeleteKeyframe {
-        actor: actor.clone(),
-        property: property.clone(),
-        time_s,
-    });
+    begin_snapshot(
+        document_store,
+        preview_store,
+        ui_store,
+        UndoLabel::DeleteKeyframe {
+            actor: actor.clone(),
+            property: property.clone(),
+            time_s,
+        },
+    );
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
@@ -58,12 +77,17 @@ pub fn handle_move_keyframe(
     old_time_s: f64,
     new_time_s: f64,
 ) -> Vec<Effect> {
-    document_store.snapshot(UndoLabel::MoveKeyframe {
-        actor: actor.clone(),
-        property: property.clone(),
-        old_time_s,
-        new_time_s,
-    });
+    begin_snapshot(
+        document_store,
+        preview_store,
+        ui_store,
+        UndoLabel::MoveKeyframe {
+            actor: actor.clone(),
+            property: property.clone(),
+            old_time_s,
+            new_time_s,
+        },
+    );
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
@@ -84,13 +108,18 @@ pub fn handle_resize_action(
     new_start_s: f64,
     new_duration_s: f64,
 ) -> Vec<Effect> {
-    document_store.snapshot(UndoLabel::ResizeAction {
-        verb: verb.clone(),
-        targets: targets.clone(),
-        old_start_s,
-        new_start_s,
-        new_duration_s,
-    });
+    begin_snapshot(
+        document_store,
+        preview_store,
+        ui_store,
+        UndoLabel::ResizeAction {
+            verb: verb.clone(),
+            targets: targets.clone(),
+            old_start_s,
+            new_start_s,
+            new_duration_s,
+        },
+    );
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
