@@ -396,6 +396,22 @@ mod tests {
     }
 
     #[test]
+    fn test_commit_source_invalidates_hit_region_cache() {
+        let mut store = make_store();
+        store.source.cache_valid = true;
+        store.source.cached_hit_regions.push(("box".to_string(), kurbo::Rect::ZERO));
+
+        store.commit_source(
+            "box: Rect, size: (100, 100)\n".to_string(),
+            animatix_syntax::source_index::SourceIndex::build(&[]),
+            UiSnapshot::default_with_tool(ToolMode::Move),
+        );
+
+        assert!(!store.source.cache_valid, "commit_source should invalidate cached hit regions");
+        assert!(store.source.cached_hit_regions.is_empty());
+    }
+
+    #[test]
     fn test_abort_snapshot_does_not_push_history() {
         let mut store = make_store();
         store.snapshot(UndoLabel::FindReplaceAll, UiSnapshot::default_with_tool(ToolMode::Move));

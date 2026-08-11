@@ -61,6 +61,7 @@ impl SourceStore {
         self.document.is_dirty = true;
         self.editor.replace_text(new_source);
         self.document.source_index = Some(source_index);
+        self.invalidate_cache();
     }
 
     pub fn text(&self) -> &str {
