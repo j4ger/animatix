@@ -26,17 +26,6 @@ themes, CI platform parity, and `StyledExt` helpers.
 |------|----------------|
 | Opportunistic eparts widget adoption | Partially complete; remaining call sites migrate when the surrounding GUI area is next edited. |
 
-### Structural Refactors
-
-| Item | Status / Notes |
-|------|----------------|
-| Generic primitive build path | Partially complete; `Callout` now uses the generic actor build path and schema-driven keyframe writing. `Legend` still bypasses the generic pipeline for `at` and entry scanning, but its metadata now uses generic tagged tracks. |
-| Migrate remaining bespoke enum-like properties | Complete; `ShapeType`, `PlacementMode`, and `CalloutPlace` remain typed internally but cross the property boundary through `EnumPropertyValue` as generic `Enum` values. `MorphOptions` is intentionally typed and crosses as a stable summary string. GUI no longer matches internal enum variants. |
-| Unify GUI and core property value models | Complete; GUI `PropertyValue` is now a type alias to core `PropertyValue`. `StringList` was added to core, and commands, validation, inspector, spreadsheet, and gestures all use the shared model. |
-| Clean up tree-sitter grammar conflicts | Complete; the conflict block was reduced to the necessary GLR set and `tree-sitter generate` now reports no unnecessary-conflict warnings. Corpus tests and parser sync pass. |
-| Make `LegendTracks` metadata generic | Partially complete; title, font size, label color, swatch size, gap, and wrapping now live in generic tagged property tracks with cached `LegendTracks` fields retained for GUI/serde compatibility. |
-| Merge tree-walker and IR/VM into single execution engine | Complete; the IR runtime fallback is removed, the VM is the single modifier executor with `EvalExpr` for unsupported AST nodes, and closure bodies are compiled through `CompiledExpr` in `Value::Closure` and plot `FuncSource`. |
-
 ### Language and Runtime Gaps
 
 | Item | Status / Notes |
@@ -65,7 +54,6 @@ Audit status is from 2026-08-05.
 | Task | Reason / Audit Status |
 |------|-----------------------|
 | **Scene primitive / picture-in-picture** | Transition blending shipped; existing components and `Stack` cover most reuse cases. Unchanged. |
-| **Export performance: pre-compiled plot closures** | Only matters for many plot actors or heavy sampled fields. Unchanged. |
 | **Asset usage tracking** | Show which actors reference an asset; no strong user story yet. Unchanged. |
 | **Variable track UI** | GUI for `let` variable tracks; `always` blocks cover most interactive cases. Unchanged. |
 | **Module dependency graph** | Visual graph of `.amx` imports; internal tooling value only so far. Unchanged. |

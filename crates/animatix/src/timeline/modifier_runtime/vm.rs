@@ -114,7 +114,7 @@ pub enum Instruction {
     MakeClosure {
         /// Closure parameter names.
         params: Vec<String>,
-        /// Closure body expression (evaluated lazily at call time).
+        /// Compiled closure body (evaluated lazily at call time).
         body: Box<CompiledExpr>,
     },
     /// Pop N field values from the stack and construct an Object.

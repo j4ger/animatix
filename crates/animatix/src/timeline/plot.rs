@@ -996,7 +996,7 @@ pub fn build_implicit_plot_path_from_source(
     path
 }
 
-/// Legacy wrapper that builds an implicit plot path from raw args/body.
+/// Legacy wrapper that builds an implicit plot path from args and a compiled body.
 /// Creates a `FuncSource::Compiled` and delegates to [`build_implicit_plot_path_from_source`].
 #[deprecated(
     since = "0.5.0",
