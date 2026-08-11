@@ -59,7 +59,8 @@ use std::collections::HashMap;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::{CapturedEnv, Environment, EvalError, Value, evaluate_expr};
+use super::modifier_runtime::ir::{CompiledExpr, compile_expr, evaluate_compiled_expr};
+use super::{CapturedEnv, Environment, EvalError, Value};
 use crate::ast::Expr;
 use crate::easing::{Easing, apply_easing};
 
@@ -103,8 +104,8 @@ impl PlotCurveKind {
 /// explanation of why closures cannot use `PropertyTrack<T>`.
 ///
 /// A `FuncSource` is either:
-/// - [`Raw`](FuncSource::Raw): a user-authored closure `(x) => expr`, stored as argument names and
-///   an [`Expr`] body. This is the steady-state form used when no transition is in progress.
+/// - [`Compiled`](FuncSource::Compiled): a user-authored closure `(x) => expr`, stored as argument
+///   names and a compiled body. This is the steady-state form used when no transition is in progress.
 /// - [`Blend`](FuncSource::Blend): a frozen mid-transition snapshot captured when a second `func`
 ///   transition begins before the first has finished. Rather than discarding in-progress blending
 ///   state, the evaluator snapshots the current `(from, to, progress)` into a `Blend` node and uses
@@ -113,9 +114,9 @@ impl PlotCurveKind {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum FuncSource {
-    /// A closure defined by argument names, expression body, and captured environment variables.
+    /// A closure defined by argument names, compiled body, and captured environment variables.
     /// The captures are build-time loop variable values needed at render time.
-    Raw(Vec<String>, Expr, CapturedEnv),
+    Compiled(Vec<String>, Box<CompiledExpr>, CapturedEnv),
     /// A mid-transition snap: blends `from` and `to` at a frozen progress value.
     Blend {
         from: Box<FuncSource>,
@@ -125,11 +126,17 @@ pub enum FuncSource {
 }
 
 impl FuncSource {
+    /// Compile an AST closure body into a function source.
+    pub fn from_expr(args: Vec<String>, body: Expr, captures: CapturedEnv) -> Self {
+        let compiled = compile_expr(&body).expect("function body should compile");
+        FuncSource::Compiled(args, Box::new(compiled), captures)
+    }
+
     /// Return the number of arguments this function source expects.
     /// For `Blend`, delegates to the inner `to` source (which has the target arity).
     pub fn arity(&self) -> usize {
         match self {
-            FuncSource::Raw(args, _, _) => args.len(),
+            FuncSource::Compiled(args, _, _) => args.len(),
             FuncSource::Blend { to, .. } => to.arity(),
         }
     }
@@ -197,12 +204,12 @@ pub fn resolve_func_source(
     arg_val: f64,
 ) -> Result<f64, EvalError> {
     match source {
-        FuncSource::Raw(args, body, captures) => {
+        FuncSource::Compiled(args, body, captures) => {
             let name = args.first().map(String::as_str).unwrap_or(arg_name);
             let mut local_env = env.clone();
             captures.merge_into(&mut local_env);
             local_env.set_binding(name, Value::Num(arg_val));
-            evaluate_expr(body, &local_env).map(|v| v.as_num())
+            evaluate_compiled_expr(&body, &local_env).map(|v| v.as_num())
         },
         FuncSource::Blend { .. } => {
             let flat = flatten_blend(source);
@@ -225,12 +232,12 @@ pub fn resolve_func_source_vec2(
     arg_val: f64,
 ) -> Result<[f64; 2], EvalError> {
     match source {
-        FuncSource::Raw(args, body, captures) => {
+        FuncSource::Compiled(args, body, captures) => {
             let name = args.first().map(String::as_str).unwrap_or(arg_name);
             let mut local_env = env.clone();
             captures.merge_into(&mut local_env);
             local_env.set_binding(name, Value::Num(arg_val));
-            evaluate_expr(body, &local_env).map(|v| match v {
+            evaluate_compiled_expr(&body, &local_env).map(|v| match v {
                 Value::Vec2(arr) => arr,
                 other => [other.as_num(), f64::NAN],
             })
@@ -277,14 +284,14 @@ pub(crate) fn eval_source_scalar(
     cache: &mut HashMap<u64, Value>,
 ) -> f64 {
     match source {
-        FuncSource::Raw(args, body, captures) => {
+        FuncSource::Compiled(args, body, captures) => {
             let name = args.first().map(String::as_str).unwrap_or(arg_name);
             let key = x.to_bits();
             let val = cache.get(&key).cloned().unwrap_or_else(|| {
                 // Inject captured variables on first evaluation for this x
                 captures.merge_into(env);
                 env.set_binding(name, Value::Num(x));
-                let result = evaluate_expr(body, env).unwrap_or(Value::Num(f64::NAN));
+                let result = evaluate_compiled_expr(&body, env).unwrap_or(Value::Num(f64::NAN));
                 env.clear_bindings();
                 cache.insert(key, result.clone());
                 result
@@ -312,14 +319,15 @@ fn eval_source_vec2(
     cache: &mut HashMap<u64, Value>,
 ) -> [f64; 2] {
     match source {
-        FuncSource::Raw(args, body, captures) => {
+        FuncSource::Compiled(args, body, captures) => {
             let name = args.first().map(String::as_str).unwrap_or(arg_name);
             let key = t.to_bits();
             let val = cache.get(&key).cloned().unwrap_or_else(|| {
                 // Inject captured variables on first evaluation for this t
                 captures.merge_into(env);
                 env.set_binding(name, Value::Num(t));
-                let result = evaluate_expr(body, env).unwrap_or(Value::Vec2([f64::NAN, f64::NAN]));
+                let result =
+                    evaluate_compiled_expr(&body, env).unwrap_or(Value::Vec2([f64::NAN, f64::NAN]));
                 env.clear_bindings();
                 cache.insert(key, result.clone());
                 result
@@ -384,12 +392,12 @@ fn eval_vec2(
 
 /// Compute the depth of nested [`FuncSource::Blend`] trees.
 ///
-/// Returns 0 for [`FuncSource::Raw`], and 1 + max(blend_depth of children)
+/// Returns 0 for [`FuncSource::Compiled`], and 1 + max(blend_depth of children)
 /// for [`FuncSource::Blend`]. Used by the adaptive quality system to reduce
 /// sampling quality during cascading transitions.
 pub(crate) fn blend_depth(source: &FuncSource) -> usize {
     match source {
-        FuncSource::Raw(..) => 0,
+        FuncSource::Compiled(..) => 0,
         FuncSource::Blend { from, to, .. } => 1 + blend_depth(from).max(blend_depth(to)),
     }
 }
@@ -397,13 +405,13 @@ pub(crate) fn blend_depth(source: &FuncSource) -> usize {
 /// Flatten nested [`FuncSource::Blend`] trees into a linear list of
 /// `(weight, base_source)` pairs for O(N) weighted-sum evaluation.
 ///
-/// Each base [`FuncSource::Raw`] appears exactly once in the output list.
+/// Each base [`FuncSource::Compiled`] appears exactly once in the output list.
 /// The lerp formula `from*(1-p) + to*p` is distributed through the tree
 /// so that a depth-N cascade produces N+1 leaf entries instead of 2^N
 /// recursive evaluations.
 pub(crate) fn flatten_blend(source: &FuncSource) -> Vec<(f64, &FuncSource)> {
     match source {
-        FuncSource::Raw(..) => vec![(1.0, source)],
+        FuncSource::Compiled(..) => vec![(1.0, source)],
         FuncSource::Blend {
             from,
             to,
@@ -821,7 +829,7 @@ pub(crate) fn eval_implicit_source(
     y: f64,
 ) -> f64 {
     match source {
-        FuncSource::Raw(args, body, captures) => {
+        FuncSource::Compiled(args, body, captures) => {
             // Merge captured variables into the environment
             captures.merge_into(env);
             // Bind both arguments
@@ -830,7 +838,7 @@ pub(crate) fn eval_implicit_source(
                 env.set(&args[1], Value::Num(y));
             }
             // Evaluate and return scalar
-            match evaluate_expr(body, env) {
+            match evaluate_compiled_expr(&body, env) {
                 Ok(Value::Num(n)) => n,
                 _ => f64::NAN,
             }
@@ -989,7 +997,7 @@ pub fn build_implicit_plot_path_from_source(
 }
 
 /// Legacy wrapper that builds an implicit plot path from raw args/body.
-/// Creates a `FuncSource::Raw` and delegates to [`build_implicit_plot_path_from_source`].
+/// Creates a `FuncSource::Compiled` and delegates to [`build_implicit_plot_path_from_source`].
 #[deprecated(
     since = "0.5.0",
     note = "use build_implicit_plot_path_from_source instead"
@@ -998,14 +1006,15 @@ pub fn build_implicit_plot_path_from_source(
 pub fn build_implicit_plot_path(
     env: &mut Environment,
     arg_names: &[String],
-    body: &Expr,
+    body: &CompiledExpr,
     p_x_domain: &[f64; 2],
     p_y_domain: &[f64; 2],
     p_size: &[f64; 2],
     resolution: usize,
     padding: &[f64; 4],
 ) -> kurbo::BezPath {
-    let source = FuncSource::Raw(arg_names.to_vec(), body.clone(), CapturedEnv::default());
+    let source =
+        FuncSource::Compiled(arg_names.to_vec(), Box::new(body.clone()), CapturedEnv::default());
     build_implicit_plot_path_from_source(
         env, &source, p_x_domain, p_y_domain, p_size, resolution, padding,
     )
@@ -1027,7 +1036,7 @@ use crate::renderer::types::VelloPath;
 pub struct ProceduralPlot {
     pub kind: PlotCurveKind,
     pub func_args: Vec<String>,
-    pub func_body: Expr,
+    pub func_body: CompiledExpr,
     /// Label of the actor that owns this procedural plot.
     pub actor_label: String,
     /// Declared parameter names (e.g. ["freq", "amp"]) for actor-local injection.
@@ -1099,9 +1108,9 @@ pub fn sample_procedural_plot_at(
     };
 
     // Resolve the active function reference for this frame.
-    let decl_source = FuncSource::Raw(
+    let decl_source = FuncSource::Compiled(
         plot.func_args.clone(),
-        plot.func_body.clone(),
+        Box::new(plot.func_body.clone()),
         plot.extra_captures.clone(),
     );
     let active = transitions.iter().find_map(|t| t.active_at(time_ms));

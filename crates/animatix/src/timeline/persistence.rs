@@ -545,14 +545,18 @@ mod tests {
             start_ms: 0,
             end_ms: 1000,
             easing: Easing::Linear,
-            from: crate::timeline::plot::FuncSource::Raw(
+            from: crate::timeline::plot::FuncSource::Compiled(
                 vec![],
-                crate::ast::Expr::Num(0.0),
+                Box::new(crate::timeline::modifier_runtime::ir::CompiledExpr::Const(
+                    crate::timeline::Value::Num(0.0),
+                )),
                 CapturedEnv::default(),
             ),
-            to: crate::timeline::plot::FuncSource::Raw(
+            to: crate::timeline::plot::FuncSource::Compiled(
                 vec![],
-                crate::ast::Expr::Num(1.0),
+                Box::new(crate::timeline::modifier_runtime::ir::CompiledExpr::Const(
+                    crate::timeline::Value::Num(1.0),
+                )),
                 CapturedEnv::default(),
             ),
         });
@@ -567,7 +571,10 @@ mod tests {
         track.procedural_plot = Some(crate::timeline::plot::ProceduralPlot {
             kind: crate::timeline::plot::PlotCurveKind::Cartesian,
             func_args: vec!["x".to_string()],
-            func_body: Expr::Ident("x".to_string()),
+            func_body: crate::timeline::modifier_runtime::ir::compile_expr(&Expr::Ident(
+                "x".to_string(),
+            ))
+            .expect("test body should compile"),
             actor_label: "test".to_string(),
             param_names: vec![],
             p_x_domain: [0.0, 1.0],
@@ -779,7 +786,10 @@ mod tests {
         actor.procedural_plot = Some(ProceduralPlot {
             kind: PlotCurveKind::Cartesian,
             func_args: vec!["x".to_string()],
-            func_body: Expr::Ident("x".to_string()),
+            func_body: crate::timeline::modifier_runtime::ir::compile_expr(&Expr::Ident(
+                "x".to_string(),
+            ))
+            .expect("test body should compile"),
             actor_label: "curve".to_string(),
             param_names: vec![],
             p_x_domain: [0.0, 10.0],
@@ -879,7 +889,7 @@ mod tests {
             Value::Vec2([1.0, 2.0]),
             Value::Vec4([0.1, 0.2, 0.3, 1.0]),
             Value::Color([0.5, 0.6, 0.7, 1.0]),
-            Value::List(vec![Value::Num(1.0), Value::Bool(false)]),
+            Value::List(vec![crate::timeline::Value::Num(1.0), Value::Bool(false)]),
         ];
         for v in cases {
             let json = serde_json::to_string(v)

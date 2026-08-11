@@ -9,6 +9,7 @@ use std::collections::HashMap;
 
 use super::*;
 use crate::ast::{InlineItem, Property};
+use crate::timeline::modifier_runtime::ir::evaluate_compiled_expr;
 use crate::timeline::plot::{
     FuncSource, PlotCurveKind, PlotFuncRef, ProceduralPlot, build_implicit_plot_path_from_source,
 };
@@ -56,7 +57,11 @@ pub(crate) struct ProcessedPlotActor {
 /// Parameters for building plot curve paths.
 pub(crate) struct PlotCurveParams<'a> {
     pub(super) kind: PlotCurveKind,
-    pub(super) func: &'a Option<(Vec<String>, Box<Expr>, CapturedEnv)>,
+    pub(super) func: &'a Option<(
+        Vec<String>,
+        Box<crate::timeline::modifier_runtime::ir::CompiledExpr>,
+        CapturedEnv,
+    )>,
     pub(super) p_x_domain: [f64; 2],
     pub(super) p_y_domain: [f64; 2],
     pub(super) p_size: [f64; 2],
@@ -103,7 +108,11 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
         };
 
         if params.kind == PlotCurveKind::Implicit {
-            let source = FuncSource::Raw(args.to_vec(), (**body).clone(), CapturedEnv::default());
+            let source = FuncSource::Compiled(
+                args.to_vec(),
+                Box::new((**body).clone()),
+                CapturedEnv::default(),
+            );
             let path = build_implicit_plot_path_from_source(
                 &mut env_copy,
                 &source,
@@ -134,7 +143,8 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
             });
         } else {
             env_copy.set_binding(&arg_name, Value::Num(min_t));
-            let start_eval = evaluate_expr(body, &env_copy).unwrap_or(Value::Num(f64::NAN));
+            let start_eval =
+                evaluate_compiled_expr(&body, &env_copy).unwrap_or(Value::Num(f64::NAN));
             env_copy.clear_bindings();
             let (start_math_x, start_math_y) = if params.kind == PlotCurveKind::Cartesian {
                 (min_t, start_eval.as_num())
@@ -157,7 +167,7 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
             );
 
             env_copy.set_binding(&arg_name, Value::Num(max_t));
-            let end_eval = evaluate_expr(body, &env_copy).unwrap_or(Value::Num(f64::NAN));
+            let end_eval = evaluate_compiled_expr(&body, &env_copy).unwrap_or(Value::Num(f64::NAN));
             env_copy.clear_bindings();
             let (end_math_x, end_math_y) = if params.kind == PlotCurveKind::Cartesian {
                 (max_t, end_eval.as_num())
@@ -185,8 +195,11 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
             let mut pts = vec![p0];
             // Wrap the declaration body in a PlotFuncRef::Single for the
             // refactored sampling functions. Build time always uses Single.
-            let func_source =
-                FuncSource::Raw(args.clone(), (**body).clone(), CapturedEnv::default());
+            let func_source = FuncSource::Compiled(
+                args.clone(),
+                Box::new((**body).clone()),
+                CapturedEnv::default(),
+            );
             let plot_func = PlotFuncRef::Single(&func_source);
             let mut from_cache = HashMap::<u64, Value>::new();
             let mut to_cache = HashMap::<u64, Value>::new();
@@ -921,7 +934,7 @@ impl Timeline {
                 for arg in args.iter() {
                     test_env.set(arg, Value::Num(0.0));
                 }
-                if let Ok(result) = evaluate_expr(body, &test_env) {
+                if let Ok(result) = evaluate_compiled_expr(&body, &test_env) {
                     let ok = matches!(
                         (expected_ty, &result),
                         ("number", Value::Num(_)) | ("vec2", Value::Vec2(_))
@@ -1544,7 +1557,7 @@ fn math_to_screen(
 fn evaluate_scalar_field(
     env: &mut Environment,
     arg_names: &[String],
-    body: &Expr,
+    body: &crate::timeline::modifier_runtime::ir::CompiledExpr,
     x: f64,
     y: f64,
 ) -> f64 {
@@ -1552,14 +1565,14 @@ fn evaluate_scalar_field(
     let y_name = arg_names.get(1).map(String::as_str).unwrap_or("y");
     env.set_binding(x_name, Value::Num(x));
     env.set_binding(y_name, Value::Num(y));
-    evaluate_expr(body, env).unwrap_or(Value::Num(f64::NAN)).as_num()
+    evaluate_compiled_expr(body, env).unwrap_or(Value::Num(f64::NAN)).as_num()
 }
 
 /// Evaluate a vector field func at (x,y), returning (dx, dy).
 fn evaluate_vec2_field(
     env: &mut Environment,
     arg_names: &[String],
-    body: &Expr,
+    body: &crate::timeline::modifier_runtime::ir::CompiledExpr,
     x: f64,
     y: f64,
 ) -> [f64; 2] {
@@ -1567,7 +1580,7 @@ fn evaluate_vec2_field(
     let y_name = arg_names.get(1).map(String::as_str).unwrap_or("y");
     env.set_binding(x_name, Value::Num(x));
     env.set_binding(y_name, Value::Num(y));
-    match evaluate_expr(body, env).unwrap_or(Value::Vec2([0.0, 0.0])) {
+    match evaluate_compiled_expr(body, env).unwrap_or(Value::Vec2([0.0, 0.0])) {
         Value::Vec2(v) => v,
         Value::Num(n) => [n, 0.0],
         _ => [0.0, 0.0],
@@ -1582,7 +1595,7 @@ fn evaluate_vec2_field(
 fn build_vector_field_paths(
     env: &mut Environment,
     arg_names: &[String],
-    body: &Expr,
+    body: &crate::timeline::modifier_runtime::ir::CompiledExpr,
     x_domain: [f64; 2],
     y_domain: [f64; 2],
     full_size: [f64; 2],
@@ -1650,7 +1663,7 @@ fn build_vector_field_paths(
 fn build_heatmap_paths(
     env: &mut Environment,
     arg_names: &[String],
-    body: &Expr,
+    body: &crate::timeline::modifier_runtime::ir::CompiledExpr,
     x_domain: [f64; 2],
     y_domain: [f64; 2],
     full_size: [f64; 2],
@@ -1729,7 +1742,7 @@ fn build_heatmap_paths(
 fn build_contour_set_paths(
     env: &mut Environment,
     arg_names: &[String],
-    body: &Expr,
+    body: &crate::timeline::modifier_runtime::ir::CompiledExpr,
     levels: &[f64],
     x_domain: [f64; 2],
     y_domain: [f64; 2],
@@ -1748,14 +1761,19 @@ fn build_contour_set_paths(
 
     for &level in levels {
         // Build `func(x,y) - level` expression for the implicit solver
-        let modified_body = Expr::Binary(
-            Box::new((*body).clone()),
+        let modified_body = crate::timeline::modifier_runtime::ir::CompiledExpr::Binary(
+            Box::new(body.clone()),
             crate::ast::BinaryOp::Sub,
-            Box::new(crate::ast::Expr::Num(level)),
+            Box::new(crate::timeline::modifier_runtime::ir::CompiledExpr::Const(
+                crate::timeline::Value::Num(level),
+            )),
         );
 
-        let source =
-            FuncSource::Raw(arg_names.to_vec(), modified_body.clone(), CapturedEnv::default());
+        let source = FuncSource::Compiled(
+            arg_names.to_vec(),
+            Box::new(modified_body),
+            CapturedEnv::default(),
+        );
         let bez_path = build_implicit_plot_path_from_source(
             env, &source, &x_domain, &y_domain, &full_size, resolution, &[0.0; 4],
         );

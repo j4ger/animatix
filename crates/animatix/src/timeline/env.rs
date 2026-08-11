@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
+use crate::timeline::modifier_runtime::ir::CompiledExpr;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -119,8 +121,8 @@ pub enum Value {
     /// Native Rust function callable from the runtime.
     #[allow(clippy::type_complexity)]
     NativeFn(Arc<dyn Fn(&[Value], &Environment) -> Result<Value, EvalError> + Send + Sync>),
-    /// User-defined closure (parameter names, body expression, captured environment).
-    Closure(Vec<String>, Box<crate::ast::Expr>, CapturedEnv),
+    /// User-defined closure (parameter names, compiled body, captured environment).
+    Closure(Vec<String>, Box<CompiledExpr>, CapturedEnv),
 }
 
 impl fmt::Debug for Value {
@@ -487,14 +489,12 @@ fn update_object_path(current: Value, path: &[&str], field: &str, value: Value) 
 // error variant — NativeFn values never appear in `CapturedEnv` (stdlib is
 // not captured), so round-trip deserialization of `NativeFn` is not needed.
 //
-// `Value::Closure` is serialized with its argument list, body `Expr`, and
-// captured `CapturedEnv`. This is feature-gated on both `serde` here and the
-// `serde` feature of `animatix-syntax` (which gates `Expr` serde).
+// `Value::Closure` is serialized with its argument list, compiled body, and
+// captured `CapturedEnv`.
 
 #[cfg(feature = "serde")]
 mod serde_impl {
-    use serde::de::{self, EnumAccess, VariantAccess, Visitor};
-    use serde::ser::SerializeStructVariant;
+    use serde::de;
     use serde::{Deserializer, Serializer};
 
     use super::*;
@@ -515,7 +515,11 @@ mod serde_impl {
         Object(String, std::collections::HashMap<String, ValueWire>),
         /// Serialized as unit; cannot be deserialized back to a live function.
         NativeFn,
-        Closure(Vec<String>, Box<crate::ast::Expr>, CapturedEnv),
+        Closure(
+            Vec<String>,
+            Box<crate::timeline::modifier_runtime::ir::CompiledExpr>,
+            CapturedEnv,
+        ),
     }
 
     impl From<&Value> for ValueWire {

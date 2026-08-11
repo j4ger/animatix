@@ -459,6 +459,7 @@ pub enum LoopPattern {
 /// Supports a subset of Rust patterns: literals, ranges, or-patterns,
 /// tuple patterns, and the required wildcard `_`.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum MatchPattern {
     /// Wildcard pattern `_` — matches any value.
     Wildcard,

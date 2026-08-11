@@ -1,6 +1,7 @@
 use super::*;
 use crate::ast::Expr;
 use crate::easing::Easing;
+use crate::timeline::modifier_runtime::ir::compile_expr;
 use crate::timeline::plot::{
     FuncSource, FuncTransition, PlotCurveKind, ProceduralPlot, blend_depth, flatten_blend,
     resolve_func_source, sample_procedural_plot_at,
@@ -36,6 +37,10 @@ fn sin_x_expr() -> Expr {
 /// Construct the AST expression `cos(x)`.
 fn cos_x_expr() -> Expr {
     Expr::Call("cos".to_string(), vec![Expr::Ident("x".to_string())])
+}
+
+fn compiled_body(body: Expr) -> crate::timeline::modifier_runtime::ir::CompiledExpr {
+    compile_expr(&body).expect("test function body should compile")
 }
 
 /// Construct the AST expression `x^2 + y^2 - 1` (unit circle implicit field).
@@ -138,12 +143,16 @@ fn blend_at_half_progress() {
 
     // Manually construct a Blend node with frozen_progress = 0.5.
     let blend = FuncSource::Blend {
-        from: Box::new(FuncSource::Raw(
+        from: Box::new(FuncSource::from_expr(
             vec!["x".to_string()],
             sin_x_expr(),
             CapturedEnv::default(),
         )),
-        to: Box::new(FuncSource::Raw(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default())),
+        to: Box::new(FuncSource::from_expr(
+            vec!["x".to_string()],
+            cos_x_expr(),
+            CapturedEnv::default(),
+        )),
         frozen_progress: 0.5,
     };
 
@@ -165,7 +174,7 @@ fn blend_at_half_progress() {
     let plot = ProceduralPlot {
         kind: PlotCurveKind::Cartesian,
         func_args: vec!["x".to_string()],
-        func_body: sin_x_expr(),
+        func_body: compiled_body(sin_x_expr()),
         actor_label: "curve".to_string(),
         param_names: vec![],
         p_x_domain: [-1.0, 1.0],
@@ -186,8 +195,8 @@ fn blend_at_half_progress() {
         start_ms: 2000,
         end_ms: 3000,
         easing: Easing::Linear,
-        from: FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default()),
-        to: FuncSource::Raw(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default()),
+        from: FuncSource::from_expr(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default()),
+        to: FuncSource::from_expr(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default()),
     };
 
     // At time_ms = 2500, progress is 0.5, so output ≈ 0.5*sin(x) + 0.5*cos(x).
@@ -260,7 +269,7 @@ fn record_and_chain_overlapping_transitions() {
                 frozen_progress
             );
         },
-        FuncSource::Raw(..) => {
+        FuncSource::Compiled(..) => {
             panic!("Expected FuncSource::Blend for the second transition's from, got Raw");
         },
     }
@@ -307,7 +316,7 @@ fn cascading_transitions() {
 
     // First transition: from = Raw (declaration func).
     assert!(
-        matches!(&track.func_transitions[0].from, FuncSource::Raw(..)),
+        matches!(&track.func_transitions[0].from, FuncSource::Compiled(..)),
         "First transition's from should be Raw"
     );
 
@@ -585,9 +594,9 @@ fn for_loop_closure_captures_loop_variable() {
         assert!(!paths.is_empty(), "{}: sampled paths should be non-empty", track_name);
 
         // Directly evaluate the function via FuncSource to confirm the captured value.
-        let func_source = crate::timeline::plot::FuncSource::Raw(
+        let func_source = crate::timeline::plot::FuncSource::Compiled(
             plot.func_args.clone(),
-            plot.func_body.clone(),
+            Box::new(plot.func_body.clone()),
             plot.extra_captures.clone(),
         );
         let result = crate::timeline::plot::resolve_func_source(&func_source, &env, "x", 2.0)
@@ -688,7 +697,7 @@ fn quality_factor_calculation() {
 
     // Helper to create a Raw FuncSource (blend depth 0).
     fn raw() -> FuncSource {
-        FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default())
+        FuncSource::from_expr(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default())
     }
 
     // Helper to create a Blend at a given depth by nesting.
@@ -820,12 +829,12 @@ fn implicit_blend_at_half() {
 
     let mut env = stdlib_env();
 
-    let circle = FuncSource::Raw(
+    let circle = FuncSource::from_expr(
         vec!["x".to_string(), "y".to_string()],
         circle_expr(),
         CapturedEnv::default(),
     );
-    let line = FuncSource::Raw(
+    let line = FuncSource::from_expr(
         vec!["x".to_string(), "y".to_string()],
         line_yx_expr(),
         CapturedEnv::default(),
@@ -912,7 +921,7 @@ fn implicit_cascading() {
 
     // First transition: from = Raw (declaration func).
     assert!(
-        matches!(&track.func_transitions[0].from, FuncSource::Raw(..)),
+        matches!(&track.func_transitions[0].from, FuncSource::Compiled(..)),
         "First transition's from should be Raw"
     );
     // Second transition: from = Blend (frozen from the first at t=2s).
@@ -971,7 +980,7 @@ fn implicit_cascading() {
 /// Verify that `flatten_blend` on a non-blend source returns `[(1.0, source)]`.
 #[test]
 fn flatten_blend_basic() {
-    let raw = FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
+    let raw = FuncSource::from_expr(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
     let flat = flatten_blend(&raw);
     assert_eq!(flat.len(), 1, "Expected 1 entry for non-blend source");
     assert!(
@@ -991,8 +1000,8 @@ fn flatten_blend_basic() {
 /// should flatten to `[(0.6, A), (0.4, B)]`.
 #[test]
 fn flatten_blend_single_level() {
-    let a = FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
-    let b = FuncSource::Raw(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default());
+    let a = FuncSource::from_expr(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
+    let b = FuncSource::from_expr(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default());
     let blend = FuncSource::Blend {
         from: Box::new(a.clone()),
         to: Box::new(b.clone()),
@@ -1028,9 +1037,9 @@ fn flatten_blend_single_level() {
 /// Result: `A*(1-q) + B*(1-p)*q + C*p*q`
 #[test]
 fn flatten_blend_nested_depth_2() {
-    let a = FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
-    let b = FuncSource::Raw(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default());
-    let c = FuncSource::Raw(vec!["x".to_string()], Expr::Num(0.5), CapturedEnv::default());
+    let a = FuncSource::from_expr(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
+    let b = FuncSource::from_expr(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default());
+    let c = FuncSource::from_expr(vec!["x".to_string()], Expr::Num(0.5), CapturedEnv::default());
 
     // Inner: blend(B, C, p=0.3)
     let inner = FuncSource::Blend {
@@ -1078,10 +1087,10 @@ fn flatten_blend_nested_depth_2() {
 /// flatten to 4 entries.
 #[test]
 fn flatten_blend_nested_depth_3() {
-    let a = FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
-    let b = FuncSource::Raw(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default());
-    let c = FuncSource::Raw(vec!["x".to_string()], Expr::Num(0.5), CapturedEnv::default());
-    let d = FuncSource::Raw(vec!["x".to_string()], Expr::Num(1.0), CapturedEnv::default());
+    let a = FuncSource::from_expr(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
+    let b = FuncSource::from_expr(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default());
+    let c = FuncSource::from_expr(vec!["x".to_string()], Expr::Num(0.5), CapturedEnv::default());
+    let d = FuncSource::from_expr(vec!["x".to_string()], Expr::Num(1.0), CapturedEnv::default());
 
     // Inner: blend(C, D, r=0.2)
     let inner = FuncSource::Blend {
@@ -1146,10 +1155,10 @@ fn resolve_func_source_nested_blend() {
     let env = stdlib_env();
 
     // Raw sources
-    let a = FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
-    let b = FuncSource::Raw(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default());
+    let a = FuncSource::from_expr(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
+    let b = FuncSource::from_expr(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default());
     let c_raw = Expr::Num(0.5);
-    let c = FuncSource::Raw(vec!["x".to_string()], c_raw, CapturedEnv::default());
+    let c = FuncSource::from_expr(vec!["x".to_string()], c_raw, CapturedEnv::default());
 
     // Inner: blend(B, C, 0.3)
     let inner = FuncSource::Blend {
@@ -1193,9 +1202,9 @@ fn eval_source_scalar_nested_blend() {
 
     let mut env = stdlib_env();
 
-    let a = FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
-    let b = FuncSource::Raw(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default());
-    let c = FuncSource::Raw(vec!["x".to_string()], Expr::Num(42.0), CapturedEnv::default());
+    let a = FuncSource::from_expr(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
+    let b = FuncSource::from_expr(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default());
+    let c = FuncSource::from_expr(vec!["x".to_string()], Expr::Num(42.0), CapturedEnv::default());
 
     // Inner: blend(B, C, 0.25)
     let inner = FuncSource::Blend {
@@ -1238,12 +1247,12 @@ fn eval_implicit_source_nested_blend() {
 
     let mut env = stdlib_env();
 
-    let circle = FuncSource::Raw(
+    let circle = FuncSource::from_expr(
         vec!["x".to_string(), "y".to_string()],
         circle_expr(),
         CapturedEnv::default(),
     );
-    let line = FuncSource::Raw(
+    let line = FuncSource::from_expr(
         vec!["x".to_string(), "y".to_string()],
         line_yx_expr(),
         CapturedEnv::default(),
@@ -1254,8 +1263,11 @@ fn eval_implicit_source_nested_blend() {
         crate::ast::BinaryOp::Add,
         Box::new(Expr::Ident("y".to_string())),
     );
-    let sum_src =
-        FuncSource::Raw(vec!["x".to_string(), "y".to_string()], sum_expr, CapturedEnv::default());
+    let sum_src = FuncSource::from_expr(
+        vec!["x".to_string(), "y".to_string()],
+        sum_expr,
+        CapturedEnv::default(),
+    );
 
     // Inner: blend(circle, line, 0.4)
     let inner = FuncSource::Blend {
@@ -1299,13 +1311,13 @@ fn depth_4_nested_blend_parity() {
     let env = stdlib_env();
 
     fn raw_const(val: f64) -> FuncSource {
-        FuncSource::Raw(vec!["x".to_string()], Expr::Num(val), CapturedEnv::default())
+        FuncSource::from_expr(vec!["x".to_string()], Expr::Num(val), CapturedEnv::default())
     }
 
     // Build a depth-4 blend tree: blend(blend(blend(blend(A,B,0.9),C,0.7),D,0.5),E,0.3)
     // where A=sin(x), B=cos(x), C=1.0, D=2.0, E=-1.5
-    let a = FuncSource::Raw(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
-    let b = FuncSource::Raw(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default());
+    let a = FuncSource::from_expr(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
+    let b = FuncSource::from_expr(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default());
     let c = raw_const(1.0);
     let d = raw_const(2.0);
     let e = raw_const(-1.5);

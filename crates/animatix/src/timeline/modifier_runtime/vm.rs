@@ -115,7 +115,7 @@ pub enum Instruction {
         /// Closure parameter names.
         params: Vec<String>,
         /// Closure body expression (evaluated lazily at call time).
-        body: Box<Expr>,
+        body: Box<CompiledExpr>,
     },
     /// Pop N field values from the stack and construct an Object.
     /// Fields are listed in order; each entry is (field_name).

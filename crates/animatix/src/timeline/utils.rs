@@ -359,7 +359,9 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
 
         // Closures capture the current override environment at creation time (lexical scope).
         Expr::Closure(args, body) => {
-            Ok(Value::Closure(args.clone(), body.clone(), CapturedEnv::snapshot(env)))
+            let compiled = crate::timeline::modifier_runtime::ir::compile_expr(body)
+                .ok_or_else(|| EvalError::UnsupportedConstruct("closure body".to_string()))?;
+            Ok(Value::Closure(args.clone(), Box::new(compiled), CapturedEnv::snapshot(env)))
         },
 
         Expr::Match(scrutinee, arms) => {
@@ -547,7 +549,7 @@ fn evaluate_call(func: &str, args: &[Expr], env: &Environment) -> Result<Value, 
                     child_env.set(param, val);
                 }
 
-                evaluate_expr(&body, &child_env)
+                crate::timeline::modifier_runtime::ir::evaluate_compiled_expr(&body, &child_env)
             },
             _ => Err(EvalError::NotCallable(func.to_string())),
         }
@@ -793,7 +795,12 @@ mod tests {
     use super::*;
     use crate::ast::BinaryOp;
     use crate::timeline::load_standard_library;
+    use crate::timeline::modifier_runtime::ir::{CompiledExpr, compile_expr};
     use crate::timeline::property_track::TrackAccessor;
+
+    fn compiled_body(body: Expr) -> Box<CompiledExpr> {
+        Box::new(compile_expr(&body).expect("test closure body should compile"))
+    }
 
     #[test]
     fn test_evaluate_closure() {
@@ -802,7 +809,7 @@ mod tests {
         let mut env = Environment::with_base(std::sync::Arc::new(std::collections::HashMap::new()));
         let closure = Value::Closure(
             vec!["x".to_string()],
-            Box::new(Expr::Binary(
+            compiled_body(Expr::Binary(
                 Box::new(Expr::Ident("x".to_string())),
                 BinaryOp::Mul,
                 Box::new(Expr::Num(2.0)),
@@ -1002,7 +1009,7 @@ mod tests {
         env.set("y", Value::Num(3.0));
         let closure = Value::Closure(
             vec!["x".to_string()],
-            Box::new(Expr::Binary(
+            compiled_body(Expr::Binary(
                 Box::new(Expr::Ident("x".to_string())),
                 BinaryOp::Add,
                 Box::new(Expr::Ident("y".to_string())),

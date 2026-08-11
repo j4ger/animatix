@@ -354,9 +354,9 @@ impl Timeline {
                         }
                     } else if let Some(plot) = track.procedural_plot.as_ref() {
                         // No prior transitions, use declaration func
-                        FuncSource::Raw(
+                        FuncSource::Compiled(
                             plot.func_args.clone(),
-                            plot.func_body.clone(),
+                            Box::new(plot.func_body.clone()),
                             plot.extra_captures.clone(),
                         )
                     } else {
@@ -396,7 +396,11 @@ impl Timeline {
                         end_ms: t_end_ms,
                         easing,
                         from: from_source,
-                        to: FuncSource::Raw(to_args, to_body, CapturedEnv::default()),
+                        to: FuncSource::Compiled(
+                            to_args,
+                            Box::new(to_body),
+                            CapturedEnv::default(),
+                        ),
                     });
                     return; // func is not a registry property; do not fall through
                 },

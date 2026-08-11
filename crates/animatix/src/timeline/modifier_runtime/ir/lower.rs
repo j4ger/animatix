@@ -236,7 +236,9 @@ pub fn compile_expr(expr: &Expr) -> Option<CompiledExpr> {
             let args: Vec<_> = args.iter().map(compile_expr).collect::<Option<Vec<_>>>()?;
             Some(CompiledExpr::Method(Box::new(receiver), name.clone(), args))
         },
-        Expr::Closure(params, body) => Some(CompiledExpr::Closure(params.clone(), body.clone())),
+        Expr::Closure(params, body) => {
+            Some(CompiledExpr::Closure(params.clone(), Box::new(compile_expr(body)?)))
+        },
         Expr::Match(scrutinee, arms) => {
             // Lower to nested Select expressions
             let scrutinee_compiled = compile_expr(scrutinee)?;

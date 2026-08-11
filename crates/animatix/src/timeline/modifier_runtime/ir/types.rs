@@ -1,12 +1,16 @@
 use std::collections::HashMap;
 use std::fmt;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use crate::ast::{BinaryOp, Expr, LoopPattern, UnaryOp};
 use crate::timeline::Value;
 use crate::timeline::animation_track::SceneAnchor;
 
 /// Built-in mathematical and utility functions available in modifier expressions.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum BuiltinFn {
     /// Sine function.
     Sin,
@@ -50,6 +54,7 @@ pub enum BuiltinFn {
 
 /// A compiled expression in the modifier IR.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CompiledExpr {
     /// A constant value.
     Const(Value),
@@ -69,9 +74,9 @@ pub enum CompiledExpr {
     Index(Box<CompiledExpr>, Box<CompiledExpr>),
     /// Call a method on an expression.
     Method(Box<CompiledExpr>, String, Vec<CompiledExpr>),
-    /// Create a closure value (parameter names, body expression).
+    /// Create a closure value (parameter names, compiled body expression).
     /// The environment is captured at evaluation time.
-    Closure(Vec<String>, Box<Expr>),
+    Closure(Vec<String>, Box<CompiledExpr>),
     /// Construct an object value (type name, compiled field expressions).
     Construct(String, Vec<(String, CompiledExpr)>),
     /// Lazily resolve an actor anchor point from the frame environment.
@@ -82,6 +87,37 @@ pub enum CompiledExpr {
         /// Which anchor point (top, right, center, etc.).
         anchor: SceneAnchor,
     },
+}
+
+impl CompiledExpr {
+    /// Returns `true` if this compiled expression references the given identifier.
+    pub fn references_ident(&self, name: &str) -> bool {
+        match self {
+            CompiledExpr::LoadEnv(id) => id == name,
+            CompiledExpr::MakeVec(items) => items.iter().any(|item| item.references_ident(name)),
+            CompiledExpr::Unary(_, expr) => expr.references_ident(name),
+            CompiledExpr::Binary(left, _, right) => {
+                left.references_ident(name) || right.references_ident(name)
+            },
+            CompiledExpr::Select(cond, then_expr, else_expr) => {
+                cond.references_ident(name)
+                    || then_expr.references_ident(name)
+                    || else_expr.references_ident(name)
+            },
+            CompiledExpr::CallBuiltin(_, args) => args.iter().any(|arg| arg.references_ident(name)),
+            CompiledExpr::Index(container, index) => {
+                container.references_ident(name) || index.references_ident(name)
+            },
+            CompiledExpr::Method(receiver, _, args) => {
+                receiver.references_ident(name) || args.iter().any(|arg| arg.references_ident(name))
+            },
+            CompiledExpr::Closure(_, body) => body.references_ident(name),
+            CompiledExpr::Construct(_, fields) => {
+                fields.iter().any(|(_, value)| value.references_ident(name))
+            },
+            CompiledExpr::Const(_) | CompiledExpr::AnchorLookup { .. } => false,
+        }
+    }
 }
 
 /// Expression used in modifier IR, either compiled or unsupported.
