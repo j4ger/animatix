@@ -27,7 +27,6 @@ TS_DIR="$ROOT/tree-sitter-animatix"
 
 PEG_ERRORS=0
 TS_ERRORS=0
-TS_SKIPPED=0
 TOTAL=0
 
 echo "========================================"
@@ -50,9 +49,9 @@ echo ""
 echo "2. Tree-sitter corpus: tree-sitter test"
 echo "----------------------------------------"
 if ! command -v tree-sitter &>/dev/null; then
-    echo "WARNING: tree-sitter CLI not found; skipping corpus tests"
+    echo "ERROR: tree-sitter CLI not found; required for parser sync checks"
     echo "  Install with: npm install -g tree-sitter-cli"
-    TS_SKIPPED=$((TS_SKIPPED + 1))
+    TS_ERRORS=$((TS_ERRORS + 1))
 else
     set +e
     (cd "$TS_DIR" && tree-sitter test 2>&1)
@@ -66,13 +65,39 @@ else
     fi
 fi
 
+# ── 2.5 Generated parser freshness ───────────────────────────────────────────
+echo ""
+echo "2.5 Tree-sitter generated parser freshness"
+echo "----------------------------------------"
+if ! command -v tree-sitter &>/dev/null; then
+    echo "ERROR: tree-sitter CLI not found; cannot check generated parser"
+    TS_ERRORS=$((TS_ERRORS + 1))
+else
+    set +e
+    (cd "$TS_DIR" && tree-sitter generate 2>&1)
+    gen_exit=$?
+    set -e
+    if [ "$gen_exit" -eq 0 ]; then
+        if git -C "$ROOT" diff --quiet -- tree-sitter-animatix/src tree-sitter-animatix/queries; then
+            echo "Generated parser files: FRESH"
+        else
+            echo "Generated parser files: STALE"
+            git -C "$ROOT" diff --stat -- tree-sitter-animatix/src tree-sitter-animatix/queries
+            TS_ERRORS=$((TS_ERRORS + 1))
+        fi
+    else
+        echo "Tree-sitter generate: FAILED"
+        TS_ERRORS=$((TS_ERRORS + 1))
+    fi
+fi
+
 # ── 3. Tree-sitter parse over all examples/*.amx ────────────────────────────
 echo ""
 echo "3. Tree-sitter parse: examples/**/*.amx"
 echo "----------------------------------------"
 if ! command -v tree-sitter &>/dev/null; then
-    echo "WARNING: tree-sitter CLI not found; skipping example parse checks"
-    TS_SKIPPED=$((TS_SKIPPED + 1))
+    echo "ERROR: tree-sitter CLI not found; cannot parse examples"
+    TS_ERRORS=$((TS_ERRORS + 1))
 else
     PARSE_FAIL=0
     while IFS= read -r f; do
@@ -151,7 +176,6 @@ echo "Summary"
 echo "========================================"
 echo "  PEG parser errors:       $PEG_ERRORS"
 echo "  Tree-sitter errors:      $TS_ERRORS"
-[ "$TS_SKIPPED" -gt 0 ] && echo "  Tree-sitter skipped:     $TS_SKIPPED (tree-sitter CLI not installed)"
 echo ""
 
 if [ "$PEG_ERRORS" -gt 0 ] || [ "$TS_ERRORS" -gt 0 ]; then

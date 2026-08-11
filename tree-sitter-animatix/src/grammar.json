@@ -51,6 +51,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "text_shorthand"
+        },
+        {
+          "type": "SYMBOL",
           "name": "typst_shorthand"
         },
         {
@@ -92,14 +96,6 @@
         {
           "type": "SYMBOL",
           "name": "play_statement"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "slot_marker"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "slot_fill"
         }
       ]
     },
@@ -731,17 +727,8 @@
           "type": "FIELD",
           "name": "type",
           "content": {
-            "type": "CHOICE",
-            "members": [
-              {
-                "type": "SYMBOL",
-                "name": "identifier"
-              },
-              {
-                "type": "SYMBOL",
-                "name": "string"
-              }
-            ]
+            "type": "SYMBOL",
+            "name": "identifier"
           }
         },
         {
@@ -783,6 +770,43 @@
             {
               "type": "SYMBOL",
               "name": "children_block"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        }
+      ]
+    },
+    "text_shorthand": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "FIELD",
+          "name": "label",
+          "content": {
+            "type": "SYMBOL",
+            "name": "identifier"
+          }
+        },
+        {
+          "type": "STRING",
+          "value": ":"
+        },
+        {
+          "type": "FIELD",
+          "name": "text",
+          "content": {
+            "type": "SYMBOL",
+            "name": "string"
+          }
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "modifier_block"
             },
             {
               "type": "BLANK"
@@ -1510,31 +1534,6 @@
         }
       ]
     },
-    "slot_marker": {
-      "type": "STRING",
-      "value": "@slot"
-    },
-    "slot_fill": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "STRING",
-          "value": "@"
-        },
-        {
-          "type": "FIELD",
-          "name": "name",
-          "content": {
-            "type": "SYMBOL",
-            "name": "identifier"
-          }
-        },
-        {
-          "type": "SYMBOL",
-          "name": "children_block"
-        }
-      ]
-    },
     "block": {
       "type": "SEQ",
       "members": [
@@ -1682,17 +1681,8 @@
           "type": "FIELD",
           "name": "type",
           "content": {
-            "type": "CHOICE",
-            "members": [
-              {
-                "type": "SYMBOL",
-                "name": "identifier"
-              },
-              {
-                "type": "SYMBOL",
-                "name": "string"
-              }
-            ]
+            "type": "SYMBOL",
+            "name": "identifier"
           }
         },
         {
@@ -1728,17 +1718,8 @@
           "type": "FIELD",
           "name": "type",
           "content": {
-            "type": "CHOICE",
-            "members": [
-              {
-                "type": "SYMBOL",
-                "name": "identifier"
-              },
-              {
-                "type": "SYMBOL",
-                "name": "string"
-              }
-            ]
+            "type": "SYMBOL",
+            "name": "identifier"
           }
         },
         {

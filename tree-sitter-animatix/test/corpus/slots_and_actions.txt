@@ -1,37 +1,70 @@
 ==================
-Slot marker
+Inline slot marker
 ==================
 
-@slot
-
----
-
-(source_file
-  (slot_marker))
-
-==================
-Slot fill
-==================
-
-@header {
-  label: Text, text: "Title"
+row: Row {
+  @slot
 }
 
 ---
 
 (source_file
-  (slot_fill
-    name: (identifier)
+  (actor_declaration
+    label: (identifier)
+    type: (identifier)
     (children_block
       (inline_items
         (inline_item
-          (inline_actor_declaration
-            label: (identifier)
-            type: (identifier)))
+          (inline_slot_marker))))))
+
+==================
+Inline slot fill
+==================
+
+row: Row {
+  @header {
+    title: Text, text: "Title"
+  }
+}
+
+---
+
+(source_file
+  (actor_declaration
+    label: (identifier)
+    type: (identifier)
+    (children_block
+      (inline_items
         (inline_item
-          (inline_actor_declaration
-            label: (identifier)
-            type: (string)))))))
+          (inline_slot_fill
+            name: (identifier)
+            (children_block
+              (inline_items
+                (inline_item
+                  (inline_actor_declaration
+                    label: (identifier)
+                    type: (identifier)))
+                (inline_item
+                  (inline_property
+                    name: (identifier)
+                    value: (string)))))))))))
+
+==================
+Text shorthand
+==================
+
+title: "Hello" [500ms]
+
+---
+
+(source_file
+  (text_shorthand
+    label: (identifier)
+    text: (string)
+    (modifier_block
+      (modifier_list
+        (modifier
+          (time_literal))))))
 
 ==================
 Action invocation single target

@@ -20,14 +20,14 @@
   "play"
 ] @keyword
 
-(slot_marker) @keyword
+(inline_slot_marker) @keyword
 
 ; Scene/keyframe prefix
 (scene_declaration "#" @punctuation.special)
 (keyframe "#" @punctuation.special)
 
 ; Slot fill prefix
-(slot_fill "@" @punctuation.special)
+(inline_slot_fill "@" @punctuation.special)
 
 ; Literals
 (number) @number
@@ -82,8 +82,9 @@
 (actor_declaration
   type: (identifier) @type)
 
-(actor_declaration
-  type: (string) @type)
+; Text shorthand labels
+(text_shorthand
+  label: (identifier) @label)
 
 ; Identifiers used as function names in calls
 (call_expression
@@ -133,7 +134,7 @@
   name: (identifier) @type)
 
 ; Slot fill names
-(slot_fill
+(inline_slot_fill
   name: (identifier) @property)
 
 ; Path expressions (property access / assignment targets)

@@ -176,10 +176,6 @@
           {
             "type": "identifier",
             "named": true
-          },
-          {
-            "type": "string",
-            "named": true
           }
         ]
       }
@@ -580,15 +576,11 @@
           "named": true
         },
         {
-          "type": "slot_fill",
-          "named": true
-        },
-        {
-          "type": "slot_marker",
-          "named": true
-        },
-        {
           "type": "stagger_block",
+          "named": true
+        },
+        {
+          "type": "text_shorthand",
           "named": true
         },
         {
@@ -1484,10 +1476,6 @@
           {
             "type": "identifier",
             "named": true
-          },
-          {
-            "type": "string",
-            "named": true
           }
         ]
       }
@@ -1517,10 +1505,6 @@
         "types": [
           {
             "type": "identifier",
-            "named": true
-          },
-          {
-            "type": "string",
             "named": true
           }
         ]
@@ -1887,11 +1871,6 @@
         }
       ]
     }
-  },
-  {
-    "type": "inline_slot_marker",
-    "named": true,
-    "fields": {}
   },
   {
     "type": "keyframe",
@@ -3513,37 +3492,6 @@
     }
   },
   {
-    "type": "slot_fill",
-    "named": true,
-    "fields": {
-      "name": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "identifier",
-            "named": true
-          }
-        ]
-      }
-    },
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "children_block",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
-    "type": "slot_marker",
-    "named": true,
-    "fields": {}
-  },
-  {
     "type": "source_file",
     "named": true,
     "root": true,
@@ -3621,15 +3569,11 @@
           "named": true
         },
         {
-          "type": "slot_fill",
-          "named": true
-        },
-        {
-          "type": "slot_marker",
-          "named": true
-        },
-        {
           "type": "stagger_block",
+          "named": true
+        },
+        {
+          "type": "text_shorthand",
           "named": true
         },
         {
@@ -3765,6 +3709,42 @@
         },
         {
           "type": "path_expression",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "text_shorthand",
+    "named": true,
+    "fields": {
+      "label": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "text": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "string",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": false,
+      "types": [
+        {
+          "type": "modifier_block",
           "named": true
         }
       ]
@@ -4190,10 +4170,6 @@
     "named": false
   },
   {
-    "type": "@slot",
-    "named": false
-  },
-  {
     "type": "Actor",
     "named": false
   },
@@ -4296,6 +4272,10 @@
   {
     "type": "in",
     "named": false
+  },
+  {
+    "type": "inline_slot_marker",
+    "named": true
   },
   {
     "type": "let",

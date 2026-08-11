@@ -51,6 +51,7 @@ module.exports = grammar({
       $.scene_declaration,
       $.keyframe,
       $.actor_declaration,
+      $.text_shorthand,
       $.typst_shorthand,
       $.property_assignment,
       $.reactive_binding,
@@ -62,8 +63,6 @@ module.exports = grammar({
       $.if_expression,
       $.match_expression,
       $.play_statement,
-      $.slot_marker,
-      $.slot_fill,
     ),
 
     comment: $ => seq('//', /[^\n]*/),
@@ -164,10 +163,17 @@ module.exports = grammar({
       field('label', $.identifier),
       optional(seq('[', field('array_index', $._expression), ']')),
       ':',
-      field('type', choice($.identifier, $.string)),
+      field('type', $.identifier),
       optional(seq(',', $.property_list)),
       optional($.modifier_block),
       optional($.children_block)
+    ),
+
+    text_shorthand: $ => seq(
+      field('label', $.identifier),
+      ':',
+      field('text', $.string),
+      optional($.modifier_block)
     ),
 
     typst_shorthand: $ => seq(
@@ -313,14 +319,6 @@ module.exports = grammar({
     //   field('path', $.path_expression)
     // ),
 
-    slot_marker: $ => '@slot',
-
-    slot_fill: $ => seq(
-      '@',
-      field('name', $.identifier),
-      $.children_block
-    ),
-
     block: $ => seq(
       '{',
       repeat($._statement),
@@ -352,13 +350,13 @@ module.exports = grammar({
       field('label', $.identifier),
       optional(seq('[', field('array_index', $._expression), ']')),
       ':',
-      field('type', choice($.identifier, $.string)),
+      field('type', $.identifier),
       optional($.modifier_block),
       optional($.children_block)
     ),
 
     inline_anonymous_actor: $ => seq(
-      field('type', choice($.identifier, $.string)),
+      field('type', $.identifier),
       optional($.modifier_block),
       optional($.children_block)
     ),

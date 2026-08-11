@@ -204,26 +204,34 @@ for (x, y) in points {
 Inline items newline separated
 ==================
 
-@header {
-  lbl: Text
-  icon: Icon
+row: Row {
+  @header {
+    lbl: Text
+    icon: Icon
+  }
 }
 
 ---
 
 (source_file
-  (slot_fill
-    name: (identifier)
+  (actor_declaration
+    label: (identifier)
+    type: (identifier)
     (children_block
       (inline_items
         (inline_item
-          (inline_actor_declaration
-            label: (identifier)
-            type: (identifier)))
-        (inline_item
-          (inline_actor_declaration
-            label: (identifier)
-            type: (identifier)))))))
+          (inline_slot_fill
+            name: (identifier)
+            (children_block
+              (inline_items
+                (inline_item
+                  (inline_actor_declaration
+                    label: (identifier)
+                    type: (identifier)))
+                (inline_item
+                  (inline_actor_declaration
+                    label: (identifier)
+                    type: (identifier)))))))))))
 
 ==================
 Comments in blocks

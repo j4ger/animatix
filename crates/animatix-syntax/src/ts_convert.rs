@@ -198,7 +198,7 @@ impl<'a> TsConverter<'a> {
                 continue;
             }
             if child.kind() == "comment" {
-                stmts.push(Stmt::Comment(self.node_text(child).to_string(), node_span(child)));
+                stmts.push(Stmt::Comment(self.comment_text(child), node_span(child)));
                 continue;
             }
             if let Some(stmt) = self.convert_statement(child) {
@@ -220,6 +220,7 @@ impl<'a> TsConverter<'a> {
             "scene_declaration" => Some(self.convert_scene_decl(node)),
             "keyframe" => Some(self.convert_keyframe(node)),
             "actor_declaration" => Some(self.convert_actor_decl(node)),
+            "text_shorthand" => Some(self.convert_text_shorthand(node)),
             "property_assignment" => Some(self.convert_assignment(node)),
             "reactive_binding" => Some(self.convert_reactive_binding(node)),
             "action_invocation" => Some(self.convert_action_invocation(node)),
@@ -230,9 +231,7 @@ impl<'a> TsConverter<'a> {
             "if_expression" => Some(self.convert_if_stmt(node)),
             "match_expression" => Some(self.convert_match_stmt(node)),
             "play_statement" => Some(self.convert_play(node)),
-            "slot_marker" => Some(self.convert_slot_marker(node)),
-            "slot_fill" => Some(self.convert_slot_fill(node)),
-            "comment" => Some(Stmt::Comment(self.node_text(node).to_string(), node_span(node))),
+            "comment" => Some(Stmt::Comment(self.comment_text(node), node_span(node))),
             _ => {
                 if node.is_error() || node.is_missing() {
                     self.push_error(node, format!("unexpected '{}'", self.node_text(node)));
@@ -338,10 +337,11 @@ impl<'a> TsConverter<'a> {
             .child_by_field_name("name")
             .map(|n| self.node_text(n).to_string())
             .unwrap_or_default();
+        let params = self.convert_parameter_list(node);
         let body = self.convert_block_body(node);
         Stmt::ComponentAction {
             name,
-            params: Vec::new(),
+            params,
             body,
             span: node_span(node),
         }
@@ -402,20 +402,52 @@ impl<'a> TsConverter<'a> {
             .unwrap_or_default();
         let ty = node
             .child_by_field_name("type")
-            .map(|n| self.strip_quotes(self.node_text(n)))
+            .map(|n| self.node_text(n).to_string())
             .unwrap_or_default();
+        let array_index = node
+            .child_by_field_name("array_index")
+            .and_then(|n| self.convert_expr(n));
         let props = self.convert_children_properties(node);
         let modifiers = self.convert_modifier_block_node(node);
         let children = self.convert_children_block_items(node);
+        Stmt::ActorDecl {
+            is_pub: self.has_child_text(node, "pub"),
+            is_anonymous: false,
+            label,
+            array_index,
+            ty,
+            props,
+            modifiers,
+            children,
+            span: node_span(node),
+        }
+    }
+
+    /// Convert `label: "text"` shorthand into a `Text` actor declaration.
+    fn convert_text_shorthand(&mut self, node: Node) -> Stmt {
+        let label = node
+            .child_by_field_name("label")
+            .map(|n| self.node_text(n).to_string())
+            .unwrap_or_default();
+        let text = node
+            .child_by_field_name("text")
+            .map(|n| self.strip_quotes(self.node_text(n)).to_string())
+            .unwrap_or_default();
+        let modifiers = self.convert_modifier_block_node(node);
         Stmt::ActorDecl {
             is_pub: false,
             is_anonymous: false,
             label,
             array_index: None,
-            ty,
-            props,
+            ty: "Text".to_string(),
+            props: vec![Property {
+                name: "text".to_string(),
+                value: Expr::Str(text),
+                value_span: None,
+                trailing_comment: None,
+            }],
             modifiers,
-            children,
+            children: vec![],
             span: node_span(node),
         }
     }
@@ -430,12 +462,14 @@ impl<'a> TsConverter<'a> {
             .unwrap_or(Expr::Null);
         let value_span = node.child_by_field_name("value").map(|n| node_byte_span(n));
         let modifiers = self.convert_modifier_block_node(node);
+        let mut modifiers = modifiers;
+        let easing = crate::parser::common::extract_easing(&mut modifiers);
         Stmt::Assignment {
             target,
             property,
             value,
             modifiers,
-            easing: None,
+            easing,
             value_span,
             span: node_span(node),
         }
@@ -480,16 +514,24 @@ impl<'a> TsConverter<'a> {
             .unwrap_or_default();
         let targets = self.convert_target_list(node);
         let modifiers = self.convert_modifier_block_node(node);
+        let args = self.convert_action_args(node);
         Stmt::Action(
             Action {
                 verb,
                 targets,
-                args: Vec::new(),
+                args,
                 modifiers,
                 byte_span: Some(node_byte_span(node)),
             },
             node_span(node),
         )
+    }
+
+    /// Convert positional action arguments. The grammar currently keeps the
+    /// existing comma-separated named-modifier surface, so positional args stay
+    /// empty until an explicit grammar field is added.
+    fn convert_action_args(&mut self, _node: Node) -> Vec<Expr> {
+        Vec::new()
     }
 
     fn convert_sequence(&mut self, node: Node) -> Stmt {
@@ -716,17 +758,6 @@ impl<'a> TsConverter<'a> {
             transition,
             span: node_span(node),
         }
-    }
-
-    fn convert_slot_marker(&self, _node: Node) -> Stmt {
-        // @slot is handled as an InlineItem, not a top-level Stmt.
-        // Return a comment as a placeholder.
-        Stmt::Comment("@slot".to_string(), None)
-    }
-
-    fn convert_slot_fill(&mut self, _node: Node) -> Stmt {
-        // @name { ... } is handled as an InlineItem, not a top-level Stmt.
-        Stmt::Comment("@slot-fill".to_string(), None)
     }
 
     // ── Expression converters ───────────────────────────────────────────
@@ -1094,6 +1125,11 @@ impl<'a> TsConverter<'a> {
                 .is_some_and(|last| last.chars().next().is_some_and(|c| c.is_uppercase()))
     }
 
+    /// Normalize tree-sitter comment text to the PEG convention (text after `//`).
+    fn comment_text(&self, node: Node) -> String {
+        self.node_text(node).trim_start_matches("//").to_string()
+    }
+
     /// Convert a modifier_block node's modifiers into `Vec<Modifier>`.
     fn convert_modifier_block_node(&mut self, parent: Node) -> Vec<Modifier> {
         let mut modifiers = Vec::new();
@@ -1257,7 +1293,7 @@ impl<'a> TsConverter<'a> {
                         }
                         if stmt_node.kind() == "comment" {
                             stmts.push(Stmt::Comment(
-                                self.node_text(stmt_node).to_string(),
+                                self.comment_text(stmt_node),
                                 node_span(stmt_node),
                             ));
                             continue;
@@ -1520,13 +1556,16 @@ impl<'a> TsConverter<'a> {
                     .unwrap_or_default();
                 let ty = node
                     .child_by_field_name("type")
-                    .map(|n| self.strip_quotes(self.node_text(n)))
+                    .map(|n| self.node_text(n).to_string())
                     .unwrap_or_default();
+                let array_index = node
+                    .child_by_field_name("array_index")
+                    .and_then(|n| self.convert_expr(n));
                 let modifiers = self.convert_modifier_block_node(node);
                 let children = self.convert_children_block_items(node);
                 Some(RawItem::Item(InlineItem::Labeled {
                     label,
-                    array_index: None,
+                    array_index,
                     ty,
                     props: Vec::new(),
                     modifiers,
@@ -1666,6 +1705,59 @@ title: Text, text: "Hello"
             _ => None,
         });
         assert!(actor.is_some(), "expected actor 'title', got: {:?}", result.statements);
+    }
+
+    #[test]
+    fn parse_text_shorthand_creates_text_actor() {
+        let source = r#"title: "Hello""#;
+        let result = parse_source(source).expect("parse should succeed");
+        assert!(!result.statements.is_empty(), "expected statements");
+        match &result.statements[0] {
+            Stmt::ActorDecl {
+                label,
+                ty,
+                props,
+                ..
+            } => {
+                assert_eq!(label, "title");
+                assert_eq!(ty, "Text");
+                assert_eq!(props.len(), 1);
+                assert_eq!(props[0].name, "text");
+                assert_eq!(props[0].value, Expr::Str("Hello".to_string()));
+            },
+            other => panic!("expected text shorthand actor, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_pub_indexed_actor_preserves_fields() {
+        let source = "pub bars[2]: Rect, size: (10, 10)\n";
+        let result = parse_source(source).expect("parse should succeed");
+        match &result.statements[0] {
+            Stmt::ActorDecl {
+                is_pub,
+                array_index,
+                label,
+                ..
+            } => {
+                assert!(*is_pub, "pub flag should be preserved");
+                assert_eq!(label, "bars");
+                assert!(matches!(array_index, Some(Expr::Num(2.0))));
+            },
+            other => panic!("expected actor declaration, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_comment_normalizes_leading_slashes() {
+        let source = "// hello\n";
+        let result = parse_source(source).expect("parse should succeed");
+        match &result.statements[0] {
+            Stmt::Comment(text, _) => {
+                assert_eq!(text, " hello");
+            },
+            other => panic!("expected comment, got: {:?}", other),
+        }
     }
 
     #[test]
