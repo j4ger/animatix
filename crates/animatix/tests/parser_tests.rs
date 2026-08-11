@@ -1972,6 +1972,54 @@ match floor(t) % 3 {
     assert!(found_match, "expected at least one Stmt::Match in AST");
 }
 
+#[test]
+fn test_match_stmt_without_commas_parses() {
+    let src = r#"
+#0s
+match floor(t) % 2 {
+  0 => { box.color = red }
+  _ => { box.color = blue }
+}
+"#;
+    let (ast, errors) = parse_source(src);
+    assert!(errors.is_empty(), "parse errors: {:?}", errors);
+    let ast = ast.unwrap();
+    let found_match = ast.iter().any(|stmt| find_stmt(stmt, |s| matches!(s, Stmt::Match { .. })));
+    assert!(found_match, "expected Stmt::Match without comma separators");
+}
+
+#[test]
+fn test_match_stmt_mixed_comma_form_parses() {
+    let src = r#"
+#0s
+match floor(t) % 3 {
+  0 => { box.color = red },
+  _ => { box.color = blue }
+}
+"#;
+    let (ast, errors) = parse_source(src);
+    assert!(errors.is_empty(), "parse errors: {:?}", errors);
+    let ast = ast.unwrap();
+    let found_match = ast.iter().any(|stmt| find_stmt(stmt, |s| matches!(s, Stmt::Match { .. })));
+    assert!(found_match, "expected Stmt::Match with mixed comma separators");
+}
+
+#[test]
+fn test_match_expression_requires_comma_separators() {
+    let src = r#"
+#0s
+box: Rect
+always {
+  box.color = match floor(t) % 2 {
+    0 => red
+    _ => blue
+  }
+}
+"#;
+    let (_ast, errors) = parse_source(src);
+    assert!(!errors.is_empty(), "expression match should require comma-separated arms");
+}
+
 // Helper: pattern_match_test helper since `pattern_matches` is not public
 fn test_pattern_matches(
     pat: &animatix_syntax::ast::MatchPattern,

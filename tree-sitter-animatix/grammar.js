@@ -244,22 +244,36 @@ module.exports = grammar({
       ))))
     ),
 
+    // Single CST node used by both statement and expression forms. The
+    // statement form (block values) may omit commas between arms; the
+    // expression form keeps the Rust-style comma-separated arms. The converter
+    // decides between Stmt::Match and Expr::Match from the surrounding context.
     match_expression: $ => seq(
       'match',
       field('scrutinee', $._expression),
       '{',
       optional(seq(
-        $.match_arm,
-        repeat(seq(',', $.match_arm)),
-        optional(',')
+        repeat($.match_statement_arm),
+        optional(seq(
+          $.match_arm,
+          repeat(seq(',', $.match_arm)),
+          optional(',')
+        ))
       )),
       '}'
+    ),
+
+    match_statement_arm: $ => seq(
+      field('pattern', $.match_pattern),
+      '=>',
+      field('value', $.block),
+      optional(',')
     ),
 
     match_arm: $ => seq(
       field('pattern', $.match_pattern),
       '=>',
-      field('value', choice($.block, $._expression))
+      field('value', $._expression)
     ),
 
     match_pattern: $ => choice(

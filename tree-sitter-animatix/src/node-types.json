@@ -2024,10 +2024,6 @@
             "named": true
           },
           {
-            "type": "block",
-            "named": true
-          },
-          {
             "type": "boolean",
             "named": true
           },
@@ -2209,6 +2205,10 @@
         {
           "type": "match_arm",
           "named": true
+        },
+        {
+          "type": "match_statement_arm",
+          "named": true
         }
       ]
     }
@@ -2302,6 +2302,32 @@
         "types": [
           {
             "type": "match_num",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "match_statement_arm",
+    "named": true,
+    "fields": {
+      "pattern": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "match_pattern",
+            "named": true
+          }
+        ]
+      },
+      "value": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "block",
             "named": true
           }
         ]

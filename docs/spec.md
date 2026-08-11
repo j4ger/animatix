@@ -1500,6 +1500,13 @@ Animatix supports Rust-style `match` as both an expression and a statement.
 Patterns include literal values, ranges (`1..=3`), or-patterns (`0 | 2`), and
 tuples. A `_` wildcard arm is required.
 
+Match arms use one of two separator rules depending on the arm value:
+
+- **Statement arms** (block values) may omit commas between arms. Commas are
+  still accepted for backward compatibility and as trailing separators.
+- **Expression arms** (value expressions) require comma separators, matching
+  the Rust-style expression grammar.
+
 ```animatix
 color = match floor(t) % 2 {
   0 => red,

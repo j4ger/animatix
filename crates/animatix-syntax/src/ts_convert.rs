@@ -676,19 +676,27 @@ impl<'a> TsConverter<'a> {
             .child_by_field_name("scrutinee")
             .and_then(|n| self.convert_expr(n))
             .unwrap_or(Expr::Null);
-        // Expression form: each arm's value is an expression (not a block)
+        // Expression form: each arm's value is an expression (not a block).
         let mut arms = Vec::new();
         let mut cursor = node.walk();
         for child in node.named_children(&mut cursor) {
-            if child.kind() == "match_arm" {
-                let pattern = self.convert_match_pattern(child);
-                let value_node = child.child_by_field_name("value");
-                if let Some(vn) = value_node {
-                    // The value could be an expression or a block (if block, extract inner expr?)
-                    if let Some(expr) = self.convert_expr(vn) {
-                        arms.push((pattern, Box::new(expr)));
+            match child.kind() {
+                "match_arm" => {
+                    let pattern = self.convert_match_pattern(child);
+                    let value_node = child.child_by_field_name("value");
+                    if let Some(vn) = value_node {
+                        if let Some(expr) = self.convert_expr(vn) {
+                            arms.push((pattern, Box::new(expr)));
+                        }
                     }
-                }
+                },
+                "match_statement_arm" => {
+                    self.push_error(
+                        child,
+                        "block-valued match arms are only valid in match statements".to_string(),
+                    );
+                },
+                _ => {},
             }
         }
         Some(Expr::Match(Box::new(scrutinee), arms))
@@ -698,37 +706,58 @@ impl<'a> TsConverter<'a> {
         let mut arms = Vec::new();
         let mut cursor = node.walk();
         for child in node.named_children(&mut cursor) {
-            if child.kind() == "match_arm" {
-                let pattern = self.convert_match_pattern(child);
-                let value_node = child.child_by_field_name("value");
-                let stmts = if let Some(vn) = value_node {
-                    if vn.kind() == "block" {
-                        self.convert_block_body(vn)
-                    } else {
-                        // Expression as value in statement context: wrap in assignment?
-                        // For now, treat as unsupported
-                        vec![]
-                    }
-                } else {
-                    vec![]
-                };
-                arms.push((pattern, stmts));
+            match child.kind() {
+                "match_statement_arm" => {
+                    let pattern = self.convert_match_pattern(child);
+                    let value_node = child.child_by_field_name("value");
+                    let stmts = value_node
+                        .map(|vn| self.convert_block_or_expr_stmts(vn))
+                        .unwrap_or_default();
+                    arms.push((pattern, stmts));
+                },
+                "match_arm" => {
+                    self.push_error(
+                        child,
+                        "expression-valued match arms are only valid in match expressions"
+                            .to_string(),
+                    );
+                },
+                _ => {},
             }
         }
         arms
     }
 
     fn convert_match_pattern(&mut self, node: Node) -> MatchPattern {
-        // A match_arm node contains a child match_pattern node.
-        let pat_node = node.child_by_field_name("pattern");
-        match pat_node {
-            Some(pat) => self.convert_single_match_pattern(pat),
-            None => MatchPattern::Wildcard,
+        // A match_arm node contains a child match_pattern node. That node may
+        // wrap the actual pattern (match_literal / match_range / match_or /
+        // match_tuple / match_wildcard), so recurse through wrapper nodes.
+        let mut current = node.child_by_field_name("pattern").unwrap_or(node);
+        loop {
+            match current.kind() {
+                "match_pattern" | "match_literal" | "match_range" | "match_or"
+                | "match_tuple" | "match_wildcard" => break,
+                _ => {
+                    let mut cursor = current.walk();
+                    match current.named_children(&mut cursor).next() {
+                        Some(child) => current = child,
+                        None => return MatchPattern::Wildcard,
+                    }
+                },
+            }
         }
+        self.convert_single_match_pattern(current)
     }
 
     fn convert_single_match_pattern(&mut self, node: Node) -> MatchPattern {
         match node.kind() {
+            "match_pattern" => {
+                let mut cursor = node.walk();
+                match node.named_children(&mut cursor).next() {
+                    Some(child) => self.convert_single_match_pattern(child),
+                    None => MatchPattern::Wildcard,
+                }
+            },
             "match_wildcard" => MatchPattern::Wildcard,
             "match_literal" => {
                 let mut cursor = node.walk();
@@ -778,7 +807,7 @@ impl<'a> TsConverter<'a> {
 
     fn convert_match_literal(&mut self, node: Node) -> MatchPattern {
         match node.kind() {
-            "number" => {
+            "number" | "match_num" => {
                 let text = self.node_text(node);
                 MatchPattern::Num(text.parse::<f64>().unwrap_or(0.0))
             },

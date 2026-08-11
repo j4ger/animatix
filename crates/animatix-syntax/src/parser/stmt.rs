@@ -646,14 +646,25 @@ pub(crate) fn parser<'src>(
         let match_stmt = text::keyword("match")
             .ignore_then(expr.clone().padded())
             .then(
-                match_pat
-                    .clone()
-                    .then_ignore(just("=>").padded())
-                    .then(always_body.clone())
-                    .separated_by(just(',').padded())
-                    .allow_trailing()
-                    .collect::<Vec<(MatchPattern, Vec<Stmt>)>>()
-                    .delimited_by(just('{').padded(), just('}').padded()),
+                {
+                    let match_arm = match_pat
+                        .clone()
+                        .then_ignore(just("=>").padded())
+                        .then(always_body.clone());
+                    match_arm
+                        .clone()
+                        .then(just(',').padded().or_not())
+                        .repeated()
+                        .at_least(1)
+                        .collect::<Vec<_>>()
+                        .map(|items| {
+                            items
+                                .into_iter()
+                                .map(|(arm, _comma)| arm)
+                                .collect::<Vec<(MatchPattern, Vec<Stmt>)>>()
+                        })
+                        .delimited_by(just('{').padded(), just('}').padded())
+                },
             )
             .map(|(scrutinee, arms)| Stmt::Match {
                 scrutinee,

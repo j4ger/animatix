@@ -270,7 +270,7 @@ match v {
 (source_file
   (match_expression
     scrutinee: (identifier)
-    (match_arm
+    (match_statement_arm
       pattern: (match_pattern
         (match_literal
           (match_num)))
@@ -280,7 +280,45 @@ match v {
             base: (identifier)
             name: (identifier))
           value: (identifier))))
-    (match_arm
+    (match_statement_arm
+      pattern: (match_pattern
+        (match_wildcard))
+      value: (block
+        (property_assignment
+          target: (path_expression
+            base: (identifier)
+            name: (identifier))
+          value: (identifier))))))
+
+==================
+Match statement without commas
+==================
+
+match v {
+  0 => {
+    a.color = red
+  }
+  _ => {
+    a.color = blue
+  }
+}
+
+---
+
+(source_file
+  (match_expression
+    scrutinee: (identifier)
+    (match_statement_arm
+      pattern: (match_pattern
+        (match_literal
+          (match_num)))
+      value: (block
+        (property_assignment
+          target: (path_expression
+            base: (identifier)
+            name: (identifier))
+          value: (identifier))))
+    (match_statement_arm
       pattern: (match_pattern
         (match_wildcard))
       value: (block
@@ -306,7 +344,7 @@ match n {
 (source_file
   (match_expression
     scrutinee: (identifier)
-    (match_arm
+    (match_statement_arm
       pattern: (match_pattern
         (match_range
           low: (match_num)
@@ -317,7 +355,7 @@ match n {
             base: (identifier)
             name: (identifier))
           value: (identifier))))
-    (match_arm
+    (match_statement_arm
       pattern: (match_pattern
         (match_wildcard))
-      value: (set_expression))))
+      value: (block))))

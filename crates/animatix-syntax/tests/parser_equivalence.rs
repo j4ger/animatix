@@ -74,16 +74,32 @@ const CORPUS: &[(&str, &str)] = &[
         "#0s\nbox: Rect\nif t > 1 {\n  box.color = red\n} else {\n  box.color = blue\n}\n",
     ),
     (
-        "reactive index assignment",
-        "#0s\nfor v, i in {1, 2, 3} {\n  box[i]: Rect, size: (10, v)\n}\nalways {\n  box[i].color := red\n}\n",
-    ),
-    (
         "method call and if expression",
         "#0s\nbox: Rect, size: (10, 10)\nalways {\n  box.color = if box.alpha() > 0.5 { red } else { blue }\n}\n",
     ),
     (
         "property default with expression",
         "pub component Badge(size: Vec2 = (20, 20), label: Str = \"OK\") {\n  frame: Rect, size: size\n  title: Text, text: label\n}\n",
+    ),
+    (
+        "reactive index assignment",
+        "#0s\nfor v, i in {1, 2, 3} {\n  box[i]: Rect, size: (10, v)\n}\nalways {\n  box[i].color := red\n}\n",
+    ),
+    (
+        "match statement without arm commas",
+        "#0s\nmatch floor(t) % 2 {\n  0 => { box.color = red }\n  _ => { box.color = blue }\n}\n",
+    ),
+    (
+        "match statement with arm commas",
+        "#0s\nmatch floor(t) % 2 {\n  0 => { box.color = red },\n  _ => { box.color = blue },\n}\n",
+    ),
+    (
+        "match expression",
+        "#0s\nbox: Rect\nalways {\n  box.color = match floor(t) % 2 {\n    0 => red,\n    _ => blue,\n  }\n}\n",
+    ),
+    (
+        "match expression range",
+        "#0s\nbox: Rect\nalways {\n  box.opacity = match t {\n    0..=0 => 1.0,\n    _ => 0.0,\n  }\n}\n",
     ),
 ];
 
