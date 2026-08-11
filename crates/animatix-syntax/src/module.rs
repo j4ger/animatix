@@ -391,22 +391,25 @@ impl ModuleGraph {
     ///
     /// Paths must be absolute. Imports resolve against the same source map, so
     /// multi-file programs can be loaded entirely without touching the disk.
+    ///
+    /// Updating a source invalidates all parsed modules. Parent modules can
+    /// cache a `FileId` for a now-replaced import, so conservatively clearing
+    /// the cache avoids silently loading stale imports.
     pub fn add_source(&mut self, path: PathBuf, source: impl Into<String>) {
         let path = normalize_path(&path);
-        if let Ok(key) = self.path_key(&path) {
-            if let Some(old_id) = self.paths.remove(&key) {
-                self.files.remove(&old_id);
-            }
-        }
+        self.files.clear();
+        self.paths.clear();
         self.sources.insert(path, source.into());
     }
 
     /// Remove a previously registered in-memory source, if any.
+    ///
+    /// Like [`Self::add_source`], this clears parsed modules so cached parents
+    /// cannot keep pointing at the removed import.
     pub fn remove_source(&mut self, path: &Path) {
         let path = normalize_path(path);
-        if let Some(old_id) = self.paths.remove(&path) {
-            self.files.remove(&old_id);
-        }
+        self.files.clear();
+        self.paths.clear();
         self.sources.remove(&path);
     }
 
