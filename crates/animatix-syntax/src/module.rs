@@ -5,6 +5,7 @@ pub mod discovery;
 mod expand;
 mod inline_actions;
 mod rewrite;
+pub mod source_map;
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -34,17 +35,6 @@ fn set_action_spans(stmts: &mut [Stmt], source: &str) {
     });
 }
 
-fn normalize_path(path: &Path) -> PathBuf {
-    let mut normalized = PathBuf::new();
-    for component in path.components() {
-        if matches!(component, std::path::Component::CurDir) {
-            continue;
-        }
-        normalized.push(component.as_os_str());
-    }
-    normalized
-}
-
 /// Unique identifier for a loaded source file.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct FileId(u32);
@@ -65,8 +55,8 @@ pub struct ModuleGraph {
     files: HashMap<FileId, ParsedModule>,
     next_id: u32,
     paths: HashMap<PathBuf, FileId>,
-    /// In-memory source overrides for paths that may not exist on disk.
-    sources: HashMap<PathBuf, String>,
+    /// In-memory source overrides and normalized path identity.
+    sources: source_map::SourceMap,
 }
 
 /// A component definition together with its source file and custom actions.
@@ -378,7 +368,7 @@ impl ModuleGraph {
             files: HashMap::new(),
             next_id: 0,
             paths: HashMap::new(),
-            sources: HashMap::new(),
+            sources: source_map::SourceMap::new(),
         }
     }
 
@@ -391,7 +381,7 @@ impl ModuleGraph {
     /// cache a `FileId` for a now-replaced import, so conservatively clearing
     /// the cache avoids silently loading stale imports.
     pub fn add_source(&mut self, path: PathBuf, source: impl Into<String>) {
-        self.set_source_for_path(path, source.into());
+        self.sources.add_source(path, source.into());
         self.files.clear();
         self.paths.clear();
     }
@@ -401,10 +391,9 @@ impl ModuleGraph {
     /// Like [`Self::add_source`], this clears parsed modules so cached parents
     /// cannot keep pointing at the removed import.
     pub fn remove_source(&mut self, path: &Path) {
-        let path = normalize_path(path);
+        self.sources.remove_source(path);
         self.files.clear();
         self.paths.clear();
-        self.sources.remove(&path);
     }
 
     /// Insert or replace a source without clearing unrelated parsed modules.
@@ -412,29 +401,28 @@ impl ModuleGraph {
     /// Only the replaced path is invalidated. This is the right granularity for
     /// temporary source overrides, where other imported files remain unchanged.
     fn set_source_for_path(&mut self, path: PathBuf, source: String) {
-        let path = normalize_path(&path);
+        self.sources.add_source(path.clone(), source);
+        let path = source_map::normalize_path(&path);
         if let Some(old_id) = self.paths.remove(&path) {
             self.files.remove(&old_id);
         }
-        self.sources.insert(path, source);
     }
 
     /// Remove a source override without clearing unrelated parsed modules.
     fn clear_source_for_path(&mut self, path: &Path) {
-        let path = normalize_path(path);
+        self.sources.remove_source(path);
+        let path = source_map::normalize_path(path);
         if let Some(old_id) = self.paths.remove(&path) {
             self.files.remove(&old_id);
         }
-        self.sources.remove(&path);
     }
 
     fn path_key(&self, path: &Path) -> Result<PathBuf, ModuleError> {
-        let path = normalize_path(path);
-        if self.sources.contains_key(&path) {
-            Ok(path)
-        } else {
-            fs::canonicalize(&path).map_err(|_| ModuleError::FileNotFound(path))
-        }
+        self.sources
+            .path_key(path)
+            .map_err(|err| match err {
+                source_map::SourceMapError::FileNotFound(path) => ModuleError::FileNotFound(path),
+            })
     }
 
     fn file_id_for_path(&self, path: &Path) -> Option<FileId> {
@@ -447,9 +435,8 @@ impl ModuleGraph {
         id
     }
 
-    fn resolve_path(base_dir: &Path, import_path: &str) -> PathBuf {
-        let trimmed = import_path.trim_matches('"');
-        normalize_path(&base_dir.join(trimmed))
+    fn resolve_path(base_file: &Path, import_path: &str) -> PathBuf {
+        source_map::resolve_import(base_file, import_path)
     }
 
     fn load_file(
@@ -477,7 +464,7 @@ impl ModuleGraph {
         visiting.insert(key.clone());
 
         let source = if let Some(source) = self.sources.get(&key) {
-            source.clone()
+            source.to_owned()
         } else {
             fs::read_to_string(&key).map_err(|_| ModuleError::FileNotFound(key.clone()))?
         };
@@ -503,7 +490,8 @@ impl ModuleGraph {
 
         for import in &imports {
             let import_path =
-                Self::resolve_path(key.parent().unwrap_or(Path::new(".")), &import.0);
+                Self::resolve_path(&key, &import.0);
+            eprintln!("DBG import={:?} from={:?} resolved={:?}", import.0, key, import_path);
 
             let result = self.load_file(&import_path, visiting)?;
             let import_id = self
@@ -535,7 +523,7 @@ impl ModuleGraph {
                 .iter()
                 .filter_map(|imp| {
                     let path =
-                        Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
+                        Self::resolve_path(&module.path, &imp.0);
                     self.file_id_for_path(&path)
                 })
                 .collect()
@@ -556,7 +544,7 @@ impl ModuleGraph {
         path: &Path,
         source: Option<&str>,
     ) -> Result<Vec<Stmt>, ModuleError> {
-        let previous = self.sources.get(path).cloned();
+        let previous = self.sources.get(path).map(str::to_owned);
         let inserted = if let Some(source) = source {
             self.set_source_for_path(path.to_path_buf(), source.to_string());
             true
@@ -603,7 +591,7 @@ impl ModuleGraph {
         path: &Path,
         source: Option<&str>,
     ) -> Result<LoadedProgram, ModuleError> {
-        let previous = self.sources.get(path).cloned();
+        let previous = self.sources.get(path).map(str::to_owned);
         let inserted = if let Some(source) = source {
             self.set_source_for_path(path.to_path_buf(), source.to_string());
             true
@@ -638,10 +626,7 @@ impl ModuleGraph {
             if let Some(entry_module) = self.files.get(&entry_id) {
                 for imp in &entry_module.imports {
                     if let Some(alias) = &imp.1 {
-                        let import_path = Self::resolve_path(
-                            entry_module.path.parent().unwrap_or(Path::new(".")),
-                            &imp.0,
-                        );
+                        let import_path = Self::resolve_path(&entry_module.path, &imp.0);
                         if let Some(import_id) = self.file_id_for_path(&import_path) {
                             let resolved_exports = self.collect_resolved_exports(import_id);
                             let resolved_type_exports = self.collect_resolved_type_exports(import_id);
@@ -776,7 +761,7 @@ impl ModuleGraph {
                 continue;
             };
             let import_path =
-                Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
+                Self::resolve_path(&module.path, &imp.0);
             let Some(sub_id) = self.file_id_for_path(&import_path) else {
                 continue;
             };
@@ -815,7 +800,7 @@ impl ModuleGraph {
         for imp in &module.imports {
             if let Some(alias) = &imp.1 {
                 let import_path =
-                    Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
+                    Self::resolve_path(&module.path, &imp.0);
                 if let Some(sub_id) = self.file_id_for_path(&import_path) {
                     let sub_scenes = self.collect_resolved_scenes(sub_id);
                     for (name, data) in sub_scenes {
@@ -848,7 +833,7 @@ impl ModuleGraph {
                     continue; // Aliased imports are not flattened
                 }
                 let import_path =
-                    Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
+                    Self::resolve_path(&module.path, &imp.0);
                 if let Some(import_id) = self.file_id_for_path(&import_path) {
                     self.flatten_module_stmts(import_id, result, visited);
                 }
@@ -879,7 +864,7 @@ impl ModuleGraph {
                     continue; // Aliased imports are not flattened
                 }
                 let import_path =
-                    Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
+                    Self::resolve_path(&module.path, &imp.0);
                 if let Some(import_id) = self.file_id_for_path(&import_path) {
                     self.flatten_recursive(import_id, result, visited)?;
                 }
@@ -910,7 +895,7 @@ impl ModuleGraph {
         if let Some(module) = self.files.get(&file_id) {
             for imp in &module.imports {
                 let import_path =
-                    Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
+                    Self::resolve_path(&module.path, &imp.0);
                 if let Some(import_id) = self.file_id_for_path(&import_path) {
                     self.collect_components_recursive(import_id, entry_id, components, visited)?;
                 }
