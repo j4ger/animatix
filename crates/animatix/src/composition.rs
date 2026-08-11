@@ -72,7 +72,7 @@ fn validate_play_target(
         if parts.len() >= 2 {
             let (namespace_parts, scene_name) = parts.split_at(parts.len() - 1);
             let scene_name = scene_name[0];
-            if let Some(ns) = resolve_namespace(&namespaces, namespace_parts) {
+            if let Some(ns) = resolve_namespace(namespaces, namespace_parts) {
                 // If the namespace has scene data, verify the specific scene exists.
                 // If scenes are empty (legacy/test namespace), accept any name.
                 if ns.scenes.is_empty() || ns.scenes.contains_key(scene_name) {
@@ -438,7 +438,7 @@ impl Composition {
             }
             let (namespace_parts, scene_name) = parts.split_at(parts.len() - 1);
             let scene_name = scene_name[0];
-            let Some(ns) = resolve_namespace(&namespaces, namespace_parts) else {
+            let Some(ns) = resolve_namespace(namespaces, namespace_parts) else {
                 continue;
             };
             if let Some(scene_data) = ns.scenes.get(scene_name) {

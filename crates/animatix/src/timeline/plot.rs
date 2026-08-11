@@ -214,7 +214,7 @@ pub fn resolve_func_source(
             let mut local_env = env.clone();
             captures.merge_into(&mut local_env);
             local_env.set_binding(name, Value::Num(arg_val));
-            evaluate_compiled_expr(&body, &local_env).map(|v| v.as_num())
+            evaluate_compiled_expr(body, &local_env).map(|v| v.as_num())
         },
         FuncSource::Blend { .. } => {
             let flat = flatten_blend(source);
@@ -242,7 +242,7 @@ pub fn resolve_func_source_vec2(
             let mut local_env = env.clone();
             captures.merge_into(&mut local_env);
             local_env.set_binding(name, Value::Num(arg_val));
-            evaluate_compiled_expr(&body, &local_env).map(|v| match v {
+            evaluate_compiled_expr(body, &local_env).map(|v| match v {
                 Value::Vec2(arr) => arr,
                 other => [other.as_num(), f64::NAN],
             })
@@ -296,7 +296,7 @@ pub(crate) fn eval_source_scalar(
                 // Inject captured variables on first evaluation for this x
                 captures.merge_into(env);
                 env.set_binding(name, Value::Num(x));
-                let result = evaluate_compiled_expr(&body, env).unwrap_or(Value::Num(f64::NAN));
+                let result = evaluate_compiled_expr(body, env).unwrap_or(Value::Num(f64::NAN));
                 env.clear_bindings();
                 cache.insert(key, result.clone());
                 result
@@ -332,7 +332,7 @@ fn eval_source_vec2(
                 captures.merge_into(env);
                 env.set_binding(name, Value::Num(t));
                 let result =
-                    evaluate_compiled_expr(&body, env).unwrap_or(Value::Vec2([f64::NAN, f64::NAN]));
+                    evaluate_compiled_expr(body, env).unwrap_or(Value::Vec2([f64::NAN, f64::NAN]));
                 env.clear_bindings();
                 cache.insert(key, result.clone());
                 result
@@ -843,7 +843,7 @@ pub(crate) fn eval_implicit_source(
                 env.set(&args[1], Value::Num(y));
             }
             // Evaluate and return scalar
-            match evaluate_compiled_expr(&body, env) {
+            match evaluate_compiled_expr(body, env) {
                 Ok(Value::Num(n)) => n,
                 _ => f64::NAN,
             }

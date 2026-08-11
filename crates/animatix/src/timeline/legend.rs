@@ -4,21 +4,16 @@
 use serde::{Deserialize, Serialize};
 
 /// User-controlled legend participation for an actor.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum LegendMode {
     /// Include this actor when it matches the automatic legend heuristics.
+    #[default]
     Auto,
     /// Never include this actor.
     Hidden,
     /// Include this actor with an explicit label.
     Label(String),
-}
-
-impl Default for LegendMode {
-    fn default() -> Self {
-        LegendMode::Auto
-    }
 }
 
 impl LegendMode {
@@ -138,7 +133,7 @@ fn source_order(
     fn visit(
         label: &str,
         tracks: &std::collections::BTreeMap<String, super::AnimationTrack>,
-        roots: &[String],
+        _roots: &[String],
         order: &mut std::collections::HashMap<String, usize>,
         visited: &mut std::collections::HashSet<String>,
         next: &mut usize,
@@ -150,7 +145,7 @@ fn source_order(
         *next += 1;
         if let Some(track) = tracks.get(label) {
             for child in &track.children {
-                visit(child, tracks, roots, order, visited, next);
+                visit(child, tracks, _roots, order, visited, next);
             }
         }
     }

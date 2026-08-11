@@ -1949,7 +1949,7 @@ always {
     let (ast, errors) = parse_source(src);
     assert!(errors.is_empty(), "parse errors: {:?}", errors);
     let ast = ast.unwrap();
-    let found_match = ast.iter().any(|stmt| stmt_contains_match_expr(stmt));
+    let found_match = ast.iter().any(stmt_contains_match_expr);
     assert!(found_match, "expected at least one Expr::Match in AST");
 }
 
@@ -2111,20 +2111,20 @@ fn test_list_swap_out_of_range() {
 fn stmt_contains_match_expr(stmt: &Stmt) -> bool {
     match stmt {
         Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
-            body.iter().any(|s| stmt_contains_match_expr(s))
+            body.iter().any(stmt_contains_match_expr)
         },
-        Stmt::Always { body, .. } => body.iter().any(|s| stmt_contains_match_expr(s)),
+        Stmt::Always { body, .. } => body.iter().any(stmt_contains_match_expr),
         Stmt::Conditional {
             then_branch,
             else_branch,
             ..
         } => {
-            then_branch.iter().any(|s| stmt_contains_match_expr(s))
+            then_branch.iter().any(stmt_contains_match_expr)
                 || else_branch
                     .as_ref()
-                    .map_or(false, |b| b.iter().any(|s| stmt_contains_match_expr(s)))
+                    .is_some_and(|b| b.iter().any(stmt_contains_match_expr))
         },
-        Stmt::ForLoop { body, .. } => body.iter().any(|s| stmt_contains_match_expr(s)),
+        Stmt::ForLoop { body, .. } => body.iter().any(stmt_contains_match_expr),
         Stmt::Match { .. } => true,
         Stmt::Assignment { value, .. } => {
             let mut found = false;
@@ -2160,7 +2160,7 @@ where
             ..
         } => {
             then_branch.iter().any(|s| find_stmt(s, f))
-                || else_branch.as_ref().map_or(false, |b| b.iter().any(|s| find_stmt(s, f)))
+                || else_branch.as_ref().is_some_and(|b| b.iter().any(|s| find_stmt(s, f)))
         },
         Stmt::Match { arms, .. } => {
             arms.iter().any(|(_, body)| body.iter().any(|s| find_stmt(s, f)))

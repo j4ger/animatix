@@ -344,6 +344,31 @@ fn union_type_name(types: &[ValueType]) -> String {
     types.iter().map(|ty| value_type_name(*ty)).collect::<Vec<_>>().join(" | ")
 }
 
+fn value_type_name(value_type: ValueType) -> &'static str {
+    match value_type {
+        ValueType::F32 => "Num",
+        ValueType::U32 => "Int",
+        ValueType::Bool => "Bool",
+        ValueType::Vec2 => "Vec2",
+        ValueType::Vec4 => "Vec4",
+        ValueType::Color => "Color",
+        ValueType::String => "Str",
+        ValueType::ShapeType => "ShapeType",
+        ValueType::PlacementMode => "PlacementMode",
+        ValueType::SceneAnchor => "SceneAnchor",
+        ValueType::PositionBinding => "PositionBinding",
+        ValueType::MorphOptions => "MorphOptions",
+        ValueType::CalloutPlace => "CalloutPlace",
+        ValueType::PointList => "PointList",
+        ValueType::CommandList => "CommandList",
+        ValueType::Transform => "Transform",
+        ValueType::BuildTimeOnly => "BuildTimeOnly",
+        ValueType::Union(_) => "Union",
+        ValueType::Sum(_) => "Choice",
+        ValueType::Enum(_) => "Enum",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -404,30 +429,5 @@ mod tests {
         let parsed_number = parse_value(union, &Expr::Num(42.0), &env, &mut diagnostics, "legend");
         assert_eq!(parsed_number, None);
         assert!(!diagnostics.is_empty(), "union should report an unsupported value");
-    }
-}
-
-fn value_type_name(value_type: ValueType) -> &'static str {
-    match value_type {
-        ValueType::F32 => "Num",
-        ValueType::U32 => "Int",
-        ValueType::Bool => "Bool",
-        ValueType::Vec2 => "Vec2",
-        ValueType::Vec4 => "Vec4",
-        ValueType::Color => "Color",
-        ValueType::String => "Str",
-        ValueType::ShapeType => "ShapeType",
-        ValueType::PlacementMode => "PlacementMode",
-        ValueType::SceneAnchor => "SceneAnchor",
-        ValueType::PositionBinding => "PositionBinding",
-        ValueType::MorphOptions => "MorphOptions",
-        ValueType::CalloutPlace => "CalloutPlace",
-        ValueType::PointList => "PointList",
-        ValueType::CommandList => "CommandList",
-        ValueType::Transform => "Transform",
-        ValueType::BuildTimeOnly => "BuildTimeOnly",
-        ValueType::Union(_) => "Union",
-        ValueType::Sum(_) => "Choice",
-        ValueType::Enum(_) => "Enum",
     }
 }

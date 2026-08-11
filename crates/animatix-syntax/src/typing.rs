@@ -257,9 +257,7 @@ impl TypeEnv {
         for name in COLOR_CONSTRUCTOR_FNS {
             self.functions.insert((*name).to_string(), Type::Color);
         }
-        for name in ["format"] {
-            self.functions.insert(name.to_string(), Type::Str);
-        }
+        self.functions.insert("format".to_string(), Type::Str);
         for name in [
             "abs",
             "clamp",

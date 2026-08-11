@@ -129,6 +129,10 @@ impl PlacementMode {
     }
 
     /// Parse a stable source-level mode name.
+    // Inherent `from_str` returns `Option` (not `Result`) to match the
+    // established parser helpers in this module; implementing the std trait
+    // would change the signature and break call sites.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(value: &str) -> Option<Self> {
         match value {
             "layout_managed" => Some(Self::LayoutManaged),

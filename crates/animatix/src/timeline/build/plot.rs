@@ -144,7 +144,7 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
         } else {
             env_copy.set_binding(&arg_name, Value::Num(min_t));
             let start_eval =
-                evaluate_compiled_expr(&body, &env_copy).unwrap_or(Value::Num(f64::NAN));
+                evaluate_compiled_expr(body, &env_copy).unwrap_or(Value::Num(f64::NAN));
             env_copy.clear_bindings();
             let (start_math_x, start_math_y) = if params.kind == PlotCurveKind::Cartesian {
                 (min_t, start_eval.as_num())
@@ -167,7 +167,7 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
             );
 
             env_copy.set_binding(&arg_name, Value::Num(max_t));
-            let end_eval = evaluate_compiled_expr(&body, &env_copy).unwrap_or(Value::Num(f64::NAN));
+            let end_eval = evaluate_compiled_expr(body, &env_copy).unwrap_or(Value::Num(f64::NAN));
             env_copy.clear_bindings();
             let (end_math_x, end_math_y) = if params.kind == PlotCurveKind::Cartesian {
                 (max_t, end_eval.as_num())
@@ -934,7 +934,7 @@ impl Timeline {
                 for arg in args.iter() {
                     test_env.set(arg, Value::Num(0.0));
                 }
-                if let Ok(result) = evaluate_compiled_expr(&body, &test_env) {
+                if let Ok(result) = evaluate_compiled_expr(body, &test_env) {
                     let ok = matches!(
                         (expected_ty, &result),
                         ("number", Value::Num(_)) | ("vec2", Value::Vec2(_))

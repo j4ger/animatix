@@ -349,9 +349,8 @@ impl Timeline {
         let legend_labels = timeline
             .tracks
             .iter()
-            .filter_map(|(label, track)| {
-                (track.kind == crate::timeline::ActorKindId::Legend).then(|| label.clone())
-            })
+            .filter(|(_, track)| track.kind == crate::timeline::ActorKindId::Legend)
+            .map(|(label, _)| label.clone())
             .collect::<Vec<_>>();
         if !legend_labels.is_empty() {
             let entries = crate::timeline::legend::scan_legend_entries(
