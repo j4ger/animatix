@@ -168,33 +168,42 @@ impl ParseResult {
     }
 }
 
-/// Parse source through the canonical parse pipeline.
+/// Parse source through the canonical semantic parse pipeline.
 ///
-/// Uses tree-sitter for incremental-capable parsing and falls back to the
-/// chumsky parser when tree-sitter cannot produce a tree.
+/// Chumsky remains the executable source of truth for the semantic AST.
+/// Tree-sitter conversion is deliberately not used here yet because its CST
+/// converter has not reached full semantic parity with the PEG parser.
 pub fn parse_canonical(source: &str) -> ParseResult {
+    let (statements, parse_errors, warnings) = parse_source_diagnostics(source);
+    ParseResult {
+        statements,
+        parse_errors,
+        warnings,
+        tree: None,
+    }
+}
+
+/// Parse source through the tree-sitter CST→AST pipeline.
+///
+/// This is the analyzer's incremental entry point. It produces a best-effort
+/// AST from malformed trees and falls back to the semantic parser when
+/// tree-sitter cannot produce a tree.
+pub fn parse_ts_canonical(source: &str) -> ParseResult {
     match crate::ts_convert::parse_source(source) {
         Some(result) => ParseResult::from_ts(result),
-        None => {
-            let (statements, parse_errors, warnings) = parse_source_diagnostics(source);
-            ParseResult {
-                statements,
-                parse_errors,
-                warnings,
-                tree: None,
-            }
-        },
+        None => parse_canonical(source),
     }
 }
 
 /// Re-parse source incrementally with a previous tree-sitter tree.
 ///
-/// Falls back to [`parse_canonical`] when incremental parsing fails so callers
-/// still receive the best AST/error result available.
-pub fn reparse_canonical(source: &str, old_tree: &tree_sitter::Tree) -> ParseResult {
+/// Falls back to a full tree-sitter parse, then the semantic parser, when
+/// incremental parsing fails so callers still receive the best AST/error
+/// result available.
+pub fn reparse_ts_canonical(source: &str, old_tree: &tree_sitter::Tree) -> ParseResult {
     match crate::ts_convert::reparse(source, old_tree) {
         Some(result) => ParseResult::from_ts(result),
-        None => parse_canonical(source),
+        None => parse_ts_canonical(source),
     }
 }
 

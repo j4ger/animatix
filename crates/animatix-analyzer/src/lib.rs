@@ -85,13 +85,14 @@ impl Analyzer {
 
         self.source = source.to_string();
 
-        // Parse through the canonical syntax API. Tree-sitter re-parses only
-        // the changed region when an old tree is available; the API falls back
-        // to chumsky when tree-sitter cannot produce a tree.
+        // Parse through the analyzer's incremental tree-sitter pipeline. The
+        // tree-sitter CST is retained for positions/completions while the
+        // semantic AST still comes from the PEG parser when no tree is
+        // available, so these two uses stay honest.
         let parsed = if let Some(old_tree) = self.tree.as_ref() {
-            animatix_syntax::parser::reparse_canonical(source, old_tree)
+            animatix_syntax::parser::reparse_ts_canonical(source, old_tree)
         } else {
-            animatix_syntax::parser::parse_canonical(source)
+            animatix_syntax::parser::parse_ts_canonical(source)
         };
 
         self.ast = parsed.statements;
