@@ -3,6 +3,8 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
+use animatix_syntax::module::source_map::{SourceMap, normalize_path};
+
 use crate::symbol_table::SymbolTable;
 
 /// A workspace holds multiple files and their cross-file relationships.
@@ -13,6 +15,7 @@ use crate::symbol_table::SymbolTable;
 #[derive(Debug, Clone, Default)]
 pub struct Workspace {
     files: HashMap<PathBuf, FileEntry>,
+    sources: SourceMap,
 }
 
 #[derive(Debug, Clone)]
@@ -31,6 +34,7 @@ impl Workspace {
     /// Symbols are built from the canonical semantic AST so cross-file analysis
     /// agrees with the runtime/module pipeline; tree-sitter is not used here.
     pub fn add_file(&mut self, path: PathBuf, source: &str) {
+        let path = normalize_path(&path);
         let result = animatix_syntax::parser::parse_canonical(source);
         let mut symbols = result
             .statements
@@ -40,29 +44,32 @@ impl Workspace {
         if let Some(ref stmts) = result.statements {
             symbols.collect_references(stmts);
         }
+        self.sources.add_source(path.clone(), source.to_string());
         self.files.insert(path, FileEntry { symbols });
     }
 
     /// Remove a file from the workspace.
     pub fn remove_file(&mut self, path: &Path) {
-        self.files.remove(path);
+        let path = normalize_path(path);
+        self.sources.remove_source(&path);
+        self.files.remove(&path);
     }
 
     /// Check if a file exists in the workspace.
     pub fn has_file(&self, path: &Path) -> bool {
-        self.files.contains_key(path)
+        self.files.contains_key(&normalize_path(path))
     }
 
     /// Get the symbol table for a specific file.
     pub fn file_symbols(&self, path: &Path) -> Option<SymbolTable> {
-        self.files.get(path).map(|e| e.symbols.clone())
+        self.files.get(&normalize_path(path)).map(|e| e.symbols.clone())
     }
 
     /// Resolve imports for a file and return a merged symbol table
     /// containing local symbols plus exported symbols from imported files.
     pub fn resolve_symbols(&self, path: &Path) -> SymbolTable {
         let mut visited = HashSet::new();
-        self.resolve_symbols_inner(path, &mut visited)
+        self.resolve_symbols_inner(&normalize_path(path), &mut visited)
     }
 
     fn resolve_symbols_inner(&self, path: &Path, visited: &mut HashSet<PathBuf>) -> SymbolTable {
@@ -91,13 +98,11 @@ impl Workspace {
         merged
     }
 
-    /// Resolve an import path relative to a base path.
+    /// Resolve an import path relative to a base file path.
+    ///
+    /// Delegates to the shared source-map path resolver so analyzer and module
+    /// loading agree on file identity.
     pub fn resolve_import_path(base: &Path, import_path: &str) -> PathBuf {
-        let trimmed = import_path.trim_matches('"');
-        if let Some(parent) = base.parent() {
-            parent.join(trimmed)
-        } else {
-            PathBuf::from(trimmed)
-        }
+        animatix_syntax::module::source_map::resolve_import(base, import_path)
     }
 }
