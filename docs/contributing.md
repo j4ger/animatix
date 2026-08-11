@@ -136,7 +136,7 @@ animatix-gui (direct calls)    animatix-lsp (tower-lsp, JSON-RPC)
 1. **No I/O** — all functions take `&str` or `&[Stmt]`, return data
 2. **Position-based API** — `(line, col)` matching LSP's `Position`
 3. **Incremental** — `Analyzer::update()` re-parses only when source changes
-4. **Canonical parser**: `parse_canonical`/`reparse_canonical` produce the AST via the tree-sitter CST converter and fall back to chumsky; analyzer and module loading should not select a parser backend directly.
+4. **Canonical parser**: `parse_canonical` is the Chumsky semantic parser used by module loading and the runtime. `parse_ts_canonical`/`reparse_ts_canonical` are the analyzer's tree-sitter CST paths for positions and incremental edits. Do not select a parser backend directly in callers.
 
 ### LSP Capabilities
 

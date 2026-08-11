@@ -4,7 +4,7 @@
 
 Animatix is a layout-first animation system with three core components:
 
-1. **Parser** (Tree-sitter CST → AST, with Chumsky fallback) — Converts `.amx` source into an AST
+1. **Parser** (Chumsky semantic parser; tree-sitter CST for analyzer queries) — Converts `.amx` source into an AST
 2. **Timeline** — Compiles AST into animated property tracks
 3. **Composition** — Orchestrates multi-scene timelines with transitions
 4. **Renderers** (Vello/WGPU, PNG, Frame sequences) — Rasterizes evaluated scenes
@@ -16,16 +16,14 @@ Animatix is a layout-first animation system with three core components:
 ### Source ↔ AST
 
 ```
-.amx File → Tree-sitter grammar (CST)
-         ↓
-     Tree-sitter → AST converter (semantic analysis)
+.amx File → Chumsky semantic parser
          ↓
      AST (Expr, Stmt hierarchy)
          ↓
      to_source::stmts_to_source()  (re-serialization for GUI write-back)
 ```
 
-The AST is round-trippable. The GUI inspector mutates the AST directly and re-serializes the entire file. Formatting is normalized during re-serialization. Production entry points use `parser::parse_canonical` / `parser::reparse_canonical`; Chumsky remains the fallback when tree-sitter cannot produce a tree, so both backends are exposed through one API.
+The AST is round-trippable. The GUI inspector mutates the AST directly and re-serializes the entire file. Formatting is normalized during re-serialization. `parser::parse_canonical` is the semantic parser entry point used by module loading and the runtime. The analyzer separately retains a tree-sitter CST via `parser::parse_ts_canonical` / `parser::reparse_ts_canonical` for positions, completions, and incremental edits.
 
 ### Module System
 
@@ -682,7 +680,7 @@ animatix-gui (direct calls)    animatix-lsp (tower-lsp, JSON-RPC)
 ```
 
 - **No I/O** in analyzer — pure computation on `&str` or `&[Stmt]`
-- **Canonical parser API**: tree-sitter CST → AST for semantic analysis and position queries, with chumsky as the fallback backend
+- **Canonical parser API**: Chumsky remains the semantic AST source of truth; the analyzer uses tree-sitter CST conversion for position queries and incremental re-parsing
 - **LSP capabilities**: completion, hover, goto-definition, document symbols, diagnostics
 - **Clean boundary**: `animatix-analyzer` depends only on `animatix-syntax`, not the full runtime engine
 
