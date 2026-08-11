@@ -15,7 +15,7 @@ use tree_sitter::{Language, Node, Parser, Tree};
 
 use crate::ast::*;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
-use crate::easing::Easing;
+use crate::parser::top_level::group_scenes;
 
 /// Intermediate representation for items inside a children_block.
 /// Used during CST-to-AST conversion to collect inline items before
@@ -56,7 +56,7 @@ pub fn parse_source(source: &str) -> Option<TsParseResult> {
     let tree = parser.parse(source, None)?;
     let mut converter = TsConverter::new(source);
     let raw_statements = converter.convert_root(tree.root_node());
-    let statements = group_keyframes(raw_statements);
+    let statements = group_scenes(group_keyframes(raw_statements));
     Some(TsParseResult {
         statements,
         diagnostics: converter.diagnostics,
@@ -75,7 +75,7 @@ pub fn reparse(source: &str, old_tree: &Tree) -> Option<TsParseResult> {
     let tree = parser.parse(source, Some(old_tree))?;
     let mut converter = TsConverter::new(source);
     let raw_statements = converter.convert_root(tree.root_node());
-    let statements = group_keyframes(raw_statements);
+    let statements = group_scenes(group_keyframes(raw_statements));
     Some(TsParseResult {
         statements,
         diagnostics: converter.diagnostics,
@@ -734,24 +734,7 @@ impl<'a> TsConverter<'a> {
             .map(|n| self.node_text(n).to_string())
             .unwrap_or_default();
         let modifiers = self.convert_modifier_block_node(node);
-        let transition = if !modifiers.is_empty() {
-            let first_val = &modifiers.first().unwrap().value;
-            let id = match first_val {
-                Expr::Str(s) => s.clone(),
-                _ => "fade".to_string(),
-            };
-            let duration_ms = match first_val {
-                Expr::Num(n) => (*n * 1000.0) as u64,
-                _ => 500,
-            };
-            Some(Transition {
-                id,
-                duration_ms,
-                easing: Easing::Linear,
-            })
-        } else {
-            None
-        };
+        let transition = crate::parser::top_level::parse_transition_from_modifiers(&modifiers);
         Stmt::Play {
             scene_name,
             transition,
@@ -1164,22 +1147,28 @@ impl<'a> TsConverter<'a> {
 
     fn convert_modifier(&mut self, node: Node) -> Modifier {
         let name = node.child_by_field_name("key").map(|n| self.node_text(n).to_string());
-        let value = node
-            .child_by_field_name("value")
-            .and_then(|n| self.convert_expr(n))
-            .unwrap_or_else(|| {
-                // If no named value field, try to convert the first expression child
-                let mut cursor = node.walk();
-                for child in node.named_children(&mut cursor) {
-                    if child.kind() != "identifier" {
-                        if let Some(expr) = self.convert_expr(child) {
-                            return expr;
-                        }
-                    }
-                }
-                Expr::Num(0.0)
-            });
+        let value = if let Some(value_node) = node.child_by_field_name("value") {
+            self.convert_modifier_value(value_node)
+        } else {
+            // Positional modifiers have no named value field; the first named
+            // child is the value (identifier, time literal, number, etc.).
+            let mut cursor = node.walk();
+            node.named_children(&mut cursor)
+                .next()
+                .map(|child| self.convert_modifier_value(child))
+                .unwrap_or(Expr::Num(0.0))
+        };
         Modifier { name, value }
+    }
+
+    /// Convert a modifier value. Time literals keep their source form so the
+    /// runtime can parse duration shorthand exactly like the PEG parser does.
+    fn convert_modifier_value(&mut self, node: Node) -> Expr {
+        if node.kind() == "time_literal" {
+            Expr::Ident(self.node_text(node).to_string())
+        } else {
+            self.convert_expr(node).unwrap_or(Expr::Num(0.0))
+        }
     }
 
     /// Convert a target_list node into `Vec<String>`.
@@ -1918,6 +1907,30 @@ title: Text, text: "Hello"
     }
 
     #[test]
+    fn parse_scene_groups_body_and_config() {
+        let source = concat!(
+            "# Intro\n",
+            "config { duration: 5.0 }\n",
+            "#0s\n",
+            "title: Text, text: \"Welcome\"\n",
+        );
+        let result = parse_source(source).expect("parse should succeed");
+        let stmts = &result.statements;
+        assert_eq!(stmts.len(), 1, "scene body should be grouped under the scene");
+        let Stmt::Scene {
+            name, config, body, ..
+        } = &stmts[0]
+        else {
+            panic!("expected scene, got: {:?}", stmts[0]);
+        };
+        assert_eq!(name, "Intro");
+        assert_eq!(config.len(), 1);
+        assert_eq!(config[0].name, "duration");
+        assert_eq!(body.len(), 1);
+        assert!(matches!(body[0], Stmt::Keyframe { .. }), "expected keyframe, got: {:?}", body[0]);
+    }
+
+    #[test]
     fn parse_type_alias() {
         let source = "type LegendMode = Bool | Str\n";
         let result = parse_source(source).expect("parse should succeed");
@@ -1979,6 +1992,43 @@ title: Text, text: "Hello"
         }
         .expect("expected action");
         assert_eq!(action.targets, vec!["parent.child"]);
+    }
+
+    #[test]
+    fn parse_duration_modifier_matches_peg_shape() {
+        let source = "fade-in label [500ms, ease: bounce]\n";
+        let result = parse_source(source).expect("parse should succeed");
+        let action = match &result.statements[0] {
+            Stmt::Keyframe { body, .. } => body.iter().find_map(|s| match s {
+                Stmt::Action(action, _) => Some(action),
+                _ => None,
+            }),
+            Stmt::Action(action, _) => Some(action),
+            _ => None,
+        }
+        .expect("expected action");
+        assert_eq!(action.modifiers.len(), 2);
+        assert_eq!(action.modifiers[0].name, None);
+        assert_eq!(action.modifiers[0].value, Expr::Ident("500ms".to_string()));
+        assert_eq!(action.modifiers[1].name.as_deref(), Some("ease"));
+    }
+
+    #[test]
+    fn parse_play_transition_from_bare_modifiers() {
+        let source = "play scenes.FadeIn [fade, 300ms]\n";
+        let result = parse_source(source).expect("parse should succeed");
+        let Stmt::Play {
+            scene_name,
+            transition,
+            ..
+        } = &result.statements[0]
+        else {
+            panic!("expected play, got: {:?}", result.statements[0]);
+        };
+        assert_eq!(scene_name, "scenes.FadeIn");
+        let transition = transition.as_ref().expect("transition");
+        assert_eq!(transition.id, "fade");
+        assert_eq!(transition.duration_ms, 300);
     }
 
     #[test]

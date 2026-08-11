@@ -28,12 +28,13 @@ impl Workspace {
 
     /// Add or update a file in the workspace.
     pub fn add_file(&mut self, path: PathBuf, source: &str) {
-        use animatix_syntax::parser::parse_source;
-
-        let (ast, _) = parse_source(source);
-        let mut symbols =
-            ast.as_ref().map(|stmts| SymbolTable::build_from_ast(stmts)).unwrap_or_default();
-        if let Some(ref stmts) = ast {
+        let result = animatix_syntax::parser::parse_canonical(source);
+        let mut symbols = result
+            .statements
+            .as_ref()
+            .map(|stmts| SymbolTable::build_from_ast(stmts))
+            .unwrap_or_default();
+        if let Some(ref stmts) = result.statements {
             symbols.collect_references(stmts);
         }
         self.files.insert(path, FileEntry { symbols });

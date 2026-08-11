@@ -4,7 +4,7 @@
 
 Animatix is a layout-first animation system with three core components:
 
-1. **Parser** (Chumsky-based) — Converts `.amx` source into an AST
+1. **Parser** (Tree-sitter CST → AST, with Chumsky fallback) — Converts `.amx` source into an AST
 2. **Timeline** — Compiles AST into animated property tracks
 3. **Composition** — Orchestrates multi-scene timelines with transitions
 4. **Renderers** (Vello/WGPU, PNG, Frame sequences) — Rasterizes evaluated scenes
@@ -16,16 +16,16 @@ Animatix is a layout-first animation system with three core components:
 ### Source ↔ AST
 
 ```
-.amx File → Tree-sitter grammar (syntax highlighting)
+.amx File → Tree-sitter grammar (CST)
          ↓
-       Chumsky parser (semantic analysis)
+     Tree-sitter → AST converter (semantic analysis)
          ↓
      AST (Expr, Stmt hierarchy)
          ↓
      to_source::stmts_to_source()  (re-serialization for GUI write-back)
 ```
 
-The AST is round-trippable. The GUI inspector mutates the AST directly and re-serializes the entire file. Formatting is normalized during re-serialization.
+The AST is round-trippable. The GUI inspector mutates the AST directly and re-serializes the entire file. Formatting is normalized during re-serialization. Production entry points use `parser::parse_canonical` / `parser::reparse_canonical`; Chumsky remains the fallback when tree-sitter cannot produce a tree, so both backends are exposed through one API.
 
 ### Module System
 
@@ -682,7 +682,7 @@ animatix-gui (direct calls)    animatix-lsp (tower-lsp, JSON-RPC)
 ```
 
 - **No I/O** in analyzer — pure computation on `&str` or `&[Stmt]`
-- **Dual parsers**: chumsky for semantic AST, tree-sitter for position-based queries
+- **Canonical parser API**: tree-sitter CST → AST for semantic analysis and position queries, with chumsky as the fallback backend
 - **LSP capabilities**: completion, hover, goto-definition, document symbols, diagnostics
 - **Clean boundary**: `animatix-analyzer` depends only on `animatix-syntax`, not the full runtime engine
 
@@ -826,7 +826,8 @@ crates/
 ├── animatix-syntax/       # Syntax layer — parser, AST, module system
 │   └── src/
 │       ├── ast.rs         # AST types
-│       ├── parser/        # Chumsky parser (split into submodules)
+│       ├── parser/        # Chumsky parser (fallback backend)
+│       ├── ts_convert.rs  # Tree-sitter CST → AST converter
 │       ├── diagnostics.rs # Diagnostic types
 │       ├── easing.rs      # Easing function registry
 │       ├── source_index.rs# Source location mapping

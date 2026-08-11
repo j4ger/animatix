@@ -123,36 +123,78 @@ pub fn parse_source(source: &str) -> (Option<Vec<Stmt>>, Vec<ParseError>) {
     (ast, errors)
 }
 
-/// Parse source using tree-sitter and return the same format as [`parse_source`].
+/// A parse result with both AST/parse errors and the optional tree-sitter tree.
 ///
-/// This is the incremental parsing entry point. Tree-sitter re-parses only the
-/// changed region of the file, making this significantly faster for large files
-/// with small edits. Falls back to the chumsky parser if tree-sitter fails.
-pub fn parse_source_ts(source: &str) -> (Option<Vec<Stmt>>, Vec<ParseError>) {
+/// This is the canonical result type for source parsing. Tree-sitter produces a
+/// best-effort AST even when malformed nodes are present; chumsky returns no AST
+/// when the source cannot be parsed. Callers should treat `statements` as
+/// `Option` to cover both backends.
+#[derive(Debug)]
+pub struct ParseResult {
+    /// Best-effort parsed statements, if any were produced.
+    pub statements: Option<Vec<Stmt>>,
+    /// Structured errors, converted from either backend into a common shape.
+    pub parse_errors: Vec<ParseError>,
+    /// Non-fatal parse diagnostics (currently produced by chumsky).
+    pub warnings: Vec<Diagnostic>,
+    /// The tree-sitter tree when the tree-sitter backend succeeded.
+    pub tree: Option<tree_sitter::Tree>,
+}
+
+impl ParseResult {
+    fn from_ts(result: crate::ts_convert::TsParseResult) -> Self {
+        let parse_errors = result
+            .diagnostics
+            .iter()
+            .map(|d| {
+                let span = d.location.span.clone().unwrap_or(0..0);
+                ParseError {
+                    message: d.message.clone(),
+                    span,
+                    line: d.location.line.unwrap_or(1),
+                    column: d.location.column.unwrap_or(1),
+                    expected: Vec::new(),
+                    found: None,
+                    context: Vec::new(),
+                }
+            })
+            .collect();
+        Self {
+            statements: Some(result.statements),
+            parse_errors,
+            warnings: Vec::new(),
+            tree: Some(result.tree),
+        }
+    }
+}
+
+/// Parse source through the canonical parse pipeline.
+///
+/// Uses tree-sitter for incremental-capable parsing and falls back to the
+/// chumsky parser when tree-sitter cannot produce a tree.
+pub fn parse_canonical(source: &str) -> ParseResult {
     match crate::ts_convert::parse_source(source) {
-        Some(result) => {
-            let errors: Vec<ParseError> = result
-                .diagnostics
-                .iter()
-                .map(|d| {
-                    let span = d.location.span.clone().unwrap_or(0..0);
-                    ParseError {
-                        message: d.message.clone(),
-                        span,
-                        line: d.location.line.unwrap_or(1),
-                        column: d.location.column.unwrap_or(1),
-                        expected: Vec::new(),
-                        found: None,
-                        context: Vec::new(),
-                    }
-                })
-                .collect();
-            (Some(result.statements), errors)
-        },
+        Some(result) => ParseResult::from_ts(result),
         None => {
-            // Tree-sitter failed — fall back to chumsky
-            parse_source(source)
+            let (statements, parse_errors, warnings) = parse_source_diagnostics(source);
+            ParseResult {
+                statements,
+                parse_errors,
+                warnings,
+                tree: None,
+            }
         },
+    }
+}
+
+/// Re-parse source incrementally with a previous tree-sitter tree.
+///
+/// Falls back to [`parse_canonical`] when incremental parsing fails so callers
+/// still receive the best AST/error result available.
+pub fn reparse_canonical(source: &str, old_tree: &tree_sitter::Tree) -> ParseResult {
+    match crate::ts_convert::reparse(source, old_tree) {
+        Some(result) => ParseResult::from_ts(result),
+        None => parse_canonical(source),
     }
 }
 
