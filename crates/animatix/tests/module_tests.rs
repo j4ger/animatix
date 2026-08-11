@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use animatix::timeline::Timeline;
-use animatix_syntax::ast::Expr;
+use animatix_syntax::ast::{Expr, Stmt};
 use animatix_syntax::module::{ModuleError, ModuleGraph};
 
 fn temp_project_dir(name: &str) -> PathBuf {
@@ -1169,4 +1169,90 @@ always {
 
     // Verify the box exists
     assert!(timeline.tracks().contains_key("box"), "box should exist");
+}
+
+#[test]
+fn load_program_from_memory_sources_resolves_imports() {
+    let dir = temp_project_dir("memory_sources");
+    let entry = dir.join("scene.amx");
+    let library = dir.join("components.amx");
+
+    let mut graph = ModuleGraph::new();
+    graph.add_source(
+        library.clone(),
+        r#"
+pub component MetricCard(title: "Throughput") {
+    label: Text, text: title
+}
+"#,
+    );
+    graph.add_source(
+        entry.clone(),
+        r#"
+import "./components.amx"
+
+dashboard: MetricCard, title: "Latency"
+"#,
+    );
+
+    let program = graph.load_program(&entry).unwrap();
+
+    assert!(program.components.contains_key("MetricCard"));
+    assert!(!program.components.contains_key("InternalCard"));
+
+    let expanded = program.expand_components();
+    let expanded_debug = format!("{expanded:#?}");
+    assert!(expanded_debug.contains("dashboard"));
+    assert!(expanded_debug.contains("Latency"));
+    assert!(!expanded_debug.contains("MetricCard"));
+}
+
+#[test]
+fn load_program_with_source_override_does_not_leak_source_map() {
+    let dir = temp_project_dir("source_override_cleanup");
+    let entry = dir.join("scene.amx");
+
+    write_file(
+        &entry,
+        r#"
+box: Rect, size: (100, 100)
+"#,
+    );
+
+    let mut graph = ModuleGraph::new();
+    let first = graph
+        .load_program_with_source(&entry, Some("#0s\ntitle: Text, text: \"Override\"\n"))
+        .unwrap();
+    assert!(contains_actor(&first.statements, "title", "Text"));
+
+    let second = graph.load_program(&entry).unwrap();
+    assert!(contains_actor(&second.statements, "box", "Rect"));
+    assert!(!contains_actor(&second.statements, "title", "Text"));
+}
+
+fn contains_actor(stmts: &[Stmt], label: &str, ty: &str) -> bool {
+    stmts.iter().any(|stmt| match stmt {
+        Stmt::ActorDecl {
+            label: stmt_label,
+            ty: stmt_ty,
+            ..
+        } => stmt_label == label && stmt_ty == ty,
+        Stmt::Keyframe { body, .. }
+        | Stmt::RelativeKeyframe { body, .. }
+        | Stmt::Always { body, .. }
+        | Stmt::ForLoop { body, .. }
+        | Stmt::Sequence { body, .. }
+        | Stmt::Stagger { body, .. } => contains_actor(body, label, ty),
+        Stmt::Conditional {
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            contains_actor(then_branch, label, ty)
+                || else_branch
+                    .as_ref()
+                    .is_some_and(|body| contains_actor(body, label, ty))
+        },
+        _ => false,
+    })
 }

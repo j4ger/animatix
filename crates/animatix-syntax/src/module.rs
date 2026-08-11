@@ -34,6 +34,17 @@ fn set_action_spans(stmts: &mut [Stmt], source: &str) {
     });
 }
 
+fn normalize_path(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        if matches!(component, std::path::Component::CurDir) {
+            continue;
+        }
+        normalized.push(component.as_os_str());
+    }
+    normalized
+}
+
 /// Unique identifier for a loaded source file.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct FileId(u32);
@@ -54,6 +65,8 @@ pub struct ModuleGraph {
     files: HashMap<FileId, ParsedModule>,
     next_id: u32,
     paths: HashMap<PathBuf, FileId>,
+    /// In-memory source overrides for paths that may not exist on disk.
+    sources: HashMap<PathBuf, String>,
 }
 
 /// A component definition together with its source file and custom actions.
@@ -281,11 +294,6 @@ struct ParsedModule {
     imports: Vec<(String, Option<String>)>,
 }
 
-struct SourceOverride<'a> {
-    path: &'a Path,
-    source: &'a str,
-}
-
 struct LoadResult {
     import_ids: Vec<FileId>,
 }
@@ -375,7 +383,44 @@ impl ModuleGraph {
             files: HashMap::new(),
             next_id: 0,
             paths: HashMap::new(),
+            sources: HashMap::new(),
         }
+    }
+
+    /// Register an in-memory source for a path.
+    ///
+    /// Paths must be absolute. Imports resolve against the same source map, so
+    /// multi-file programs can be loaded entirely without touching the disk.
+    pub fn add_source(&mut self, path: PathBuf, source: impl Into<String>) {
+        let path = normalize_path(&path);
+        if let Ok(key) = self.path_key(&path) {
+            if let Some(old_id) = self.paths.remove(&key) {
+                self.files.remove(&old_id);
+            }
+        }
+        self.sources.insert(path, source.into());
+    }
+
+    /// Remove a previously registered in-memory source, if any.
+    pub fn remove_source(&mut self, path: &Path) {
+        let path = normalize_path(path);
+        if let Some(old_id) = self.paths.remove(&path) {
+            self.files.remove(&old_id);
+        }
+        self.sources.remove(&path);
+    }
+
+    fn path_key(&self, path: &Path) -> Result<PathBuf, ModuleError> {
+        let path = normalize_path(path);
+        if self.sources.contains_key(&path) {
+            Ok(path)
+        } else {
+            fs::canonicalize(&path).map_err(|_| ModuleError::FileNotFound(path))
+        }
+    }
+
+    fn file_id_for_path(&self, path: &Path) -> Option<FileId> {
+        self.path_key(path).ok().and_then(|key| self.paths.get(&key).copied())
     }
 
     fn alloc_id(&mut self) -> FileId {
@@ -386,45 +431,38 @@ impl ModuleGraph {
 
     fn resolve_path(base_dir: &Path, import_path: &str) -> PathBuf {
         let trimmed = import_path.trim_matches('"');
-        base_dir.join(trimmed)
+        normalize_path(&base_dir.join(trimmed))
     }
 
     fn load_file(
         &mut self,
         path: &Path,
         visiting: &mut HashSet<PathBuf>,
-        source_override: Option<&SourceOverride<'_>>,
     ) -> Result<LoadResult, ModuleError> {
-        let canonical = fs::canonicalize(path).map_err(ModuleError::IoError)?;
+        let key = self.path_key(path)?;
 
-        // Only use cache if there's no source override for this path
-        let has_override = source_override.is_some_and(|o| o.path == canonical.as_path());
-        if has_override {
-            // Invalidate stale cache entry for the overridden file
-            if let Some(old_id) = self.paths.remove(&canonical) {
-                self.files.remove(&old_id);
-            }
-        } else if let Some(&id) = self.paths.get(&canonical) {
+        if let Some(&id) = self.paths.get(&key) {
             let import_ids = self.collect_import_ids(id);
             return Ok(LoadResult { import_ids });
         }
 
-        if visiting.contains(&canonical) {
+        if visiting.contains(&key) {
             let cycle_path: Vec<PathBuf> = visiting
                 .iter()
-                .skip_while(|p| *p != &canonical)
-                .chain(std::iter::once(&canonical))
+                .skip_while(|p| *p != &key)
+                .chain(std::iter::once(&key))
                 .cloned()
                 .collect();
             return Err(ModuleError::CycleDetected(cycle_path));
         }
 
-        visiting.insert(canonical.clone());
+        visiting.insert(key.clone());
 
-        let source = source_override
-            .filter(|override_source| override_source.path == canonical.as_path())
-            .map(|override_source| override_source.source.to_owned())
-            .unwrap_or(fs::read_to_string(&canonical).map_err(ModuleError::IoError)?);
+        let source = if let Some(source) = self.sources.get(&key) {
+            source.clone()
+        } else {
+            fs::read_to_string(&key).map_err(|_| ModuleError::FileNotFound(key.clone()))?
+        };
 
         let parsed = parse_canonical(&source);
         let parse_errors = parsed.parse_errors;
@@ -441,34 +479,31 @@ impl ModuleGraph {
         let imports = collect_imports(&statements);
 
         let id = self.alloc_id();
-        self.paths.insert(canonical.clone(), id);
+        self.paths.insert(key.clone(), id);
 
         let mut all_import_ids = Vec::new();
 
         for import in &imports {
             let import_path =
-                Self::resolve_path(canonical.parent().unwrap_or(Path::new(".")), &import.0);
+                Self::resolve_path(key.parent().unwrap_or(Path::new(".")), &import.0);
 
-            let result = self.load_file(&import_path, visiting, source_override)?;
-            let canonical_import = fs::canonicalize(&import_path).map_err(ModuleError::IoError)?;
+            let result = self.load_file(&import_path, visiting)?;
             let import_id = self
-                .paths
-                .get(&canonical_import)
-                .copied()
+                .file_id_for_path(&import_path)
                 .ok_or_else(|| ModuleError::FileNotFound(import_path.clone()))?;
             all_import_ids.push(import_id);
             all_import_ids.extend(result.import_ids);
         }
 
         let module = ParsedModule {
-            path: canonical.clone(),
+            path: key.clone(),
             statements,
             imports,
         };
 
         self.files.insert(id, module);
 
-        visiting.remove(&canonical);
+        visiting.remove(&key);
 
         Ok(LoadResult {
             import_ids: all_import_ids,
@@ -483,7 +518,7 @@ impl ModuleGraph {
                 .filter_map(|imp| {
                     let path =
                         Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
-                    fs::canonicalize(&path).ok().and_then(|p| self.paths.get(&p).copied())
+                    self.file_id_for_path(&path)
                 })
                 .collect()
         } else {
@@ -503,25 +538,39 @@ impl ModuleGraph {
         path: &Path,
         source: Option<&str>,
     ) -> Result<Vec<Stmt>, ModuleError> {
-        let mut visiting = HashSet::new();
-        let canonical = fs::canonicalize(path).map_err(ModuleError::IoError)?;
-        let source_override = source.map(|source| SourceOverride {
-            path: canonical.as_path(),
-            source,
-        });
+        let previous = self.sources.get(path).cloned();
+        let inserted = if let Some(source) = source {
+            self.add_source(path.to_path_buf(), source.to_string());
+            true
+        } else {
+            false
+        };
 
-        self.load_file(path, &mut visiting, source_override.as_ref())?;
+        let result = (|| {
+            let mut visiting = HashSet::new();
+            let key = self.path_key(path)?;
 
-        let entry_id = self
-            .paths
-            .get(&canonical)
-            .copied()
-            .ok_or_else(|| ModuleError::FileNotFound(path.to_path_buf()))?;
+            self.load_file(path, &mut visiting)?;
 
-        let mut result = Vec::new();
-        self.flatten_recursive(entry_id, &mut result, &mut Vec::new())?;
+            let entry_id = self
+                .paths
+                .get(&key)
+                .copied()
+                .ok_or_else(|| ModuleError::FileNotFound(path.to_path_buf()))?;
 
-        Ok(result)
+            let mut result = Vec::new();
+            self.flatten_recursive(entry_id, &mut result, &mut Vec::new())?;
+
+            Ok(result)
+        })();
+
+        if inserted {
+            match previous {
+                Some(previous) => self.add_source(path.to_path_buf(), previous),
+                None => self.remove_source(path),
+            }
+        }
+        result
     }
 
     /// Load an entry file and return a fully resolved `LoadedProgram`.
@@ -536,68 +585,79 @@ impl ModuleGraph {
         path: &Path,
         source: Option<&str>,
     ) -> Result<LoadedProgram, ModuleError> {
-        let mut visiting = HashSet::new();
-        let canonical = fs::canonicalize(path).map_err(ModuleError::IoError)?;
-        let source_override = source.map(|source| SourceOverride {
-            path: canonical.as_path(),
-            source,
-        });
+        let previous = self.sources.get(path).cloned();
+        let inserted = if let Some(source) = source {
+            self.add_source(path.to_path_buf(), source.to_string());
+            true
+        } else {
+            false
+        };
 
-        self.load_file(path, &mut visiting, source_override.as_ref())?;
+        let result = (|| {
+            let mut visiting = HashSet::new();
+            let key = self.path_key(path)?;
 
-        let entry_id = self
-            .paths
-            .get(&canonical)
-            .copied()
-            .ok_or_else(|| ModuleError::FileNotFound(path.to_path_buf()))?;
+            self.load_file(path, &mut visiting)?;
 
-        let mut statements = Vec::new();
-        self.flatten_recursive(entry_id, &mut statements, &mut Vec::new())?;
+            let entry_id = self
+                .paths
+                .get(&key)
+                .copied()
+                .ok_or_else(|| ModuleError::FileNotFound(path.to_path_buf()))?;
 
-        let mut components = HashMap::new();
-        self.collect_components_recursive(entry_id, entry_id, &mut components, &mut Vec::new())?;
+            let mut statements = Vec::new();
+            self.flatten_recursive(entry_id, &mut statements, &mut Vec::new())?;
 
-        // Collect module-scoped actions from flattened statements
-        let module_actions = Self::collect_module_actions(&statements);
+            let mut components = HashMap::new();
+            self.collect_components_recursive(entry_id, entry_id, &mut components, &mut Vec::new())?;
 
-        let mut namespaces = HashMap::new();
-        // Collect namespaces from the entry file's direct aliased imports,
-        // resolving re-exports transitively.
-        if let Some(entry_module) = self.files.get(&entry_id) {
-            for imp in &entry_module.imports {
-                if let Some(alias) = &imp.1 {
-                    let import_path = Self::resolve_path(
-                        entry_module.path.parent().unwrap_or(Path::new(".")),
-                        &imp.0,
-                    );
-                    if let Some(import_id) = fs::canonicalize(&import_path)
-                        .ok()
-                        .and_then(|p| self.paths.get(&p).copied())
-                    {
-                        let resolved_exports = self.collect_resolved_exports(import_id);
-                        let resolved_type_exports = self.collect_resolved_type_exports(import_id);
-                        let resolved_scenes = self.collect_resolved_scenes(import_id);
-                        let resolved_namespaces = self.collect_resolved_namespaces(import_id);
-                        namespaces.insert(
-                            alias.clone(),
-                            Namespace {
-                                exports: resolved_exports,
-                                type_exports: resolved_type_exports,
-                                scenes: resolved_scenes,
-                                namespaces: resolved_namespaces,
-                            },
+            // Collect module-scoped actions from flattened statements
+            let module_actions = Self::collect_module_actions(&statements);
+
+            let mut namespaces = HashMap::new();
+            // Collect namespaces from the entry file's direct aliased imports,
+            // resolving re-exports transitively.
+            if let Some(entry_module) = self.files.get(&entry_id) {
+                for imp in &entry_module.imports {
+                    if let Some(alias) = &imp.1 {
+                        let import_path = Self::resolve_path(
+                            entry_module.path.parent().unwrap_or(Path::new(".")),
+                            &imp.0,
                         );
+                        if let Some(import_id) = self.file_id_for_path(&import_path) {
+                            let resolved_exports = self.collect_resolved_exports(import_id);
+                            let resolved_type_exports = self.collect_resolved_type_exports(import_id);
+                            let resolved_scenes = self.collect_resolved_scenes(import_id);
+                            let resolved_namespaces = self.collect_resolved_namespaces(import_id);
+                            namespaces.insert(
+                                alias.clone(),
+                                Namespace {
+                                    exports: resolved_exports,
+                                    type_exports: resolved_type_exports,
+                                    scenes: resolved_scenes,
+                                    namespaces: resolved_namespaces,
+                                },
+                            );
+                        }
                     }
                 }
             }
-        }
 
-        Ok(LoadedProgram {
-            statements,
-            components,
-            module_actions,
-            namespaces,
-        })
+            Ok(LoadedProgram {
+                statements,
+                components,
+                module_actions,
+                namespaces,
+            })
+        })();
+
+        if inserted {
+            match previous {
+                Some(previous) => self.add_source(path.to_path_buf(), previous),
+                None => self.remove_source(path),
+            }
+        }
+        result
     }
 
     /// Collect module-scoped actions from a list of statements.
@@ -699,9 +759,7 @@ impl ModuleGraph {
             };
             let import_path =
                 Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
-            let Some(sub_id) =
-                fs::canonicalize(&import_path).ok().and_then(|p| self.paths.get(&p).copied())
-            else {
+            let Some(sub_id) = self.file_id_for_path(&import_path) else {
                 continue;
             };
             namespaces.insert(
@@ -740,9 +798,7 @@ impl ModuleGraph {
             if let Some(alias) = &imp.1 {
                 let import_path =
                     Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
-                if let Some(sub_id) =
-                    fs::canonicalize(&import_path).ok().and_then(|p| self.paths.get(&p).copied())
-                {
+                if let Some(sub_id) = self.file_id_for_path(&import_path) {
                     let sub_scenes = self.collect_resolved_scenes(sub_id);
                     for (name, data) in sub_scenes {
                         // Prefix with alias to make it accessible as "alias.SceneName"
@@ -775,9 +831,7 @@ impl ModuleGraph {
                 }
                 let import_path =
                     Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
-                if let Some(import_id) =
-                    fs::canonicalize(&import_path).ok().and_then(|p| self.paths.get(&p).copied())
-                {
+                if let Some(import_id) = self.file_id_for_path(&import_path) {
                     self.flatten_module_stmts(import_id, result, visited);
                 }
             }
@@ -808,9 +862,7 @@ impl ModuleGraph {
                 }
                 let import_path =
                     Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
-                if let Some(import_id) =
-                    fs::canonicalize(&import_path).ok().and_then(|p| self.paths.get(&p).copied())
-                {
+                if let Some(import_id) = self.file_id_for_path(&import_path) {
                     self.flatten_recursive(import_id, result, visited)?;
                 }
             }
@@ -841,9 +893,7 @@ impl ModuleGraph {
             for imp in &module.imports {
                 let import_path =
                     Self::resolve_path(module.path.parent().unwrap_or(Path::new(".")), &imp.0);
-                if let Some(import_id) =
-                    fs::canonicalize(&import_path).ok().and_then(|p| self.paths.get(&p).copied())
-                {
+                if let Some(import_id) = self.file_id_for_path(&import_path) {
                     self.collect_components_recursive(import_id, entry_id, components, visited)?;
                 }
             }
