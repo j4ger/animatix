@@ -20,6 +20,24 @@ The full itemized list and sequencing guidance are in
 section `6.X`. First candidates when capacity opens are the gallery app, JSON
 themes, CI platform parity, and `StyledExt` helpers.
 
+### Architecture Consolidation
+
+Structural risks identified during the 2026-08-11 cleanup. These are design
+questions, not scheduled implementation tasks; settle the target architecture
+before starting.
+
+| Item | Status / Notes |
+|------|----------------|
+| Semantic AST single source | Open. Chumsky is the runtime/module semantic source, but `animatix-analyzer::Workspace` still builds symbols from the tree-sitter converter AST. One semantic AST should feed runtime, module loading, type checking, and analyzer; tree-sitter should remain a CST/position/incremental frontend only. |
+| Module/Workspace resolver unification | Open. `ModuleGraph` and analyzer `Workspace` are two import/namespace resolvers with different component, action, scene, and alias semantics. Add behavior-equivalence tests before reusing one from the other. |
+| Semantic diagnostics single emitter | Open. Label/action/property/type checks are duplicated between `animatix-syntax` typecheck/diagnostics and `animatix-analyzer::diagnostics`. One canonical diagnostic type/code/emitter with one LSP DTO conversion point is the target. |
+| Path/source-map model | Open. `ModuleGraph` mixes raw in-memory paths and canonicalized disk paths as keys. Extract a normalized `SourceMap`/path resolver so import lookup, cache keys, and source overrides share one identity model. |
+| Source override lifecycle | Open. `load_program_with_source` manually inserts, loads, then restores/removes source. A scoped API such as `with_source(path, source, \|graph\| ...)` would make cleanup failure-proof. |
+| GUI mutation/cache/snapshot convergence | Open. `commit_source` and `replace_text` now both invalidate GUI caches, but the invariant is still manual. Snapshot finalize/abort is also per-handler; centralize mutations and use a mutation guard. |
+| Rebuild worker lifecycle | Open. The worker thread is detached and has no automatic restart after failure; long-lived GUI sessions can silently lose background rebuilds. Decide between supervised restart, fallback synchronous rebuild, or explicit unsupported state. |
+| Type model vs annotation grammar | Open. Internal `Type::Vec3/Tuple/Function` currently degrade to `Any` annotations because the language grammar has no corresponding forms. Expand only when parser, tree-sitter, typechecker, and analyzer can be updated together. |
+| Parser-sync AST equivalence | Open. `check-parser-sync.sh` verifies tree-sitter parses examples, not that its converted AST matches the semantic parser. Add corpus-level AST equivalence tests for actions, keyframes, scenes, modifiers, and cross-file modules. |
+
 ### GUI Follow-Ups
 
 | Item | Status / Notes |
