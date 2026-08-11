@@ -169,6 +169,12 @@ impl Analyzer {
             animatix_syntax::diagnostics::DiagnosticSeverity::Warning => {
                 diagnostics::DiagnosticSeverity::Warning
             },
+            animatix_syntax::diagnostics::DiagnosticSeverity::Info => {
+                diagnostics::DiagnosticSeverity::Info
+            },
+            animatix_syntax::diagnostics::DiagnosticSeverity::Hint => {
+                diagnostics::DiagnosticSeverity::Hint
+            },
         };
         let line = d.location.line.unwrap_or(1).saturating_sub(1);
         let col = d.location.column.unwrap_or(1).saturating_sub(1);

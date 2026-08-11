@@ -9,6 +9,10 @@ pub enum DiagnosticSeverity {
     Warning,
     /// A fatal issue that prevents successful completion of the current phase.
     Error,
+    /// Informational feedback that is not a problem by itself.
+    Info,
+    /// A helpful suggestion or hint.
+    Hint,
 }
 
 impl fmt::Display for DiagnosticSeverity {
@@ -16,6 +20,8 @@ impl fmt::Display for DiagnosticSeverity {
         match self {
             DiagnosticSeverity::Warning => write!(f, "warning"),
             DiagnosticSeverity::Error => write!(f, "error"),
+            DiagnosticSeverity::Info => write!(f, "info"),
+            DiagnosticSeverity::Hint => write!(f, "hint"),
         }
     }
 }
@@ -145,6 +151,16 @@ pub enum DiagnosticCode {
     MissingWildcardArm,
     /// A type alias references an alias that is not defined, or forms a cycle.
     UnknownTypeAlias,
+    /// The same actor/binding label is declared more than once.
+    DuplicateLabel,
+    /// A declared actor/binding is never referenced.
+    UnusedLabel,
+    /// An action or assignment target references a label that is not declared.
+    UndefinedLabel,
+    /// A property is not part of the known surface for its actor type.
+    UnknownProperty,
+    /// An actor type name is not recognized.
+    UnknownType,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -218,6 +234,11 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::CalloutTargetNotFound => write!(f, "callout-target-not-found"),
             DiagnosticCode::MissingWildcardArm => write!(f, "missing-wildcard-arm"),
             DiagnosticCode::UnknownTypeAlias => write!(f, "unknown-type-alias"),
+            DiagnosticCode::DuplicateLabel => write!(f, "duplicate-label"),
+            DiagnosticCode::UnusedLabel => write!(f, "unused-label"),
+            DiagnosticCode::UndefinedLabel => write!(f, "undefined-label"),
+            DiagnosticCode::UnknownProperty => write!(f, "unknown-property"),
+            DiagnosticCode::UnknownType => write!(f, "unknown-type"),
         }
     }
 }
@@ -238,6 +259,10 @@ pub struct DiagnosticLocation {
     /// for multi-byte UTF-8 characters. Use [`Span::from_range`] which
     /// performs this conversion correctly.
     pub column: Option<usize>,
+    /// 1-based line number where the diagnostic range ends.
+    pub end_line: Option<usize>,
+    /// 1-based column number where the diagnostic range ends.
+    pub end_col: Option<usize>,
     /// Byte-offset range into the source text.
     pub span: Option<Range<usize>>,
 }

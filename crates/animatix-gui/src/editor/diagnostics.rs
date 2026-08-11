@@ -46,7 +46,9 @@ impl EditorBuffer {
                 animatix_syntax::diagnostics::DiagnosticSeverity::Error => {
                     self.cell_state.error_cells.insert(cell_idx);
                 },
-                animatix_syntax::diagnostics::DiagnosticSeverity::Warning => {
+                animatix_syntax::diagnostics::DiagnosticSeverity::Warning
+                | animatix_syntax::diagnostics::DiagnosticSeverity::Info
+                | animatix_syntax::diagnostics::DiagnosticSeverity::Hint => {
                     self.cell_state.warning_cells.insert(cell_idx);
                 },
             }
@@ -279,7 +281,9 @@ impl EditorBuffer {
                 animatix_syntax::diagnostics::DiagnosticSeverity::Error => {
                     self.cell_state.error_cells.insert(cell_idx);
                 },
-                animatix_syntax::diagnostics::DiagnosticSeverity::Warning => {
+                animatix_syntax::diagnostics::DiagnosticSeverity::Warning
+                | animatix_syntax::diagnostics::DiagnosticSeverity::Info
+                | animatix_syntax::diagnostics::DiagnosticSeverity::Hint => {
                     if !self.cell_state.error_cells.contains(&cell_idx) {
                         self.cell_state.warning_cells.insert(cell_idx);
                     }

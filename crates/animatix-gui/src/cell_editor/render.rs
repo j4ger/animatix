@@ -25,6 +25,12 @@ fn cell_analyzer_diagnostics(
                 animatix_syntax::diagnostics::DiagnosticSeverity::Warning => {
                     animatix_analyzer::DiagnosticSeverity::Warning
                 },
+                animatix_syntax::diagnostics::DiagnosticSeverity::Info => {
+                    animatix_analyzer::DiagnosticSeverity::Info
+                },
+                animatix_syntax::diagnostics::DiagnosticSeverity::Hint => {
+                    animatix_analyzer::DiagnosticSeverity::Hint
+                },
             },
             line: d.rel_line,
             col: d.rel_col,
@@ -671,7 +677,9 @@ fn draw_wavy_underlines(
     for d in diags {
         let color = match d.severity {
             animatix_syntax::diagnostics::DiagnosticSeverity::Error => theme.status.error,
-            animatix_syntax::diagnostics::DiagnosticSeverity::Warning => theme.status.warning,
+            animatix_syntax::diagnostics::DiagnosticSeverity::Warning
+            | animatix_syntax::diagnostics::DiagnosticSeverity::Info
+            | animatix_syntax::diagnostics::DiagnosticSeverity::Hint => theme.status.warning,
         };
 
         // Y position: baseline below the diagnostic line

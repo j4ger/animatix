@@ -4,10 +4,8 @@ use std::collections::HashSet;
 
 use animatix_syntax::ast::*;
 use animatix_syntax::parser::ParseError;
-use animatix_syntax::typing;
-use animatix_syntax::walk;
 
-use crate::symbol_table::{LabelKind, SymbolTable};
+use crate::symbol_table::SymbolTable;
 
 /// A diagnostic message (error, warning, etc.).
 #[derive(Debug, Clone)]
@@ -187,7 +185,11 @@ pub fn collect_diagnostics_with_config(
 
     // 2. Semantic checks (if AST is available)
     if let Some(stmts) = ast {
-        collect_semantic_diagnostics(stmts, symbols, tree, source, &mut diagnostics);
+        let syntax_diagnostics =
+            animatix_syntax::semantic_diagnostics::collect_semantic_diagnostics(
+                stmts, symbols, tree, source,
+            );
+        diagnostics.extend(syntax_diagnostics.into_iter().map(convert_syntax_diagnostic));
     }
 
     // 3. Filter based on lint config
@@ -212,319 +214,26 @@ pub fn collect_diagnostics_with_config(
     diagnostics
 }
 
-/// Collect semantic diagnostics from the AST.
-fn collect_semantic_diagnostics(
-    stmts: &[Stmt],
-    symbols: &SymbolTable,
-    tree: Option<&tree_sitter::Tree>,
-    source: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    // Check for duplicate labels
-    let mut seen_labels = HashSet::new();
-    for (name, info) in &symbols.labels {
-        if !seen_labels.insert(name) {
-            diagnostics.push(Diagnostic {
-                severity: DiagnosticSeverity::Warning,
-                line: info.line,
-                col: info.col,
-                end_line: info.line,
-                end_col: info.col + name.len(),
-                message: format!("Duplicate label: {}", name),
-                code: Some("duplicate-label".to_string()),
-            });
-        }
-    }
-
-    // Check for unused labels (actors, let bindings)
-    for (name, info) in &symbols.labels {
-        if !symbols.referenced_labels.contains(name) {
-            // Don't warn for for-loop variables, always blocks, or array base labels
-            if info.kind == LabelKind::For
-                || info.kind == LabelKind::Always
-                || symbols.array_labels.contains(name)
-                || symbols.component_internal_labels.contains(name)
-            {
-                continue;
-            }
-            diagnostics.push(Diagnostic {
-                severity: DiagnosticSeverity::Warning,
-                line: info.line,
-                col: info.col,
-                end_line: info.line,
-                end_col: info.col + name.len(),
-                message: format!(
-                    "Unused {}: '{}'",
-                    match info.kind {
-                        LabelKind::Actor => "actor",
-                        LabelKind::Let => "binding",
-                        LabelKind::Component => "component",
-                        _ => "label",
-                    },
-                    name
-                ),
-                code: Some("unused-label".to_string()),
-            });
-        }
-    }
-
-    // Note: import path validation (file existence) is intentionally omitted here.
-    // The analyzer should be I/O free. LSP and GUI layers should validate imports
-    // separately using their own file system access.
-
-    // Check each statement (walk_stmts handles recursion into block bodies)
-    walk::walk_stmts(stmts, &mut |stmt| {
-        check_stmt(stmt, symbols, tree, source, diagnostics);
-    });
-}
-
-/// Convert an optional Span to (line, col, end_line, end_col) 0-based positions.
-fn span_to_diag(span: &Option<animatix_syntax::ast::Span>) -> (usize, usize, usize, usize) {
-    match span {
-        Some(s) => (
-            s.start_line.saturating_sub(1),
-            s.start_col.saturating_sub(1),
-            s.end_line.saturating_sub(1),
-            s.end_col.saturating_sub(1),
-        ),
-        None => (0, 0, 0, 0),
-    }
-}
-
-/// True when a label like `deck.bar__2` belongs to a generated array actor
-/// inside a component instance. The analyzer does not expand components, so it
-/// accepts these labels when the leading segment is a known component instance.
-fn is_component_array_member(symbols: &SymbolTable, label: &str) -> bool {
-    let Some(base) = is_array_member_label(label) else {
-        return false;
+/// Convert a syntax-level diagnostic into the analyzer DTO with 0-based ranges.
+fn convert_syntax_diagnostic(d: animatix_syntax::diagnostics::Diagnostic) -> Diagnostic {
+    let severity = match d.severity {
+        animatix_syntax::diagnostics::DiagnosticSeverity::Error => DiagnosticSeverity::Error,
+        animatix_syntax::diagnostics::DiagnosticSeverity::Warning => DiagnosticSeverity::Warning,
+        animatix_syntax::diagnostics::DiagnosticSeverity::Info => DiagnosticSeverity::Info,
+        animatix_syntax::diagnostics::DiagnosticSeverity::Hint => DiagnosticSeverity::Hint,
     };
-    let Some((instance, _)) = base.rsplit_once('.') else {
-        return false;
-    };
-    let Some(info) = symbols.labels.get(instance) else {
-        return false;
-    };
-    info.ty.as_deref().is_some_and(|ty| symbols.components.contains_key(ty))
-}
-
-/// Search the tree-sitter tree for a node of the given kind containing `text`.
-/// Returns 0-based (line, col, end_line, end_col) if found.
-fn find_token_range(
-    node: tree_sitter::Node,
-    source: &str,
-    kind: &str,
-    text: &str,
-) -> Option<(usize, usize, usize, usize)> {
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if child.kind() == kind {
-            if let Ok(node_text) = child.utf8_text(source.as_bytes()) {
-                if node_text == text {
-                    let start = child.start_position();
-                    let end = child.end_position();
-                    return Some((start.row, start.column, end.row, end.column));
-                }
-            }
-        }
-        // Recurse into children
-        if let Some(found) = find_token_range(child, source, kind, text) {
-            return Some(found);
-        }
-    }
-    None
-}
-
-/// Check a single statement for semantic issues.
-fn check_stmt(
-    stmt: &Stmt,
-    symbols: &SymbolTable,
-    tree: Option<&tree_sitter::Tree>,
-    source: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    match stmt {
-        Stmt::Action(action, span) => {
-            let (line, col, end_line, end_col) = span_to_diag(span);
-
-            // Check if action verb is known
-            if !symbols.actions.contains(&action.verb) {
-                // Try to find the verb token in the tree-sitter tree for precise positioning
-                let (vline, vcol, vend_line, vend_col) = tree
-                    .and_then(|t| {
-                        find_token_range(t.root_node(), source, "action_verb", &action.verb)
-                    })
-                    .unwrap_or((line, col, end_line, end_col));
-                diagnostics.push(Diagnostic {
-                    severity: DiagnosticSeverity::Warning,
-                    line: vline,
-                    col: vcol,
-                    end_line: vend_line,
-                    end_col: vend_col,
-                    message: format!("Unknown action: {}", action.verb),
-                    code: Some("unknown-action".to_string()),
-                });
-            }
-
-            // Check if target labels exist
-            for target in &action.targets {
-                let is_defined = symbols.labels.contains_key(target)
-                    || is_array_member_label(target)
-                        .is_some_and(|base| symbols.array_labels.contains(base))
-                    || is_component_array_member(symbols, target);
-                if !is_defined {
-                    // Use tree-sitter for precise target positioning when available
-                    let (tline, tcol, tend_line, tend_col) = tree
-                        .and_then(|t| find_token_range(t.root_node(), source, "identifier", target))
-                        .unwrap_or((line, col, end_line, end_col));
-                    diagnostics.push(Diagnostic {
-                        severity: DiagnosticSeverity::Warning,
-                        line: tline,
-                        col: tcol,
-                        end_line: tend_line,
-                        end_col: tend_col,
-                        message: format!("Undefined label: {}", target),
-                        code: Some("undefined-label".to_string()),
-                    });
-                }
-            }
-        },
-
-        Stmt::Assignment {
-            target,
-            property,
-            value,
-            span,
-            ..
-        } => {
-            let (line, col, end_line, end_col) = span_to_diag(span);
-
-            // Check if target label exists
-            if let Some(seg) = target.first() {
-                let label = seg.label_str();
-                let is_defined = symbols.labels.contains_key(label)
-                    || is_array_member_label(label)
-                        .is_some_and(|base| symbols.array_labels.contains(base))
-                    || is_component_array_member(symbols, label);
-                if !is_defined {
-                    diagnostics.push(Diagnostic {
-                        severity: DiagnosticSeverity::Warning,
-                        line,
-                        col,
-                        end_line,
-                        end_col,
-                        message: format!("Undefined label: {}", label),
-                        code: Some("undefined-label".to_string()),
-                    });
-                }
-            }
-
-            // Check if property is known for the target type
-            if let Some(seg) = target.first() {
-                let label = seg.label_str();
-                if let Some(info) = symbols.labels.get(label) {
-                    if let Some(ty) = &info.ty {
-                        if let Some(known_props) = symbols.properties.get(ty) {
-                            if !known_props.contains(property) {
-                                diagnostics.push(Diagnostic {
-                                    severity: DiagnosticSeverity::Info,
-                                    line,
-                                    col,
-                                    end_line,
-                                    end_col,
-                                    message: format!(
-                                        "Property '{}' not commonly used on {} (may still be valid)",
-                                        property, ty
-                                    ),
-                                    code: Some("unknown-property".to_string()),
-                                });
-                            }
-
-                            // Check property type
-                            let key = (ty.clone(), property.clone());
-                            if let Some(expected_type) = symbols.property_types.get(&key) {
-                                let actual_type = symbols.infer_expr_type(value);
-                                if !typing::is_subtype(&actual_type, expected_type) {
-                                    diagnostics.push(Diagnostic {
-                                        severity: DiagnosticSeverity::Warning,
-                                        line,
-                                        col,
-                                        end_line,
-                                        end_col,
-                                        message: format!(
-                                            "Type mismatch for '{}.{}': expected {:?}, found {:?}",
-                                            label, property, expected_type, actual_type
-                                        ),
-                                        code: Some("type-mismatch".to_string()),
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-
-        Stmt::ActorDecl {
-            ty, props, span, ..
-        } => {
-            let (line, col, end_line, end_col) = span_to_diag(span);
-
-            // Check if type is known
-            if !symbols.types.contains(ty) {
-                diagnostics.push(Diagnostic {
-                    severity: DiagnosticSeverity::Warning,
-                    line,
-                    col,
-                    end_line,
-                    end_col,
-                    message: format!("Unknown type: {}", ty),
-                    code: Some("unknown-type".to_string()),
-                });
-            }
-
-            // Check properties against known properties for this type
-            if let Some(known_props) = symbols.properties.get(ty) {
-                for prop in props {
-                    if !known_props.contains(&prop.name) {
-                        diagnostics.push(Diagnostic {
-                            severity: DiagnosticSeverity::Info,
-                            line,
-                            col,
-                            end_line,
-                            end_col,
-                            message: format!(
-                                "Property '{}' not commonly used on {} (may still be valid)",
-                                prop.name, ty
-                            ),
-                            code: Some("unknown-property".to_string()),
-                        });
-                    }
-
-                    // Check property type if we have type info
-                    let key = (ty.clone(), prop.name.clone());
-                    if let Some(expected_type) = symbols.property_types.get(&key) {
-                        let actual_type = symbols.infer_expr_type(&prop.value);
-                        if !typing::is_subtype(&actual_type, expected_type) {
-                            diagnostics.push(Diagnostic {
-                                severity: DiagnosticSeverity::Warning,
-                                line,
-                                col,
-                                end_line,
-                                end_col,
-                                message: format!(
-                                    "Type mismatch for '{}.{}': expected {:?}, found {:?}",
-                                    ty, prop.name, expected_type, actual_type
-                                ),
-                                code: Some("type-mismatch".to_string()),
-                            });
-                        }
-                    }
-                }
-            }
-        },
-
-        // Recurse into blocks is handled by walk_stmts caller
-        _ => {},
+    let line = d.location.line.map(|v| v.saturating_sub(1)).unwrap_or(0);
+    let col = d.location.column.map(|v| v.saturating_sub(1)).unwrap_or(0);
+    let end_line = d.location.end_line.map(|v| v.saturating_sub(1)).unwrap_or(line);
+    let end_col = d.location.end_col.map(|v| v.saturating_sub(1)).unwrap_or(col + 1);
+    Diagnostic {
+        severity,
+        line,
+        col,
+        end_line,
+        end_col,
+        message: d.message,
+        code: Some(d.code.to_string()),
     }
 }
 

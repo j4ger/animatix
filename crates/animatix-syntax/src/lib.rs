@@ -21,6 +21,8 @@ pub use chumsky;
 pub mod source_index;
 /// Semantic symbol extraction shared by the typechecker and analyzer.
 pub mod symbol_table;
+/// Canonical semantic diagnostics emitted from the syntax layer.
+pub mod semantic_diagnostics;
 pub mod to_source;
 pub mod transition_registry;
 /// Tree-sitter CST → Animatix AST converter for incremental parsing.
