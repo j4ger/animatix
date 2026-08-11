@@ -78,18 +78,22 @@ impl RebuildWorker {
         }
     }
 
-    /// Restart the worker thread after a panic or failed initial spawn.
+    /// Restart the worker thread after a panic, failed initial spawn, or lost
+    /// request channel.
     ///
     /// Returns true when a request channel is available. Callers should retry
     /// the submit when this returns false; the previous worker may have died.
     fn ensure_worker(&mut self) -> bool {
-        let dead = self
-            .handle
-            .as_ref()
-            .is_none_or(|handle| handle.is_finished());
-        if !dead {
+        let request_channel_lost = self.request_tx.is_none();
+        let thread_finished = self.handle.as_ref().is_some_and(|handle| handle.is_finished());
+        if !request_channel_lost && !thread_finished {
             return true;
         }
+
+        // Detach the old handle without joining. A worker that lost its request
+        // channel may still be draining in flight work; joining here could block
+        // the UI thread while the worker exits.
+        self.handle.take();
 
         let (req_tx, req_rx) = crossbeam_channel::unbounded::<RebuildRequest>();
         let (res_tx, res_rx) = crossbeam_channel::bounded::<RebuildResponse>(4);
