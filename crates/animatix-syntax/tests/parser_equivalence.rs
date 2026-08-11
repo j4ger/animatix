@@ -49,14 +49,51 @@ const CORPUS: &[(&str, &str)] = &[
         "for loop tuple pattern",
         "#0s\nfor (x, y) in {(1, 2), (3, 4)} { point: Rect, at: (x, y) }\n",
     ),
+    (
+        "reactive binding",
+        "#0s\nbox: Rect, size: (10, 10)\nalways {\n  box.color := red\n}\n",
+    ),
+    (
+        "relative keyframe",
+        "#+500ms\nbox.color = blue\n",
+    ),
+    (
+        "sequence",
+        "#0s\nsequence {\n  move box [to: (10, 10), 500ms]\n  move box [to: (20, 20), 500ms]\n}\n",
+    ),
+    (
+        "stagger",
+        "#0s\nstagger [200ms] {\n  fade-in a [100ms]\n  fade-in b [100ms]\n}\n",
+    ),
+    (
+        "component and action definition",
+        "pub component Card(title: Str = \"Untitled\") {\n  action pulse(count: Num = 2) {\n    self.scale = 1.2\n  }\n}\n",
+    ),
+    (
+        "if statement",
+        "#0s\nbox: Rect\nif t > 1 {\n  box.color = red\n} else {\n  box.color = blue\n}\n",
+    ),
+    (
+        "reactive index assignment",
+        "#0s\nfor v, i in {1, 2, 3} {\n  box[i]: Rect, size: (10, v)\n}\nalways {\n  box[i].color := red\n}\n",
+    ),
 ];
+
+
+
 
 #[test]
 fn chumsky_and_tree_sitter_are_semantically_equivalent() {
     for (name, source) in CORPUS {
-        let semantic = animatix_syntax::parser::parse_canonical(source)
+        let parsed_semantic = animatix_syntax::parser::parse_canonical(source);
+        let semantic = parsed_semantic
             .statements
-            .expect("semantic parser should accept corpus");
+            .unwrap_or_else(|| panic!("semantic parser should accept corpus case '{name}'"));
+        assert!(
+            parsed_semantic.parse_errors.is_empty(),
+            "semantic parser errors for '{name}': {:?}",
+            parsed_semantic.parse_errors
+        );
         let tree_sitter = animatix_syntax::ts_convert::parse_source(source)
             .expect("tree-sitter should parse corpus")
             .statements;

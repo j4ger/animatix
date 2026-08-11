@@ -576,7 +576,22 @@ impl<'a> TsConverter<'a> {
     }
 
     fn convert_stagger(&mut self, node: Node) -> Stmt {
-        let modifiers = self.convert_modifier_block_node(node);
+        // The grammar places the shared interval before the block as a bare
+        // expression (e.g. `stagger [150ms]`). Convert that into the same
+        // positional modifier shape Chumsky produces, then append any
+        // modifier_block children (named modifiers).
+        let mut modifiers = Vec::new();
+        let mut cursor = node.walk();
+        for child in node.named_children(&mut cursor) {
+            if child.kind() == "block" || child.kind() == "comment" {
+                continue;
+            }
+            modifiers.push(Modifier {
+                name: None,
+                value: self.convert_modifier_value(child),
+            });
+        }
+        modifiers.extend(self.convert_modifier_block_node(node));
         let body = self.convert_block_body(node);
         Stmt::Stagger {
             modifiers,
@@ -1127,11 +1142,7 @@ impl<'a> TsConverter<'a> {
         } else {
             None
         };
-        let default = if param_type.is_some() {
-            None
-        } else {
-            default_node.and_then(|n| self.convert_expr(n))
-        };
+        let default = default_node.and_then(|n| self.convert_expr(n));
         ParamDef {
             name,
             param_type,
