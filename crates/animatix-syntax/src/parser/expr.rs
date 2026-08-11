@@ -226,6 +226,16 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
                 Expr::Binary(Box::new(lhs), op, Box::new(rhs))
             });
 
+        let logical = comparison
+            .clone()
+            .foldl(
+                choice((just("&&").to(BinaryOp::And), just("||").to(BinaryOp::Or)))
+                    .padded()
+                    .then(comparison.clone())
+                    .repeated(),
+                |lhs, (op, rhs)| Expr::Binary(Box::new(lhs), op, Box::new(rhs)),
+            );
+
         let conditional_expr = text::keyword("if")
             .ignore_then(expr.clone())
             .then(expr.clone().delimited_by(just('{').padded(), just('}').padded()))
@@ -336,7 +346,7 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
             })
             .boxed();
 
-        choice((closure, conditional_expr, match_expr, comparison))
+        choice((closure, conditional_expr, match_expr, logical))
             .labelled("expression")
             .as_context()
             .boxed()

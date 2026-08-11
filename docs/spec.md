@@ -1453,6 +1453,27 @@ Animatix distinguishes between **fixed-size tuples** `(...)` and **variable-leng
 Tuples of length 2 are inferred as `Vec2`, length 4 as `Vec4`. All other tuples produce a generic tuple type.
 Lists are always inferred as `List<T>` and can be empty `{}` or single-element `{42}`.
 
+### Operators
+
+Binary operator precedence, tightest to loosest:
+
+| Operators | Associativity |
+|-----------|---------------|
+| `^` | Right |
+| `*`, `/`, `%` | Left |
+| `+`, `-` | Left |
+| `==`, `!=`, `<`, `>`, `<=`, `>=` | Left |
+| `&&`, `\|\|` | Left |
+
+Unary `-` and `!` bind tighter than binary operators. Parenthesized
+single expressions are grouping, not tuples: `(a + b)` is `a + b`, while
+`(a, b)` is a two-element tuple.
+
+```animatix
+let clamped = t > 0 && t < 1 || flag
+let value = a + b * c ^ d   // a + (b * (c ^ d))
+```
+
 ### Dotted Paths
 
 **Assignment targets** resolve to runtime actors; final segment = property name.

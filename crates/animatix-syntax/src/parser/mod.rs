@@ -1223,4 +1223,82 @@ mod tests {
             panic!("Expected Assignment");
         }
     }
+
+    #[test]
+    fn parse_logical_operators_with_comparison_precedence() {
+        let src = "let x = t > 0 && t < 1 || flag";
+        let (ast, errors) = crate::parser::parse_source(src);
+        assert!(errors.is_empty(), "parse errors: {:?}", errors);
+        let stmts = ast.expect("parsed AST");
+        let Stmt::LetDecl { value, .. } = &stmts[0] else {
+            panic!("expected let declaration");
+        };
+        let Expr::Binary(left_or, BinaryOp::Or, right) = value else {
+            panic!("expected top-level ||, got: {:?}", value);
+        };
+        assert_eq!(right.as_ref(), &Expr::Ident("flag".to_string()));
+        let Expr::Binary(left_and, BinaryOp::And, _) = left_or.as_ref() else {
+            panic!("expected left side to be &&, got: {:?}", left_or);
+        };
+        assert!(matches!(left_and.as_ref(), Expr::Binary(_, BinaryOp::Gt, _)));
+    }
+
+    #[test]
+    fn parse_power_binds_tighter_than_multiplication() {
+        let src = "let x = a + b * c ^ d";
+        let (ast, errors) = crate::parser::parse_source(src);
+        assert!(errors.is_empty(), "parse errors: {:?}", errors);
+        let stmts = ast.expect("parsed AST");
+        let Stmt::LetDecl { value, .. } = &stmts[0] else {
+            panic!("expected let declaration");
+        };
+        let Expr::Binary(_, BinaryOp::Add, right_add) = value else {
+            panic!("expected top-level +, got: {:?}", value);
+        };
+        let Expr::Binary(_, BinaryOp::Mul, right_mul) = right_add.as_ref() else {
+            panic!("expected multiplication below addition, got: {:?}", right_add);
+        };
+        assert!(
+            matches!(right_mul.as_ref(), Expr::Binary(_, BinaryOp::Pow, _)),
+            "expected power to bind tighter than multiplication, got: {:?}",
+            right_mul
+        );
+    }
+
+    #[test]
+    fn parse_single_parenthesized_expression_is_not_tuple() {
+        let src = "let x = (a + b)";
+        let (ast, errors) = crate::parser::parse_source(src);
+        assert!(errors.is_empty(), "parse errors: {:?}", errors);
+        let stmts = ast.expect("parsed AST");
+        let Stmt::LetDecl { value, .. } = &stmts[0] else {
+            panic!("expected let declaration");
+        };
+        assert!(
+            matches!(value, Expr::Binary(_, BinaryOp::Add, _)),
+            "expected parenthesized binary expression, got: {:?}",
+            value
+        );
+    }
+
+    #[test]
+    fn parse_inline_for_loop_index_variable() {
+        let src = "#0s\nrow: Row {\n  for item, i in {1, 2, 3} {\n    box[i]: Rect, size: (10, item)\n  }\n}\n";
+        let (ast, errors) = crate::parser::parse_source(src);
+        assert!(errors.is_empty(), "parse errors: {:?}", errors);
+        let stmts = ast.expect("parsed AST");
+        let Stmt::Keyframe { body, .. } = &stmts[0] else {
+            panic!("expected keyframe");
+        };
+        let Stmt::ActorDecl { children, .. } = &body[0] else {
+            panic!("expected actor declaration");
+        };
+        match &children[0] {
+            InlineItem::ForLoop { var, index_var, .. } => {
+                assert_eq!(var, &LoopPattern::Single("item".to_string()));
+                assert_eq!(index_var.as_deref(), Some("i"));
+            },
+            other => panic!("expected inline for loop, got: {:?}", other),
+        }
+    }
 }

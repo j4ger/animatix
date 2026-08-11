@@ -1034,11 +1034,11 @@ impl<'a> TsConverter<'a> {
 
     fn convert_tuple(&mut self, node: Node) -> Option<Expr> {
         let items = self.collect_named_exprs(node);
-        if items.is_empty() {
-            // Empty tuple () — could be unit, but Expr::Tuple(vec![]) is fine
-            Some(Expr::Tuple(Vec::new()))
-        } else {
-            Some(Expr::Tuple(items))
+        match items.as_slice() {
+            [] => Some(Expr::Tuple(Vec::new())),
+            // The PEG parser treats `(expr)` as a parenthesized expression.
+            [item] => Some(item.clone()),
+            _ => Some(Expr::Tuple(items)),
         }
     }
 
@@ -1659,18 +1659,29 @@ impl<'a> TsConverter<'a> {
             },
             "inline_property" => Some(RawItem::Property(self.convert_property(node))),
             "inline_for_loop" => {
-                let var = node
-                    .child_by_field_name("variable")
-                    .map(|n| self.node_text(n).to_string())
-                    .unwrap_or_default();
+                let mut variables = Vec::new();
+                let mut cursor = node.walk();
+                for child in node.children_by_field_name("variable", &mut cursor) {
+                    if child.kind() == "identifier" {
+                        variables.push(self.node_text(child).to_string());
+                    }
+                }
+                let var = match variables.as_slice() {
+                    [] => LoopPattern::Single(String::new()),
+                    [name] => LoopPattern::Single(name.clone()),
+                    _ => LoopPattern::Tuple(variables),
+                };
+                let index_var = node
+                    .child_by_field_name("index_variable")
+                    .map(|n| self.node_text(n).to_string());
                 let iterable = node
                     .child_by_field_name("iterable")
                     .and_then(|n| self.convert_expr(n))
                     .unwrap_or(Expr::Null);
                 let body = self.convert_children_block_items(node);
                 Some(RawItem::Item(InlineItem::ForLoop {
-                    var: LoopPattern::Single(var),
-                    index_var: None,
+                    var,
+                    index_var,
                     iterable,
                     body,
                 }))
@@ -1966,6 +1977,41 @@ title: Text, text: "Hello"
                 assert!(matches!(value, Expr::Tuple(_)), "expected tuple, got: {:?}", value);
             },
             other => panic!("expected let, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_single_parenthesized_expression_is_not_tuple() {
+        let source = "let x = (a + b)\n";
+        let result = parse_source(source).expect("parse should succeed");
+        match &result.statements[0] {
+            Stmt::LetDecl { value, .. } => {
+                assert!(
+                    matches!(value, Expr::Binary(_, BinaryOp::Add, _)),
+                    "expected parenthesized binary expression, got: {:?}",
+                    value
+                );
+            },
+            other => panic!("expected let, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_inline_for_loop_index_var() {
+        let source = "#0s\nrow: Row {\n  for item, i in {1, 2, 3} {\n    box[i]: Rect, size: (10, item)\n  }\n}\n";
+        let result = parse_source(source).expect("parse should succeed");
+        let Stmt::Keyframe { body, .. } = &result.statements[0] else {
+            panic!("expected keyframe, got: {:?}", result.statements[0]);
+        };
+        let Stmt::ActorDecl { children, .. } = &body[0] else {
+            panic!("expected actor declaration, got: {:?}", body[0]);
+        };
+        match &children[0] {
+            InlineItem::ForLoop { var, index_var, .. } => {
+                assert_eq!(var, &LoopPattern::Single("item".to_string()));
+                assert_eq!(index_var.as_deref(), Some("i"));
+            },
+            other => panic!("expected inline for loop, got: {:?}", other),
         }
     }
 

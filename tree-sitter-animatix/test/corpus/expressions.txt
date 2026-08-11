@@ -305,6 +305,46 @@ let x = a + b * c
         (identifier)))))
 
 ==================
+Power precedence
+==================
+
+let x = a + b * c ^ d
+
+---
+
+(source_file
+  (let_declaration
+    name: (identifier)
+    value: (binary_expression
+      (identifier)
+      (binary_expression
+        (identifier)
+        (binary_expression
+          (identifier)
+          (identifier))))))
+
+==================
+Logical operators precedence
+==================
+
+let x = t > 0 && t < 1 || flag
+
+---
+
+(source_file
+  (let_declaration
+    name: (identifier)
+    value: (binary_expression
+      (binary_expression
+        (binary_expression
+          (identifier)
+          (number))
+        (binary_expression
+          (identifier)
+          (number)))
+      (identifier))))
+
+==================
 Parenthesized expression
 ==================
 

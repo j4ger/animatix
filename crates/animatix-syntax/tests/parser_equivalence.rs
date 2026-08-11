@@ -101,6 +101,66 @@ const CORPUS: &[(&str, &str)] = &[
         "match expression range",
         "#0s\nbox: Rect\nalways {\n  box.opacity = match t {\n    0..=0 => 1.0,\n    _ => 0.0,\n  }\n}\n",
     ),
+    (
+        "pub declarations and import",
+        "import \"./theme.amx\" as theme\npub let accent = (0.1, 0.2, 0.3)\npub type Accent = Color\npub bars[0]: Rect, size: (10, 10)\n",
+    ),
+    (
+        "config with dotted keys and trailing comma",
+        "config {\n  scene.background: (0.02, 0.03, 0.04),\n  duration: 5.0,\n}\n",
+    ),
+    (
+        "nested path assignments",
+        "#0s\npanel.child.opacity = 0.5\npanel.child.align := right\n",
+    ),
+    (
+        "multi-scene composition",
+        "import \"./scenes.amx\" as scenes\n# Intro\nconfig { duration: 3.0 }\n#0s\ntitle: Text, text: \"Intro\"\nplay scenes.Outro [fade, 300ms]\n# Outro\n#0s\ntitle: Text, text: \"Outro\"\n",
+    ),
+    (
+        "inline children with anonymous and nested actors",
+        "#0s\nrow: Row {\n  a: Rect, size: (10, 10),\n  Text, text: \"hello\",\n  nested: Row {\n    b: Rect, size: (5, 5)\n  }\n}\n",
+    ),
+    (
+        "inline for loop with index",
+        "#0s\nrow: Row {\n  for item, i in {1, 2, 3} {\n    box[i]: Rect, size: (10, item)\n  }\n}\n",
+    ),
+    (
+        "inline for loop tuple pattern",
+        "#0s\nrow: Row {\n  for (x, y) in {(1, 2), (3, 4)} {\n    point: Rect, at: (x, y)\n  }\n}\n",
+    ),
+    (
+        "slot marker and fill",
+        "pub component Card {\n  header: Row { @slot }\n}\ncard: Card {\n  @header {\n    title: Text, text: \"Hi\"\n  }\n}\n",
+    ),
+    (
+        "complex expression forms",
+        "#0s\nbox: Rect\nalways {\n  let pairs = {(1, 2), (3, 4)}\n  let button = Button { text: \"OK\" }\n  box.color = mix(red, blue, t)\n  box.opacity = clamp(t, 0, 1)\n  box.rotation = -t\n  box.visible = !flag\n  box.scale = 50%\n  box.label = null\n}\n",
+    ),
+    (
+        "action targets paths and indices",
+        "#0s\nmove parent.child [300ms]\nfade-in bars[0] [300ms]\n",
+    ),
+    (
+        "match statement complex patterns",
+        "#0s\nmatch state {\n  (\"ready\", 0) => { box.color = green }\n  (\"waiting\", 1) | (\"paused\", _) => { box.color = yellow }\n  true => { box.color = white }\n  _ => { box.color = red }\n}\n",
+    ),
+    (
+        "match expression complex patterns",
+        "#0s\nbox: Rect\nalways {\n  box.color = match state {\n    (\"ready\", 0) => green,\n    (\"waiting\", 1) | (\"paused\", _) => yellow,\n    _ => red,\n  }\n}\n",
+    ),
+    (
+        "multi-parameter closure and function arguments",
+        "#0s\nlet lerp2 = (a, b, t) => a + (b - a) * t\nbox.color = mix(red, blue, 0.5)\n",
+    ),
+    (
+        "if expression and logical operators",
+        "#0s\nbox: Rect\nalways {\n  box.visible = t > 0 && t < 1 || flag\n  box.color = if ready { green } else { red }\n}\n",
+    ),
+    (
+        "operator precedence with power",
+        "#0s\nlet x = a + b * c ^ d\n",
+    ),
 ];
 
 
