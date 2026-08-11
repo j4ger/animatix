@@ -187,11 +187,14 @@ impl DocumentSession {
     }
 
     pub fn rebuild(&mut self) -> Result<(), GuiError> {
-        // Skip rebuild if source text hasn't changed since last successful build
+        // Skip rebuild if source text hasn't changed since last successful build.
+        // A failure marker forces a retry even when the timeline survived, so
+        // last-known-good state never suppresses the next rebuild.
         let mut hasher = DefaultHasher::new();
         self.source_text.hash(&mut hasher);
         let source_hash = hasher.finish();
         if source_hash == self.last_source_hash
+            && self.last_rebuild_error.is_none()
             && (self.timeline.is_some() || self.composition.is_some())
         {
             return Ok(());
@@ -437,23 +440,19 @@ impl DocumentSession {
     }
 
     /// Apply a failed background rebuild output to this session.
+    ///
+    /// Keeps the last-known-good AST, timeline, and source index so inspector
+    /// edits remain available while the source is temporarily invalid. Only the
+    /// failure/error state and diagnostics are replaced.
     pub fn apply_rebuild_failure(
         &mut self,
         failure: &crate::app::document::rebuild_output::RebuildFailure,
     ) {
         self.last_rebuild_error = Some(failure.error.clone());
-        // Mirror the error arm of rebuild(): clear built state
-        self.raw_statements = None;
-        self.expanded_statements = None;
-        self.timeline = None;
-        self.composition = None;
-        self.active_scene = None;
         self.diagnostics = failure.diagnostics.clone();
-        self.source_index = failure.partial_source_index.clone();
-        self.timeline_index = TimelineIndex::default();
-        self.keyframe_lines = Vec::new();
-        self.duration_s = 0.1;
-        self.scene_dimensions = SceneDimensions::default();
+        if self.source_index.is_none() {
+            self.source_index = failure.partial_source_index.clone();
+        }
     }
 
     /// Load the program, returning a structured result.
@@ -1264,5 +1263,58 @@ scene: Rect, size: (100, 100)
         assert!(document.diagnostics[0].location.line.is_some());
         assert!(document.diagnostics[0].location.column.is_some());
         assert!(document.last_rebuild_error.is_some());
+    }
+
+    #[test]
+    fn apply_rebuild_failure_keeps_last_good_ast_and_timeline() {
+        let dir = temp_project_dir("document_apply_rebuild_failure").unwrap();
+        let entry = dir.join("scene.amx");
+
+        write_file(
+            &entry,
+            "#0s\nbox: Rect, size: (100, 100)\n",
+        )
+        .unwrap();
+
+        let mut document =
+            DocumentSession::load(entry.clone()).expect("valid document should load");
+        assert!(document.raw_statements.is_some());
+        assert!(document.timeline.is_some());
+
+        document.apply_rebuild_failure(&crate::app::document::rebuild_output::RebuildFailure {
+            error: "rejected source".to_string(),
+            diagnostics: vec![animatix_syntax::diagnostics::Diagnostic::error(
+                animatix_syntax::diagnostics::DiagnosticCode::ParseError,
+                animatix_syntax::diagnostics::DiagnosticPhase::Parse,
+                "rejected source",
+            )],
+            partial_source_index: None,
+        });
+
+        assert_eq!(document.last_rebuild_error.as_deref(), Some("rejected source"));
+        assert_eq!(document.diagnostics.len(), 1);
+        assert!(document.raw_statements.is_some(), "raw AST should survive failure");
+        assert!(document.timeline.is_some(), "last-known-good timeline should survive failure");
+        assert!(document.source_index.is_some(), "last-known-good source index should survive");
+    }
+
+    #[test]
+    fn failed_rebuild_marker_forces_next_rebuild_retry() {
+        let dir = temp_project_dir("document_failure_retry").unwrap();
+        let entry = dir.join("scene.amx");
+
+        write_file(
+            &entry,
+            "#0s\nbox: Rect, size: (100, 100)\n",
+        )
+        .unwrap();
+
+        let mut document =
+            DocumentSession::load(entry.clone()).expect("valid document should load");
+        document.last_rebuild_error = Some("stale failure".to_string());
+
+        document.rebuild().expect("rebuild should retry despite the failure marker");
+        assert!(document.last_rebuild_error.is_none());
+        assert!(document.timeline.is_some());
     }
 }
