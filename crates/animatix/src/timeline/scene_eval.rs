@@ -1104,10 +1104,17 @@ impl Timeline {
 
         for root in &self.root_nodes {
             // P2.17: Static subtree cache — fully-static subtrees are evaluated once
-            // and their vello encoding is reused on all subsequent frames.
-            if filter_backend.is_none() && self.is_static_subtree(root) {
+            // and their vello encoding is reused on subsequent frames. Debug
+            // options are part of the key so overlays cannot reuse a plain scene;
+            // hit-region evaluation is never cached because a cache hit would
+            // skip the per-node bounds collection.
+            if filter_backend.is_none()
+                && !debug_options.compute_hit_regions
+                && self.is_static_subtree(root)
+            {
+                let cache_key = (root.clone(), debug_options);
                 let cache = self.static_subtree_cache.borrow_mut();
-                if let Some(cached_scene) = cache.get(root) {
+                if let Some(cached_scene) = cache.get(&cache_key) {
                     // Fast path: append cached encoding directly
                     scene.encoding_mut().append(cached_scene.encoding(), &None);
                 } else {
@@ -1130,7 +1137,7 @@ impl Timeline {
                     );
                     // Append to main scene and cache for next time
                     scene.encoding_mut().append(temp_scene.encoding(), &None);
-                    self.static_subtree_cache.borrow_mut().insert(root.clone(), temp_scene);
+                    self.static_subtree_cache.borrow_mut().insert(cache_key, temp_scene);
                 }
             } else {
                 self.evaluate_node(

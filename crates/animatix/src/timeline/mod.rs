@@ -253,7 +253,7 @@ use crate::easing::*;
 use crate::timeline::modifier_runtime::ir::ModifierIrProgram;
 
 /// Layout strategy for container actors.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum LayoutType {
     /// Horizontal left-to-right flow.
     Row,
@@ -304,7 +304,7 @@ pub struct ContainerLayoutChild {
 }
 
 /// Metadata describing the layout configuration of a container actor.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ContainerMetadata {
     /// Row, Col, Grid, or Stack.
     pub layout_type: LayoutType,
@@ -371,9 +371,12 @@ impl ContainerMetadata {
 /// when children's layout sizes haven't changed between frames.
 #[derive(Clone, Debug)]
 pub struct LayoutEngine {
-    /// Per-container layout cache. Keyed by container child-order string.
+    /// Per-container layout cache keyed by all layout inputs.
     pub(crate) cache: std::cell::RefCell<
-        std::collections::HashMap<String, crate::timeline::layout::LayoutCacheEntry>,
+        std::collections::HashMap<
+            crate::timeline::layout::LayoutCacheKey,
+            crate::timeline::layout::LayoutCacheEntry,
+        >,
     >,
 }
 
@@ -393,7 +396,7 @@ pub struct SceneDimensions {
 }
 
 /// Optional debug overlays for the renderer.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub struct DebugRenderOptions {
     /// Draw bounding-box outlines around actors.
     pub draw_bounds: bool,
@@ -517,9 +520,11 @@ pub struct Timeline {
     /// Cleared on timeline rebuild.
     transform_cache: std::cell::RefCell<std::collections::HashMap<String, TransformCacheEntry>>,
     /// Static subtree scene fragment cache (P2.17).
-    /// Maps root_label -> cached vello Scene for fully-static subtrees.
-    /// Cleared on timeline rebuild.
-    static_subtree_cache: std::cell::RefCell<std::collections::HashMap<String, vello::Scene>>,
+    /// Maps (root_label, debug options) -> cached vello Scene for fully-static
+    /// subtrees. Debug options are part of the key because overlays change the
+    /// encoded output; hit-region evaluation bypasses this cache entirely.
+    static_subtree_cache:
+        std::cell::RefCell<std::collections::HashMap<(String, DebugRenderOptions), vello::Scene>>,
     /// Reusable vello scene buffer (P2.25). Avoids allocating fresh encoding
     /// buffers on every frame by calling scene.reset() between evaluations.
     scene_buffer: std::cell::RefCell<Option<vello::Scene>>,
@@ -635,10 +640,10 @@ impl Timeline {
             child_orders: BTreeMap::new(),
             persistence_flags: BTreeMap::new(),
             text_compiler: std::cell::RefCell::new(crate::renderer::text::TextCompiler::new()),
-            frame_cache: std::cell::RefCell::new(None),
-            transform_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
-            static_subtree_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
-            scene_buffer: std::cell::RefCell::new(None),
+            frame_cache: std::cell::RefCell::new(None), // cache is not cloned
+            transform_cache: std::cell::RefCell::new(std::collections::HashMap::new()), /* cache is not cloned */
+            static_subtree_cache: std::cell::RefCell::new(std::collections::HashMap::new()), /* cache is not cloned */
+            scene_buffer: std::cell::RefCell::new(None), // buffer is not cloned
             hit_regions: std::cell::RefCell::new(Vec::new()),
             variable_tracks: BTreeMap::new(),
             audio_segments: Vec::new(),
@@ -870,6 +875,7 @@ impl Timeline {
         // No child_orders track — delegate to static layout
         let layout_children = self.layout_children_for(container_label);
         self.layout_engine.compute_layout_for_time(
+            container_label,
             metadata,
             &layout_children,
             time_ms,
@@ -894,7 +900,11 @@ impl Timeline {
     }
 
     /// Returns a mutable reference to the track for the given label, if it exists.
+    ///
+    /// Invalidates the frame cache before returning, because any mutation to
+    /// the track can change the rendered scene at the cached time.
     pub fn get_track_mut(&mut self, label: &str) -> Option<&mut AnimationTrack> {
+        self.invalidate_frame_cache();
         self.tracks.get_mut(label)
     }
 
@@ -922,7 +932,11 @@ impl Timeline {
     }
 
     /// Returns a mutable reference to all tracks.
+    ///
+    /// Invalidates the frame cache before returning, because the caller can
+    /// mutate any track through this map.
     pub fn tracks_mut(&mut self) -> &mut BTreeMap<String, AnimationTrack> {
+        self.invalidate_frame_cache();
         &mut self.tracks
     }
 
@@ -932,7 +946,11 @@ impl Timeline {
     }
 
     /// Returns a mutable reference to the container metadata map.
+    ///
+    /// Invalidates the frame cache before returning, because layout metadata
+    /// changes affect rendered positions.
     pub fn container_metadata_mut(&mut self) -> &mut BTreeMap<String, ContainerMetadata> {
+        self.invalidate_frame_cache();
         &mut self.container_metadata
     }
 
@@ -947,7 +965,11 @@ impl Timeline {
     }
 
     /// Returns a mutable reference to the environment.
+    ///
+    /// Invalidates the frame cache before returning, because environment
+    /// changes can affect modifier/plot evaluation on the next frame.
     pub fn env_mut(&mut self) -> &mut Environment {
+        self.invalidate_frame_cache();
         &mut self.env
     }
 
@@ -993,7 +1015,8 @@ impl Timeline {
     ///
     /// Call this after mutating track data (e.g. adding keyframes or changing
     /// default values) so the next `evaluate()` produces a fresh scene instead
-    /// of returning a stale cached one.
+    /// of returning a stale cached one. Public mutable track/metadata/env
+    /// accessors invoke this automatically.
     pub fn invalidate_frame_cache(&self) {
         *self.frame_cache.borrow_mut() = None;
         *self.static_subtree_cache.borrow_mut() = std::collections::HashMap::new();
@@ -1085,6 +1108,7 @@ impl Timeline {
                 if let Some(metadata) = self.container_metadata.get(node_label.as_str()) {
                     let layout_children = self.layout_children_for(node_label.as_str());
                     current_layout_positions = self.layout_engine.compute_layout_for_time(
+                        node_label.as_str(),
                         metadata,
                         &layout_children,
                         time_ms,

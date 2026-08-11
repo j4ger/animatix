@@ -64,7 +64,10 @@ fn static_scene_cache_populated_after_first_evaluate() {
         !cache.is_empty(),
         "static subtree cache should be populated after first evaluate"
     );
-    assert!(cache.contains_key("box1"), "cache should contain box1");
+    assert!(
+        cache.contains_key(&("box1".to_string(), DebugRenderOptions::default())),
+        "cache should contain box1"
+    );
     drop(cache);
 
     // Second evaluation at different time — should use cached encoding
@@ -73,6 +76,132 @@ fn static_scene_cache_populated_after_first_evaluate() {
     // Cache should still have entries
     let cache2 = timeline.static_subtree_cache.borrow();
     assert!(!cache2.is_empty(), "static subtree cache should still have entries");
+}
+
+#[test]
+fn static_scene_cache_is_keyed_by_debug_options() {
+    let ast = vec![
+        Stmt::Config {
+            settings: vec![Property {
+                name: "colorscheme".to_string(),
+                value: Expr::Str("editorial-dark".to_string()),
+                value_span: None,
+                trailing_comment: None,
+            }],
+            span: None,
+        },
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "box1".to_string(),
+                array_index: None,
+                ty: "Rect".to_string(),
+                props: vec![
+                    Property {
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "color".to_string(),
+                        value: Expr::Ident("accent.primary".to_string()),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            }],
+            span: None,
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
+
+    let _default =
+        timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default(), &mut None);
+    let debug_opts = DebugRenderOptions {
+        draw_bounds: true,
+        ..DebugRenderOptions::default()
+    };
+    let _debug = timeline.evaluate_with_debug(0.0, dims, debug_opts, &mut None);
+
+    let cache = timeline.static_subtree_cache.borrow();
+    assert!(cache.contains_key(&("box1".to_string(), DebugRenderOptions::default())));
+    assert!(cache.contains_key(&("box1".to_string(), debug_opts)));
+    assert_eq!(cache.len(), 2, "debug options must not reuse the default scene");
+}
+
+#[test]
+fn static_scene_cache_is_bypassed_for_hit_regions() {
+    let ast = vec![
+        Stmt::Config {
+            settings: vec![Property {
+                name: "colorscheme".to_string(),
+                value: Expr::Str("editorial-dark".to_string()),
+                value_span: None,
+                trailing_comment: None,
+            }],
+            span: None,
+        },
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(0.0),
+            body: vec![Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "box1".to_string(),
+                array_index: None,
+                ty: "Rect".to_string(),
+                props: vec![
+                    Property {
+                        name: "size".to_string(),
+                        value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "color".to_string(),
+                        value: Expr::Ident("accent.primary".to_string()),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            }],
+            span: None,
+        },
+    ];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
+
+    let _default =
+        timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default(), &mut None);
+    let hit_opts = DebugRenderOptions {
+        compute_hit_regions: true,
+        ..DebugRenderOptions::default()
+    };
+    let _hit = timeline.evaluate_with_debug(0.0, dims, hit_opts, &mut None);
+
+    assert!(
+        !timeline.hit_regions().is_empty(),
+        "hit-region evaluation must recompute regions instead of reusing a cached scene"
+    );
 }
 
 #[test]

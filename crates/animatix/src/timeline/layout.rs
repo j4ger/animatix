@@ -266,10 +266,101 @@ use super::{ContainerMetadata, LayoutEngine};
 /// Cached layout computation result for a single container.
 #[derive(Clone, Debug)]
 pub(crate) struct LayoutCacheEntry {
-    /// Input fingerprint: (half_size_x, half_size_y, placement_mode_idx) per child.
-    child_fingerprints: Vec<([f32; 2], u8)>,
     /// Cached output positions.
     positions: BTreeMap<String, [f32; 2]>,
+}
+
+/// Deterministic cache key for a dynamic layout call.
+///
+/// Floats are converted to their bit representation so exact authored inputs
+/// map to one entry without requiring `Hash` on every layout value type.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct LayoutCacheKey {
+    /// Container label, used to avoid collisions between containers whose
+    /// authored child-order strings happen to be identical.
+    container: String,
+    /// Layout type plus authored configuration values.
+    layout_type: u8,
+    gap: [u32; 2],
+    padding: [u32; 4],
+    align: String,
+    vertical_align: String,
+    cols: Option<usize>,
+    /// Child labels, so membership/order changes invalidate the entry.
+    child_labels: Vec<String>,
+    /// Child size/placement fingerprints.
+    child_fingerprints: Vec<([u32; 2], u8)>,
+    /// Baseline alignment values.
+    child_baselines: Vec<u32>,
+    /// Size specs and constraints used by percentage/grid layouts.
+    size_specs: Vec<[u32; 4]>,
+    constraints: Vec<[u32; 4]>,
+    /// Parent content box size for percentage resolution.
+    parent_content_size: [u32; 2],
+}
+
+fn f32_bits(v: f32) -> u32 {
+    v.to_bits()
+}
+
+fn size_spec_fingerprint(spec: Option<super::taffy_layout::ChildSizeSpec>) -> [u32; 4] {
+    use super::taffy_layout::SizeSpec;
+    fn dimension(spec: SizeSpec) -> [u32; 2] {
+        match spec {
+            SizeSpec::Fixed(v) => [0, f32_bits(v)],
+            SizeSpec::Percent(v) => [1, f32_bits(v)],
+            SizeSpec::Auto => [2, 0],
+            SizeSpec::Fill => [3, 0],
+            SizeSpec::Fit => [4, 0],
+        }
+    }
+    match spec {
+        Some(s) => {
+            let w = dimension(s.width);
+            let h = dimension(s.height);
+            [w[0], w[1], h[0], h[1]]
+        },
+        None => [0, 0, 0, 0],
+    }
+}
+
+fn constraints_fingerprint(c: super::taffy_layout::SizeConstraints) -> [u32; 4] {
+    [
+        c.min_width.map(f32_bits).unwrap_or(0),
+        c.max_width.map(f32_bits).unwrap_or(0),
+        c.min_height.map(f32_bits).unwrap_or(0),
+        c.max_height.map(f32_bits).unwrap_or(0),
+    ]
+}
+
+fn layout_cache_key(
+    container: &str,
+    metadata: &ContainerMetadata,
+    child_labels: &[String],
+    fingerprints: &[([f32; 2], u8)],
+    baselines: &[f32],
+    size_specs: Vec<Option<super::taffy_layout::ChildSizeSpec>>,
+    constraints: Vec<super::taffy_layout::SizeConstraints>,
+    parent_content_size: [f32; 2],
+) -> LayoutCacheKey {
+    LayoutCacheKey {
+        container: container.to_string(),
+        layout_type: metadata.layout_type as u8,
+        gap: metadata.gap.map(f32_bits),
+        padding: metadata.padding.map(f32_bits),
+        align: metadata.align.clone(),
+        vertical_align: metadata.vertical_align.clone(),
+        cols: metadata.cols,
+        child_labels: child_labels.to_vec(),
+        child_fingerprints: fingerprints
+            .iter()
+            .map(|&(size, mode)| (size.map(f32_bits), mode))
+            .collect(),
+        child_baselines: baselines.iter().map(|v| f32_bits(*v)).collect(),
+        size_specs: size_specs.into_iter().map(size_spec_fingerprint).collect(),
+        constraints: constraints.into_iter().map(constraints_fingerprint).collect(),
+        parent_content_size: parent_content_size.map(f32_bits),
+    }
 }
 
 impl LayoutEngine {
@@ -384,6 +475,7 @@ impl LayoutEngine {
     /// call, the cached positions are returned without recomputing via Taffy.
     pub fn compute_layout_for_time(
         &self,
+        container_label: &str,
         metadata: &ContainerMetadata,
         layout_children: &[ContainerLayoutChild],
         time_ms: u64,
@@ -407,23 +499,31 @@ impl LayoutEngine {
         let fingerprints: Vec<([f32; 2], u8)> =
             child_extents.iter().map(|c| (c.half_size, c.placement_mode as u8)).collect();
 
-        // Check cache — use container label from first child's parent context.
-        // We key on the child labels themselves to detect structural changes.
-        let cache_key = metadata.child_order.join("|");
-        {
-            let cache = self.cache.borrow();
-            if let Some(entry) = cache.get(&cache_key) {
-                if entry.child_fingerprints == fingerprints {
-                    return entry.positions.clone();
-                }
-            }
-        }
-
         // Sample child baselines for baseline alignment
         let child_baselines: Vec<f32> = layout_children
             .iter()
             .map(|child| tracks.get(&child.label).map(|t| t.baseline_get(time_ms)).unwrap_or(0.0))
             .collect();
+
+        // The dynamic path uses baseline layout today; build a deterministic key
+        // from every layout input so a metadata or track change cannot reuse a
+        // stale result.
+        let cache_key = layout_cache_key(
+            container_label,
+            metadata,
+            &child_extents.iter().map(|c| c.label.clone()).collect::<Vec<_>>(),
+            &fingerprints,
+            &child_baselines,
+            Vec::new(),
+            Vec::new(),
+            [0.0, 0.0],
+        );
+        {
+            let cache = self.cache.borrow();
+            if let Some(entry) = cache.get(&cache_key) {
+                return entry.positions.clone();
+            }
+        }
 
         let positions =
             Self::compute_positions_with_baselines(metadata, &child_extents, &child_baselines);
@@ -440,7 +540,6 @@ impl LayoutEngine {
         self.cache.borrow_mut().insert(
             cache_key,
             LayoutCacheEntry {
-                child_fingerprints: fingerprints,
                 positions: result.clone(),
             },
         );

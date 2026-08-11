@@ -35,6 +35,43 @@ mod taffy_layout;
 mod variable_tracks;
 
 #[test]
+fn get_track_mut_invalidates_frame_cache() {
+    let ast = vec![Stmt::Keyframe {
+        time: crate::ast::Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "box0".to_string(),
+            array_index: None,
+            ty: "Rect".to_string(),
+            props: vec![Property {
+                name: "size".to_string(),
+                value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+                value_span: None,
+                trailing_comment: None,
+            }],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }],
+        span: None,
+    }];
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let mut timeline = report.output;
+    let dims = SceneDimensions {
+        width: 100,
+        height: 100,
+    };
+    let _scene = timeline.evaluate(0.0, dims);
+    assert!(timeline.frame_cache.borrow().is_some());
+    let _track = timeline.get_track_mut("box0");
+    assert!(
+        timeline.frame_cache.borrow().is_none(),
+        "get_track_mut should invalidate the frame cache"
+    );
+}
+
+#[test]
 fn test_animated_scene_has_keyframes() {
     let ast = vec![
         Stmt::Config {
