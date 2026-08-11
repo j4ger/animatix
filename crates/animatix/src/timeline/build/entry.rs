@@ -271,7 +271,7 @@ impl Timeline {
                             diagnostics.push(Diagnostic::warning(
                                 DiagnosticCode::ModifierCompilationError,
                                 DiagnosticPhase::Build,
-                                format!("Bytecode compilation failed: {}. Using IR fallback.", e),
+                                format!("Bytecode compilation failed: {}. Using AST fallback.", e),
                             ));
                         },
                     }

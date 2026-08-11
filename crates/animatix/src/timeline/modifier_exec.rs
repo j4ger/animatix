@@ -9,7 +9,7 @@
 
 use tracing::warn;
 
-use super::modifier_runtime::{ir, vm};
+use super::modifier_runtime::vm;
 use super::{
     EvalError, SceneDimensions, Stmt, Timeline, Value, assignment_target_key_with_env,
     evaluate_expr,
@@ -146,18 +146,6 @@ impl Timeline {
             },
             _ => {},
         }
-    }
-
-    /// Execute a modifier IR program against the current frame environment.
-    pub fn apply_modifier_ir_program(
-        &self,
-        program: &ir::ModifierIrProgram,
-        _time_ms: u64,
-        _scene_dimensions: SceneDimensions,
-        frame_env: &mut super::Environment,
-        overrides: &mut std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
-    ) -> Result<(), EvalError> {
-        ir::execute_modifier_ir(program, frame_env, overrides)
     }
 
     /// Execute a modifier bytecode program against the current frame environment.

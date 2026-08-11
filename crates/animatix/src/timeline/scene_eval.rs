@@ -1051,26 +1051,13 @@ impl Timeline {
             None
         };
 
-        // Use compiled bytecode for fastest evaluation; fall back to IR, then AST
+        // Use compiled bytecode for fastest evaluation; fall back to AST for
+        // statements that could not be lowered or compiled.
         let mut modifier_errors: Vec<EvalError> = Vec::new();
         if !self.modifier_bytecode_programs.is_empty() {
             if let Some(ref mut env) = frame_env {
                 for program in &self.modifier_bytecode_programs {
                     if let Err(e) = self.apply_modifier_bytecode_program(
-                        program,
-                        time_ms,
-                        scene_dimensions,
-                        env,
-                        &mut overrides,
-                    ) {
-                        modifier_errors.push(e);
-                    }
-                }
-            }
-        } else if !self.modifier_programs.is_empty() {
-            if let Some(ref mut env) = frame_env {
-                for program in &self.modifier_programs {
-                    if let Err(e) = self.apply_modifier_ir_program(
                         program,
                         time_ms,
                         scene_dimensions,

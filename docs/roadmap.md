@@ -35,7 +35,7 @@ themes, CI platform parity, and `StyledExt` helpers.
 | Unify GUI and core property value models | Complete; GUI `PropertyValue` is now a type alias to core `PropertyValue`. `StringList` was added to core, and commands, validation, inspector, spreadsheet, and gestures all use the shared model. |
 | Clean up tree-sitter grammar conflicts | Complete; the conflict block was reduced to the necessary GLR set and `tree-sitter generate` now reports no unnecessary-conflict warnings. Corpus tests and parser sync pass. |
 | Make `LegendTracks` metadata generic | Partially complete; title, font size, label color, swatch size, gap, and wrapping now live in generic tagged property tracks with cached `LegendTracks` fields retained for GUI/serde compatibility. |
-| Merge tree-walker and IR/VM into single execution engine | Needs design spike before scheduling. Batch 6 (#12) extracted shared helpers, but the dual-path-with-fallback is currently a safety feature for closures. |
+| Merge tree-walker and IR/VM into single execution engine | Partially complete; the IR runtime fallback is removed and the VM is the single modifier executor, with an `EvalExpr` instruction for unsupported AST nodes. Closure bodies still use raw AST because `Value::Closure` is shared with plot evaluation; compiling them needs a shared core compiled-expression type. |
 
 ### Language and Runtime Gaps
 

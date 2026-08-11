@@ -179,15 +179,9 @@ always {
 
     // Execute modifier programs against the env
     let mut local_overrides = std::collections::HashMap::new();
-    if !timeline.modifier_programs.is_empty() {
+    if let Some(program) = timeline.modifier_bytecode_programs.first() {
         timeline
-            .apply_modifier_ir_program(
-                &timeline.modifier_programs[0],
-                1000,
-                DIMS,
-                &mut env,
-                &mut local_overrides,
-            )
+            .apply_modifier_bytecode_program(program, 1000, DIMS, &mut env, &mut local_overrides)
             .expect("modifier execution should succeed");
     }
 

@@ -107,6 +107,9 @@ pub enum Instruction {
         /// Property name to override.
         property: String,
     },
+    /// Evaluate an AST expression directly and push its value. Used for
+    /// expression shapes that are not yet lowered into bytecode.
+    EvalExpr(Box<Expr>),
     /// Snapshot the current environment and push a closure value.
     MakeClosure {
         /// Closure parameter names.
@@ -281,7 +284,10 @@ impl BytecodeCompiler {
     fn compile_modifier_expr(&mut self, expr: &ModifierExpr) -> Result<(), VmCompileError> {
         match expr {
             ModifierExpr::Compiled(expr) => self.compile_expr(expr),
-            ModifierExpr::Unsupported(_) => Err(VmCompileError::UnsupportedExpr),
+            ModifierExpr::Unsupported(expr) => {
+                self.instructions.push(Instruction::EvalExpr(Box::new(expr.clone())));
+                Ok(())
+            },
         }
     }
 
@@ -690,6 +696,11 @@ impl ModifierVm {
                     );
                     self.ip += 1;
                 },
+                Instruction::EvalExpr(expr) => {
+                    let value = crate::timeline::evaluate_expr(expr, frame_env)?;
+                    self.stack.push(value);
+                    self.ip += 1;
+                },
                 Instruction::MakeClosure { params, body } => {
                     let captures = CapturedEnv::snapshot(frame_env);
                     self.stack.push(Value::Closure(params.clone(), body.clone(), captures));
@@ -772,6 +783,7 @@ impl fmt::Display for ModifierBytecodeProgram {
                 Instruction::WriteOverrideIndexed { base, property } => {
                     writeln!(f, "{idx}: WriteOverrideIndexed {base} {property}")?
                 },
+                Instruction::EvalExpr(expr) => writeln!(f, "{idx}: EvalExpr {:?}", expr)?,
                 Instruction::MakeClosure { params, body: _ } => {
                     writeln!(f, "{idx}: MakeClosure {:?}", params)?
                 },
@@ -782,5 +794,35 @@ impl fmt::Display for ModifierBytecodeProgram {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::Expr;
+    use crate::timeline::Environment;
+    use crate::timeline::modifier_runtime::ir::{
+        ModifierExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides,
+    };
+
+    #[test]
+    fn unsupported_expr_compiles_and_executes_via_fallback() {
+        let program = ModifierIrProgram {
+            statements: vec![ModifierIrStmt::Assign {
+                target: vec!["box".to_string()],
+                property: "opacity".to_string(),
+                value: ModifierExpr::Unsupported(Expr::Num(0.5)),
+            }],
+        };
+        let bytecode = compile_modifier_bytecode(&program).expect("fallback should compile");
+        let mut env = Environment::new();
+        let mut overrides = ModifierOverrides::default();
+        execute_modifier_bytecode(&bytecode, &mut env, &mut overrides)
+            .expect("fallback should execute");
+        assert_eq!(
+            overrides.get("box").and_then(|props| props.get("opacity")),
+            Some(&Value::Num(0.5))
+        );
     }
 }
