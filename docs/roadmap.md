@@ -36,7 +36,7 @@ target before implementation.
 | GUI mutation/cache/snapshot convergence | Done for the core path. `commit_source`/`replace_text` invalidate caches, and `DocumentStore::with_mutation` scopes snapshot finalize/abort. Remaining handlers can migrate opportunistically. |
 | Rebuild worker lifecycle | Done. `RebuildWorker::submit` restarts a dead worker thread. |
 | Type model vs annotation grammar | Open. Internal `Type::Vec3/Tuple/Function` still degrade to `Any` annotations because the language grammar has no corresponding forms. Expand only when parser, tree-sitter, typechecker, and analyzer can be updated together. |
-| Parser-sync AST equivalence | Partially done. Corpus-level equivalence tests now cover actions, keyframes, scenes, modifiers, shorthand, for loops, reactive bindings, sequence/stagger, and component/action definitions. Expand coverage as new syntax lands. Note: spec's `match` statement examples omit arm commas while the PEG parser requires them; decide and document the canonical form before adding `match` to the equivalence corpus. |
+| Parser-sync AST equivalence | Partially done. Corpus-level equivalence tests now cover actions, keyframes, scenes, modifiers, shorthand, for loops, reactive bindings, sequence/stagger, component/action definitions, method/if expressions, and parameter defaults. Tree-sitter converter gaps found by this corpus have been fixed. Expand coverage as new syntax lands. Note: spec's `match` statement examples omit arm commas while the PEG parser requires them; decide and document the canonical form before adding `match` to the equivalence corpus. |
 
 ### GUI Follow-Ups
 
