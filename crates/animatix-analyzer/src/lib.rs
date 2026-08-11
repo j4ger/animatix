@@ -85,14 +85,13 @@ impl Analyzer {
 
         self.source = source.to_string();
 
-        // Parse through the analyzer's incremental tree-sitter pipeline. The
-        // tree-sitter CST is retained for positions/completions while the
-        // semantic AST still comes from the PEG parser when no tree is
-        // available, so these two uses stay honest.
+        // Parse through the combined canonical pipeline: Chumsky produces the
+        // semantic AST, while tree-sitter is retained only as the CST used for
+        // positions, completions, and incremental re-parsing.
         let parsed = if let Some(old_tree) = self.tree.as_ref() {
-            animatix_syntax::parser::reparse_ts_canonical(source, old_tree)
+            animatix_syntax::parser::reparse_canonical_with_cst(source, old_tree)
         } else {
-            animatix_syntax::parser::parse_ts_canonical(source)
+            animatix_syntax::parser::parse_canonical_with_cst(source)
         };
 
         self.ast = parsed.statements;

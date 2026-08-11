@@ -27,8 +27,11 @@ impl Workspace {
     }
 
     /// Add or update a file in the workspace.
+    ///
+    /// Symbols are built from the canonical semantic AST so cross-file analysis
+    /// agrees with the runtime/module pipeline; tree-sitter is not used here.
     pub fn add_file(&mut self, path: PathBuf, source: &str) {
-        let result = animatix_syntax::parser::parse_ts_canonical(source);
+        let result = animatix_syntax::parser::parse_canonical(source);
         let mut symbols = result
             .statements
             .as_ref()

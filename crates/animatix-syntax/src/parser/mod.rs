@@ -141,33 +141,6 @@ pub struct ParseResult {
     pub tree: Option<tree_sitter::Tree>,
 }
 
-impl ParseResult {
-    fn from_ts(result: crate::ts_convert::TsParseResult) -> Self {
-        let parse_errors = result
-            .diagnostics
-            .iter()
-            .map(|d| {
-                let span = d.location.span.clone().unwrap_or(0..0);
-                ParseError {
-                    message: d.message.clone(),
-                    span,
-                    line: d.location.line.unwrap_or(1),
-                    column: d.location.column.unwrap_or(1),
-                    expected: Vec::new(),
-                    found: None,
-                    context: Vec::new(),
-                }
-            })
-            .collect();
-        Self {
-            statements: Some(result.statements),
-            parse_errors,
-            warnings: Vec::new(),
-            tree: Some(result.tree),
-        }
-    }
-}
-
 /// Parse source through the canonical semantic parse pipeline.
 ///
 /// Chumsky remains the executable source of truth for the semantic AST.
@@ -183,27 +156,38 @@ pub fn parse_canonical(source: &str) -> ParseResult {
     }
 }
 
-/// Parse source through the tree-sitter CST→AST pipeline.
+/// Parse source with the canonical semantic parser while retaining a CST.
 ///
-/// This is the analyzer's incremental entry point. It produces a best-effort
-/// AST from malformed trees and falls back to the semantic parser when
-/// tree-sitter cannot produce a tree.
-pub fn parse_ts_canonical(source: &str) -> ParseResult {
-    match crate::ts_convert::parse_source(source) {
-        Some(result) => ParseResult::from_ts(result),
-        None => parse_canonical(source),
+/// This is the analyzer entry point: the semantic AST comes from Chumsky, while
+/// tree-sitter is retained only as the CST used for positions, completions, and
+/// incremental re-parsing.
+pub fn parse_canonical_with_cst(source: &str) -> ParseResult {
+    let (statements, parse_errors, warnings) = parse_source_diagnostics(source);
+    let tree = crate::ts_convert::parse_source(source).map(|result| result.tree);
+    ParseResult {
+        statements,
+        parse_errors,
+        warnings,
+        tree,
     }
 }
 
-/// Re-parse source incrementally with a previous tree-sitter tree.
+/// Re-parse source incrementally while keeping the semantic parser as the AST
+/// source of truth.
 ///
-/// Falls back to a full tree-sitter parse, then the semantic parser, when
-/// incremental parsing fails so callers still receive the best AST/error
-/// result available.
-pub fn reparse_ts_canonical(source: &str, old_tree: &tree_sitter::Tree) -> ParseResult {
-    match crate::ts_convert::reparse(source, old_tree) {
-        Some(result) => ParseResult::from_ts(result),
-        None => parse_ts_canonical(source),
+/// The tree-sitter CST is incrementally reparsed for position queries; the
+/// semantic AST is produced by Chumsky on every update until the CST converter
+/// reaches semantic parity.
+pub fn reparse_canonical_with_cst(source: &str, old_tree: &tree_sitter::Tree) -> ParseResult {
+    let (statements, parse_errors, warnings) = parse_source_diagnostics(source);
+    let tree = crate::ts_convert::reparse(source, old_tree)
+        .map(|result| result.tree)
+        .or_else(|| crate::ts_convert::parse_source(source).map(|result| result.tree));
+    ParseResult {
+        statements,
+        parse_errors,
+        warnings,
+        tree,
     }
 }
 
