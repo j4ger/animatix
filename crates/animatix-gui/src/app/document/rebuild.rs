@@ -125,6 +125,7 @@ impl RebuildWorker {
 
             // Check cancellation before starting work
             if request.cancellation.is_cancelled() {
+                let _ = res_tx.send(cancelled_response(request, start));
                 continue;
             }
 
@@ -152,6 +153,7 @@ impl RebuildWorker {
 
             // Check cancellation again before running rebuild
             if request.cancellation.is_cancelled() {
+                let _ = res_tx.send(cancelled_response(request, start));
                 continue;
             }
 
@@ -159,6 +161,7 @@ impl RebuildWorker {
 
             // Check cancellation after rebuild (don't send stale data)
             if request.cancellation.is_cancelled() {
+                let _ = res_tx.send(cancelled_response(request, start));
                 continue;
             }
 
@@ -201,6 +204,20 @@ impl RebuildWorker {
                 elapsed_ms,
             });
         }
+    }
+}
+
+fn cancelled_response(request: RebuildRequest, start: Instant) -> RebuildResponse {
+    RebuildResponse {
+        token: request.token,
+        source_epoch: request.source_epoch,
+        source_hash: request.source_hash,
+        result: Err(RebuildFailure {
+            error: "rebuild cancelled".to_string(),
+            diagnostics: Vec::new(),
+            partial_source_index: None,
+        }),
+        elapsed_ms: start.elapsed().as_secs_f32() * 1000.0,
     }
 }
 
@@ -248,6 +265,39 @@ mod tests {
         let source = SourceStore::new(doc, editor);
 
         assert!(worker.submit(&source).is_err());
+    }
+
+    #[test]
+    fn cancelled_request_receives_cancelled_response() {
+        let (req_tx, req_rx) = crossbeam_channel::unbounded::<RebuildRequest>();
+        let (res_tx, res_rx) = crossbeam_channel::bounded::<RebuildResponse>(4);
+        let handle = std::thread::spawn(move || RebuildWorker::worker_loop(req_rx, res_tx));
+
+        let cancel_source = CancellationSource::new();
+        let token = cancel_source.token();
+        cancel_source.cancel(1);
+        req_tx
+            .send(RebuildRequest {
+                token: RebuildToken(7),
+                source_epoch: SourceEpoch(2),
+                source_hash: SourceHash(99),
+                file_path: std::path::PathBuf::from("test.amx"),
+                source_text: "#0s\n".to_string(),
+                cancellation: token,
+            })
+            .expect("send request");
+
+        let response = res_rx.recv().expect("cancelled request should produce a response");
+        assert_eq!(response.token, RebuildToken(7));
+        match response.result {
+            Err(failure) => {
+                assert_eq!(failure.error, "rebuild cancelled");
+            },
+            Ok(_) => panic!("cancelled request should report cancellation"),
+        }
+
+        drop(req_tx);
+        handle.join().expect("worker loop should exit");
     }
 
     #[test]

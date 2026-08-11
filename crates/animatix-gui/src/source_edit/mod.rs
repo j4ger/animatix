@@ -20,7 +20,6 @@ mod keyframe_edits;
 mod scene_edits;
 
 // Re-export public API
-pub(crate) use actor_edits::rename_all_references;
 pub use apply::{
     SourceEdit, apply_edit, canonical_to_source, find_actor_decl, source_to_canonical,
 };

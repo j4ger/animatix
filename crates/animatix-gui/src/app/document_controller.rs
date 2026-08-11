@@ -126,34 +126,15 @@ impl DocumentController<'_> {
             return;
         };
 
-        // Find the original actor declaration
-        let original_stmt = source_edit::find_actor_decl(stmts, original_label).cloned();
-
-        let Some(mut new_stmt) = original_stmt else {
+        let edit = source_edit::SourceEdit::DuplicateActor {
+            original_label: original_label.to_string(),
+            new_label: new_label.clone(),
+        };
+        if source_edit::apply_edit(stmts, edit).is_err() {
             self.document_store.abort_snapshot();
             self.preview_store.preview.status =
                 format!("Failed to duplicate — actor '{}' not found", original_label);
             return;
-        };
-
-        // Update label in the new statement
-        match &mut new_stmt {
-            animatix_syntax::ast::Stmt::ActorDecl { label, .. } => *label = new_label.clone(),
-            _ => {
-                self.document_store.abort_snapshot();
-                self.preview_store.preview.status =
-                    "Failed to duplicate — unsupported actor type".to_string();
-                return;
-            },
-        }
-
-        // Find position to insert (after the original actor)
-        if let Some(pos) = stmts.iter().position(|s| {
-            matches!(s, animatix_syntax::ast::Stmt::ActorDecl { label, .. } if label == original_label)
-        }) {
-            stmts.insert(pos + 1, new_stmt);
-        } else {
-            stmts.push(new_stmt);
         }
 
         // Commit source — scope block drops stmts borrow before accessing self
@@ -650,53 +631,19 @@ impl DocumentController<'_> {
             return;
         };
 
-        let mut pasted_labels = Vec::new();
-
-        for (original_label, new_label) in &label_map {
-            // Find the original actor declaration
-            let original_stmt = source_edit::find_actor_decl(stmts, original_label).cloned();
-            let Some(mut new_stmt) = original_stmt else {
-                continue;
-            };
-
-            // Update label in the new statement
-            match &mut new_stmt {
-                animatix_syntax::ast::Stmt::ActorDecl { label, .. } => *label = new_label.clone(),
-                _ => continue,
-            }
-
-            // Insert the declaration at the end (or after the original)
-            if let Some(pos) = stmts.iter().position(|s| {
-                matches!(s, animatix_syntax::ast::Stmt::ActorDecl { label, .. } if label == original_label)
-            }) {
-                stmts.insert(pos + 1, new_stmt);
-            } else {
-                stmts.push(new_stmt);
-            }
-
-            // Find and clone all keyframe assignments referencing the original actor
-            let keyframe_stmts = source_edit::find_keyframes_for_actor(stmts, original_label);
-            for mut kf in keyframe_stmts {
-                // Rename references within the keyframe
-                source_edit::rename_all_references(
-                    std::slice::from_mut(&mut kf),
-                    original_label,
-                    new_label,
-                );
-                // Shift absolute keyframe times by current_time_s
-                source_edit::shift_keyframe_times(std::slice::from_mut(&mut kf), current_time_s);
-                stmts.push(kf);
-            }
-
-            pasted_labels.push(new_label.clone());
-        }
-
-        if pasted_labels.is_empty() {
+        let edit = source_edit::SourceEdit::PasteActors {
+            clipboard: label_map.clone(),
+            time_s: current_time_s,
+        };
+        if source_edit::apply_edit(stmts, edit).is_err() {
             self.document_store.abort_snapshot();
             self.preview_store.preview.status =
                 "Failed to paste — actor(s) not found in AST".to_string();
             return;
         }
+
+        let pasted_labels: Vec<String> =
+            label_map.iter().map(|(_, new_label)| new_label.clone()).collect();
 
         // Commit source — scope block drops stmts borrow
         let (new_source, source_index) = {

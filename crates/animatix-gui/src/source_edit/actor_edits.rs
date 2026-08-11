@@ -1,10 +1,11 @@
 //! Edits related to actors: property changes, insertion, reordering, reparenting, and renaming.
 
 use animatix_syntax::ast::{ComponentDef, Expr, InlineItem, Property, Stmt};
-use animatix_syntax::walk::{walk_inline_items_mut, walk_stmts_mut};
+use animatix_syntax::walk::{find_actor_decl, walk_inline_items_mut, walk_stmts_mut};
 
 use super::SourceEditError;
 use super::apply::{canonical_to_source, find_actor_decl_mut, find_assignment_mut, find_prop_mut};
+use super::ast_utils::{find_keyframes_for_actor, shift_keyframe_times};
 
 // ---------------------------------------------------------------------------
 // SetProperty
@@ -519,6 +520,95 @@ fn inline_item_has_label(item: &InlineItem, label: &str) -> bool {
 }
 
 // ---------------------------------------------------------------------------
+// Duplicate / paste
+// ---------------------------------------------------------------------------
+
+/// Duplicate an actor declaration with `new_label`, inserting it after the
+/// original top-level declaration when possible.
+pub(super) fn duplicate_actor(
+    stmts: &mut Vec<Stmt>,
+    original_label: &str,
+    new_label: &str,
+) -> Result<(), SourceEditError> {
+    let original_stmt = find_actor_decl(stmts, original_label).cloned().ok_or_else(|| {
+        SourceEditError::ActorNotFound {
+            actor: original_label.to_string(),
+        }
+    })?;
+
+    let mut new_stmt = original_stmt;
+    match &mut new_stmt {
+        Stmt::ActorDecl { label, .. } => *label = new_label.to_string(),
+        _ => {
+            return Err(SourceEditError::Generic(
+                "duplicate target is not an actor declaration".to_string(),
+            ));
+        },
+    }
+
+    if let Some(pos) = stmts
+        .iter()
+        .position(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == original_label))
+    {
+        stmts.insert(pos + 1, new_stmt);
+    } else {
+        stmts.push(new_stmt);
+    }
+    Ok(())
+}
+
+/// Paste actor declarations and their keyframed assignments.
+///
+/// `clipboard` contains pre-resolved `(original_label, new_label)` pairs.
+/// Keyframe assignments referencing an original actor are copied, renamed, and
+/// shifted by `time_s` before being appended to the statement list.
+pub(super) fn paste_actors(
+    stmts: &mut Vec<Stmt>,
+    clipboard: &[(String, String)],
+    time_s: f64,
+) -> Result<(), SourceEditError> {
+    if clipboard.is_empty() {
+        return Err(SourceEditError::EmptyActorList);
+    }
+
+    let mut pasted = 0usize;
+    for (original_label, new_label) in clipboard {
+        let Some(original_stmt) = find_actor_decl(stmts, original_label).cloned() else {
+            continue;
+        };
+        let mut new_stmt = original_stmt;
+        match &mut new_stmt {
+            Stmt::ActorDecl { label, .. } => *label = new_label.clone(),
+            _ => continue,
+        }
+
+        if let Some(pos) = stmts
+            .iter()
+            .position(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == original_label))
+        {
+            stmts.insert(pos + 1, new_stmt);
+        } else {
+            stmts.push(new_stmt);
+        }
+
+        for mut kf in find_keyframes_for_actor(stmts, original_label) {
+            rename_all_references(std::slice::from_mut(&mut kf), original_label, new_label);
+            shift_keyframe_times(std::slice::from_mut(&mut kf), time_s);
+            stmts.push(kf);
+        }
+        pasted += 1;
+    }
+
+    if pasted == 0 {
+        Err(SourceEditError::ActorNotFound {
+            actor: clipboard[0].0.clone(),
+        })
+    } else {
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Rename
 // ---------------------------------------------------------------------------
 
@@ -736,6 +826,7 @@ mod tests {
 
     use super::super::apply::{
         SourceEdit, apply_edit, find_actor_decl_mut, find_assignment_mut, find_prop_mut,
+        time_to_seconds,
     };
 
     fn parse(source: &str) -> Vec<Stmt> {
@@ -1100,6 +1191,83 @@ btn.position = (200, 100)"#,
         } else {
             panic!("Expected ActorDecl");
         }
+    }
+
+    #[test]
+    fn duplicate_actor_inserts_declaration_with_new_label() {
+        let mut stmts = parse(
+            r#"#0s
+box1: Rect, size: (100, 100)
+box1.color = red"#,
+        );
+        let edit = SourceEdit::DuplicateActor {
+            original_label: "box1".into(),
+            new_label: "box2".into(),
+        };
+        assert!(apply_edit(&mut stmts, edit).is_ok());
+
+        assert!(
+            stmts
+                .iter()
+                .any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "box2")),
+            "duplicate should add box2 declaration"
+        );
+        assert!(
+            super::super::apply::find_actor_decl(&stmts, "box1").is_some(),
+            "original declaration should remain"
+        );
+    }
+
+    #[test]
+    fn paste_actors_renames_keyframes_and_shifts_times() {
+        let mut stmts = parse(
+            r#"#0s
+box1: Rect, size: (100, 100)
+
+#1s
+box1.color = red
+
+#2s
+box1.opacity = 0.5"#,
+        );
+        let edit = SourceEdit::PasteActors {
+            clipboard: vec![("box1".to_string(), "box1_copy".to_string())],
+            time_s: 1.0,
+        };
+        assert!(apply_edit(&mut stmts, edit).is_ok());
+
+        assert!(
+            stmts
+                .iter()
+                .any(|s| matches!(s, Stmt::ActorDecl { label, .. } if label == "box1_copy")),
+            "paste should add box1_copy declaration"
+        );
+
+        let keyframe_times: Vec<f64> = stmts
+            .iter()
+            .filter_map(|s| match s {
+                Stmt::Keyframe { time, body, .. }
+                    if body.iter().any(|b| {
+                        matches!(b, Stmt::Assignment { target, .. }
+                            if target.iter().any(|t| t.label_str() == "box1_copy"))
+                    }) =>
+                {
+                    Some(time_to_seconds(time))
+                },
+                _ => None,
+            })
+            .collect();
+        assert_eq!(keyframe_times, vec![2.0, 3.0], "keyframes should shift by +1s");
+    }
+
+    #[test]
+    fn paste_actors_with_missing_actor_fails() {
+        let mut stmts = parse("#0s\nbox1: Rect, size: (100, 100)");
+        let edit = SourceEdit::PasteActors {
+            clipboard: vec![("missing".to_string(), "missing_copy".to_string())],
+            time_s: 0.0,
+        };
+        assert!(apply_edit(&mut stmts, edit).is_err());
     }
 
     #[test]

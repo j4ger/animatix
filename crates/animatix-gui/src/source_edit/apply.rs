@@ -83,6 +83,18 @@ pub enum SourceEdit {
     },
     /// Delete an actor declaration by label.
     DeleteActor { label: String },
+    /// Duplicate an actor declaration with a new label.
+    DuplicateActor {
+        original_label: String,
+        new_label: String,
+    },
+    /// Paste actor declarations and their keyframed assignments.
+    PasteActors {
+        /// Pairs of (original label, new label) already resolved for uniqueness.
+        clipboard: Vec<(String, String)>,
+        /// Time offset applied to absolute keyframes.
+        time_s: f64,
+    },
     /// Remove a property from an actor declaration. Does not remove keyframed assignments.
     RemoveProperty { actor: String, property: String },
     /// Reorder top-level scene declarations.
@@ -239,6 +251,13 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
             Ok(())
         },
         SourceEdit::DeleteActor { label } => super::actor_edits::delete_actor(stmts, &label),
+        SourceEdit::DuplicateActor {
+            original_label,
+            new_label,
+        } => super::actor_edits::duplicate_actor(stmts, &original_label, &new_label),
+        SourceEdit::PasteActors { clipboard, time_s } => {
+            super::actor_edits::paste_actors(stmts, &clipboard, time_s)
+        },
         SourceEdit::RemoveProperty { actor, property } => {
             super::actor_edits::remove_property(stmts, &actor, &property)
         },
