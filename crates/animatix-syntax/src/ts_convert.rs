@@ -404,9 +404,8 @@ impl<'a> TsConverter<'a> {
             .child_by_field_name("type")
             .map(|n| self.node_text(n).to_string())
             .unwrap_or_default();
-        let array_index = node
-            .child_by_field_name("array_index")
-            .and_then(|n| self.convert_expr(n));
+        let array_index =
+            node.child_by_field_name("array_index").and_then(|n| self.convert_expr(n));
         let props = self.convert_children_properties(node);
         let modifiers = self.convert_modifier_block_node(node);
         let children = self.convert_children_block_items(node);
@@ -1558,9 +1557,8 @@ impl<'a> TsConverter<'a> {
                     .child_by_field_name("type")
                     .map(|n| self.node_text(n).to_string())
                     .unwrap_or_default();
-                let array_index = node
-                    .child_by_field_name("array_index")
-                    .and_then(|n| self.convert_expr(n));
+                let array_index =
+                    node.child_by_field_name("array_index").and_then(|n| self.convert_expr(n));
                 let modifiers = self.convert_modifier_block_node(node);
                 let children = self.convert_children_block_items(node);
                 Some(RawItem::Item(InlineItem::Labeled {
@@ -1714,10 +1712,7 @@ title: Text, text: "Hello"
         assert!(!result.statements.is_empty(), "expected statements");
         match &result.statements[0] {
             Stmt::ActorDecl {
-                label,
-                ty,
-                props,
-                ..
+                label, ty, props, ..
             } => {
                 assert_eq!(label, "title");
                 assert_eq!(ty, "Text");

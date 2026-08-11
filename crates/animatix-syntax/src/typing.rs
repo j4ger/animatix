@@ -434,6 +434,115 @@ pub fn property_type(actor_type: &str, property: &str) -> Option<Type> {
     }
 }
 
+/// Known property types per `(actor_type, property)` pair.
+///
+/// This is the shared source for the syntax typechecker and analyzer-level
+/// property diagnostics. It intentionally remains additive relative to
+/// [`property_type`], which covers the generic schema used by actor processing.
+pub fn known_property_types() -> &'static HashMap<(String, String), Type> {
+    static CACHE: std::sync::OnceLock<HashMap<(String, String), Type>> = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| {
+        let mut map = HashMap::new();
+
+        // Common properties
+        for ty in &[
+            "Text",
+            "Code",
+            "Rect",
+            "Ellipse",
+            "Polygon",
+            "Line",
+            "Button",
+            "Svg",
+            "Image",
+            "Graph",
+            "PlotCurve",
+        ] {
+            map.insert((ty.to_string(), "position".to_string()), Type::Vec2);
+            map.insert((ty.to_string(), "offset".to_string()), Type::Vec2);
+            map.insert((ty.to_string(), "scale".to_string()), Type::Num);
+            map.insert((ty.to_string(), "rotation".to_string()), Type::Num);
+            map.insert((ty.to_string(), "opacity".to_string()), Type::Num);
+            map.insert((ty.to_string(), "color".to_string()), Type::Color);
+            map.insert((ty.to_string(), "at".to_string()), Type::Vec2);
+        }
+
+        // Text-specific
+        map.insert(("Text".to_string(), "text".to_string()), Type::Str);
+        map.insert(("Text".to_string(), "content".to_string()), Type::Str);
+        map.insert(("Text".to_string(), "font_size".to_string()), Type::Num);
+        map.insert(("Text".to_string(), "font_family".to_string()), Type::Str);
+        map.insert(("Text".to_string(), "font_weight".to_string()), Type::Num);
+        map.insert(("Text".to_string(), "font_style".to_string()), Type::Str);
+        map.insert(("Text".to_string(), "line_height".to_string()), Type::Num);
+        map.insert(("Text".to_string(), "letter_spacing".to_string()), Type::Num);
+        map.insert(("Text".to_string(), "word_spacing".to_string()), Type::Num);
+        map.insert(("Text".to_string(), "max_width".to_string()), Type::Num);
+        map.insert(("Text".to_string(), "text_align".to_string()), Type::Str);
+        map.insert(("Text".to_string(), "overflow".to_string()), Type::Str);
+
+        // Typst-specific
+        map.insert(("Typst".to_string(), "content".to_string()), Type::Str);
+        map.insert(("Typst".to_string(), "font_size".to_string()), Type::Num);
+        map.insert(("Typst".to_string(), "font_family".to_string()), Type::Str);
+        map.insert(("Typst".to_string(), "font_weight".to_string()), Type::Num);
+        map.insert(("Typst".to_string(), "font_style".to_string()), Type::Str);
+        map.insert(("Typst".to_string(), "line_height".to_string()), Type::Num);
+        map.insert(("Typst".to_string(), "letter_spacing".to_string()), Type::Num);
+        map.insert(("Typst".to_string(), "word_spacing".to_string()), Type::Num);
+        map.insert(("Typst".to_string(), "max_width".to_string()), Type::Num);
+        map.insert(("Typst".to_string(), "text_align".to_string()), Type::Str);
+        map.insert(("Typst".to_string(), "overflow".to_string()), Type::Str);
+
+        // Code-specific
+        map.insert(("Code".to_string(), "code".to_string()), Type::Str);
+        map.insert(("Code".to_string(), "content".to_string()), Type::Str);
+        map.insert(("Code".to_string(), "language".to_string()), Type::Str);
+        map.insert(("Code".to_string(), "font_weight".to_string()), Type::Num);
+        map.insert(("Code".to_string(), "font_style".to_string()), Type::Str);
+        map.insert(("Code".to_string(), "line_height".to_string()), Type::Num);
+        map.insert(("Code".to_string(), "letter_spacing".to_string()), Type::Num);
+        map.insert(("Code".to_string(), "word_spacing".to_string()), Type::Num);
+        map.insert(("Code".to_string(), "max_width".to_string()), Type::Num);
+        map.insert(("Code".to_string(), "text_align".to_string()), Type::Str);
+        map.insert(("Code".to_string(), "overflow".to_string()), Type::Str);
+
+        // Shape-specific
+        for shape in &["Rect", "Ellipse", "Polygon"] {
+            map.insert((shape.to_string(), "fill".to_string()), Type::Color);
+            map.insert((shape.to_string(), "stroke".to_string()), Type::Color);
+            map.insert((shape.to_string(), "stroke_width".to_string()), Type::Num);
+            map.insert((shape.to_string(), "size".to_string()), Type::Vec2);
+            map.insert((shape.to_string(), "radius".to_string()), Type::Num);
+        }
+
+        // Line
+        map.insert(("Line".to_string(), "start".to_string()), Type::Vec2);
+        map.insert(("Line".to_string(), "end".to_string()), Type::Vec2);
+        map.insert(("Line".to_string(), "stroke".to_string()), Type::Color);
+        map.insert(("Line".to_string(), "stroke_width".to_string()), Type::Num);
+
+        // Button
+        map.insert(("Button".to_string(), "text".to_string()), Type::Str);
+        map.insert(("Button".to_string(), "size".to_string()), Type::Vec2);
+        map.insert(("Button".to_string(), "fill".to_string()), Type::Color);
+        map.insert(("Button".to_string(), "stroke".to_string()), Type::Color);
+
+        // Svg/Image
+        for media in &["Svg", "Image"] {
+            map.insert((media.to_string(), "url".to_string()), Type::Str);
+            map.insert((media.to_string(), "size".to_string()), Type::Vec2);
+        }
+
+        // Graph
+        map.insert(("Graph".to_string(), "x_range".to_string()), Type::Vec2);
+        map.insert(("Graph".to_string(), "y_range".to_string()), Type::Vec2);
+        map.insert(("Graph".to_string(), "function".to_string()), Type::Str);
+
+        map
+    })
+}
+
 /// Compute the common supertype for a list of inferred types.
 pub fn common_type(types: &[Type]) -> Type {
     if types.is_empty() {

@@ -28,6 +28,7 @@ use std::path::{Path, PathBuf};
 
 use animatix_syntax::ast::{Span, Stmt};
 use animatix_syntax::parser::{ParseError, parse_source};
+use animatix_syntax::ts_convert::TsParseResult;
 pub use completer::{CompletionItem, CompletionKind, all_snippets, completions_at};
 pub use diagnostics::{
     Diagnostic, DiagnosticSeverity, LintConfig, collect_diagnostics,
@@ -36,7 +37,7 @@ pub use diagnostics::{
 pub use symbol_table::{
     ComponentInfo, ImportInfo, LabelInfo, LabelKind, ParamInfo, SceneInfo, SymbolTable,
 };
-use tree_sitter::{Parser as TsParser, Tree};
+use tree_sitter::Tree;
 pub use types::{DocumentSymbol, HoverInfo, Location, SymbolKind};
 pub use workspace::Workspace;
 
@@ -49,7 +50,7 @@ pub struct Analyzer {
     path: Option<PathBuf>,
     ast: Option<Vec<Stmt>>,
     parse_errors: Vec<ParseError>,
-    tree: Option<Tree>,
+    ts_result: Option<TsParseResult>,
     symbols: SymbolTable,
     type_diagnostics: Vec<diagnostics::Diagnostic>,
     lint_config: diagnostics::LintConfig,
@@ -68,7 +69,7 @@ impl Analyzer {
             path,
             ast: None,
             parse_errors: Vec::new(),
-            tree: None,
+            ts_result: None,
             symbols: SymbolTable::default(),
             type_diagnostics: Vec::new(),
             lint_config: diagnostics::LintConfig::default(),
@@ -85,12 +86,24 @@ impl Analyzer {
 
         self.source = source.to_string();
 
-        // Parse with tree-sitter (for position-based queries)
-        let mut ts_parser = TsParser::new();
-        ts_parser
-            .set_language(&tree_sitter_animatix::language())
-            .expect("Failed to set tree-sitter language");
-        self.tree = ts_parser.parse(source, None);
+        // Parse once with tree-sitter and reuse the resulting tree/AST pair.
+        // Subsequent updates reparse incrementally with the previous tree.
+        let parsed = if let Some(old_tree) = self.ts_result.as_ref().map(|r| r.tree.clone()) {
+            animatix_syntax::ts_convert::reparse(source, &old_tree)
+        } else {
+            animatix_syntax::ts_convert::parse_source(source)
+        };
+
+        if let Some(result) = parsed {
+            self.ast = Some(result.statements.clone());
+            self.parse_errors = Self::convert_ts_diagnostics(&result);
+            self.ts_result = Some(result);
+        } else {
+            self.ts_result = None;
+            let (ast, errors) = parse_source(source);
+            self.ast = ast;
+            self.parse_errors = errors;
+        }
 
         self.rebuild_symbols();
     }
@@ -98,17 +111,13 @@ impl Analyzer {
     /// Rebuild the symbol table from the current source and tree.
     fn rebuild_symbols(&mut self) {
         let source = &self.source;
-
-        // Parse with chumsky (source of truth for AST)
-        let (ast, errors) = parse_source(source);
-        self.ast = ast;
-        self.parse_errors = errors;
+        let tree = self.ts_result.as_ref().map(|r| r.tree.clone());
 
         // Build symbol table from AST
         let table = if let Some(ref stmts) = self.ast {
             let mut table = SymbolTable::build_from_ast(stmts);
             table.collect_references(stmts);
-            if let Some(ref tree) = self.tree {
+            if let Some(ref tree) = tree {
                 Self::enrich_positions(tree, source, &mut table);
             }
             table
@@ -131,6 +140,23 @@ impl Analyzer {
         };
 
         self.symbols = table;
+    }
+
+    /// Convert tree-sitter converter diagnostics into syntax parse errors.
+    fn convert_ts_diagnostics(result: &TsParseResult) -> Vec<ParseError> {
+        result
+            .diagnostics
+            .iter()
+            .map(|d| ParseError {
+                message: d.message.clone(),
+                span: d.location.span.clone().unwrap_or(0..0),
+                line: d.location.line.unwrap_or(1),
+                column: d.location.column.unwrap_or(1),
+                expected: Vec::new(),
+                found: None,
+                context: Vec::new(),
+            })
+            .collect()
     }
 
     /// Build a component registry from AST statements for the type checker.
@@ -360,8 +386,8 @@ impl Analyzer {
     }
 
     /// Get the tree-sitter tree, if parsing succeeded.
-    pub fn tree(&self) -> Option<&Tree> {
-        self.tree.as_ref()
+    pub fn tree(&self) -> Option<&tree_sitter::Tree> {
+        self.ts_result.as_ref().map(|r| &r.tree)
     }
 
     /// Get the extracted symbol table.
@@ -376,7 +402,13 @@ impl Analyzer {
 
     /// Completions at cursor position.
     pub fn completions_at(&self, line: usize, col: usize) -> Vec<CompletionItem> {
-        completer::completions_at(&self.symbols, self.tree.as_ref(), &self.source, line, col)
+        completer::completions_at(
+            &self.symbols,
+            self.ts_result.as_ref().map(|r| &r.tree),
+            &self.source,
+            line,
+            col,
+        )
     }
 
     /// All diagnostics (parse errors + semantic checks).
@@ -391,7 +423,7 @@ impl Analyzer {
             &self.parse_errors,
             &self.symbols,
             self.ast.as_deref(),
-            self.tree.as_ref(),
+            self.ts_result.as_ref().map(|r| &r.tree),
             config,
         );
         diagnostics.extend_from_slice(&self.type_diagnostics);
@@ -400,7 +432,13 @@ impl Analyzer {
 
     /// Hover information at cursor position.
     pub fn hover_at(&self, line: usize, col: usize) -> Option<HoverInfo> {
-        hover::hover_at(&self.symbols, self.tree.as_ref(), &self.source, line, col)
+        hover::hover_at(
+            &self.symbols,
+            self.ts_result.as_ref().map(|r| &r.tree),
+            &self.source,
+            line,
+            col,
+        )
     }
 
     /// Go-to-definition at cursor position.
@@ -414,7 +452,7 @@ impl Analyzer {
     ) -> Option<Location> {
         definition::definition_at(
             &self.symbols,
-            self.tree.as_ref(),
+            self.ts_result.as_ref().map(|r| &r.tree),
             &self.source,
             workspace,
             self.path.as_deref(),
@@ -426,7 +464,11 @@ impl Analyzer {
     /// Find all references to a symbol name in this file.
     /// Returns a list of (start_line, start_col, end_line, end_col) ranges.
     pub fn find_references(&self, symbol_name: &str) -> Vec<(usize, usize, usize, usize)> {
-        references::find_references(self.tree.as_ref(), &self.source, symbol_name)
+        references::find_references(
+            self.ts_result.as_ref().map(|r| &r.tree),
+            &self.source,
+            symbol_name,
+        )
     }
 
     /// Document symbols (outline view).
@@ -438,7 +480,7 @@ impl Analyzer {
     /// Returns the identifier or type name at the given line/column,
     /// or None if the position is not on a symbol.
     pub fn symbol_at(&self, line: usize, col: usize) -> Option<String> {
-        let tree = self.tree.as_ref()?;
+        let tree = self.ts_result.as_ref().map(|r| &r.tree)?;
         let point = tree_sitter::Point::new(line, col);
         let node = tree.root_node().descendant_for_point_range(point, point)?;
 
