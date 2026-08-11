@@ -1,0 +1,181 @@
+//! Semantic equivalence checks between the Chumsky semantic parser and the
+//! tree-sitter CST converter.
+//!
+//! The two backends are allowed to differ in position metadata, but the
+//! structural AST they feed to the runtime, typechecker, and analyzer must
+//! agree. These corpus tests pin that contract.
+
+use animatix_syntax::ast::Stmt;
+
+/// Corpus of high-risk constructs where the two converters previously drifted.
+const CORPUS: &[(&str, &str)] = &[
+    (
+        "simple actor",
+        "#0s\nbox: Rect, size: (100, 100)\n",
+    ),
+    (
+        "action duration modifier",
+        "#0s\nfade-in label [500ms]\n",
+    ),
+    (
+        "scene with config and keyframe",
+        "# Intro\nconfig { duration: 5.0 }\n#0s\ntitle: Text, text: \"Hi\"\n",
+    ),
+    (
+        "play transition",
+        "# Intro\n#0s\ntitle: Text\nplay scenes.FadeIn [fade, 300ms]\n",
+    ),
+    (
+        "assignment",
+        "#0s\nbox.color = red\n",
+    ),
+    (
+        "closure",
+        "#0s\nlet f = x => x + 1\n",
+    ),
+    (
+        "text shorthand",
+        "#0s\nlabel: \"Hello\"\n",
+    ),
+    (
+        "typst shorthand",
+        "#0s\nlabel: $$Hello$$\n",
+    ),
+    (
+        "for loop with index",
+        "#0s\nfor v, i in {1, 2, 3} { box[i]: Rect, size: (10, v) }\n",
+    ),
+    (
+        "for loop tuple pattern",
+        "#0s\nfor (x, y) in {(1, 2), (3, 4)} { point: Rect, at: (x, y) }\n",
+    ),
+];
+
+#[test]
+fn chumsky_and_tree_sitter_are_semantically_equivalent() {
+    for (name, source) in CORPUS {
+        let semantic = animatix_syntax::parser::parse_canonical(source)
+            .statements
+            .expect("semantic parser should accept corpus");
+        let tree_sitter = animatix_syntax::ts_convert::parse_source(source)
+            .expect("tree-sitter should parse corpus")
+            .statements;
+
+        assert_eq!(
+            semantic_signature(&semantic),
+            semantic_signature(&tree_sitter),
+            "semantic AST mismatch for corpus case '{name}'"
+        );
+    }
+}
+
+/// Remove position metadata from a Debug-formatted AST so structural equality
+/// can be compared across parsers.
+fn semantic_signature(stmts: &[Stmt]) -> String {
+    let debug = format!("{stmts:#?}");
+    strip_fields(&debug)
+}
+
+fn strip_fields(input: &str) -> String {
+    let mut result = input.to_string();
+    for field in [
+        "trailing_comment: ",
+        "value_span: ",
+        "byte_span: ",
+        "span: ",
+    ] {
+        let mut out = String::new();
+        let mut rest = result.as_str();
+        while let Some(pos) = rest.find(field) {
+            out.push_str(&rest[..pos]);
+            rest = &rest[pos + field.len()..];
+            let (consumed, _) = consume_value(rest);
+            rest = &rest[consumed..];
+        }
+        out.push_str(rest);
+        result = out;
+    }
+    strip_span_tuples(&result)
+}
+
+/// Remove `Some(Span { ... })` values in tuple fields such as
+/// `Stmt::Action(action, Some(span))`.
+fn strip_span_tuples(input: &str) -> String {
+    let mut out = String::new();
+    let mut rest = input;
+    while let Some(pos) = rest.find("Some(") {
+        out.push_str(&rest[..pos]);
+        let bytes = rest.as_bytes();
+        let mut depth = 1i32;
+        let mut i = pos + "Some(".len();
+        while i < bytes.len() {
+            match bytes[i] {
+                b'(' | b'{' | b'[' => depth += 1,
+                b')' | b'}' | b']' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                },
+                _ => {},
+            }
+            i += 1;
+        }
+        let end = (i + 1).min(rest.len());
+        let candidate = &rest[pos..end];
+        if candidate.contains("Span {") || candidate.contains("ByteSpan {") {
+            out.push_str("None");
+            rest = &rest[end..];
+        } else {
+            out.push_str(candidate);
+            rest = &rest[end..];
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Consume a single Rust Debug value, balancing nested delimiters. Returns the
+/// consumed byte length and the trailing delimiter found.
+fn consume_value(input: &str) -> (usize, char) {
+    let bytes = input.as_bytes();
+    let mut i = 0usize;
+    while i < bytes.len() && (bytes[i] as char).is_whitespace() {
+        i += 1;
+    }
+    if i >= bytes.len() {
+        return (i, '\0');
+    }
+
+    while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
+        i += 1;
+    }
+    if i < bytes.len() && bytes[i] == b'(' {
+        // Constructor like `Some(...)` or `Ok(...)`: scan balanced delimiters.
+        let mut depth = 1i32;
+        i += 1;
+        while i < bytes.len() {
+            match bytes[i] {
+                b'(' | b'{' | b'[' => depth += 1,
+                b')' | b'}' | b']' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return (i + 1, bytes[i] as char);
+                    }
+                },
+                _ => {},
+            }
+            i += 1;
+        }
+        return (bytes.len(), '\0');
+    }
+
+    // Scalar: consume up to the next comma or closing brace.
+    while i < bytes.len() {
+        match bytes[i] {
+            b',' | b'}' => return (i, bytes[i] as char),
+            _ => i += 1,
+        }
+    }
+    (bytes.len(), '\0')
+}

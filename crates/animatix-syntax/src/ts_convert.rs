@@ -104,7 +104,6 @@ fn group_keyframes(stmts: Vec<Stmt>) -> Vec<Stmt> {
             },
             Stmt::Config { .. }
             | Stmt::Import { .. }
-            | Stmt::LetDecl { .. }
             | Stmt::ComponentDef(..)
             | Stmt::ComponentAction { .. }
             | Stmt::Scene { .. }
@@ -221,6 +220,7 @@ impl<'a> TsConverter<'a> {
             "keyframe" => Some(self.convert_keyframe(node)),
             "actor_declaration" => Some(self.convert_actor_decl(node)),
             "text_shorthand" => Some(self.convert_text_shorthand(node)),
+            "typst_shorthand" => Some(self.convert_typst_shorthand(node)),
             "property_assignment" => Some(self.convert_assignment(node)),
             "reactive_binding" => Some(self.convert_reactive_binding(node)),
             "action_invocation" => Some(self.convert_action_invocation(node)),
@@ -451,6 +451,40 @@ impl<'a> TsConverter<'a> {
         }
     }
 
+    /// Convert `label: $$content$$` shorthand into a `Typst` actor declaration.
+    fn convert_typst_shorthand(&mut self, node: Node) -> Stmt {
+        let label = node
+            .child_by_field_name("label")
+            .map(|n| self.node_text(n).to_string())
+            .unwrap_or_default();
+        let content = node
+            .child_by_field_name("content")
+            .map(|n| self.node_text(n).to_string())
+            .unwrap_or_else(|| {
+                let raw = self.node_text(node);
+                let start = raw.find("$$").map(|i| i + 2).unwrap_or(0);
+                let end = raw.rfind("$$").unwrap_or(raw.len());
+                raw[start..end.max(start)].to_string()
+            });
+        let modifiers = self.convert_modifier_block_node(node);
+        Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label,
+            array_index: None,
+            ty: "Typst".to_string(),
+            props: vec![Property {
+                name: "content".to_string(),
+                value: Expr::Str(content),
+                value_span: None,
+                trailing_comment: None,
+            }],
+            modifiers,
+            children: vec![],
+            span: node_span(node),
+        }
+    }
+
     fn convert_assignment(&mut self, node: Node) -> Stmt {
         let target_node = node.child_by_field_name("target");
         let target = target_node.map(|n| self.convert_target_segments(n)).unwrap_or_default();
@@ -560,18 +594,29 @@ impl<'a> TsConverter<'a> {
     }
 
     fn convert_for_loop(&mut self, node: Node) -> Stmt {
-        let var = node
-            .child_by_field_name("variable")
-            .map(|n| self.node_text(n).to_string())
-            .unwrap_or_default();
+        let mut variables = Vec::new();
+        let mut cursor = node.walk();
+        for child in node.children_by_field_name("variable", &mut cursor) {
+            if child.kind() == "identifier" {
+                variables.push(self.node_text(child).to_string());
+            }
+        }
+        let var = match variables.as_slice() {
+            [] => LoopPattern::Single(String::new()),
+            [name] => LoopPattern::Single(name.clone()),
+            _ => LoopPattern::Tuple(variables),
+        };
+        let index_var = node
+            .child_by_field_name("index_variable")
+            .map(|n| self.node_text(n).to_string());
         let iterable = node
             .child_by_field_name("iterable")
             .and_then(|n| self.convert_expr(n))
             .unwrap_or(Expr::Null);
         let body = self.convert_block_body(node);
         Stmt::ForLoop {
-            var: LoopPattern::Single(var),
-            index_var: None,
+            var,
+            index_var,
             iterable,
             body,
             span: node_span(node),
