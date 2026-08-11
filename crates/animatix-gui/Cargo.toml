@@ -25,13 +25,13 @@ egui_code_editor = { workspace = true }
 egui_extras = { workspace = true }
 egui_tiles = { workspace = true }
 egui-phosphor = { workspace = true }
-image = { version = "0.25.10", default-features = false, features = ["png"], optional = true }
-kurbo = "0.13.0"
+image = { workspace = true, features = ["png"], optional = true }
+kurbo = { workspace = true }
 ron = "0.12.0"
-serde = { version = "1.0.228", features = ["derive"] }
+serde = { workspace = true }
 syntect = { version = "5.3.0", features = ["default-fancy", "yaml-load"] }
-thiserror = "2.0"
-tracing = "0.1.41"
+thiserror = { workspace = true }
+tracing = { workspace = true }
 tracing-subscriber = { version = "0.3.19", features = ["fmt", "env-filter"] }
 notify = { version = "7.0.0", default-features = false, features = ["macos_fsevent"] }
 rfd = "0.15"

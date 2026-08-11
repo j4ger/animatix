@@ -15,7 +15,7 @@ animatix-analyzer = { path = "../animatix-analyzer" }
 animatix-syntax = { path = "../animatix-syntax" }
 clap = { version = "4.5.0", features = ["derive"] }
 serde_json = "1"
-tracing = "0.1"
+tracing = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 walkdir = "2.5"
 

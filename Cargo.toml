@@ -22,3 +22,10 @@ egui_code_editor = { version = "0.2", features = ["editor", "egui"] }
 
 # Shared graphics dep already duplicated across animatix + animatix-gui
 wgpu            = { version = "29.0.0", default-features = false }
+
+# Shared runtime/serialization deps used by multiple workspace crates
+image           = { version = "0.25.10", default-features = false }
+kurbo           = "0.13.0"
+serde           = { version = "1", features = ["derive"] }
+thiserror       = "2.0"
+tracing         = "0.1"

@@ -11,5 +11,5 @@ serde = ["dep:serde"]
 chumsky = "0.12.0"
 tree-sitter = "0.26"
 tree-sitter-animatix = { path = "../tree-sitter-animatix" }
-tracing = "0.1"
-serde = { version = "1", features = ["derive"], optional = true }
+tracing = { workspace = true }
+serde = { workspace = true, optional = true }

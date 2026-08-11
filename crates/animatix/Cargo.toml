@@ -15,11 +15,11 @@ serde = ["dep:serde", "animatix-syntax/serde"]
 [dependencies]
 animatix-syntax = { path = "../animatix-syntax" }
 bytemuck = { version = "1.25.0", features = ["derive"], optional = true }
-serde = { version = "1", features = ["derive"], optional = true }
+serde = { workspace = true, optional = true }
 fastrand = "2.4"
 fontdb = { version = "0.23", default-features = false, features = ["fs", "memmap", "fontconfig"], optional = true }
-image = { version = "0.25.10", default-features = false, features = ["png", "gif", "jpeg", "webp"], optional = true }
-kurbo = "0.13.0"
+image = { workspace = true, features = ["png", "gif", "jpeg", "webp"], optional = true }
+kurbo = { workspace = true }
 pollster = { version = "0.4.0", optional = true }
 roxmltree = { version = "0.20.0", optional = true }
 rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg8", "link_system_ffmpeg"], optional = true }
@@ -30,8 +30,8 @@ usvg = { version = "0.47.0", optional = true }
 vello = { git = "https://github.com/linebender/vello", rev = "17166312", default-features = false, features = ["wgpu"], optional = true }
 wgpu = { workspace = true, default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"], optional = true }
 taffy = { version = "0.10", default-features = false, features = ["flexbox", "grid", "std", "taffy_tree"] }
-thiserror = "2.0"
-tracing = "0.1"
+thiserror = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 chumsky = "0.12.0"
