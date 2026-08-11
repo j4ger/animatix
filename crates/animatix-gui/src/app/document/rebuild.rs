@@ -78,6 +78,40 @@ impl RebuildWorker {
         }
     }
 
+    /// Restart the worker thread after a panic or failed initial spawn.
+    ///
+    /// Returns true when a request channel is available. Callers should retry
+    /// the submit when this returns false; the previous worker may have died.
+    fn ensure_worker(&mut self) -> bool {
+        let dead = self
+            .handle
+            .as_ref()
+            .is_none_or(|handle| handle.is_finished());
+        if !dead {
+            return true;
+        }
+
+        let (req_tx, req_rx) = crossbeam_channel::unbounded::<RebuildRequest>();
+        let (res_tx, res_rx) = crossbeam_channel::bounded::<RebuildResponse>(4);
+        match thread::Builder::new().name("animatix-rebuild".into()).spawn(move || {
+            Self::worker_loop(req_rx, res_tx);
+        }) {
+            Ok(handle) => {
+                self.request_tx = Some(req_tx);
+                self.response_rx = res_rx;
+                self.handle = Some(handle);
+                true
+            },
+            Err(err) => {
+                tracing::error!("Failed to restart rebuild worker thread: {err}");
+                self.request_tx = None;
+                self.response_rx = res_rx;
+                self.handle = None;
+                false
+            },
+        }
+    }
+
     /// Submit a rebuild request. Previous requests with lower tokens are
     /// automatically cancelled.
     pub fn submit(
@@ -100,6 +134,10 @@ impl RebuildWorker {
             source_text: source.text().to_string(),
             cancellation: self.cancel_source.token(),
         };
+
+        if !self.ensure_worker() {
+            return Err("rebuild worker is not running".to_string());
+        }
 
         let Some(tx) = self.request_tx.as_ref() else {
             return Err("rebuild worker is not running".to_string());
@@ -254,8 +292,9 @@ mod tests {
     }
 
     #[test]
-    fn submit_reports_error_when_worker_is_not_running() {
+    fn submit_restarts_worker_when_channel_is_missing() {
         let mut worker = RebuildWorker::start();
+        // Simulate the worker channel being closed (old API state).
         worker.request_tx = None;
 
         let doc =
@@ -264,7 +303,8 @@ mod tests {
         let editor = EditorBuffer::new(&doc.file_path, doc.source_text.clone());
         let source = SourceStore::new(doc, editor);
 
-        assert!(worker.submit(&source).is_err());
+        let token = worker.submit(&source).expect("submit should restart worker");
+        assert!(token.0 > 0, "submit should return a token after restart");
     }
 
     #[test]
