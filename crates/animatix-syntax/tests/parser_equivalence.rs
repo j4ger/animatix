@@ -77,6 +77,14 @@ const CORPUS: &[(&str, &str)] = &[
         "reactive index assignment",
         "#0s\nfor v, i in {1, 2, 3} {\n  box[i]: Rect, size: (10, v)\n}\nalways {\n  box[i].color := red\n}\n",
     ),
+    (
+        "method call and if expression",
+        "#0s\nbox: Rect, size: (10, 10)\nalways {\n  box.color = if box.alpha() > 0.5 { red } else { blue }\n}\n",
+    ),
+    (
+        "property default with expression",
+        "pub component Badge(size: Vec2 = (20, 20), label: Str = \"OK\") {\n  frame: Rect, size: size\n  title: Text, text: label\n}\n",
+    ),
 ];
 
 
