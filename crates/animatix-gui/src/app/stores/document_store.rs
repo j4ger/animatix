@@ -104,6 +104,12 @@ impl DocumentStore {
         self.pending_snapshot = None;
     }
 
+    /// Returns true when a mutation snapshot is waiting to be finalized.
+    #[cfg(test)]
+    pub fn pending_snapshot_is_none(&self) -> bool {
+        self.pending_snapshot.is_none()
+    }
+
     // ── Snapshot API ──
 
     /// The latest snapshot with a renderable target (for preview fallback).

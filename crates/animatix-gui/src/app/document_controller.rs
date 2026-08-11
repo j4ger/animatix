@@ -231,6 +231,7 @@ impl DocumentController<'_> {
         transition: animatix_syntax::ast::Transition,
     ) {
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
+            self.document_store.abort_snapshot();
             self.preview_store.preview.status =
                 "Failed to set transition — no AST available".to_string();
             return;

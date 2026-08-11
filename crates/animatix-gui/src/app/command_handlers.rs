@@ -285,6 +285,31 @@ circle: Ellipse, at: (200, 200), radius: 50, color: red
         crate::app::stores::DocumentStore::new(document, editor)
     }
 
+    #[test]
+    fn set_transition_without_ast_aborts_pending_snapshot() {
+        let mut document_store = make_document_store();
+        let mut preview_store = make_preview_store(5.0);
+        let mut ui_store = make_ui_store();
+
+        property::handle_set_transition(
+            &mut document_store,
+            &mut preview_store,
+            &mut ui_store,
+            "Intro".to_string(),
+            animatix_syntax::ast::Transition {
+                id: "fade".to_string(),
+                duration_ms: 300,
+                easing: animatix_syntax::easing::Easing::Linear,
+            },
+        );
+
+        assert!(
+            document_store.history.undo_stack.is_empty(),
+            "failed source edit should not leave a pending undo snapshot"
+        );
+        assert!(document_store.pending_snapshot_is_none());
+    }
+
     // ── handle_create_actor ────────────────────────────────────────────
 
     #[test]
