@@ -1160,6 +1160,10 @@ name in the importing scene, e.g. `types::Metric` after `import "./types.amx" as
 remain local to their defining file, avoiding cross-module collisions. The legacy dotted form
 `types.Metric` is accepted and normalized to `types::Metric` for compatibility.
 
+Aliases may reference aliases declared later in the same file. An alias that references a missing
+name or forms a cycle is still usable as the gradual `Any` type, but produces a
+`unknown-type-alias` warning so the weakened check is not silent.
+
 ### 13.2 Available Types
 
 | Type | Description | Literal Syntax |

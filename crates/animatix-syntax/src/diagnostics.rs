@@ -143,6 +143,8 @@ pub enum DiagnosticCode {
     CalloutTargetNotFound,
     /// A `match` expression or block is missing a required `_` wildcard arm.
     MissingWildcardArm,
+    /// A type alias references an alias that is not defined, or forms a cycle.
+    UnknownTypeAlias,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -215,6 +217,7 @@ impl fmt::Display for DiagnosticCode {
             },
             DiagnosticCode::CalloutTargetNotFound => write!(f, "callout-target-not-found"),
             DiagnosticCode::MissingWildcardArm => write!(f, "missing-wildcard-arm"),
+            DiagnosticCode::UnknownTypeAlias => write!(f, "unknown-type-alias"),
         }
     }
 }

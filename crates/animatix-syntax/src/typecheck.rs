@@ -8,7 +8,9 @@
 
 use std::collections::HashMap;
 
-use crate::ast::{ComponentDef, Expr, MatchPattern, Modifier, ParamDef, Property, Stmt};
+use crate::ast::{
+    ComponentDef, Expr, MatchPattern, Modifier, ParamDef, Property, Stmt,
+};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::typing::{self, Type as TypedType, TypeEnv as TypedEnv};
 
@@ -92,6 +94,27 @@ impl<'a> TypeEnv<'a> {
             }
         }
         let mut diagnostics = Vec::new();
+        for stmt in stmts {
+            if let Stmt::TypeAlias {
+                name,
+                annotation,
+                span,
+                is_pub: _,
+            } = stmt
+            {
+                if let Some(alias) = self.typed.unresolved_alias(annotation) {
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::UnknownTypeAlias,
+                            DiagnosticPhase::Build,
+                            format!("Type alias '{name}' references unknown type alias '{alias}'"),
+                        )
+                        .with_ast_span(*span)
+                        .with_subject(alias),
+                    );
+                }
+            }
+        }
         for stmt in stmts {
             self.check_stmt(stmt, &mut diagnostics);
         }
@@ -244,6 +267,7 @@ impl<'a> TypeEnv<'a> {
                 if self.strict_types {
                     self.check_param_annotations(&def.name, "component", &def.params, diagnostics);
                 }
+                self.check_param_type_aliases(&def.name, "component", &def.params, diagnostics);
                 self.typed.push_scope();
                 for param in &def.params {
                     let ty = param
@@ -270,6 +294,7 @@ impl<'a> TypeEnv<'a> {
                 if self.strict_types {
                     self.check_param_annotations(name, "action", params, diagnostics);
                 }
+                self.check_param_type_aliases(name, "action", params, diagnostics);
                 self.typed.push_scope();
                 for param in params {
                     let ty = param
@@ -423,6 +448,35 @@ impl<'a> TypeEnv<'a> {
                     )
                     .with_subject(format!("{}.{}.{}", owner_kind, owner_name, param.name)),
                 );
+            }
+        }
+    }
+
+    /// Warn when a parameter annotation references an alias that was never
+    /// declared. The gradual checker still treats it as `Any`, so this does not
+    /// reject the file, but it prevents the alias from silently weakening types.
+    fn check_param_type_aliases(
+        &self,
+        owner_name: &str,
+        owner_kind: &str,
+        params: &[ParamDef],
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        for param in params {
+            if let Some(annotation) = &param.param_type {
+                if let Some(alias) = self.typed.unresolved_alias(annotation) {
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::UnknownTypeAlias,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Parameter '{}' of {} '{}' references unknown type alias '{}'",
+                                param.name, owner_kind, owner_name, alias
+                            ),
+                        )
+                        .with_subject(format!("{}.{}.{}", owner_kind, owner_name, param.name)),
+                    );
+                }
             }
         }
     }
@@ -937,5 +991,108 @@ mod tests {
             "accent.primary should be accepted for Color param, got: {:?}",
             diagnostics
         );
+    }
+
+    #[test]
+    fn type_alias_resolves_when_declared_after_component() {
+        let def = ComponentDef {
+            name: "Card".to_string(),
+            params: vec![ParamDef {
+                name: "value".to_string(),
+                param_type: Some(TypeAnnotation::Alias("Metric".to_string())),
+                default: None,
+            }],
+            body: vec![],
+            is_pub: false,
+        };
+        let mut components = HashMap::new();
+        components.insert(
+            "Card".to_string(),
+            ComponentEntry {
+                definition: def.clone(),
+                source_path: std::path::PathBuf::new(),
+                actions: HashMap::new(),
+            },
+        );
+        let empty_actions = HashMap::new();
+        let mut env = TypeEnv::new(&components, &empty_actions);
+        let stmts = vec![
+            Stmt::ComponentDef(def.clone(), None),
+            Stmt::TypeAlias {
+                is_pub: true,
+                name: "Metric".to_string(),
+                annotation: TypeAnnotation::Union(vec![TypeAnnotation::Bool, TypeAnnotation::Str]),
+                span: None,
+            },
+            Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "card".to_string(),
+                array_index: None,
+                ty: "Card".to_string(),
+                props: vec![Property {
+                    name: "value".to_string(),
+                    value: Expr::Str("Revenue".to_string()),
+                    value_span: None,
+                    trailing_comment: None,
+                }],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            },
+        ];
+        let diagnostics = env.check_statements(&stmts);
+        assert!(
+            diagnostics.is_empty(),
+            "alias declared after the component should resolve, got: {:?}",
+            diagnostics
+        );
+    }
+
+    #[test]
+    fn unresolved_type_alias_is_reported() {
+        let def = ComponentDef {
+            name: "Card".to_string(),
+            params: vec![ParamDef {
+                name: "value".to_string(),
+                param_type: Some(TypeAnnotation::Alias("Missing".to_string())),
+                default: None,
+            }],
+            body: vec![],
+            is_pub: false,
+        };
+        let mut components = HashMap::new();
+        components.insert(
+            "Card".to_string(),
+            ComponentEntry {
+                definition: def.clone(),
+                source_path: std::path::PathBuf::new(),
+                actions: HashMap::new(),
+            },
+        );
+        let empty_actions = HashMap::new();
+        let mut env = TypeEnv::new(&components, &empty_actions);
+        let stmts = vec![Stmt::ComponentDef(def, None)];
+        let diagnostics = env.check_statements(&stmts);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, DiagnosticCode::UnknownTypeAlias);
+        assert!(diagnostics[0].message.contains("Missing"));
+    }
+
+    #[test]
+    fn unresolved_top_level_type_alias_is_reported() {
+        let empty_components = HashMap::new();
+        let empty_actions = HashMap::new();
+        let mut env = TypeEnv::new(&empty_components, &empty_actions);
+        let stmts = vec![Stmt::TypeAlias {
+            is_pub: true,
+            name: "Broken".to_string(),
+            annotation: TypeAnnotation::Alias("Missing".to_string()),
+            span: None,
+        }];
+        let diagnostics = env.check_statements(&stmts);
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].code, DiagnosticCode::UnknownTypeAlias);
+        assert!(diagnostics[0].message.contains("Missing"));
     }
 }

@@ -5,7 +5,7 @@
 //! [`TypeAnnotation`](crate::ast::TypeAnnotation) separate from the richer
 //! internal [`Type`] used during inference.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::ast::{BinaryOp, Expr, TypeAnnotation};
 
@@ -178,7 +178,7 @@ pub struct TypeEnv {
     components: HashMap<String, ComponentSignature>,
     instances: HashMap<String, String>,
     arrays: HashMap<String, Type>,
-    aliases: HashMap<String, Type>,
+    aliases: HashMap<String, TypeAnnotation>,
     namespaces: HashMap<String, NamespaceType>,
     builtins: HashMap<String, Type>,
     functions: HashMap<String, Type>,
@@ -198,17 +198,54 @@ impl TypeEnv {
         env
     }
 
-    /// Register a user-facing type alias, resolving it against existing aliases.
+    /// Register a user-facing type alias, resolving it lazily so aliases may
+    /// reference aliases declared later in the file.
     pub fn register_alias(&mut self, name: &str, annotation: &TypeAnnotation) {
-        self.aliases.insert(name.to_string(), self.resolve_annotation(annotation));
+        self.aliases.insert(name.to_string(), annotation.clone());
     }
 
     /// Resolve a type annotation, following named aliases.
+    ///
+    /// Unresolved aliases resolve to `Any` instead of failing so the gradual
+    /// type checker keeps accepting otherwise valid files; callers that need a
+    /// hard diagnostic should use [`Self::unresolved_alias`] on the annotation
+    /// before treating the value as usable.
     pub fn resolve_annotation(&self, annotation: &TypeAnnotation) -> Type {
         match annotation {
-            TypeAnnotation::Alias(name) => self.aliases.get(name).cloned().unwrap_or(Type::Any),
+            TypeAnnotation::Alias(name) => self
+                .resolve_alias_path(name, &mut HashSet::new())
+                .unwrap_or(Type::Any),
             _ => Type::from_annotation(annotation),
         }
+    }
+
+    /// Return the first unresolved alias path in this annotation, if any.
+    pub fn unresolved_alias(&self, annotation: &TypeAnnotation) -> Option<String> {
+        match annotation {
+            TypeAnnotation::Alias(name) => {
+                self.resolve_alias_path(name, &mut HashSet::new()).err()
+            },
+            TypeAnnotation::List(inner) => self.unresolved_alias(inner),
+            TypeAnnotation::Union(types) => types.iter().find_map(|ty| self.unresolved_alias(ty)),
+            _ => None,
+        }
+    }
+
+    fn resolve_alias_path(
+        &self,
+        name: &str,
+        visiting: &mut HashSet<String>,
+    ) -> Result<Type, String> {
+        if !visiting.insert(name.to_string()) {
+            return Err(name.to_string());
+        }
+        let result = match self.aliases.get(name) {
+            Some(TypeAnnotation::Alias(next)) => self.resolve_alias_path(next, visiting),
+            Some(annotation) => Ok(Type::from_annotation(annotation)),
+            None => Err(name.to_string()),
+        };
+        visiting.remove(name);
+        result
     }
 
     /// Seed built-in named colors, color constructors, numeric functions, and
@@ -814,6 +851,45 @@ mod tests {
             &Type::List(Box::new(Type::Color)),
             &Type::List(Box::new(Type::Vec4))
         ));
+    }
+
+    #[test]
+    fn aliases_resolve_when_declared_later() {
+        let mut env = TypeEnv::with_stdlib();
+        env.register_alias("Metric", &TypeAnnotation::Alias("Inner".to_string()));
+        env.register_alias("Inner", &TypeAnnotation::Union(vec![
+            TypeAnnotation::Bool,
+            TypeAnnotation::Str,
+        ]));
+        assert_eq!(
+            env.resolve_annotation(&TypeAnnotation::Alias("Metric".to_string())),
+            Type::Union(vec![Type::Bool, Type::Str])
+        );
+        assert!(env.unresolved_alias(&TypeAnnotation::Alias("Metric".to_string())).is_none());
+    }
+
+    #[test]
+    fn unresolved_alias_is_reported_instead_of_silently_accepted() {
+        let env = TypeEnv::with_stdlib();
+        assert_eq!(
+            env.unresolved_alias(&TypeAnnotation::Alias("Missing".to_string())),
+            Some("Missing".to_string())
+        );
+        assert_eq!(
+            env.resolve_annotation(&TypeAnnotation::Alias("Missing".to_string())),
+            Type::Any
+        );
+    }
+
+    #[test]
+    fn alias_cycles_are_reported() {
+        let mut env = TypeEnv::with_stdlib();
+        env.register_alias("A", &TypeAnnotation::Alias("B".to_string()));
+        env.register_alias("B", &TypeAnnotation::Alias("A".to_string()));
+        assert_eq!(
+            env.unresolved_alias(&TypeAnnotation::Alias("A".to_string())),
+            Some("A".to_string())
+        );
     }
 
     #[test]
