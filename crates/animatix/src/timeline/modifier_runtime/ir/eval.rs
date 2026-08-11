@@ -66,8 +66,22 @@ pub(crate) fn evaluate_compiled_expr(
                 BuiltinFn::Rad => "rad",
                 BuiltinFn::ListSwap => "list_swap",
                 BuiltinFn::ListSet => "list_set",
+                BuiltinFn::Signum => "signum",
+                BuiltinFn::Fract => "fract",
+                BuiltinFn::Hypot => "hypot",
+                BuiltinFn::Pow => "pow",
+                BuiltinFn::Rem => "rem",
+                BuiltinFn::Step => "step",
+                BuiltinFn::Round => "round",
             };
             crate::timeline::eval_shared::eval_builtin_fn(name, &args)
+        },
+        CompiledExpr::CallEnv(name, args) => {
+            let arg_values = args
+                .iter()
+                .map(|arg| evaluate_compiled_expr(arg, env))
+                .collect::<Result<Vec<_>, _>>()?;
+            crate::timeline::utils::evaluate_call_value(name, arg_values, env)
         },
         CompiledExpr::Index(container, index) => {
             let container_val = evaluate_compiled_expr(container, env)?;

@@ -142,6 +142,20 @@ impl Timeline {
                             self.apply_modifier_stmt(stmt, frame_env, overrides);
                         }
                     }
+                    // Keep legacy tree-walker loop scope cleanup aligned with the VM.
+                    match var {
+                        LoopPattern::Single(name) => {
+                            frame_env.overrides.remove(name);
+                        },
+                        LoopPattern::Tuple(names) => {
+                            for name in names {
+                                frame_env.overrides.remove(name);
+                            }
+                        },
+                    }
+                    if let Some(iv) = index_var {
+                        frame_env.overrides.remove(iv);
+                    }
                 }
             },
             _ => {},

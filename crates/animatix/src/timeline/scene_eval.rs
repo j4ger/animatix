@@ -1051,8 +1051,9 @@ impl Timeline {
             None
         };
 
-        // Use compiled bytecode for fastest evaluation; fall back to AST for
-        // statements that could not be lowered or compiled.
+        // Execute compiled bytecode only. Lowering is total for all modifier
+        // statements; if compilation failed at build time, the build already
+        // emitted a ModifierCompilationError diagnostic.
         let mut modifier_errors: Vec<EvalError> = Vec::new();
         if !self.modifier_bytecode_programs.is_empty() {
             if let Some(ref mut env) = frame_env {
@@ -1068,13 +1069,11 @@ impl Timeline {
                     }
                 }
             }
-        } else {
-            // AST fallback path (used when compilation failed or no modifiers exist)
-            if let Some(ref mut env) = frame_env {
-                for modifier in &self.modifiers {
-                    self.apply_modifier_stmt(modifier, env, &mut overrides);
-                }
-            }
+        } else if !self.modifiers.is_empty() {
+            tracing::warn!(
+                "No compiled modifier bytecode is available for {} modifier statement(s); skipping modifier execution",
+                self.modifiers.len()
+            );
         }
 
         // Collect modifier evaluation errors as runtime diagnostics.

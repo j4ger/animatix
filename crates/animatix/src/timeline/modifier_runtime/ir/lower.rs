@@ -1,6 +1,4 @@
-use super::types::{
-    BuiltinFn, CompiledExpr, IrLowerError, ModifierExpr, ModifierIrProgram, ModifierIrStmt,
-};
+use super::types::{BuiltinFn, CompiledExpr, IrLowerError, ModifierIrProgram, ModifierIrStmt};
 use crate::ast::{BinaryOp, Expr, MatchPattern, Stmt, TargetSegment};
 use crate::timeline::Value;
 use crate::timeline::animation_track::SceneAnchor;
@@ -64,11 +62,9 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
             if let Some(TargetSegment::Indexed { base, index }) = indexed_seg {
                 Ok(ModifierIrStmt::AssignIndexed {
                     base: base.clone(),
-                    index: compile_expr(index).ok_or(IrLowerError::UnsupportedStatement(
-                        "runtime index expression in target",
-                    ))?,
+                    index: compile_expr(index)?,
                     property: property.clone(),
-                    value: compile_modifier_expr(value),
+                    value: compile_expr(value)?,
                 })
             } else {
                 // All-static fast path: join static segments for the target key.
@@ -82,7 +78,7 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
                 Ok(ModifierIrStmt::Assign {
                     target: static_target,
                     property: property.clone(),
-                    value: compile_modifier_expr(value),
+                    value: compile_expr(value)?,
                 })
             }
         },
@@ -93,7 +89,7 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
             ..
         } => Ok(ModifierIrStmt::Let {
             name: name.clone(),
-            value: compile_modifier_expr(value),
+            value: compile_expr(value)?,
         }),
         Stmt::Conditional {
             condition,
@@ -101,7 +97,7 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
             else_branch,
             ..
         } => Ok(ModifierIrStmt::If {
-            condition: compile_modifier_expr(condition),
+            condition: compile_expr(condition)?,
             then_branch: lower_modifier_block(then_branch)?,
             else_branch: lower_modifier_block(else_branch.as_deref().unwrap_or(&[]))?,
         }),
@@ -116,9 +112,7 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
             body,
             ..
         } => {
-            let compiled_iterable = compile_expr(iterable).ok_or(
-                IrLowerError::UnsupportedStatement("for loop with unsupported iterable expression"),
-            )?;
+            let compiled_iterable = compile_expr(iterable)?;
             Ok(ModifierIrStmt::For {
                 var: var.clone(),
                 index_var: index_var.clone(),
@@ -144,100 +138,71 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
     }
 }
 
-/// Compile an AST expression into a modifier expression (compiled or unsupported).
-pub fn compile_modifier_expr(expr: &Expr) -> ModifierExpr {
-    compile_expr(expr)
-        .map(ModifierExpr::Compiled)
-        .unwrap_or_else(|| ModifierExpr::Unsupported(expr.clone()))
-}
-
-/// Compile an AST expression into a compiled IR expression, if supported.
-pub fn compile_expr(expr: &Expr) -> Option<CompiledExpr> {
+/// Compile an AST expression into modifier IR.
+pub fn compile_expr(expr: &Expr) -> Result<CompiledExpr, IrLowerError> {
     match expr {
-        Expr::Num(n) => Some(CompiledExpr::Const(Value::Num(*n))),
-        Expr::Percent(n) => Some(CompiledExpr::Const(Value::Num(*n / 100.0))),
-        Expr::Str(s) => Some(CompiledExpr::Const(Value::Str(s.clone()))),
-        Expr::Bool(b) => Some(CompiledExpr::Const(Value::Bool(*b))),
-        Expr::Null => Some(CompiledExpr::Const(Value::Num(0.0))),
-        Expr::Ident(name) => Some(CompiledExpr::LoadEnv(name.clone())),
+        Expr::Num(n) => Ok(CompiledExpr::Const(Value::Num(*n))),
+        Expr::Percent(n) => Ok(CompiledExpr::Const(Value::Num(*n / 100.0))),
+        Expr::Str(s) => Ok(CompiledExpr::Const(Value::Str(s.clone()))),
+        Expr::Bool(b) => Ok(CompiledExpr::Const(Value::Bool(*b))),
+        Expr::Null => Ok(CompiledExpr::Const(Value::Num(0.0))),
+        Expr::Ident(name) => Ok(CompiledExpr::LoadEnv(name.clone())),
         Expr::Path(parts) => {
             // Lazy anchor-point resolution: `actor.right` style paths are
             // resolved from the frame env at evaluation time, not eagerly
-            // injected.  Exclude `scene.*` (preserves existing scene anchor
+            // injected. Exclude `scene.*` (preserves existing scene anchor
             // injection path) and non-2-part paths.
             if parts.len() == 2 && parts[0] != "scene" {
                 if let Some(anchor) = SceneAnchor::from_str(&parts[1]) {
-                    return Some(CompiledExpr::AnchorLookup {
+                    return Ok(CompiledExpr::AnchorLookup {
                         actor: parts[0].clone(),
                         anchor,
                     });
                 }
             }
-            Some(CompiledExpr::LoadEnv(parts.join(".")))
+            Ok(CompiledExpr::LoadEnv(parts.join(".")))
         },
         Expr::Tuple(items) => items
             .iter()
             .map(compile_expr)
-            .collect::<Option<Vec<_>>>()
+            .collect::<Result<Vec<_>, _>>()
             .map(CompiledExpr::MakeVec),
         Expr::List(items) => items
             .iter()
             .map(compile_expr)
-            .collect::<Option<Vec<_>>>()
+            .collect::<Result<Vec<_>, _>>()
             .map(CompiledExpr::MakeVec),
-        Expr::Unary(op, expr) => {
-            Some(CompiledExpr::Unary(op.clone(), Box::new(compile_expr(expr)?)))
-        },
-        Expr::Binary(left, op, right) => Some(CompiledExpr::Binary(
+        Expr::Unary(op, expr) => Ok(CompiledExpr::Unary(op.clone(), Box::new(compile_expr(expr)?))),
+        Expr::Binary(left, op, right) => Ok(CompiledExpr::Binary(
             Box::new(compile_expr(left)?),
             op.clone(),
             Box::new(compile_expr(right)?),
         )),
-        Expr::Conditional(cond, then_expr, else_expr) => Some(CompiledExpr::Select(
+        Expr::Conditional(cond, then_expr, else_expr) => Ok(CompiledExpr::Select(
             Box::new(compile_expr(cond)?),
             Box::new(compile_expr(then_expr)?),
             Box::new(compile_expr(else_expr)?),
         )),
         Expr::Call(name, args) => {
-            let builtin = match name.as_str() {
-                "sin" => BuiltinFn::Sin,
-                "cos" => BuiltinFn::Cos,
-                "lerp" => BuiltinFn::Lerp,
-                "format" => BuiltinFn::Format,
-                "tan" => BuiltinFn::Tan,
-                "sqrt" => BuiltinFn::Sqrt,
-                "exp" => BuiltinFn::Exp,
-                "log" => BuiltinFn::Log,
-                "atan2" => BuiltinFn::Atan2,
-                "clamp" => BuiltinFn::Clamp,
-                "abs" => BuiltinFn::Abs,
-                "min" => BuiltinFn::Min,
-                "max" => BuiltinFn::Max,
-                "floor" => BuiltinFn::Floor,
-                "ceil" => BuiltinFn::Ceil,
-                "deg" => BuiltinFn::Deg,
-                "rad" => BuiltinFn::Rad,
-                "list_swap" => BuiltinFn::ListSwap,
-                "list_set" => BuiltinFn::ListSet,
-                _ => return None,
-            };
-            Some(CompiledExpr::CallBuiltin(
-                builtin,
-                args.iter().map(compile_expr).collect::<Option<Vec<_>>>()?,
-            ))
+            let args = args.iter().map(compile_expr).collect::<Result<Vec<_>, _>>()?;
+            if let Some(builtin) = builtin_for_name(name) {
+                Ok(CompiledExpr::CallBuiltin(builtin, args))
+            } else {
+                Ok(CompiledExpr::CallEnv(name.clone(), args))
+            }
         },
         Expr::Index(container, index) => {
             let container = compile_expr(container)?;
             let index = compile_expr(index)?;
-            Some(CompiledExpr::Index(Box::new(container), Box::new(index)))
+            Ok(CompiledExpr::Index(Box::new(container), Box::new(index)))
         },
         Expr::Method(receiver, name, args) => {
             let receiver = compile_expr(receiver)?;
-            let args: Vec<_> = args.iter().map(compile_expr).collect::<Option<Vec<_>>>()?;
-            Some(CompiledExpr::Method(Box::new(receiver), name.clone(), args))
+            let args: Vec<_> = args.iter().map(compile_expr).collect::<Result<Vec<_>, _>>()?;
+            Ok(CompiledExpr::Method(Box::new(receiver), name.clone(), args))
         },
         Expr::Closure(params, body) => {
-            Some(CompiledExpr::Closure(params.clone(), Box::new(compile_expr(body)?)))
+            Ok(CompiledExpr::Closure(params.clone(), Box::new(compile_expr(body)?)))
         },
         Expr::Match(scrutinee, arms) => {
             // Lower to nested Select expressions
@@ -246,7 +211,7 @@ pub fn compile_expr(expr: &Expr) -> Option<CompiledExpr> {
             let default = arms
                 .last()
                 .map(|(_pat, arm_expr)| compile_expr(arm_expr))
-                .unwrap_or(Some(CompiledExpr::Const(Value::Num(0.0))))?;
+                .unwrap_or(Ok(CompiledExpr::Const(Value::Num(0.0))))?;
             let mut result = default;
             for (pat, arm_expr) in arms.iter().rev().skip(
                 if arms.last().map(|(p, _)| matches!(p, MatchPattern::Wildcard)).unwrap_or(false) {
@@ -261,15 +226,47 @@ pub fn compile_expr(expr: &Expr) -> Option<CompiledExpr> {
             }
             // If the last arm is wildcard, it's already the default; no extra select needed.
             // If not, wrap with a final wildcard check (treat as default anyway).
-            Some(result)
+            Ok(result)
         },
         Expr::Construct(name, properties) => {
-            let fields: Option<Vec<_>> = properties
+            let fields = properties
                 .iter()
                 .map(|p| compile_expr(&p.value).map(|v| (p.name.clone(), v)))
-                .collect();
-            fields.map(|f| CompiledExpr::Construct(name.clone(), f))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(CompiledExpr::Construct(name.clone(), fields))
         },
+    }
+}
+
+fn builtin_for_name(name: &str) -> Option<BuiltinFn> {
+    match name {
+        "sin" => Some(BuiltinFn::Sin),
+        "cos" => Some(BuiltinFn::Cos),
+        "lerp" => Some(BuiltinFn::Lerp),
+        "format" => Some(BuiltinFn::Format),
+        "tan" => Some(BuiltinFn::Tan),
+        "sqrt" => Some(BuiltinFn::Sqrt),
+        "exp" => Some(BuiltinFn::Exp),
+        "ln" | "log" => Some(BuiltinFn::Log),
+        "atan2" => Some(BuiltinFn::Atan2),
+        "clamp" => Some(BuiltinFn::Clamp),
+        "abs" => Some(BuiltinFn::Abs),
+        "min" => Some(BuiltinFn::Min),
+        "max" => Some(BuiltinFn::Max),
+        "floor" => Some(BuiltinFn::Floor),
+        "ceil" => Some(BuiltinFn::Ceil),
+        "deg" | "deg_to_rad" => Some(BuiltinFn::Deg),
+        "rad" | "rad_to_deg" => Some(BuiltinFn::Rad),
+        "signum" => Some(BuiltinFn::Signum),
+        "fract" => Some(BuiltinFn::Fract),
+        "hypot" => Some(BuiltinFn::Hypot),
+        "pow" => Some(BuiltinFn::Pow),
+        "rem" => Some(BuiltinFn::Rem),
+        "step" => Some(BuiltinFn::Step),
+        "round" => Some(BuiltinFn::Round),
+        "list_swap" => Some(BuiltinFn::ListSwap),
+        "list_set" => Some(BuiltinFn::ListSet),
+        _ => None,
     }
 }
 
@@ -279,7 +276,7 @@ fn lower_match_stmt(
     scrutinee: &Expr,
     arms: &[(MatchPattern, Vec<Stmt>)],
 ) -> Result<ModifierIrStmt, IrLowerError> {
-    let compiled_scrutinee = compile_modifier_expr(scrutinee);
+    let compiled_scrutinee = compile_expr(scrutinee)?;
     if arms.is_empty() {
         return Ok(ModifierIrStmt::Noop);
     }
@@ -305,7 +302,7 @@ fn lower_match_stmt(
     let mut result: Vec<ModifierIrStmt> = else_body;
     for (pat, body) in iter_arms {
         let body_ir = lower_modifier_block(body)?;
-        let condition = pattern_to_condition(&compiled_scrutinee, pat);
+        let condition = pattern_to_compiled_condition(&compiled_scrutinee, pat);
         result = vec![ModifierIrStmt::If {
             condition,
             then_branch: body_ir,
@@ -415,22 +412,6 @@ fn pattern_to_compiled_index_condition(
         MatchPattern::Tuple(_) => {
             // Nested tuple: recurse with the indexed scrutinee
             pattern_to_compiled_condition(&indexed, pat)
-        },
-    }
-}
-
-/// Convert a match pattern to a condition `ModifierExpr` for use in `lower_match_stmt`.
-fn pattern_to_condition(scrutinee: &ModifierExpr, pat: &MatchPattern) -> ModifierExpr {
-    match scrutinee {
-        ModifierExpr::Compiled(c) => ModifierExpr::Compiled(pattern_to_compiled_condition(c, pat)),
-        ModifierExpr::Unsupported(e) => {
-            // If the scrutinee is unsupported, emit a catch-all condition
-            // This means the match won't work correctly at runtime — log a warning.
-            tracing::warn!(
-                "Match scrutinee expression is unsupported in IR; match may not work correctly: {:?}",
-                e
-            );
-            ModifierExpr::Compiled(CompiledExpr::Const(Value::Num(1.0)))
         },
     }
 }

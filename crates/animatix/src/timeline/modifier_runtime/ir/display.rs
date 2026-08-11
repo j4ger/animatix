@@ -1,6 +1,6 @@
 use std::fmt;
 
-use super::types::{CompiledExpr, ModifierExpr, ModifierIrProgram, ModifierIrStmt};
+use super::types::{CompiledExpr, ModifierIrProgram, ModifierIrStmt};
 
 impl fmt::Display for ModifierIrProgram {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -79,14 +79,11 @@ impl fmt::Display for DisplayStmt<'_> {
     }
 }
 
-struct DisplayExpr<'a>(&'a ModifierExpr);
+struct DisplayExpr<'a>(&'a CompiledExpr);
 
 impl fmt::Display for DisplayExpr<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0 {
-            ModifierExpr::Compiled(expr) => write!(f, "{}", DisplayCompiledExpr(expr)),
-            ModifierExpr::Unsupported(expr) => write!(f, "unsupported({expr:?})"),
-        }
+        write!(f, "{}", DisplayCompiledExpr(self.0))
     }
 }
 
@@ -122,6 +119,16 @@ impl fmt::Display for DisplayCompiledExpr<'_> {
             ),
             CompiledExpr::CallBuiltin(name, args) => {
                 write!(f, "{name:?}(")?;
+                for (idx, arg) in args.iter().enumerate() {
+                    if idx > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", DisplayCompiledExpr(arg))?;
+                }
+                write!(f, ")")
+            },
+            CompiledExpr::CallEnv(name, args) => {
+                write!(f, "{name}(")?;
                 for (idx, arg) in args.iter().enumerate() {
                     if idx > 0 {
                         write!(f, ", ")?;

@@ -271,21 +271,19 @@ impl Timeline {
                             diagnostics.push(Diagnostic::warning(
                                 DiagnosticCode::ModifierCompilationError,
                                 DiagnosticPhase::Build,
-                                format!("Bytecode compilation failed: {}. Using AST fallback.", e),
+                                format!("Bytecode compilation failed: {e}. Modifier execution will be skipped."),
                             ));
                         },
                     }
                 },
                 Err(e) => {
-                    // Fall back to AST interpretation for this batch
                     diagnostics.push(Diagnostic::warning(
-                    DiagnosticCode::ModifierCompilationError,
-                    DiagnosticPhase::Build,
-                    format!(
-                        "Always-block optimization failed: {}. Animation will still work, but may be slower.",
-                        e
-                    ),
-                ));
+                        DiagnosticCode::ModifierCompilationError,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "Always-block compilation failed: {e}. Modifier execution will be skipped."
+                        ),
+                    ));
                 },
             }
         }

@@ -360,7 +360,7 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
         // Closures capture the current override environment at creation time (lexical scope).
         Expr::Closure(args, body) => {
             let compiled = crate::timeline::modifier_runtime::ir::compile_expr(body)
-                .ok_or_else(|| EvalError::UnsupportedConstruct("closure body".to_string()))?;
+                .map_err(|e| EvalError::UnsupportedConstruct(format!("closure body: {e}")))?;
             Ok(Value::Closure(args.clone(), Box::new(compiled), CapturedEnv::snapshot(env)))
         },
 
@@ -500,10 +500,20 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
 
 /// Evaluate a function call.
 fn evaluate_call(func: &str, args: &[Expr], env: &Environment) -> Result<Value, EvalError> {
-    // Fast-path: evaluate arguments once into Values
     let arg_values: Vec<Value> =
         args.iter().map(|arg| evaluate_expr(arg, env)).collect::<Result<Vec<_>, _>>()?;
+    evaluate_call_value(func, arg_values, env)
+}
 
+/// Invoke a named function with already-evaluated arguments.
+///
+/// Shared by the tree-walker, IR evaluator, and bytecode VM so that calls to
+/// `NativeFn` values and closures follow one semantic path.
+pub(crate) fn evaluate_call_value(
+    func: &str,
+    arg_values: Vec<Value>,
+    env: &Environment,
+) -> Result<Value, EvalError> {
     // Fast-path: known builtins go through eval_shared
     if let Ok(val) = super::eval_shared::eval_builtin_fn(func, &arg_values) {
         return Ok(val);
@@ -517,12 +527,12 @@ fn evaluate_call(func: &str, args: &[Expr], env: &Environment) -> Result<Value, 
             // then bind parameters on top. Free variables resolve to their
             // values at creation time, not call time.
             Value::Closure(params, body, ref captures) => {
-                if args.len() != params.len() {
+                if arg_values.len() != params.len() {
                     return Err(EvalError::TypeMismatch(format!(
                         "Closure '{}' expects {} arguments, got {}",
                         func,
                         params.len(),
-                        args.len()
+                        arg_values.len()
                     )));
                 }
 

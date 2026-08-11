@@ -1,15 +1,16 @@
 use std::fmt;
 
 use super::ir::{
-    BuiltinFn, CompiledExpr, ModifierExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides,
-    apply_binary_op, eval_abs, eval_atan2, eval_ceil, eval_clamp, eval_cos, eval_deg, eval_exp,
-    eval_floor, eval_format, eval_lerp, eval_log, eval_max, eval_min, eval_rad, eval_sin,
-    eval_sqrt, eval_tan, make_vec_value,
+    BuiltinFn, CompiledExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides, apply_binary_op,
+    eval_abs, eval_atan2, eval_ceil, eval_clamp, eval_cos, eval_deg, eval_exp, eval_floor,
+    eval_format, eval_lerp, eval_log, eval_max, eval_min, eval_rad, eval_sin, eval_sqrt, eval_tan,
+    make_vec_value,
 };
-use crate::ast::{BinaryOp, Expr, LoopPattern, array_actor_label};
+use crate::ast::{BinaryOp, LoopPattern, array_actor_label};
 use crate::timeline::animation_track::SceneAnchor;
 use crate::timeline::callout_geometry::env_anchor_point;
 use crate::timeline::env::CapturedEnv;
+use crate::timeline::utils::evaluate_call_value;
 use crate::timeline::{Environment, EvalError, Value};
 
 /// Bind a loop pattern to a value in the frame environment.
@@ -41,6 +42,12 @@ fn bind_loop_var_vm(frame_env: &mut Environment, pat: &LoopPattern, value: Value
                     frame_env.set(&names[2], Value::Num(z));
                     frame_env.set(&names[3], Value::Num(w));
                 },
+                Value::Color([r, g, b, a]) if names.len() == 4 => {
+                    frame_env.set(&names[0], Value::Num(r));
+                    frame_env.set(&names[1], Value::Num(g));
+                    frame_env.set(&names[2], Value::Num(b));
+                    frame_env.set(&names[3], Value::Num(a));
+                },
                 _ => {
                     // If we can't destructure, bind the whole value to the first variable
                     if let Some(name) = names.first() {
@@ -71,6 +78,8 @@ pub enum Instruction {
     Binary(BinaryOp),
     /// Pop arguments and call a built-in function.
     CallBuiltin(BuiltinFn, usize),
+    /// Pop arguments and call a function stored in the environment by name.
+    CallEnv(String, usize),
     /// Pop an index and a container, then push the indexed value.
     Index,
     /// Pop arguments and a receiver, then call a method.
@@ -107,9 +116,6 @@ pub enum Instruction {
         /// Property name to override.
         property: String,
     },
-    /// Evaluate an AST expression directly and push its value. Used for
-    /// expression shapes that are not yet lowered into bytecode.
-    EvalExpr(Box<Expr>),
     /// Snapshot the current environment and push a closure value.
     MakeClosure {
         /// Closure parameter names.
@@ -210,7 +216,7 @@ impl BytecodeCompiler {
                 property,
                 value,
             } => {
-                self.compile_modifier_expr(value)?;
+                self.compile_expr(value)?;
                 self.instructions.push(Instruction::WriteOverride {
                     target: target.join("."),
                     property: property.clone(),
@@ -222,7 +228,7 @@ impl BytecodeCompiler {
                 property,
                 value,
             } => {
-                self.compile_modifier_expr(value)?;
+                self.compile_expr(value)?;
                 self.compile_expr(index)?;
                 self.instructions.push(Instruction::WriteOverrideIndexed {
                     base: base.clone(),
@@ -230,7 +236,7 @@ impl BytecodeCompiler {
                 });
             },
             ModifierIrStmt::Let { name, value } => {
-                self.compile_modifier_expr(value)?;
+                self.compile_expr(value)?;
                 self.instructions.push(Instruction::StoreEnv(name.clone()));
             },
             ModifierIrStmt::If {
@@ -238,7 +244,7 @@ impl BytecodeCompiler {
                 then_branch,
                 else_branch,
             } => {
-                self.compile_modifier_expr(condition)?;
+                self.compile_expr(condition)?;
                 let jump_if_false_idx = self.instructions.len();
                 self.instructions.push(Instruction::JumpIfFalse(usize::MAX));
                 for stmt in then_branch {
@@ -279,16 +285,6 @@ impl BytecodeCompiler {
             ModifierIrStmt::Noop => {},
         }
         Ok(())
-    }
-
-    fn compile_modifier_expr(&mut self, expr: &ModifierExpr) -> Result<(), VmCompileError> {
-        match expr {
-            ModifierExpr::Compiled(expr) => self.compile_expr(expr),
-            ModifierExpr::Unsupported(expr) => {
-                self.instructions.push(Instruction::EvalExpr(Box::new(expr.clone())));
-                Ok(())
-            },
-        }
     }
 
     fn compile_expr(&mut self, expr: &CompiledExpr) -> Result<(), VmCompileError> {
@@ -336,6 +332,12 @@ impl BytecodeCompiler {
                     self.compile_expr(arg)?;
                 }
                 self.instructions.push(Instruction::CallBuiltin(builtin.clone(), args.len()));
+            },
+            CompiledExpr::CallEnv(name, args) => {
+                for arg in args {
+                    self.compile_expr(arg)?;
+                }
+                self.instructions.push(Instruction::CallEnv(name.clone(), args.len()));
             },
             CompiledExpr::Index(container, index) => {
                 self.compile_expr(container)?;
@@ -476,7 +478,38 @@ impl ModifierVm {
                         BuiltinFn::ListSet => {
                             crate::timeline::eval_shared::eval_builtin_fn("list_set", &args)
                         },
+                        BuiltinFn::Signum => {
+                            crate::timeline::eval_shared::eval_builtin_fn("signum", &args)
+                        },
+                        BuiltinFn::Fract => {
+                            crate::timeline::eval_shared::eval_builtin_fn("fract", &args)
+                        },
+                        BuiltinFn::Hypot => {
+                            crate::timeline::eval_shared::eval_builtin_fn("hypot", &args)
+                        },
+                        BuiltinFn::Pow => {
+                            crate::timeline::eval_shared::eval_builtin_fn("pow", &args)
+                        },
+                        BuiltinFn::Rem => {
+                            crate::timeline::eval_shared::eval_builtin_fn("rem", &args)
+                        },
+                        BuiltinFn::Step => {
+                            crate::timeline::eval_shared::eval_builtin_fn("step", &args)
+                        },
+                        BuiltinFn::Round => {
+                            crate::timeline::eval_shared::eval_builtin_fn("round", &args)
+                        },
                     }?;
+                    self.stack.push(result);
+                    self.ip += 1;
+                },
+                Instruction::CallEnv(name, arity) => {
+                    let mut args = Vec::with_capacity(*arity);
+                    for _ in 0..*arity {
+                        args.push(self.pop()?);
+                    }
+                    args.reverse();
+                    let result = evaluate_call_value(name, args, frame_env)?;
                     self.stack.push(result);
                     self.ip += 1;
                 },
@@ -696,11 +729,6 @@ impl ModifierVm {
                     );
                     self.ip += 1;
                 },
-                Instruction::EvalExpr(expr) => {
-                    let value = crate::timeline::evaluate_expr(expr, frame_env)?;
-                    self.stack.push(value);
-                    self.ip += 1;
-                },
                 Instruction::MakeClosure { params, body } => {
                     let captures = CapturedEnv::snapshot(frame_env);
                     self.stack.push(Value::Closure(params.clone(), body.clone(), captures));
@@ -754,6 +782,7 @@ impl fmt::Display for ModifierBytecodeProgram {
                 Instruction::CallBuiltin(builtin, arity) => {
                     writeln!(f, "{idx}: CallBuiltin {builtin:?} {arity}")?
                 },
+                Instruction::CallEnv(name, arity) => writeln!(f, "{idx}: CallEnv {name} {arity}")?,
                 Instruction::Index => writeln!(f, "{idx}: Index")?,
                 Instruction::CallMethod(name, arity) => {
                     writeln!(f, "{idx}: CallMethod {name} {arity}")?
@@ -783,7 +812,6 @@ impl fmt::Display for ModifierBytecodeProgram {
                 Instruction::WriteOverrideIndexed { base, property } => {
                     writeln!(f, "{idx}: WriteOverrideIndexed {base} {property}")?
                 },
-                Instruction::EvalExpr(expr) => writeln!(f, "{idx}: EvalExpr {:?}", expr)?,
                 Instruction::MakeClosure { params, body: _ } => {
                     writeln!(f, "{idx}: MakeClosure {:?}", params)?
                 },
@@ -800,29 +828,55 @@ impl fmt::Display for ModifierBytecodeProgram {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::Expr;
     use crate::timeline::Environment;
     use crate::timeline::modifier_runtime::ir::{
-        ModifierExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides,
+        ModifierIrProgram, ModifierIrStmt, ModifierOverrides,
     };
 
     #[test]
-    fn unsupported_expr_compiles_and_executes_via_fallback() {
+    fn compiled_program_executes_without_ast_fallback() {
         let program = ModifierIrProgram {
             statements: vec![ModifierIrStmt::Assign {
                 target: vec!["box".to_string()],
                 property: "opacity".to_string(),
-                value: ModifierExpr::Unsupported(Expr::Num(0.5)),
+                value: CompiledExpr::Const(Value::Num(0.5)),
             }],
         };
-        let bytecode = compile_modifier_bytecode(&program).expect("fallback should compile");
+        let bytecode = compile_modifier_bytecode(&program).expect("program should compile");
         let mut env = Environment::new();
         let mut overrides = ModifierOverrides::default();
         execute_modifier_bytecode(&bytecode, &mut env, &mut overrides)
-            .expect("fallback should execute");
+            .expect("program should execute");
         assert_eq!(
             overrides.get("box").and_then(|props| props.get("opacity")),
             Some(&Value::Num(0.5))
         );
+    }
+
+    #[test]
+    fn loop_destructuring_binds_color_components() {
+        let program = ModifierIrProgram {
+            statements: vec![ModifierIrStmt::For {
+                var: crate::ast::LoopPattern::Tuple(vec![
+                    "r".to_string(),
+                    "g".to_string(),
+                    "b".to_string(),
+                    "a".to_string(),
+                ]),
+                index_var: None,
+                iterable: CompiledExpr::Const(Value::Color([0.1, 0.2, 0.3, 1.0])),
+                body: vec![ModifierIrStmt::Let {
+                    name: "__captured_color".to_string(),
+                    value: CompiledExpr::LoadEnv("r".to_string()),
+                }],
+            }],
+        };
+        let bytecode = compile_modifier_bytecode(&program).expect("program should compile");
+        let mut env = Environment::new();
+        let mut overrides = ModifierOverrides::default();
+        execute_modifier_bytecode(&bytecode, &mut env, &mut overrides)
+            .expect("program should execute");
+        assert_eq!(env.get("__captured_color"), Some(Value::Num(0.1)));
+        assert_eq!(env.get("r"), None, "loop variables should be cleaned up");
     }
 }

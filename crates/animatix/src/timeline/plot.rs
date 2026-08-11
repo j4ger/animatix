@@ -128,8 +128,13 @@ pub enum FuncSource {
 impl FuncSource {
     /// Compile an AST closure body into a function source.
     pub fn from_expr(args: Vec<String>, body: Expr, captures: CapturedEnv) -> Self {
-        let compiled = compile_expr(&body).expect("function body should compile");
-        FuncSource::Compiled(args, Box::new(compiled), captures)
+        match compile_expr(&body) {
+            Ok(compiled) => FuncSource::Compiled(args, Box::new(compiled), captures),
+            Err(e) => {
+                tracing::warn!("Failed to compile plot function body: {e}");
+                FuncSource::Compiled(args, Box::new(CompiledExpr::Const(Value::Num(0.0))), captures)
+            },
+        }
     }
 
     /// Return the number of arguments this function source expects.

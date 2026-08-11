@@ -4,7 +4,7 @@ use std::fmt;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::ast::{BinaryOp, Expr, LoopPattern, UnaryOp};
+use crate::ast::{BinaryOp, LoopPattern, UnaryOp};
 use crate::timeline::Value;
 use crate::timeline::animation_track::SceneAnchor;
 
@@ -50,6 +50,20 @@ pub enum BuiltinFn {
     ListSwap,
     /// Set an element in a list (returns new list).
     ListSet,
+    /// Signum function.
+    Signum,
+    /// Fractional part function.
+    Fract,
+    /// Euclidean distance between two points.
+    Hypot,
+    /// Exponentiation.
+    Pow,
+    /// Floating-point remainder.
+    Rem,
+    /// Step function (`x < edge ? 0 : 1`).
+    Step,
+    /// Round to nearest integer.
+    Round,
 }
 
 /// A compiled expression in the modifier IR.
@@ -70,6 +84,8 @@ pub enum CompiledExpr {
     Select(Box<CompiledExpr>, Box<CompiledExpr>, Box<CompiledExpr>),
     /// Call a built-in function.
     CallBuiltin(BuiltinFn, Vec<CompiledExpr>),
+    /// Call a function stored in the evaluation environment by name.
+    CallEnv(String, Vec<CompiledExpr>),
     /// Index into a collection.
     Index(Box<CompiledExpr>, Box<CompiledExpr>),
     /// Call a method on an expression.
@@ -105,6 +121,7 @@ impl CompiledExpr {
                     || else_expr.references_ident(name)
             },
             CompiledExpr::CallBuiltin(_, args) => args.iter().any(|arg| arg.references_ident(name)),
+            CompiledExpr::CallEnv(_, args) => args.iter().any(|arg| arg.references_ident(name)),
             CompiledExpr::Index(container, index) => {
                 container.references_ident(name) || index.references_ident(name)
             },
@@ -120,15 +137,6 @@ impl CompiledExpr {
     }
 }
 
-/// Expression used in modifier IR, either compiled or unsupported.
-#[derive(Clone, Debug, PartialEq)]
-pub enum ModifierExpr {
-    /// A successfully compiled expression.
-    Compiled(CompiledExpr),
-    /// An expression that could not be compiled.
-    Unsupported(Expr),
-}
-
 /// A statement in the modifier IR.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ModifierIrStmt {
@@ -139,7 +147,7 @@ pub enum ModifierIrStmt {
         /// Property name to assign.
         property: String,
         /// Value expression.
-        value: ModifierExpr,
+        value: CompiledExpr,
     },
     /// Assign a value to a runtime-indexed target (e.g. `bars[i].color = red`).
     /// The base is the array label, index is compiled to a frame-time expression,
@@ -152,19 +160,19 @@ pub enum ModifierIrStmt {
         /// Property name to assign.
         property: String,
         /// Value expression.
-        value: ModifierExpr,
+        value: CompiledExpr,
     },
     /// Bind a local variable.
     Let {
         /// Variable name.
         name: String,
         /// Bound expression.
-        value: ModifierExpr,
+        value: CompiledExpr,
     },
     /// Conditional statement.
     If {
         /// Condition expression.
-        condition: ModifierExpr,
+        condition: CompiledExpr,
         /// Statements if true.
         then_branch: Vec<ModifierIrStmt>,
         /// Statements if false.

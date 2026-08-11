@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fs;
 
 use animatix::ir::{
-    ModifierExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides, compile_modifier_expr,
+    CompiledExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides, compile_expr,
     lower_modifier_ir,
 };
 use animatix::timeline::{
@@ -12,7 +12,7 @@ use animatix::vm::{compile_modifier_bytecode, execute_modifier_bytecode};
 use animatix_syntax::ast::{BinaryOp, Expr, LoopPattern, Stmt, Time};
 use animatix_syntax::module::ModuleGraph;
 
-fn evaluate_modifier_via_vm(value: ModifierExpr, env: &mut Environment) -> Value {
+fn evaluate_modifier_via_vm(value: CompiledExpr, env: &mut Environment) -> Value {
     let program = ModifierIrProgram {
         statements: vec![ModifierIrStmt::Let {
             name: "__vm_test_result".to_string(),
@@ -152,12 +152,8 @@ fn ir_lowering_ignores_comments_in_always_blocks() {
 fn ir_lowering_supports_construct_expression_forms() {
     let expr = Expr::Construct("Point".to_string(), vec![]);
 
-    let compiled = compile_modifier_expr(&expr);
-    assert!(
-        matches!(compiled, ModifierExpr::Compiled(_)),
-        "Construct should lower to Compiled, got {:?}",
-        compiled
-    );
+    let compiled = compile_expr(&expr).expect("Construct should lower successfully");
+    assert!(matches!(compiled, CompiledExpr::Construct(..)));
 }
 
 #[test]
@@ -178,7 +174,7 @@ fn vm_matches_evaluate_expr_for_supported_subset() {
         Box::new(Expr::Str("pulse=off".to_string())),
     );
 
-    let compiled = compile_modifier_expr(&expr);
+    let compiled = compile_expr(&expr).expect("expression should compile");
     let mut env = Environment::new();
     load_standard_library(&mut env);
     env.set("t", Value::Num(std::f64::consts::FRAC_PI_2));
@@ -188,6 +184,56 @@ fn vm_matches_evaluate_expr_for_supported_subset() {
     let ast_value = evaluate_expr(&expr, &env).expect("ast eval should work");
 
     assert_eq!(compiled_value, ast_value);
+}
+
+#[test]
+fn vm_matches_ast_for_extended_builtins() {
+    let cases: Vec<Expr> = vec![
+        Expr::Call("signum".to_string(), vec![Expr::Num(-2.5)]),
+        Expr::Call("fract".to_string(), vec![Expr::Num(3.75)]),
+        Expr::Call("hypot".to_string(), vec![Expr::Num(3.0), Expr::Num(4.0)]),
+        Expr::Call("pow".to_string(), vec![Expr::Num(2.0), Expr::Num(10.0)]),
+        Expr::Call("rem".to_string(), vec![Expr::Num(7.0), Expr::Num(4.0)]),
+        Expr::Call("step".to_string(), vec![Expr::Num(1.0), Expr::Num(0.5)]),
+        Expr::Call("round".to_string(), vec![Expr::Num(2.6)]),
+    ];
+
+    for expr in cases {
+        let compiled = compile_expr(&expr).expect("builtin should compile");
+        let mut env = Environment::new();
+        load_standard_library(&mut env);
+        let vm_value = evaluate_modifier_via_vm(compiled, &mut env);
+        let ast_value = evaluate_expr(&expr, &env).expect("ast eval should work");
+        assert_eq!(vm_value, ast_value, "VM and AST disagree for {expr:?}");
+    }
+}
+
+#[test]
+fn vm_matches_ast_for_environment_functions() {
+    let cases: Vec<Expr> = vec![
+        Expr::Call("rgb".to_string(), vec![Expr::Num(255.0), Expr::Num(0.0), Expr::Num(128.0)]),
+        Expr::Call(
+            "rgba".to_string(),
+            vec![
+                Expr::Num(1.0),
+                Expr::Num(0.5),
+                Expr::Num(0.0),
+                Expr::Num(0.25),
+            ],
+        ),
+        Expr::Call("vec2".to_string(), vec![Expr::Num(3.0), Expr::Num(4.0)]),
+        Expr::Call("hsv".to_string(), vec![Expr::Num(120.0), Expr::Num(1.0), Expr::Num(1.0)]),
+        Expr::Call("seeded_rand".to_string(), vec![Expr::Num(42.0)]),
+    ];
+
+    for expr in cases {
+        let compiled = compile_expr(&expr).expect("environment call should compile");
+        let mut env = Environment::new();
+        load_standard_library(&mut env);
+        let vm_value = evaluate_modifier_via_vm(compiled, &mut env);
+        let ast_value = evaluate_expr(&expr, &env).expect("ast eval should work");
+        assert_eq!(vm_value, ast_value, "VM and AST disagree for {expr:?}");
+    }
 }
 
 #[test]
