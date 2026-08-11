@@ -8,9 +8,7 @@
 
 use std::collections::HashMap;
 
-use crate::ast::{
-    ComponentDef, Expr, MatchPattern, Modifier, ParamDef, Property, Stmt,
-};
+use crate::ast::{ComponentDef, Expr, MatchPattern, Modifier, ParamDef, Property, Stmt};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::typing::{self, Type as TypedType, TypeEnv as TypedEnv};
 
@@ -962,6 +960,162 @@ mod tests {
             "named color list should satisfy List<Color>, got: {:?}",
             diagnostics
         );
+    }
+
+    #[test]
+    fn rich_type_annotations_accept_matching_values() {
+        let mut components = HashMap::new();
+        components.insert(
+            "Probe".to_string(),
+            ComponentEntry {
+                definition: ComponentDef {
+                    name: "Probe".to_string(),
+                    params: vec![
+                        ParamDef {
+                            name: "p".to_string(),
+                            param_type: Some(TypeAnnotation::Vec3),
+                            default: None,
+                        },
+                        ParamDef {
+                            name: "pair".to_string(),
+                            param_type: Some(TypeAnnotation::Tuple(vec![
+                                TypeAnnotation::Str,
+                                TypeAnnotation::Num,
+                            ])),
+                            default: None,
+                        },
+                        ParamDef {
+                            name: "mapper".to_string(),
+                            param_type: Some(TypeAnnotation::Function {
+                                params: vec![TypeAnnotation::Num],
+                                ret: Box::new(TypeAnnotation::Num),
+                            }),
+                            default: None,
+                        },
+                    ],
+                    body: vec![],
+                    is_pub: false,
+                },
+                source_path: std::path::PathBuf::new(),
+                actions: HashMap::new(),
+            },
+        );
+        let mut env =
+            TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())));
+        let stmts = vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "probe".to_string(),
+            array_index: None,
+            ty: "Probe".to_string(),
+            props: vec![
+                Property {
+                    name: "p".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0)]),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "pair".to_string(),
+                    value: Expr::Tuple(vec![Expr::Str("x".to_string()), Expr::Num(1.0)]),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "mapper".to_string(),
+                    value: Expr::Closure(vec!["x".to_string()], Box::new(Expr::Num(1.0))),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }];
+        let diagnostics = env.check_statements(&stmts);
+        assert!(
+            diagnostics.is_empty(),
+            "matching rich annotations should typecheck, got: {:?}",
+            diagnostics
+        );
+    }
+
+    #[test]
+    fn rich_type_annotations_reject_mismatched_values() {
+        let mut components = HashMap::new();
+        components.insert(
+            "Probe".to_string(),
+            ComponentEntry {
+                definition: ComponentDef {
+                    name: "Probe".to_string(),
+                    params: vec![
+                        ParamDef {
+                            name: "p".to_string(),
+                            param_type: Some(TypeAnnotation::Vec3),
+                            default: None,
+                        },
+                        ParamDef {
+                            name: "pair".to_string(),
+                            param_type: Some(TypeAnnotation::Tuple(vec![
+                                TypeAnnotation::Str,
+                                TypeAnnotation::Num,
+                            ])),
+                            default: None,
+                        },
+                        ParamDef {
+                            name: "mapper".to_string(),
+                            param_type: Some(TypeAnnotation::Function {
+                                params: vec![TypeAnnotation::Num],
+                                ret: Box::new(TypeAnnotation::Num),
+                            }),
+                            default: None,
+                        },
+                    ],
+                    body: vec![],
+                    is_pub: false,
+                },
+                source_path: std::path::PathBuf::new(),
+                actions: HashMap::new(),
+            },
+        );
+        let mut env =
+            TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())));
+        let stmts = vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "probe".to_string(),
+            array_index: None,
+            ty: "Probe".to_string(),
+            props: vec![
+                Property {
+                    name: "p".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0)]),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "pair".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(1.0), Expr::Str("x".to_string())]),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "mapper".to_string(),
+                    value: Expr::Closure(
+                        vec!["x".to_string()],
+                        Box::new(Expr::Str("bad".to_string())),
+                    ),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }];
+        let diagnostics = env.check_statements(&stmts);
+        assert_eq!(diagnostics.len(), 3, "expected three type mismatches, got: {:?}", diagnostics);
+        assert!(diagnostics.iter().all(|d| d.code == DiagnosticCode::TypeMismatch));
     }
 
     #[test]

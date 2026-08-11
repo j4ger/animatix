@@ -72,13 +72,15 @@ pub(crate) fn parser<'src>(
             .collect::<Vec<_>>()
             .delimited_by(just('{').padded(), just('}').padded());
 
-        // Type annotation: Num | Str | Bool | Vec2 | Vec4 | Color | Actor | Scene | List<Type>
+        // Type annotation: Num | Str | Bool | Vec2/3/4 | Color | Actor | Scene | List<Type> |
+        // (T, U) | (T, U) => R | Any | aliases
         let type_annotation = recursive(|type_annotation| {
             let simple = choice((
                 text::keyword("Num").to(TypeAnnotation::Num),
                 text::keyword("Str").to(TypeAnnotation::Str),
                 text::keyword("Bool").to(TypeAnnotation::Bool),
                 text::keyword("Vec2").to(TypeAnnotation::Vec2),
+                text::keyword("Vec3").to(TypeAnnotation::Vec3),
                 text::keyword("Vec4").to(TypeAnnotation::Vec4),
                 text::keyword("Color").to(TypeAnnotation::Color),
                 text::keyword("Actor").to(TypeAnnotation::Actor),
@@ -119,8 +121,43 @@ pub(crate) fn parser<'src>(
                     parts.push(last);
                     TypeAnnotation::Alias(parts.join("::"))
                 });
+            let tuple = text::keyword("Tuple")
+                .ignore_then(just('<').padded())
+                .ignore_then(
+                    type_annotation
+                        .clone()
+                        .separated_by(just(',').padded())
+                        .allow_trailing()
+                        .collect::<Vec<_>>()
+                        .or_not()
+                        .map(|items| items.unwrap_or_default()),
+                )
+                .then_ignore(just('>').padded())
+                .map(TypeAnnotation::Tuple)
+                .boxed();
+            let function = text::keyword("Fn")
+                .padded()
+                .ignore_then(
+                    type_annotation
+                        .clone()
+                        .separated_by(just(',').padded())
+                        .allow_trailing()
+                        .collect::<Vec<_>>()
+                        .or_not()
+                        .map(|items| items.unwrap_or_default())
+                        .delimited_by(just('(').padded(), just(')').padded()),
+                )
+                .then_ignore(just("=>").padded())
+                .then(type_annotation.clone())
+                .map(|(params, ret)| TypeAnnotation::Function {
+                    params,
+                    ret: Box::new(ret),
+                })
+                .boxed();
             let atom = simple
                 .or(list)
+                .or(tuple)
+                .or(function)
                 .or(common::type_ident().map(TypeAnnotation::Alias))
                 .or(canonical_alias)
                 .or(legacy_alias);

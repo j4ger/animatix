@@ -579,6 +579,33 @@ fn value_for_property(
                     insert_text: Some("(${1:x}, ${2:y})".to_string()),
                 });
             },
+            animatix_syntax::ast::TypeAnnotation::Vec3 => {
+                items.push(CompletionItem {
+                    label: "(0, 0, 0)".to_string(),
+                    kind: CompletionKind::Snippet,
+                    detail: Some("Vec3".to_string()),
+                    documentation: Some("3D vector (x, y, z)".to_string()),
+                    insert_text: Some("(${1:x}, ${2:y}, ${3:z})".to_string()),
+                });
+            },
+            animatix_syntax::ast::TypeAnnotation::Tuple(_) => {
+                items.push(CompletionItem {
+                    label: "(...)".to_string(),
+                    kind: CompletionKind::Snippet,
+                    detail: Some("Tuple".to_string()),
+                    documentation: Some("Fixed-size heterogeneous tuple".to_string()),
+                    insert_text: Some("(${1:value}, ${2:value})".to_string()),
+                });
+            },
+            animatix_syntax::ast::TypeAnnotation::Scene => {
+                items.push(CompletionItem {
+                    label: "scene".to_string(),
+                    kind: CompletionKind::Value,
+                    detail: Some("Scene".to_string()),
+                    documentation: Some("Scene reference".to_string()),
+                    insert_text: None,
+                });
+            },
             animatix_syntax::ast::TypeAnnotation::Vec4 => {
                 items.push(CompletionItem {
                     label: "(0, 0, 0, 0)".to_string(),
@@ -653,6 +680,24 @@ fn value_for_property(
                                 documentation: None,
                                 insert_text: None,
                             }));
+                        },
+                        animatix_syntax::ast::TypeAnnotation::Vec3 => {
+                            items.push(CompletionItem {
+                                label: "(0, 0, 0)".to_string(),
+                                kind: CompletionKind::Snippet,
+                                detail: Some("Vec3".to_string()),
+                                documentation: Some("3D vector (x, y, z)".to_string()),
+                                insert_text: Some("(${1:x}, ${2:y}, ${3:z})".to_string()),
+                            });
+                        },
+                        animatix_syntax::ast::TypeAnnotation::Tuple(_) => {
+                            items.push(CompletionItem {
+                                label: "(...)".to_string(),
+                                kind: CompletionKind::Snippet,
+                                detail: Some("Tuple".to_string()),
+                                documentation: Some("Fixed-size heterogeneous tuple".to_string()),
+                                insert_text: Some("(${1:value}, ${2:value})".to_string()),
+                            });
                         },
                         _ => {},
                     }

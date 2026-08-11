@@ -1154,7 +1154,8 @@ pub component MetricCard(value: Metric) {
 }
 ```
 
-Aliases are resolved before type checking, so they can wrap primitive types, unions, lists, and other aliases.
+Aliases are resolved before type checking, so they can wrap primitive types, unions, lists, tuples,
+functions, and other aliases.
 `pub type` aliases are exported by aliased module imports and must be referenced by `::`-namespaced
 name in the importing scene, e.g. `types::Metric` after `import "./types.amx" as types`. Simple names
 remain local to their defining file, avoiding cross-module collisions. The legacy dotted form
@@ -1172,11 +1173,14 @@ name or forms a cycle is still usable as the gradual `Any` type, but produces a
 | `Str` | String literals | `"hello"`, `"path/to/file.amx"` |
 | `Bool` | Boolean values | `true`, `false` |
 | `Vec2` | 2D vector | `(100, 200)`, `(50%, 75%)` |
+| `Vec3` | 3D vector | `(1, 2, 3)`, `(0.5, 0.2, 0.8)` |
 | `Vec4` | 4D vector | `(0.5, 0.2, 0.8, 1.0)` |
 | `Color` | RGBA color | `rgb(0.38, 0.78, 1.0)` |
 | `Actor` | Actor reference | `btn`, `self` |
 | `Scene` | Scene reference | `scene` |
 | `List<T>` | Homogeneous list of type `T` | `{1, 2, 3}` (inferred as `List<Num>`) |
+| `Tuple<T, U, ...>` | Fixed-size heterogeneous tuple | `(100, "label")` |
+| `Fn(T, U) => R` | Function with parameter and return types | `(x) => x * 2` |
 | `A \| B` | Union of accepted types | `Bool \| Str`, `Num \| Str` |
 | `Any` | Top type, accepts any value | — |
 
@@ -1198,6 +1202,8 @@ The subtyping relation `<:` is reflexive and transitive:
 | `T <: Any` | Every type is a subtype of `Any` |
 | `T <: T` | Identity — every type subtypes itself |
 | `List<A> <: List<B>` iff `A <: B` | List subtyping is covariant with respect to element type |
+| `(A1, ..., An) <: (B1, ..., Bn)` iff each `Ai <: Bi` | Tuple subtyping is covariant and arity must match |
+| `Fn(P1, ..., Pn) => R <: Fn(Q1, ..., Qn) => S` iff each `Qi <: Pi` and `R <: S` | Function subtyping is contravariant in parameters and covariant in return type |
 | `T <: A \| B` iff `T <: A` or `T <: B` | An actual type is accepted when it matches any union branch |
 
 **Examples:**
@@ -1216,13 +1222,17 @@ When no explicit type annotation is given, the type checker infers the type of c
 | String literal | `Str` | `"hello"` |
 | Boolean literal | `Bool` | `true`, `false` |
 | Tuple `(a, b)` | `Vec2` | `(100, 200)`, `(50%, 75%)` |
-| Tuple `(a, b, c, d)` | `Vec4` | `(0.1, 0.5, 0.8, 1.0)` |
+| Tuple `(a, b, c)` | `Vec3` when all elements are `Num` | `(1, 2, 3)` |
+| Tuple `(a, b, c, d)` | `Vec4` when all elements are `Num` | `(0.1, 0.5, 0.8, 1.0)` |
+| Heterogeneous tuple | `Tuple<...>` | `(100, "label")` |
+| Closure `(x) => 1` | `Fn(Any) => Num` | `(x) => 1` |
 | Function `rgb(r, g, b)` | `Color` | `rgb(0.38, 0.78, 1.0)` |
 | Function `rgba(r, g, b, a)` | `Color` | `rgba(0.1, 0.5, 0.8, 0.5)` |
 | Actor label | `Actor` | `btn`, `title` |
 | List literal | `List<T>` (element-dependent) | `{1, 2, 3}` → `List<Num>` |
 
-**Tuples of other arities** (3-tuple `(a, b, c)`) are not treated as vector types. For generic list values, use `{...}` syntax.
+Closure parameter types are currently inferred as `Any`; the return type is inferred from the body.
+A call to a closure bound by `let` returns the closure's inferred return type.
 
 ### 13.5 Examples
 
@@ -1271,6 +1281,16 @@ pub component Palette(colors: List<Color>) {
     swatch3: Rect, size: (40, 40), color: colors[2]
 }
 ```
+
+**Example with `Tuple` and `Fn`:**
+```animatix
+pub component Mapper(pair: Tuple<Str, Num>, callback: Fn(Num, Num) => Num) {
+    // pair accepts (Str, Num); callback accepts a closure returning Num
+}
+```
+`Tuple` and `Fn` are annotation keywords, not expression literals. A parenthesized
+parameter such as `x: (20, 20)` remains a default tuple value for backward
+compatibility.
 
 ### 13.6 Backward Compatibility
 

@@ -122,16 +122,35 @@ module.exports = grammar({
       ))
     ),
 
-    type_annotation: $ => prec(10, choice(
+    type_annotation: $ => prec.left(10, choice(
+      $.type_function,
       seq($._type_annotation, repeat1(seq('|', $._type_annotation))),
       $._type_annotation
     )),
+
+    type_params: $ => seq(
+      '(',
+      optional(seq(
+        $.type_annotation,
+        repeat(seq(',', $.type_annotation)),
+        optional(',')
+      )),
+      ')'
+    ),
+
+    type_function: $ => seq(
+      'Fn',
+      $.type_params,
+      '=>',
+      field('ret', $.type_annotation)
+    ),
 
     _type_annotation: $ => prec(20, choice(
       'Num',
       'Str',
       'Bool',
       'Vec2',
+      'Vec3',
       'Vec4',
       'Color',
       'Actor',
@@ -139,7 +158,9 @@ module.exports = grammar({
       'Any',
       $.type_identifier,
       $.type_path,
-      seq('List', '<', $.type_annotation, '>')
+      seq('List', '<', $.type_annotation, '>'),
+      seq('Tuple', '<', optional(seq($.type_annotation, repeat(seq(',', $.type_annotation)), optional(','))), '>'),
+      $.type_function
     )),
 
     action_definition: $ => seq(

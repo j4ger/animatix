@@ -381,6 +381,8 @@ pub enum TypeAnnotation {
     Bool,
     /// 2D vector.
     Vec2,
+    /// 3D vector.
+    Vec3,
     /// 4D vector.
     Vec4,
     /// RGBA color.
@@ -391,6 +393,15 @@ pub enum TypeAnnotation {
     Scene,
     /// Homogeneous list.
     List(Box<TypeAnnotation>),
+    /// Heterogeneous tuple, e.g. `Tuple<Num, Str>`.
+    Tuple(Vec<TypeAnnotation>),
+    /// Function type, e.g. `Fn(Num, Num) => Num`.
+    Function {
+        /// Function parameter types.
+        params: Vec<TypeAnnotation>,
+        /// Function return type.
+        ret: Box<TypeAnnotation>,
+    },
     /// Union of accepted types, e.g. `Bool | Str`.
     Union(Vec<TypeAnnotation>),
     /// Named type alias reference.
@@ -406,11 +417,20 @@ impl std::fmt::Display for TypeAnnotation {
             TypeAnnotation::Str => write!(f, "Str"),
             TypeAnnotation::Bool => write!(f, "Bool"),
             TypeAnnotation::Vec2 => write!(f, "Vec2"),
+            TypeAnnotation::Vec3 => write!(f, "Vec3"),
             TypeAnnotation::Vec4 => write!(f, "Vec4"),
             TypeAnnotation::Color => write!(f, "Color"),
             TypeAnnotation::Actor => write!(f, "Actor"),
             TypeAnnotation::Scene => write!(f, "Scene"),
             TypeAnnotation::List(inner) => write!(f, "List<{}>", inner),
+            TypeAnnotation::Tuple(items) => {
+                let inner = items.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ");
+                write!(f, "Tuple<{inner}>")
+            },
+            TypeAnnotation::Function { params, ret } => {
+                let inner = params.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ");
+                write!(f, "Fn({inner}) => {ret}")
+            },
             TypeAnnotation::Union(types) => {
                 let inner = types.iter().map(ToString::to_string).collect::<Vec<_>>().join(" | ");
                 write!(f, "{inner}")

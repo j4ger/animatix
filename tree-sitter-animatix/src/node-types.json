@@ -3910,11 +3910,56 @@
           "named": true
         },
         {
+          "type": "type_function",
+          "named": true
+        },
+        {
           "type": "type_identifier",
           "named": true
         },
         {
           "type": "type_path",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "type_function",
+    "named": true,
+    "fields": {
+      "ret": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "type_annotation",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "type_params",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "type_params",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "type_annotation",
           "named": true
         }
       ]
@@ -4212,6 +4257,10 @@
     "named": false
   },
   {
+    "type": "Fn",
+    "named": false
+  },
+  {
     "type": "List",
     "named": false
   },
@@ -4228,7 +4277,15 @@
     "named": false
   },
   {
+    "type": "Tuple",
+    "named": false
+  },
+  {
     "type": "Vec2",
+    "named": false
+  },
+  {
+    "type": "Vec3",
     "named": false
   },
   {

@@ -9,14 +9,8 @@ use animatix_syntax::ast::Stmt;
 
 /// Corpus of high-risk constructs where the two converters previously drifted.
 const CORPUS: &[(&str, &str)] = &[
-    (
-        "simple actor",
-        "#0s\nbox: Rect, size: (100, 100)\n",
-    ),
-    (
-        "action duration modifier",
-        "#0s\nfade-in label [500ms]\n",
-    ),
+    ("simple actor", "#0s\nbox: Rect, size: (100, 100)\n"),
+    ("action duration modifier", "#0s\nfade-in label [500ms]\n"),
     (
         "scene with config and keyframe",
         "# Intro\nconfig { duration: 5.0 }\n#0s\ntitle: Text, text: \"Hi\"\n",
@@ -25,22 +19,10 @@ const CORPUS: &[(&str, &str)] = &[
         "play transition",
         "# Intro\n#0s\ntitle: Text\nplay scenes.FadeIn [fade, 300ms]\n",
     ),
-    (
-        "assignment",
-        "#0s\nbox.color = red\n",
-    ),
-    (
-        "closure",
-        "#0s\nlet f = x => x + 1\n",
-    ),
-    (
-        "text shorthand",
-        "#0s\nlabel: \"Hello\"\n",
-    ),
-    (
-        "typst shorthand",
-        "#0s\nlabel: $$Hello$$\n",
-    ),
+    ("assignment", "#0s\nbox.color = red\n"),
+    ("closure", "#0s\nlet f = x => x + 1\n"),
+    ("text shorthand", "#0s\nlabel: \"Hello\"\n"),
+    ("typst shorthand", "#0s\nlabel: $$Hello$$\n"),
     (
         "for loop with index",
         "#0s\nfor v, i in {1, 2, 3} { box[i]: Rect, size: (10, v) }\n",
@@ -53,10 +35,7 @@ const CORPUS: &[(&str, &str)] = &[
         "reactive binding",
         "#0s\nbox: Rect, size: (10, 10)\nalways {\n  box.color := red\n}\n",
     ),
-    (
-        "relative keyframe",
-        "#+500ms\nbox.color = blue\n",
-    ),
+    ("relative keyframe", "#+500ms\nbox.color = blue\n"),
     (
         "sequence",
         "#0s\nsequence {\n  move box [to: (10, 10), 500ms]\n  move box [to: (20, 20), 500ms]\n}\n",
@@ -157,14 +136,16 @@ const CORPUS: &[(&str, &str)] = &[
         "if expression and logical operators",
         "#0s\nbox: Rect\nalways {\n  box.visible = t > 0 && t < 1 || flag\n  box.color = if ready { green } else { red }\n}\n",
     ),
+    ("operator precedence with power", "#0s\nlet x = a + b * c ^ d\n"),
     (
-        "operator precedence with power",
-        "#0s\nlet x = a + b * c ^ d\n",
+        "rich type annotations",
+        "type P3 = Vec3\ntype Pair = Tuple<Str, Num>\ntype Mapper = Fn(Num, Num) => Num\npub component App(p: Vec3, pair: Tuple<Str, Num>, mapper: Fn(Num, Num) => Num) {}\n",
+    ),
+    (
+        "nested type annotations",
+        "type Grid = List<Tuple<Num, Num>>\ntype Handler = Fn(Str) => Tuple<Num, Bool>\ntype Mode = Tuple<Num, Num> | Fn(Num) => Num\n",
     ),
 ];
-
-
-
 
 #[test]
 fn chumsky_and_tree_sitter_are_semantically_equivalent() {

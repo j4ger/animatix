@@ -1026,6 +1026,97 @@ mod tests {
     }
 
     #[test]
+    fn test_rich_type_annotations_parse() {
+        let src =
+            "type P3 = Vec3\ntype Pair = Tuple<Str, Num>\ntype Mapper = Fn(Num, Num) => Num\n";
+        let res = parser_simple().parse(src);
+        assert!(!res.has_errors(), "parse errors: {:?}", res.errors().collect::<Vec<_>>());
+        let stmts = res.output().expect("expected parse output");
+        match &stmts[0] {
+            Stmt::TypeAlias {
+                name, annotation, ..
+            } => {
+                assert_eq!(name, "P3");
+                assert_eq!(annotation, &TypeAnnotation::Vec3);
+            },
+            other => panic!("expected Vec3 type alias, got: {:?}", other),
+        }
+        match &stmts[1] {
+            Stmt::TypeAlias {
+                name, annotation, ..
+            } => {
+                assert_eq!(name, "Pair");
+                assert_eq!(
+                    annotation,
+                    &TypeAnnotation::Tuple(vec![TypeAnnotation::Str, TypeAnnotation::Num])
+                );
+            },
+            other => panic!("expected tuple type alias, got: {:?}", other),
+        }
+        match &stmts[2] {
+            Stmt::TypeAlias {
+                name, annotation, ..
+            } => {
+                assert_eq!(name, "Mapper");
+                assert_eq!(
+                    annotation,
+                    &TypeAnnotation::Function {
+                        params: vec![TypeAnnotation::Num, TypeAnnotation::Num],
+                        ret: Box::new(TypeAnnotation::Num),
+                    }
+                );
+            },
+            other => panic!("expected function type alias, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_rich_type_annotations_in_component_params() {
+        let src =
+            "pub component App(p: Vec3, pair: Tuple<Str, Num>, mapper: Fn(Num, Num) => Num) {}\n";
+        let res = parser_simple().parse(src);
+        assert!(!res.has_errors(), "parse errors: {:?}", res.errors().collect::<Vec<_>>());
+        let stmts = res.output().expect("expected parse output");
+        if let Stmt::ComponentDef(def, _) = &stmts[0] {
+            assert_eq!(def.params[0].param_type, Some(TypeAnnotation::Vec3));
+            assert_eq!(
+                def.params[1].param_type,
+                Some(TypeAnnotation::Tuple(vec![TypeAnnotation::Str, TypeAnnotation::Num]))
+            );
+            assert_eq!(
+                def.params[2].param_type,
+                Some(TypeAnnotation::Function {
+                    params: vec![TypeAnnotation::Num, TypeAnnotation::Num],
+                    ret: Box::new(TypeAnnotation::Num),
+                })
+            );
+        } else {
+            panic!("expected component definition");
+        }
+    }
+
+    #[test]
+    fn parenthesized_param_value_stays_default_expression() {
+        // `(Num, Num)` is a tuple expression default, not a type annotation.
+        let src = "component C(x: (Num, Num)) {}\n";
+        let res = parser_simple().parse(src);
+        assert!(!res.has_errors(), "parse errors: {:?}", res.errors().collect::<Vec<_>>());
+        let stmts = res.output().expect("expected parse output");
+        if let Stmt::ComponentDef(def, _) = &stmts[0] {
+            assert_eq!(def.params[0].param_type, None);
+            assert_eq!(
+                def.params[0].default,
+                Some(Expr::Tuple(vec![
+                    Expr::Ident("Num".to_string()),
+                    Expr::Ident("Num".to_string())
+                ]))
+            );
+        } else {
+            panic!("expected component definition");
+        }
+    }
+
+    #[test]
     fn parse_action_with_multiple_dotted_targets() {
         // Comma-separated dotted targets: `highlight eq.f1, eq.f2 [500ms]`
         let result = parse_snippet("highlight eq.f1, eq.f2 [500ms]");

@@ -90,6 +90,69 @@ type LegendMode = Bool | Str
     annotation: (type_annotation)))
 
 ==================
+Vec3 type alias
+==================
+
+type P3 = Vec3
+
+---
+
+(source_file
+  (type_alias
+    name: (identifier)
+    annotation: (type_annotation)))
+
+==================
+Tuple and function type annotations
+==================
+
+type Pair = Tuple<Str, Num>
+type Mapper = Fn(Num, Num) => Num
+
+---
+
+(source_file
+  (type_alias
+    name: (identifier)
+    annotation: (type_annotation
+      (type_annotation)
+      (type_annotation)))
+  (type_alias
+    name: (identifier)
+    annotation: (type_annotation
+      (type_function
+        (type_params
+          (type_annotation)
+          (type_annotation))
+        ret: (type_annotation)))))
+
+==================
+Nested rich type annotations
+==================
+
+type Grid = List<Tuple<Num, Num>>
+type Handler = Fn(Str) => Tuple<Num, Bool>
+
+---
+
+(source_file
+  (type_alias
+    name: (identifier)
+    annotation: (type_annotation
+      (type_annotation
+        (type_annotation)
+        (type_annotation))))
+  (type_alias
+    name: (identifier)
+    annotation: (type_annotation
+      (type_function
+        (type_params
+          (type_annotation))
+        ret: (type_annotation
+          (type_annotation)
+          (type_annotation))))))
+
+==================
 Namespaced type alias reference
 ==================
 

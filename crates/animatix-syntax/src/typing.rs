@@ -73,6 +73,8 @@ pub enum Type {
     Actor(String),
     /// Component instance.
     Component(String),
+    /// Scene reference.
+    Scene,
     /// Homogeneous list.
     List(Box<Type>),
     /// Heterogeneous tuple.
@@ -101,6 +103,7 @@ impl std::fmt::Display for Type {
             Type::Color => write!(f, "Color"),
             Type::Actor(name) => write!(f, "Actor({name})"),
             Type::Component(name) => write!(f, "Component({name})"),
+            Type::Scene => write!(f, "Scene"),
             Type::List(inner) => write!(f, "List<{inner}>"),
             Type::Union(items) => {
                 let inner = items.iter().map(ToString::to_string).collect::<Vec<_>>().join(" | ");
@@ -127,30 +130,48 @@ impl Type {
             Type::Str => TypeAnnotation::Str,
             Type::Bool => TypeAnnotation::Bool,
             Type::Vec2 => TypeAnnotation::Vec2,
-            Type::Vec3 => TypeAnnotation::Any,
+            Type::Vec3 => TypeAnnotation::Vec3,
             Type::Vec4 => TypeAnnotation::Vec4,
             Type::Color => TypeAnnotation::Color,
             Type::Actor(_) | Type::Component(_) => TypeAnnotation::Actor,
+            Type::Scene => TypeAnnotation::Scene,
             Type::List(inner) => TypeAnnotation::List(Box::new(inner.to_annotation())),
+            Type::Tuple(items) => {
+                TypeAnnotation::Tuple(items.iter().map(Type::to_annotation).collect())
+            },
             Type::Union(types) => {
                 TypeAnnotation::Union(types.iter().map(Type::to_annotation).collect())
             },
-            Type::Tuple(_) | Type::Function { .. } => TypeAnnotation::Any,
+            Type::Function { params, ret } => TypeAnnotation::Function {
+                params: params.iter().map(Type::to_annotation).collect(),
+                ret: Box::new(ret.to_annotation()),
+            },
         }
     }
 
     /// Convert a user-facing annotation into the richer internal type.
+    ///
+    /// Named aliases are intentionally left as `Any` here; callers that need
+    /// alias resolution must use [`TypeEnv::resolve_annotation`].
     pub fn from_annotation(annotation: &TypeAnnotation) -> Self {
         match annotation {
             TypeAnnotation::Num => Type::Num,
             TypeAnnotation::Str => Type::Str,
             TypeAnnotation::Bool => Type::Bool,
             TypeAnnotation::Vec2 => Type::Vec2,
+            TypeAnnotation::Vec3 => Type::Vec3,
             TypeAnnotation::Vec4 => Type::Vec4,
             TypeAnnotation::Color => Type::Color,
             TypeAnnotation::Actor => Type::Actor("Actor".to_string()),
-            TypeAnnotation::Scene => Type::Any,
+            TypeAnnotation::Scene => Type::Scene,
             TypeAnnotation::List(inner) => Type::List(Box::new(Type::from_annotation(inner))),
+            TypeAnnotation::Tuple(items) => {
+                Type::Tuple(items.iter().map(Type::from_annotation).collect())
+            },
+            TypeAnnotation::Function { params, ret } => Type::Function {
+                params: params.iter().map(Type::from_annotation).collect(),
+                ret: Box::new(Type::from_annotation(ret)),
+            },
             TypeAnnotation::Union(types) => {
                 Type::Union(types.iter().map(Type::from_annotation).collect())
             },
@@ -211,23 +232,45 @@ impl TypeEnv {
     /// hard diagnostic should use [`Self::unresolved_alias`] on the annotation
     /// before treating the value as usable.
     pub fn resolve_annotation(&self, annotation: &TypeAnnotation) -> Type {
-        match annotation {
-            TypeAnnotation::Alias(name) => self
-                .resolve_alias_path(name, &mut HashSet::new())
-                .unwrap_or(Type::Any),
-            _ => Type::from_annotation(annotation),
-        }
+        self.resolve_annotation_inner(annotation, &mut HashSet::new())
+            .unwrap_or(Type::Any)
     }
 
     /// Return the first unresolved alias path in this annotation, if any.
     pub fn unresolved_alias(&self, annotation: &TypeAnnotation) -> Option<String> {
+        self.resolve_annotation_inner(annotation, &mut HashSet::new()).err()
+    }
+
+    fn resolve_annotation_inner(
+        &self,
+        annotation: &TypeAnnotation,
+        visiting: &mut HashSet<String>,
+    ) -> Result<Type, String> {
         match annotation {
-            TypeAnnotation::Alias(name) => {
-                self.resolve_alias_path(name, &mut HashSet::new()).err()
+            TypeAnnotation::Alias(name) => self.resolve_alias_path(name, visiting),
+            TypeAnnotation::List(inner) => {
+                Ok(Type::List(Box::new(self.resolve_annotation_inner(inner, visiting)?)))
             },
-            TypeAnnotation::List(inner) => self.unresolved_alias(inner),
-            TypeAnnotation::Union(types) => types.iter().find_map(|ty| self.unresolved_alias(ty)),
-            _ => None,
+            TypeAnnotation::Tuple(items) => Ok(Type::Tuple(
+                items
+                    .iter()
+                    .map(|item| self.resolve_annotation_inner(item, visiting))
+                    .collect::<Result<Vec<_>, _>>()?,
+            )),
+            TypeAnnotation::Function { params, ret } => Ok(Type::Function {
+                params: params
+                    .iter()
+                    .map(|param| self.resolve_annotation_inner(param, visiting))
+                    .collect::<Result<Vec<_>, _>>()?,
+                ret: Box::new(self.resolve_annotation_inner(ret, visiting)?),
+            }),
+            TypeAnnotation::Union(types) => Ok(Type::Union(
+                types
+                    .iter()
+                    .map(|ty| self.resolve_annotation_inner(ty, visiting))
+                    .collect::<Result<Vec<_>, _>>()?,
+            )),
+            _ => Ok(Type::from_annotation(annotation)),
         }
     }
 
@@ -240,8 +283,7 @@ impl TypeEnv {
             return Err(name.to_string());
         }
         let result = match self.aliases.get(name) {
-            Some(TypeAnnotation::Alias(next)) => self.resolve_alias_path(next, visiting),
-            Some(annotation) => Ok(Type::from_annotation(annotation)),
+            Some(annotation) => self.resolve_annotation_inner(annotation, visiting),
             None => Err(name.to_string()),
         };
         visiting.remove(name);
@@ -519,8 +561,18 @@ fn property_specs() -> Vec<(&'static str, &'static str, Type)> {
         ("at", Type::Vec2),
     ];
     for ty in [
-        "Text", "Code", "Typst", "Rect", "Ellipse", "Polygon", "Line", "Button", "Svg", "Image",
-        "Graph", "PlotCurve",
+        "Text",
+        "Code",
+        "Typst",
+        "Rect",
+        "Ellipse",
+        "Polygon",
+        "Line",
+        "Button",
+        "Svg",
+        "Image",
+        "Graph",
+        "PlotCurve",
     ] {
         specs.extend(
             common
@@ -627,6 +679,20 @@ pub fn common_type(types: &[Type]) -> Type {
     Type::Any
 }
 
+/// Check that an actual function parameter type is a supertype of the expected
+/// parameter type (contravariance). `Any` is top on the actual side and cannot
+/// be required by the expected side without also being provided by the actual
+/// function.
+fn is_param_supertype(actual: &Type, expected: &Type) -> bool {
+    if actual == &Type::Any {
+        return true;
+    }
+    if expected == &Type::Any {
+        return false;
+    }
+    is_subtype(expected, actual)
+}
+
 /// Check whether `actual` is a subtype of `expected`.
 pub fn is_subtype(actual: &Type, expected: &Type) -> bool {
     match (actual, expected) {
@@ -635,6 +701,15 @@ pub fn is_subtype(actual: &Type, expected: &Type) -> bool {
         (a, b) if a == b => true,
         (Type::Color, Type::Vec4) => true,
         (Type::List(a), Type::List(b)) => is_subtype(a, b),
+        (Type::Tuple(a), Type::Tuple(b)) => {
+            a.len() == b.len()
+                && a.iter().zip(b).all(|(actual, expected)| is_subtype(actual, expected))
+        },
+        (Type::Function { params: a, ret: ar }, Type::Function { params: b, ret: br }) => {
+            a.len() == b.len()
+                && a.iter().zip(b).all(|(actual, expected)| is_param_supertype(actual, expected))
+                && is_subtype(ar, br)
+        },
         (Type::Actor(_), Type::Actor(_)) => true,
         (Type::Component(_), Type::Actor(_)) => true,
         (Type::Union(actual_types), Type::Union(expected_types)) => actual_types
@@ -667,14 +742,11 @@ pub fn infer_expr_type(expr: &Expr, env: &TypeEnv) -> Type {
         },
         Expr::Tuple(items) => {
             let types = items.iter().map(|item| infer_expr_type(item, env)).collect::<Vec<_>>();
+            let all_num = types.iter().all(|ty| *ty == Type::Num);
             match types.as_slice() {
-                [_, _] => Type::Vec2,
-                [a, b, c] if *a == Type::Num && *b == Type::Num && *c == Type::Num => Type::Vec3,
-                [a, b, c, d]
-                    if *a == Type::Num && *b == Type::Num && *c == Type::Num && *d == Type::Num =>
-                {
-                    Type::Vec4
-                },
+                [_, _] if all_num => Type::Vec2,
+                [_, _, _] if all_num => Type::Vec3,
+                [_, _, _, _] if all_num => Type::Vec4,
                 _ => Type::Tuple(types),
             }
         },
@@ -717,7 +789,10 @@ pub fn infer_expr_type(expr: &Expr, env: &TypeEnv) -> Type {
             Type::Bool => Type::Bool,
             other => other,
         },
-        Expr::Call(name, _) => env.function_type(name).unwrap_or(Type::Any),
+        Expr::Call(name, _) => match env.lookup_ident(name) {
+            Some(Type::Function { ret, .. }) => *ret,
+            _ => env.function_type(name).unwrap_or(Type::Any),
+        },
         Expr::Method(receiver, name, args) => {
             if args.is_empty() {
                 let receiver_ty = infer_expr_type(receiver, env);
@@ -736,7 +811,10 @@ pub fn infer_expr_type(expr: &Expr, env: &TypeEnv) -> Type {
                 _ => Type::Any,
             }
         },
-        Expr::Closure(_, _) => Type::Any,
+        Expr::Closure(params, body) => Type::Function {
+            params: params.iter().map(|_| Type::Any).collect(),
+            ret: Box::new(infer_expr_type(body, env)),
+        },
         Expr::Conditional(_, then_expr, else_expr) => common_type(&[
             infer_expr_type(then_expr, env),
             infer_expr_type(else_expr, env),
@@ -855,10 +933,10 @@ mod tests {
     fn aliases_resolve_when_declared_later() {
         let mut env = TypeEnv::with_stdlib();
         env.register_alias("Metric", &TypeAnnotation::Alias("Inner".to_string()));
-        env.register_alias("Inner", &TypeAnnotation::Union(vec![
-            TypeAnnotation::Bool,
-            TypeAnnotation::Str,
-        ]));
+        env.register_alias(
+            "Inner",
+            &TypeAnnotation::Union(vec![TypeAnnotation::Bool, TypeAnnotation::Str]),
+        );
         assert_eq!(
             env.resolve_annotation(&TypeAnnotation::Alias("Metric".to_string())),
             Type::Union(vec![Type::Bool, Type::Str])
@@ -891,6 +969,101 @@ mod tests {
     }
 
     #[test]
+    fn rich_annotations_roundtrip_without_any_degradation() {
+        let tuple = TypeAnnotation::Tuple(vec![TypeAnnotation::Str, TypeAnnotation::Num]);
+        let function = TypeAnnotation::Function {
+            params: vec![TypeAnnotation::Num, TypeAnnotation::Num],
+            ret: Box::new(TypeAnnotation::Bool),
+        };
+        for annotation in [
+            TypeAnnotation::Vec3,
+            tuple,
+            function,
+            TypeAnnotation::Scene,
+            TypeAnnotation::List(Box::new(TypeAnnotation::Tuple(vec![TypeAnnotation::Num]))),
+        ] {
+            assert_eq!(Type::from_annotation(&annotation).to_annotation(), annotation);
+        }
+    }
+
+    #[test]
+    fn rich_annotations_are_subtype_compatible() {
+        assert!(is_subtype(
+            &Type::Tuple(vec![Type::Str, Type::Num]),
+            &Type::Tuple(vec![Type::Str, Type::Num])
+        ));
+        assert!(!is_subtype(
+            &Type::Tuple(vec![Type::Num, Type::Str]),
+            &Type::Tuple(vec![Type::Str, Type::Num])
+        ));
+        let function = Type::Function {
+            params: vec![Type::Any],
+            ret: Box::new(Type::Num),
+        };
+        assert!(is_subtype(
+            &function,
+            &Type::Function {
+                params: vec![Type::Num],
+                ret: Box::new(Type::Num),
+            }
+        ));
+        assert!(!is_subtype(
+            &Type::Function {
+                params: vec![Type::Num],
+                ret: Box::new(Type::Num),
+            },
+            &function
+        ));
+    }
+
+    #[test]
+    fn nested_rich_annotations_resolve_aliases() {
+        let mut env = TypeEnv::with_stdlib();
+        env.register_alias(
+            "Pair",
+            &TypeAnnotation::Tuple(vec![TypeAnnotation::Str, TypeAnnotation::Num]),
+        );
+        assert!(env.unresolved_alias(&TypeAnnotation::Alias("Pair".to_string())).is_none());
+        env.register_alias(
+            "BrokenPair",
+            &TypeAnnotation::Tuple(vec![
+                TypeAnnotation::Str,
+                TypeAnnotation::Alias("Missing".to_string()),
+            ]),
+        );
+        assert_eq!(
+            env.unresolved_alias(&TypeAnnotation::Alias("BrokenPair".to_string())),
+            Some("Missing".to_string())
+        );
+        env.register_alias(
+            "BrokenFn",
+            &TypeAnnotation::Function {
+                params: vec![TypeAnnotation::Alias("Missing".to_string())],
+                ret: Box::new(TypeAnnotation::Num),
+            },
+        );
+        assert_eq!(
+            env.unresolved_alias(&TypeAnnotation::Alias("BrokenFn".to_string())),
+            Some("Missing".to_string())
+        );
+    }
+
+    #[test]
+    fn closure_and_call_return_types_infer() {
+        let env = std_env();
+        let closure = Expr::Closure(vec!["x".to_string()], Box::new(Expr::Num(1.0)));
+        let function_ty = Type::Function {
+            params: vec![Type::Any],
+            ret: Box::new(Type::Num),
+        };
+        assert_eq!(infer_expr_type(&closure, &env), function_ty);
+
+        let mut env = std_env();
+        env.bind("f", function_ty);
+        assert_eq!(infer_expr_type(&Expr::Call("f".to_string(), vec![]), &env), Type::Num);
+    }
+
+    #[test]
     fn known_properties_are_derived_from_typed_registry() {
         let typed = known_property_types();
         for (ty, properties) in known_properties() {
@@ -909,7 +1082,9 @@ mod tests {
     fn typst_shares_common_layout_properties() {
         let properties = known_properties();
         let typst = properties.get("Typst").expect("Typst property list");
-        for property in ["position", "anchor", "offset", "scale", "rotation", "opacity", "color"] {
+        for property in [
+            "position", "anchor", "offset", "scale", "rotation", "opacity", "color",
+        ] {
             assert!(typst.contains(&property.to_string()), "missing common {property}");
         }
     }
