@@ -1262,17 +1262,22 @@ fn painter_text_size(text: &str, font: FontId) -> Vec2 {
     Vec2::new(chars * font.size * 0.62, font.size * 1.2)
 }
 
-/// Generate the scene bounds outline.
+/// Generate the scene bounds outline, clipped to the visible viewport.
 pub fn scene_bounds_ops(theme: &eparts::Theme, tx: PreviewTransform) -> Vec<PreviewOverlayOp> {
     let mut ops = Vec::new();
+    let scene_rect = kurbo::Rect::new(
+        0.0,
+        0.0,
+        tx.scene_dimensions.width as f64,
+        tx.scene_dimensions.height as f64,
+    );
+    let visible = scene_rect.intersect(scene_viewport(&tx));
+    if visible.area() <= 0.0 {
+        return ops;
+    }
     push_rect_stroke(
         &mut ops,
-        kurbo::Rect::new(
-            0.0,
-            0.0,
-            tx.scene_dimensions.width as f64,
-            tx.scene_dimensions.height as f64,
-        ),
+        visible,
         0.0,
         OverlayStroke::new(STROKE_WIDTH, theme.border.strong),
         StrokeKind::Inside,
