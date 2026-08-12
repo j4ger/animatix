@@ -65,7 +65,7 @@ fn static_scene_cache_populated_after_first_evaluate() {
         "static subtree cache should be populated after first evaluate"
     );
     assert!(
-        cache.contains_key(&("box1".to_string(), DebugRenderOptions::default())),
+        cache.contains_key(&("box1".to_string(), dims, false, DebugRenderOptions::default())),
         "cache should contain box1"
     );
     drop(cache);
@@ -136,8 +136,8 @@ fn static_scene_cache_is_keyed_by_debug_options() {
     let _debug = timeline.evaluate_with_debug(0.0, dims, debug_opts, &mut None);
 
     let cache = timeline.static_subtree_cache.borrow();
-    assert!(cache.contains_key(&("box1".to_string(), DebugRenderOptions::default())));
-    assert!(cache.contains_key(&("box1".to_string(), debug_opts)));
+    assert!(cache.contains_key(&("box1".to_string(), dims, false, DebugRenderOptions::default())));
+    assert!(cache.contains_key(&("box1".to_string(), dims, false, debug_opts)));
     assert_eq!(cache.len(), 2, "debug options must not reuse the default scene");
 }
 
@@ -202,6 +202,220 @@ fn static_scene_cache_is_bypassed_for_hit_regions() {
         !timeline.hit_regions().is_empty(),
         "hit-region evaluation must recompute regions instead of reusing a cached scene"
     );
+}
+
+#[test]
+fn static_scene_only_cache_does_not_collect_items() {
+    let ast = vec![Stmt::Keyframe {
+        time: crate::ast::Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "box1".to_string(),
+            array_index: None,
+            ty: "Rect".to_string(),
+            props: vec![
+                Property {
+                    name: "size".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "color".to_string(),
+                    value: Expr::Ident("red".to_string()),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }],
+        span: None,
+    }];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
+
+    let _scene = timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default(), &mut None);
+    let cache = timeline.static_subtree_cache.borrow();
+    let scene_only_key = ("box1".to_string(), dims, false, DebugRenderOptions::default());
+    let (_, _, items) =
+        cache.get(&scene_only_key).expect("scene-only static subtree should be cached");
+    assert!(items.is_empty(), "scene-only evaluation must not collect SceneItems");
+    assert!(
+        !cache.contains_key(&("box1".to_string(), dims, true, DebugRenderOptions::default())),
+        "scene-only evaluation must not populate the program cache entry"
+    );
+}
+
+#[test]
+fn static_program_after_scene_only_still_collects_items() {
+    let ast = vec![Stmt::Keyframe {
+        time: crate::ast::Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "box1".to_string(),
+            array_index: None,
+            ty: "Rect".to_string(),
+            props: vec![
+                Property {
+                    name: "size".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "color".to_string(),
+                    value: Expr::Ident("red".to_string()),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }],
+        span: None,
+    }];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
+
+    let _scene = timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default(), &mut None);
+    let program =
+        timeline.evaluate_program_with_debug(0.0, dims, DebugRenderOptions::default(), &mut None);
+    assert!(
+        !program.items.is_empty(),
+        "program path must collect items after scene-only cache"
+    );
+
+    let cache = timeline.static_subtree_cache.borrow();
+    let program_key = ("box1".to_string(), dims, true, DebugRenderOptions::default());
+    let (_, _, items) = cache
+        .get(&program_key)
+        .expect("program static subtree should be cached separately");
+    assert!(!items.is_empty());
+}
+
+#[test]
+fn static_program_entries_are_stable_on_repeat_hits() {
+    let ast = vec![Stmt::Keyframe {
+        time: crate::ast::Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "box1".to_string(),
+            array_index: None,
+            ty: "Rect".to_string(),
+            props: vec![
+                Property {
+                    name: "size".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "color".to_string(),
+                    value: Expr::Ident("red".to_string()),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }],
+        span: None,
+    }];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
+
+    let first =
+        timeline.evaluate_program_with_debug(0.0, dims, DebugRenderOptions::default(), &mut None);
+    let second =
+        timeline.evaluate_program_with_debug(1.0, dims, DebugRenderOptions::default(), &mut None);
+    assert_eq!(first.items.len(), second.items.len());
+    assert_eq!(first.items[0].transform, second.items[0].transform);
+    assert_eq!(first.items[0].opacity, second.items[0].opacity);
+}
+
+#[test]
+fn static_scene_cache_is_keyed_by_dimensions() {
+    let ast = vec![Stmt::Keyframe {
+        time: crate::ast::Time::Seconds(0.0),
+        body: vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "box1".to_string(),
+            array_index: None,
+            ty: "Rect".to_string(),
+            props: vec![
+                Property {
+                    name: "size".to_string(),
+                    value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+                Property {
+                    name: "color".to_string(),
+                    value: Expr::Ident("red".to_string()),
+                    value_span: None,
+                    trailing_comment: None,
+                },
+            ],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }],
+        span: None,
+    }];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+    let dims_1 = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
+    let dims_2 = SceneDimensions {
+        width: 1280,
+        height: 720,
+    };
+
+    let _first =
+        timeline.evaluate_with_debug(0.0, dims_1, DebugRenderOptions::default(), &mut None);
+    let _second =
+        timeline.evaluate_with_debug(0.0, dims_2, DebugRenderOptions::default(), &mut None);
+
+    let cache = timeline.static_subtree_cache.borrow();
+    assert!(cache.contains_key(&(
+        "box1".to_string(),
+        dims_1,
+        false,
+        DebugRenderOptions::default()
+    )));
+    assert!(cache.contains_key(&(
+        "box1".to_string(),
+        dims_2,
+        false,
+        DebugRenderOptions::default()
+    )));
+    assert_eq!(cache.len(), 2, "dimensions must not reuse a static subtree scene");
 }
 
 #[test]

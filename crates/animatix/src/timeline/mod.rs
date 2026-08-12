@@ -389,7 +389,7 @@ impl Default for LayoutEngine {
 }
 
 /// Width and height of the output scene in pixels.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SceneDimensions {
     /// Scene width in pixels.
     pub width: u32,
@@ -476,6 +476,10 @@ impl HasDuration for VariableTrack {
 type TransformCacheEntry = (u64, [f64; 6], scene_eval::NodeTransform);
 
 /// Static subtree cache value: cached scene, precise bounds, and observed items.
+///
+/// Items are only collected when the program API requested them. Cache entries
+/// are therefore keyed by `collect_items` so a later program call cannot reuse a
+/// scene-only entry and report empty items.
 type StaticSubtreeEntry = (
     vello::Scene,
     Vec<(String, kurbo::Rect)>,
@@ -529,12 +533,16 @@ pub struct Timeline {
     /// Cleared on timeline rebuild.
     transform_cache: std::cell::RefCell<std::collections::HashMap<String, TransformCacheEntry>>,
     /// Static subtree scene fragment cache (P2.17).
-    /// Maps (root_label, debug options) -> cached vello Scene and the precise
-    /// bounds computed for nodes in that subtree. Debug options are part of the
-    /// key because overlays change the encoded output; hit-region evaluation
-    /// bypasses this cache entirely.
+    /// Maps (root_label, scene_dimensions, collect_items, debug options) to a
+    /// cached Vello scene and the precise bounds computed for nodes in that
+    /// subtree. Dimensions and item collection affect encoded output/observable
+    /// data, so both are part of the key; hit-region evaluation bypasses this
+    /// cache entirely.
     static_subtree_cache: std::cell::RefCell<
-        std::collections::HashMap<(String, DebugRenderOptions), StaticSubtreeEntry>,
+        std::collections::HashMap<
+            (String, SceneDimensions, bool, DebugRenderOptions),
+            StaticSubtreeEntry,
+        >,
     >,
     /// Reusable vello scene buffer (P2.25). Avoids allocating fresh encoding
     /// buffers on every frame by calling scene.reset() between evaluations.
@@ -1023,8 +1031,10 @@ impl Timeline {
     /// Fully-static subtrees can have their rendered output cached (P2.17).
     pub(crate) fn is_static_subtree(&self, label: &str) -> bool {
         // Conservative: if any modifiers exist, we can't safely cache because
-        // modifiers might change actor properties at frame time.
-        if self.needs_frame_env() {
+        // modifiers might change actor properties at frame time. Child-order
+        // animations live outside `AnimationTrack` keyframe detection and can
+        // change layout output, so they also disable this cache.
+        if self.needs_frame_env() || !self.child_orders.is_empty() {
             return false;
         }
         let Some(track) = self.tracks.get(label) else {

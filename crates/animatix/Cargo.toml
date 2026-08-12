@@ -95,5 +95,9 @@ name = "static_scene"
 harness = false
 
 [[bench]]
+name = "static_scene_item_collection"
+harness = false
+
+[[bench]]
 name = "full_pipeline"
 harness = false

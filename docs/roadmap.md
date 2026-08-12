@@ -18,7 +18,7 @@ starting.
 |----|-------|--------|---------|-------------|-----------|
 | A | Scene-qualified selection and keyframe diff | Done 2026-08-12 | Prevent actors/keyframes from another scene preserving stale selections; makes rebuild behavior consistent across compositions | High | Medium-high |
 | A1 | Scene-qualified keyframe source edits | Under evaluation 2026-08-12 | `DeleteKeyframe`/`MoveKeyframeTime`/`SetKeyframeEasing` still resolve by active scene; scene-switch clearing reduces risk but does not remove it | Medium | Low |
-| B | Static subtree item collection cost | Under evaluation 2026-08-12 | Scene-only evaluation should not pay for observable `SceneItem` collection; requires a cache-key contract change or profiling before committing | Medium | Low |
+| B | Static subtree item collection cost | Done 2026-08-12 | Scene-only evaluation no longer collects/clones unused `SceneItem`s; static cache key now includes dimensions/collect_items | Medium | Low |
 
 ### Presenterm-Inspired Design Tracks (evaluated 2026-08-12)
 

@@ -1220,15 +1220,16 @@ impl Timeline {
         };
         for root in &self.root_nodes {
             // P2.17: Static subtree cache — fully-static subtrees are evaluated once
-            // and their vello encoding is reused on subsequent frames. Debug
-            // options are part of the key so overlays cannot reuse a plain scene;
-            // hit-region evaluation is never cached because a cache hit would
+            // and their vello encoding is reused on subsequent frames. Dimensions
+            // and item collection are part of the key so different canvas sizes or
+            // observable-program requests cannot reuse an incompatible entry.
+            // Hit-region evaluation is never cached because a cache hit would
             // skip the per-node bounds collection.
             if filter_backend.is_none()
                 && !debug_options.compute_hit_regions
                 && self.is_static_subtree(root)
             {
-                let cache_key = (root.clone(), debug_options);
+                let cache_key = (root.clone(), scene_dimensions, collect_items, debug_options);
                 let cache = self.static_subtree_cache.borrow_mut();
                 if let Some((cached_scene, cached_bounds, cached_items)) = cache.get(&cache_key) {
                     // Fast path: append cached encoding directly and restore the
@@ -1244,8 +1245,11 @@ impl Timeline {
                     drop(cache);
                     let mut temp_scene = vello::Scene::new();
                     let subtree_bounds_before = self.precise_bounds_cache.borrow().len();
-                    let mut subtree_items = Vec::new();
-                    let mut subtree_items_slot = Some(std::mem::take(&mut subtree_items));
+                    let mut subtree_items_slot = if collect_items {
+                        Some(Vec::new())
+                    } else {
+                        None
+                    };
                     self.evaluate_node(
                         root,
                         time_ms,
@@ -1262,7 +1266,7 @@ impl Timeline {
                         true,
                         &mut subtree_items_slot,
                     );
-                    subtree_items = subtree_items_slot.take().unwrap_or_default();
+                    let subtree_items = subtree_items_slot.take().unwrap_or_default();
                     if let Some(items) = program_items.as_mut() {
                         items.extend(subtree_items.iter().cloned());
                     }
