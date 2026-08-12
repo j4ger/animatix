@@ -17,12 +17,12 @@ before starting.
 
 | ID | Track | Status | Benefit | Feasibility | Necessity |
 |----|-------|--------|---------|-------------|-----------|
-| P1 | Render overlay / observable scene program | Phase 1 done 2026-08-12; Phase 2–3 remain | Unify preview/export/offscreen paths; testable overlays | Medium | Medium-high |
+| P1 | Render overlay / observable scene program | Done 2026-08-12 | Unify preview/export/offscreen paths; testable overlays | Medium | Medium-high |
 | P2 | Hot-reload diff + preserve time/scene/selection | Done 2026-08-12 | Editing no longer disturbs current view; actionable removed-actor feedback | High | High |
 | P3 | Command layer convergence (configurable keybindings, external command queue) | Done 2026-08-12 | Completes existing command architecture; presenterm key matcher patterns | High | Low-medium |
 | P4 | Theme inheritance + raw/resolved runtime theme | Done 2026-08-12 | Theme deltas, dependency validation, full-closure hot reload | High | Medium |
 | P5 | Unified asset store + usage tracking | Done 2026-08-12 | Targeted invalidation and inspector asset usage | Medium | Medium |
-| P6 | Async file-backed asset loading | Deferred | Only useful with P5; no renderer `Pollable` now | High if scoped | Low |
+| P6 | Async file-backed asset loading | Closed by design 2026-08-12 | No current consumer; P5 fallback seam remains documented | High if scoped | Low |
 
 The full evaluation, sequencing, and acceptance criteria are in
 [docs/plans/presenterm-inspired-roadmap.md](plans/presenterm-inspired-roadmap.md).

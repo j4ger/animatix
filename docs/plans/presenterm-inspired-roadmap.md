@@ -15,12 +15,12 @@ open for a separate product decision.
 
 | ID | Pattern | Current Animatix State | Benefit | Feasibility | Necessity | Decision |
 |----|---------|------------------------|---------|-------------|-----------|----------|
-| P1 | Render operation / overlay IR | `RenderCommand` exists, but `Timeline::evaluate_*` returns a `vello::Scene`; GUI overlays draw directly through egui | Unifies preview/export/offscreen paths and makes overlays testable | Medium; do not rewrite scene_eval in one pass | Medium-high | Schedule in three phases |
+| P1 | Render operation / overlay IR | `RenderCommand` exists; GUI overlays now generate `PreviewOverlayOp`, and `Timeline` exposes `evaluate_program_with_debug` | Unifies preview/export/offscreen paths and makes overlays testable | Medium; do not rewrite scene_eval in one pass | Medium-high | Done |
 | P2 | Hot-reload diff and UI state preservation | `RebuildWorker` is async; rebuild output is full state; playhead is clamped but not diffed, selection/scene survival is incidental | Editing does not disturb playback/scene/selection; removed actors become actionable diagnostics | High | High | Schedule first |
 | P3 | Command-driven app state | `ShellAction`, `Command`, handlers, `Effect`, `ShortcutRegistry`, and command palette already exist | Remaining value is configurable keybindings and external command input, not a rewrite | High | Low-medium | Schedule only convergence gaps |
 | P4 | Raw theme + inheritance + resolved runtime theme | eparts has `ThemeFile`, partial overrides, and `ThemeWatcher`; no `extends`, no named palette resolution | Reusable theme bases, dependency checks, hot reload through a base chain | High | Medium | Schedule as eparts follow-up |
 | P5 | Unified asset/resource store | `AssetCache` caches SVG/image/glyph entries by string key; no usage tracking or targeted invalidation | Target reloads, inspector usage, cache invalidation | Medium | Medium | Schedule after P2 |
-| P6 | Pollable async render pattern | `RebuildWorker` and streaming export already provide stronger async patterns | Useful only if file-backed asset loading becomes non-blocking | High if scoped to P5 | Low | Defer; do not add renderer `Pollable` now |
+| P6 | Pollable async render pattern | `RebuildWorker` and streaming export already provide stronger async patterns | Useful only if file-backed asset loading becomes non-blocking | High if scoped to P5 | Low | Closed by design |
 
 ## P1: Render Operation / Overlay IR
 
@@ -100,8 +100,18 @@ cycle indicator, motion paths, ghost, reorder, scene bounds, actor labels, grid,
 snap guides, and layout debug. `preview_panel.rs` and `preview/context.rs` now
 generate ops and execute them through `execute_overlay_ops`; the old direct egui
 drawing helpers for these overlays were removed. Phase 1 behavior tests pass
-without a GPU. Phase 2 (observable scene program) and Phase 3 (structured scene
-boundaries) remain.
+without a GPU.
+
+Phase 2 implemented. `crates/animatix/src/timeline/scene_program.rs` defines
+`SceneProgram`/`SceneItem`/`SceneProgramOp`; `Timeline` gained
+`evaluate_program_with_debug`, and frame cache entries now store the program.
+Primitive actors are collected as observable `SceneItem`s, while the
+authoritative encoded scene remains the exact render target for filters, masks,
+static subtrees, and legacy paths. GUI preview, offscreen rendering, and
+transition compositing now consume the same program API. Phase 3 was not needed
+as a separate feature: structural ops (`Append`, `Clip`, `FilteredImage`,
+`PostComposite`, `DebugBounds`) were introduced for future consumers, but no
+current backend requires them to be emitted. The track is complete.
 
 ## P2: Hot-Reload Diff And UI State Preservation
 
@@ -326,7 +336,7 @@ Remaining follow-up: watch asset paths during rebuild so hot reload can call
 `invalidate_asset` and trigger a targeted rebuild; current hot reload already
 rebuilds, and `invalidate_asset` is ready for that wiring.
 
-## P6: Async Loading Pattern (Deferred)
+## P6: Async Loading Pattern (Closed By Design)
 
 ### Current State
 
@@ -334,19 +344,21 @@ rebuilds, and `invalidate_asset` is ready for that wiring.
 - Animatix already has a background `RebuildWorker`, streaming parallel export,
   progress, and cancellation.
 
-### Why It Is Deferred
+### Why It Is Closed
 
 - The general `Pollable` pattern is unnecessary while rendering is synchronous.
 - The only concrete future need is non-blocking file-backed asset loading, and
   that belongs inside the P5 `AssetStore`, not in the renderer.
 - Introducing async render operations now would complicate the frame cache and
   random-access timeline guarantee without a current user-facing benefit.
+- P5 is implemented and provides `invalidate_asset` plus deterministic
+  last-good content; it is the documented seam for any future async loading.
 
-### Plan
+### Plan (if reopened)
 
 - Do not add a renderer `Pollable` trait.
-- When P5 lands, add optional async load handles only for file-backed assets,
-  with deterministic last-good fallback while a load is in flight.
+- Add optional async load handles only for file-backed assets, with
+  deterministic last-good fallback while a load is in flight.
 - Revisit only if a real user story requires progressive asset loading or
   long-running per-frame work.
 
@@ -354,6 +366,10 @@ rebuilds, and `invalidate_asset` is ready for that wiring.
 
 - Missing/slow assets do not stall the UI thread.
 - Evaluation remains deterministic for a given cache state.
+
+### Status (2026-08-12)
+
+Closed as a design decision. No open implementation remains.
 
 ## Item 7: Comment Directives Through DSL (Open Discussion)
 
