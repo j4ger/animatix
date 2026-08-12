@@ -97,21 +97,25 @@ Phase 3: Structured scene boundaries (only if needed)
 Phase 1 implemented. `crates/animatix-gui/src/app/preview/overlay_ops.rs`
 defines `PreviewOverlayOp` and builders for selection, multi-selection, hover,
 cycle indicator, motion paths, ghost, reorder, scene bounds, actor labels, grid,
-snap guides, and layout debug. `preview_panel.rs` and `preview/context.rs` now
-generate ops and execute them through `execute_overlay_ops`; the old direct egui
-drawing helpers for these overlays were removed. Phase 1 behavior tests pass
-without a GPU.
+snap guides, and layout debug. `preview_panel.rs` and `preview/context.rs`
+generate ops and execute them through `execute_overlay_ops`. The overlay IR is
+scene-coordinate based with explicit screen-space decoration variants; behavior
+tests pass without a GPU. A few HUD/direct painter helpers (marquee, performance
+HUD, vertex/callout handles) intentionally remain direct egui draws rather than
+being converted into the shared IR.
 
 Phase 2 implemented. `crates/animatix/src/timeline/scene_program.rs` defines
-`SceneProgram`/`SceneItem`/`SceneProgramOp`; `Timeline` gained
-`evaluate_program_with_debug`, and frame cache entries now store the program.
-Primitive actors are collected as observable `SceneItem`s, while the
-authoritative encoded scene remains the exact render target for filters, masks,
-static subtrees, and legacy paths. GUI preview, offscreen rendering, and
-transition compositing now consume the same program API. Phase 3 was not needed
-as a separate feature: structural ops (`Append`, `Clip`, `FilteredImage`,
-`PostComposite`, `DebugBounds`) were introduced for future consumers, but no
-current backend requires them to be emitted. The track is complete.
+`SceneProgram`/`SceneItem`; `Timeline` gained `evaluate_program_with_debug`, and
+frame cache entries now store the program. Primitive actors are collected as
+observable `SceneItem`s, while the authoritative encoded scene remains the exact
+render target for filters, masks, static subtrees, and legacy paths. GUI preview,
+offscreen rendering, and transition compositing consume the same scene API. A
+later architecture review removed the prematurely exposed
+`SceneProgramOp`/`execute_into` surface because no production path emitted those
+ops; the structured op layer should be reintroduced only when a concrete backend
+needs it. The two public evaluate paths now share one cache-aware program
+evaluation helper, and item collection is part of the cache key so scene-only
+calls cannot poison later program requests.
 
 ## P2: Hot-Reload Diff And UI State Preservation
 
@@ -171,8 +175,12 @@ Implemented. `TimelineDiff`/`TimelineFingerprint` live in
 and background rebuild acceptance capture the prior compiled target and view
 state, then preserve the playhead when the new duration still covers it, move to
 the nearest surviving keyframe otherwise, keep the active scene and selections
-when they survive, and report removed scenes/actors in the preview status. Unit
-and handler tests cover single-scene, multi-scene, duration shrink, and removed
+when they survive, and report removed scenes/actors in the preview status. The
+keyframe identity is `(actor, property, time_ms)`, so a property removed at the
+same time as another surviving property no longer keeps the stale selection;
+removing the active scene clears keyframe selections because the current UI
+selection is not scene-qualified. Unit and handler tests cover single-scene,
+multi-scene, duration shrink, removed property keyframes, and removed
 selection/scene cases.
 
 ## P3: Command Layer Convergence
@@ -223,13 +231,15 @@ selection/scene cases.
 Implemented configurable keybindings and persistence. `SavedShortcut` provides a
 stable serialized shortcut representation, `ShortcutRegistry::with_overrides`
 applies overrides by stable binding name and rejects unknown bindings/conflicts,
-and `SHORTCUT_REGISTRY` now loads persisted overrides at startup. The Settings
-dialog can record a new key for each binding; accepted changes update the live
-registry and are saved to workspace persistence. The cheat sheet and toolbar
-already read the registry, so they reflect active bindings automatically. An
-external command queue is intentionally not added yet because there is no
-concrete integration consumer; the existing `pending_actions` queue already
-provides that seam.
+and `GuiShell` owns the active registry, initialized from persisted settings at
+startup. The Settings dialog can record a new key for each binding; accepted
+changes replace the shell-owned registry and are saved to workspace persistence.
+The cheat sheet and toolbar read the registry through shell-owned state, so they
+reflect active bindings automatically. The previous process-wide
+`SHORTCUT_REGISTRY` static was removed to keep tests isolated and avoid global
+mutable state. An external command queue is intentionally not added yet because
+there is no concrete integration consumer; the existing `pending_actions` queue
+already provides that seam.
 
 ## P4: Theme Inheritance And Resolved Runtime Theme
 
@@ -279,8 +289,10 @@ Implemented the eparts framework foundation. `ThemeFile` now supports
 chain, and rejects duplicate names, missing bases, and extension loops.
 `ThemeRegistryWatcher` reloads the whole registry when any file in the theme
 directory changes, so editing a base theme refreshes dependents. Schema now
-accepts `extends`. No `.amx` DSL theme surface was added; that remains open until
-a concrete user story exists.
+accepts `extends`. GUI integration is intentionally deferred: the GUI does not
+enable `theme-json` or own a theme directory/name selector yet, so this remains
+a framework capability until a concrete user story exists. No `.amx` DSL theme
+surface was added.
 
 ## P5: Unified Asset Store And Usage Tracking
 
@@ -325,16 +337,17 @@ a concrete user story exists.
 ### Status (2026-08-12)
 
 Implemented the runtime/tooling foundation. `AssetCache` now exposes
-`load_svg_for`/`load_image_for`/`record_usage`, per-asset
-`invalidate_asset`, `asset_usage`, and `assets_for(actor)`. Image, SVG, and
-audio declaration/assignment paths record actor usage through the shared cache,
-and `Timeline::asset_usage` exposes the map. The inspector shows referenced
-asset paths for the selected actor. Text glyph compilation and GUI audio remain
-separate caches by design because their keys and eviction policies differ.
-
-Remaining follow-up: watch asset paths during rebuild so hot reload can call
-`invalidate_asset` and trigger a targeted rebuild; current hot reload already
-rebuilds, and `invalidate_asset` is ready for that wiring.
+`load_svg_for`/`load_image_for`/`record_usage`, `asset_usage`, and
+`assets_for(actor)`. Image, SVG, and audio declaration/assignment paths record
+the real actor label through the shared cache, and `Timeline::asset_usage`
+exposes the map. The inspector shows referenced asset paths for the selected
+actor. Text glyph compilation and GUI audio remain separate caches by design
+because their keys and eviction policies differ. An architecture review removed
+the never-used `invalidate_asset`/`get_or_load_*`/`clear` surface: the GUI
+rebuilds a fresh `Timeline`/`AssetCache`, so usage is naturally re-derived from
+the current source instead of being manually invalidated. If a future asset hot
+reload needs cache survival, it should explicitly carry `Arc<AssetCache>` across
+rebuilds and then add a real invalidation contract.
 
 ## P6: Async Loading Pattern (Closed By Design)
 

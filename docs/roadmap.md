@@ -17,11 +17,11 @@ before starting.
 
 | ID | Track | Status | Benefit | Feasibility | Necessity |
 |----|-------|--------|---------|-------------|-----------|
-| P1 | Render overlay / observable scene program | Done 2026-08-12 | Unify preview/export/offscreen paths; testable overlays | Medium | Medium-high |
-| P2 | Hot-reload diff + preserve time/scene/selection | Done 2026-08-12 | Editing no longer disturbs current view; actionable removed-actor feedback | High | High |
-| P3 | Command layer convergence (configurable keybindings, external command queue) | Done 2026-08-12 | Completes existing command architecture; presenterm key matcher patterns | High | Low-medium |
-| P4 | Theme inheritance + raw/resolved runtime theme | Done 2026-08-12 | Theme deltas, dependency validation, full-closure hot reload | High | Medium |
-| P5 | Unified asset store + usage tracking | Done 2026-08-12 | Targeted invalidation and inspector asset usage | Medium | Medium |
+| P1 | Render overlay / observable scene program | Done 2026-08-12 (structured op IR deferred) | Unify preview/export/offscreen paths; testable overlays | Medium | Medium-high |
+| P2 | Hot-reload diff + preserve time/scene/selection | Done 2026-08-12 (property-precise keyframes) | Editing no longer disturbs current view; actionable removed-actor feedback | High | High |
+| P3 | Command layer convergence (configurable keybindings, external command queue) | Done 2026-08-12 (app-owned registry) | Completes existing command architecture; presenterm key matcher patterns | High | Low-medium |
+| P4 | Theme inheritance + raw/resolved runtime theme | Framework capability done 2026-08-12; GUI integration deferred | Theme deltas, dependency validation, full-closure hot reload | High | Medium |
+| P5 | Unified asset store + usage tracking | Done 2026-08-12 (usage re-derived on rebuild) | Inspector asset usage and a clear rebuild lifecycle | Medium | Medium |
 | P6 | Async file-backed asset loading | Closed by design 2026-08-12 | No current consumer; P5 fallback seam remains documented | High if scoped | Low |
 
 The full evaluation, sequencing, and acceptance criteria are in
