@@ -140,7 +140,7 @@ impl AnimatixApp {
     }
 
     fn handle_keyboard_shortcuts(&mut self, ctx: &egui::Context) {
-        use crate::app::interaction::keyboard::{FocusContext, KeyboardAction, SHORTCUT_REGISTRY};
+        use crate::app::interaction::keyboard::{FocusContext, KeyboardAction};
         use crate::app::preview::{DragState, ToolMode};
         use crate::app::shell::insertion_palette::PaletteMode;
 
@@ -156,11 +156,7 @@ impl AnimatixApp {
             tool_mode: self.shell.ui_store.view.tool_mode,
         };
 
-        if let Some(action) = SHORTCUT_REGISTRY
-            .read()
-            .expect("shortcut registry lock poisoned")
-            .check(ctx, &focus)
-        {
+        if let Some(action) = self.shell.shortcut_registry.check(ctx, &focus) {
             match action {
                 KeyboardAction::Undo => {
                     self.shell.ui_store.pending_actions.push_back(DocumentCommand::Undo.into());

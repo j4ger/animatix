@@ -51,6 +51,7 @@ use crate::app::design_tokens::spatial::{
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::document::rebuild::RebuildWorker;
 use crate::app::handlers::file;
+use crate::app::interaction::keyboard::ShortcutRegistry;
 use crate::app::shell::insertion_palette::InsertionPalette;
 use crate::app::stores::*;
 use crate::app::utils::*;
@@ -375,6 +376,7 @@ struct GuiShell {
     export_store: ExportStore,
     rebuild_worker: RebuildWorker,
     insertion_palette: InsertionPalette,
+    shortcut_registry: ShortcutRegistry,
     pub(crate) window_size: [f32; 2],
     pub(crate) window_maximized: bool,
 }
@@ -497,6 +499,12 @@ impl GuiShell {
             ui_store.shortcut_overrides = s.shortcuts.clone();
         }
 
+        let shortcut_registry = ShortcutRegistry::with_overrides(&ui_store.shortcut_overrides)
+            .unwrap_or_else(|error| {
+                tracing::warn!("Failed to apply persisted shortcuts, using defaults: {error}");
+                ShortcutRegistry::new()
+            });
+
         let mut shell = Self {
             document_store: DocumentStore::new(document, editor),
             workspace_store: WorkspaceStore::new(
@@ -512,6 +520,7 @@ impl GuiShell {
             export_store: ExportStore::new(),
             rebuild_worker: RebuildWorker::start(),
             insertion_palette: InsertionPalette::default(),
+            shortcut_registry,
             window_size,
             window_maximized,
         };

@@ -130,16 +130,19 @@ impl GuiShell {
                     // labels stay in sync with the actual keybindings (and are
                     // platform-aware) instead of being hardcoded.
                     let save_tip = crate::app::interaction::keyboard::tooltip_with_shortcut(
+                        &self.shortcut_registry,
                         "Save",
                         &crate::app::interaction::keyboard::KeyboardAction::Save,
                         ui.ctx(),
                     );
                     let reload_tip = crate::app::interaction::keyboard::tooltip_with_shortcut(
+                        &self.shortcut_registry,
                         "Reload from disk",
                         &crate::app::interaction::keyboard::KeyboardAction::Reload,
                         ui.ctx(),
                     );
                     let rebuild_tip = crate::app::interaction::keyboard::tooltip_with_shortcut(
+                        &self.shortcut_registry,
                         "Rebuild timeline",
                         &crate::app::interaction::keyboard::KeyboardAction::Rebuild,
                         ui.ctx(),

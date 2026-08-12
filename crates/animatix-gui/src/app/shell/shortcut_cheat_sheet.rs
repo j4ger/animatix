@@ -4,11 +4,11 @@ use crate::app::GuiShell;
 use crate::app::components::{self};
 use crate::app::design_tokens::spatial::dialog as dialog_token;
 use crate::app::design_tokens::typography::TextRole;
-use crate::app::interaction::keyboard::shortcut_hints_for_name;
+use crate::app::interaction::keyboard::{ShortcutRegistry, shortcut_hints_for_name};
 
 /// A cheat-sheet row. Registry entries render the actual key binding from
-/// `SHORTCUT_REGISTRY`; gesture entries are pointer interactions or stateful
-/// keys that are not registered as one-shot shortcuts.
+/// the shell's `ShortcutRegistry`; gesture entries are pointer interactions or
+/// stateful keys that are not registered as one-shot shortcuts.
 #[derive(Clone, Copy)]
 enum CheatSheetEntry {
     Bindings {
@@ -214,7 +214,12 @@ impl GuiShell {
                 if n_cols == 1 {
                     // Single column — render all groups
                     for group in SHORTCUT_GROUPS {
-                        shortcut_column(ui, std::slice::from_ref(group), col_w);
+                        shortcut_column(
+                            ui,
+                            std::slice::from_ref(group),
+                            col_w,
+                            &self.shortcut_registry,
+                        );
                     }
                 } else {
                     // Two columns — split groups across columns
@@ -222,8 +227,18 @@ impl GuiShell {
                         ui.spacing_mut().item_spacing = Vec2::new(sp.dialog.col_gap, 0.0);
 
                         let mid = SHORTCUT_GROUPS.len().div_ceil(2);
-                        shortcut_column(ui, &SHORTCUT_GROUPS[..mid], col_w);
-                        shortcut_column(ui, &SHORTCUT_GROUPS[mid..], col_w);
+                        shortcut_column(
+                            ui,
+                            &SHORTCUT_GROUPS[..mid],
+                            col_w,
+                            &self.shortcut_registry,
+                        );
+                        shortcut_column(
+                            ui,
+                            &SHORTCUT_GROUPS[mid..],
+                            col_w,
+                            &self.shortcut_registry,
+                        );
                     });
                 }
             });
@@ -236,7 +251,12 @@ impl GuiShell {
     }
 }
 
-fn shortcut_column(ui: &mut egui::Ui, groups: &[(&str, &[CheatSheetEntry])], width: f32) {
+fn shortcut_column(
+    ui: &mut egui::Ui,
+    groups: &[(&str, &[CheatSheetEntry])],
+    width: f32,
+    registry: &ShortcutRegistry,
+) {
     let theme = eparts::theme(ui);
     let sp = crate::app::design_tokens::spatial::spatial(ui);
     ui.vertical(|ui| {
@@ -251,19 +271,26 @@ fn shortcut_column(ui: &mut egui::Ui, groups: &[(&str, &[CheatSheetEntry])], wid
             ui.add_space(sp.base.space_1);
 
             for entry in *shortcuts {
-                shortcut_row(ui, *entry, width);
+                shortcut_row(ui, *entry, width, registry);
             }
             ui.add_space(sp.base.space_3);
         }
     });
 }
 
-fn shortcut_row(ui: &mut egui::Ui, entry: CheatSheetEntry, col_w: f32) {
+fn shortcut_row(
+    ui: &mut egui::Ui,
+    entry: CheatSheetEntry,
+    col_w: f32,
+    registry: &ShortcutRegistry,
+) {
     let sp = crate::app::design_tokens::spatial::spatial(ui);
     match entry {
         CheatSheetEntry::Bindings { names, desc } => {
-            let hints: Vec<String> =
-                names.iter().flat_map(|name| shortcut_hints_for_name(name, ui.ctx())).collect();
+            let hints: Vec<String> = names
+                .iter()
+                .flat_map(|name| shortcut_hints_for_name(registry, name, ui.ctx()))
+                .collect();
             let key = if hints.is_empty() {
                 names.join(" / ")
             } else {

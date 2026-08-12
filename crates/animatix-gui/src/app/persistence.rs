@@ -111,13 +111,6 @@ pub(crate) struct SettingsPersistence {
 }
 
 /// Load persisted shortcut overrides from the workspace persistence file.
-pub(super) fn load_shortcut_overrides() -> BTreeMap<String, SavedShortcut> {
-    load_workspace_persistence(&persistence_path())
-        .and_then(|persistence| persistence.settings)
-        .map(|settings| settings.shortcuts)
-        .unwrap_or_default()
-}
-
 fn default_density() -> String {
     "default".to_string()
 }

@@ -727,46 +727,23 @@ impl ShortcutRegistry {
     }
 }
 
-/// The process-wide shortcut registry.
-///
-/// Shared so both the keyboard handler (runtime) and UI affordances (toolbar
-/// tooltips, cheat sheet) read the *same* bindings instead of hardcoding strings.
-/// Persisted overrides are applied once at startup.
-pub static SHORTCUT_REGISTRY: std::sync::LazyLock<std::sync::RwLock<ShortcutRegistry>> =
-    std::sync::LazyLock::new(|| {
-        let overrides = super::super::persistence::load_shortcut_overrides();
-        let registry = ShortcutRegistry::with_overrides(&overrides).unwrap_or_else(|error| {
-            tracing::warn!("Failed to apply persisted shortcuts, using defaults: {error}");
-            ShortcutRegistry::new()
-        });
-        std::sync::RwLock::new(registry)
-    });
-
-/// Rebuild the global registry from persisted overrides.
-pub fn apply_shortcut_overrides(
-    overrides: &std::collections::BTreeMap<String, SavedShortcut>,
-) -> Result<(), KeyBindingError> {
-    let registry = ShortcutRegistry::with_overrides(overrides)?;
-    *SHORTCUT_REGISTRY.write().expect("shortcut registry lock poisoned") = registry;
-    Ok(())
-}
-
 /// Human-readable, platform-aware shortcut label for an action (e.g. `"Ctrl+S"`),
-/// or `None` if the action has no binding. Pulls from [`SHORTCUT_REGISTRY`] and
-/// formats via eparts' `format_shortcut`.
-pub fn shortcut_hint(action: &KeyboardAction, ctx: &Context) -> Option<String> {
-    SHORTCUT_REGISTRY
-        .read()
-        .expect("shortcut registry lock poisoned")
-        .shortcut_for(action)
-        .map(|sc| eparts::widget::format_shortcut(sc, ctx))
+/// or `None` if the action has no binding.
+pub fn shortcut_hint(
+    registry: &ShortcutRegistry,
+    action: &KeyboardAction,
+    ctx: &Context,
+) -> Option<String> {
+    registry.shortcut_for(action).map(|sc| eparts::widget::format_shortcut(sc, ctx))
 }
 
 /// Human-readable, platform-aware labels for every shortcut sharing `name`.
-pub fn shortcut_hints_for_name(name: &str, ctx: &Context) -> Vec<String> {
-    SHORTCUT_REGISTRY
-        .read()
-        .expect("shortcut registry lock poisoned")
+pub fn shortcut_hints_for_name(
+    registry: &ShortcutRegistry,
+    name: &str,
+    ctx: &Context,
+) -> Vec<String> {
+    registry
         .shortcuts_for_name(name)
         .into_iter()
         .map(|sc| eparts::widget::format_shortcut(sc, ctx))
@@ -776,8 +753,13 @@ pub fn shortcut_hints_for_name(name: &str, ctx: &Context) -> Vec<String> {
 /// A tooltip string with the action's shortcut appended in parentheses when one
 /// exists, e.g. `tooltip_with_shortcut("Save", &KeyboardAction::Save, ctx)` ->
 /// `"Save (Ctrl+S)"`. Falls back to the bare label when unbound.
-pub fn tooltip_with_shortcut(label: &str, action: &KeyboardAction, ctx: &Context) -> String {
-    match shortcut_hint(action, ctx) {
+pub fn tooltip_with_shortcut(
+    registry: &ShortcutRegistry,
+    label: &str,
+    action: &KeyboardAction,
+    ctx: &Context,
+) -> String {
+    match shortcut_hint(registry, action, ctx) {
         Some(hint) => format!("{label} ({hint})"),
         None => label.to_string(),
     }
@@ -918,5 +900,28 @@ mod tests {
             ShortcutRegistry::with_overrides(&overrides),
             Err(KeyBindingError::Conflict(_, _, _))
         ));
+    }
+
+    #[test]
+    fn overrides_do_not_mutate_a_separate_registry() {
+        let mut overrides = std::collections::BTreeMap::new();
+        overrides.insert(
+            "Save".to_string(),
+            SavedShortcut {
+                command: false,
+                ctrl: false,
+                shift: false,
+                alt: true,
+                key: "S".to_string(),
+            },
+        );
+        let default_registry = ShortcutRegistry::new();
+        let overridden_registry =
+            ShortcutRegistry::with_overrides(&overrides).expect("valid override");
+
+        let default_save = default_registry.shortcut_for(&KeyboardAction::Save).unwrap();
+        let overridden_save = overridden_registry.shortcut_for(&KeyboardAction::Save).unwrap();
+        assert_ne!(default_save.modifiers, overridden_save.modifiers);
+        assert_eq!(default_registry.current_saved("Save").unwrap().alt, false);
     }
 }

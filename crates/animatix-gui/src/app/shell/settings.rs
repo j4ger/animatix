@@ -2,9 +2,7 @@ use egui::RichText;
 
 use crate::app::components::layout;
 use crate::app::design_tokens::typography::TextRole;
-use crate::app::interaction::keyboard::{
-    SHORTCUT_REGISTRY, apply_shortcut_overrides, saved_shortcut_from_key,
-};
+use crate::app::interaction::keyboard::{ShortcutRegistry, saved_shortcut_from_key};
 use crate::app::{GuiShell, components};
 
 const SETTINGS_INPUT_WIDTH: f32 = 120.0;
@@ -306,13 +304,11 @@ impl GuiShell {
                 }
             }
 
-            let binding_names =
-                SHORTCUT_REGISTRY.read().expect("shortcut registry lock poisoned").names();
+            let binding_names = self.shortcut_registry.names();
             egui::ScrollArea::vertical().max_height(220.0).show(ui, |ui| {
                 for name in binding_names {
-                    let current = SHORTCUT_REGISTRY
-                        .read()
-                        .expect("shortcut registry lock poisoned")
+                    let current = self
+                        .shortcut_registry
                         .current_saved(&name)
                         .map(|s| s.display())
                         .unwrap_or_default();
@@ -353,8 +349,9 @@ impl GuiShell {
             if let Some((name, saved)) = captured {
                 let mut overrides = self.ui_store.shortcut_overrides.clone();
                 overrides.insert(name.clone(), saved.clone());
-                match apply_shortcut_overrides(&overrides) {
-                    Ok(()) => {
+                match ShortcutRegistry::with_overrides(&overrides) {
+                    Ok(registry) => {
+                        self.shortcut_registry = registry;
                         self.ui_store.shortcut_overrides = overrides;
                         self.ui_store.recording_shortcut = None;
                         self.save_persistence();
