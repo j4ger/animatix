@@ -972,6 +972,11 @@ impl Timeline {
         &self.asset_cache
     }
 
+    /// Iterate over asset path → actor labels that reference it.
+    pub fn asset_usage(&self) -> impl Iterator<Item = (&String, &BTreeSet<String>)> {
+        self.asset_cache.asset_usage()
+    }
+
     /// Returns a reference to the environment.
     pub fn env(&self) -> &Environment {
         &self.env

@@ -24,6 +24,7 @@ fn push_media_load_failure_diagnostic(
 
 fn seed_svg_track(
     track: &mut AnimationTrack,
+    asset_cache: &mut crate::timeline::assets::AssetCache,
     diagnostics: &mut Vec<Diagnostic>,
     subject_label: &str,
     url: &str,
@@ -34,46 +35,39 @@ fn seed_svg_track(
         return;
     }
 
-    match std::fs::read_to_string(url) {
-        Ok(svg_content) => match crate::timeline::svg::parse_svg(&svg_content) {
-            Ok(mut parsed_paths) => {
-                if scale != 1.0 {
-                    let affine = kurbo::Affine::scale(scale as f64);
-                    for path in &mut parsed_paths {
-                        path.path.apply_affine(affine);
-                    }
+    match asset_cache.load_svg_for(url, subject_label) {
+        Ok(mut parsed_paths) => {
+            if scale != 1.0 {
+                let affine = kurbo::Affine::scale(scale as f64);
+                for path in &mut parsed_paths {
+                    path.path.apply_affine(affine);
                 }
-                let measured_half_size = crate::timeline::svg::measure_svg_paths(&parsed_paths);
-                track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
-                    time_ms,
-                    measured_half_size,
-                    Easing::Linear,
-                );
-                track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
-                    time_ms,
-                    measured_half_size,
-                    Easing::Linear,
-                );
-                track.svg_paths = parsed_paths;
-            },
-            Err(error) => push_media_load_failure_diagnostic(
-                diagnostics,
-                &format!("{}.url", subject_label),
-                url,
-                format!("Failed to parse SVG file '{url}': {error}"),
-            ),
+            }
+            let measured_half_size = crate::timeline::svg::measure_svg_paths(&parsed_paths);
+            track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                time_ms,
+                measured_half_size,
+                Easing::Linear,
+            );
+            track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                time_ms,
+                measured_half_size,
+                Easing::Linear,
+            );
+            track.svg_paths = parsed_paths;
         },
         Err(error) => push_media_load_failure_diagnostic(
             diagnostics,
             &format!("{}.url", subject_label),
             url,
-            format!("Failed to read SVG file '{url}': {error}"),
+            format!("Failed to parse SVG file '{url}': {error}"),
         ),
     }
 }
 
 fn seed_image_track(
     track: &mut AnimationTrack,
+    asset_cache: &mut crate::timeline::assets::AssetCache,
     diagnostics: &mut Vec<Diagnostic>,
     subject_label: &str,
     url: &str,
@@ -84,7 +78,7 @@ fn seed_image_track(
         return;
     }
 
-    match crate::timeline::image::load_image(url) {
+    match asset_cache.load_image_for(url, subject_label) {
         Ok(image) => {
             let display_size = authored_half_size
                 .unwrap_or([image.natural_size[0] / 2.0, image.natural_size[1] / 2.0]);
@@ -260,10 +254,24 @@ impl Timeline {
         let seed_time_ms = (time_ms as u64).saturating_add(delay_ms as u64);
 
         match actor_type {
-            "Svg" => seed_svg_track(track, diagnostics, label, &url, scale, seed_time_ms),
-            "Image" => {
-                seed_image_track(track, diagnostics, label, &url, authored_size, seed_time_ms)
-            },
+            "Svg" => seed_svg_track(
+                track,
+                std::sync::Arc::make_mut(&mut self.asset_cache),
+                diagnostics,
+                label,
+                &url,
+                scale,
+                seed_time_ms,
+            ),
+            "Image" => seed_image_track(
+                track,
+                std::sync::Arc::make_mut(&mut self.asset_cache),
+                diagnostics,
+                label,
+                &url,
+                authored_size,
+                seed_time_ms,
+            ),
             _ => {},
         }
     }
@@ -360,6 +368,7 @@ impl Timeline {
             None
         };
 
+        std::sync::Arc::make_mut(&mut self.asset_cache).record_usage(&source, label);
         self.audio_segments.push(AudioSegment {
             source,
             start_time_s,

@@ -6,7 +6,7 @@ use crate::easing::Easing;
 use crate::primitives::{ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, Primitive};
 use crate::timeline::property_lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::svg::{measure_svg_paths, parse_svg};
+use crate::timeline::svg::measure_svg_paths;
 use crate::timeline::{
     AnimationTrack, DEFAULT_LAYOUT_HALF_SIZE, Environment, SceneDimensions, Value,
     preserve_instant_delayed_value,
@@ -79,28 +79,14 @@ impl Primitive for SvgPrimitive {
             return true;
         }
 
-        let parsed_paths = match std::fs::read_to_string(&target_url) {
-            Ok(svg_content) => match parse_svg(&svg_content) {
-                Ok(parsed_paths) => parsed_paths,
-                Err(error) => {
-                    diagnostics.push(
-                        Diagnostic::error(
-                            DiagnosticCode::MediaLoadFailure,
-                            DiagnosticPhase::Build,
-                            format!("Failed to parse SVG file '{target_url}': {error}"),
-                        )
-                        .with_subject(subject)
-                        .with_path(&target_url),
-                    );
-                    return true;
-                },
-            },
+        let parsed_paths = match ctx.asset_cache.load_svg_for(&target_url, &subject.to_string()) {
+            Ok(parsed_paths) => parsed_paths,
             Err(error) => {
                 diagnostics.push(
                     Diagnostic::error(
                         DiagnosticCode::MediaLoadFailure,
                         DiagnosticPhase::Build,
-                        format!("Failed to read SVG file '{target_url}': {error}"),
+                        format!("Failed to load SVG file '{target_url}': {error}"),
                     )
                     .with_subject(subject)
                     .with_path(&target_url),

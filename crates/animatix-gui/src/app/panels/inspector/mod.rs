@@ -599,6 +599,27 @@ pub(super) fn inspector_ui(
             render_parent_card(ui, timeline, sel, commands);
             ui.add_space(sp.base.space_3);
 
+            // ── Referenced Assets ──
+            let referenced_assets: Vec<String> =
+                timeline.asset_cache().assets_for(sel).cloned().collect();
+            if !referenced_assets.is_empty() {
+                layout::card(ui, |ui| {
+                    layout::section_header(ui, egui_phosphor::regular::FOLDER, "Assets", None);
+                    for path in referenced_assets {
+                        ui.add(
+                            egui::Label::new(
+                                RichText::new(&path)
+                                    .monospace()
+                                    .size(TextRole::BodyS.size())
+                                    .color(theme.text.secondary),
+                            )
+                            .selectable(false),
+                        );
+                    }
+                });
+                ui.add_space(sp.base.space_3);
+            }
+
             // ── Active Properties ──
             layout::card(ui, |ui| {
                 let mut view_mode = *property_view_mode;

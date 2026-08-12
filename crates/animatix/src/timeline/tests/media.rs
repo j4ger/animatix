@@ -1,8 +1,7 @@
 use std::path::PathBuf;
 
-use crate::diagnostics::{Diagnostic, DiagnosticCode};
-
 use super::*;
+use crate::diagnostics::{Diagnostic, DiagnosticCode};
 
 fn write_test_svg(name: &str, width: u32, rect_width: u32) -> PathBuf {
     let dir = std::env::temp_dir().join("animatix_svg_url_tests");
@@ -15,6 +14,15 @@ fn write_test_svg(name: &str, width: u32, rect_width: u32) -> PathBuf {
 "#
     );
     std::fs::write(&path, source).unwrap();
+    path
+}
+
+fn write_test_png(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join("animatix_image_usage_tests");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join(name);
+    let rgba = ::image::RgbaImage::from_raw(4, 4, vec![255; 64]).unwrap();
+    rgba.save(&path).unwrap();
     path
 }
 
@@ -129,4 +137,39 @@ icon.url = "/nonexistent/animatix-missing.svg"
         0,
         "failed assignment should not add Svg.url keyframes"
     );
+}
+
+#[test]
+fn asset_usage_tracks_svg_image_and_audio_actors() {
+    let svg = write_test_svg("asset_usage.svg", 40, 10);
+    let png = write_test_png("asset_usage.png");
+    let audio = std::env::temp_dir().join("animatix_audio_usage.wav");
+    let source = format!(
+        r#"
+#0s
+icon: Svg, url: "{}"
+photo: Image, url: "{}"
+music: Audio, source: "{}"
+"#,
+        svg.display(),
+        png.display(),
+        audio.display(),
+    );
+
+    let (timeline, diagnostics) = build_svg_timeline(&source);
+    assert!(diagnostics.is_empty(), "Expected no build diagnostics, got: {:?}", diagnostics);
+
+    let svg_path = svg.display().to_string();
+    let png_path = png.display().to_string();
+    let audio_path = audio.display().to_string();
+
+    assert_eq!(timeline.asset_cache().assets_for("icon").collect::<Vec<_>>(), vec![&svg_path]);
+    assert_eq!(timeline.asset_cache().assets_for("photo").collect::<Vec<_>>(), vec![&png_path]);
+    assert_eq!(
+        timeline.asset_cache().assets_for("music").collect::<Vec<_>>(),
+        vec![&audio_path]
+    );
+
+    let usage: Vec<_> = timeline.asset_usage().map(|(_, actors)| actors.len()).collect();
+    assert!(usage.iter().all(|count| *count == 1));
 }

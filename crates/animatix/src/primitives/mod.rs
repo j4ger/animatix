@@ -301,6 +301,8 @@ pub struct AssignmentCtx<'a> {
     pub font_context: &'a crate::renderer::text::FontContext,
     /// Text compiler for recompilation.
     pub text_compiler: &'a mut crate::renderer::text::TextCompiler,
+    /// Shared asset cache for loading media referenced by assignments.
+    pub asset_cache: &'a mut crate::timeline::assets::AssetCache,
 }
 
 /// Context passed to `Primitive::render()`.

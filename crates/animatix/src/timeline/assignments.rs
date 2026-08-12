@@ -252,6 +252,7 @@ impl Timeline {
                 duration_ms,
                 font_context: self.font_context.as_ref(),
                 text_compiler: &mut self.text_compiler.borrow_mut(),
+                asset_cache: std::sync::Arc::make_mut(&mut self.asset_cache),
             };
             if primitive.handle_assignment(
                 track,

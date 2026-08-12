@@ -4,7 +4,6 @@ use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
 use crate::primitives::{ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, Primitive};
-use crate::timeline::image::load_image;
 use crate::timeline::property_lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{
@@ -75,7 +74,7 @@ impl Primitive for ImagePrimitive {
             return true;
         }
 
-        match load_image(&target_url) {
+        match ctx.asset_cache.load_image_for(&target_url, subject) {
             Ok(target_image) => {
                 if ctx.duration_ms > 0.0 {
                     let start_val = track.image.get(ctx.t_start_ms, None);
