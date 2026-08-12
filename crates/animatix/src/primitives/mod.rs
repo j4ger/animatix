@@ -356,6 +356,7 @@ pub struct TextCompileCtx<'a> {
 /// These commands are executed by `scene_eval.rs` into a Vello scene.
 /// Separating command generation from execution lets primitives stay
 /// independent of the scene evaluation loop.
+#[derive(Clone, Debug)]
 pub enum RenderCommand {
     /// Draw a set of vector paths, each with its own fill and stroke.
     Paths {

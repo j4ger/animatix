@@ -292,6 +292,7 @@ impl Timeline {
         frame_env: Option<&super::Environment>,
         filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
         allow_pending_composites: bool,
+        program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
     ) {
         let (global_transform, global_opacity) = self.render_actor_node(
             node_label,
@@ -307,6 +308,7 @@ impl Timeline {
             frame_env,
             filter_backend,
             allow_pending_composites,
+            program_items,
         );
 
         self.render_node_children(
@@ -322,6 +324,7 @@ impl Timeline {
             frame_env,
             filter_backend,
             allow_pending_composites,
+            program_items,
         );
     }
 
@@ -342,6 +345,7 @@ impl Timeline {
         frame_env: Option<&super::Environment>,
         filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
         allow_pending_composites: bool,
+        program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
     ) -> (kurbo::Affine, f32) {
         let Some(track) = self.tracks.get(node_label) else {
             return (parent_transform, parent_opacity);
@@ -368,6 +372,7 @@ impl Timeline {
                     frame_env,
                     filter_backend,
                     allow_pending_composites,
+                    program_items,
                 );
             }
             return (parent_transform, parent_opacity);
@@ -563,6 +568,13 @@ impl Timeline {
                 for cmd in &commands {
                     cmd.execute(scene, &local_transform, opacity);
                 }
+                if let Some(items) = program_items.as_mut() {
+                    items.push(crate::timeline::scene_program::SceneItem {
+                        transform: local_transform,
+                        opacity,
+                        commands: commands.clone(),
+                    });
+                }
                 // Hit region — compute from commands, not stale vector_paths
                 let image_size = track.image.get(time_ms, None).is_some().then_some(half_size);
                 let mut local_bounds: Option<kurbo::Rect> = None;
@@ -627,6 +639,7 @@ impl Timeline {
         frame_env: Option<&super::Environment>,
         filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
         allow_pending_composites: bool,
+        program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
     ) {
         let Some(track) = self.tracks.get(node_label) else {
             return;
@@ -663,6 +676,7 @@ impl Timeline {
                         frame_env,
                         filter_backend,
                         allow_pending_composites,
+                        program_items,
                     );
                 }
                 return;
@@ -685,6 +699,7 @@ impl Timeline {
                     frame_env,
                     filter_backend,
                     false,
+                    program_items,
                 );
             }
 
@@ -820,6 +835,7 @@ impl Timeline {
                     frame_env,
                     filter_backend,
                     allow_pending_composites,
+                    program_items,
                 );
             }
 
@@ -989,6 +1005,7 @@ impl Timeline {
                     frame_env,
                     filter_backend,
                     allow_pending_composites,
+                    program_items,
                 );
             }
         } else {
@@ -1008,6 +1025,7 @@ impl Timeline {
                     frame_env,
                     filter_backend,
                     allow_pending_composites,
+                    program_items,
                 );
             }
         }
@@ -1027,6 +1045,23 @@ impl Timeline {
         debug_options: DebugRenderOptions,
         filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
     ) -> vello::Scene {
+        self.evaluate_with_debug_inner(
+            time_s,
+            scene_dimensions,
+            debug_options,
+            filter_backend,
+            &mut None,
+        )
+    }
+
+    fn evaluate_with_debug_inner(
+        &self,
+        time_s: f64,
+        scene_dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
+        program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
+    ) -> vello::Scene {
         let time_ms = (time_s * 1000.0) as u64;
 
         // Clear stale runtime diagnostics from previous frame.
@@ -1044,8 +1079,8 @@ impl Timeline {
                     && cached.has_dynamic_layout == self.dynamic_layout
                     && cached.has_child_orders == has_child_orders
                 {
-                    *self.precise_bounds_cache.borrow_mut() = cached.precise_bounds.clone();
-                    return cached.scene.clone();
+                    *self.precise_bounds_cache.borrow_mut() = cached.program.precise_bounds.clone();
+                    return cached.program.scene.clone();
                 }
             }
         }
@@ -1161,6 +1196,7 @@ impl Timeline {
                         frame_env.as_ref(),
                         filter_backend,
                         true,
+                        program_items,
                     );
                     // Append to main scene and cache for next time.
                     scene.encoding_mut().append(temp_scene.encoding(), &None);
@@ -1190,6 +1226,7 @@ impl Timeline {
                     frame_env.as_ref(),
                     filter_backend,
                     true,
+                    program_items,
                 );
             }
         }
@@ -1205,6 +1242,15 @@ impl Timeline {
         // P2.25: Save scene in reusable buffer and cache for fast-path replay.
         // Two clones are needed: one for cache (if caching), one for return.
         // scene_buffer takes ownership for encoding buffer reuse (reset()).
+        let program = crate::timeline::scene_program::SceneProgram {
+            dimensions: scene_dimensions,
+            background: bg_color,
+            scene: scene.clone(),
+            items: Vec::new(),
+            ops: Vec::new(),
+            precise_bounds: self.precise_bounds_cache.borrow().clone(),
+            diagnostics: self.runtime_diagnostics.borrow().clone(),
+        };
         if filter_backend.is_none() && debug_options == DebugRenderOptions::default() {
             *self.frame_cache.borrow_mut() = Some(super::FrameCacheEntry {
                 time_ms,
@@ -1212,14 +1258,64 @@ impl Timeline {
                 has_modifiers: needs_frame_env,
                 has_dynamic_layout: self.dynamic_layout,
                 has_child_orders: !self.child_orders.is_empty(),
-                scene: scene.clone(),
-                precise_bounds: self.precise_bounds_cache.borrow().clone(),
+                program: program.clone(),
             });
         }
         let result = scene.clone();
         *self.scene_buffer.borrow_mut() = Some(scene);
 
         result
+    }
+
+    /// Evaluate the timeline into an observable [`SceneProgram`].
+    ///
+    /// The program carries the authoritative encoded scene plus the structured
+    /// frame data used by tooling/tests. Filter and mask paths remain encoded
+    /// directly into the authoritative scene; ordinary primitive actors are also
+    /// collected as [`SceneItem`](crate::timeline::scene_program::SceneItem)s.
+    pub fn evaluate_program_with_debug(
+        &self,
+        time_s: f64,
+        scene_dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
+    ) -> crate::timeline::scene_program::SceneProgram {
+        let time_ms = (time_s * 1000.0) as u64;
+        let needs_frame_env = self.needs_frame_env();
+        let has_child_orders = !self.child_orders.is_empty();
+        if filter_backend.is_none() && debug_options == DebugRenderOptions::default() {
+            if let Some(ref cached) = *self.frame_cache.borrow() {
+                if cached.time_ms == time_ms
+                    && cached.dimensions == scene_dimensions
+                    && cached.has_modifiers == needs_frame_env
+                    && cached.has_dynamic_layout == self.dynamic_layout
+                    && cached.has_child_orders == has_child_orders
+                {
+                    *self.precise_bounds_cache.borrow_mut() = cached.program.precise_bounds.clone();
+                    return cached.program.clone();
+                }
+            }
+        }
+
+        let mut items = Vec::new();
+        let mut items_slot = Some(std::mem::take(&mut items));
+        let scene = self.evaluate_with_debug_inner(
+            time_s,
+            scene_dimensions,
+            debug_options,
+            filter_backend,
+            &mut items_slot,
+        );
+
+        crate::timeline::scene_program::SceneProgram {
+            dimensions: scene_dimensions,
+            background: self.background_color.evaluate_copy(time_ms),
+            scene,
+            items: items_slot.unwrap_or_default(),
+            ops: Vec::new(),
+            precise_bounds: self.precise_bounds_cache.borrow().clone(),
+            diagnostics: self.runtime_diagnostics.borrow().clone(),
+        }
     }
 }
 

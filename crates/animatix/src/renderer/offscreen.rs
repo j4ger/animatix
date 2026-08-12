@@ -126,7 +126,9 @@ impl OffscreenRenderer {
         }
         let filter_backend = self.filter_backend.as_mut().unwrap();
         let mut fb: Option<&mut dyn crate::timeline::filter::FilterBackend> = Some(filter_backend);
-        let scene = timeline.evaluate_with_debug(time_s, dimensions, debug_options, &mut fb);
+        let scene = timeline
+            .evaluate_program_with_debug(time_s, dimensions, debug_options, &mut fb)
+            .scene;
 
         let output_view = self
             .output_view
@@ -182,7 +184,9 @@ impl OffscreenRenderer {
         self.ensure_targets(dimensions);
 
         let mut fb = None;
-        let scene = timeline.evaluate_with_debug(time_s, dimensions, debug_options, &mut fb);
+        let scene = timeline
+            .evaluate_program_with_debug(time_s, dimensions, debug_options, &mut fb)
+            .scene;
         let view_a = self.view_a.as_ref().ok_or_else(|| "Missing offscreen view_a".to_string())?;
 
         self.core
@@ -215,7 +219,9 @@ impl OffscreenRenderer {
         self.ensure_targets(dimensions);
 
         let mut fb = None;
-        let scene = timeline.evaluate_with_debug(time_s, dimensions, debug_options, &mut fb);
+        let scene = timeline
+            .evaluate_program_with_debug(time_s, dimensions, debug_options, &mut fb)
+            .scene;
         let view_b = self.view_b.as_ref().ok_or_else(|| "Missing offscreen view_b".to_string())?;
 
         self.core
@@ -264,8 +270,9 @@ impl OffscreenRenderer {
         // to avoid holding both large vello::Scene objects simultaneously.
         {
             let mut fb = None;
-            let scene_a =
-                from_timeline.evaluate_with_debug(from_time, dimensions, debug_options, &mut fb);
+            let scene_a = from_timeline
+                .evaluate_program_with_debug(from_time, dimensions, debug_options, &mut fb)
+                .scene;
             let view_a =
                 self.view_a.as_ref().ok_or_else(|| "Missing offscreen view_a".to_string())?;
             self.core
@@ -283,8 +290,9 @@ impl OffscreenRenderer {
         // Render to scene to texture_b
         {
             let mut fb = None;
-            let scene_b =
-                to_timeline.evaluate_with_debug(to_time, dimensions, debug_options, &mut fb);
+            let scene_b = to_timeline
+                .evaluate_program_with_debug(to_time, dimensions, debug_options, &mut fb)
+                .scene;
             let view_b =
                 self.view_b.as_ref().ok_or_else(|| "Missing offscreen view_b".to_string())?;
             self.core

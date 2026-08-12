@@ -181,7 +181,9 @@ impl PreviewSurface {
         }
         let mut fb: Option<&mut dyn animatix::timeline::filter::FilterBackend> =
             self.filter_backend.as_mut().map(|b| b as _);
-        let scene = timeline.evaluate_with_debug(time_s, self.dimensions, debug_options, &mut fb);
+        let scene = timeline
+            .evaluate_program_with_debug(time_s, self.dimensions, debug_options, &mut fb)
+            .scene;
         self.hit_regions = timeline.hit_regions();
 
         let render_view = self
@@ -354,12 +356,15 @@ impl PreviewSurface {
                     let mut fb_from_opt: Option<
                         &mut dyn animatix::timeline::filter::FilterBackend,
                     > = self.filter_backend_from.as_mut().map(|b| b as _);
-                    let scene_a = from.timeline.evaluate_with_debug(
-                        local_time_s,
-                        self.dimensions,
-                        debug_options,
-                        &mut fb_from_opt,
-                    );
+                    let scene_a = from
+                        .timeline
+                        .evaluate_program_with_debug(
+                            local_time_s,
+                            self.dimensions,
+                            debug_options,
+                            &mut fb_from_opt,
+                        )
+                        .scene;
                     let mut from_hit_regions = from.timeline.hit_regions();
                     self.renderer
                         .render_vello_scene(
@@ -385,12 +390,15 @@ impl PreviewSurface {
                     }
                     let mut fb_to_opt: Option<&mut dyn animatix::timeline::filter::FilterBackend> =
                         self.filter_backend_to.as_mut().map(|b| b as _);
-                    let scene_b = to.timeline.evaluate_with_debug(
-                        to_local,
-                        self.dimensions,
-                        debug_options,
-                        &mut fb_to_opt,
-                    );
+                    let scene_b = to
+                        .timeline
+                        .evaluate_program_with_debug(
+                            to_local,
+                            self.dimensions,
+                            debug_options,
+                            &mut fb_to_opt,
+                        )
+                        .scene;
                     let to_hit_regions = to.timeline.hit_regions();
                     self.renderer
                         .render_vello_scene(

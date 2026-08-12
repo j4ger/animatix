@@ -95,6 +95,8 @@ mod primitive;
 pub(crate) mod property_lookup;
 #[cfg(feature = "render")]
 mod scene_eval;
+#[cfg(feature = "render")]
+pub mod scene_program;
 mod sequence;
 pub use legend::{LegendMode, LegendTracks};
 
@@ -571,9 +573,8 @@ pub(crate) struct FrameCacheEntry {
     has_modifiers: bool,
     has_dynamic_layout: bool,
     has_child_orders: bool,
-    scene: vello::Scene,
-    /// Precise world AABBs for the cached frame.
-    precise_bounds: std::collections::HashMap<String, kurbo::Rect>,
+    /// Structured frame program, including the authoritative encoded scene.
+    program: crate::timeline::scene_program::SceneProgram,
 }
 
 impl Clone for Timeline {
