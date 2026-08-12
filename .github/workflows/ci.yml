@@ -119,6 +119,26 @@ jobs:
       - name: Validate all examples
         run: bash scripts/check_examples.sh
 
+  eparts-features:
+    name: eparts (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Check eparts default surface
+        run: cargo check -p eparts --all-targets
+      - name: Check eparts theme-json + gallery
+        run: cargo check -p eparts --features theme-json --all-targets
+      - name: Test eparts default
+        run: cargo test -p eparts --lib
+      - name: Test eparts theme-json
+        run: cargo test -p eparts --lib --features theme-json
+
   commit-check:
     name: Conventional Commits
     runs-on: ubuntu-latest
