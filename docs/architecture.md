@@ -672,14 +672,20 @@ pub component MetricCard(title: "Metric") {
 Language intelligence is shared via `animatix-analyzer`:
 
 ```
-animatix-syntax (parser, AST, diagnostics)
+animatix-syntax (parser, AST, diagnostics, ModuleGraph)
     ↓
 animatix-analyzer (SymbolTable, Completer, Diagnostics, Hover, Definitions)
     ↓
 animatix-gui (direct calls)    animatix-lsp (tower-lsp, JSON-RPC)
 ```
 
-- **No I/O** in analyzer — pure computation on `&str` or `&[Stmt]`
+- **No I/O** in analyzer — the workspace facade runs `ModuleGraph` in
+  `SourceAccess::SourcesOnly` mode, so only explicitly registered in-memory
+  sources are resolved.
+- **Shared resolved-program model**: `ModuleGraph` owns parsing, symbols,
+  imports, namespaces, and source-map identity for both the runtime/module
+  pipeline and the analyzer workspace. `Workspace` is a thin facade over that
+  graph, so analyzer and runtime resolution cannot drift.
 - **Canonical parser API**: Chumsky remains the semantic AST source of truth; the analyzer uses tree-sitter CST conversion for position queries and incremental re-parsing
 - **LSP capabilities**: completion, hover, goto-definition, document symbols, diagnostics
 - **Clean boundary**: `animatix-analyzer` depends only on `animatix-syntax`, not the full runtime engine

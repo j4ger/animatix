@@ -8,6 +8,23 @@ historical archives live in [docs/plans/README.md](plans/README.md).
 
 ## Active Work
 
+No open Active Work remains as of 2026-08-12. The 2026-08-11/12 cleanup closed
+the architecture, eparts, GUI, language, and runtime items listed below.
+
+### Architecture Consolidation (closed)
+
+| Item | Resolution |
+|------|------------|
+| Semantic AST single source | Done. `parse_canonical` is the Chumsky semantic source; analyzer uses tree-sitter only as CST for positions/completions/incremental edits. |
+| Module/Workspace resolver unification | Done. `Workspace` is now a thin facade over `ModuleGraph` in `SourcesOnly` mode; parsing, symbols, import identity, and namespace resolution are single-source. LSP continues to use per-document `Analyzer` for CST/positions while workspace symbols come from the shared graph. |
+| Semantic diagnostics single emitter | Done. `animatix-syntax::semantic_diagnostics` is the canonical emitter; analyzer and LSP convert DTOs instead of re-implementing checks. |
+| Path/source-map model | Done. `animatix-syntax::module::source_map` owns normalized path identity, import resolution, and in-memory source overrides. |
+| Source override lifecycle | Done. `ModuleGraph::with_source` scopes temporary overrides and restores/removes them on both success and error. `upsert_source` invalidates the changed file and its dependents. |
+| GUI mutation/cache/snapshot convergence | Done for the core path. `commit_source`/`replace_text` invalidate caches, and `DocumentStore::with_mutation` scopes snapshot finalize/abort. Remaining handlers can migrate opportunistically. |
+| Rebuild worker lifecycle | Done. `RebuildWorker::submit` restarts a dead worker thread. |
+| Type model vs annotation grammar | Done. User-facing annotations support `Vec3`, `Tuple<T, U, ...>`, and `Fn(T, U) => R`; `Type::to_annotation` no longer degrades these to `Any`, and tuple/function subtyping, nested alias resolution, closure/call return inference, completion, parser equivalence, and typechecker tests cover the surface. |
+| Parser-sync AST equivalence | Done for current syntax. Corpus-level equivalence covers actions, keyframes, scenes, modifiers, shorthand, for loops, reactive bindings, sequence/stagger, component/action definitions, method/if expressions, parameter defaults, match forms, pub/import declarations, multi-scene composition, inline children/for/slots, nested paths, complex patterns, closures, object construction, logical operators, and operator precedence. Expand coverage as new syntax lands. |
+
 ### eparts Framework Expansion (closed)
 
 The committed framework track is closed: high-value items were delivered and the remainder was archived
@@ -27,37 +44,19 @@ The full itemized status is in
 [docs/plans/eparts-refinement-roadmap.md](plans/eparts-refinement-roadmap.md) section `6.X`. Archived
 items have no current consumer and should be re-opened only when a concrete second-app need exists.
 
-### Architecture Consolidation
+### GUI Follow-Ups (closed)
 
-Structural risks identified during the 2026-08-11 cleanup. Most items are now
-implemented; the remaining two are design questions that still need a settled
-target before implementation.
+| Item | Resolution |
+|------|------------|
+| Opportunistic eparts widget adoption | Done for the remaining high-value call site in this pass: timeline action blocks now use the eparts `text_tooltip` helper. Additional call sites can continue migrating as their surrounding GUI areas are next edited. |
 
-| Item | Status / Notes |
-|------|----------------|
-| Semantic AST single source | Done. `parse_canonical` is the Chumsky semantic source; analyzer uses tree-sitter only as CST for positions/completions/incremental edits. |
-| Module/Workspace resolver unification | Behavior aligned. `Workspace` and `ModuleGraph` share `SourceMap` identity/import resolution, canonical semantic AST, and a behavior-equivalence corpus covering pub let/type/component/scene/nested namespace exports. Full structural merge remains deferred: `Workspace` is a cloneable virtual-path symbol model used by LSP, while `ModuleGraph` owns disk/source-map loading and loaded programs; merging them requires designing one shared resolved-program model without coupling LSP to I/O. |
-| Semantic diagnostics single emitter | Done. `animatix-syntax::semantic_diagnostics` is the canonical emitter; analyzer and LSP convert DTOs instead of re-implementing checks. |
-| Path/source-map model | Done. `animatix-syntax::module::source_map` owns normalized path identity, import resolution, and in-memory source overrides. |
-| Source override lifecycle | Done. `ModuleGraph::with_source` scopes temporary overrides and restores/removes them on both success and error. |
-| GUI mutation/cache/snapshot convergence | Done for the core path. `commit_source`/`replace_text` invalidate caches, and `DocumentStore::with_mutation` scopes snapshot finalize/abort. Remaining handlers can migrate opportunistically. |
-| Rebuild worker lifecycle | Done. `RebuildWorker::submit` restarts a dead worker thread. |
-| Type model vs annotation grammar | Done. User-facing annotations now support `Vec3`, `Tuple<T, U, ...>`, and `Fn(T, U) => R`, with `Scene` preserved in the internal type model. `Type::to_annotation` no longer degrades these to `Any`; tuple/function subtyping, nested alias resolution, closure/call return inference, analyzer value completion, parser equivalence, and typechecker tests cover the new surface. |
-| Parser-sync AST equivalence | Partially done. Corpus-level equivalence tests now cover actions, keyframes, scenes, modifiers, shorthand, for loops, reactive bindings, sequence/stagger, component/action definitions, method/if expressions, parameter defaults, and both match statement/expression forms. The latest expansion also covers pub/import declarations, multi-scene composition, inline children/for/slots, nested paths, complex patterns, closures, object construction, logical operators, and operator precedence. Tree-sitter converter gaps found by this corpus have been fixed. Expand coverage as new syntax lands. |
+### Language and Runtime Gaps (closed)
 
-### GUI Follow-Ups
-
-| Item | Status / Notes |
-|------|----------------|
-| Opportunistic eparts widget adoption | Partially complete; remaining call sites migrate when the surrounding GUI area is next edited. |
-
-### Language and Runtime Gaps
-
-| Item | Status / Notes |
-|------|----------------|
-| Precise shape/path/text bounds | Open; callout geometry and actor anchor points use world-space affine plus available local bounds. Exact text/path bounds remain deferred. |
-| Text/Typst/Code frame-time content overrides | Open; timed assignments recompile glyph paths, but changing `text` directly inside `always` is not a supported path. |
-| Data-dependent algorithm timelines | Open; no runtime mutable state or branching timeline, so algorithm animations must be hand-unrolled recordings. Confirmed by `dogfood/projects/sorting-visualizer`. |
+| Item | Resolution |
+|------|------------|
+| Precise shape/path/text bounds | Done for the supported path. The renderer now caches exact world-space AABBs from emitted commands, restores them on frame-cache hits, and `TargetResolver::target_bounds` prefers them for callouts/lines/arrows. Debug overlays also include evaluated text paths. Size-box bounds remain the fallback for actors not evaluated this frame. |
+| Text/Typst/Code frame-time content overrides | Done for the supported path. `always` text/content overrides recompile glyphs per frame, explicit empty strings clear stale glyphs, and primitive render errors are surfaced as runtime diagnostics. Frame-time overrides do not remeasure layout size; that remains a documented limitation. |
+| Data-dependent algorithm timelines | Closed by design. Runtime mutable state remains out of scope to preserve the random-access guarantee. Build-time algorithm precomputation via `let` shadowing + `list_swap`/`list_set` + `if`/`match` is now supported, tested, and documented. |
 
 ---
 
@@ -70,11 +69,11 @@ consult the archive only for prior findings and resolution context.
 
 ---
 
-## Icebox
+## Archived Ideas
 
-Not strictly needed, ones that require more design, or simply weird thoughts that
-came to mind. Should be ignored when planning for implementation, in most cases.
-Audit status is from 2026-08-05.
+These are not open tasks and should not be scheduled without a concrete user
+story or design requirement. Audit status is from 2026-08-05; some items were
+superseded by later implementation.
 
 | Task | Reason / Audit Status |
 |------|-----------------------|

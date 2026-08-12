@@ -983,7 +983,7 @@ panel: Rect, color: theme.accent
 Re-export chains are resolved transitively. Nested aliased imports are available through arbitrary-depth paths such as `lib.inner.export_name`. Values are evaluated at build time in the importing scene's environment.
 
 **Current limitations:**
-- Text/Typst/Code property assignment recompiles glyph paths at timeline build/assignment time. Changing text content directly inside `always` is not supported as a render-time path.
+- Text/Typst/Code content can be overridden inside `always`; glyph paths are recompiled per frame and explicit empty strings clear the previous content. The actor's `geometry.size`/layout size is not remeasured from the frame-time override, so callout/line anchors and managed-layout slots still use the authored size box.
 
 ---
 
@@ -1625,6 +1625,7 @@ Returns a `Value::Object` with typed fields. Field reads (`p.x`, `p.a.b`) are im
 ## 16. Known Gaps & Limitations
 
 - **Media source assignment:** `Image.url` and `Svg.url` assignments support timed keyframe animation. Image sources and SVG path sets snap between sources at the midpoint of a timed assignment; SVG assignments also update measured size. Text/Typst/Code assignment recompiles glyph paths at timeline build/assignment time.
+- **Frame-time text bounds:** `always` text/content overrides recompile glyph paths and support explicit empty content, but do not remeasure `geometry.size`/layout size for the current frame.
 - ~~**Static Geometry:** Structural geometry inputs like `Polygon.points` and `Path.commands` are declaration-time only and cannot be animated dynamically frame-by-frame.~~ Both now support timed assignments with path morphing.
 
 ---
