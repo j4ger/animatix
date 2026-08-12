@@ -1045,45 +1045,97 @@ impl Timeline {
         debug_options: DebugRenderOptions,
         filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
     ) -> vello::Scene {
-        self.evaluate_with_debug_inner(
-            time_s,
-            scene_dimensions,
-            debug_options,
-            filter_backend,
-            &mut None,
-        )
+        let time_ms = (time_s * 1000.0) as u64;
+        let needs_frame_env = self.needs_frame_env();
+        let has_child_orders = !self.child_orders.is_empty();
+        if filter_backend.is_none()
+            && debug_options == DebugRenderOptions::default()
+            && self.try_restore_frame_cache(
+                time_ms,
+                scene_dimensions,
+                needs_frame_env,
+                has_child_orders,
+                false,
+            )
+        {
+            let cached = self.frame_cache.borrow();
+            return cached.as_ref().expect("restored frame cache").program.scene.clone();
+        }
+        self.evaluate_program_inner(time_s, scene_dimensions, debug_options, filter_backend, false)
+            .scene
     }
 
-    fn evaluate_with_debug_inner(
+    /// Restore cache-derived precise bounds when a frame cache entry matches.
+    fn try_restore_frame_cache(
+        &self,
+        time_ms: u64,
+        scene_dimensions: SceneDimensions,
+        needs_frame_env: bool,
+        has_child_orders: bool,
+        collect_items: bool,
+    ) -> bool {
+        if let Some(ref cached) = *self.frame_cache.borrow() {
+            if cached.time_ms == time_ms
+                && cached.dimensions == scene_dimensions
+                && cached.has_modifiers == needs_frame_env
+                && cached.has_dynamic_layout == self.dynamic_layout
+                && cached.has_child_orders == has_child_orders
+                && cached.collect_items == collect_items
+            {
+                *self.precise_bounds_cache.borrow_mut() = cached.program.precise_bounds.clone();
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Evaluate the timeline into an observable [`SceneProgram`].
+    ///
+    /// The program carries the authoritative encoded scene plus the structured
+    /// frame data used by tooling/tests. Filter and mask paths remain encoded
+    /// directly into the authoritative scene; ordinary primitive actors are also
+    /// collected as [`SceneItem`](crate::timeline::scene_program::SceneItem)s.
+    pub fn evaluate_program_with_debug(
         &self,
         time_s: f64,
         scene_dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
         filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
-        program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
-    ) -> vello::Scene {
+    ) -> crate::timeline::scene_program::SceneProgram {
+        self.evaluate_program_inner(time_s, scene_dimensions, debug_options, filter_backend, true)
+    }
+
+    fn evaluate_program_inner(
+        &self,
+        time_s: f64,
+        scene_dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
+        collect_items: bool,
+    ) -> crate::timeline::scene_program::SceneProgram {
         let time_ms = (time_s * 1000.0) as u64;
-
-        // Clear stale runtime diagnostics from previous frame.
-        self.clear_runtime_diagnostics();
-
-        // Check the frame cache: return cached scene if time and dimensions match
-        // and the underlying modifiers/layout have not changed.
         let needs_frame_env = self.needs_frame_env();
         let has_child_orders = !self.child_orders.is_empty();
         if filter_backend.is_none() && debug_options == DebugRenderOptions::default() {
-            if let Some(ref cached) = *self.frame_cache.borrow() {
-                if cached.time_ms == time_ms
-                    && cached.dimensions == scene_dimensions
-                    && cached.has_modifiers == needs_frame_env
-                    && cached.has_dynamic_layout == self.dynamic_layout
-                    && cached.has_child_orders == has_child_orders
-                {
-                    *self.precise_bounds_cache.borrow_mut() = cached.program.precise_bounds.clone();
-                    return cached.program.scene.clone();
-                }
+            if self.try_restore_frame_cache(
+                time_ms,
+                scene_dimensions,
+                needs_frame_env,
+                has_child_orders,
+                collect_items,
+            ) {
+                return self
+                    .frame_cache
+                    .borrow()
+                    .as_ref()
+                    .expect("restored frame cache")
+                    .program
+                    .clone();
             }
         }
+
+        // Clear stale runtime diagnostics from previous frame.
+        self.clear_runtime_diagnostics();
 
         // P2.25: Reuse vello scene buffer to avoid allocating fresh encoding buffers.
         let mut scene = self.scene_buffer.borrow_mut().take().unwrap_or_default();
@@ -1159,6 +1211,11 @@ impl Timeline {
             ),
         );
 
+        let mut program_items = if collect_items {
+            Some(Vec::new())
+        } else {
+            None
+        };
         for root in &self.root_nodes {
             // P2.17: Static subtree cache — fully-static subtrees are evaluated once
             // and their vello encoding is reused on subsequent frames. Debug
@@ -1171,17 +1228,22 @@ impl Timeline {
             {
                 let cache_key = (root.clone(), debug_options);
                 let cache = self.static_subtree_cache.borrow_mut();
-                if let Some((cached_scene, cached_bounds)) = cache.get(&cache_key) {
+                if let Some((cached_scene, cached_bounds, cached_items)) = cache.get(&cache_key) {
                     // Fast path: append cached encoding directly and restore the
                     // precise bounds that were computed for this subtree.
                     scene.encoding_mut().append(cached_scene.encoding(), &None);
                     for (label, bounds) in cached_bounds {
                         self.precise_bounds_cache.borrow_mut().insert(label.clone(), *bounds);
                     }
+                    if let Some(items) = program_items.as_mut() {
+                        items.extend(cached_items.iter().cloned());
+                    }
                 } else {
                     drop(cache);
                     let mut temp_scene = vello::Scene::new();
                     let subtree_bounds_before = self.precise_bounds_cache.borrow().len();
+                    let mut subtree_items = Vec::new();
+                    let mut subtree_items_slot = Some(std::mem::take(&mut subtree_items));
                     self.evaluate_node(
                         root,
                         time_ms,
@@ -1196,8 +1258,12 @@ impl Timeline {
                         frame_env.as_ref(),
                         filter_backend,
                         true,
-                        program_items,
+                        &mut subtree_items_slot,
                     );
+                    subtree_items = subtree_items_slot.take().unwrap_or_default();
+                    if let Some(items) = program_items.as_mut() {
+                        items.extend(subtree_items.iter().cloned());
+                    }
                     // Append to main scene and cache for next time.
                     scene.encoding_mut().append(temp_scene.encoding(), &None);
                     let new_bounds: Vec<(String, kurbo::Rect)> = self
@@ -1209,7 +1275,7 @@ impl Timeline {
                         .collect();
                     self.static_subtree_cache
                         .borrow_mut()
-                        .insert(cache_key, (temp_scene, new_bounds));
+                        .insert(cache_key, (temp_scene, new_bounds, subtree_items));
                 }
             } else {
                 self.evaluate_node(
@@ -1226,7 +1292,7 @@ impl Timeline {
                     frame_env.as_ref(),
                     filter_backend,
                     true,
-                    program_items,
+                    &mut program_items,
                 );
             }
         }
@@ -1239,15 +1305,12 @@ impl Timeline {
             self.hit_regions.borrow_mut().clear();
         }
 
-        // P2.25: Save scene in reusable buffer and cache for fast-path replay.
-        // Two clones are needed: one for cache (if caching), one for return.
-        // scene_buffer takes ownership for encoding buffer reuse (reset()).
+        // The program owns the encoded scene; scene_buffer keeps a reusable copy.
         let program = crate::timeline::scene_program::SceneProgram {
             dimensions: scene_dimensions,
             background: bg_color,
-            scene: scene.clone(),
-            items: Vec::new(),
-            ops: Vec::new(),
+            scene,
+            items: program_items.take().unwrap_or_default(),
             precise_bounds: self.precise_bounds_cache.borrow().clone(),
             diagnostics: self.runtime_diagnostics.borrow().clone(),
         };
@@ -1257,65 +1320,14 @@ impl Timeline {
                 dimensions: scene_dimensions,
                 has_modifiers: needs_frame_env,
                 has_dynamic_layout: self.dynamic_layout,
-                has_child_orders: !self.child_orders.is_empty(),
+                has_child_orders,
                 program: program.clone(),
+                collect_items,
             });
         }
-        let result = scene.clone();
-        *self.scene_buffer.borrow_mut() = Some(scene);
+        *self.scene_buffer.borrow_mut() = Some(program.scene.clone());
 
-        result
-    }
-
-    /// Evaluate the timeline into an observable [`SceneProgram`].
-    ///
-    /// The program carries the authoritative encoded scene plus the structured
-    /// frame data used by tooling/tests. Filter and mask paths remain encoded
-    /// directly into the authoritative scene; ordinary primitive actors are also
-    /// collected as [`SceneItem`](crate::timeline::scene_program::SceneItem)s.
-    pub fn evaluate_program_with_debug(
-        &self,
-        time_s: f64,
-        scene_dimensions: SceneDimensions,
-        debug_options: DebugRenderOptions,
-        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
-    ) -> crate::timeline::scene_program::SceneProgram {
-        let time_ms = (time_s * 1000.0) as u64;
-        let needs_frame_env = self.needs_frame_env();
-        let has_child_orders = !self.child_orders.is_empty();
-        if filter_backend.is_none() && debug_options == DebugRenderOptions::default() {
-            if let Some(ref cached) = *self.frame_cache.borrow() {
-                if cached.time_ms == time_ms
-                    && cached.dimensions == scene_dimensions
-                    && cached.has_modifiers == needs_frame_env
-                    && cached.has_dynamic_layout == self.dynamic_layout
-                    && cached.has_child_orders == has_child_orders
-                {
-                    *self.precise_bounds_cache.borrow_mut() = cached.program.precise_bounds.clone();
-                    return cached.program.clone();
-                }
-            }
-        }
-
-        let mut items = Vec::new();
-        let mut items_slot = Some(std::mem::take(&mut items));
-        let scene = self.evaluate_with_debug_inner(
-            time_s,
-            scene_dimensions,
-            debug_options,
-            filter_backend,
-            &mut items_slot,
-        );
-
-        crate::timeline::scene_program::SceneProgram {
-            dimensions: scene_dimensions,
-            background: self.background_color.evaluate_copy(time_ms),
-            scene,
-            items: items_slot.unwrap_or_default(),
-            ops: Vec::new(),
-            precise_bounds: self.precise_bounds_cache.borrow().clone(),
-            diagnostics: self.runtime_diagnostics.borrow().clone(),
-        }
+        program
     }
 }
 
@@ -1427,6 +1439,35 @@ mod tests {
         let cache2 = timeline.frame_cache.borrow();
         assert!(cache2.is_some(), "frame cache should still be populated");
         assert_eq!(cache2.as_ref().unwrap().time_ms, 1000);
+    }
+
+    #[test]
+    fn program_cache_is_separate_from_scene_only_cache() {
+        let timeline = make_minimal_timeline();
+        let dimensions = SceneDimensions {
+            width: 800,
+            height: 600,
+        };
+
+        let _scene = timeline.evaluate(1.0, dimensions);
+        {
+            let cache = timeline.frame_cache.borrow();
+            let entry = cache.as_ref().expect("scene evaluation should populate cache");
+            assert!(!entry.collect_items);
+        }
+
+        let program = timeline.evaluate_program_with_debug(
+            1.0,
+            dimensions,
+            DebugRenderOptions::default(),
+            &mut None,
+        );
+        assert!(!program.items.is_empty());
+        {
+            let cache = timeline.frame_cache.borrow();
+            let entry = cache.as_ref().expect("program evaluation should populate cache");
+            assert!(entry.collect_items);
+        }
     }
 
     #[test]

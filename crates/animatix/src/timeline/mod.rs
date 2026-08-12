@@ -475,8 +475,12 @@ impl HasDuration for VariableTrack {
 /// Cached transform entry: (time_ms, parent_transform_coeffs, node_transform).
 type TransformCacheEntry = (u64, [f64; 6], scene_eval::NodeTransform);
 
-/// Static subtree cache value: cached scene plus precise bounds for its nodes.
-type StaticSubtreeEntry = (vello::Scene, Vec<(String, kurbo::Rect)>);
+/// Static subtree cache value: cached scene, precise bounds, and observed items.
+type StaticSubtreeEntry = (
+    vello::Scene,
+    Vec<(String, kurbo::Rect)>,
+    Vec<crate::timeline::scene_program::SceneItem>,
+);
 
 /// Compiled animation package containing the full scene graph, tracks, and
 /// evaluation state.
@@ -575,6 +579,8 @@ pub(crate) struct FrameCacheEntry {
     has_child_orders: bool,
     /// Structured frame program, including the authoritative encoded scene.
     program: crate::timeline::scene_program::SceneProgram,
+    /// Whether the cached program was requested with observable item collection.
+    collect_items: bool,
 }
 
 impl Clone for Timeline {
