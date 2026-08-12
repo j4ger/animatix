@@ -8,17 +8,24 @@ historical archives live in [docs/plans/README.md](plans/README.md).
 
 ## Active Work
 
-### eparts Framework Expansion (committed, unscheduled)
+### eparts Framework Expansion (closed)
 
-The `eparts` crate has an active framework-expansion track that is committed but
-not yet scheduled. It includes JSON themes, hot-reload, table/chart/webview
-surfaces, i18n, accessibility depth, a gallery app, CI parity, and related
-framework widgets.
+The committed framework track is closed: high-value items were delivered and the remainder was archived
+rather than kept as indefinitely-open deliverables.
 
-The full itemized list and sequencing guidance are in
-[docs/plans/eparts-refinement-roadmap.md](plans/eparts-refinement-roadmap.md)
-section `6.X`. First candidates when capacity opens are the gallery app, JSON
-themes, CI platform parity, and `StyledExt` helpers.
+Delivered:
+- B7 JSON themes + schema (`theme-json` feature)
+- B8 theme hot-reload (`theme-json` feature)
+- A5 StyledExt `Ui`/`Response` helpers
+- K3 gallery example
+- K6 cross-platform CI feature matrix
+
+Archived:
+- B9/B10, C7–C15, D6–D9, F6–F10, G9–G11, H4/H5, J4, K4/K5/K7–K11
+
+The full itemized status is in
+[docs/plans/eparts-refinement-roadmap.md](plans/eparts-refinement-roadmap.md) section `6.X`. Archived
+items have no current consumer and should be re-opened only when a concrete second-app need exists.
 
 ### Architecture Consolidation
 

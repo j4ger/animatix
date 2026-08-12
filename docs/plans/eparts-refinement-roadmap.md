@@ -570,29 +570,31 @@ Verified: 166 eparts tests; clippy clean (tree.rs/list.rs lints fixed); full swe
   independently published packages.
 Verified: `cargo check --workspace` clean, eparts/GUI tests green, full sweep 1203 passed / 41 ignored.
 
-### §6.X Framework Expansion Track — committed, sequencing flexible
-The second app is planned, so this is no longer a conditional backlog. All [FRAMEWORK] items below are
-committed deliverables, but they are reorderable and should be interleaved after or alongside the
-[NOW]/[BOTH] milestones as capacity allows. Priority rule: highest reuse, lowest implementation risk,
-and clearest second-app need first. Light mode and auto-theme are already promoted out via B6/B11.
+### §6.X Framework Expansion Track — delivered and archived
 
-- **Theming:** B7 JSON+schema · B8 hot-reload (notify) · B9 color parsing/oklab · B10 gradient tokens.
+The second app was planned, so this track was committed as deliverables. The highest-reuse items are now
+delivered; the rest are archived because they have no current consumer and would add maintenance surface
+without a real second-app need. Do not revive an archived item until a concrete consumer or design
+requirement exists.
+
+- **Theming:** B7 JSON themes + schema ✅ DONE · B8 hot-reload ✅ DONE · B9 color parsing/oklab · B10 gradient tokens — archived.
 - **Inputs:** C7 dual-thumb slider · C8 multiline/autogrow · C9 code-editor input · C10 undo/History ·
-  C11 masking · C12 date/time pickers · C13 rating · C14 stepper · C15 pagination.
-- **Overlays:** D6 Sheet · D7 full FocusTrap · D8 root-orchestrator layer manager · D9 native menu system.
-- **Layout/nav:** A5 StyledExt helpers · F6 Breadcrumb · F7 TitleBar · F8 Sidebar · F9 Dock · F10 wizard Stepper.
-- **Display:** G9 Indicator · G10 Avatar · G11 Description list.
-- **Data:** H4 DataTable · H5 VirtualList.
-- **Interaction:** J4 global/contextual keymap.
-- **Infra/quality:** K3 gallery app · K4 i18n · K5 AccessKit · K6 CI matrix · K7 semver/release ·
-  K8 docs site · K9 clipboard · K10 webview.
-- **Lowest priority:** K11 charts/plot — no current GUI chrome consumer; if ever built, build fresh
+  C11 masking · C12 date/time pickers · C13 rating · C14 stepper · C15 pagination — archived.
+- **Overlays:** D6 Sheet · D7 full FocusTrap · D8 root-orchestrator layer manager · D9 native menu system — archived.
+- **Layout/nav:** A5 StyledExt helpers ✅ DONE · F6 Breadcrumb · F7 TitleBar · F8 Sidebar · F9 Dock · F10 wizard Stepper — archived.
+- **Display:** G9 Indicator · G10 Avatar · G11 Description list — archived.
+- **Data:** H4 DataTable · H5 VirtualList — archived.
+- **Interaction:** J4 global/contextual keymap — archived.
+- **Infra/quality:** K3 gallery app ✅ DONE · K4 i18n · K5 AccessKit · K6 CI matrix ✅ DONE · K7 semver/release ·
+  K8 docs site · K9 clipboard · K10 webview — archived.
+- **Lowest priority:** K11 charts/plot — archived; no current GUI chrome consumer. If ever built, build fresh
   against a clean data-binding API rather than extracting bespoke F-curve/easing editors or conflating
   with the core animatix plot feature.
 
-First framework-track candidates once capacity opens (highest reuse value, lowest risk): **K3 gallery
-app**, **B7 JSON themes**, **K6 CI platform parity**, **A5 StyledExt helpers**, then **B8 hot-reload**.
-K11 remains at the bottom until a real chart consumer appears.
+Archive rationale: i18n, AccessKit, docs site, clipboard, webview, data tables, virtual lists, sheets,
+native menus, date pickers, and wizard/stepper surfaces are generic second-app needs with no current
+consumer. Retaining them as open deliverables made `docs/roadmap.md` look incomplete without adding
+engineering value. They can be re-opened individually when a real consumer or design target exists.
 
 ### §6.Y Post-completion state (what's done, what remains)
 
@@ -603,6 +605,10 @@ auto-theme (B1–B6, B11, + the `dark-light` dependency), the theme-aware Button
 (C1–C6, G7, I1–I4), display/feedback + layout + navigation widgets (G2–G8, E4–E5, F1–F5), data +
 composed widgets (H1–H3, C16), the generic Keymap (J1), the K1 domain audit (no action needed), and
 K2 feature-flag scaffolding.
+
+**Framework track delivered (2026-08-12):** B7 JSON themes + schema, B8 theme hot-reload,
+A5 StyledExt helpers, K3 gallery example, and K6 CI platform parity. See §6.X for the archived
+remainder.
 
 **Known follow-ups inside completed milestones (small, not blocking):**
 - Adopt the new widgets (Tree for the scene hierarchy, ColorPicker for color props, TabBar, etc.) at
@@ -649,8 +655,8 @@ library in the app. State as of commit `5ef1565f`:
 - Inline status banners → `Alert`; counts → `Badge`/`Tag`; inspector section grouping → `Collapsible`/
   `GroupBox`; raw `on_hover_text` → `Tooltip` with grace period — adopt as those files are edited.
 
-**Not started (committed Framework Expansion Track, §6.X):** all [FRAMEWORK] items remain unscheduled
-until the second app firms up or capacity opens; recommended ordering is listed above.
+**Archived (2026-08-12):** all remaining §6.X framework items without a current consumer were archived,
+not scheduled. The delivered subset is listed above; the archive rationale is in §6.X.
 
 **Verification baseline (current, post GUI-adoption pass + bug fixes):** `cargo check --workspace` clean
 (+ `--features animatix-gui/dev-screenshots`), `cargo test -p eparts` 216, `cargo test -p animatix-gui` 218,
