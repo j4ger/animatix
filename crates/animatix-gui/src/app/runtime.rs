@@ -220,13 +220,14 @@ impl AnimatixApp {
                     {
                         for keyframe in self.shell.ui_store.selection.selected_keyframes.clone() {
                             let crate::app::document::timeline_diff::KeyframeId {
+                                scene,
                                 actor,
                                 property,
                                 time_ms,
-                                ..
                             } = keyframe;
                             self.shell.ui_store.pending_actions.push_back(
                                 KeyframeCommand::DeleteKeyframe {
+                                    scene,
                                     actor,
                                     property,
                                     time_s: time_ms as f64 / 1000.0,

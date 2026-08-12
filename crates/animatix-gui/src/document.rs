@@ -558,11 +558,18 @@ impl DocumentSession {
 
     /// Find the absolute time of the keyframe immediately before `time_s`.
     pub fn prev_keyframe_time(&self, time_s: f64) -> f64 {
-        let keyframes = timeline_keyframe_times_s(
-            self.active_timeline(),
-            self.composition.as_ref(),
-            self.active_scene.as_deref(),
-        );
+        let scene = self.active_scene.as_deref();
+        let keyframes = if let Some(composition) = self.composition.as_ref() {
+            let Some(scene_name) = scene else {
+                return 0.0;
+            };
+            let Some(scene) = composition.scenes.get(scene_name) else {
+                return 0.0;
+            };
+            scene.timeline.keyframe_times_s()
+        } else {
+            timeline_keyframe_times_s(self.active_timeline(), None, scene)
+        };
         if !keyframes.is_empty() {
             return keyframes.into_iter().rev().find(|t| *t <= time_s).unwrap_or(0.0);
         }
@@ -1270,11 +1277,7 @@ scene: Rect, size: (100, 100)
         let dir = temp_project_dir("document_apply_rebuild_failure").unwrap();
         let entry = dir.join("scene.amx");
 
-        write_file(
-            &entry,
-            "#0s\nbox: Rect, size: (100, 100)\n",
-        )
-        .unwrap();
+        write_file(&entry, "#0s\nbox: Rect, size: (100, 100)\n").unwrap();
 
         let mut document =
             DocumentSession::load(entry.clone()).expect("valid document should load");
@@ -1303,11 +1306,7 @@ scene: Rect, size: (100, 100)
         let dir = temp_project_dir("document_failure_retry").unwrap();
         let entry = dir.join("scene.amx");
 
-        write_file(
-            &entry,
-            "#0s\nbox: Rect, size: (100, 100)\n",
-        )
-        .unwrap();
+        write_file(&entry, "#0s\nbox: Rect, size: (100, 100)\n").unwrap();
 
         let mut document =
             DocumentSession::load(entry.clone()).expect("valid document should load");

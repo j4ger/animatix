@@ -47,6 +47,8 @@ pub enum SourceEdit {
     },
     /// Insert a keyframe block with an assignment.
     InsertKeyframe {
+        /// `Some(name)` scopes the edit to a composition scene.
+        scene: Option<String>,
         actor: String,
         property: String,
         value: Expr,
@@ -57,6 +59,8 @@ pub enum SourceEdit {
     },
     /// Update a property value inside an existing keyframe.
     MergeKeyframe {
+        /// `Some(name)` scopes the edit to a composition scene.
+        scene: Option<String>,
         actor: String,
         property: String,
         value: Expr,
@@ -124,6 +128,8 @@ pub enum SourceEdit {
     DuplicateScene { name: String },
     /// Update the easing of an existing keyframe's assignment.
     SetKeyframeEasing {
+        /// `Some(name)` scopes the edit to a composition scene.
+        scene: Option<String>,
         actor: String,
         property: String,
         /// Absolute time in seconds.
@@ -132,6 +138,8 @@ pub enum SourceEdit {
     },
     /// Delete a keyframe at a specific time.
     DeleteKeyframe {
+        /// `Some(name)` scopes the edit to a composition scene.
+        scene: Option<String>,
         actor: String,
         property: String,
         /// Absolute time in seconds.
@@ -155,6 +163,8 @@ pub enum SourceEdit {
     },
     /// Move a keyframe to a new time.
     MoveKeyframeTime {
+        /// `Some(name)` scopes the edit to a composition scene.
+        scene: Option<String>,
         actor: String,
         property: String,
         old_time_s: f64,
@@ -206,6 +216,7 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
             value,
         } => super::actor_edits::insert_property(stmts, &actor, &property, value),
         SourceEdit::InsertKeyframe {
+            scene,
             actor,
             property,
             value,
@@ -213,6 +224,7 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
             prev_time_s,
         } => super::keyframe_edits::insert_keyframe(
             stmts,
+            scene.as_deref(),
             &actor,
             &property,
             value,
@@ -220,11 +232,19 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
             prev_time_s,
         ),
         SourceEdit::MergeKeyframe {
+            scene,
             actor,
             property,
             value,
             time_s,
-        } => super::keyframe_edits::merge_keyframe(stmts, &actor, &property, value, time_s),
+        } => super::keyframe_edits::merge_keyframe(
+            stmts,
+            scene.as_deref(),
+            &actor,
+            &property,
+            value,
+            time_s,
+        ),
         SourceEdit::ReorderContainerChildren {
             container,
             new_order,
@@ -281,16 +301,31 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
         SourceEdit::DeleteScene { name } => super::scene_edits::delete_scene(stmts, &name),
         SourceEdit::DuplicateScene { name } => super::scene_edits::duplicate_scene(stmts, &name),
         SourceEdit::SetKeyframeEasing {
+            scene,
             actor,
             property,
             time_s,
             easing,
-        } => super::keyframe_edits::set_keyframe_easing(stmts, &actor, &property, time_s, easing),
+        } => super::keyframe_edits::set_keyframe_easing(
+            stmts,
+            scene.as_deref(),
+            &actor,
+            &property,
+            time_s,
+            easing,
+        ),
         SourceEdit::DeleteKeyframe {
+            scene,
             actor,
             property,
             time_s,
-        } => super::keyframe_edits::delete_keyframe(stmts, &actor, &property, time_s),
+        } => super::keyframe_edits::delete_keyframe(
+            stmts,
+            scene.as_deref(),
+            &actor,
+            &property,
+            time_s,
+        ),
         SourceEdit::Reparent { actor, new_parent } => {
             super::actor_edits::reparent_actor(stmts, &actor, new_parent.as_deref())
         },
@@ -303,12 +338,18 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
             target_scene,
         } => super::scene_edits::move_to_scene(stmts, actor_labels, &target_scene),
         SourceEdit::MoveKeyframeTime {
+            scene,
             actor,
             property,
             old_time_s,
             new_time_s,
         } => super::keyframe_edits::move_keyframe_time(
-            stmts, &actor, &property, old_time_s, new_time_s,
+            stmts,
+            scene.as_deref(),
+            &actor,
+            &property,
+            old_time_s,
+            new_time_s,
         ),
         SourceEdit::InsertAction {
             verb,

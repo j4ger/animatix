@@ -78,6 +78,7 @@ pub(crate) fn inspector_panel_ui(ctx: &mut InspectorContext<'_>, ui: &mut egui::
             ctx.pivot_offsets,
             ctx.property_view_mode,
             ctx.keyframe_view_mode,
+            ctx.active_scene,
         );
     });
 }
@@ -464,6 +465,7 @@ pub(super) fn inspector_ui(
     pivot_offsets: &mut std::collections::HashMap<String, [f32; 2]>,
     property_view_mode: &mut PropertyViewMode,
     keyframe_view_mode: &mut KeyframeViewMode,
+    active_scene: Option<&str>,
 ) {
     let sp = spatial(ui);
     let theme = eparts::theme(ui);
@@ -685,6 +687,7 @@ pub(super) fn inspector_ui(
                                     commands,
                                     keyframe_mode,
                                     current_time_s,
+                                    active_scene,
                                 );
                             }
                         },
@@ -826,6 +829,7 @@ pub(super) fn inspector_ui(
                             (current_time_s * 1000.0) as u64,
                             sel,
                             commands,
+                            active_scene,
                         );
                     },
                     KeyframeViewMode::Curve => {

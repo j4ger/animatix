@@ -349,6 +349,7 @@ impl DocumentController<'_> {
     /// NOTE: The caller should have called `snapshot()` before this.
     pub(crate) fn handle_set_keyframe_easing(
         &mut self,
+        scene: Option<String>,
         actor: &str,
         property: &str,
         time_s: f64,
@@ -362,6 +363,7 @@ impl DocumentController<'_> {
         };
 
         let edit = source_edit::SourceEdit::SetKeyframeEasing {
+            scene,
             actor: actor.into(),
             property: property.into(),
             time_s,
@@ -389,7 +391,13 @@ impl DocumentController<'_> {
 
     /// Handle a keyframe deletion request.
     /// NOTE: The caller should have called `snapshot()` before this.
-    pub(crate) fn handle_delete_keyframe(&mut self, actor: &str, property: &str, time_s: f64) {
+    pub(crate) fn handle_delete_keyframe(
+        &mut self,
+        scene: Option<String>,
+        actor: &str,
+        property: &str,
+        time_s: f64,
+    ) {
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
             self.preview_store
                 .preview
@@ -399,6 +407,7 @@ impl DocumentController<'_> {
         };
 
         let edit = source_edit::SourceEdit::DeleteKeyframe {
+            scene,
             actor: actor.into(),
             property: property.into(),
             time_s,
@@ -427,6 +436,7 @@ impl DocumentController<'_> {
     /// NOTE: The caller should have called `snapshot()` before this.
     pub(crate) fn handle_move_keyframe(
         &mut self,
+        scene: Option<String>,
         actor: &str,
         property: &str,
         old_time_s: f64,
@@ -440,6 +450,7 @@ impl DocumentController<'_> {
         };
 
         let edit = source_edit::SourceEdit::MoveKeyframeTime {
+            scene,
             actor: actor.into(),
             property: property.into(),
             old_time_s,

@@ -9,11 +9,47 @@ use super::ast_utils::{
     wrap_leading_decls_in_zero_keyframe,
 };
 
+/// Return the body of a named composition scene, or `None` when absent.
+fn scene_body_mut<'a>(stmts: &'a mut [Stmt], scene_name: &str) -> Option<&'a mut Vec<Stmt>> {
+    for stmt in stmts {
+        if let Stmt::Scene { name, body, .. } = stmt {
+            if name == scene_name {
+                return Some(body);
+            }
+        }
+    }
+    None
+}
+
 // ---------------------------------------------------------------------------
 // MergeKeyframe
 // ---------------------------------------------------------------------------
 
 pub(super) fn merge_keyframe(
+    stmts: &mut Vec<Stmt>,
+    scene: Option<&str>,
+    actor: &str,
+    property: &str,
+    value: Expr,
+    time_s: f64,
+) -> Result<(), SourceEditError> {
+    let target = match scene {
+        Some(name) => match scene_body_mut(stmts, name) {
+            Some(body) => body,
+            None => {
+                return Err(SourceEditError::KeyframeNotFound {
+                    actor: actor.to_string(),
+                    property: property.to_string(),
+                    time_s,
+                });
+            },
+        },
+        None => stmts,
+    };
+    merge_keyframe_inner(target, actor, property, value, time_s)
+}
+
+fn merge_keyframe_inner(
     stmts: &mut [Stmt],
     actor: &str,
     property: &str,
@@ -109,6 +145,30 @@ fn update_assignment(
 // ---------------------------------------------------------------------------
 
 pub(super) fn set_keyframe_easing(
+    stmts: &mut [Stmt],
+    scene: Option<&str>,
+    actor: &str,
+    property: &str,
+    time_s: f64,
+    easing: animatix_syntax::easing::Easing,
+) -> Result<(), SourceEditError> {
+    let target = match scene {
+        Some(name) => match scene_body_mut(stmts, name) {
+            Some(body) => body,
+            None => {
+                return Err(SourceEditError::KeyframeNotFound {
+                    actor: actor.to_string(),
+                    property: property.to_string(),
+                    time_s,
+                });
+            },
+        },
+        None => stmts,
+    };
+    set_keyframe_easing_inner(target, actor, property, time_s, easing)
+}
+
+fn set_keyframe_easing_inner(
     stmts: &mut [Stmt],
     actor: &str,
     property: &str,
@@ -235,6 +295,29 @@ fn update_assignment_easing(
 
 pub(super) fn delete_keyframe(
     stmts: &mut Vec<Stmt>,
+    scene: Option<&str>,
+    actor: &str,
+    property: &str,
+    time_s: f64,
+) -> Result<(), SourceEditError> {
+    let target = match scene {
+        Some(name) => match scene_body_mut(stmts, name) {
+            Some(body) => body,
+            None => {
+                return Err(SourceEditError::KeyframeNotFound {
+                    actor: actor.to_string(),
+                    property: property.to_string(),
+                    time_s,
+                });
+            },
+        },
+        None => stmts,
+    };
+    delete_keyframe_inner(target, actor, property, time_s)
+}
+
+fn delete_keyframe_inner(
+    stmts: &mut Vec<Stmt>,
     actor: &str,
     property: &str,
     time_s: f64,
@@ -295,6 +378,31 @@ fn remove_assignment_from_body(body: &mut Vec<Stmt>, actor: &str, property: &str
 
 pub(super) fn insert_keyframe(
     stmts: &mut Vec<Stmt>,
+    scene: Option<&str>,
+    actor: &str,
+    property: &str,
+    value: Expr,
+    time_s: f64,
+    prev_time_s: f64,
+) -> Result<(), SourceEditError> {
+    let target = match scene {
+        Some(name) => match scene_body_mut(stmts, name) {
+            Some(body) => body,
+            None => {
+                return Err(SourceEditError::KeyframeNotFound {
+                    actor: actor.to_string(),
+                    property: property.to_string(),
+                    time_s,
+                });
+            },
+        },
+        None => stmts,
+    };
+    insert_keyframe_inner(target, actor, property, value, time_s, prev_time_s)
+}
+
+fn insert_keyframe_inner(
+    stmts: &mut Vec<Stmt>,
     actor: &str,
     property: &str,
     value: Expr,
@@ -351,6 +459,30 @@ pub(super) fn insert_keyframe(
 // ---------------------------------------------------------------------------
 
 pub(super) fn move_keyframe_time(
+    stmts: &mut [Stmt],
+    scene: Option<&str>,
+    actor: &str,
+    property: &str,
+    old_time_s: f64,
+    new_time_s: f64,
+) -> Result<(), SourceEditError> {
+    let target = match scene {
+        Some(name) => match scene_body_mut(stmts, name) {
+            Some(body) => body,
+            None => {
+                return Err(SourceEditError::KeyframeNotFound {
+                    actor: actor.to_string(),
+                    property: property.to_string(),
+                    time_s: old_time_s,
+                });
+            },
+        },
+        None => stmts,
+    };
+    move_keyframe_time_inner(target, actor, property, old_time_s, new_time_s)
+}
+
+fn move_keyframe_time_inner(
     stmts: &mut [Stmt],
     actor: &str,
     property: &str,
@@ -547,6 +679,7 @@ fn contains_assignment(body: &[Stmt], actor: &str, property: &str) -> bool {
 mod tests {
     use animatix_syntax::ast::{Expr, Stmt, Time};
     use animatix_syntax::parser::parser_simple;
+    use animatix_syntax::walk::time_to_seconds;
     use chumsky::Parser;
 
     use super::super::apply::{SourceEdit, apply_edit};
@@ -568,6 +701,7 @@ btn: Rect, size: (100, 200)
 btn.color = red"#,
         );
         let edit = SourceEdit::InsertKeyframe {
+            scene: None,
             actor: "btn".into(),
             property: "color".into(),
             value: Expr::Ident("blue".into()),
@@ -612,6 +746,7 @@ circle: Ellipse, radius: 50"#,
         );
 
         let edit = SourceEdit::InsertKeyframe {
+            scene: None,
             actor: "btn".into(),
             property: "position".into(),
             value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(0.0)]),
@@ -651,6 +786,7 @@ btn.color = red"#,
         );
 
         let edit = SourceEdit::InsertKeyframe {
+            scene: None,
             actor: "btn".into(),
             property: "position".into(),
             value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(0.0)]),
@@ -689,6 +825,7 @@ btn.position = (10, 20)"#,
         );
 
         let edit = SourceEdit::MergeKeyframe {
+            scene: None,
             actor: "btn".into(),
             property: "color".into(),
             value: Expr::Ident("blue".into()),
@@ -724,6 +861,7 @@ btn.color = red"#,
         );
 
         let edit = SourceEdit::MergeKeyframe {
+            scene: None,
             actor: "btn".into(),
             property: "color".into(),
             value: Expr::Ident("green".into()),
@@ -756,6 +894,7 @@ btn.color = blue"#,
         );
 
         let edit = SourceEdit::MoveKeyframeTime {
+            scene: None,
             actor: "btn".into(),
             property: "color".into(),
             old_time_s: 2.0,
@@ -793,6 +932,7 @@ btn.color = blue"#,
         );
 
         let edit = SourceEdit::MoveKeyframeTime {
+            scene: None,
             actor: "btn".into(),
             property: "color".into(),
             old_time_s: 2.0, // 0s + 2s
@@ -827,6 +967,7 @@ btn.color = red"#,
         );
 
         let edit = SourceEdit::MoveKeyframeTime {
+            scene: None,
             actor: "btn".into(),
             property: "color".into(),
             old_time_s: 2.0,
@@ -853,6 +994,7 @@ btn.color = red"#,
         );
 
         let edit = SourceEdit::MoveKeyframeTime {
+            scene: None,
             actor: "btn".into(),
             property: "color".into(),
             old_time_s: 999.0, // doesn't exist
@@ -872,11 +1014,136 @@ btn.color = red"#,
         );
 
         let edit = SourceEdit::MoveKeyframeTime {
+            scene: None,
             actor: "other".into(),
             property: "color".into(),
             old_time_s: 2.0,
             new_time_s: 3.0,
         };
         assert!(apply_edit(&mut stmts, edit).is_err());
+    }
+
+    #[test]
+    fn delete_keyframe_is_scoped_to_named_scene() {
+        let mut stmts = parse(
+            r#"# A
+#0s
+box: Rect, size: (100, 100)
+#2s
+box.color = red
+# B
+#0s
+box: Rect, size: (100, 100)
+#2s
+box.color = blue"#,
+        );
+
+        let edit = SourceEdit::DeleteKeyframe {
+            scene: Some("A".to_string()),
+            actor: "box".into(),
+            property: "color".into(),
+            time_s: 2.0,
+        };
+        assert!(apply_edit(&mut stmts, edit).is_ok());
+
+        // Scene B keeps its color keyframe.
+        let scene_b = stmts.iter().find_map(|stmt| match stmt {
+            Stmt::Scene { name, body, .. } if name == "B" => Some(body),
+            _ => None,
+        });
+        let b_has_color = scene_b.is_some_and(|body| {
+            body.iter().any(|stmt| match stmt {
+                Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => body
+                    .iter()
+                    .any(|stmt| matches!(stmt, Stmt::Assignment { property, .. } if property == "color")),
+                _ => false,
+            })
+        });
+        assert!(b_has_color, "scene B color keyframe must survive scene A deletion");
+    }
+
+    #[test]
+    fn move_and_easing_are_scoped_to_named_scene() {
+        let mut stmts = parse(
+            r#"# A
+#0s
+box: Rect, size: (100, 100)
+#2s
+box.color = red
+# B
+#0s
+box: Rect, size: (100, 100)
+#2s
+box.color = blue"#,
+        );
+
+        let move_edit = SourceEdit::MoveKeyframeTime {
+            scene: Some("B".to_string()),
+            actor: "box".into(),
+            property: "color".into(),
+            old_time_s: 2.0,
+            new_time_s: 3.0,
+        };
+        assert!(apply_edit(&mut stmts, move_edit).is_ok());
+
+        let easing_edit = SourceEdit::SetKeyframeEasing {
+            scene: Some("A".to_string()),
+            actor: "box".into(),
+            property: "color".into(),
+            time_s: 2.0,
+            easing: animatix_syntax::easing::Easing::Bounce,
+        };
+        assert!(apply_edit(&mut stmts, easing_edit).is_ok());
+
+        // Scene A keyframe stays at 2s; scene B moved its color keyframe to 3s.
+        let scene_a_color_time = stmts
+            .iter()
+            .find_map(|stmt| match stmt {
+                Stmt::Scene { name, body, .. } if name == "A" => Some(body),
+                _ => None,
+            })
+            .and_then(|body| keyframe_time_with_property(body, "color"));
+        assert_eq!(scene_a_color_time, Some(2.0));
+
+        let scene_b_color_time = stmts
+            .iter()
+            .find_map(|stmt| match stmt {
+                Stmt::Scene { name, body, .. } if name == "B" => Some(body),
+                _ => None,
+            })
+            .and_then(|body| keyframe_time_with_property(body, "color"));
+        assert_eq!(scene_b_color_time, Some(3.0));
+    }
+
+    fn keyframe_time_with_property(stmts: &[Stmt], property: &str) -> Option<f64> {
+        let mut current_time = 0.0;
+        for stmt in stmts {
+            match stmt {
+                Stmt::Keyframe { time, body, .. } => {
+                    current_time = time_to_seconds(time);
+                    if body.iter().any(|stmt| {
+                        matches!(
+                            stmt,
+                            Stmt::Assignment { property: prop, .. } if prop == property
+                        )
+                    }) {
+                        return Some(current_time);
+                    }
+                },
+                Stmt::RelativeKeyframe { offset, body, .. } => {
+                    current_time += time_to_seconds(offset);
+                    if body.iter().any(|stmt| {
+                        matches!(
+                            stmt,
+                            Stmt::Assignment { property: prop, .. } if prop == property
+                        )
+                    }) {
+                        return Some(current_time);
+                    }
+                },
+                _ => {},
+            }
+        }
+        None
     }
 }

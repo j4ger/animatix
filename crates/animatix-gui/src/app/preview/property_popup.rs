@@ -29,6 +29,7 @@ pub fn show_property_popup(
     zoom: f32,
     preview_rect: egui::Rect,
     pan: egui::Vec2,
+    active_scene: Option<&str>,
 ) {
     if is_dragging {
         return; // Auto-hide during canvas drag
@@ -161,6 +162,7 @@ pub fn show_property_popup(
         current_time_s,
         scale_x,
         scale_y,
+        active_scene,
     );
     // Size row
     let has_kf_size =
@@ -177,6 +179,7 @@ pub fn show_property_popup(
         current_time_s,
         scale_x,
         scale_y,
+        active_scene,
     );
     // Rotation row
     let has_kf_rot = timeline
@@ -194,6 +197,7 @@ pub fn show_property_popup(
         current_time_s,
         scale_x,
         scale_y,
+        active_scene,
     );
     // Opacity row
     let has_kf_opac = timeline
@@ -211,6 +215,7 @@ pub fn show_property_popup(
         current_time_s,
         scale_x,
         scale_y,
+        active_scene,
     );
 }
 /// Render a property row with a diamond keyframe toggle and inline value editing.
@@ -226,6 +231,7 @@ fn popup_property_row(
     current_time_s: f64,
     scale_x: f32,
     scale_y: f32,
+    active_scene: Option<&str>,
 ) {
     let sp = spatial(ui);
     let row_h = 24.0;
@@ -270,6 +276,7 @@ fn popup_property_row(
             // Delete keyframe
             commands.push_back(
                 KeyframeCommand::DeleteKeyframe {
+                    scene: active_scene.map(ToOwned::to_owned),
                     actor: actor.to_string(),
                     property: property.to_string(),
                     time_s: current_time_s,

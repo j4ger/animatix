@@ -687,6 +687,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                                 ctx.preview.viewport.preview_zoom,
                                 preview_rect,
                                 ctx.preview.viewport.preview_pan,
+                                ctx.active_scene,
                             );
                         }
                     }

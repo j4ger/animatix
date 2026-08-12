@@ -17,7 +17,7 @@ starting.
 | ID | Track | Status | Benefit | Feasibility | Necessity |
 |----|-------|--------|---------|-------------|-----------|
 | A | Scene-qualified selection and keyframe diff | Done 2026-08-12 | Prevent actors/keyframes from another scene preserving stale selections; makes rebuild behavior consistent across compositions | High | Medium-high |
-| A1 | Scene-qualified keyframe source edits | Under evaluation 2026-08-12 | `DeleteKeyframe`/`MoveKeyframeTime`/`SetKeyframeEasing` still resolve by active scene; scene-switch clearing reduces risk but does not remove it | Medium | Low |
+| A1 | Scene-qualified keyframe source edits | Done 2026-08-13 | Keyframe insert/merge/delete/move/easing edits are scoped to the named scene body and no longer cross-scene match on actor/property/time | Medium | Low |
 | B | Static subtree item collection cost | Done 2026-08-12 | Scene-only evaluation no longer collects/clones unused `SceneItem`s; static cache key now includes dimensions/collect_items | Medium | Low |
 
 ### Presenterm-Inspired Design Tracks (evaluated 2026-08-12)

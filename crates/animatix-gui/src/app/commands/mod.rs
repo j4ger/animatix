@@ -73,17 +73,20 @@ pub enum UndoLabel {
 
     // Keyframe
     SetKeyframeEasing {
+        scene: Option<String>,
         actor: String,
         property: String,
         time_s: f64,
         easing: animatix_syntax::easing::Easing,
     },
     DeleteKeyframe {
+        scene: Option<String>,
         actor: String,
         property: String,
         time_s: f64,
     },
     MoveKeyframe {
+        scene: Option<String>,
         actor: String,
         property: String,
         old_time_s: f64,
@@ -171,31 +174,37 @@ impl From<UndoLabel> for Command {
             UndoLabel::GroupSelectedActors => Command::GroupSelectedActors,
             UndoLabel::UngroupSelectedActors => Command::UngroupSelectedActors,
             UndoLabel::SetKeyframeEasing {
+                scene,
                 actor,
                 property,
                 time_s,
                 easing,
             } => Command::SetKeyframeEasing {
+                scene,
                 actor,
                 property,
                 time_s,
                 easing,
             },
             UndoLabel::DeleteKeyframe {
+                scene,
                 actor,
                 property,
                 time_s,
             } => Command::DeleteKeyframe {
+                scene,
                 actor,
                 property,
                 time_s,
             },
             UndoLabel::MoveKeyframe {
+                scene,
                 actor,
                 property,
                 old_time_s,
                 new_time_s,
             } => Command::MoveKeyframe {
+                scene,
                 actor,
                 property,
                 old_time_s,
@@ -338,12 +347,14 @@ pub enum Command {
 
     // ── Keyframe ──────────────────────────────────────────────────────
     SetKeyframeEasing {
+        scene: Option<String>,
         actor: String,
         property: String,
         time_s: f64,
         easing: animatix_syntax::easing::Easing,
     },
     DeleteKeyframe {
+        scene: Option<String>,
         actor: String,
         property: String,
         time_s: f64,
@@ -352,6 +363,7 @@ pub enum Command {
     SetSelectedKeyframes(Vec<KeyframeId>),
     /// Move a keyframe to a new time. Emitted by timeline drag.
     MoveKeyframe {
+        scene: Option<String>,
         actor: String,
         property: String,
         old_time_s: f64,

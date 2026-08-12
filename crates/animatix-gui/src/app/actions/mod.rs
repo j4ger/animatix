@@ -310,8 +310,10 @@ impl GuiShell {
 
         let (new_source, source_index, flashes) =
             if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
+                let scene = self.document_store.source.document.active_scene.clone();
                 let source_edit = if delta_s < self.ui_store.keyframe_merge_window_s {
                     crate::source_edit::SourceEdit::MergeKeyframe {
+                        scene,
                         actor: edit.actor.clone(),
                         property: edit.property.clone(),
                         value: expr.clone(),
@@ -319,6 +321,7 @@ impl GuiShell {
                     }
                 } else {
                     crate::source_edit::SourceEdit::InsertKeyframe {
+                        scene,
                         actor: edit.actor.clone(),
                         property: edit.property.clone(),
                         value: expr.clone(),

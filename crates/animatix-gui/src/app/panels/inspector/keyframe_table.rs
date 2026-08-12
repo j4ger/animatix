@@ -48,6 +48,7 @@ pub(super) fn render_dope_sheet(
     current_time_ms: u64,
     actor_label: &str,
     commands: &mut ActionQueue,
+    active_scene: Option<&str>,
 ) {
     let sp = spatial(ui);
     let groups = collect_track_groups(track);
@@ -74,6 +75,7 @@ pub(super) fn render_dope_sheet(
                 timeline,
                 actor_label,
                 commands,
+                active_scene,
             );
         }
     }
@@ -104,6 +106,7 @@ fn render_compact_track_row(
     timeline: &Timeline,
     actor_label: &str,
     commands: &mut ActionQueue,
+    active_scene: Option<&str>,
 ) {
     let sp = spatial(ui);
     let theme = eparts::theme(ui);
@@ -190,6 +193,7 @@ fn render_compact_track_row(
                     if ui.selectable_label(is_selected, display_name).clicked() {
                         commands.push_back(
                             KeyframeCommand::SetKeyframeEasing {
+                                scene: active_scene.map(ToOwned::to_owned),
                                 actor: actor_label.to_string(),
                                 property: track.name.to_string(),
                                 time_s: *time_ms as f64 / 1000.0,

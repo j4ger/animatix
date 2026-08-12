@@ -389,6 +389,7 @@ pub(crate) fn render_property_group(
     commands: &mut ActionQueue,
     keyframe_mode: bool,
     current_time_s: f64,
+    active_scene: Option<&str>,
 ) {
     let theme = eparts::theme(ui);
     let group_id = ui.id().with(("prop_group", group.name));
@@ -435,6 +436,7 @@ pub(crate) fn render_property_group(
                 keyframe_mode,
                 current_time_s,
                 &flat_style,
+                active_scene,
             );
         }
         ui.spacing_mut().item_spacing = Vec2::new(0.0, sp.base.space_2);
@@ -450,6 +452,7 @@ pub(crate) fn render_property_row(
     keyframe_mode: bool,
     current_time_s: f64,
     flat_style: &egui::Style,
+    active_scene: Option<&str>,
 ) {
     let sp = spatial(ui);
     let theme = eparts::theme(ui);
@@ -606,6 +609,7 @@ pub(crate) fn render_property_row(
             {
                 commands.push_back(
                     KeyframeCommand::DeleteKeyframe {
+                        scene: active_scene.map(ToOwned::to_owned),
                         actor: actor_label.to_string(),
                         property: entry.name.to_string(),
                         time_s: current_time_s,
@@ -621,6 +625,7 @@ pub(crate) fn render_property_row(
                     if ui.selectable_label(false, display_name).clicked() {
                         commands.push_back(
                             KeyframeCommand::SetKeyframeEasing {
+                                scene: active_scene.map(ToOwned::to_owned),
                                 actor: actor_label.to_string(),
                                 property: entry.name.to_string(),
                                 time_s: current_time_s,

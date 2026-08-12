@@ -15,6 +15,7 @@ pub fn handle_set_keyframe_easing(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
     ui_store: &mut UiStore,
+    scene: Option<String>,
     actor: String,
     property: String,
     time_s: f64,
@@ -25,6 +26,7 @@ pub fn handle_set_keyframe_easing(
         preview_store,
         ui_store,
         UndoLabel::SetKeyframeEasing {
+            scene: scene.clone(),
             actor: actor.clone(),
             property: property.clone(),
             time_s,
@@ -36,7 +38,7 @@ pub fn handle_set_keyframe_easing(
         preview_store,
         ui_store,
     };
-    ctrl.handle_set_keyframe_easing(&actor, &property, time_s, easing);
+    ctrl.handle_set_keyframe_easing(scene, &actor, &property, time_s, easing);
     vec![]
 }
 
@@ -44,6 +46,7 @@ pub fn handle_delete_keyframe(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
     ui_store: &mut UiStore,
+    scene: Option<String>,
     actor: String,
     property: String,
     time_s: f64,
@@ -53,6 +56,7 @@ pub fn handle_delete_keyframe(
         preview_store,
         ui_store,
         UndoLabel::DeleteKeyframe {
+            scene: scene.clone(),
             actor: actor.clone(),
             property: property.clone(),
             time_s,
@@ -63,7 +67,7 @@ pub fn handle_delete_keyframe(
         preview_store,
         ui_store,
     };
-    ctrl.handle_delete_keyframe(&actor, &property, time_s);
+    ctrl.handle_delete_keyframe(scene, &actor, &property, time_s);
     ctrl.prune_stale_keyframe_selections();
     vec![]
 }
@@ -72,6 +76,7 @@ pub fn handle_move_keyframe(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
     ui_store: &mut UiStore,
+    scene: Option<String>,
     actor: String,
     property: String,
     old_time_s: f64,
@@ -82,6 +87,7 @@ pub fn handle_move_keyframe(
         preview_store,
         ui_store,
         UndoLabel::MoveKeyframe {
+            scene: scene.clone(),
             actor: actor.clone(),
             property: property.clone(),
             old_time_s,
@@ -93,7 +99,7 @@ pub fn handle_move_keyframe(
         preview_store,
         ui_store,
     };
-    ctrl.handle_move_keyframe(&actor, &property, old_time_s, new_time_s);
+    ctrl.handle_move_keyframe(scene, &actor, &property, old_time_s, new_time_s);
     ctrl.prune_stale_keyframe_selections();
     vec![]
 }

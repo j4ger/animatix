@@ -1619,6 +1619,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                                 .unwrap_or(animatix_syntax::easing::Easing::Linear);
                                         commands.push_back(ShellAction::Command(
                                             Command::SetKeyframeEasing {
+                                                scene: ctx.active_scene.map(ToOwned::to_owned),
                                                 actor: actor_label.clone(),
                                                 property: prop.to_string(),
                                                 time_s: kf_s,
@@ -1638,6 +1639,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                 .clicked()
                             {
                                 commands.push_back(ShellAction::Command(Command::DeleteKeyframe {
+                                    scene: ctx.active_scene.map(ToOwned::to_owned),
                                     actor: actor_label.clone(),
                                     property: prop.to_string(),
                                     time_s: kf_s,
@@ -1726,6 +1728,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                 if (n - kf_s).abs() > 0.01 {
                                     commands.push_back(ShellAction::Command(
                                         Command::MoveKeyframe {
+                                            scene: ctx.active_scene.map(ToOwned::to_owned),
                                             actor: actor.clone(),
                                             property: prop_name.to_string(),
                                             old_time_s: kf_s,
@@ -1773,6 +1776,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                         if times.contains(time_ms) {
                                             commands.push_back(ShellAction::Command(
                                                 Command::DeleteKeyframe {
+                                                    scene: ctx.active_scene.map(ToOwned::to_owned),
                                                     actor: actor.clone(),
                                                     property: prop_name.to_string(),
                                                     time_s: *time_ms as f64 / 1000.0,
@@ -1965,6 +1969,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                         if (n - kf_s).abs() > 0.01 {
                                             commands.push_back(ShellAction::Command(
                                                 Command::MoveKeyframe {
+                                                    scene: ctx.active_scene.map(ToOwned::to_owned),
                                                     actor: actor.clone(),
                                                     property: prop_name.to_string(),
                                                     old_time_s: kf_s,
