@@ -79,7 +79,7 @@ impl Primitive for SvgPrimitive {
             return true;
         }
 
-        let parsed_paths = match ctx.asset_cache.load_svg_for(&target_url, &subject.to_string()) {
+        let parsed_paths = match ctx.asset_cache.load_svg_for(&target_url, &track.label) {
             Ok(parsed_paths) => parsed_paths,
             Err(error) => {
                 diagnostics.push(

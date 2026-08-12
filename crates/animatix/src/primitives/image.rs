@@ -74,7 +74,7 @@ impl Primitive for ImagePrimitive {
             return true;
         }
 
-        match ctx.asset_cache.load_image_for(&target_url, subject) {
+        match ctx.asset_cache.load_image_for(&target_url, &track.label) {
             Ok(target_image) => {
                 if ctx.duration_ms > 0.0 {
                     let start_val = track.image.get(ctx.t_start_ms, None);

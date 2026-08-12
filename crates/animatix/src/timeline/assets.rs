@@ -1,18 +1,19 @@
 use std::collections::{BTreeSet, HashMap};
 
-use crate::renderer::types::{TextPath, VelloPath};
+use crate::renderer::types::VelloPath;
 use crate::timeline::image::SceneImage;
 
 /// Centralized cache for loaded assets and the actors that reference them.
 ///
 /// Assets are keyed by their source identifier (file path). Usage tracking maps
 /// each asset to the actor labels that loaded it, so GUI tooling can show asset
-/// references and future hot reload can invalidate only changed files.
+/// references. The cache is rebuilt with each timeline build, so usage is
+/// naturally re-derived from the current source instead of requiring
+/// per-asset invalidation.
 #[derive(Clone, Default)]
 pub struct AssetCache {
     svg_paths: HashMap<String, Vec<VelloPath>>,
     images: HashMap<String, SceneImage>,
-    text_glyphs: HashMap<String, Vec<TextPath>>,
     usage: HashMap<String, BTreeSet<String>>,
 }
 
@@ -22,14 +23,13 @@ impl AssetCache {
         Self::default()
     }
 
-    /// Load an SVG file and record that the actor named by `actor_or_subject`
-    /// references it. A property subject like `icon.url` is normalized to `icon`.
+    /// Load an SVG file and record that `actor_label` references it.
     ///
     /// Returns cached paths when the same file was loaded before.
     pub fn load_svg_for(
         &mut self,
         path: &str,
-        actor_or_subject: &str,
+        actor_label: &str,
     ) -> Result<Vec<VelloPath>, String> {
         let paths = if let Some(paths) = self.svg_paths.get(path) {
             paths.clone()
@@ -38,19 +38,14 @@ impl AssetCache {
             self.svg_paths.insert(path.to_string(), parsed.clone());
             parsed
         };
-        self.record_usage_for_subject(path, actor_or_subject);
+        self.record_usage(path, actor_label);
         Ok(paths)
     }
 
-    /// Load an image file and record that the actor named by `actor_or_subject`
-    /// references it. A property subject like `icon.url` is normalized to `icon`.
+    /// Load an image file and record that `actor_label` references it.
     ///
     /// Returns cached image data when the same file was loaded before.
-    pub fn load_image_for(
-        &mut self,
-        path: &str,
-        actor_or_subject: &str,
-    ) -> Result<SceneImage, String> {
+    pub fn load_image_for(&mut self, path: &str, actor_label: &str) -> Result<SceneImage, String> {
         let image = if let Some(image) = self.images.get(path) {
             image.clone()
         } else {
@@ -58,7 +53,7 @@ impl AssetCache {
             self.images.insert(path.to_string(), loaded.clone());
             loaded
         };
-        self.record_usage_for_subject(path, actor_or_subject);
+        self.record_usage(path, actor_label);
         Ok(image)
     }
 
@@ -70,57 +65,6 @@ impl AssetCache {
         if !path.is_empty() {
             self.usage.entry(path.to_string()).or_default().insert(actor.to_string());
         }
-    }
-
-    fn record_usage_for_subject(&mut self, path: &str, actor_or_subject: &str) {
-        let actor = actor_or_subject
-            .rsplit_once('.')
-            .map(|(actor, _)| actor)
-            .unwrap_or(actor_or_subject);
-        self.record_usage(path, actor);
-    }
-
-    /// Get or load SVG paths from a file path.
-    /// Returns cached result if the same path was previously loaded.
-    pub fn get_or_load_svg(&mut self, path: &str) -> Option<&Vec<VelloPath>> {
-        if !self.svg_paths.contains_key(path) {
-            let parsed = crate::timeline::svg::parse_svg_file(path).ok()?;
-            self.svg_paths.insert(path.to_string(), parsed);
-        }
-        self.svg_paths.get(path)
-    }
-
-    /// Get or load an image from a file path.
-    pub fn get_or_load_image(&mut self, path: &str) -> Option<&SceneImage> {
-        if !self.images.contains_key(path) {
-            let loaded = crate::timeline::image::load_image_file(path).ok()?;
-            self.images.insert(path.to_string(), loaded);
-        }
-        self.images.get(path)
-    }
-
-    /// Get or compile text/math/code paths.
-    /// The key should be unique per content + style combination.
-    pub fn get_or_compile_text(
-        &mut self,
-        key: &str,
-        content: &str,
-        compile_fn: impl FnOnce(&str) -> Vec<TextPath>,
-    ) -> &Vec<TextPath> {
-        use std::collections::hash_map::Entry;
-        match self.text_glyphs.entry(key.to_string()) {
-            Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => entry.insert(compile_fn(content)),
-        }
-    }
-
-    /// Drop cached payloads for one asset path.
-    ///
-    /// Usage references are retained so tooling can still report that the actor
-    /// depends on the path after a file changes.
-    pub fn invalidate_asset(&mut self, path: &str) {
-        self.svg_paths.remove(path);
-        self.images.remove(path);
     }
 
     /// Iterate over asset path → actor labels that reference it.
@@ -137,14 +81,6 @@ impl AssetCache {
                 None
             }
         })
-    }
-
-    /// Remove all cached entries and usage references.
-    pub fn clear(&mut self) {
-        self.svg_paths.clear();
-        self.images.clear();
-        self.text_glyphs.clear();
-        self.usage.clear();
     }
 
     /// Iterate over cached SVG paths.
@@ -187,25 +123,14 @@ mod tests {
     }
 
     #[test]
-    fn invalidation_drops_cached_payload_but_keeps_usage() {
+    fn dotted_actor_labels_are_preserved_in_usage() {
         let mut cache = AssetCache::new();
         let path = test_svg_path("test_basic.svg");
         let path_str = path.display().to_string();
 
-        cache.load_svg_for(&path_str, "icon").expect("load svg");
-        cache.invalidate_asset(&path_str);
-        assert!(cache.svg_paths().next().is_none());
-        assert_eq!(cache.assets_for("icon").count(), 1);
-    }
-
-    #[test]
-    fn property_subject_usage_is_normalized_to_actor() {
-        let mut cache = AssetCache::new();
-        let path = test_svg_path("test_basic.svg");
-        let path_str = path.display().to_string();
-
-        cache.load_svg_for(&path_str, "icon.url").expect("load svg");
-        assert_eq!(cache.assets_for("icon").count(), 1);
-        assert_eq!(cache.assets_for("icon.url").count(), 0);
+        cache.load_svg_for(&path_str, "group.icon").expect("load svg");
+        assert_eq!(cache.assets_for("group.icon").count(), 1);
+        assert_eq!(cache.assets_for("group").count(), 0);
+        assert_eq!(cache.assets_for("icon").count(), 0);
     }
 }
