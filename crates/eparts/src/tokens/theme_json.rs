@@ -16,9 +16,9 @@
 use std::path::Path;
 
 use egui::Shadow;
+use serde::{Deserialize, Serialize};
 
 use super::theme::{Theme, serde_color32, serde_shadow};
-use serde::{Deserialize, Serialize};
 
 /// A single dark/light theme file.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -27,10 +27,14 @@ pub struct ThemeFile {
     /// Optional display name.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    /// Dark-mode theme. Omitted fields fall back to [`Theme::dark`].
+    /// Optional name of another theme in the same registry that this theme
+    /// extends. Missing fields inherit from the resolved base theme.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extends: Option<String>,
+    /// Dark-mode theme. Omitted fields fall back to the resolved base.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dark: Option<PartialTheme>,
-    /// Light-mode theme. Omitted fields fall back to [`Theme::light`].
+    /// Light-mode theme. Omitted fields fall back to the resolved base.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub light: Option<PartialTheme>,
 }
@@ -885,6 +889,7 @@ impl ThemeFile {
     pub fn builtin() -> Self {
         Self {
             name: Some("Animatix".to_string()),
+            extends: None,
             dark: Some(PartialTheme::full_from(Theme::dark())),
             light: Some(PartialTheme::full_from(Theme::light())),
         }
@@ -996,6 +1001,7 @@ pub fn theme_schema_json() -> String {
         "additionalProperties": false,
         "properties": {
             "name": { "type": "string" },
+            "extends": { "type": "string" },
             "dark": { "$ref": "#/$defs/theme" },
             "light": { "$ref": "#/$defs/theme" }
         },
