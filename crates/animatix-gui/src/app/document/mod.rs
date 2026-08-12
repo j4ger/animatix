@@ -13,4 +13,5 @@ pub(crate) mod rebuild;
 pub(crate) mod rebuild_output;
 pub(crate) mod snapshot;
 pub(crate) mod source_change;
+pub(crate) mod timeline_diff;
 pub(crate) mod version;

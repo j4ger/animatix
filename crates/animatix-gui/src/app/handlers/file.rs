@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use animatix_syntax::diagnostics::diagnostics_phase_summary;
@@ -5,6 +6,7 @@ use animatix_syntax::diagnostics::diagnostics_phase_summary;
 use crate::app::commands::Effect;
 use crate::app::components::toast::Toast;
 use crate::app::document::rebuild::{RebuildResponse, RebuildToken, RebuildWorker};
+use crate::app::document::timeline_diff::{TimelineDiff, TimelineFingerprint, preserved_time_s};
 use crate::app::document::version::SourceEpoch;
 use crate::app::file_tree::build_file_tree;
 use crate::app::persistence::save_app_state;
@@ -218,14 +220,16 @@ pub fn handle_reload(
     }
 }
 
-/// Shared Ok body for rebuild: publish snapshot, compute status, sync preview, toast.
-pub(crate) fn rebuild_succeeded(
+/// Rebuild success path with a structural change summary and state-preservation notice.
+fn rebuild_succeeded_with_diff(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
     ui_store: &mut UiStore,
+    removed_selected_actors: &[String],
+    removed_active_scene: Option<String>,
 ) -> Vec<Effect> {
     document_store.publish_rebuild_result(true);
-    let status = if document_store.source.document.diagnostics.is_empty() {
+    let mut status = if document_store.source.document.diagnostics.is_empty() {
         format!(
             "Built timeline • {:.2}s total duration",
             document_store.source.document.duration_s.max(0.1)
@@ -237,12 +241,76 @@ pub(crate) fn rebuild_succeeded(
             diagnostics_phase_summary(&document_store.source.document.diagnostics)
         )
     };
+    if let Some(scene) = removed_active_scene {
+        status.push_str(&format!(" • scene '{scene}' removed"));
+    }
+    if !removed_selected_actors.is_empty() {
+        status.push_str(&format!(" • removed {}", removed_selected_actors.join(", ")));
+    }
     sync_preview_from_document(document_store, preview_store, status, false, false);
     ui_store.toasts.push(Toast::success(format!(
         "Built timeline • {:.2}s",
         document_store.source.document.duration_s.max(0.1)
     )));
     vec![]
+}
+
+/// Capture the compiled-target and view state that should survive a rebuild.
+#[allow(clippy::type_complexity)]
+fn capture_rebuild_view_state(
+    document_store: &DocumentStore,
+    preview_store: &PreviewStore,
+    ui_store: &UiStore,
+) -> (
+    TimelineFingerprint,
+    f64,
+    HashSet<String>,
+    Vec<(String, String, u64)>,
+    Option<String>,
+) {
+    (
+        TimelineFingerprint::from_document(&document_store.source.document),
+        preview_store.preview.playback.current_time_s(),
+        ui_store.selection.selected_actors.clone(),
+        ui_store.selection.selected_keyframes.clone(),
+        document_store.source.document.active_scene.clone(),
+    )
+}
+
+/// Reapply a captured view state against the rebuilt document.
+///
+/// Playback time is kept when it still fits; otherwise it moves to the nearest
+/// surviving keyframe. The active scene and selections are kept only when their
+/// actors/scenes still exist. Returns the removed selected actor labels and the
+/// previously active scene if it was removed.
+fn preserve_rebuild_view_state(
+    document_store: &mut DocumentStore,
+    preview_store: &mut PreviewStore,
+    ui_store: &mut UiStore,
+    fingerprint: &TimelineFingerprint,
+    previous_time_s: f64,
+    previous_selected_actors: HashSet<String>,
+    previous_selected_keyframes: Vec<(String, String, u64)>,
+    previous_active_scene: Option<String>,
+    diff: &TimelineDiff,
+) -> (Vec<String>, Option<String>) {
+    let preserved_time = preserved_time_s(previous_time_s, &document_store.source.document);
+    preview_store.preview.playback.current_time_s = preserved_time;
+
+    ui_store.selection.selected_actors =
+        fingerprint.surviving_actors(previous_selected_actors.clone());
+    let removed_selected_actors: Vec<String> = previous_selected_actors
+        .difference(&ui_store.selection.selected_actors)
+        .cloned()
+        .collect();
+
+    ui_store.selection.selected_keyframes =
+        fingerprint.surviving_keyframes(previous_selected_keyframes);
+
+    let removed_active_scene = previous_active_scene
+        .filter(|scene| diff.removed_scenes.iter().any(|removed| removed == scene));
+
+    (removed_selected_actors, removed_active_scene)
 }
 
 /// Shared Err body for rebuild: last-good fallback, publish failed snapshot, status, error.
@@ -294,10 +362,32 @@ pub fn handle_rebuild(
     preview_store.preview.status = "Building timeline…".to_string();
     preview_store.preview_dirty = true;
 
+    let (previous, previous_time, selected_actors, selected_keyframes, active_scene) =
+        capture_rebuild_view_state(document_store, preview_store, ui_store);
+
     match document_store.source.document.rebuild() {
         Ok(()) => {
             preview_store.rebuild_in_progress = false;
-            rebuild_succeeded(document_store, preview_store, ui_store)
+            let current = TimelineFingerprint::from_document(&document_store.source.document);
+            let diff = TimelineDiff::between(&previous, &current);
+            let (removed_selected, removed_active_scene) = preserve_rebuild_view_state(
+                document_store,
+                preview_store,
+                ui_store,
+                &current,
+                previous_time,
+                selected_actors,
+                selected_keyframes,
+                active_scene,
+                &diff,
+            );
+            rebuild_succeeded_with_diff(
+                document_store,
+                preview_store,
+                ui_store,
+                &removed_selected,
+                removed_active_scene,
+            )
         },
         Err(error) => {
             preview_store.rebuild_in_progress = false;
@@ -344,12 +434,33 @@ pub fn handle_rebuild_response(
 
     match response.result {
         Ok(output) => {
+            let (previous, previous_time, selected_actors, selected_keyframes, active_scene) =
+                capture_rebuild_view_state(document_store, preview_store, ui_store);
             document_store.source.invalidate_cache();
             document_store
                 .source
                 .document
                 .apply_rebuild_output(output, response.source_hash.0);
-            rebuild_succeeded(document_store, preview_store, ui_store)
+            let current = TimelineFingerprint::from_document(&document_store.source.document);
+            let diff = TimelineDiff::between(&previous, &current);
+            let (removed_selected, removed_active_scene) = preserve_rebuild_view_state(
+                document_store,
+                preview_store,
+                ui_store,
+                &current,
+                previous_time,
+                selected_actors,
+                selected_keyframes,
+                active_scene,
+                &diff,
+            );
+            rebuild_succeeded_with_diff(
+                document_store,
+                preview_store,
+                ui_store,
+                &removed_selected,
+                removed_active_scene,
+            )
         },
         Err(failure) => {
             document_store.source.invalidate_cache();
@@ -385,5 +496,118 @@ mod tests {
 
         assert!(save_document(&mut store).is_err());
         assert!(store.source.document.is_dirty);
+    }
+
+    fn make_document_store(source: &str) -> DocumentStore {
+        let path = PathBuf::from("test.amx");
+        let mut document =
+            DocumentSession::from_source(path.clone(), source.to_string()).expect("valid source");
+        document.rebuild().expect("valid source should rebuild");
+        let editor = EditorBuffer::new(&path, document.source_text.clone());
+        DocumentStore::new(document, editor)
+    }
+
+    #[test]
+    fn rebuild_preserves_playhead_selection_and_scene_when_possible() {
+        let mut document_store = make_document_store(
+            "# Intro\n#0s\nbox: Rect, size: (100, 100)\n#2s\nbox.color = red\n",
+        );
+        let preview = PreviewStore::new(crate::app::PreviewPaneState::new(
+            5.0,
+            document_store.source.document.scene_dimensions,
+        ));
+        let mut preview_store = preview;
+        let mut ui_store =
+            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+
+        preview_store.preview.playback.current_time_s = 1.5;
+        document_store.source.document.active_scene = Some("Intro".to_string());
+        ui_store.selection.selected_actors.insert("box".to_string());
+
+        let effects = handle_rebuild(&mut document_store, &mut preview_store, &mut ui_store);
+
+        assert_eq!(preview_store.preview.playback.current_time_s, 1.5);
+        assert_eq!(document_store.source.document.active_scene.as_deref(), Some("Intro"));
+        assert!(ui_store.selection.selected_actors.contains("box"));
+        assert!(effects.is_empty());
+    }
+
+    #[test]
+    fn rebuild_preserves_playhead_when_unrelated_actor_is_added() {
+        let mut document_store =
+            make_document_store("#0s\nbox: Rect, size: (100, 100)\n#2s\nbox.color = red\n");
+        let preview = PreviewStore::new(crate::app::PreviewPaneState::new(
+            5.0,
+            document_store.source.document.scene_dimensions,
+        ));
+        let mut preview_store = preview;
+        let mut ui_store =
+            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        preview_store.preview.playback.current_time_s = 1.5;
+        ui_store.selection.selected_actors.insert("box".to_string());
+
+        document_store.source.document.set_source_text(
+            "#0s\nbox: Rect, size: (100, 100)\ncircle: Ellipse, radius: 20\n#2s\nbox.color = red\n"
+                .to_string(),
+        );
+
+        handle_rebuild(&mut document_store, &mut preview_store, &mut ui_store);
+
+        assert_eq!(preview_store.preview.playback.current_time_s, 1.5);
+        assert!(ui_store.selection.selected_actors.contains("box"));
+    }
+
+    #[test]
+    fn rebuild_moves_playhead_to_nearest_keyframe_when_duration_shrinks() {
+        let mut document_store =
+            make_document_store("#0s\nbox: Rect, size: (100, 100)\n#2s\nbox.color = red\n");
+        let preview = PreviewStore::new(crate::app::PreviewPaneState::new(
+            5.0,
+            document_store.source.document.scene_dimensions,
+        ));
+        let mut preview_store = preview;
+        let mut ui_store =
+            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        preview_store.preview.playback.current_time_s = 3.5;
+
+        document_store
+            .source
+            .document
+            .set_source_text("#0s\nbox: Rect, size: (100, 100)\n".to_string());
+
+        handle_rebuild(&mut document_store, &mut preview_store, &mut ui_store);
+
+        assert_eq!(preview_store.preview.playback.current_time_s, 0.0);
+    }
+
+    #[test]
+    fn rebuild_drops_selection_and_removed_scene_with_status() {
+        let mut document_store = make_document_store(
+            "# Intro\n#0s\ntitle: Text, text: \"Hi\"\n# Diagram\n#0s\ngraph: Rect\n",
+        );
+        let preview = PreviewStore::new(crate::app::PreviewPaneState::new(
+            5.0,
+            document_store.source.document.scene_dimensions,
+        ));
+        let mut preview_store = preview;
+        let mut ui_store =
+            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        preview_store.preview.playback.current_time_s = 3.5;
+        document_store.source.document.active_scene = Some("Diagram".to_string());
+        ui_store.selection.selected_actors.insert("graph".to_string());
+
+        document_store
+            .source
+            .document
+            .set_source_text("# Intro\n#0s\ntitle: Text, text: \"Hi\"\n".to_string());
+
+        let effects = handle_rebuild(&mut document_store, &mut preview_store, &mut ui_store);
+
+        assert!(!ui_store.selection.selected_actors.contains("graph"));
+        assert_eq!(
+            preview_store.preview.status,
+            "Built timeline • 0.10s total duration • scene 'Diagram' removed • removed graph"
+        );
+        assert!(effects.is_empty());
     }
 }
