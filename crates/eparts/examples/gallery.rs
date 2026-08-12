@@ -30,7 +30,7 @@ use eparts::widget::tabs::TabBar;
 use eparts::widget::toggle::{Checkbox, Radio, Side, Switch};
 use eparts::widget::tooltip::text_tooltip;
 use eparts::widget::tree::{Tree, TreeAction, TreeItem};
-use eparts::widget::{self};
+use eparts::widget::{self, UiExt};
 use eparts::{AppThemeChoice, Theme, set_theme};
 
 // ── Application state ──────────────────────────────────────────────
@@ -147,7 +147,7 @@ impl eframe::App for GalleryApp {
 
         // Theme switcher bar
         egui::TopBottomPanel::top("theme_bar").show(ctx, |ui| {
-            ui.horizontal(|ui| {
+            ui.h_flex(|ui| {
                 ui.label("Theme:");
                 if ui
                     .selectable_value(&mut self.theme_choice, AppThemeChoice::Light, "Light")
@@ -211,221 +211,225 @@ impl eframe::App for GalleryApp {
 
 impl GalleryApp {
     fn gallery_body(&mut self, ui: &mut egui::Ui) {
-        ui.vertical(|ui| {
-            // ── Buttons ──────────────────────────────────────────────
-            section_header(ui, "🔘", "Buttons", None);
-            ui.horizontal(|ui| {
-                let _ = ui.add(Button::ghost("Ghost"));
-                let _ = ui.add(Button::primary("Primary"));
-                let play_icon = widget::button::play_pause_icon(true);
-                let _ = ui.add(Button::icon(play_icon).with_tooltip("Play/Pause"));
-                if self.loading {
-                    ui.add(Button::icon("⟳").loading(true).with_tooltip("Loading..."));
-                }
-            });
-            ui.horizontal(|ui| {
-                ui.add(Button::ghost("Disabled").active(false));
-                ui.checkbox(&mut self.disabled, "Disabled");
-            });
-            ui.add_space(8.0);
+        ui.with_padding(egui::Margin::same(8), |ui| {
+            ui.v_flex(|ui| {
+                // ── Buttons ──────────────────────────────────────────────
+                section_header(ui, "🔘", "Buttons", None);
+                ui.horizontal(|ui| {
+                    let _ = ui.add(Button::ghost("Ghost"));
+                    let _ = ui.add(Button::primary("Primary"));
+                    let play_icon = widget::button::play_pause_icon(true);
+                    let _ = ui.add(Button::icon(play_icon).with_tooltip("Play/Pause"));
+                    if self.loading {
+                        ui.add(Button::icon("⟳").loading(true).with_tooltip("Loading..."));
+                    }
+                });
+                ui.horizontal(|ui| {
+                    ui.add(Button::ghost("Disabled").active(false));
+                    ui.checkbox(&mut self.disabled, "Disabled");
+                });
+                ui.add_space(8.0);
 
-            // ── Toggles ────────────────────────────────────────────────
-            section_header(ui, "\u{2611}", "Toggles", None);
-            ui.add(Checkbox::new(&mut self.checkbox).label("Checkbox"));
-            ui.add(Switch::new(&mut self.switch).label("Switch").label_side(Side::Right));
-            ui.horizontal(|ui| {
-                ui.add(Radio::new(&mut self.radio, 0u8).label("One"));
-                ui.add(Radio::new(&mut self.radio, 1u8).label("Two"));
-                ui.add(Radio::new(&mut self.radio, 2u8).label("Three"));
-            });
-            ui.add_space(8.0);
+                // ── Toggles ────────────────────────────────────────────────
+                section_header(ui, "\u{2611}", "Toggles", None);
+                ui.add(Checkbox::new(&mut self.checkbox).label("Checkbox"));
+                ui.add(Switch::new(&mut self.switch).label("Switch").label_side(Side::Right));
+                ui.horizontal(|ui| {
+                    ui.add(Radio::new(&mut self.radio, 0u8).label("One"));
+                    ui.add(Radio::new(&mut self.radio, 1u8).label("Two"));
+                    ui.add(Radio::new(&mut self.radio, 2u8).label("Three"));
+                });
+                ui.add_space(8.0);
 
-            // ── Labels + Kbd + Link ────────────────────────────────────
-            section_header(ui, "📝", "Labels, Kbd, Link", None);
-            ui.horizontal(|ui| {
-                ui.add(Label::new("Body label"));
-                ui.add(Label::new("Required").role(TextRole::BodyS).required(true));
-                ui.add(Kbd::new("Ctrl+S"));
-                Link::new("Docs").url(Some("https://example.com".into())).show(ui);
-            });
-            ui.add_space(8.0);
+                // ── Labels + Kbd + Link ────────────────────────────────────
+                section_header(ui, "📝", "Labels, Kbd, Link", None);
+                ui.horizontal(|ui| {
+                    ui.add(Label::new("Body label"));
+                    ui.add(Label::new("Required").role(TextRole::BodyS).required(true));
+                    ui.add(Kbd::new("Ctrl+S"));
+                    Link::new("Docs").url(Some("https://example.com".into())).show(ui);
+                });
+                ui.add_space(8.0);
 
-            // ── Inputs ────────────────────────────────────────────────
-            section_header(ui, "✏️", "Inputs", None);
-            ui.horizontal(|ui| {
-                TextField::new(&mut self.text)
-                    .placeholder("Type something...")
-                    .cleanable(true)
+                // ── Inputs ────────────────────────────────────────────────
+                section_header(ui, "✏️", "Inputs", None);
+                ui.horizontal(|ui| {
+                    TextField::new(&mut self.text)
+                        .placeholder("Type something...")
+                        .cleanable(true)
+                        .show(ui);
+                });
+                ui.horizontal(|ui| {
+                    NumberField::new(&mut self.number).range(0.0..=100.0).suffix(" %").show(ui);
+                    ui.add(Slider::new(&mut self.slider, 0.0..=1.0).show_value(true));
+                    ui.add(
+                        Slider::new(&mut self.slider_log, 0.1..=10.0)
+                            .logarithmic(true)
+                            .suffix("x")
+                            .show_value(true),
+                    );
+                });
+                ui.add_space(8.0);
+
+                // ── Selection ─────────────────────────────────────────────
+                section_header(ui, "📋", "Selection", None);
+                ui.horizontal(|ui| {
+                    ui.label("Select:");
+                    ui.add(
+                        Select::new("gallery_select", &mut self.select, &["Red", "Green", "Blue"])
+                            .placeholder("Pick a color"),
+                    );
+                });
+                ui.horizontal(|ui| {
+                    ui.label("List:");
+                    let list_items: Vec<&str> = vec!["Alpha", "Beta", "Gamma", "Delta", "Epsilon"];
+                    List::new(&list_items).row_height(24.0).show(ui, "gallery_list");
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Searchable:");
+                    let searchable_items: Vec<&str> =
+                        vec!["Apple", "Banana", "Cherry", "Date", "Elderberry"];
+                    SearchableList::new(&searchable_items)
+                        .placeholder("Filter fruits...")
+                        .show(ui, "gallery_searchable");
+                });
+                ui.add_space(8.0);
+
+                // ── Form ──────────────────────────────────────────────────
+                section_header(ui, "📄", "Form", None);
+                Form::new("gallery_form").label_width(100.0).show(ui, |f: &mut Field| {
+                    f.field("Name", |ui| {
+                        TextField::new(&mut self.form_name).placeholder("Your name").show(ui);
+                    });
+                    f.required_field("Email", |ui| {
+                        TextField::new(&mut self.form_email)
+                            .placeholder("you@example.com")
+                            .show(ui);
+                    });
+                });
+                ui.add_space(8.0);
+
+                // ── Feedback ──────────────────────────────────────────────
+                section_header(ui, "💬", "Feedback", None);
+                ui.horizontal(|ui| {
+                    ui.add(Badge::new("3"));
+                    ui.add(Tag::new("filter"));
+                    ui.add(Tag::new("removable").removable(true));
+                });
+                ui.horizontal(|ui| {
+                    ui.add(Alert::new("Operation succeeded!", AlertLevel::Success));
+                });
+                ui.horizontal(|ui| {
+                    ui.add(Alert::new("Warning: check your input", AlertLevel::Warning));
+                });
+                ui.horizontal(|ui| {
+                    ui.add(
+                        Alert::new("Error: something went wrong", AlertLevel::Error)
+                            .title(Some("Error".into())),
+                    );
+                });
+                ui.add(ProgressBar::new(self.progress).show_percentage(true));
+                ui.horizontal(|ui| {
+                    ui.add(Skeleton::new(egui::vec2(120.0, 16.0)).width(200.0));
+                    ui.add(Spinner::new());
+                });
+                ui.add_space(8.0);
+
+                // ── Layout ────────────────────────────────────────────────
+                section_header(ui, "📐", "Layout", None);
+                separator(ui);
+                ui.label("Above and below are separators");
+                separator(ui);
+                ui.add_space(4.0);
+
+                card(ui, |ui| {
+                    ui.label("Inside a card");
+                    ui.small("Cards have surface background, rounded corners, and shadow.");
+                });
+                ui.add_space(4.0);
+
+                group_box(ui, "Group Box", |ui| {
+                    ui.label("Inside a group box");
+                    ui.small("Titled bordered container.");
+                });
+                ui.add_space(4.0);
+
+                // Accordion
+                ui.label("Accordion:");
+                let accordion = widget::Accordion::new("gallery_accordion", self.accordion_open);
+                accordion.section(ui, 0, "Section A", |ui| {
+                    ui.label("Content for section A");
+                });
+                accordion.section(ui, 1, "Section B", |ui| {
+                    ui.label("Content for section B");
+                });
+
+                // TabBar
+                ui.add_space(4.0);
+                ui.label("TabBar:");
+                TabBar::new("gallery_tabs", &mut self.tab_selected, &["Files", "Edit", "View"])
                     .show(ui);
-            });
-            ui.horizontal(|ui| {
-                NumberField::new(&mut self.number).range(0.0..=100.0).suffix(" %").show(ui);
-                ui.add(Slider::new(&mut self.slider, 0.0..=1.0).show_value(true));
-                ui.add(
-                    Slider::new(&mut self.slider_log, 0.1..=10.0)
-                        .logarithmic(true)
-                        .suffix("x")
-                        .show_value(true),
-                );
-            });
-            ui.add_space(8.0);
+                ui.add_space(8.0);
 
-            // ── Selection ─────────────────────────────────────────────
-            section_header(ui, "📋", "Selection", None);
-            ui.horizontal(|ui| {
-                ui.label("Select:");
-                ui.add(
-                    Select::new("gallery_select", &mut self.select, &["Red", "Green", "Blue"])
-                        .placeholder("Pick a color"),
-                );
-            });
-            ui.horizontal(|ui| {
-                ui.label("List:");
-                let list_items: Vec<&str> = vec!["Alpha", "Beta", "Gamma", "Delta", "Epsilon"];
-                List::new(&list_items).row_height(24.0).show(ui, "gallery_list");
-            });
-            ui.horizontal(|ui| {
-                ui.label("Searchable:");
-                let searchable_items: Vec<&str> =
-                    vec!["Apple", "Banana", "Cherry", "Date", "Elderberry"];
-                SearchableList::new(&searchable_items)
-                    .placeholder("Filter fruits...")
-                    .show(ui, "gallery_searchable");
-            });
-            ui.add_space(8.0);
-
-            // ── Form ──────────────────────────────────────────────────
-            section_header(ui, "📄", "Form", None);
-            Form::new("gallery_form").label_width(100.0).show(ui, |f: &mut Field| {
-                f.field("Name", |ui| {
-                    TextField::new(&mut self.form_name).placeholder("Your name").show(ui);
-                });
-                f.required_field("Email", |ui| {
-                    TextField::new(&mut self.form_email).placeholder("you@example.com").show(ui);
-                });
-            });
-            ui.add_space(8.0);
-
-            // ── Feedback ──────────────────────────────────────────────
-            section_header(ui, "💬", "Feedback", None);
-            ui.horizontal(|ui| {
-                ui.add(Badge::new("3"));
-                ui.add(Tag::new("filter"));
-                ui.add(Tag::new("removable").removable(true));
-            });
-            ui.horizontal(|ui| {
-                ui.add(Alert::new("Operation succeeded!", AlertLevel::Success));
-            });
-            ui.horizontal(|ui| {
-                ui.add(Alert::new("Warning: check your input", AlertLevel::Warning));
-            });
-            ui.horizontal(|ui| {
-                ui.add(
-                    Alert::new("Error: something went wrong", AlertLevel::Error)
-                        .title(Some("Error".into())),
-                );
-            });
-            ui.add(ProgressBar::new(self.progress).show_percentage(true));
-            ui.horizontal(|ui| {
-                ui.add(Skeleton::new(egui::vec2(120.0, 16.0)).width(200.0));
-                ui.add(Spinner::new());
-            });
-            ui.add_space(8.0);
-
-            // ── Layout ────────────────────────────────────────────────
-            section_header(ui, "📐", "Layout", None);
-            separator(ui);
-            ui.label("Above and below are separators");
-            separator(ui);
-            ui.add_space(4.0);
-
-            card(ui, |ui| {
-                ui.label("Inside a card");
-                ui.small("Cards have surface background, rounded corners, and shadow.");
-            });
-            ui.add_space(4.0);
-
-            group_box(ui, "Group Box", |ui| {
-                ui.label("Inside a group box");
-                ui.small("Titled bordered container.");
-            });
-            ui.add_space(4.0);
-
-            // Accordion
-            ui.label("Accordion:");
-            let accordion = widget::Accordion::new("gallery_accordion", self.accordion_open);
-            accordion.section(ui, 0, "Section A", |ui| {
-                ui.label("Content for section A");
-            });
-            accordion.section(ui, 1, "Section B", |ui| {
-                ui.label("Content for section B");
-            });
-
-            // TabBar
-            ui.add_space(4.0);
-            ui.label("TabBar:");
-            TabBar::new("gallery_tabs", &mut self.tab_selected, &["Files", "Edit", "View"])
-                .show(ui);
-            ui.add_space(8.0);
-
-            // ── Overlays ──────────────────────────────────────────────
-            section_header(ui, "🪟", "Overlays", None);
-            Popover::new("gallery_popover").below().max_width(200.0).show(
-                ui,
-                &ui.response(),
-                |ui| {
-                    ui.label("Popover content!");
-                    ui.small("Click outside to dismiss.");
-                },
-            );
-            ui.add_space(4.0);
-            let tooltip_trigger = ui.button("Hover for tooltip");
-            text_tooltip(
-                ui,
-                ui.id().with("gallery_tooltip"),
-                &tooltip_trigger,
-                "Tooltip text here!",
-            );
-            ui.add_space(8.0);
-
-            // ── ColorPicker ───────────────────────────────────────────
-            section_header(ui, "🎨", "Color Picker", None);
-            let picker_resp = widget::ColorPicker::new("gallery_color", &mut self.color)
-                .alpha(true)
-                .swatches(&[
-                    Color32::RED,
-                    Color32::GREEN,
-                    Color32::BLUE,
-                    Color32::YELLOW,
-                    Color32::from_rgb(255, 128, 0),
-                ])
-                .show(ui);
-            if picker_resp.changed {
-                // color updated
-            }
-            ui.add_space(8.0);
-
-            // ── Tree ──────────────────────────────────────────────────
-            section_header(ui, "🌳", "Tree", None);
-            let flat_items = self.build_tree_items();
-            let tree_resp = Tree::new(&flat_items).show(ui, "gallery_tree");
-            if let Some(action) = tree_resp.action {
-                match action {
-                    TreeAction::Toggled(id) => {
-                        if self.expanded.contains(&id) {
-                            self.expanded.remove(&id);
-                        } else {
-                            self.expanded.insert(id);
-                        }
+                // ── Overlays ──────────────────────────────────────────────
+                section_header(ui, "🪟", "Overlays", None);
+                Popover::new("gallery_popover").below().max_width(200.0).show(
+                    ui,
+                    &ui.response(),
+                    |ui| {
+                        ui.label("Popover content!");
+                        ui.small("Click outside to dismiss.");
                     },
-                    TreeAction::Selected(id) => {
-                        self.tree_selected = Some(id);
-                    },
+                );
+                ui.add_space(4.0);
+                let tooltip_trigger = ui.button("Hover for tooltip");
+                text_tooltip(
+                    ui,
+                    ui.id().with("gallery_tooltip"),
+                    &tooltip_trigger,
+                    "Tooltip text here!",
+                );
+                ui.add_space(8.0);
+
+                // ── ColorPicker ───────────────────────────────────────────
+                section_header(ui, "🎨", "Color Picker", None);
+                let picker_resp = widget::ColorPicker::new("gallery_color", &mut self.color)
+                    .alpha(true)
+                    .swatches(&[
+                        Color32::RED,
+                        Color32::GREEN,
+                        Color32::BLUE,
+                        Color32::YELLOW,
+                        Color32::from_rgb(255, 128, 0),
+                    ])
+                    .show(ui);
+                if picker_resp.changed {
+                    // color updated
                 }
-            }
-            if let Some(ref sel) = self.tree_selected {
-                ui.small(format!("Selected: {sel}"));
-            }
+                ui.add_space(8.0);
+
+                // ── Tree ──────────────────────────────────────────────────
+                section_header(ui, "🌳", "Tree", None);
+                let flat_items = self.build_tree_items();
+                let tree_resp = Tree::new(&flat_items).show(ui, "gallery_tree");
+                if let Some(action) = tree_resp.action {
+                    match action {
+                        TreeAction::Toggled(id) => {
+                            if self.expanded.contains(&id) {
+                                self.expanded.remove(&id);
+                            } else {
+                                self.expanded.insert(id);
+                            }
+                        },
+                        TreeAction::Selected(id) => {
+                            self.tree_selected = Some(id);
+                        },
+                    }
+                }
+                if let Some(ref sel) = self.tree_selected {
+                    ui.small(format!("Selected: {sel}"));
+                }
+            });
         });
     }
 
