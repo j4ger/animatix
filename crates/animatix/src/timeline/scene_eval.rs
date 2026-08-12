@@ -1065,7 +1065,7 @@ impl Timeline {
             .scene
     }
 
-    /// Restore cache-derived precise bounds when a frame cache entry matches.
+    /// Restore cache-derived frame state when a frame cache entry matches.
     fn try_restore_frame_cache(
         &self,
         time_ms: u64,
@@ -1083,6 +1083,8 @@ impl Timeline {
                 && cached.collect_items == collect_items
             {
                 *self.precise_bounds_cache.borrow_mut() = cached.program.precise_bounds.clone();
+                *self.runtime_diagnostics.borrow_mut() = cached.program.diagnostics.clone();
+                self.hit_regions.borrow_mut().clear();
                 return true;
             }
         }
@@ -1468,6 +1470,47 @@ mod tests {
             let entry = cache.as_ref().expect("program evaluation should populate cache");
             assert!(entry.collect_items);
         }
+    }
+
+    #[test]
+    fn frame_cache_restores_runtime_diagnostics_on_hit() {
+        let timeline = make_minimal_timeline();
+        let dimensions = SceneDimensions {
+            width: 800,
+            height: 600,
+        };
+
+        let _program = timeline.evaluate_program_with_debug(
+            1.0,
+            dimensions,
+            DebugRenderOptions::default(),
+            &mut None,
+        );
+        timeline
+            .frame_cache
+            .borrow_mut()
+            .as_mut()
+            .expect("cache populated")
+            .program
+            .diagnostics
+            .push(crate::diagnostics::Diagnostic::error(
+                crate::diagnostics::DiagnosticCode::ModifierRuntimeError,
+                crate::diagnostics::DiagnosticPhase::Render,
+                "simulated t=1 diagnostic".to_string(),
+            ));
+
+        // Scrub to the same frame again. The cache hit must restore the
+        // frame's diagnostics instead of leaving the newly evaluated frame's
+        // empty diagnostics in the timeline.
+        let _hit = timeline.evaluate_program_with_debug(
+            1.0,
+            dimensions,
+            DebugRenderOptions::default(),
+            &mut None,
+        );
+        let diagnostics = timeline.runtime_diagnostics();
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].message, "simulated t=1 diagnostic");
     }
 
     #[test]
