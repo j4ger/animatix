@@ -342,6 +342,25 @@ impl GuiShell {
                         } else if ui.small_button("Record").clicked() {
                             self.ui_store.recording_shortcut = Some(name.clone());
                         }
+                        let has_override = self.ui_store.shortcut_overrides.contains_key(&name);
+                        if has_override && ui.small_button("Reset").clicked() {
+                            self.ui_store.shortcut_overrides.remove(&name);
+                            match ShortcutRegistry::with_overrides(
+                                &self.ui_store.shortcut_overrides,
+                            ) {
+                                Ok(registry) => {
+                                    self.shortcut_registry = registry;
+                                    self.save_persistence();
+                                    self.preview_store.preview.status =
+                                        format!("Shortcut '{}' reset to default", name);
+                                },
+                                Err(error) => {
+                                    self.preview_store.preview.set_status_error(format!(
+                                        "Shortcut reset failed: {error}"
+                                    ));
+                                },
+                            }
+                        }
                     });
                 }
             });

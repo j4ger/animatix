@@ -499,11 +499,17 @@ impl GuiShell {
             ui_store.shortcut_overrides = s.shortcuts.clone();
         }
 
-        let shortcut_registry = ShortcutRegistry::with_overrides(&ui_store.shortcut_overrides)
-            .unwrap_or_else(|error| {
-                tracing::warn!("Failed to apply persisted shortcuts, using defaults: {error}");
+        let shortcut_registry = match ShortcutRegistry::with_overrides(&ui_store.shortcut_overrides)
+        {
+            Ok(registry) => registry,
+            Err(error) => {
+                tracing::warn!(
+                    "Failed to apply persisted shortcuts, dropping invalid overrides: {error}"
+                );
+                ui_store.shortcut_overrides.clear();
                 ShortcutRegistry::new()
-            });
+            },
+        };
 
         let mut shell = Self {
             document_store: DocumentStore::new(document, editor),
