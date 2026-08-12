@@ -50,13 +50,27 @@ impl FileId {
     }
 }
 
+/// Controls whether [`ModuleGraph`] may read a path from disk when no
+/// in-memory source override exists.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum SourceAccess {
+    /// Read registered in-memory sources and fall back to the filesystem.
+    #[default]
+    DiskAndSources,
+    /// Only read registered in-memory sources. Missing in-memory files are
+    /// reported as `FileNotFound` without touching disk (analyzer/LSP mode).
+    SourcesOnly,
+}
+
 /// Tracks loaded files, their imports, and the component registry.
+#[derive(Clone, Debug)]
 pub struct ModuleGraph {
     files: HashMap<FileId, ParsedModule>,
     next_id: u32,
     paths: HashMap<PathBuf, FileId>,
     /// In-memory source overrides and normalized path identity.
     sources: source_map::SourceMap,
+    source_access: SourceAccess,
 }
 
 /// A component definition together with its source file and custom actions.
@@ -292,10 +306,12 @@ fn resolve_path_in_namespace(
     }
 }
 
+#[derive(Clone, Debug)]
 struct ParsedModule {
     path: PathBuf,
     statements: Vec<Stmt>,
     imports: Vec<(String, Option<String>)>,
+    symbols: crate::symbol_table::SymbolTable,
 }
 
 struct LoadResult {
@@ -383,7 +399,22 @@ impl ModuleGraph {
             next_id: 0,
             paths: HashMap::new(),
             sources: source_map::SourceMap::new(),
+            source_access: SourceAccess::DiskAndSources,
         }
+    }
+
+    /// Configure whether paths may be read from disk.
+    ///
+    /// Analyzer/LSP workspaces should use [`SourceAccess::SourcesOnly`] so
+    /// virtual documents never resolve through the filesystem.
+    pub fn with_source_access(mut self, source_access: SourceAccess) -> Self {
+        self.source_access = source_access;
+        self
+    }
+
+    /// Return the current source access policy.
+    pub fn source_access(&self) -> SourceAccess {
+        self.source_access
     }
 
     /// Register an in-memory source for a path.
@@ -410,33 +441,197 @@ impl ModuleGraph {
         self.paths.clear();
     }
 
+    /// Return the in-memory source for a registered path, if any.
+    pub fn source(&self, path: &Path) -> Option<&str> {
+        self.sources.get(path)
+    }
+
+    /// Insert or replace a source without clearing unrelated parsed modules.
+    ///
+    /// Only the replaced path is invalidated. This is the right granularity for
+    /// temporary source overrides and analyzer workspace updates, where other
+    /// imported files remain unchanged.
+    pub fn upsert_source(&mut self, path: PathBuf, source: impl Into<String>) {
+        self.set_source_for_path(path, source.into());
+    }
+
+    /// Remove a source override without clearing unrelated parsed modules.
+    pub fn remove_source_for_path(&mut self, path: &Path) {
+        self.clear_source_for_path(path);
+    }
+
+    /// Return the parsed AST for a registered path, if any.
+    pub fn file_ast(&self, path: &Path) -> Option<&[Stmt]> {
+        let id = self.file_id_for_path(path)?;
+        self.files.get(&id).map(|module| module.statements.as_slice())
+    }
+
+    /// Return the imports for a registered path, if any.
+    pub fn file_imports(&self, path: &Path) -> Option<&[(String, Option<String>)]> {
+        let id = self.file_id_for_path(path)?;
+        self.files.get(&id).map(|module| module.imports.as_slice())
+    }
+
+    /// Return the extracted symbol table for a registered path, if any.
+    pub fn file_symbols(&self, path: &Path) -> Option<crate::symbol_table::SymbolTable> {
+        let id = self.file_id_for_path(path)?;
+        self.files.get(&id).map(|module| module.symbols.clone())
+    }
+
+    /// Resolve imports for a file and return a merged symbol table containing
+    /// local symbols plus exported symbols from imported files.
+    ///
+    /// This mirrors the analyzer's virtual workspace semantics: aliased imports
+    /// become namespaces, direct imports are flattened, and missing imports are
+    /// skipped instead of failing the whole workspace.
+    pub fn resolve_symbols(&self, path: &Path) -> crate::symbol_table::SymbolTable {
+        let mut visited = HashSet::new();
+        self.resolve_symbols_inner(path, &mut visited)
+    }
+
+    fn resolve_symbols_inner(
+        &self,
+        path: &Path,
+        visited: &mut HashSet<PathBuf>,
+    ) -> crate::symbol_table::SymbolTable {
+        let mut merged = self.file_symbols(path).unwrap_or_default();
+        if !visited.insert(source_map::normalize_path(path)) {
+            return merged;
+        }
+
+        if let Some(module_path) = self
+            .file_id_for_path(path)
+            .and_then(|id| self.files.get(&id))
+            .map(|module| module.path.clone())
+        {
+            if let Some(imports) = self.file_imports(&module_path) {
+                for (import_path, alias) in imports {
+                    let import_path = Self::resolve_path(&module_path, import_path);
+                    let resolved = self.resolve_symbols_inner(&import_path, visited);
+                    if let Some(alias) = alias {
+                        // Aliased import: store only pub exports under the namespace.
+                        // Nested scenes are also exposed as `alias.SceneName`,
+                        // matching the runtime namespace scene registry.
+                        let exported = resolved.exported_namespace();
+                        for (scene_name, info) in &exported.scenes {
+                            merged
+                                .scenes
+                                .entry(format!("{alias}.{scene_name}"))
+                                .or_insert_with(|| info.clone());
+                        }
+                        merged.namespaces.insert(alias.clone(), exported);
+                    } else {
+                        // Direct import: merge all symbols (backward-compatible flatten).
+                        merged.merge(&resolved);
+                    }
+                }
+            }
+        }
+
+        visited.remove(&source_map::normalize_path(path));
+        merged
+    }
+
     /// Insert or replace a source without clearing unrelated parsed modules.
     ///
     /// Only the replaced path is invalidated. This is the right granularity for
     /// temporary source overrides, where other imported files remain unchanged.
+    /// Load and cache a single file without resolving its imports.
+    ///
+    /// Analyzer workspaces use this to keep local symbols available when an
+    /// import is missing or intentionally absent. A later `load_program` call
+    /// resolves imports normally, reusing this cached module.
+    pub fn load_file_standalone(&mut self, path: &Path) -> Result<(), ModuleError> {
+        let key = self.path_key(path)?;
+        if self.paths.contains_key(&key) {
+            return Ok(());
+        }
+
+        let source = self
+            .sources
+            .get(&key)
+            .map(str::to_owned)
+            .ok_or_else(|| ModuleError::FileNotFound(key.clone()))?;
+        let parsed = parse_canonical(&source);
+        if !parsed.parse_errors.is_empty() {
+            return Err(ModuleError::ParseErrors(parsed.parse_errors));
+        }
+        let mut statements = parsed.statements.unwrap_or_default();
+        set_action_spans(&mut statements, &source);
+        let imports = collect_imports(&statements);
+        let id = self.alloc_id();
+        let symbols = {
+            let mut symbols = crate::symbol_table::SymbolTable::build_from_ast(&statements);
+            symbols.collect_references(&statements);
+            symbols
+        };
+        self.paths.insert(key.clone(), id);
+        self.files.insert(
+            id,
+            ParsedModule {
+                path: key,
+                statements,
+                imports,
+                symbols,
+            },
+        );
+        Ok(())
+    }
+
     fn set_source_for_path(&mut self, path: PathBuf, source: String) {
         self.sources.add_source(path.clone(), source);
         let path = source_map::normalize_path(&path);
-        if let Some(old_id) = self.paths.remove(&path) {
-            self.files.remove(&old_id);
-        }
+        self.invalidate_file_and_dependents(&path);
     }
 
     /// Remove a source override without clearing unrelated parsed modules.
     fn clear_source_for_path(&mut self, path: &Path) {
         self.sources.remove_source(path);
         let path = source_map::normalize_path(path);
-        if let Some(old_id) = self.paths.remove(&path) {
-            self.files.remove(&old_id);
+        self.invalidate_file_and_dependents(&path);
+    }
+
+    /// Invalidate a path plus every parsed module that (transitively) imports
+    /// it, so parents cannot keep using a stale version of the replaced file.
+    fn invalidate_file_and_dependents(&mut self, changed: &Path) {
+        let mut removed = HashSet::from([changed.to_path_buf()]);
+        loop {
+            let mut found = false;
+            for module in self.files.values() {
+                if removed.contains(&module.path) {
+                    continue;
+                }
+                let imports_changed = module.imports.iter().any(|(import, _)| {
+                    let target = Self::resolve_path(&module.path, import);
+                    removed.contains(&target)
+                });
+                if imports_changed {
+                    removed.insert(module.path.clone());
+                    found = true;
+                }
+            }
+            if !found {
+                break;
+            }
+        }
+        for path in removed {
+            if let Some(old_id) = self.paths.remove(&path) {
+                self.files.remove(&old_id);
+            }
         }
     }
 
     fn path_key(&self, path: &Path) -> Result<PathBuf, ModuleError> {
-        self.sources
-            .path_key(path)
-            .map_err(|err| match err {
+        let normalized = source_map::normalize_path(path);
+        if self.sources.contains(&normalized) {
+            return Ok(normalized);
+        }
+        match self.source_access {
+            SourceAccess::SourcesOnly => Err(ModuleError::FileNotFound(normalized)),
+            SourceAccess::DiskAndSources => self.sources.path_key(path).map_err(|err| match err {
                 source_map::SourceMapError::FileNotFound(path) => ModuleError::FileNotFound(path),
-            })
+            }),
+        }
     }
 
     fn file_id_for_path(&self, path: &Path) -> Option<FileId> {
@@ -515,8 +710,13 @@ impl ModuleGraph {
 
         let module = ParsedModule {
             path: key.clone(),
-            statements,
-            imports,
+            statements: statements.clone(),
+            imports: imports.clone(),
+            symbols: {
+                let mut symbols = crate::symbol_table::SymbolTable::build_from_ast(&statements);
+                symbols.collect_references(&statements);
+                symbols
+            },
         };
 
         self.files.insert(id, module);
@@ -534,8 +734,7 @@ impl ModuleGraph {
                 .imports
                 .iter()
                 .filter_map(|imp| {
-                    let path =
-                        Self::resolve_path(&module.path, &imp.0);
+                    let path = Self::resolve_path(&module.path, &imp.0);
                     self.file_id_for_path(&path)
                 })
                 .collect()
@@ -781,8 +980,7 @@ impl ModuleGraph {
             let Some(alias) = &imp.1 else {
                 continue;
             };
-            let import_path =
-                Self::resolve_path(&module.path, &imp.0);
+            let import_path = Self::resolve_path(&module.path, &imp.0);
             let Some(sub_id) = self.file_id_for_path(&import_path) else {
                 continue;
             };
@@ -821,8 +1019,7 @@ impl ModuleGraph {
         // These are available as "alias.SceneName" in the parent namespace.
         for imp in &module.imports {
             if let Some(alias) = &imp.1 {
-                let import_path =
-                    Self::resolve_path(&module.path, &imp.0);
+                let import_path = Self::resolve_path(&module.path, &imp.0);
                 if let Some(sub_id) = self.file_id_for_path(&import_path) {
                     let sub_scenes = self.collect_resolved_scenes(sub_id);
                     for (name, data) in sub_scenes {
@@ -854,8 +1051,7 @@ impl ModuleGraph {
                 if imp.1.is_some() {
                     continue; // Aliased imports are not flattened
                 }
-                let import_path =
-                    Self::resolve_path(&module.path, &imp.0);
+                let import_path = Self::resolve_path(&module.path, &imp.0);
                 if let Some(import_id) = self.file_id_for_path(&import_path) {
                     self.flatten_module_stmts(import_id, result, visited);
                 }
@@ -885,8 +1081,7 @@ impl ModuleGraph {
                 if imp.1.is_some() {
                     continue; // Aliased imports are not flattened
                 }
-                let import_path =
-                    Self::resolve_path(&module.path, &imp.0);
+                let import_path = Self::resolve_path(&module.path, &imp.0);
                 if let Some(import_id) = self.file_id_for_path(&import_path) {
                     self.flatten_recursive(import_id, result, visited)?;
                 }
@@ -916,8 +1111,7 @@ impl ModuleGraph {
 
         if let Some(module) = self.files.get(&file_id) {
             for imp in &module.imports {
-                let import_path =
-                    Self::resolve_path(&module.path, &imp.0);
+                let import_path = Self::resolve_path(&module.path, &imp.0);
                 if let Some(import_id) = self.file_id_for_path(&import_path) {
                     self.collect_components_recursive(import_id, entry_id, components, visited)?;
                 }
@@ -955,5 +1149,107 @@ impl ModuleGraph {
 impl Default for ModuleGraph {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn sources_only_mode_never_reads_disk() {
+        let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+        graph.upsert_source(PathBuf::from("/virtual/a.amx"), "pub let x = 1".to_string());
+        let program = graph.load_program(Path::new("/virtual/a.amx")).expect("load in-memory");
+        assert_eq!(program.statements.len(), 1);
+
+        let missing = graph.load_program(Path::new("/definitely/missing.amx"));
+        assert!(matches!(missing, Err(ModuleError::FileNotFound(_))));
+    }
+
+    #[test]
+    fn upsert_source_invalidates_only_replaced_path() {
+        let mut graph = ModuleGraph::new();
+        graph.upsert_source(PathBuf::from("/virtual/lib.amx"), "pub let x = 1".to_string());
+        graph.upsert_source(
+            PathBuf::from("/virtual/main.amx"),
+            "import \"./lib.amx\"\nlet y = 2".to_string(),
+        );
+        let before = graph.load_program(Path::new("/virtual/main.amx")).expect("load");
+        assert_eq!(before.statements.len(), 2);
+
+        graph.upsert_source(PathBuf::from("/virtual/lib.amx"), "pub let x = 3".to_string());
+        let after = graph.load_program(Path::new("/virtual/main.amx")).expect("reload");
+        assert_eq!(after.statements.len(), 2);
+        assert_eq!(
+            graph
+                .file_symbols(Path::new("/virtual/lib.amx"))
+                .expect("lib symbols")
+                .labels
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn file_symbols_and_imports_are_available_after_load() {
+        let mut graph = ModuleGraph::new();
+        graph.upsert_source(
+            PathBuf::from("/virtual/lib.amx"),
+            "pub component Card {}\n".to_string(),
+        );
+        graph.upsert_source(
+            PathBuf::from("/virtual/main.amx"),
+            "import \"./lib.amx\"\n# Scene\n".to_string(),
+        );
+        graph.load_program(Path::new("/virtual/main.amx")).expect("load");
+
+        assert!(graph.file_ast(Path::new("/virtual/main.amx")).is_some());
+        assert_eq!(graph.file_imports(Path::new("/virtual/main.amx")).unwrap().len(), 1);
+        assert!(
+            graph
+                .file_symbols(Path::new("/virtual/lib.amx"))
+                .unwrap()
+                .components
+                .contains_key("Card")
+        );
+    }
+
+    #[test]
+    fn standalone_load_keeps_local_symbols_when_import_missing() {
+        let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+        graph.upsert_source(
+            PathBuf::from("/virtual/main.amx"),
+            "import \"./lib.amx\"\nlet local = 1".to_string(),
+        );
+        graph
+            .load_file_standalone(Path::new("/virtual/main.amx"))
+            .expect("standalone load");
+        let local = graph
+            .file_symbols(Path::new("/virtual/main.amx"))
+            .expect("local symbols")
+            .labels
+            .contains_key("local");
+        assert!(local, "standalone load should keep local symbols with a missing import");
+
+        graph.upsert_source(PathBuf::from("/virtual/lib.amx"), "pub let x = 2".to_string());
+        let program = graph.load_program(Path::new("/virtual/main.amx")).expect("full load");
+        assert_eq!(program.statements.len(), 2);
+    }
+
+    #[test]
+    fn resolve_symbols_merges_aliased_imports() {
+        let mut graph = ModuleGraph::new();
+        graph.upsert_source(PathBuf::from("/virtual/lib.amx"), "pub let x = 1\n".to_string());
+        graph.upsert_source(
+            PathBuf::from("/virtual/main.amx"),
+            "import \"./lib.amx\" as lib\nlet y = lib.x\n".to_string(),
+        );
+        graph.load_program(Path::new("/virtual/main.amx")).expect("load");
+
+        let resolved = graph.resolve_symbols(Path::new("/virtual/main.amx"));
+        assert!(resolved.namespaces.contains_key("lib"));
+        assert!(resolved.namespaces.get("lib").is_some_and(|ns| ns.labels.contains_key("x")));
     }
 }
