@@ -1572,14 +1572,19 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
 
                         // Tooltip on hover (when not dragging)
                         if !is_action_drag {
-                            action_resp.on_hover_text(format!(
-                                "{:?}: {}\n{:.2}s → {:.2}s\nDrag edges to resize\nTargets: {}",
-                                event.category,
-                                event.verb,
-                                start_s,
-                                end_s,
-                                event.targets.join(", ")
-                            ));
+                            text_tooltip(
+                                ui,
+                                action_resp.id.with("tooltip"),
+                                &action_resp,
+                                &format!(
+                                    "{:?}: {}\n{:.2}s → {:.2}s\nDrag edges to resize\nTargets: {}",
+                                    event.category,
+                                    event.verb,
+                                    start_s,
+                                    end_s,
+                                    event.targets.join(", ")
+                                ),
+                            );
                         }
                     }
                 }
