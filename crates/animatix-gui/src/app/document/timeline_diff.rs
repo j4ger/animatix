@@ -12,6 +12,69 @@ use crate::document::DocumentSession;
 /// Stable identity of a keyframe selection: (actor, property, time_ms).
 pub type KeyframeId = (String, String, u64);
 
+/// Collect per-property keyframe times for the canonical property set used by
+/// timeline selection.
+///
+/// This is the single source for keyframe identities shared by the timeline
+/// panel and rebuild diff. It deliberately enumerates typed track fields rather
+/// than `PROPERTY_REGISTRY`, because registry aliases such as
+/// `background_color -> ActorField::Color` would otherwise create duplicate
+/// phantom identities for the same keyframes.
+pub(crate) fn collect_per_property_keyframes(
+    track: &animatix::timeline::AnimationTrack,
+) -> Vec<(&'static str, Vec<u64>)> {
+    let mut result = Vec::new();
+    use animatix::timeline::{Interpolate, PropertyTrack};
+    fn push<T: Interpolate>(
+        result: &mut Vec<(&'static str, Vec<u64>)>,
+        opt: &Option<PropertyTrack<T>>,
+        name: &'static str,
+    ) {
+        if let Some(pt) = opt {
+            if !pt.keyframes().is_empty() {
+                result.push((name, pt.keyframes().keys().copied().collect()));
+            }
+        }
+    }
+    // Geometry
+    push(&mut result, &track.geometry.position, "position");
+    push(&mut result, &track.geometry.motion_offset, "motion_offset");
+    push(&mut result, &track.geometry.rotation, "rotation");
+    push(&mut result, &track.geometry.scale, "scale");
+    push(&mut result, &track.geometry.size, "size");
+    push(&mut result, &track.geometry.layout_size, "layout_size");
+    // Style
+    push(&mut result, &track.style.color, "color");
+    push(&mut result, &track.style.opacity, "opacity");
+    push(&mut result, &track.style.stroke_width, "stroke_width");
+    push(&mut result, &track.style.stroke_color, "stroke_color");
+    push(&mut result, &track.style.stroke_progress, "stroke_progress");
+    push(&mut result, &track.style.fill_opacity, "fill_opacity");
+    push(&mut result, &track.style.line_cap, "line_cap");
+    push(&mut result, &track.style.line_join, "line_join");
+    // Text
+    push(&mut result, &track.text.text_content, "text_content");
+    push(&mut result, &track.text.font_family, "font_family");
+    push(&mut result, &track.text.font_size, "font_size");
+    // Shape
+    push(&mut result, &track.shape.shape_type, "shape_type");
+    push(&mut result, &track.shape.line_from, "line_from");
+    push(&mut result, &track.shape.line_to, "line_to");
+    push(&mut result, &track.shape.arc_angles, "arc_angles");
+    push(&mut result, &track.shape.points, "points");
+    push(&mut result, &track.shape.commands, "commands");
+    push(&mut result, &track.shape.vector_paths, "vector_paths");
+    push(&mut result, &track.shape.head_size, "head_size");
+    // Filter
+    push(&mut result, &track.filter.filter_blur, "filter_blur");
+    push(&mut result, &track.filter.filter_brightness, "filter_brightness");
+    push(&mut result, &track.filter.filter_contrast, "filter_contrast");
+    push(&mut result, &track.filter.filter_saturate, "filter_saturate");
+    push(&mut result, &track.filter.filter_hue_rotate, "filter_hue_rotate");
+    push(&mut result, &track.filter.filter_sepia, "filter_sepia");
+    result
+}
+
 /// Stable view of the compiled target used as a diff baseline.
 ///
 /// This is captured before a rebuild because applying a rebuild replaces the
@@ -44,12 +107,11 @@ impl TimelineFingerprint {
         let keyframes = document
             .active_timeline()
             .map(|timeline| {
-                use animatix::timeline::{PROPERTY_REGISTRY, property_keyframe_times};
                 let mut ids = BTreeSet::new();
                 for track in timeline.tracks().values() {
-                    for schema in PROPERTY_REGISTRY {
-                        for time_ms in property_keyframe_times(track, schema.field) {
-                            ids.insert((track.label.clone(), schema.name.to_string(), time_ms));
+                    for (property, times) in collect_per_property_keyframes(track) {
+                        for time_ms in times {
+                            ids.insert((track.label.clone(), property.to_string(), time_ms));
                         }
                     }
                 }
@@ -239,6 +301,28 @@ mod tests {
         assert!(diff.added_keyframes.iter().any(|(actor, property, time_ms)| {
             actor == "box" && property == "position" && *time_ms == 2000
         }));
+    }
+
+    #[test]
+    fn fingerprint_does_not_emit_registry_alias_keyframes() {
+        let current = TimelineFingerprint::from_document(&load_session(
+            "#0s\nbox: Rect, size: (100, 100)\n#2s\nbox.color = red\n",
+        ));
+
+        assert!(
+            current
+                .surviving_keyframes(vec![(
+                    "box".to_string(),
+                    "background_color".to_string(),
+                    2000
+                )])
+                .is_empty(),
+            "background_color aliases ActorField::Color and must not create a separate identity"
+        );
+        assert_eq!(
+            current.surviving_keyframes(vec![("box".to_string(), "color".to_string(), 2000)]),
+            vec![("box".to_string(), "color".to_string(), 2000)]
+        );
     }
 
     #[test]
