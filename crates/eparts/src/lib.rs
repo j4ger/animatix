@@ -19,6 +19,10 @@ pub use tokens::spatial::{
 };
 // ── Runtime theme (B1) ──────────────────────────────────────────────
 pub use tokens::theme::{AppThemeChoice, Theme, set_theme, theme, theme_from_ctx};
+#[cfg(feature = "theme-json")]
+pub use tokens::theme_json::{ThemeFile, theme_schema_json};
+#[cfg(feature = "theme-json")]
+pub use tokens::theme_watcher::{ThemeWatcher, ThemeWatcherEvent};
 pub use widget::diagnostics::DiagnosticEntry;
 // ── Input widgets (C2 + C3) ─────────────────────────────────────────
 pub use widget::input::{NumberField, TextField};

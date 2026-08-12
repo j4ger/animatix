@@ -8,6 +8,11 @@ description = "Reusable egui widgets and design tokens extracted from Animatix."
 [dependencies]
 egui          = { workspace = true }
 egui-phosphor = { workspace = true }
+serde         = { workspace = true, optional = true }
+serde_json    = { version = "1", optional = true }
+thiserror     = { workspace = true, optional = true }
+notify        = { version = "7.0.0", default-features = false, features = ["macos_fsevent"], optional = true }
+tracing       = { workspace = true, optional = true }
 
 [dev-dependencies]
 # For the `gallery` example binary only (visual showcase + manual visual test).
@@ -24,13 +29,12 @@ default = []
 # exist yet. They pre-shape the package seams so adding the heavy/optional
 # surfaces later is mechanical and consumers pay only for what they use.
 #
-# theme-json : JSON theme loading + schema + hot-reload (will add serde + notify)
 # table      : data-table widget (will add egui_extras)
 # charts     : chart/plot widgets
 # webview    : embedded web content
 # i18n       : localization hooks (will add rust-i18n)
 # unstable   : experimental APIs not yet covered by semver
-theme-json = []
+theme-json = ["dep:serde", "dep:serde_json", "dep:thiserror", "dep:notify", "dep:tracing"]
 table = []
 charts = []
 webview = []

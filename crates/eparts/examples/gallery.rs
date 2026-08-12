@@ -10,6 +10,8 @@ use std::collections::HashSet;
 
 use eframe::CreationContext;
 use eframe::egui::{self, Color32};
+#[cfg(feature = "theme-json")]
+use eparts::ThemeFile;
 use eparts::tokens::typography::TextRole;
 use eparts::widget::button::Button;
 use eparts::widget::feedback::{Alert, AlertLevel, Badge, ProgressBar, Skeleton, Tag};
@@ -36,6 +38,11 @@ use eparts::{AppThemeChoice, Theme, set_theme};
 struct GalleryApp {
     // Theme
     theme_choice: AppThemeChoice,
+    /// Optional JSON theme loaded from `examples/gallery.theme.json`.
+    #[cfg(feature = "theme-json")]
+    theme_file: Option<ThemeFile>,
+    #[cfg(feature = "theme-json")]
+    json_theme: bool,
 
     // Buttons
     loading: bool,
@@ -76,6 +83,10 @@ impl Default for GalleryApp {
     fn default() -> Self {
         Self {
             theme_choice: AppThemeChoice::Dark,
+            #[cfg(feature = "theme-json")]
+            theme_file: None,
+            #[cfg(feature = "theme-json")]
+            json_theme: false,
             loading: false,
             disabled: false,
             checkbox: true,
@@ -106,6 +117,20 @@ impl GalleryApp {
     }
 
     fn apply_theme(&self, ctx: &egui::Context) {
+        #[cfg(feature = "theme-json")]
+        if self.json_theme {
+            if let Some(file) = &self.theme_file {
+                let is_dark = self.theme_choice.is_dark(None);
+                let theme = if is_dark {
+                    file.dark_theme()
+                } else {
+                    file.light_theme()
+                };
+                set_theme(ctx, theme);
+                ctx.set_visuals(theme.to_visuals(is_dark));
+                return;
+            }
+        }
         let is_dark = self.theme_choice.is_dark(None);
         let theme = self.theme_choice.resolve(None);
         set_theme(ctx, theme);
@@ -140,6 +165,25 @@ impl eframe::App for GalleryApp {
                     .selectable_value(&mut self.theme_choice, AppThemeChoice::Auto, "Auto")
                     .clicked()
                 {
+                    self.apply_theme(ctx);
+                }
+                ui.separator();
+                #[cfg(feature = "theme-json")]
+                if ui
+                    .selectable_label(self.json_theme, "JSON theme")
+                    .on_hover_text("Loads gallery.theme.json")
+                    .clicked()
+                {
+                    self.json_theme = !self.json_theme;
+                    if self.json_theme && self.theme_file.is_none() {
+                        self.theme_file =
+                            ThemeFile::load(std::path::Path::new("examples/gallery.theme.json"))
+                                .ok();
+                        if self.theme_file.is_none() {
+                            self.json_theme = false;
+                            ui.label("Missing examples/gallery.theme.json");
+                        }
+                    }
                     self.apply_theme(ctx);
                 }
                 ui.separator();

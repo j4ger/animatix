@@ -1,0 +1,45 @@
+{
+  "name": "Gallery JSON Theme",
+  "dark": {
+    "surface": {
+      "base": "#191a1e",
+      "panel": "#202226",
+      "surface": "#25272c",
+      "widget": "#2c2f35"
+    },
+    "text": {
+      "primary": "#f4f6f8",
+      "secondary": "#c6ccd4"
+    },
+    "accent": {
+      "primary": "#4fc3f7",
+      "primary_hover": "#81d4fa",
+      "primary_active": "#29b6f6"
+    },
+    "elevation": {
+      "raised": {
+        "offset": [0, 3],
+        "blur": 5,
+        "spread": 0,
+        "color": "#00000066"
+      }
+    }
+  },
+  "light": {
+    "surface": {
+      "base": "#f4f8fa",
+      "panel": "#ffffff",
+      "surface": "#f8fbfc",
+      "widget": "#eef3f6"
+    },
+    "text": {
+      "primary": "#17212b",
+      "secondary": "#546e7a"
+    },
+    "accent": {
+      "primary": "#00838f",
+      "primary_hover": "#0097a7",
+      "primary_active": "#00695c"
+    }
+  }
+}

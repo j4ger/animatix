@@ -19,41 +19,115 @@ use egui::{Color32, Context, CornerRadius, Shadow, Stroke, Visuals};
 use crate::tokens::semantic;
 use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 
+// ── Serde helpers (theme-json feature) ────────────────────────────────
+
+#[cfg(feature = "theme-json")]
+pub(crate) mod serde_color32 {
+    use egui::Color32;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    /// Serialize colors as hex strings (`#rrggbb` or `#rrggbbaa`).
+    pub fn serialize<S: Serializer>(color: &Color32, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&color.to_hex())
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Color32, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        Color32::from_hex(&text)
+            .map_err(|e| serde::de::Error::custom(format!("invalid color hex {text:?}: {e:?}")))
+    }
+}
+
+#[cfg(feature = "theme-json")]
+pub(crate) mod serde_shadow {
+    use egui::{Color32, Shadow};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use serde_json::Value;
+
+    pub fn serialize<S: Serializer>(shadow: &Shadow, serializer: S) -> Result<S::Ok, S::Error> {
+        let value = serde_json::json!({
+            "offset": shadow.offset,
+            "blur": shadow.blur,
+            "spread": shadow.spread,
+            "color": shadow.color.to_hex(),
+        });
+        value.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Shadow, D::Error> {
+        let value = Value::deserialize(deserializer)?;
+        let offset = value
+            .get("offset")
+            .and_then(Value::as_array)
+            .and_then(|items| Some([as_i8(&items[0])?, as_i8(&items[1])?]))
+            .ok_or_else(|| serde::de::Error::custom("shadow offset must be [x, y]"))?;
+        let blur = value.get("blur").and_then(Value::as_u64).and_then(|v| u8::try_from(v).ok());
+        let spread = value.get("spread").and_then(Value::as_u64).and_then(|v| u8::try_from(v).ok());
+        let color = value
+            .get("color")
+            .and_then(Value::as_str)
+            .and_then(|text| Color32::from_hex(text).ok())
+            .ok_or_else(|| serde::de::Error::custom("shadow color must be a hex string"))?;
+        Ok(Shadow {
+            offset,
+            blur: blur.ok_or_else(|| serde::de::Error::custom("shadow blur must be a u8"))?,
+            spread: spread.ok_or_else(|| serde::de::Error::custom("shadow spread must be a u8"))?,
+            color,
+        })
+    }
+
+    fn as_i8(value: &Value) -> Option<i8> {
+        value.as_i64().and_then(|v| i8::try_from(v).ok())
+    }
+}
+
 // ── Component-scoped slot types (B2 + B3) ─────────────────────────
 
 /// A fg/fill/border triple for a widget state slot.
 ///
 /// Unused fields are set to `Color32::TRANSPARENT` (e.g. a ghost button's normal
 /// background, or a slot that draws no border).
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct Slot {
     /// Background / fill color.
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub bg: Color32,
     /// Foreground / text / icon color.
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub fg: Color32,
     /// Outline / border stroke color.
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub border: Color32,
 }
 
 /// A bg+fg pair (no border) for list rows and similar slots.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct Fill {
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub bg: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub fg: Color32,
 }
 
 /// A tab slot with an accent indicator stripe.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct TabSlot {
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub bg: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub fg: Color32,
     /// Bottom indicator stripe (active tab only); `TRANSPARENT` when none.
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub indicator: Color32,
 }
 
 /// All interaction states for one button variant
 /// (mirrors the states handled in `widget/button.rs`).
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct ButtonStateSlots {
     pub normal: Slot,
     pub hover: Slot,
@@ -64,7 +138,8 @@ pub struct ButtonStateSlots {
 }
 
 /// Component-scoped color slots for all button variants.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct ButtonSlots {
     pub primary: ButtonStateSlots,
     pub secondary: ButtonStateSlots,
@@ -75,7 +150,8 @@ pub struct ButtonSlots {
 }
 
 /// List row color slots (even/odd zebra + selected + hover overlays).
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct ListSlots {
     pub even: Fill,
     pub odd: Fill,
@@ -84,7 +160,8 @@ pub struct ListSlots {
 }
 
 /// Tab bar color slots.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct TabSlots {
     pub active: TabSlot,
     pub inactive: TabSlot,
@@ -92,7 +169,8 @@ pub struct TabSlots {
 }
 
 /// Context-menu item color slots.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct MenuItemSlots {
     pub normal: Slot,
     pub hover: Slot,
@@ -101,7 +179,8 @@ pub struct MenuItemSlots {
 }
 
 /// Text-input / field color slots.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct InputSlots {
     pub normal: Slot,
     pub hover: Slot,
@@ -111,92 +190,150 @@ pub struct InputSlots {
 }
 
 /// Scrollbar thumb color slots.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct ScrollbarSlots {
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub thumb: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub thumb_hover: Color32,
 }
 
 // ── Nested slot structs ───────────────────────────────────────────────
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct Surface {
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub base: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub panel: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub surface: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub widget: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub hover: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub active: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub floating_card_bg: Color32,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct Text {
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub primary: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub secondary: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub muted: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub disabled: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub on_accent: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub faint: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub subtle: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub hover: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub dim: Color32,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct Accent {
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub primary: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub cyan: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub primary_hover: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub primary_active: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub faint: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub ghost: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub subtle: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub hover: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub strong: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub selection: Color32,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct Status {
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub success: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub warning: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub error: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub info: Color32,
     // Editor-specific semantic aliases retained for Animatix's diagnostics
     // and transport UI. Generic consumers can map these onto the status slots
     // above; future work should move them to the app semantic layer.
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub playing_text: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub diagnostic_error: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub diagnostic_warning: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub success_faint: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub success_ultra_faint: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub warning_subtle: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub error_faint: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub error_ultra_faint: Color32,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct Border {
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub default: Color32,
     /// `strong` mirrors `semantic::border::HOVER` (the strongest neutral border).
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub strong: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub focus: Color32,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct Overlay {
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub backdrop: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub badge_bg: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub tooltip_bg: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub shadow_ambient: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub shadow_direct: Color32,
 }
 
 /// Neutral grid / guide line colors (white-alpha; not brand-specific).
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct Lines {
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub grid: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub guide: Color32,
 }
 
@@ -205,22 +342,26 @@ pub struct Lines {
 /// Three conceptual levels: `flat` (no shadow, in-panel chrome — no token needed),
 /// `raised` (popover / menu / dropdown / toast — soft small shadow), and
 /// `overlay` (dialog / modal — larger shadow on top of backdrop scrim).
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct Elevation {
     /// Soft small shadow for popover, menu, dropdown, toast.
     ///   Dark: offset [0, 2] / blur 4 / spread 0 / rgba(0,0,0,40)
     ///   Light: offset [0, 3] / blur 6 / spread 0 / rgba(0,0,0,50)
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_shadow"))]
     pub raised: Shadow,
     /// Larger shadow for dialog / modal, painted on top of backdrop scrim.
     ///   Dark: offset [0, 8] / blur 24 / spread 0 / rgba(0,0,0,80)
     ///   Light: offset [0, 12] / blur 32 / spread 0 / rgba(0,0,0,60)
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_shadow"))]
     pub overlay: Shadow,
 }
 
 // ── Theme ─────────────────────────────────────────────────────────────
 
 /// The runtime theme.  Each field is a `Color32`; the struct is `Copy` so cloning is cheap.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct Theme {
     pub surface: Surface,
     pub text: Text,
