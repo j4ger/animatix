@@ -104,6 +104,37 @@ pub fn handle_move_keyframe(
     vec![]
 }
 
+pub fn handle_resize_action(
+    document_store: &mut DocumentStore,
+    preview_store: &mut PreviewStore,
+    ui_store: &mut UiStore,
+    verb: String,
+    targets: Vec<String>,
+    old_start_s: f64,
+    new_start_s: f64,
+    new_duration_s: f64,
+) -> Vec<Effect> {
+    begin_snapshot(
+        document_store,
+        preview_store,
+        ui_store,
+        UndoLabel::ResizeAction {
+            verb: verb.clone(),
+            targets: targets.clone(),
+            old_start_s,
+            new_start_s,
+            new_duration_s,
+        },
+    );
+    let mut ctrl = DocumentController {
+        document_store,
+        preview_store,
+        ui_store,
+    };
+    ctrl.handle_resize_action(&verb, &targets, old_start_s, new_start_s, new_duration_s);
+    vec![]
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -188,35 +219,4 @@ mod tests {
         ctrl.prune_stale_keyframe_selections();
         assert!(ui_store.selection.selected_keyframes.is_empty());
     }
-}
-
-pub fn handle_resize_action(
-    document_store: &mut DocumentStore,
-    preview_store: &mut PreviewStore,
-    ui_store: &mut UiStore,
-    verb: String,
-    targets: Vec<String>,
-    old_start_s: f64,
-    new_start_s: f64,
-    new_duration_s: f64,
-) -> Vec<Effect> {
-    begin_snapshot(
-        document_store,
-        preview_store,
-        ui_store,
-        UndoLabel::ResizeAction {
-            verb: verb.clone(),
-            targets: targets.clone(),
-            old_start_s,
-            new_start_s,
-            new_duration_s,
-        },
-    );
-    let mut ctrl = DocumentController {
-        document_store,
-        preview_store,
-        ui_store,
-    };
-    ctrl.handle_resize_action(&verb, &targets, old_start_s, new_start_s, new_duration_s);
-    vec![]
 }

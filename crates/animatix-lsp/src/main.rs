@@ -288,13 +288,10 @@ impl LanguageServer for Backend {
         };
 
         Ok(location.map(|loc| {
-            let target_uri = loc
-                .file
-                .map(|f| {
-                    Url::parse(&format!("file://{}", f))
-                        .unwrap_or_else(|_| Url::parse("file:///unknown").unwrap())
-                })
-                .unwrap_or_else(|| params.text_document_position_params.text_document.uri.clone());
+            let target_uri =
+                loc.file.as_deref().and_then(path_to_uri).unwrap_or_else(|| {
+                    params.text_document_position_params.text_document.uri.clone()
+                });
 
             GotoDefinitionResponse::Scalar(Location {
                 uri: target_uri,
@@ -376,8 +373,10 @@ impl LanguageServer for Backend {
                     name: sym.name,
                     kind,
                     location: Location {
-                        uri: Url::parse(uri)
-                            .unwrap_or_else(|_| Url::parse("file:///unknown").unwrap()),
+                        uri: Url::parse(uri).unwrap_or_else(|_| {
+                            path_to_uri(uri)
+                                .unwrap_or_else(|| Url::parse("file:///unknown").unwrap())
+                        }),
                         range: Range::new(
                             Position::new(sym.line as u32, sym.col as u32),
                             Position::new(sym.line as u32, sym.col as u32),
@@ -474,6 +473,11 @@ impl LanguageServer for Backend {
 fn uri_to_path(uri: &str) -> Option<PathBuf> {
     let url = url::Url::parse(uri).ok()?;
     url.to_file_path().ok()
+}
+
+/// Build a valid `Url` from a raw file path.
+fn path_to_uri(path: &str) -> Option<Url> {
+    Url::parse(&format!("file://{path}")).ok()
 }
 
 #[tokio::main]

@@ -309,7 +309,7 @@ impl ShortcutRegistry {
     pub fn names(&self) -> Vec<String> {
         let mut names = Vec::new();
         for (_, info) in &self.shortcuts {
-            if !names.iter().any(|name| name == &info.name) {
+            if !names.iter().any(|name: &String| name.as_str() == info.name) {
                 names.push(info.name.to_string());
             }
         }
@@ -332,7 +332,7 @@ impl ShortcutRegistry {
         let mut replaced = false;
         for (existing, info) in &mut self.shortcuts {
             if info.name == name {
-                *existing = shortcut.clone();
+                *existing = shortcut;
                 replaced = true;
             }
         }
@@ -346,7 +346,7 @@ impl ShortcutRegistry {
     fn validate_conflicts(&self) -> Result<(), KeyBindingError> {
         let mut seen: HashMap<KeyboardShortcut, &str> = HashMap::new();
         for (shortcut, info) in &self.shortcuts {
-            if let Some(previous) = seen.insert(shortcut.clone(), info.name) {
+            if let Some(previous) = seen.insert(*shortcut, info.name) {
                 if previous != info.name {
                     return Err(KeyBindingError::Conflict(
                         shortcut_hint_text(shortcut),
@@ -861,7 +861,7 @@ mod tests {
         let save = registry.shortcut_for(&KeyboardAction::Save).expect("Save binding");
         assert_eq!(save.modifiers, egui::Modifiers::ALT);
         assert_eq!(save.logical_key, Key::S);
-        assert_eq!(registry.current_saved("Save").unwrap().alt, true);
+        assert!(registry.current_saved("Save").unwrap().alt);
     }
 
     #[test]
@@ -922,6 +922,6 @@ mod tests {
         let default_save = default_registry.shortcut_for(&KeyboardAction::Save).unwrap();
         let overridden_save = overridden_registry.shortcut_for(&KeyboardAction::Save).unwrap();
         assert_ne!(default_save.modifiers, overridden_save.modifiers);
-        assert_eq!(default_registry.current_saved("Save").unwrap().alt, false);
+        assert!(!default_registry.current_saved("Save").unwrap().alt);
     }
 }

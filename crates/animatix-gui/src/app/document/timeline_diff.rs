@@ -85,6 +85,22 @@ pub(crate) fn collect_per_property_keyframes(
     result
 }
 
+/// Collect one flattened keyframe time per actor property, sorted by time.
+///
+/// When multiple properties share a time, only one entry is retained because
+/// timeline UI renders one diamond per actor/time.
+pub(crate) fn collect_actor_keyframes(
+    track: &animatix::timeline::AnimationTrack,
+) -> Vec<(u64, &'static str)> {
+    let mut result = Vec::new();
+    for (property, times) in collect_per_property_keyframes(track) {
+        result.extend(times.into_iter().map(|time_ms| (time_ms, property)));
+    }
+    result.sort_by_key(|(time_ms, _)| *time_ms);
+    result.dedup_by(|a, b| a.0 == b.0);
+    result
+}
+
 /// Stable view of the compiled target used as a diff baseline.
 ///
 /// This is captured before a rebuild because applying a rebuild replaces the

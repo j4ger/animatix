@@ -149,30 +149,15 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     .map(|comp| {
                         comp.declaration_order.iter().filter_map(|name| {
                             let scene = comp.scenes.get(name)?;
-                            // Collect all keyframe times (in seconds) from all tracks in this scene
                             let mut times: Vec<f64> = scene.timeline.tracks().values()
                                 .flat_map(|track| {
-                                    let mut track_times = Vec::new();
-                                    macro_rules! push_kf_times {
-                        ($container:expr; $($field:ident),* $(,)?) => {
-                            $(
-                                if let Some(pt) = &$container.$field {
-                                    track_times.extend(
-                                        pt.keyframes().keys().map(|ms| *ms as f64 / 1000.0)
-                                    );
-                                }
-                            )*
-                        };
-                    }
-                    push_kf_times!(track.geometry; position, motion_offset, rotation, scale, size, layout_size, placement_mode, position_binding);
-                    push_kf_times!(track.style; color, opacity, stroke_width, stroke_color, stroke_progress, fill_opacity, line_cap, line_join, morph_options);
-                    push_kf_times!(track.shape; shape_type, line_from, line_to, head_size, arc_angles, points, commands, vector_paths);
-                    push_kf_times!(track.text; text_content, font_family, font_size);
-                    push_kf_times!(track.filter; filter_blur, filter_brightness, filter_contrast, filter_saturate, filter_hue_rotate, filter_sepia);
-                                    track_times
+                                    crate::app::document::timeline_diff::collect_actor_keyframes(track)
+                                        .into_iter()
+                                        .map(|(ms, _)| ms as f64 / 1000.0)
                                 })
                                 .collect();
-                            times.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                            times.sort_by(|a, b| a.total_cmp(b));
+                            times.dedup_by(|a, b| (*a - *b).abs() < 0.001);
                             Some((name.clone(), times))
                         }).collect()
                     })

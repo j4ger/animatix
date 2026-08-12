@@ -1045,50 +1045,45 @@ impl Timeline {
         debug_options: DebugRenderOptions,
         filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
     ) -> vello::Scene {
-        let time_ms = (time_s * 1000.0) as u64;
-        let needs_frame_env = self.needs_frame_env();
-        let has_child_orders = !self.child_orders.is_empty();
-        if filter_backend.is_none()
-            && debug_options == DebugRenderOptions::default()
-            && self.try_restore_frame_cache(
-                time_ms,
-                scene_dimensions,
-                needs_frame_env,
-                has_child_orders,
-                false,
-            )
+        if let Some(program) =
+            self.restore_frame_cache(time_s, scene_dimensions, debug_options, filter_backend, false)
         {
-            let cached = self.frame_cache.borrow();
-            return cached.as_ref().expect("restored frame cache").program.scene.clone();
+            return program.scene;
         }
         self.evaluate_program_inner(time_s, scene_dimensions, debug_options, filter_backend, false)
             .scene
     }
 
     /// Restore cache-derived frame state when a frame cache entry matches.
-    fn try_restore_frame_cache(
+    fn restore_frame_cache(
         &self,
-        time_ms: u64,
+        time_s: f64,
         scene_dimensions: SceneDimensions,
-        needs_frame_env: bool,
-        has_child_orders: bool,
+        debug_options: DebugRenderOptions,
+        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
         collect_items: bool,
-    ) -> bool {
-        if let Some(ref cached) = *self.frame_cache.borrow() {
-            if cached.time_ms == time_ms
-                && cached.dimensions == scene_dimensions
-                && cached.has_modifiers == needs_frame_env
-                && cached.has_dynamic_layout == self.dynamic_layout
-                && cached.has_child_orders == has_child_orders
-                && cached.collect_items == collect_items
-            {
-                *self.precise_bounds_cache.borrow_mut() = cached.program.precise_bounds.clone();
-                *self.runtime_diagnostics.borrow_mut() = cached.program.diagnostics.clone();
-                self.hit_regions.borrow_mut().clear();
-                return true;
-            }
+    ) -> Option<crate::timeline::scene_program::SceneProgram> {
+        if filter_backend.is_some() || debug_options != DebugRenderOptions::default() {
+            return None;
         }
-        false
+        let time_ms = (time_s * 1000.0) as u64;
+        let needs_frame_env = self.needs_frame_env();
+        let has_child_orders = !self.child_orders.is_empty();
+        let cached = self.frame_cache.borrow();
+        let cached = cached.as_ref()?;
+        if cached.time_ms != time_ms
+            || cached.dimensions != scene_dimensions
+            || cached.has_modifiers != needs_frame_env
+            || cached.has_dynamic_layout != self.dynamic_layout
+            || cached.has_child_orders != has_child_orders
+            || cached.collect_items != collect_items
+        {
+            return None;
+        }
+        *self.precise_bounds_cache.borrow_mut() = cached.program.precise_bounds.clone();
+        *self.runtime_diagnostics.borrow_mut() = cached.program.diagnostics.clone();
+        self.hit_regions.borrow_mut().clear();
+        Some(cached.program.clone())
     }
 
     /// Evaluate the timeline into an observable [`SceneProgram`].
@@ -1115,26 +1110,19 @@ impl Timeline {
         filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
         collect_items: bool,
     ) -> crate::timeline::scene_program::SceneProgram {
+        if let Some(program) = self.restore_frame_cache(
+            time_s,
+            scene_dimensions,
+            debug_options,
+            filter_backend,
+            collect_items,
+        ) {
+            return program;
+        }
+
         let time_ms = (time_s * 1000.0) as u64;
         let needs_frame_env = self.needs_frame_env();
         let has_child_orders = !self.child_orders.is_empty();
-        if filter_backend.is_none() && debug_options == DebugRenderOptions::default() {
-            if self.try_restore_frame_cache(
-                time_ms,
-                scene_dimensions,
-                needs_frame_env,
-                has_child_orders,
-                collect_items,
-            ) {
-                return self
-                    .frame_cache
-                    .borrow()
-                    .as_ref()
-                    .expect("restored frame cache")
-                    .program
-                    .clone();
-            }
-        }
 
         // Clear stale runtime diagnostics from previous frame.
         self.clear_runtime_diagnostics();

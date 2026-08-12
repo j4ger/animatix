@@ -657,7 +657,7 @@ mod tests {
         ctx.data(|d| {
             let still_open: Option<bool> = d.get_temp(open_key(popover.id));
             assert!(
-                still_open.is_none() || !still_open.unwrap(),
+                still_open.is_none() || !still_open.unwrap_or(false),
                 "open state flag should be absent or false after close"
             );
         });
