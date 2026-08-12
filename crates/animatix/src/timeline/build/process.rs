@@ -177,7 +177,10 @@ impl Timeline {
                                 .entry(name.clone())
                                 .or_default()
                                 .keyframes
-                                .insert(time_ms as u64, val);
+                                .insert(time_ms as u64, val.clone());
+                            // Make the shadowed value visible to subsequent statements
+                            // in the same build pass (algorithm precomputation).
+                            self.env.set(name, val);
                         },
                         Err(e) => {
                             diagnostics.push(
@@ -243,6 +246,22 @@ impl Timeline {
                         // through silently.
                     }
                 },
+                Stmt::Conditional {
+                    condition,
+                    then_branch,
+                    else_branch,
+                    ..
+                } => {
+                    let eval_env = self.build_eval_env(time_ms as u64);
+                    let truthy = evaluate_expr(condition, &eval_env)
+                        .map(|value| value.as_num() != 0.0)
+                        .unwrap_or(false);
+                    if truthy {
+                        self.process_body(time_ms, then_branch, parent_label, diagnostics);
+                    } else if let Some(else_branch) = else_branch {
+                        self.process_body(time_ms, else_branch, parent_label, diagnostics);
+                    }
+                },
                 Stmt::Keyframe { .. }
                 | Stmt::RelativeKeyframe { .. }
                 | Stmt::Comment(..)
@@ -252,8 +271,7 @@ impl Timeline {
                 | Stmt::Scene { .. }
                 | Stmt::Play { .. }
                 | Stmt::ComponentDef(..)
-                | Stmt::ComponentAction { .. }
-                | Stmt::Conditional { .. } => {},
+                | Stmt::ComponentAction { .. } => {},
             }
         }
     }

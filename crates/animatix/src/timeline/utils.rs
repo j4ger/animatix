@@ -113,10 +113,21 @@ fn hash_value<V: Hasher>(value: &Value, hasher: &mut V) {
         Value::List(items) => {
             7u8.hash(hasher);
             items.len().hash(hasher);
+            for item in items {
+                hash_value(item, hasher);
+            }
         },
-        Value::Object(name, _) => {
+        Value::Object(name, fields) => {
             8u8.hash(hasher);
             name.hash(hasher);
+            let mut field_names: Vec<&String> = fields.keys().collect();
+            field_names.sort();
+            for field in field_names {
+                field.hash(hasher);
+                if let Some(value) = fields.get(field) {
+                    hash_value(value, hasher);
+                }
+            }
         },
         Value::NativeFn(_) => {
             9u8.hash(hasher);

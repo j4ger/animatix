@@ -1535,6 +1535,32 @@ let swapped = list_swap(arr, 0, 2)   // {8, 2, 5}
 let replaced = list_set(arr, 1, 9)   // {5, 9, 8}
 ```
 
+### Build-Time Algorithm Precomputation
+
+Sequential algorithms (sorting, simulation steps, event lists) are expressed at
+build time by shadowing a `let` binding inside a `for` loop. The later `let`
+overwrites the variable track at the current keyframe time, and subsequent
+statements in the same build pass read the new value. `if` and `match` bodies
+are evaluated at build time inside keyframes, so they may emit actions.
+
+```animatix
+#0s
+let arr = {5, 2, 8, 1, 9, 3}
+for i in {0, 1, 2, 3, 4} {
+  for j in {0, 1, 2, 3} {
+    if arr[j] > arr[j+1] {
+      swap bars[j], bars[j+1] [300ms]
+      let arr = list_swap(arr, j, j+1)
+    }
+  }
+}
+```
+
+This preserves the frame-time random-access guarantee: no per-frame mutable
+state is introduced. Frame-time branching still uses `if`/`match` inside
+`always`, and sequential algorithms are precomputed into an event list at build
+time.
+
 ### Match
 
 Animatix supports Rust-style `match` as both an expression and a statement.

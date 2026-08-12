@@ -262,6 +262,44 @@ fn always_object_field_writes_update_frame_environment() {
 }
 
 #[test]
+fn build_time_for_loop_let_shadowing_carries_algorithm_state() {
+    let source = r#"
+#0s
+let arr = {2, 1}
+for i in {0} {
+  if arr[0] > arr[1] {
+    let arr = list_swap(arr, 0, 1)
+  }
+  let done = arr[0] == 1
+}
+"#;
+    let parsed = animatix_syntax::parser::parse_canonical(source);
+    assert!(parsed.parse_errors.is_empty(), "parse errors: {:?}", parsed.parse_errors);
+    let report = Timeline::build_with_diagnostics(
+        parsed.statements.as_ref().expect("statements"),
+        &std::collections::HashMap::new(),
+    );
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+
+    let arr = timeline.variable_tracks.get("arr").expect("arr track");
+    assert_eq!(
+        arr.evaluate(0),
+        Some(Value::List(vec![Value::Num(1.0), Value::Num(2.0)])),
+        "the shadowing let should carry list_swap state into the same build pass"
+    );
+    let done = timeline.variable_tracks.get("done").expect("done track");
+    assert_eq!(
+        done.evaluate(0),
+        Some(Value::Num(1.0)),
+        "later statements in the same keyframe should read the shadowed value"
+    );
+}
+#[test]
 fn always_nested_object_field_writes_update_frame_environment() {
     let ast = vec![Stmt::Keyframe {
         time: crate::ast::Time::Seconds(0.0),
