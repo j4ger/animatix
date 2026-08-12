@@ -515,71 +515,36 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                 ctx.render_preview_overlays(ui, preview_rect);
                 ctx.render_preview_content(ui, preview_rect);
 
+                let overlay_tx = ctx.preview_transform(preview_rect);
+
                 // ── Scene bounds overlay ──
                 if ctx.preview.overlay.show_scene_bounds {
-                    let bounds_rect = preview::scene_to_screen(
-                        kurbo::Point::new(0.0, 0.0),
+                    let ops = crate::app::preview::overlay_ops::scene_bounds_ops(
+                        &theme,
+                        overlay_tx,
                         preview_rect,
-                        ctx.scene_dimensions,
-                        preview_rect.size(),
-                        ctx.preview.viewport.preview_zoom,
-                        ctx.preview.viewport.preview_pan,
                     );
-                    let bounds_br = preview::scene_to_screen(
-                        kurbo::Point::new(
-                            ctx.scene_dimensions.width as f64,
-                            ctx.scene_dimensions.height as f64,
-                        ),
-                        preview_rect,
-                        ctx.scene_dimensions,
-                        preview_rect.size(),
-                        ctx.preview.viewport.preview_zoom,
-                        ctx.preview.viewport.preview_pan,
-                    );
-                    let bounds_screen =
-                        egui::Rect::from_min_max(bounds_rect, bounds_br).intersect(preview_rect);
-                    if bounds_screen.is_positive() {
-                        ui.painter().rect_stroke(
-                            bounds_screen,
-                            0.0,
-                            egui::Stroke::new(STROKE_WIDTH, theme.border.strong),
-                            egui::StrokeKind::Inside,
-                        );
-                    }
+                    crate::app::preview::overlay_ops::execute_overlay_ops(ui.painter(), &ops);
                 }
 
                 // ── Actor labels overlay ──
                 if ctx.preview.overlay.show_actor_labels {
-                    for (label, bounds) in ctx.hit_regions {
-                        let center = preview::scene_to_screen(
-                            kurbo::Point::new((bounds.x0 + bounds.x1) / 2.0, bounds.y0 - 4.0),
-                            preview_rect,
-                            ctx.scene_dimensions,
-                            preview_rect.size(),
-                            ctx.preview.viewport.preview_zoom,
-                            ctx.preview.viewport.preview_pan,
-                        );
-                        ui.painter().text(
-                            center,
-                            egui::Align2::CENTER_BOTTOM,
-                            label,
-                            TextRole::Micro.font_id(),
-                            theme.text.muted,
-                        );
-                    }
+                    let ops = crate::app::preview::overlay_ops::actor_label_ops(
+                        &theme,
+                        ctx.hit_regions,
+                        overlay_tx,
+                    );
+                    crate::app::preview::overlay_ops::execute_overlay_ops(ui.painter(), &ops);
                 }
 
                 // Draw grid overlay
                 if ctx.preview.overlay.show_grid {
-                    preview::grid::draw_grid(
-                        ui.painter(),
-                        theme,
-                        ctx.scene_dimensions,
-                        preview_rect,
-                        ctx.preview.viewport.preview_zoom,
-                        ctx.preview.viewport.preview_pan,
+                    let ops = crate::app::preview::overlay_ops::grid_ops(
+                        &theme,
+                        overlay_tx,
                         ctx.preview.overlay.grid_size,
                     );
+                    crate::app::preview::overlay_ops::execute_overlay_ops(ui.painter(), &ops);
                 }
 
                 // ── Layout debug overlay ──
@@ -592,36 +557,14 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
 
                 // ── Draw snap indicator lines ──
                 if let Some(color) = ctx.preview.snap.snap_line_color {
-                    for &sy in &ctx.preview.snap.snap_lines_h {
-                        let screen_pt = ctx.preview_scene_to_screen(
-                            preview_rect,
-                            kurbo::Point::new(0.0, sy as f64),
-                        );
-                        if screen_pt.y >= preview_rect.min.y && screen_pt.y <= preview_rect.max.y {
-                            ui.painter().line_segment(
-                                [
-                                    egui::pos2(preview_rect.min.x, screen_pt.y),
-                                    egui::pos2(preview_rect.max.x, screen_pt.y),
-                                ],
-                                egui::Stroke::new(STROKE_WIDTH, color),
-                            );
-                        }
-                    }
-                    for &sx in &ctx.preview.snap.snap_lines_v {
-                        let screen_pt = ctx.preview_scene_to_screen(
-                            preview_rect,
-                            kurbo::Point::new(sx as f64, 0.0),
-                        );
-                        if screen_pt.x >= preview_rect.min.x && screen_pt.x <= preview_rect.max.x {
-                            ui.painter().line_segment(
-                                [
-                                    egui::pos2(screen_pt.x, preview_rect.min.y),
-                                    egui::pos2(screen_pt.x, preview_rect.max.y),
-                                ],
-                                egui::Stroke::new(STROKE_WIDTH, color),
-                            );
-                        }
-                    }
+                    let ops = crate::app::preview::overlay_ops::snap_guide_ops(
+                        color,
+                        preview_rect,
+                        &ctx.preview.snap.snap_lines_h,
+                        &ctx.preview.snap.snap_lines_v,
+                        overlay_tx,
+                    );
+                    crate::app::preview::overlay_ops::execute_overlay_ops(ui.painter(), &ops);
                 }
 
                 ctx.render_preview_selection_overlay(ui, preview_rect, is_dragging);

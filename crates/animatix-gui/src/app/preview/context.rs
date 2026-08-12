@@ -16,6 +16,11 @@ use crate::app::design_tokens::spatial::preview::{
 };
 use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;
+use crate::app::preview::overlay_ops::{
+    PreviewOverlayOp, cycle_indicator_ops, execute_overlay_ops, ghost_overlay_ops,
+    hover_highlight_ops, layout_debug_ops, motion_path_ops, multi_selection_overlay_ops,
+    reorder_overlay_ops, selection_overlay_ops,
+};
 use crate::app::preview::performance::PerformanceMetrics;
 use crate::app::preview::{self, ActorProps, DragState, selection};
 use crate::app::{InlineTextEditState, PreviewPaneState};
@@ -657,6 +662,7 @@ impl PreviewContext<'_> {
             return;
         }
 
+        let mut ops: Vec<PreviewOverlayOp> = Vec::new();
         if let Some(mouse) =
             ui.ctx().input(|i| i.pointer.latest_pos()).filter(|p| preview_rect.contains(*p))
         {
@@ -664,13 +670,12 @@ impl PreviewContext<'_> {
                 .selected_actors
                 .contains(self.selection.hovered_actor.as_deref().unwrap_or(""))
             {
-                selection::draw_cycle_indicator(
-                    ui.painter(),
-                    theme,
+                ops.extend(cycle_indicator_ops(
+                    &theme,
                     mouse,
                     self.selection.cycle_index,
                     self.selection.click_candidates.len(),
-                );
+                ));
             }
         }
 
@@ -686,11 +691,12 @@ impl PreviewContext<'_> {
                         self.preview.viewport.preview_zoom,
                         self.preview.viewport.preview_pan,
                     ) {
-                        selection::draw_hover_highlight(ui.painter(), theme, hovered, hover_rect);
+                        ops.extend(hover_highlight_ops(&theme, hovered, hover_rect));
                     }
                 }
             }
         }
+        execute_overlay_ops(ui.painter(), &ops);
 
         if self.preview.overlay.show_snap_guides {
             if let DragState::Move { primary, .. } | DragState::Scale { actor: primary, .. } =
@@ -895,92 +901,18 @@ impl PreviewContext<'_> {
             return;
         }
 
-        let timeline = match self.timeline {
-            Some(t) => t,
-            None => return,
+        let Some(timeline) = self.timeline else {
+            return;
         };
 
-        for actor in self.selected_actors.iter() {
-            let track = match timeline.get_track(actor) {
-                Some(t) => t,
-                None => continue,
-            };
-            let pos_track = match &track.geometry.position {
-                Some(pt) => pt,
-                None => continue,
-            };
-            if pos_track.keyframes().len() < 2 {
-                continue;
-            }
-
-            // Collect keyframe positions
-            let mut kf_points: Vec<(u64, [f32; 2])> = Vec::new();
-            for (&time_ms, (val, _)) in pos_track.keyframes() {
-                kf_points.push((time_ms, *val));
-            }
-            kf_points.sort_by_key(|(t, _)| *t);
-
-            // Draw path lines
-            let path_color = theme.accent.primary.gamma_multiply(0.6);
-            let path_stroke = egui::Stroke::new(1.5, path_color);
-            for i in 0..kf_points.len().saturating_sub(1) {
-                let p1_screen = preview::scene_to_screen(
-                    kurbo::Point::new(kf_points[i].1[0] as f64, kf_points[i].1[1] as f64),
-                    preview_rect,
-                    self.scene_dimensions,
-                    preview_rect.size(),
-                    self.preview.viewport.preview_zoom,
-                    self.preview.viewport.preview_pan,
-                );
-                let p2_screen = preview::scene_to_screen(
-                    kurbo::Point::new(kf_points[i + 1].1[0] as f64, kf_points[i + 1].1[1] as f64),
-                    preview_rect,
-                    self.scene_dimensions,
-                    preview_rect.size(),
-                    self.preview.viewport.preview_zoom,
-                    self.preview.viewport.preview_pan,
-                );
-                ui.painter().line_segment([p1_screen, p2_screen], path_stroke);
-            }
-
-            // Draw keyframe dots
-            for (time_ms, pos) in &kf_points {
-                let screen = preview::scene_to_screen(
-                    kurbo::Point::new(pos[0] as f64, pos[1] as f64),
-                    preview_rect,
-                    self.scene_dimensions,
-                    preview_rect.size(),
-                    self.preview.viewport.preview_zoom,
-                    self.preview.viewport.preview_pan,
-                );
-                let current_time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
-                let is_current = *time_ms == current_time_ms;
-                let dot_color = if is_current {
-                    theme.status.warning
-                } else {
-                    theme.accent.primary
-                };
-                let dot_radius = if is_current { 5.0 } else { 3.5 };
-                ui.painter().circle_filled(screen, dot_radius, dot_color);
-                if is_current {
-                    ui.painter().circle_stroke(
-                        screen,
-                        dot_radius + 2.0,
-                        egui::Stroke::new(1.0, theme.status.warning),
-                    );
-                }
-
-                // Time label
-                let time_label = format!("{:.1}s", *time_ms as f64 / 1000.0);
-                ui.painter().text(
-                    egui::pos2(screen.x, screen.y - dot_radius - 4.0),
-                    egui::Align2::CENTER_BOTTOM,
-                    time_label,
-                    TextRole::Micro.font_id(),
-                    theme.text.muted,
-                );
-            }
-        }
+        let ops = motion_path_ops(
+            &theme,
+            timeline,
+            self.selected_actors.iter().cloned(),
+            self.preview.playback.current_time_s(),
+            self.preview_transform(preview_rect),
+        );
+        execute_overlay_ops(ui.painter(), &ops);
     }
 
     pub(crate) fn render_preview_selection_overlay(
@@ -990,6 +922,7 @@ impl PreviewContext<'_> {
         is_dragging: bool,
     ) {
         let theme = eparts::theme(ui);
+        let tx = self.preview_transform(preview_rect);
         if self.selected_actors.len() > 1 {
             let mut screen_rects = Vec::new();
             for actor in self.selected_actors.iter() {
@@ -1004,14 +937,7 @@ impl PreviewContext<'_> {
                     for corner in &local_corners {
                         let world =
                             preview::local_to_world(*corner, props.position, props.rotation);
-                        let screen = preview::scene_to_screen(
-                            world,
-                            preview_rect,
-                            self.scene_dimensions,
-                            preview_rect.size(),
-                            self.preview.viewport.preview_zoom,
-                            self.preview.viewport.preview_pan,
-                        );
+                        let screen = tx.scene_to_screen(world);
                         min_x = min_x.min(screen.x);
                         min_y = min_y.min(screen.y);
                         max_x = max_x.max(screen.x);
@@ -1023,69 +949,37 @@ impl PreviewContext<'_> {
                     ));
                 } else if let Some((_, bounds)) = self.hit_regions.iter().find(|(l, _)| l == actor)
                 {
-                    let top_left = preview::scene_to_screen(
-                        kurbo::Point::new(bounds.x0, bounds.y0),
-                        preview_rect,
-                        self.scene_dimensions,
-                        preview_rect.size(),
-                        self.preview.viewport.preview_zoom,
-                        self.preview.viewport.preview_pan,
-                    );
-                    let br = preview::scene_to_screen(
-                        kurbo::Point::new(bounds.x1, bounds.y1),
-                        preview_rect,
-                        self.scene_dimensions,
-                        preview_rect.size(),
-                        self.preview.viewport.preview_zoom,
-                        self.preview.viewport.preview_pan,
-                    );
+                    let top_left = tx.scene_to_screen(kurbo::Point::new(bounds.x0, bounds.y0));
+                    let br = tx.scene_to_screen(kurbo::Point::new(bounds.x1, bounds.y1));
                     screen_rects.push(egui::Rect::from_min_max(top_left, br));
                 }
             }
-            preview::draw_multi_selection_overlay(
-                ui.painter(),
-                theme,
+            let ops = multi_selection_overlay_ops(
+                &theme,
                 &screen_rects,
                 is_dragging,
                 ui.ctx().pixels_per_point(),
             );
+            execute_overlay_ops(ui.painter(), &ops);
             return;
         }
 
         for actor in self.selected_actors.iter() {
             let props = self.get_actor_props(actor);
             let fallback = self.hit_regions.iter().find(|(l, _)| l == actor).map(|(_, bounds)| {
-                let tl = preview::scene_to_screen(
-                    kurbo::Point::new(bounds.x0, bounds.y0),
-                    preview_rect,
-                    self.scene_dimensions,
-                    preview_rect.size(),
-                    self.preview.viewport.preview_zoom,
-                    self.preview.viewport.preview_pan,
-                );
-                let br = preview::scene_to_screen(
-                    kurbo::Point::new(bounds.x1, bounds.y1),
-                    preview_rect,
-                    self.scene_dimensions,
-                    preview_rect.size(),
-                    self.preview.viewport.preview_zoom,
-                    self.preview.viewport.preview_pan,
-                );
+                let tl = tx.scene_to_screen(kurbo::Point::new(bounds.x0, bounds.y0));
+                let br = tx.scene_to_screen(kurbo::Point::new(bounds.x1, bounds.y1));
                 egui::Rect::from_min_max(tl, br)
             });
-            preview::draw_selection_overlay(
-                ui.painter(),
-                theme,
+            let ops = selection_overlay_ops(
+                &theme,
                 props.as_ref(),
                 fallback,
                 is_dragging,
-                preview_rect,
-                self.scene_dimensions,
-                preview_rect.size(),
                 ui.ctx().pixels_per_point(),
-                self.preview.viewport.preview_zoom,
-                self.preview.viewport.preview_pan,
+                tx,
             );
+            execute_overlay_ops(ui.painter(), &ops);
 
             let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
             let points = self
@@ -1374,34 +1268,27 @@ impl PreviewContext<'_> {
                             next_time_ms = Some(time_ms);
                         }
                     }
+                    let tx = self.preview_transform(preview_rect);
+                    let mut ghost_ops = Vec::new();
                     if let Some(prev_ms) = prev_time_ms {
                         if let Some(prev_props) = self.get_actor_props_at_time(actor, prev_ms) {
-                            preview::draw_ghost_overlay(
-                                ui.painter(),
+                            ghost_ops.extend(ghost_overlay_ops(
                                 &prev_props,
-                                preview_rect,
-                                self.scene_dimensions,
-                                preview_rect.size(),
-                                self.preview.viewport.preview_zoom,
-                                self.preview.viewport.preview_pan,
+                                tx,
                                 crate::app::design_tokens::semantic::canvas::ghost_prev(),
-                            );
+                            ));
                         }
                     }
                     if let Some(next_ms) = next_time_ms {
                         if let Some(next_props) = self.get_actor_props_at_time(actor, next_ms) {
-                            preview::draw_ghost_overlay(
-                                ui.painter(),
+                            ghost_ops.extend(ghost_overlay_ops(
                                 &next_props,
-                                preview_rect,
-                                self.scene_dimensions,
-                                preview_rect.size(),
-                                self.preview.viewport.preview_zoom,
-                                self.preview.viewport.preview_pan,
+                                tx,
                                 crate::app::design_tokens::semantic::canvas::ghost_next(),
-                            );
+                            ));
                         }
                     }
+                    execute_overlay_ops(ui.painter(), &ghost_ops);
                 }
             }
 
@@ -1425,19 +1312,15 @@ impl PreviewContext<'_> {
                             })
                             .collect();
                         if let Some(props) = props.as_ref() {
-                            preview::draw_reorder_overlay(
-                                ui.painter(),
-                                theme,
+                            let ops = reorder_overlay_ops(
+                                &theme,
                                 props,
                                 target_index,
                                 &siblings,
-                                preview_rect,
-                                self.scene_dimensions,
-                                preview_rect.size(),
+                                self.preview_transform(preview_rect),
                                 layout_type == animatix::timeline::LayoutType::Row,
-                                self.preview.viewport.preview_zoom,
-                                self.preview.viewport.preview_pan,
                             );
+                            execute_overlay_ops(ui.painter(), &ops);
                         }
                     }
                 }
@@ -1468,17 +1351,14 @@ impl PreviewContext<'_> {
             return;
         }
         let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
-        crate::app::preview::overlay::render_layout_debug(
-            ui.painter(),
-            theme,
+        let ops = layout_debug_ops(
+            &theme,
             timeline,
             time_ms,
-            preview_rect,
-            self.scene_dimensions,
-            self.preview.viewport.preview_zoom,
-            self.preview.viewport.preview_pan,
+            self.preview_transform(preview_rect),
             self.debug_spacing,
         );
+        execute_overlay_ops(ui.painter(), &ops);
     }
 }
 

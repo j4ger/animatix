@@ -6,12 +6,9 @@
 use std::collections::HashSet;
 
 use animatix::timeline::animation_track::CalloutPlace;
-use egui::{Pos2, Vec2};
+use egui::Pos2;
 
-use super::*;
 use crate::app::components::context_menu::{MenuEntry, render_floating_menu};
-use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
-use crate::app::design_tokens::typography::TextRole;
 
 // ─── Selection State ────────────────────────────────────────────────────────
 
@@ -215,91 +212,8 @@ pub(crate) fn draw_context_menu(
     (selected, close, Some(menu_rect))
 }
 
-// ─── Hover Overlay Drawing ──────────────────────────────────────────────────
-
-/// Draw hover highlight for the actor under the cursor.
-pub(crate) fn draw_hover_highlight(
-    painter: &egui::Painter,
-    theme: eparts::Theme,
-    hovered_actor: &str,
-    hover_rect: egui::Rect,
-) {
-    // Subtle dashed outline for hover
-    let hover_color = theme.accent.ghost;
-    let dash_len = 4.0;
-    let gap_len = 3.0;
-    let corners = [
-        hover_rect.left_top(),
-        hover_rect.right_top(),
-        hover_rect.right_bottom(),
-        hover_rect.left_bottom(),
-    ];
-
-    for i in 0..4 {
-        let start = corners[i];
-        let end = corners[(i + 1) % 4];
-        let total = start.distance(end);
-        let mut pos = 0.0;
-        while pos < total {
-            let t0 = pos / total;
-            let t1 = ((pos + dash_len).min(total)) / total;
-            let p0 = Pos2::new(start.x + (end.x - start.x) * t0, start.y + (end.y - start.y) * t0);
-            let p1 = Pos2::new(start.x + (end.x - start.x) * t1, start.y + (end.y - start.y) * t1);
-            painter.line_segment([p0, p1], Stroke::new(STROKE_WIDTH, hover_color));
-            pos += dash_len + gap_len;
-        }
-    }
-
-    // Tooltip with actor name
-    let tooltip_pos = egui::pos2(hover_rect.center().x, hover_rect.top() - 20.0);
-    let galley = painter.layout_no_wrap(
-        hovered_actor.to_string(),
-        TextRole::BodyS.font_id(),
-        theme.text.primary,
-    );
-    let tooltip_size = galley.size();
-    let tooltip_rect =
-        egui::Rect::from_center_size(tooltip_pos, tooltip_size + Vec2::new(8.0, 4.0));
-
-    painter.rect_filled(tooltip_rect, RADIUS_M, theme.overlay.badge_bg);
-    painter.rect_stroke(
-        tooltip_rect,
-        RADIUS_M,
-        Stroke::new(STROKE_WIDTH, theme.border.default),
-        egui::StrokeKind::Outside,
-    );
-    painter.galley(
-        tooltip_rect.left_center() + Vec2::new(4.0, -tooltip_size.y / 2.0),
-        galley,
-        theme.text.primary,
-    );
-}
-
-// ─── Cycle Indicator Drawing ────────────────────────────────────────────────
-
-/// Draw the cycle indicator showing "2/5" near the cursor.
-pub(crate) fn draw_cycle_indicator(
-    painter: &egui::Painter,
-    theme: eparts::Theme,
-    mouse_pos: Pos2,
-    cycle_index: usize,
-    total_candidates: usize,
-) {
-    if total_candidates <= 1 {
-        return;
-    }
-
-    let indicator_text = format!("{}/{}", cycle_index + 1, total_candidates);
-    let indicator_pos = egui::pos2(mouse_pos.x + 16.0, mouse_pos.y - 8.0);
-
-    let galley =
-        painter.layout_no_wrap(indicator_text, TextRole::BodyS.font_id(), theme.text.primary);
-    let size = galley.size();
-    let rect = egui::Rect::from_center_size(indicator_pos, size + Vec2::new(6.0, 3.0));
-
-    painter.rect_filled(rect, RADIUS_M, theme.accent.strong);
-    painter.galley(rect.left_center() + Vec2::new(3.0, -size.y / 2.0), galley, theme.text.primary);
-}
+// Hover/cycle drawing now lives in `overlay_ops.rs` so overlay behavior can be
+// tested without a live egui painter.
 
 #[cfg(test)]
 mod tests {
