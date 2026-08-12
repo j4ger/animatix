@@ -519,12 +519,13 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
 
                 // ── Scene bounds overlay ──
                 if ctx.preview.overlay.show_scene_bounds {
-                    let ops = crate::app::preview::overlay_ops::scene_bounds_ops(
-                        &theme,
-                        overlay_tx,
-                        preview_rect,
+                    let ops =
+                        crate::app::preview::overlay_ops::scene_bounds_ops(&theme, overlay_tx);
+                    crate::app::preview::overlay_ops::execute_overlay_ops(
+                        ui.painter(),
+                        &ops,
+                        &overlay_tx,
                     );
-                    crate::app::preview::overlay_ops::execute_overlay_ops(ui.painter(), &ops);
                 }
 
                 // ── Actor labels overlay ──
@@ -534,7 +535,11 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                         ctx.hit_regions,
                         overlay_tx,
                     );
-                    crate::app::preview::overlay_ops::execute_overlay_ops(ui.painter(), &ops);
+                    crate::app::preview::overlay_ops::execute_overlay_ops(
+                        ui.painter(),
+                        &ops,
+                        &overlay_tx,
+                    );
                 }
 
                 // Draw grid overlay
@@ -544,7 +549,11 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                         overlay_tx,
                         ctx.preview.overlay.grid_size,
                     );
-                    crate::app::preview::overlay_ops::execute_overlay_ops(ui.painter(), &ops);
+                    crate::app::preview::overlay_ops::execute_overlay_ops(
+                        ui.painter(),
+                        &ops,
+                        &overlay_tx,
+                    );
                 }
 
                 // ── Layout debug overlay ──
@@ -559,12 +568,15 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                 if let Some(color) = ctx.preview.snap.snap_line_color {
                     let ops = crate::app::preview::overlay_ops::snap_guide_ops(
                         color,
-                        preview_rect,
                         &ctx.preview.snap.snap_lines_h,
                         &ctx.preview.snap.snap_lines_v,
                         overlay_tx,
                     );
-                    crate::app::preview::overlay_ops::execute_overlay_ops(ui.painter(), &ops);
+                    crate::app::preview::overlay_ops::execute_overlay_ops(
+                        ui.painter(),
+                        &ops,
+                        &overlay_tx,
+                    );
                 }
 
                 ctx.render_preview_selection_overlay(ui, preview_rect, is_dragging);

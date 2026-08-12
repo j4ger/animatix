@@ -662,6 +662,7 @@ impl PreviewContext<'_> {
             return;
         }
 
+        let tx = self.preview_transform(preview_rect);
         let mut ops: Vec<PreviewOverlayOp> = Vec::new();
         if let Some(mouse) =
             ui.ctx().input(|i| i.pointer.latest_pos()).filter(|p| preview_rect.contains(*p))
@@ -691,12 +692,20 @@ impl PreviewContext<'_> {
                         self.preview.viewport.preview_zoom,
                         self.preview.viewport.preview_pan,
                     ) {
-                        ops.extend(hover_highlight_ops(&theme, hovered, hover_rect));
+                        let scene_min = tx.screen_to_scene(hover_rect.min);
+                        let scene_max = tx.screen_to_scene(hover_rect.max);
+                        let hover_scene = kurbo::Rect::new(
+                            scene_min.x.min(scene_max.x),
+                            scene_min.y.min(scene_max.y),
+                            scene_min.x.max(scene_max.x),
+                            scene_min.y.max(scene_max.y),
+                        );
+                        ops.extend(hover_highlight_ops(&theme, hovered, hover_scene, tx));
                     }
                 }
             }
         }
-        execute_overlay_ops(ui.painter(), &ops);
+        execute_overlay_ops(ui.painter(), &ops, &tx);
 
         if self.preview.overlay.show_snap_guides {
             if let DragState::Move { primary, .. } | DragState::Scale { actor: primary, .. } =
@@ -905,14 +914,15 @@ impl PreviewContext<'_> {
             return;
         };
 
+        let tx = self.preview_transform(preview_rect);
         let ops = motion_path_ops(
             &theme,
             timeline,
             self.selected_actors.iter().cloned(),
             self.preview.playback.current_time_s(),
-            self.preview_transform(preview_rect),
+            tx,
         );
-        execute_overlay_ops(ui.painter(), &ops);
+        execute_overlay_ops(ui.painter(), &ops, &tx);
     }
 
     pub(crate) fn render_preview_selection_overlay(
@@ -924,53 +934,45 @@ impl PreviewContext<'_> {
         let theme = eparts::theme(ui);
         let tx = self.preview_transform(preview_rect);
         if self.selected_actors.len() > 1 {
-            let mut screen_rects = Vec::new();
+            let mut scene_rects = Vec::new();
             for actor in self.selected_actors.iter() {
                 if let Some(props) = self.get_actor_props(actor) {
                     let hw = props.size[0] / 2.0;
                     let hh = props.size[1] / 2.0;
                     let local_corners = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
-                    let mut min_x = f32::INFINITY;
-                    let mut min_y = f32::INFINITY;
-                    let mut max_x = f32::NEG_INFINITY;
-                    let mut max_y = f32::NEG_INFINITY;
+                    let mut min_x = f64::INFINITY;
+                    let mut min_y = f64::INFINITY;
+                    let mut max_x = f64::NEG_INFINITY;
+                    let mut max_y = f64::NEG_INFINITY;
                     for corner in &local_corners {
                         let world =
                             preview::local_to_world(*corner, props.position, props.rotation);
-                        let screen = tx.scene_to_screen(world);
-                        min_x = min_x.min(screen.x);
-                        min_y = min_y.min(screen.y);
-                        max_x = max_x.max(screen.x);
-                        max_y = max_y.max(screen.y);
+                        min_x = min_x.min(world.x);
+                        min_y = min_y.min(world.y);
+                        max_x = max_x.max(world.x);
+                        max_y = max_y.max(world.y);
                     }
-                    screen_rects.push(egui::Rect::from_min_max(
-                        egui::pos2(min_x, min_y),
-                        egui::pos2(max_x, max_y),
-                    ));
+                    scene_rects.push(kurbo::Rect::new(min_x, min_y, max_x, max_y));
                 } else if let Some((_, bounds)) = self.hit_regions.iter().find(|(l, _)| l == actor)
                 {
-                    let top_left = tx.scene_to_screen(kurbo::Point::new(bounds.x0, bounds.y0));
-                    let br = tx.scene_to_screen(kurbo::Point::new(bounds.x1, bounds.y1));
-                    screen_rects.push(egui::Rect::from_min_max(top_left, br));
+                    scene_rects.push(*bounds);
                 }
             }
             let ops = multi_selection_overlay_ops(
                 &theme,
-                &screen_rects,
+                &scene_rects,
                 is_dragging,
                 ui.ctx().pixels_per_point(),
+                tx,
             );
-            execute_overlay_ops(ui.painter(), &ops);
+            execute_overlay_ops(ui.painter(), &ops, &tx);
             return;
         }
 
         for actor in self.selected_actors.iter() {
             let props = self.get_actor_props(actor);
-            let fallback = self.hit_regions.iter().find(|(l, _)| l == actor).map(|(_, bounds)| {
-                let tl = tx.scene_to_screen(kurbo::Point::new(bounds.x0, bounds.y0));
-                let br = tx.scene_to_screen(kurbo::Point::new(bounds.x1, bounds.y1));
-                egui::Rect::from_min_max(tl, br)
-            });
+            let fallback =
+                self.hit_regions.iter().find(|(l, _)| l == actor).map(|(_, bounds)| *bounds);
             let ops = selection_overlay_ops(
                 &theme,
                 props.as_ref(),
@@ -979,7 +981,7 @@ impl PreviewContext<'_> {
                 ui.ctx().pixels_per_point(),
                 tx,
             );
-            execute_overlay_ops(ui.painter(), &ops);
+            execute_overlay_ops(ui.painter(), &ops, &tx);
 
             let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
             let points = self
@@ -1274,7 +1276,6 @@ impl PreviewContext<'_> {
                         if let Some(prev_props) = self.get_actor_props_at_time(actor, prev_ms) {
                             ghost_ops.extend(ghost_overlay_ops(
                                 &prev_props,
-                                tx,
                                 crate::app::design_tokens::semantic::canvas::ghost_prev(),
                             ));
                         }
@@ -1283,12 +1284,11 @@ impl PreviewContext<'_> {
                         if let Some(next_props) = self.get_actor_props_at_time(actor, next_ms) {
                             ghost_ops.extend(ghost_overlay_ops(
                                 &next_props,
-                                tx,
                                 crate::app::design_tokens::semantic::canvas::ghost_next(),
                             ));
                         }
                     }
-                    execute_overlay_ops(ui.painter(), &ghost_ops);
+                    execute_overlay_ops(ui.painter(), &ghost_ops, &tx);
                 }
             }
 
@@ -1320,7 +1320,7 @@ impl PreviewContext<'_> {
                                 self.preview_transform(preview_rect),
                                 layout_type == animatix::timeline::LayoutType::Row,
                             );
-                            execute_overlay_ops(ui.painter(), &ops);
+                            execute_overlay_ops(ui.painter(), &ops, &tx);
                         }
                     }
                 }
@@ -1351,14 +1351,9 @@ impl PreviewContext<'_> {
             return;
         }
         let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
-        let ops = layout_debug_ops(
-            &theme,
-            timeline,
-            time_ms,
-            self.preview_transform(preview_rect),
-            self.debug_spacing,
-        );
-        execute_overlay_ops(ui.painter(), &ops);
+        let tx = self.preview_transform(preview_rect);
+        let ops = layout_debug_ops(&theme, timeline, time_ms, tx, self.debug_spacing);
+        execute_overlay_ops(ui.painter(), &ops, &tx);
     }
 }
 

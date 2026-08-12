@@ -3,6 +3,12 @@
 //! Preview overlays are generated as a list of [`PreviewOverlayOp`] and executed
 //! by a single painter pass. This decouples overlay geometry/state from egui
 //! painting so behavior can be unit-tested without a GPU or a live UI frame.
+//!
+//! Geometry is authored in scene coordinates. The executor receives a
+//! [`PreviewTransform`] and maps scene geometry to the canvas. Screen-space
+//! decorations that depend on egui layout (tooltip boxes, mouse-cycle badges,
+//! HUD text) use the explicit [`ScreenOverlayOp`] variants instead of mixing
+//! coordinate spaces inside one op.
 
 use animatix::timeline::Timeline;
 use egui::{Align2, Color32, FontId, Pos2, Rect, Stroke, StrokeKind, Vec2};
@@ -64,24 +70,11 @@ impl From<&OverlayStroke> for Stroke {
     }
 }
 
-/// A drawable preview overlay primitive.
-///
-/// All geometry is in screen space; builders receive a [`PreviewTransform`] when
-/// they need to map scene coordinates to the canvas.
+/// A screen-space overlay decoration that depends on egui layout or pointer
+/// position. Screen ops are only used where scene-space geometry would not
+/// preserve the intended visual size or anchor.
 #[derive(Clone, Debug)]
-pub enum PreviewOverlayOp {
-    Line {
-        from: Pos2,
-        to: Pos2,
-        stroke: OverlayStroke,
-    },
-    DashedLine {
-        from: Pos2,
-        to: Pos2,
-        dash_len: f32,
-        gap_len: f32,
-        stroke: OverlayStroke,
-    },
+pub enum ScreenOverlayOp {
     RectStroke {
         rect: Rect,
         corner_radius: f32,
@@ -93,23 +86,6 @@ pub enum PreviewOverlayOp {
         corner_radius: f32,
         color: Color32,
     },
-    CircleFill {
-        center: Pos2,
-        radius: f32,
-        color: Color32,
-    },
-    CircleStroke {
-        center: Pos2,
-        radius: f32,
-        stroke: OverlayStroke,
-    },
-    Arc {
-        center: Pos2,
-        radius: f32,
-        start_angle: f32,
-        end_angle: f32,
-        stroke: OverlayStroke,
-    },
     Text {
         pos: Pos2,
         anchor: Align2,
@@ -117,26 +93,120 @@ pub enum PreviewOverlayOp {
         font: FontId,
         color: Color32,
     },
+}
+
+/// A drawable preview overlay primitive.
+///
+/// Scene-space geometry is authored in scene coordinates. Screen decorations
+/// are wrapped in [`PreviewOverlayOp::Screen`] and painted directly.
+#[derive(Clone, Debug)]
+pub enum PreviewOverlayOp {
+    Line {
+        from: kurbo::Point,
+        to: kurbo::Point,
+        stroke: OverlayStroke,
+    },
+    DashedLine {
+        from: kurbo::Point,
+        to: kurbo::Point,
+        dash_len: f32,
+        gap_len: f32,
+        stroke: OverlayStroke,
+    },
+    RectStroke {
+        rect: kurbo::Rect,
+        corner_radius: f32,
+        stroke: OverlayStroke,
+        stroke_kind: StrokeKind,
+    },
+    RectFill {
+        rect: kurbo::Rect,
+        corner_radius: f32,
+        color: Color32,
+    },
+    CircleFill {
+        center: kurbo::Point,
+        radius: f32,
+        color: Color32,
+    },
+    CircleStroke {
+        center: kurbo::Point,
+        radius: f32,
+        stroke: OverlayStroke,
+    },
+    Arc {
+        center: kurbo::Point,
+        radius: f32,
+        start_angle: f32,
+        end_angle: f32,
+        stroke: OverlayStroke,
+    },
+    Text {
+        pos: kurbo::Point,
+        anchor: Align2,
+        text: String,
+        font: FontId,
+        color: Color32,
+    },
     Arrow {
-        from: Pos2,
-        to: Pos2,
+        from: kurbo::Point,
+        to: kurbo::Point,
         stroke: OverlayStroke,
     },
     Badge {
-        pos: Pos2,
+        pos: kurbo::Point,
         text: String,
         bg: Color32,
         fg: Color32,
         border_stroke: OverlayStroke,
     },
+    Screen(ScreenOverlayOp),
+}
+
+/// Convert scene units per screen unit into scene-space overlay sizes.
+fn px_to_scene(tx: &PreviewTransform, px: f32) -> f32 {
+    (px as f64 * tx.scale().0) as f32
+}
+
+/// Convert a scene-space point to screen space through the preview transform.
+fn scene_to_screen(tx: &PreviewTransform, point: kurbo::Point) -> Pos2 {
+    tx.scene_to_screen(point)
+}
+
+/// Convert a scene-space rectangle to screen space.
+fn scene_rect_to_screen(tx: &PreviewTransform, rect: &kurbo::Rect) -> Rect {
+    let min = scene_to_screen(tx, kurbo::Point::new(rect.x0, rect.y0));
+    let max = scene_to_screen(tx, kurbo::Point::new(rect.x1, rect.y1));
+    Rect::from_min_max(min, max)
+}
+
+fn scene_radius_to_screen(tx: &PreviewTransform, radius: f32) -> f32 {
+    (radius as f64 / tx.scale().0) as f32
+}
+
+/// Convert a screen-space rectangle back to scene space.
+fn screen_rect_to_scene(tx: &PreviewTransform, rect: Rect) -> kurbo::Rect {
+    let min = tx.screen_to_scene(rect.min);
+    let max = tx.screen_to_scene(rect.max);
+    kurbo::Rect::new(min.x.min(max.x), min.y.min(max.y), min.x.max(max.x), min.y.max(max.y))
+}
+
+/// The scene-space viewport currently visible in the preview rect.
+fn scene_viewport(tx: &PreviewTransform) -> kurbo::Rect {
+    screen_rect_to_scene(tx, tx.preview_rect)
 }
 
 /// Execute overlay operations onto the canvas painter.
-pub fn execute_overlay_ops(painter: &egui::Painter, ops: &[PreviewOverlayOp]) {
+pub fn execute_overlay_ops(
+    painter: &egui::Painter,
+    ops: &[PreviewOverlayOp],
+    tx: &PreviewTransform,
+) {
     for op in ops {
         match op {
             PreviewOverlayOp::Line { from, to, stroke } => {
-                painter.line_segment([*from, *to], stroke);
+                painter
+                    .line_segment([scene_to_screen(tx, *from), scene_to_screen(tx, *to)], stroke);
             },
             PreviewOverlayOp::DashedLine {
                 from,
@@ -145,7 +215,9 @@ pub fn execute_overlay_ops(painter: &egui::Painter, ops: &[PreviewOverlayOp]) {
                 gap_len,
                 stroke,
             } => {
-                let total = from.distance(*to);
+                let from = scene_to_screen(tx, *from);
+                let to = scene_to_screen(tx, *to);
+                let total = from.distance(to);
                 let mut pos = 0.0;
                 while pos < total {
                     let t0 = pos / total;
@@ -164,28 +236,35 @@ pub fn execute_overlay_ops(painter: &egui::Painter, ops: &[PreviewOverlayOp]) {
                 stroke,
                 stroke_kind,
             } => {
-                painter.rect_stroke(*rect, *corner_radius, stroke, *stroke_kind);
+                painter.rect_stroke(
+                    scene_rect_to_screen(tx, rect),
+                    *corner_radius,
+                    stroke,
+                    *stroke_kind,
+                );
             },
             PreviewOverlayOp::RectFill {
                 rect,
                 corner_radius,
                 color,
             } => {
-                painter.rect_filled(*rect, *corner_radius, *color);
+                painter.rect_filled(scene_rect_to_screen(tx, rect), *corner_radius, *color);
             },
             PreviewOverlayOp::CircleFill {
                 center,
                 radius,
                 color,
             } => {
-                painter.circle_filled(*center, *radius, *color);
+                let screen_radius = scene_radius_to_screen(tx, *radius);
+                painter.circle_filled(scene_to_screen(tx, *center), screen_radius, *color);
             },
             PreviewOverlayOp::CircleStroke {
                 center,
                 radius,
                 stroke,
             } => {
-                painter.circle_stroke(*center, *radius, stroke);
+                let screen_radius = scene_radius_to_screen(tx, *radius);
+                painter.circle_stroke(scene_to_screen(tx, *center), screen_radius, stroke);
             },
             PreviewOverlayOp::Arc {
                 center,
@@ -194,6 +273,8 @@ pub fn execute_overlay_ops(painter: &egui::Painter, ops: &[PreviewOverlayOp]) {
                 end_angle,
                 stroke,
             } => {
+                let center = scene_to_screen(tx, *center);
+                let radius = scene_radius_to_screen(tx, *radius);
                 let segments = 8;
                 for i in 0..segments {
                     let t0 = i as f32 / segments as f32;
@@ -212,10 +293,12 @@ pub fn execute_overlay_ops(painter: &egui::Painter, ops: &[PreviewOverlayOp]) {
                 font,
                 color,
             } => {
-                painter.text(*pos, *anchor, text, font.clone(), *color);
+                painter.text(scene_to_screen(tx, *pos), *anchor, text, font.clone(), *color);
             },
             PreviewOverlayOp::Arrow { from, to, stroke } => {
-                painter.arrow(*from, *to - *from, stroke);
+                let from = scene_to_screen(tx, *from);
+                let to = scene_to_screen(tx, *to);
+                painter.arrow(from, to - from, stroke);
             },
             PreviewOverlayOp::Badge {
                 pos,
@@ -224,22 +307,53 @@ pub fn execute_overlay_ops(painter: &egui::Painter, ops: &[PreviewOverlayOp]) {
                 fg,
                 border_stroke,
             } => {
+                let pos = scene_to_screen(tx, *pos);
                 let galley = painter.layout_no_wrap(text.clone(), FontId::proportional(12.0), *fg);
                 let size = galley.size() + Vec2::new(8.0, 4.0);
-                let rect = Rect::from_center_size(*pos, size);
+                let rect = Rect::from_center_size(pos, size);
                 painter.rect_filled(rect, 2.0, *bg);
                 painter.rect_stroke(rect, 2.0, border_stroke, StrokeKind::Outside);
                 painter.galley(rect.min + Vec2::new(4.0, 2.0), galley, *fg);
             },
+            PreviewOverlayOp::Screen(screen) => execute_screen_op(painter, screen),
         }
+    }
+}
+
+fn execute_screen_op(painter: &egui::Painter, op: &ScreenOverlayOp) {
+    match op {
+        ScreenOverlayOp::RectStroke {
+            rect,
+            corner_radius,
+            stroke,
+            stroke_kind,
+        } => {
+            painter.rect_stroke(*rect, *corner_radius, stroke, *stroke_kind);
+        },
+        ScreenOverlayOp::RectFill {
+            rect,
+            corner_radius,
+            color,
+        } => {
+            painter.rect_filled(*rect, *corner_radius, *color);
+        },
+        ScreenOverlayOp::Text {
+            pos,
+            anchor,
+            text,
+            font,
+            color,
+        } => {
+            painter.text(*pos, *anchor, text, font.clone(), *color);
+        },
     }
 }
 
 /// Add a dashed line op to the given list.
 fn push_dashed(
     ops: &mut Vec<PreviewOverlayOp>,
-    from: Pos2,
-    to: Pos2,
+    from: kurbo::Point,
+    to: kurbo::Point,
     dash_len: f32,
     gap_len: f32,
     stroke: OverlayStroke,
@@ -253,13 +367,18 @@ fn push_dashed(
     });
 }
 
-fn push_line(ops: &mut Vec<PreviewOverlayOp>, from: Pos2, to: Pos2, stroke: OverlayStroke) {
+fn push_line(
+    ops: &mut Vec<PreviewOverlayOp>,
+    from: kurbo::Point,
+    to: kurbo::Point,
+    stroke: OverlayStroke,
+) {
     ops.push(PreviewOverlayOp::Line { from, to, stroke });
 }
 
 fn push_rect_stroke(
     ops: &mut Vec<PreviewOverlayOp>,
-    rect: Rect,
+    rect: kurbo::Rect,
     corner_radius: f32,
     stroke: OverlayStroke,
     stroke_kind: StrokeKind,
@@ -272,7 +391,25 @@ fn push_rect_stroke(
     });
 }
 
-fn push_circle_fill(ops: &mut Vec<PreviewOverlayOp>, center: Pos2, radius: f32, color: Color32) {
+fn push_rect_fill(
+    ops: &mut Vec<PreviewOverlayOp>,
+    rect: kurbo::Rect,
+    corner_radius: f32,
+    color: Color32,
+) {
+    ops.push(PreviewOverlayOp::RectFill {
+        rect,
+        corner_radius,
+        color,
+    });
+}
+
+fn push_circle_fill(
+    ops: &mut Vec<PreviewOverlayOp>,
+    center: kurbo::Point,
+    radius: f32,
+    color: Color32,
+) {
     ops.push(PreviewOverlayOp::CircleFill {
         center,
         radius,
@@ -282,7 +419,7 @@ fn push_circle_fill(ops: &mut Vec<PreviewOverlayOp>, center: Pos2, radius: f32, 
 
 fn push_circle_stroke(
     ops: &mut Vec<PreviewOverlayOp>,
-    center: Pos2,
+    center: kurbo::Point,
     radius: f32,
     stroke: OverlayStroke,
 ) {
@@ -295,7 +432,7 @@ fn push_circle_stroke(
 
 fn push_text(
     ops: &mut Vec<PreviewOverlayOp>,
-    pos: Pos2,
+    pos: kurbo::Point,
     anchor: Align2,
     text: impl Into<String>,
     font: FontId,
@@ -310,6 +447,51 @@ fn push_text(
     });
 }
 
+fn push_screen_rect_stroke(
+    ops: &mut Vec<PreviewOverlayOp>,
+    rect: Rect,
+    corner_radius: f32,
+    stroke: OverlayStroke,
+    stroke_kind: StrokeKind,
+) {
+    ops.push(PreviewOverlayOp::Screen(ScreenOverlayOp::RectStroke {
+        rect,
+        corner_radius,
+        stroke,
+        stroke_kind,
+    }));
+}
+
+fn push_screen_rect_fill(
+    ops: &mut Vec<PreviewOverlayOp>,
+    rect: Rect,
+    corner_radius: f32,
+    color: Color32,
+) {
+    ops.push(PreviewOverlayOp::Screen(ScreenOverlayOp::RectFill {
+        rect,
+        corner_radius,
+        color,
+    }));
+}
+
+fn push_screen_text(
+    ops: &mut Vec<PreviewOverlayOp>,
+    pos: Pos2,
+    anchor: Align2,
+    text: impl Into<String>,
+    font: FontId,
+    color: Color32,
+) {
+    ops.push(PreviewOverlayOp::Screen(ScreenOverlayOp::Text {
+        pos,
+        anchor,
+        text: text.into(),
+        font,
+        color,
+    }));
+}
+
 const DASH_LEN: f32 = 4.0;
 const GAP_LEN: f32 = 3.0;
 const HANDLE_SIZE: f32 = 8.0;
@@ -317,16 +499,16 @@ const ROTATION_OFFSET: f32 = 24.0;
 const ROTATION_RADIUS: f32 = 6.0;
 const CROSS_SIZE: f32 = 8.0;
 
-fn scale_handle_positions(sel_rect: Rect) -> [Pos2; 8] {
+fn scale_handle_positions(sel_rect: kurbo::Rect) -> [kurbo::Point; 8] {
     [
-        sel_rect.left_top(),
-        sel_rect.right_top(),
-        sel_rect.right_bottom(),
-        sel_rect.left_bottom(),
-        Pos2::new(sel_rect.center().x, sel_rect.top()),
-        Pos2::new(sel_rect.right(), sel_rect.center().y),
-        Pos2::new(sel_rect.center().x, sel_rect.bottom()),
-        Pos2::new(sel_rect.left(), sel_rect.center().y),
+        kurbo::Point::new(sel_rect.x0, sel_rect.y0),
+        kurbo::Point::new(sel_rect.x1, sel_rect.y0),
+        kurbo::Point::new(sel_rect.x1, sel_rect.y1),
+        kurbo::Point::new(sel_rect.x0, sel_rect.y1),
+        kurbo::Point::new(sel_rect.x0 + (sel_rect.x1 - sel_rect.x0) / 2.0, sel_rect.y0),
+        kurbo::Point::new(sel_rect.x1, sel_rect.y0 + (sel_rect.y1 - sel_rect.y0) / 2.0),
+        kurbo::Point::new(sel_rect.x0 + (sel_rect.x1 - sel_rect.x0) / 2.0, sel_rect.y1),
+        kurbo::Point::new(sel_rect.x0, sel_rect.y0 + (sel_rect.y1 - sel_rect.y0) / 2.0),
     ]
 }
 
@@ -334,7 +516,7 @@ fn scale_handle_positions(sel_rect: Rect) -> [Pos2; 8] {
 pub fn selection_overlay_ops(
     theme: &eparts::Theme,
     props: Option<&ActorProps>,
-    fallback_rect: Option<Rect>,
+    fallback_rect: Option<kurbo::Rect>,
     is_dragging: bool,
     pixels_per_point: f32,
     tx: PreviewTransform,
@@ -358,19 +540,17 @@ pub fn selection_overlay_ops(
         let local_corners: [[f32; 2]; 4] = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
         let world_corners: [kurbo::Point; 4] =
             std::array::from_fn(|i| local_to_world(local_corners[i], p.position, p.rotation));
-        let screen_corners: [Pos2; 4] =
-            std::array::from_fn(|i| tx.scene_to_screen(world_corners[i]));
 
         for i in 0..4 {
             let next = (i + 1) % 4;
-            push_line(&mut ops, screen_corners[i], screen_corners[next], stroke);
+            push_line(&mut ops, world_corners[i], world_corners[next], stroke);
         }
         if is_dragging {
             for i in 0..4 {
                 push_dashed(
                     &mut ops,
-                    screen_corners[i],
-                    screen_corners[(i + 1) % 4],
+                    world_corners[i],
+                    world_corners[(i + 1) % 4],
                     DASH_LEN,
                     GAP_LEN,
                     OverlayStroke::new(STROKE_WIDTH, text_faint),
@@ -379,10 +559,8 @@ pub fn selection_overlay_ops(
         }
 
         let handle_world = world_handle_positions(p);
-        let handle_screen: [Pos2; 8] = std::array::from_fn(|i| tx.scene_to_screen(handle_world[i]));
-
-        let corner_radius = HANDLE_SIZE * 0.6 * pixels_per_point;
-        for &pos in handle_screen[..4].iter() {
+        let corner_radius = px_to_scene(&tx, HANDLE_SIZE * 0.6 * pixels_per_point);
+        for &pos in handle_world[..4].iter() {
             push_circle_fill(&mut ops, pos, corner_radius, text_primary);
             push_circle_stroke(
                 &mut ops,
@@ -392,15 +570,13 @@ pub fn selection_overlay_ops(
             );
         }
 
-        let edge_handle_px = HANDLE_SIZE * 0.7 * pixels_per_point;
-        for &pos in handle_screen[4..].iter() {
-            let handle_rect =
-                Rect::from_center_size(pos, Vec2::new(edge_handle_px, edge_handle_px));
-            ops.push(PreviewOverlayOp::RectFill {
-                rect: handle_rect,
-                corner_radius: 1.0,
-                color: text_primary,
-            });
+        let edge_handle_px = px_to_scene(&tx, HANDLE_SIZE * 0.7 * pixels_per_point);
+        for &pos in handle_world[4..].iter() {
+            let handle_rect = kurbo::Rect::from_center_size(
+                pos,
+                kurbo::Size::new(edge_handle_px as f64, edge_handle_px as f64),
+            );
+            push_rect_fill(&mut ops, handle_rect, 1.0, text_primary);
             push_rect_stroke(
                 &mut ops,
                 handle_rect,
@@ -411,7 +587,7 @@ pub fn selection_overlay_ops(
         }
 
         if !is_dragging {
-            let arc_radius = HANDLE_SIZE * 1.5 * pixels_per_point;
+            let arc_radius = px_to_scene(&tx, HANDLE_SIZE * 1.5 * pixels_per_point);
             let arc_stroke = OverlayStroke::new(STROKE_WIDTH, selection_color.gamma_multiply(0.5));
             let arc_angles: [(f32, f32); 4] = [
                 (std::f32::consts::PI, 3.0 * std::f32::consts::PI / 2.0),
@@ -421,7 +597,7 @@ pub fn selection_overlay_ops(
             ];
             for i in 0..4 {
                 ops.push(PreviewOverlayOp::Arc {
-                    center: handle_screen[i],
+                    center: handle_world[i],
                     radius: arc_radius,
                     start_angle: arc_angles[i].0,
                     end_angle: arc_angles[i].1,
@@ -431,45 +607,42 @@ pub fn selection_overlay_ops(
         }
 
         let rot_world = rotation_handle_world(p);
-        let rot_screen = tx.scene_to_screen(rot_world);
         let top_center_local = [0.0_f32, -hh];
         let top_center_world = local_to_world(top_center_local, p.position, p.rotation);
-        let top_center_screen = tx.scene_to_screen(top_center_world);
         push_line(
             &mut ops,
-            top_center_screen,
-            rot_screen,
+            top_center_world,
+            rot_world,
             OverlayStroke::new(STROKE_WIDTH, selection_color),
         );
-        let rot_radius = ROTATION_RADIUS * pixels_per_point;
-        push_circle_fill(&mut ops, rot_screen, rot_radius, text_primary);
+        let rot_radius = px_to_scene(&tx, ROTATION_RADIUS * pixels_per_point);
+        push_circle_fill(&mut ops, rot_world, rot_radius, text_primary);
         push_circle_stroke(
             &mut ops,
-            rot_screen,
+            rot_world,
             rot_radius,
             OverlayStroke::new(STROKE_WIDTH, selection_color),
         );
 
         let pivot_world_pt = pivot_world(p);
-        let pivot_screen = tx
-            .scene_to_screen(kurbo::Point::new(pivot_world_pt[0] as f64, pivot_world_pt[1] as f64));
-        let cross_size = CROSS_SIZE * pixels_per_point;
+        let pivot_world = kurbo::Point::new(pivot_world_pt[0] as f64, pivot_world_pt[1] as f64);
+        let cross_size = px_to_scene(&tx, CROSS_SIZE * pixels_per_point);
         push_line(
             &mut ops,
-            Pos2::new(pivot_screen.x - cross_size, pivot_screen.y),
-            Pos2::new(pivot_screen.x + cross_size, pivot_screen.y),
+            kurbo::Point::new(pivot_world.x - cross_size as f64, pivot_world.y),
+            kurbo::Point::new(pivot_world.x + cross_size as f64, pivot_world.y),
             OverlayStroke::new(1.5, cross_color),
         );
         push_line(
             &mut ops,
-            Pos2::new(pivot_screen.x, pivot_screen.y - cross_size),
-            Pos2::new(pivot_screen.x, pivot_screen.y + cross_size),
+            kurbo::Point::new(pivot_world.x, pivot_world.y - cross_size as f64),
+            kurbo::Point::new(pivot_world.x, pivot_world.y + cross_size as f64),
             OverlayStroke::new(1.5, cross_color),
         );
         push_circle_stroke(
             &mut ops,
-            pivot_screen,
-            cross_size + 2.0 * pixels_per_point,
+            pivot_world,
+            cross_size + px_to_scene(&tx, 2.0 * pixels_per_point),
             OverlayStroke::new(STROKE_WIDTH, cross_color),
         );
     } else if let Some(sel_rect) = fallback_rect {
@@ -477,10 +650,10 @@ pub fn selection_overlay_ops(
         if is_dragging {
             let dash_stroke = OverlayStroke::new(STROKE_WIDTH, text_faint);
             let corners = [
-                sel_rect.left_top(),
-                sel_rect.right_top(),
-                sel_rect.right_bottom(),
-                sel_rect.left_bottom(),
+                kurbo::Point::new(sel_rect.x0, sel_rect.y0),
+                kurbo::Point::new(sel_rect.x1, sel_rect.y0),
+                kurbo::Point::new(sel_rect.x1, sel_rect.y1),
+                kurbo::Point::new(sel_rect.x0, sel_rect.y1),
             ];
             for i in 0..4 {
                 push_dashed(
@@ -494,13 +667,13 @@ pub fn selection_overlay_ops(
             }
         }
         let handle_positions = scale_handle_positions(sel_rect);
+        let handle_px = px_to_scene(&tx, HANDLE_SIZE);
         for pos in &handle_positions {
-            let handle_rect = Rect::from_center_size(*pos, Vec2::new(HANDLE_SIZE, HANDLE_SIZE));
-            ops.push(PreviewOverlayOp::RectFill {
-                rect: handle_rect,
-                corner_radius: 1.0,
-                color: text_primary,
-            });
+            let handle_rect = kurbo::Rect::from_center_size(
+                *pos,
+                kurbo::Size::new(handle_px as f64, handle_px as f64),
+            );
+            push_rect_fill(&mut ops, handle_rect, 1.0, text_primary);
             push_rect_stroke(
                 &mut ops,
                 handle_rect,
@@ -509,19 +682,24 @@ pub fn selection_overlay_ops(
                 StrokeKind::Outside,
             );
         }
-        let top_center = Pos2::new(sel_rect.center().x, sel_rect.top());
-        let rot_center = Pos2::new(top_center.x, top_center.y - ROTATION_OFFSET);
+        let top_center =
+            kurbo::Point::new(sel_rect.x0 + (sel_rect.x1 - sel_rect.x0) / 2.0, sel_rect.y0);
+        let rot_center = kurbo::Point::new(
+            top_center.x,
+            top_center.y - px_to_scene(&tx, ROTATION_OFFSET) as f64,
+        );
         push_line(
             &mut ops,
             top_center,
             rot_center,
             OverlayStroke::new(STROKE_WIDTH, selection_color),
         );
-        push_circle_fill(&mut ops, rot_center, ROTATION_RADIUS, text_primary);
+        let rot_radius = px_to_scene(&tx, ROTATION_RADIUS);
+        push_circle_fill(&mut ops, rot_center, rot_radius, text_primary);
         push_circle_stroke(
             &mut ops,
             rot_center,
-            ROTATION_RADIUS,
+            rot_radius,
             OverlayStroke::new(STROKE_WIDTH, selection_color),
         );
     }
@@ -532,24 +710,25 @@ pub fn selection_overlay_ops(
 /// Generate the union bounding box and handles for multi-selection.
 pub fn multi_selection_overlay_ops(
     theme: &eparts::Theme,
-    screen_rects: &[Rect],
+    scene_rects: &[kurbo::Rect],
     is_dragging: bool,
     pixels_per_point: f32,
+    tx: PreviewTransform,
 ) -> Vec<PreviewOverlayOp> {
     let mut ops = Vec::new();
-    if screen_rects.is_empty() {
+    if scene_rects.is_empty() {
         return ops;
     }
 
-    let mut min = screen_rects[0].min;
-    let mut max = screen_rects[0].max;
-    for rect in &screen_rects[1..] {
-        min.x = min.x.min(rect.min.x);
-        min.y = min.y.min(rect.min.y);
-        max.x = max.x.max(rect.max.x);
-        max.y = max.y.max(rect.max.y);
+    let mut min = kurbo::Point::new(scene_rects[0].x0, scene_rects[0].y0);
+    let mut max = kurbo::Point::new(scene_rects[0].x1, scene_rects[0].y1);
+    for rect in &scene_rects[1..] {
+        min.x = min.x.min(rect.x0);
+        min.y = min.y.min(rect.y0);
+        max.x = max.x.max(rect.x1);
+        max.y = max.y.max(rect.y1);
     }
-    let union_rect = Rect::from_min_max(min, max);
+    let union_rect = kurbo::Rect::new(min.x, min.y, max.x, max.y);
 
     let selection_color = theme.accent.primary;
     let accent_hover_color = theme.accent.hover;
@@ -565,10 +744,10 @@ pub fn multi_selection_overlay_ops(
     if is_dragging {
         let dash_stroke = OverlayStroke::new(STROKE_WIDTH, text_faint);
         let corners = [
-            union_rect.left_top(),
-            union_rect.right_top(),
-            union_rect.right_bottom(),
-            union_rect.left_bottom(),
+            kurbo::Point::new(union_rect.x0, union_rect.y0),
+            kurbo::Point::new(union_rect.x1, union_rect.y0),
+            kurbo::Point::new(union_rect.x1, union_rect.y1),
+            kurbo::Point::new(union_rect.x0, union_rect.y1),
         ];
         for i in 0..4 {
             push_dashed(&mut ops, corners[i], corners[(i + 1) % 4], DASH_LEN, GAP_LEN, dash_stroke);
@@ -576,14 +755,13 @@ pub fn multi_selection_overlay_ops(
     }
 
     let handle_positions = scale_handle_positions(union_rect);
-    let handle_px = HANDLE_SIZE * pixels_per_point;
+    let handle_px = px_to_scene(&tx, HANDLE_SIZE * pixels_per_point);
     for pos in &handle_positions {
-        let handle_rect = Rect::from_center_size(*pos, Vec2::new(handle_px, handle_px));
-        ops.push(PreviewOverlayOp::RectFill {
-            rect: handle_rect,
-            corner_radius: 1.0,
-            color: text_primary,
-        });
+        let handle_rect = kurbo::Rect::from_center_size(
+            *pos,
+            kurbo::Size::new(handle_px as f64, handle_px as f64),
+        );
+        push_rect_fill(&mut ops, handle_rect, 1.0, text_primary);
         push_rect_stroke(
             &mut ops,
             handle_rect,
@@ -597,24 +775,19 @@ pub fn multi_selection_overlay_ops(
 }
 
 /// Generate dashed ghost outlines for an actor at another point in time.
-pub fn ghost_overlay_ops(
-    props: &ActorProps,
-    tx: PreviewTransform,
-    color: Color32,
-) -> Vec<PreviewOverlayOp> {
+pub fn ghost_overlay_ops(props: &ActorProps, color: Color32) -> Vec<PreviewOverlayOp> {
     let mut ops = Vec::new();
     let hw = props.size[0] / 2.0;
     let hh = props.size[1] / 2.0;
     let local_corners: [[f32; 2]; 4] = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
     let world_corners: [kurbo::Point; 4] =
         std::array::from_fn(|i| local_to_world(local_corners[i], props.position, props.rotation));
-    let screen_corners: [Pos2; 4] = std::array::from_fn(|i| tx.scene_to_screen(world_corners[i]));
     let dash_stroke = OverlayStroke::new(STROKE_WIDTH, color);
     for i in 0..4 {
         push_dashed(
             &mut ops,
-            screen_corners[i],
-            screen_corners[(i + 1) % 4],
+            world_corners[i],
+            world_corners[(i + 1) % 4],
             DASH_LEN,
             GAP_LEN,
             dash_stroke,
@@ -639,13 +812,12 @@ pub fn reorder_overlay_ops(
     let local_corners: [[f32; 2]; 4] = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
     let world_corners: [kurbo::Point; 4] =
         std::array::from_fn(|i| local_to_world(local_corners[i], props.position, props.rotation));
-    let screen_corners: [Pos2; 4] = std::array::from_fn(|i| tx.scene_to_screen(world_corners[i]));
     for i in 0..4 {
         let next = (i + 1) % 4;
         push_line(
             &mut ops,
-            screen_corners[i],
-            screen_corners[next],
+            world_corners[i],
+            world_corners[next],
             OverlayStroke::new(1.5, ghost_color),
         );
     }
@@ -679,28 +851,29 @@ pub fn reorder_overlay_ops(
     };
 
     let accent_color = theme.accent.primary;
-    let insertion_screen = if is_row {
+    let viewport = scene_viewport(&tx);
+    let insertion_badge_pos = if is_row {
         let insertion_pt = tx.scene_to_screen(kurbo::Point::new(insertion_coord as f64, 0.0));
         push_line(
             &mut ops,
-            Pos2::new(insertion_pt.x, tx.preview_rect.top()),
-            Pos2::new(insertion_pt.x, tx.preview_rect.bottom()),
+            kurbo::Point::new(insertion_coord as f64, viewport.y0),
+            kurbo::Point::new(insertion_coord as f64, viewport.y1),
             OverlayStroke::new(2.5, accent_color),
         );
-        Pos2::new(insertion_pt.x, tx.preview_rect.top() + 16.0)
+        tx.screen_to_scene(Pos2::new(insertion_pt.x, tx.preview_rect.top() + 16.0))
     } else {
         let insertion_pt = tx.scene_to_screen(kurbo::Point::new(0.0, insertion_coord as f64));
         push_line(
             &mut ops,
-            Pos2::new(tx.preview_rect.left(), insertion_pt.y),
-            Pos2::new(tx.preview_rect.right(), insertion_pt.y),
+            kurbo::Point::new(viewport.x0, insertion_coord as f64),
+            kurbo::Point::new(viewport.x1, insertion_coord as f64),
             OverlayStroke::new(2.5, accent_color),
         );
-        Pos2::new(tx.preview_rect.left() + 16.0, insertion_pt.y)
+        tx.screen_to_scene(Pos2::new(tx.preview_rect.left() + 16.0, insertion_pt.y))
     };
 
     ops.push(PreviewOverlayOp::Badge {
-        pos: insertion_screen,
+        pos: insertion_badge_pos,
         text: format!("→ {}", target_index + 1),
         bg: theme.overlay.badge_bg,
         fg: theme.text.primary,
@@ -709,8 +882,8 @@ pub fn reorder_overlay_ops(
 
     let shift_color = theme.status.warning_subtle;
     for (i, (_, pos)) in sibling_positions.iter().enumerate() {
-        let screen_pos = tx.scene_to_screen(kurbo::Point::new(pos[0] as f64, pos[1] as f64));
-        let arrow_size = 8.0;
+        let scene_pos = kurbo::Point::new(pos[0] as f64, pos[1] as f64);
+        let arrow_size = px_to_scene(&tx, 8.0);
         let (dx, dy) = if i == target_index {
             if is_row {
                 (arrow_size, 0.0)
@@ -727,8 +900,8 @@ pub fn reorder_overlay_ops(
             continue;
         };
         ops.push(PreviewOverlayOp::Arrow {
-            from: screen_pos,
-            to: Pos2::new(screen_pos.x + dx, screen_pos.y + dy),
+            from: scene_pos,
+            to: kurbo::Point::new(scene_pos.x + dx as f64, scene_pos.y + dy as f64),
             stroke: OverlayStroke::new(1.5, shift_color),
         });
     }
@@ -738,19 +911,15 @@ pub fn reorder_overlay_ops(
     let font = egui::FontId::proportional(12.0);
     let galley_size = painter_text_size(&tooltip_text, font.clone());
     let tooltip_rect = Rect::from_min_size(tooltip_pos, galley_size + Vec2::new(12.0, 8.0));
-    ops.push(PreviewOverlayOp::RectFill {
-        rect: tooltip_rect,
-        corner_radius: 4.0,
-        color: theme.overlay.tooltip_bg,
-    });
-    push_rect_stroke(
+    push_screen_rect_fill(&mut ops, tooltip_rect, 4.0, theme.overlay.tooltip_bg);
+    push_screen_rect_stroke(
         &mut ops,
         tooltip_rect,
         4.0,
         OverlayStroke::new(STROKE_WIDTH, accent_color),
         StrokeKind::Outside,
     );
-    push_text(
+    push_screen_text(
         &mut ops,
         tooltip_rect.min + Vec2::new(6.0, 4.0),
         Align2::LEFT_TOP,
@@ -766,15 +935,16 @@ pub fn reorder_overlay_ops(
 pub fn hover_highlight_ops(
     theme: &eparts::Theme,
     hovered_actor: &str,
-    hover_rect: Rect,
+    hover_rect: kurbo::Rect,
+    tx: PreviewTransform,
 ) -> Vec<PreviewOverlayOp> {
     let mut ops = Vec::new();
     let hover_color = theme.accent.ghost;
     let corners = [
-        hover_rect.left_top(),
-        hover_rect.right_top(),
-        hover_rect.right_bottom(),
-        hover_rect.left_bottom(),
+        kurbo::Point::new(hover_rect.x0, hover_rect.y0),
+        kurbo::Point::new(hover_rect.x1, hover_rect.y0),
+        kurbo::Point::new(hover_rect.x1, hover_rect.y1),
+        kurbo::Point::new(hover_rect.x0, hover_rect.y1),
     ];
     for i in 0..4 {
         push_dashed(
@@ -787,23 +957,20 @@ pub fn hover_highlight_ops(
         );
     }
 
-    let tooltip_pos = egui::pos2(hover_rect.center().x, hover_rect.top() - 20.0);
+    let hover_screen = scene_rect_to_screen(&tx, &hover_rect);
+    let tooltip_pos = egui::pos2(hover_screen.center().x, hover_screen.top() - 20.0);
     let font = egui::FontId::proportional(12.0);
     let text_size = painter_text_size(hovered_actor, font.clone());
     let tooltip_rect = Rect::from_center_size(tooltip_pos, text_size + Vec2::new(8.0, 4.0));
-    ops.push(PreviewOverlayOp::RectFill {
-        rect: tooltip_rect,
-        corner_radius: RADIUS_M,
-        color: theme.overlay.badge_bg,
-    });
-    push_rect_stroke(
+    push_screen_rect_fill(&mut ops, tooltip_rect, RADIUS_M, theme.overlay.badge_bg);
+    push_screen_rect_stroke(
         &mut ops,
         tooltip_rect,
         RADIUS_M,
         OverlayStroke::new(STROKE_WIDTH, theme.border.default),
         StrokeKind::Outside,
     );
-    push_text(
+    push_screen_text(
         &mut ops,
         tooltip_rect.left_center() + Vec2::new(4.0, -text_size.y / 2.0),
         Align2::LEFT_TOP,
@@ -830,12 +997,8 @@ pub fn cycle_indicator_ops(
     let font = egui::FontId::proportional(12.0);
     let size = painter_text_size(&indicator_text, font.clone());
     let rect = Rect::from_center_size(indicator_pos, size + Vec2::new(6.0, 3.0));
-    ops.push(PreviewOverlayOp::RectFill {
-        rect,
-        corner_radius: RADIUS_M,
-        color: theme.accent.strong,
-    });
-    push_text(
+    push_screen_rect_fill(&mut ops, rect, RADIUS_M, theme.accent.strong);
+    push_screen_text(
         &mut ops,
         rect.left_center() + Vec2::new(3.0, -size.y / 2.0),
         Align2::LEFT_TOP,
@@ -876,19 +1039,13 @@ pub fn motion_path_ops(
         let path_color = theme.accent.primary.gamma_multiply(0.6);
         let path_stroke = OverlayStroke::new(1.5, path_color);
         for i in 0..kf_points.len().saturating_sub(1) {
-            let p1_screen = tx.scene_to_screen(kurbo::Point::new(
-                kf_points[i].1[0] as f64,
-                kf_points[i].1[1] as f64,
-            ));
-            let p2_screen = tx.scene_to_screen(kurbo::Point::new(
-                kf_points[i + 1].1[0] as f64,
-                kf_points[i + 1].1[1] as f64,
-            ));
-            push_line(&mut ops, p1_screen, p2_screen, path_stroke);
+            let p1 = kurbo::Point::new(kf_points[i].1[0] as f64, kf_points[i].1[1] as f64);
+            let p2 = kurbo::Point::new(kf_points[i + 1].1[0] as f64, kf_points[i + 1].1[1] as f64);
+            push_line(&mut ops, p1, p2, path_stroke);
         }
 
         for (time_ms, pos) in &kf_points {
-            let screen = tx.scene_to_screen(kurbo::Point::new(pos[0] as f64, pos[1] as f64));
+            let scene_point = kurbo::Point::new(pos[0] as f64, pos[1] as f64);
             let current_time_ms = (current_time_s * 1000.0) as u64;
             let is_current = *time_ms == current_time_ms;
             let dot_color = if is_current {
@@ -896,20 +1053,27 @@ pub fn motion_path_ops(
             } else {
                 theme.accent.primary
             };
-            let dot_radius = if is_current { 5.0 } else { 3.5 };
-            push_circle_fill(&mut ops, screen, dot_radius, dot_color);
+            let dot_radius = if is_current {
+                px_to_scene(&tx, 5.0)
+            } else {
+                px_to_scene(&tx, 3.5)
+            };
+            push_circle_fill(&mut ops, scene_point, dot_radius, dot_color);
             if is_current {
                 push_circle_stroke(
                     &mut ops,
-                    screen,
-                    dot_radius + 2.0,
+                    scene_point,
+                    dot_radius + px_to_scene(&tx, 2.0),
                     OverlayStroke::new(1.0, theme.status.warning),
                 );
             }
             let time_label = format!("{:.1}s", *time_ms as f64 / 1000.0);
             push_text(
                 &mut ops,
-                egui::pos2(screen.x, screen.y - dot_radius - 4.0),
+                kurbo::Point::new(
+                    scene_point.x,
+                    scene_point.y - dot_radius as f64 - px_to_scene(&tx, 4.0) as f64,
+                ),
                 Align2::CENTER_BOTTOM,
                 time_label,
                 egui::FontId::monospace(10.0),
@@ -930,6 +1094,7 @@ pub fn layout_debug_ops(
 ) -> Vec<PreviewOverlayOp> {
     let mut ops = Vec::new();
     let style = LayoutDebugStyle::from_theme(theme);
+    let viewport = scene_viewport(&tx);
     for (container_label, metadata) in timeline.container_metadata() {
         let Some(track) = timeline.get_track(container_label) else {
             continue;
@@ -943,12 +1108,13 @@ pub fn layout_debug_ops(
         let size = track.geometry.size.as_ref().map(|s| s.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
         let half_w = size[0] / 2.0;
         let half_h = size[1] / 2.0;
-        let container_tl = tx
-            .scene_to_screen(kurbo::Point::new((pos[0] - half_w) as f64, (pos[1] - half_h) as f64));
-        let container_br = tx
-            .scene_to_screen(kurbo::Point::new((pos[0] + half_w) as f64, (pos[1] + half_h) as f64));
-        let container_rect = Rect::from_min_max(container_tl, container_br);
-        if !container_rect.intersects(tx.preview_rect) {
+        let container_rect = kurbo::Rect::new(
+            (pos[0] - half_w) as f64,
+            (pos[1] - half_h) as f64,
+            (pos[0] + half_w) as f64,
+            (pos[1] + half_h) as f64,
+        );
+        if container_rect.intersect(viewport).area() <= 0.0 {
             continue;
         }
         push_rect_stroke(
@@ -961,7 +1127,10 @@ pub fn layout_debug_ops(
         let kind_str = format!("{:?}", metadata.layout_type);
         push_text(
             &mut ops,
-            Pos2::new(container_rect.left() + 2.0, container_rect.top() + 2.0),
+            kurbo::Point::new(
+                container_rect.x0 + px_to_scene(&tx, 2.0) as f64,
+                container_rect.y0 + px_to_scene(&tx, 2.0) as f64,
+            ),
             Align2::LEFT_TOP,
             format!("{} ({})", container_label, kind_str),
             egui::FontId::monospace(10.0),
@@ -985,15 +1154,12 @@ pub fn layout_debug_ops(
                 .as_ref()
                 .map(|s| s.evaluate(time_ms))
                 .unwrap_or([0.0, 0.0]);
-            let child_tl = tx.scene_to_screen(kurbo::Point::new(
+            let child_rect = kurbo::Rect::new(
                 (child_pos[0] - child_size[0] / 2.0) as f64,
                 (child_pos[1] - child_size[1] / 2.0) as f64,
-            ));
-            let child_br = tx.scene_to_screen(kurbo::Point::new(
                 (child_pos[0] + child_size[0] / 2.0) as f64,
                 (child_pos[1] + child_size[1] / 2.0) as f64,
-            ));
-            let child_rect = Rect::from_min_max(child_tl, child_br);
+            );
             push_rect_stroke(
                 &mut ops,
                 child_rect,
@@ -1004,7 +1170,10 @@ pub fn layout_debug_ops(
             let layout_s = child_track.layout_size_get(time_ms).unwrap_or([0.0, 0.0]);
             push_text(
                 &mut ops,
-                Pos2::new(child_rect.left() + 2.0, child_rect.bottom() - 12.0),
+                kurbo::Point::new(
+                    child_rect.x0 + px_to_scene(&tx, 2.0) as f64,
+                    child_rect.y1 - px_to_scene(&tx, 12.0) as f64,
+                ),
                 Align2::LEFT_BOTTOM,
                 format!("{:.0}×{:.0}", layout_s[0], layout_s[1]),
                 egui::FontId::monospace(9.0),
@@ -1052,32 +1221,33 @@ pub fn layout_debug_ops(
                     }
                     let (gap_tl, gap_br) = if is_row {
                         (
-                            tx.scene_to_screen(kurbo::Point::new(
+                            kurbo::Point::new(
                                 (gap_center - gap_size / 2.0) as f64,
                                 (pos_a[1] - size_a[1] / 2.0) as f64,
-                            )),
-                            tx.scene_to_screen(kurbo::Point::new(
+                            ),
+                            kurbo::Point::new(
                                 (gap_center + gap_size / 2.0) as f64,
                                 (pos_a[1] + size_a[1] / 2.0) as f64,
-                            )),
+                            ),
                         )
                     } else {
                         (
-                            tx.scene_to_screen(kurbo::Point::new(
+                            kurbo::Point::new(
                                 (pos_a[0] - size_a[0] / 2.0) as f64,
                                 (gap_center - gap_size / 2.0) as f64,
-                            )),
-                            tx.scene_to_screen(kurbo::Point::new(
+                            ),
+                            kurbo::Point::new(
                                 (pos_a[0] + size_a[0] / 2.0) as f64,
                                 (gap_center + gap_size / 2.0) as f64,
-                            )),
+                            ),
                         )
                     };
-                    ops.push(PreviewOverlayOp::RectFill {
-                        rect: Rect::from_min_max(gap_tl, gap_br),
-                        corner_radius: 0.0,
-                        color: style.spacing_color,
-                    });
+                    push_rect_fill(
+                        &mut ops,
+                        kurbo::Rect::new(gap_tl.x, gap_tl.y, gap_br.x, gap_br.y),
+                        0.0,
+                        style.spacing_color,
+                    );
                 }
             }
         }
@@ -1093,27 +1263,20 @@ fn painter_text_size(text: &str, font: FontId) -> Vec2 {
 }
 
 /// Generate the scene bounds outline.
-pub fn scene_bounds_ops(
-    theme: &eparts::Theme,
-    tx: PreviewTransform,
-    preview_rect: Rect,
-) -> Vec<PreviewOverlayOp> {
+pub fn scene_bounds_ops(theme: &eparts::Theme, tx: PreviewTransform) -> Vec<PreviewOverlayOp> {
     let mut ops = Vec::new();
-    let tl = tx.scene_to_screen(kurbo::Point::new(0.0, 0.0));
-    let br = tx.scene_to_screen(kurbo::Point::new(
-        tx.scene_dimensions.width as f64,
-        tx.scene_dimensions.height as f64,
-    ));
-    let bounds_screen = Rect::from_min_max(tl, br).intersect(preview_rect);
-    if bounds_screen.is_positive() {
-        push_rect_stroke(
-            &mut ops,
-            bounds_screen,
+    push_rect_stroke(
+        &mut ops,
+        kurbo::Rect::new(
             0.0,
-            OverlayStroke::new(STROKE_WIDTH, theme.border.strong),
-            StrokeKind::Inside,
-        );
-    }
+            0.0,
+            tx.scene_dimensions.width as f64,
+            tx.scene_dimensions.height as f64,
+        ),
+        0.0,
+        OverlayStroke::new(STROKE_WIDTH, theme.border.strong),
+        StrokeKind::Inside,
+    );
     ops
 }
 
@@ -1125,11 +1288,13 @@ pub fn actor_label_ops(
 ) -> Vec<PreviewOverlayOp> {
     let mut ops = Vec::new();
     for (label, bounds) in hit_regions {
-        let center =
-            tx.scene_to_screen(kurbo::Point::new((bounds.x0 + bounds.x1) / 2.0, bounds.y0 - 4.0));
+        let pos = kurbo::Point::new(
+            (bounds.x0 + bounds.x1) / 2.0,
+            bounds.y0 - px_to_scene(&tx, 4.0) as f64,
+        );
         push_text(
             &mut ops,
-            center,
+            pos,
             Align2::CENTER_BOTTOM,
             label,
             egui::FontId::monospace(10.0),
@@ -1148,40 +1313,31 @@ pub fn grid_ops(
     let mut ops = Vec::new();
     let grid_color = theme.lines.grid;
     let grid_size = grid_size.max(1.0);
-    let preview_rect = tx.preview_rect;
-
-    let scene_tl = tx.screen_to_scene(preview_rect.left_top());
-    let scene_br = tx.screen_to_scene(preview_rect.right_bottom());
-    let x0 = (scene_tl.x / grid_size as f64).floor() as i32 * grid_size as i32;
-    let y0 = (scene_tl.y / grid_size as f64).floor() as i32 * grid_size as i32;
-    let x1 = (scene_br.x / grid_size as f64).ceil() as i32 * grid_size as i32;
-    let y1 = (scene_br.y / grid_size as f64).ceil() as i32 * grid_size as i32;
+    let viewport = scene_viewport(&tx);
+    let x0 = (viewport.x0 / grid_size as f64).floor() as i32 * grid_size as i32;
+    let y0 = (viewport.y0 / grid_size as f64).floor() as i32 * grid_size as i32;
+    let x1 = (viewport.x1 / grid_size as f64).ceil() as i32 * grid_size as i32;
+    let y1 = (viewport.y1 / grid_size as f64).ceil() as i32 * grid_size as i32;
 
     let stroke = OverlayStroke::new(STROKE_WIDTH, grid_color);
     let mut x = x0 as f32;
     while x <= x1 as f32 {
-        let screen_pt = tx.scene_to_screen(kurbo::Point::new(x as f64, 0.0));
-        if screen_pt.x >= preview_rect.min.x && screen_pt.x <= preview_rect.max.x {
-            push_line(
-                &mut ops,
-                Pos2::new(screen_pt.x, preview_rect.min.y),
-                Pos2::new(screen_pt.x, preview_rect.max.y),
-                stroke,
-            );
-        }
+        push_line(
+            &mut ops,
+            kurbo::Point::new(x as f64, viewport.y0),
+            kurbo::Point::new(x as f64, viewport.y1),
+            stroke,
+        );
         x += grid_size;
     }
     let mut y = y0 as f32;
     while y <= y1 as f32 {
-        let screen_pt = tx.scene_to_screen(kurbo::Point::new(0.0, y as f64));
-        if screen_pt.y >= preview_rect.min.y && screen_pt.y <= preview_rect.max.y {
-            push_line(
-                &mut ops,
-                Pos2::new(preview_rect.min.x, screen_pt.y),
-                Pos2::new(preview_rect.max.x, screen_pt.y),
-                stroke,
-            );
-        }
+        push_line(
+            &mut ops,
+            kurbo::Point::new(viewport.x0, y as f64),
+            kurbo::Point::new(viewport.x1, y as f64),
+            stroke,
+        );
         y += grid_size;
     }
     ops
@@ -1190,34 +1346,28 @@ pub fn grid_ops(
 /// Generate snap guide lines for a drag interaction.
 pub fn snap_guide_ops(
     color: Color32,
-    preview_rect: Rect,
     horizontal: &[f32],
     vertical: &[f32],
     tx: PreviewTransform,
 ) -> Vec<PreviewOverlayOp> {
     let mut ops = Vec::new();
+    let viewport = scene_viewport(&tx);
     let stroke = OverlayStroke::new(STROKE_WIDTH, color);
     for &sy in horizontal {
-        let screen_pt = tx.scene_to_screen(kurbo::Point::new(0.0, sy as f64));
-        if screen_pt.y >= preview_rect.min.y && screen_pt.y <= preview_rect.max.y {
-            push_line(
-                &mut ops,
-                Pos2::new(preview_rect.min.x, screen_pt.y),
-                Pos2::new(preview_rect.max.x, screen_pt.y),
-                stroke,
-            );
-        }
+        push_line(
+            &mut ops,
+            kurbo::Point::new(viewport.x0, sy as f64),
+            kurbo::Point::new(viewport.x1, sy as f64),
+            stroke,
+        );
     }
     for &sx in vertical {
-        let screen_pt = tx.scene_to_screen(kurbo::Point::new(sx as f64, 0.0));
-        if screen_pt.x >= preview_rect.min.x && screen_pt.x <= preview_rect.max.x {
-            push_line(
-                &mut ops,
-                Pos2::new(screen_pt.x, preview_rect.min.y),
-                Pos2::new(screen_pt.x, preview_rect.max.y),
-                stroke,
-            );
-        }
+        push_line(
+            &mut ops,
+            kurbo::Point::new(sx as f64, viewport.y0),
+            kurbo::Point::new(sx as f64, viewport.y1),
+            stroke,
+        );
     }
     ops
 }
@@ -1270,10 +1420,13 @@ mod tests {
 
     #[test]
     fn hover_highlight_emits_dashed_outline_and_label() {
-        let rect = Rect::from_min_max(Pos2::new(10.0, 10.0), Pos2::new(30.0, 20.0));
-        let ops = hover_highlight_ops(&theme(), "box", rect);
+        let rect = kurbo::Rect::new(10.0, 10.0, 30.0, 20.0);
+        let ops = hover_highlight_ops(&theme(), "box", rect, tx());
         assert!(ops.iter().any(|op| matches!(op, PreviewOverlayOp::DashedLine { .. })));
-        assert!(ops.iter().any(|op| matches!(op, PreviewOverlayOp::Text { .. })));
+        assert!(
+            ops.iter()
+                .any(|op| matches!(op, PreviewOverlayOp::Screen(ScreenOverlayOp::Text { .. })))
+        );
     }
 
     #[test]
@@ -1304,13 +1457,13 @@ mod tests {
     #[test]
     fn scene_bounds_grid_and_snap_lines_emit_expected_ops() {
         let t = tx();
-        let bounds = scene_bounds_ops(&theme(), t, t.preview_rect);
+        let bounds = scene_bounds_ops(&theme(), t);
         assert!(bounds.iter().any(|op| matches!(op, PreviewOverlayOp::RectStroke { .. })));
 
         let grid = grid_ops(&theme(), t, 20.0);
         assert!(grid.iter().any(|op| matches!(op, PreviewOverlayOp::Line { .. })));
 
-        let snaps = snap_guide_ops(egui::Color32::RED, t.preview_rect, &[25.0], &[75.0], t);
+        let snaps = snap_guide_ops(egui::Color32::RED, &[25.0], &[75.0], t);
         assert!(snaps.iter().any(|op| matches!(op, PreviewOverlayOp::Line { .. })));
     }
 
