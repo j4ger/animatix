@@ -1,6 +1,9 @@
+use std::collections::BTreeMap;
+
 use egui_tiles::{Linear, LinearDir, Tiles, Tree};
 
 use super::*;
+use crate::app::interaction::keyboard::SavedShortcut;
 
 /// Build a workspace tree.
 ///
@@ -102,6 +105,17 @@ pub(crate) struct SettingsPersistence {
     /// Density preference: "default" or "compact". Defaults to "default".
     #[serde(default = "default_density")]
     pub density: String,
+    /// Persisted shortcut overrides keyed by stable binding name.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub shortcuts: BTreeMap<String, SavedShortcut>,
+}
+
+/// Load persisted shortcut overrides from the workspace persistence file.
+pub(super) fn load_shortcut_overrides() -> BTreeMap<String, SavedShortcut> {
+    load_workspace_persistence(&persistence_path())
+        .and_then(|persistence| persistence.settings)
+        .map(|settings| settings.shortcuts)
+        .unwrap_or_default()
 }
 
 fn default_density() -> String {

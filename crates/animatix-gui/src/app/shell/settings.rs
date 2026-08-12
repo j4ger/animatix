@@ -2,6 +2,9 @@ use egui::RichText;
 
 use crate::app::components::layout;
 use crate::app::design_tokens::typography::TextRole;
+use crate::app::interaction::keyboard::{
+    SHORTCUT_REGISTRY, apply_shortcut_overrides, saved_shortcut_from_key,
+};
 use crate::app::{GuiShell, components};
 
 const SETTINGS_INPUT_WIDTH: f32 = 120.0;
@@ -156,12 +159,7 @@ impl GuiShell {
                             for (id, name) in schemes {
                                 if ui.selectable_label(id == current_scheme, name).clicked()
                                     && id != current_scheme
-                                    && self
-                                        .document_store
-                                        .source
-                                        .document
-                                        .raw_statements
-                                        .is_some()
+                                    && self.document_store.source.document.raw_statements.is_some()
                                 {
                                     let ui_before =
                                         self.ui_store.snapshot_with_preview(&self.preview_store);
@@ -169,11 +167,10 @@ impl GuiShell {
                                         crate::app::commands::UndoLabel::SetConfigProperty,
                                         ui_before,
                                     );
-                                    let edit =
-                                        crate::source_edit::SourceEdit::SetConfigProperty {
-                                            key: "colorscheme".into(),
-                                            value: animatix_syntax::ast::Expr::Str(id.into()),
-                                        };
+                                    let edit = crate::source_edit::SourceEdit::SetConfigProperty {
+                                        key: "colorscheme".into(),
+                                        value: animatix_syntax::ast::Expr::Str(id.into()),
+                                    };
                                     if let Some(ref mut stmts) =
                                         self.document_store.source.document.raw_statements
                                     {
@@ -187,8 +184,11 @@ impl GuiShell {
                                             let ui_after = self
                                                 .ui_store
                                                 .snapshot_with_preview(&self.preview_store);
-                                            self.document_store
-                                                .commit_source(new_source, source_index, ui_after);
+                                            self.document_store.commit_source(
+                                                new_source,
+                                                source_index,
+                                                ui_after,
+                                            );
                                             self.preview_store.pending_rebuild_at = Some(
                                                 std::time::Instant::now()
                                                     + std::time::Duration::from_millis(
@@ -270,6 +270,104 @@ impl GuiShell {
                         });
                     });
                 self.ui_store.scrub_step_s = scrub_step_s;
+            }
+            ui.add_space(sp.base.space_3);
+
+            // ── Shortcuts ──
+            layout::section_header(ui, egui_phosphor::regular::KEYBOARD, "Shortcuts", None);
+            ui.add_space(sp.base.space_2);
+
+            let recording = self.ui_store.recording_shortcut.clone();
+            let mut captured: Option<(String, crate::app::interaction::keyboard::SavedShortcut)> =
+                None;
+            if let Some(name) = recording.as_ref() {
+                ui.label(
+                    RichText::new(format!("Press a key for '{name}'…"))
+                        .size(TextRole::BodyS.size())
+                        .color(theme.accent.primary),
+                );
+                let captured_key = ui.input(|i| {
+                    i.events.iter().find_map(|event| {
+                        if let egui::Event::Key {
+                            key,
+                            pressed: true,
+                            modifiers,
+                            ..
+                        } = event
+                        {
+                            saved_shortcut_from_key(*key, *modifiers)
+                        } else {
+                            None
+                        }
+                    })
+                });
+                if let Some(saved) = captured_key {
+                    captured = Some((name.clone(), saved));
+                }
+            }
+
+            let binding_names =
+                SHORTCUT_REGISTRY.read().expect("shortcut registry lock poisoned").names();
+            egui::ScrollArea::vertical().max_height(220.0).show(ui, |ui| {
+                for name in binding_names {
+                    let current = SHORTCUT_REGISTRY
+                        .read()
+                        .expect("shortcut registry lock poisoned")
+                        .current_saved(&name)
+                        .map(|s| s.display())
+                        .unwrap_or_default();
+                    let is_recording = recording.as_deref() == Some(name.as_str());
+                    ui.horizontal(|ui| {
+                        ui.add_sized(
+                            [160.0, sp.base.row_s],
+                            egui::Label::new(
+                                RichText::new(&name)
+                                    .size(TextRole::BodyS.size())
+                                    .color(theme.text.secondary),
+                            ),
+                        );
+                        ui.add_sized(
+                            [110.0, sp.base.row_s],
+                            egui::Label::new(
+                                RichText::new(if is_recording {
+                                    "Recording…".to_string()
+                                } else {
+                                    current
+                                })
+                                .monospace()
+                                .size(TextRole::BodyS.size())
+                                .color(theme.text.primary),
+                            ),
+                        );
+                        if is_recording {
+                            if ui.small_button("Cancel").clicked() {
+                                self.ui_store.recording_shortcut = None;
+                            }
+                        } else if ui.small_button("Record").clicked() {
+                            self.ui_store.recording_shortcut = Some(name.clone());
+                        }
+                    });
+                }
+            });
+
+            if let Some((name, saved)) = captured {
+                let mut overrides = self.ui_store.shortcut_overrides.clone();
+                overrides.insert(name.clone(), saved.clone());
+                match apply_shortcut_overrides(&overrides) {
+                    Ok(()) => {
+                        self.ui_store.shortcut_overrides = overrides;
+                        self.ui_store.recording_shortcut = None;
+                        self.save_persistence();
+                        self.preview_store.preview.status =
+                            format!("Shortcut '{}' set to {}", name, saved.display());
+                    },
+                    Err(error) => {
+                        self.ui_store.recording_shortcut = None;
+                        self.preview_store
+                            .preview
+                            .set_status_error(format!("Shortcut update failed: {error}"));
+                    },
+                }
             }
             ui.add_space(sp.base.space_3);
 

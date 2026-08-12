@@ -177,6 +177,11 @@ pub struct UiStore {
     pub find_last_match: Option<usize>,
     /// Unsaved changes confirmation dialog state.
     pub unsaved_changes: UnsavedChangesDialog,
+    /// Persisted shortcut overrides keyed by stable binding name.
+    pub shortcut_overrides:
+        std::collections::BTreeMap<String, crate::app::interaction::keyboard::SavedShortcut>,
+    /// Binding currently waiting for the next key press in the settings dialog.
+    pub recording_shortcut: Option<String>,
 }
 
 impl UiStore {
@@ -209,6 +214,8 @@ impl UiStore {
             replace_query: String::new(),
             find_last_match: None,
             unsaved_changes: UnsavedChangesDialog::default(),
+            shortcut_overrides: std::collections::BTreeMap::new(),
+            recording_shortcut: None,
         }
     }
 

@@ -156,7 +156,11 @@ impl AnimatixApp {
             tool_mode: self.shell.ui_store.view.tool_mode,
         };
 
-        if let Some(action) = SHORTCUT_REGISTRY.check(ctx, &focus) {
+        if let Some(action) = SHORTCUT_REGISTRY
+            .read()
+            .expect("shortcut registry lock poisoned")
+            .check(ctx, &focus)
+        {
             match action {
                 KeyboardAction::Undo => {
                     self.shell.ui_store.pending_actions.push_back(DocumentCommand::Undo.into());

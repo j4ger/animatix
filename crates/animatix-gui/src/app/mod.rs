@@ -494,6 +494,7 @@ impl GuiShell {
                 "compact" => eparts::Density::Compact,
                 _ => eparts::Density::Default,
             };
+            ui_store.shortcut_overrides = s.shortcuts.clone();
         }
 
         let mut shell = Self {
@@ -1006,6 +1007,7 @@ impl GuiShell {
                     eparts::Density::Default => "default",
                 }
                 .to_string(),
+                shortcuts: self.ui_store.shortcut_overrides.clone(),
             }),
         };
         if let Ok(serialized) =

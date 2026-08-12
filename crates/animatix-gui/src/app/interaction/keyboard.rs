@@ -1,4 +1,165 @@
+use std::collections::{BTreeMap, HashMap};
+
 use egui::{Context, KeyboardShortcut, Modifiers};
+use serde::{Deserialize, Serialize};
+
+/// A serializable shortcut override used by persisted settings.
+///
+/// `key` uses stable names such as `"S"`, `"Space"`, `"ArrowLeft"`, or `"/"`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SavedShortcut {
+    pub command: bool,
+    pub ctrl: bool,
+    pub shift: bool,
+    pub alt: bool,
+    pub key: String,
+}
+
+impl SavedShortcut {
+    /// Convert an egui shortcut into the persisted representation.
+    pub fn from_shortcut(shortcut: &KeyboardShortcut) -> Self {
+        let modifiers = shortcut.modifiers;
+        Self {
+            command: modifiers.command,
+            ctrl: modifiers.ctrl,
+            shift: modifiers.shift,
+            alt: modifiers.alt,
+            key: saved_key_name(&shortcut.logical_key).unwrap_or_default().to_string(),
+        }
+    }
+
+    /// Convert back into an egui shortcut, or `None` when the key is unknown.
+    pub fn to_shortcut(&self) -> Option<KeyboardShortcut> {
+        Some(KeyboardShortcut::new(
+            Modifiers {
+                command: self.command,
+                ctrl: self.ctrl,
+                shift: self.shift,
+                alt: self.alt,
+                mac_cmd: false,
+            },
+            parse_saved_key(&self.key)?,
+        ))
+    }
+
+    /// Platform-neutral display, e.g. `Cmd+Shift+Z`.
+    pub fn display(&self) -> String {
+        let mut out = String::new();
+        if self.command {
+            out.push_str("Cmd+");
+        }
+        if self.ctrl {
+            out.push_str("Ctrl+");
+        }
+        if self.shift {
+            out.push_str("Shift+");
+        }
+        if self.alt {
+            out.push_str("Alt+");
+        }
+        out.push_str(&self.key);
+        out
+    }
+}
+
+fn saved_key_name(key: &egui::Key) -> Option<&'static str> {
+    use egui::Key::*;
+    Some(match key {
+        A => "A",
+        C => "C",
+        D => "D",
+        F => "F",
+        G => "G",
+        I => "I",
+        M => "M",
+        P => "P",
+        R => "R",
+        S => "S",
+        V => "V",
+        Y => "Y",
+        Z => "Z",
+        Num1 => "1",
+        Num2 => "2",
+        Num3 => "3",
+        Space => "Space",
+        Comma => ",",
+        Period => ".",
+        Slash => "/",
+        Delete => "Delete",
+        Backspace => "Backspace",
+        Escape => "Escape",
+        ArrowLeft => "ArrowLeft",
+        ArrowRight => "ArrowRight",
+        ArrowUp => "ArrowUp",
+        ArrowDown => "ArrowDown",
+        _ => return None,
+    })
+}
+
+fn parse_saved_key(key: &str) -> Option<egui::Key> {
+    use egui::Key::*;
+    Some(match key {
+        "A" => A,
+        "C" => C,
+        "D" => D,
+        "F" => F,
+        "G" => G,
+        "I" => I,
+        "M" => M,
+        "P" => P,
+        "R" => R,
+        "S" => S,
+        "V" => V,
+        "Y" => Y,
+        "Z" => Z,
+        "1" => Num1,
+        "2" => Num2,
+        "3" => Num3,
+        "Space" => Space,
+        "," => Comma,
+        "." => Period,
+        "/" => Slash,
+        "Delete" => Delete,
+        "Backspace" => Backspace,
+        "Escape" => Escape,
+        "ArrowLeft" => ArrowLeft,
+        "ArrowRight" => ArrowRight,
+        "ArrowUp" => ArrowUp,
+        "ArrowDown" => ArrowDown,
+        _ => return None,
+    })
+}
+
+fn shortcut_hint_text(shortcut: &KeyboardShortcut) -> String {
+    SavedShortcut::from_shortcut(shortcut).display()
+}
+
+/// Errors produced when applying persisted shortcut overrides.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum KeyBindingError {
+    #[error("unknown shortcut binding '{0}'")]
+    UnknownBinding(String),
+    #[error("invalid key '{0}' in shortcut binding")]
+    InvalidKey(String),
+    #[error("shortcut {0} conflicts between '{1}' and '{2}'")]
+    Conflict(String, String, String),
+}
+
+/// Build a persisted shortcut from a raw key press.
+///
+/// Returns `None` when the key has no stable serialized name.
+pub(crate) fn saved_shortcut_from_key(
+    key: egui::Key,
+    modifiers: egui::Modifiers,
+) -> Option<SavedShortcut> {
+    Some(SavedShortcut {
+        command: modifiers.command,
+        ctrl: modifiers.ctrl,
+        shift: modifiers.shift,
+        alt: modifiers.alt,
+        key: saved_key_name(&key)?.to_string(),
+    })
+}
 
 /// Scope that controls when a shortcut is active.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -111,6 +272,7 @@ impl FocusContext {
 }
 
 /// The shortcut registry.
+#[derive(Debug, Clone)]
 pub struct ShortcutRegistry {
     shortcuts: Vec<(KeyboardShortcut, Shortcut)>,
 }
@@ -122,6 +284,79 @@ impl ShortcutRegistry {
         };
         reg.register_defaults();
         reg
+    }
+
+    /// Build a registry with persisted overrides applied on top of the defaults.
+    ///
+    /// Overrides are keyed by the stable binding name (`Shortcut.name`). An
+    /// override replaces every default entry with that name, then validates that
+    /// no two distinct bindings share the same shortcut.
+    pub fn with_overrides(
+        overrides: &BTreeMap<String, SavedShortcut>,
+    ) -> Result<Self, KeyBindingError> {
+        let mut registry = Self::new();
+        for (name, saved) in overrides {
+            let shortcut = saved
+                .to_shortcut()
+                .ok_or_else(|| KeyBindingError::InvalidKey(saved.key.clone()))?;
+            registry.replace_binding(name, shortcut)?;
+        }
+        registry.validate_conflicts()?;
+        Ok(registry)
+    }
+
+    /// Stable names in the order they were registered.
+    pub fn names(&self) -> Vec<String> {
+        let mut names = Vec::new();
+        for (_, info) in &self.shortcuts {
+            if !names.iter().any(|name| name == &info.name) {
+                names.push(info.name.to_string());
+            }
+        }
+        names
+    }
+
+    /// The persisted shortcut currently bound to a stable name.
+    pub fn current_saved(&self, name: &str) -> Option<SavedShortcut> {
+        self.shortcuts
+            .iter()
+            .find(|(_, info)| info.name == name)
+            .map(|(shortcut, _)| SavedShortcut::from_shortcut(shortcut))
+    }
+
+    fn replace_binding(
+        &mut self,
+        name: &str,
+        shortcut: KeyboardShortcut,
+    ) -> Result<(), KeyBindingError> {
+        let mut replaced = false;
+        for (existing, info) in &mut self.shortcuts {
+            if info.name == name {
+                *existing = shortcut.clone();
+                replaced = true;
+            }
+        }
+        if replaced {
+            Ok(())
+        } else {
+            Err(KeyBindingError::UnknownBinding(name.to_string()))
+        }
+    }
+
+    fn validate_conflicts(&self) -> Result<(), KeyBindingError> {
+        let mut seen: HashMap<KeyboardShortcut, &str> = HashMap::new();
+        for (shortcut, info) in &self.shortcuts {
+            if let Some(previous) = seen.insert(shortcut.clone(), info.name) {
+                if previous != info.name {
+                    return Err(KeyBindingError::Conflict(
+                        shortcut_hint_text(shortcut),
+                        previous.to_string(),
+                        info.name.to_string(),
+                    ));
+                }
+            }
+        }
+        Ok(())
     }
 
     fn register(&mut self, shortcut: KeyboardShortcut, info: Shortcut) {
@@ -496,14 +731,33 @@ impl ShortcutRegistry {
 ///
 /// Shared so both the keyboard handler (runtime) and UI affordances (toolbar
 /// tooltips, cheat sheet) read the *same* bindings instead of hardcoding strings.
-pub static SHORTCUT_REGISTRY: std::sync::LazyLock<ShortcutRegistry> =
-    std::sync::LazyLock::new(ShortcutRegistry::new);
+/// Persisted overrides are applied once at startup.
+pub static SHORTCUT_REGISTRY: std::sync::LazyLock<std::sync::RwLock<ShortcutRegistry>> =
+    std::sync::LazyLock::new(|| {
+        let overrides = super::super::persistence::load_shortcut_overrides();
+        let registry = ShortcutRegistry::with_overrides(&overrides).unwrap_or_else(|error| {
+            tracing::warn!("Failed to apply persisted shortcuts, using defaults: {error}");
+            ShortcutRegistry::new()
+        });
+        std::sync::RwLock::new(registry)
+    });
+
+/// Rebuild the global registry from persisted overrides.
+pub fn apply_shortcut_overrides(
+    overrides: &std::collections::BTreeMap<String, SavedShortcut>,
+) -> Result<(), KeyBindingError> {
+    let registry = ShortcutRegistry::with_overrides(overrides)?;
+    *SHORTCUT_REGISTRY.write().expect("shortcut registry lock poisoned") = registry;
+    Ok(())
+}
 
 /// Human-readable, platform-aware shortcut label for an action (e.g. `"Ctrl+S"`),
 /// or `None` if the action has no binding. Pulls from [`SHORTCUT_REGISTRY`] and
 /// formats via eparts' `format_shortcut`.
 pub fn shortcut_hint(action: &KeyboardAction, ctx: &Context) -> Option<String> {
     SHORTCUT_REGISTRY
+        .read()
+        .expect("shortcut registry lock poisoned")
         .shortcut_for(action)
         .map(|sc| eparts::widget::format_shortcut(sc, ctx))
 }
@@ -511,6 +765,8 @@ pub fn shortcut_hint(action: &KeyboardAction, ctx: &Context) -> Option<String> {
 /// Human-readable, platform-aware labels for every shortcut sharing `name`.
 pub fn shortcut_hints_for_name(name: &str, ctx: &Context) -> Vec<String> {
     SHORTCUT_REGISTRY
+        .read()
+        .expect("shortcut registry lock poisoned")
         .shortcuts_for_name(name)
         .into_iter()
         .map(|sc| eparts::widget::format_shortcut(sc, ctx))
@@ -593,5 +849,74 @@ mod tests {
         let shortcut = registry.shortcut_for(&KeyboardAction::SelectScene(0));
         assert!(shortcut.is_some());
         assert_eq!(shortcut.unwrap().logical_key, Key::Num1);
+    }
+
+    #[test]
+    fn saved_shortcut_roundtrips_through_egui_shortcut() {
+        let shortcut =
+            KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::ArrowLeft);
+        let saved = SavedShortcut::from_shortcut(&shortcut);
+        assert_eq!(saved.key, "ArrowLeft");
+        assert!(saved.command);
+        assert!(saved.shift);
+        assert_eq!(saved.to_shortcut(), Some(shortcut));
+    }
+
+    #[test]
+    fn overrides_replace_binding_and_are_reported_as_current() {
+        let mut overrides = std::collections::BTreeMap::new();
+        overrides.insert(
+            "Save".to_string(),
+            SavedShortcut {
+                command: false,
+                ctrl: false,
+                shift: false,
+                alt: true,
+                key: "S".to_string(),
+            },
+        );
+        let registry = ShortcutRegistry::with_overrides(&overrides).expect("valid override");
+        let save = registry.shortcut_for(&KeyboardAction::Save).expect("Save binding");
+        assert_eq!(save.modifiers, egui::Modifiers::ALT);
+        assert_eq!(save.logical_key, Key::S);
+        assert_eq!(registry.current_saved("Save").unwrap().alt, true);
+    }
+
+    #[test]
+    fn overrides_reject_unknown_binding() {
+        let mut overrides = std::collections::BTreeMap::new();
+        overrides.insert(
+            "Not A Binding".to_string(),
+            SavedShortcut {
+                command: true,
+                ctrl: false,
+                shift: false,
+                alt: false,
+                key: "S".to_string(),
+            },
+        );
+        assert!(matches!(
+            ShortcutRegistry::with_overrides(&overrides),
+            Err(KeyBindingError::UnknownBinding(_))
+        ));
+    }
+
+    #[test]
+    fn overrides_reject_conflicting_shortcuts() {
+        let conflict = SavedShortcut {
+            command: true,
+            ctrl: false,
+            shift: false,
+            alt: false,
+            key: "S".to_string(),
+        };
+        let mut overrides = std::collections::BTreeMap::new();
+        overrides.insert("Save".to_string(), conflict.clone());
+        overrides.insert("Reload".to_string(), conflict);
+
+        assert!(matches!(
+            ShortcutRegistry::with_overrides(&overrides),
+            Err(KeyBindingError::Conflict(_, _, _))
+        ));
     }
 }
