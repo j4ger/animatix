@@ -8,10 +8,38 @@ historical archives live in [docs/plans/README.md](plans/README.md).
 
 ## Active Work
 
-No open Active Work remains as of 2026-08-12. The 2026-08-11/12 cleanup closed
-the architecture, eparts, GUI, language, and runtime items listed below.
+No implementation is scheduled yet. The following tracks are under evaluation;
+approve and sequence them through
+[docs/plans/presenterm-inspired-roadmap.md](plans/presenterm-inspired-roadmap.md)
+before starting.
 
-### Architecture Consolidation (closed)
+### Presenterm-Inspired Design Tracks (evaluated 2026-08-12)
+
+| ID | Track | Status | Benefit | Feasibility | Necessity |
+|----|-------|--------|---------|-------------|-----------|
+| P1 | Render overlay / observable scene program | Phase 1 done 2026-08-12; Phase 2–3 remain | Unify preview/export/offscreen paths; testable overlays | Medium | Medium-high |
+| P2 | Hot-reload diff + preserve time/scene/selection | Done 2026-08-12 | Editing no longer disturbs current view; actionable removed-actor feedback | High | High |
+| P3 | Command layer convergence (configurable keybindings, external command queue) | Done 2026-08-12 | Completes existing command architecture; presenterm key matcher patterns | High | Low-medium |
+| P4 | Theme inheritance + raw/resolved runtime theme | Done 2026-08-12 | Theme deltas, dependency validation, full-closure hot reload | High | Medium |
+| P5 | Unified asset store + usage tracking | Done 2026-08-12 | Targeted invalidation and inspector asset usage | Medium | Medium |
+| P6 | Async file-backed asset loading | Deferred | Only useful with P5; no renderer `Pollable` now | High if scoped | Low |
+
+The full evaluation, sequencing, and acceptance criteria are in
+[docs/plans/presenterm-inspired-roadmap.md](plans/presenterm-inspired-roadmap.md).
+
+### Comment Directive Question (open)
+
+Presenterm uses HTML-comment directives because it must extend markdown without
+creating a second DSL. Animatix already owns a semantic DSL, so comment
+directives are likely the wrong mechanism. The recommendation is to map valuable
+commands to native `.amx` features and add first-class metadata (for example
+speaker notes or export presets) only when a concrete user story appears. See
+[Item 7](plans/presenterm-inspired-roadmap.md#item-7-comment-directives-through-dsl-open-discussion)
+before scheduling any related language work.
+
+---
+
+## Audit History
 
 | Item | Resolution |
 |------|------------|

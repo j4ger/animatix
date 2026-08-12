@@ -6,6 +6,9 @@ to every contributor and clone.
 - [eparts-refinement-roadmap.md](eparts-refinement-roadmap.md): current detailed
   roadmap for the `eparts` widget/token framework. The short, canonical list of
   remaining work is `docs/roadmap.md`.
+- [presenterm-inspired-roadmap.md](presenterm-inspired-roadmap.md): evaluation
+  of design patterns learned from `presenterm` and candidate tracks P1–P6 plus
+  the open comment-directive question.
 - [archive/](archive/): historical implementation plans, feasibility studies, and
   audit context such as `roadmap-audit-2026-08-05.md` and the completed
   `symbol-aware-typing.md` refactor. Archive files are kept for context but are
