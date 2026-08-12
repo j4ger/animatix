@@ -309,6 +309,11 @@ fn preserve_rebuild_view_state(
 
     let removed_active_scene = previous_active_scene
         .filter(|scene| diff.removed_scenes.iter().any(|removed| removed == scene));
+    if removed_active_scene.is_some() {
+        // Selected keyframes are not scene-qualified, so a removed active scene
+        // must clear them instead of risking a selection from another scene.
+        ui_store.selection.selected_keyframes.clear();
+    }
 
     (removed_selected_actors, removed_active_scene)
 }
@@ -583,7 +588,7 @@ mod tests {
     #[test]
     fn rebuild_drops_selection_and_removed_scene_with_status() {
         let mut document_store = make_document_store(
-            "# Intro\n#0s\ntitle: Text, text: \"Hi\"\n# Diagram\n#0s\ngraph: Rect\n",
+            "# Intro\n#0s\ntitle: Text, text: \"Hi\"\n# Diagram\n#0s\ngraph: Rect, size: (100, 100)\n",
         );
         let preview = PreviewStore::new(crate::app::PreviewPaneState::new(
             5.0,
@@ -595,6 +600,10 @@ mod tests {
         preview_store.preview.playback.current_time_s = 3.5;
         document_store.source.document.active_scene = Some("Diagram".to_string());
         ui_store.selection.selected_actors.insert("graph".to_string());
+        ui_store
+            .selection
+            .selected_keyframes
+            .push(("graph".to_string(), "size".to_string(), 0));
 
         document_store
             .source
@@ -604,6 +613,7 @@ mod tests {
         let effects = handle_rebuild(&mut document_store, &mut preview_store, &mut ui_store);
 
         assert!(!ui_store.selection.selected_actors.contains("graph"));
+        assert!(ui_store.selection.selected_keyframes.is_empty());
         assert_eq!(
             preview_store.preview.status,
             "Built timeline • 0.10s total duration • scene 'Diagram' removed • removed graph"

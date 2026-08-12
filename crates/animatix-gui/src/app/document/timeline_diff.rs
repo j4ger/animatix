@@ -9,6 +9,9 @@ use std::collections::{BTreeSet, HashSet};
 
 use crate::document::DocumentSession;
 
+/// Stable identity of a keyframe selection: (actor, property, time_ms).
+pub type KeyframeId = (String, String, u64);
+
 /// Stable view of the compiled target used as a diff baseline.
 ///
 /// This is captured before a rebuild because applying a rebuild replaces the
@@ -18,7 +21,7 @@ pub struct TimelineFingerprint {
     actors: BTreeSet<String>,
     scenes: BTreeSet<String>,
     duration_ms: i64,
-    keyframe_times: BTreeSet<u64>,
+    keyframes: BTreeSet<KeyframeId>,
 }
 
 impl TimelineFingerprint {
@@ -38,14 +41,27 @@ impl TimelineFingerprint {
             .as_ref()
             .map(|composition| composition.declaration_order.iter().cloned().collect())
             .unwrap_or_default();
-        let keyframe_times =
-            document.timeline_index.keyframes.iter().map(|(time_ms, _)| *time_ms).collect();
+        let keyframes = document
+            .active_timeline()
+            .map(|timeline| {
+                use animatix::timeline::{PROPERTY_REGISTRY, property_keyframe_times};
+                let mut ids = BTreeSet::new();
+                for track in timeline.tracks().values() {
+                    for schema in PROPERTY_REGISTRY {
+                        for time_ms in property_keyframe_times(track, schema.field) {
+                            ids.insert((track.label.clone(), schema.name.to_string(), time_ms));
+                        }
+                    }
+                }
+                ids
+            })
+            .unwrap_or_default();
 
         Self {
             actors,
             scenes,
             duration_ms: (document.duration_s * 1000.0).round() as i64,
-            keyframe_times,
+            keyframes,
         }
     }
 
@@ -57,13 +73,11 @@ impl TimelineFingerprint {
     /// Keyframes that still exist in the current build.
     pub fn surviving_keyframes(
         &self,
-        keyframes: impl IntoIterator<Item = (String, String, u64)>,
-    ) -> Vec<(String, String, u64)> {
+        keyframes: impl IntoIterator<Item = KeyframeId>,
+    ) -> Vec<KeyframeId> {
         keyframes
             .into_iter()
-            .filter(|(actor, _, time_ms)| {
-                self.actors.contains(actor) && self.keyframe_times.contains(time_ms)
-            })
+            .filter(|keyframe| self.keyframes.contains(keyframe))
             .collect()
     }
 }
@@ -81,10 +95,10 @@ pub struct TimelineDiff {
     pub removed_scenes: Vec<String>,
     /// New duration minus previous duration, in milliseconds.
     pub duration_ms_delta: i64,
-    /// Keyframe times present in the new build but not the previous one.
-    pub added_keyframe_times: Vec<u64>,
-    /// Keyframe times present in the previous build but not the new one.
-    pub removed_keyframe_times: Vec<u64>,
+    /// Keyframe identities present in the new build but not the previous one.
+    pub added_keyframes: Vec<KeyframeId>,
+    /// Keyframe identities present in the previous build but not the new one.
+    pub removed_keyframes: Vec<KeyframeId>,
 }
 
 impl TimelineDiff {
@@ -96,16 +110,8 @@ impl TimelineDiff {
             added_scenes: current.scenes.difference(&previous.scenes).cloned().collect(),
             removed_scenes: previous.scenes.difference(&current.scenes).cloned().collect(),
             duration_ms_delta: current.duration_ms - previous.duration_ms,
-            added_keyframe_times: current
-                .keyframe_times
-                .difference(&previous.keyframe_times)
-                .copied()
-                .collect(),
-            removed_keyframe_times: previous
-                .keyframe_times
-                .difference(&current.keyframe_times)
-                .copied()
-                .collect(),
+            added_keyframes: current.keyframes.difference(&previous.keyframes).cloned().collect(),
+            removed_keyframes: previous.keyframes.difference(&current.keyframes).cloned().collect(),
         }
     }
 }
@@ -196,17 +202,43 @@ mod tests {
     }
 
     #[test]
-    fn surviving_keyframes_filter_removed_actors_and_times() {
-        let current =
-            TimelineFingerprint::from_document(&load_session("#0s\nbox: Rect, size: (100, 100)\n"));
+    fn surviving_keyframes_filter_removed_actors_and_properties() {
+        let current = TimelineFingerprint::from_document(&load_session(
+            "#0s\nbox: Rect, size: (100, 100)\n#2s\nbox.color = red\n",
+        ));
 
         let kept = current.surviving_keyframes(vec![
             ("box".to_string(), "size".to_string(), 0),
             ("box".to_string(), "color".to_string(), 2000),
-            ("gone".to_string(), "color".to_string(), 0),
+            ("box".to_string(), "position".to_string(), 2000),
+            ("gone".to_string(), "color".to_string(), 2000),
         ]);
 
-        assert_eq!(kept, vec![("box".to_string(), "size".to_string(), 0)]);
+        assert_eq!(
+            kept,
+            vec![
+                ("box".to_string(), "size".to_string(), 0),
+                ("box".to_string(), "color".to_string(), 2000)
+            ]
+        );
+    }
+
+    #[test]
+    fn diff_reports_removed_property_keyframe_identity() {
+        let previous = TimelineFingerprint::from_document(&load_session(
+            "#0s\nbox: Rect, size: (100, 100)\n#2s\nbox.color = red\n",
+        ));
+        let current = TimelineFingerprint::from_document(&load_session(
+            "#0s\nbox: Rect, size: (100, 100)\n#2s\nbox.position = (200, 0)\n",
+        ));
+
+        let diff = TimelineDiff::between(&previous, &current);
+        assert!(diff.removed_keyframes.iter().any(|(actor, property, time_ms)| {
+            actor == "box" && property == "color" && *time_ms == 2000
+        }));
+        assert!(diff.added_keyframes.iter().any(|(actor, property, time_ms)| {
+            actor == "box" && property == "position" && *time_ms == 2000
+        }));
     }
 
     #[test]
