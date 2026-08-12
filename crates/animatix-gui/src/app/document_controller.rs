@@ -256,11 +256,7 @@ impl DocumentController<'_> {
                     animatix_syntax::source_index::SourceIndex::build(stmts),
                 );
                 store.commit_source(new_source, source_index, ui_after_for_commit);
-                Ok(format!(
-                    "Set transition on '{}' → {}ms",
-                    from_scene,
-                    transition.duration_ms
-                ))
+                Ok(format!("Set transition on '{}' → {}ms", from_scene, transition.duration_ms))
             },
         );
 
@@ -733,64 +729,42 @@ impl DocumentController<'_> {
     }
 
     /// Prune stale keyframe selection entries after a document mutation.
-    /// Retains only triples whose (actor, property, time_ms) still exist.
+    /// Retains only scene-qualified identities whose property/time still exist.
     pub(crate) fn prune_stale_keyframe_selections(&mut self) {
         if self.ui_store.selection.selected_keyframes.is_empty() {
             return;
         }
-        self.ui_store
-            .selection
-            .selected_keyframes
-            .retain(|(actor, _property, time_ms)| {
-                let Some(track) = self
-                    .document_store
-                    .source
-                    .document
-                    .active_timeline()
-                    .and_then(|t| t.get_track(actor))
-                else {
-                    return false;
-                };
-                let mut found = false;
-                macro_rules! check {
-                    ($opt:expr) => {
-                        if let Some(ref pt) = $opt {
-                            if pt.keyframes().contains_key(time_ms) {
-                                found = true;
-                            }
-                        }
-                    };
-                }
-                check!(track.geometry.position);
-                check!(track.geometry.motion_offset);
-                check!(track.geometry.rotation);
-                check!(track.geometry.scale);
-                check!(track.geometry.size);
-                check!(track.geometry.layout_size);
-                check!(track.style.color);
-                check!(track.style.opacity);
-                check!(track.style.stroke_width);
-                check!(track.style.stroke_color);
-                check!(track.style.stroke_progress);
-                check!(track.style.fill_opacity);
-                check!(track.style.line_cap);
-                check!(track.style.line_join);
-                check!(track.text.text_content);
-                check!(track.text.font_family);
-                check!(track.text.font_size);
-                check!(track.shape.shape_type);
-                check!(track.shape.line_from);
-                check!(track.shape.line_to);
-                check!(track.shape.arc_angles);
-                check!(track.shape.points);
-                check!(track.shape.commands);
-                check!(track.shape.vector_paths);
-                check!(track.shape.head_size);
-                check!(track.filter.filter_blur);
-                check!(track.filter.filter_brightness);
-                check!(track.filter.filter_contrast);
-                check!(track.filter.filter_saturate);
-                found
-            });
+        let document = &self.document_store.source.document;
+        self.ui_store.selection.selected_keyframes.retain(|keyframe| {
+            let Some(track) = resolve_timeline_for_scene(document, keyframe.scene.as_deref())
+                .and_then(|timeline| timeline.get_track(&keyframe.actor))
+            else {
+                return false;
+            };
+            crate::app::document::timeline_diff::collect_per_property_keyframes(track)
+                .into_iter()
+                .any(|(property, times)| {
+                    property == keyframe.property && times.contains(&keyframe.time_ms)
+                })
+        });
+    }
+}
+
+/// Resolve a timeline for a scene-qualified keyframe identity.
+///
+/// `None` resolves the single-scene document timeline; `Some(name)` resolves a
+/// named composition scene. Returns `None` when the requested scene no longer
+/// exists.
+fn resolve_timeline_for_scene<'a>(
+    document: &'a crate::document::DocumentSession,
+    scene: Option<&str>,
+) -> Option<&'a animatix::timeline::Timeline> {
+    match scene {
+        None => document.timeline.as_ref(),
+        Some(name) => document
+            .composition
+            .as_ref()
+            .and_then(|composition| composition.scenes.get(name))
+            .map(|scene| &scene.timeline),
     }
 }

@@ -8,10 +8,17 @@ historical archives live in [docs/plans/README.md](plans/README.md).
 
 ## Active Work
 
-No implementation is scheduled yet. The following tracks are under evaluation;
-approve and sequence them through
-[docs/plans/presenterm-inspired-roadmap.md](plans/presenterm-inspired-roadmap.md)
-before starting.
+The following tracks are under evaluation or scheduled for implementation;
+approve and sequence them through their detailed planning documents before
+starting.
+
+### Architecture Follow-Ups (2026-08-12)
+
+| ID | Track | Status | Benefit | Feasibility | Necessity |
+|----|-------|--------|---------|-------------|-----------|
+| A | Scene-qualified selection and keyframe diff | Done 2026-08-12 | Prevent actors/keyframes from another scene preserving stale selections; makes rebuild behavior consistent across compositions | High | Medium-high |
+| A1 | Scene-qualified keyframe source edits | Under evaluation 2026-08-12 | `DeleteKeyframe`/`MoveKeyframeTime`/`SetKeyframeEasing` still resolve by active scene; scene-switch clearing reduces risk but does not remove it | Medium | Low |
+| B | Static subtree item collection cost | Under evaluation 2026-08-12 | Scene-only evaluation should not pay for observable `SceneItem` collection; requires a cache-key contract change or profiling before committing | Medium | Low |
 
 ### Presenterm-Inspired Design Tracks (evaluated 2026-08-12)
 

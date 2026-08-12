@@ -5,6 +5,7 @@ use egui_tiles::Tree;
 use super::PreviewStore;
 use crate::app::commands::{ActionQueue, ShellAction};
 use crate::app::components::toast::ToastQueue;
+use crate::app::document::timeline_diff::KeyframeId;
 use crate::app::panels::SidebarTab;
 use crate::app::panels::inspector::{KeyframeViewMode, PropertyViewMode};
 use crate::app::preview::selection::SelectionState;
@@ -15,8 +16,8 @@ pub struct SelectionStore {
     pub selected_actors: HashSet<String>,
     pub hit_regions: Vec<(String, kurbo::Rect)>,
     pub selection: SelectionState,
-    /// Canonical keyframe multi-selection: (actor, property, time_ms).
-    pub selected_keyframes: Vec<(String, String, u64)>,
+    /// Canonical keyframe multi-selection, scene-qualified.
+    pub selected_keyframes: Vec<KeyframeId>,
 }
 
 impl SelectionStore {

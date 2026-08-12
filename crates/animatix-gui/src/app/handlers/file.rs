@@ -6,7 +6,9 @@ use animatix_syntax::diagnostics::diagnostics_phase_summary;
 use crate::app::commands::Effect;
 use crate::app::components::toast::Toast;
 use crate::app::document::rebuild::{RebuildResponse, RebuildToken, RebuildWorker};
-use crate::app::document::timeline_diff::{TimelineDiff, TimelineFingerprint, preserved_time_s};
+use crate::app::document::timeline_diff::{
+    KeyframeId, TimelineDiff, TimelineFingerprint, preserved_time_s,
+};
 use crate::app::document::version::SourceEpoch;
 use crate::app::file_tree::build_file_tree;
 use crate::app::persistence::save_app_state;
@@ -261,13 +263,7 @@ fn capture_rebuild_view_state(
     document_store: &DocumentStore,
     preview_store: &PreviewStore,
     ui_store: &UiStore,
-) -> (
-    TimelineFingerprint,
-    f64,
-    HashSet<String>,
-    Vec<(String, String, u64)>,
-    Option<String>,
-) {
+) -> (TimelineFingerprint, f64, HashSet<String>, Vec<KeyframeId>, Option<String>) {
     (
         TimelineFingerprint::from_document(&document_store.source.document),
         preview_store.preview.playback.current_time_s(),
@@ -290,15 +286,15 @@ fn preserve_rebuild_view_state(
     fingerprint: &TimelineFingerprint,
     previous_time_s: f64,
     previous_selected_actors: HashSet<String>,
-    previous_selected_keyframes: Vec<(String, String, u64)>,
+    previous_selected_keyframes: Vec<KeyframeId>,
     previous_active_scene: Option<String>,
     diff: &TimelineDiff,
 ) -> (Vec<String>, Option<String>) {
     let preserved_time = preserved_time_s(previous_time_s, &document_store.source.document);
     preview_store.preview.playback.current_time_s = preserved_time;
 
-    ui_store.selection.selected_actors =
-        fingerprint.surviving_actors(previous_selected_actors.clone());
+    ui_store.selection.selected_actors = fingerprint
+        .surviving_actors(previous_active_scene.as_deref(), previous_selected_actors.clone());
     let removed_selected_actors: Vec<String> = previous_selected_actors
         .difference(&ui_store.selection.selected_actors)
         .cloned()
@@ -309,11 +305,6 @@ fn preserve_rebuild_view_state(
 
     let removed_active_scene = previous_active_scene
         .filter(|scene| diff.removed_scenes.iter().any(|removed| removed == scene));
-    if removed_active_scene.is_some() {
-        // Selected keyframes are not scene-qualified, so a removed active scene
-        // must clear them instead of risking a selection from another scene.
-        ui_store.selection.selected_keyframes.clear();
-    }
 
     (removed_selected_actors, removed_active_scene)
 }
@@ -600,10 +591,12 @@ mod tests {
         preview_store.preview.playback.current_time_s = 3.5;
         document_store.source.document.active_scene = Some("Diagram".to_string());
         ui_store.selection.selected_actors.insert("graph".to_string());
-        ui_store
-            .selection
-            .selected_keyframes
-            .push(("graph".to_string(), "size".to_string(), 0));
+        ui_store.selection.selected_keyframes.push(KeyframeId {
+            scene: Some("Diagram".to_string()),
+            actor: "graph".to_string(),
+            property: "size".to_string(),
+            time_ms: 0,
+        });
 
         document_store
             .source

@@ -98,6 +98,92 @@ pub fn handle_move_keyframe(
     vec![]
 }
 
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+    use crate::app::PreviewPaneState;
+    use crate::app::document::timeline_diff::KeyframeId;
+    use crate::app::stores::UiStore;
+
+    fn make_document_store(source: &str) -> DocumentStore {
+        let path = PathBuf::from("test.amx");
+        let mut document =
+            crate::document::DocumentSession::from_source(path.clone(), source.to_string())
+                .expect("valid source");
+        document.rebuild().expect("valid source should rebuild");
+        let editor = crate::editor::EditorBuffer::new(&path, document.source_text.clone());
+        DocumentStore::new(document, editor)
+    }
+
+    fn preview_store(dimensions: animatix::timeline::SceneDimensions) -> PreviewStore {
+        PreviewStore::new(PreviewPaneState::new(5.0, dimensions))
+    }
+
+    #[test]
+    fn prune_drops_wrong_property_selection() {
+        let mut document_store = make_document_store(
+            "# A\n#0s\nbox: Rect, size: (100, 100)\n# B\n#0s\nbox: Rect, size: (100, 100)\n#2s\nbox.color = red\n",
+        );
+        let mut preview_store = preview_store(document_store.source.document.scene_dimensions);
+        let mut ui_store = UiStore::new(crate::app::persistence::default_tree());
+        ui_store.selection.selected_keyframes.push(KeyframeId {
+            scene: Some("B".to_string()),
+            actor: "box".to_string(),
+            property: "color".to_string(),
+            time_ms: 2000,
+        });
+
+        // A color keyframe exists in B at 2s; retaining it is valid.
+        let mut ctrl = DocumentController {
+            document_store: &mut document_store,
+            preview_store: &mut preview_store,
+            ui_store: &mut ui_store,
+        };
+        ctrl.prune_stale_keyframe_selections();
+        assert_eq!(ui_store.selection.selected_keyframes.len(), 1);
+
+        // The same actor/time with a non-existent property must be dropped,
+        // even when another property still has a keyframe at that time.
+        ui_store.selection.selected_keyframes.clear();
+        ui_store.selection.selected_keyframes.push(KeyframeId {
+            scene: Some("B".to_string()),
+            actor: "box".to_string(),
+            property: "position".to_string(),
+            time_ms: 2000,
+        });
+        let mut ctrl = DocumentController {
+            document_store: &mut document_store,
+            preview_store: &mut preview_store,
+            ui_store: &mut ui_store,
+        };
+        ctrl.prune_stale_keyframe_selections();
+        assert!(ui_store.selection.selected_keyframes.is_empty());
+    }
+
+    #[test]
+    fn prune_drops_missing_scene_selection() {
+        let mut document_store = make_document_store("# A\n#0s\nbox: Rect, size: (100, 100)\n");
+        let mut preview_store = preview_store(document_store.source.document.scene_dimensions);
+        let mut ui_store = UiStore::new(crate::app::persistence::default_tree());
+        ui_store.selection.selected_keyframes.push(KeyframeId {
+            scene: Some("B".to_string()),
+            actor: "box".to_string(),
+            property: "size".to_string(),
+            time_ms: 0,
+        });
+
+        let mut ctrl = DocumentController {
+            document_store: &mut document_store,
+            preview_store: &mut preview_store,
+            ui_store: &mut ui_store,
+        };
+        ctrl.prune_stale_keyframe_selections();
+        assert!(ui_store.selection.selected_keyframes.is_empty());
+    }
+}
+
 pub fn handle_resize_action(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,

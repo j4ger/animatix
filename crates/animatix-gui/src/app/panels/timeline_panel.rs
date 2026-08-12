@@ -33,7 +33,7 @@ use crate::app::design_tokens::semantic::{category, timeline};
 use crate::app::design_tokens::spatial::timeline::KF_HALF as KF_DIAMOND_HALF;
 use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
-use crate::app::document::timeline_diff::collect_per_property_keyframes;
+use crate::app::document::timeline_diff::{KeyframeId, collect_per_property_keyframes};
 
 /// Property groups for per-property lanes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -123,6 +123,7 @@ pub(crate) struct TimelineContext<'a> {
     pub preview: &'a mut PreviewPaneState,
     pub timeline: Option<&'a Timeline>,
     pub composition: Option<&'a Composition>,
+    pub active_scene: Option<&'a str>,
     pub commands: &'a mut ActionQueue,
     pub collapsed_actors: &'a mut HashSet<String>,
     pub expanded_properties: &'a mut HashSet<String>,
@@ -576,7 +577,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
 
     // ── Keyframe multi-select state ──
     let kf_multi_select_id = panel_id.with("kf_multi");
-    let mut multi_selected: Vec<(String, u64)> =
+    let mut multi_selected: Vec<(Option<String>, String, u64)> =
         ui.data(|d| d.get_temp(kf_multi_select_id)).unwrap_or_default();
     let shift_held = ui.input(|i| i.modifiers.shift);
 
@@ -1546,8 +1547,9 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             continue;
                         }
                         let is_act = (kf_s - preview.playback.current_time_s()).abs() < 0.01;
-                        let is_ms =
-                            multi_selected.iter().any(|(l, t)| l == actor_label && *t == kf_ms);
+                        let is_ms = multi_selected.iter().any(|(scene, l, t)| {
+                            scene.as_deref() == ctx.active_scene && l == actor_label && *t == kf_ms
+                        });
                         let is_drag = kf_drag
                             .as_ref()
                             .is_some_and(|(l, _, t, _)| l == actor_label && *t == kf_ms);
@@ -1646,28 +1648,43 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
 
                         if dresp.clicked() {
                             if shift_held {
-                                if let Some(p) = multi_selected
-                                    .iter()
-                                    .position(|(l, t)| l == actor_label && *t == kf_ms)
-                                {
+                                if let Some(p) = multi_selected.iter().position(|(scene, l, t)| {
+                                    scene.as_deref() == ctx.active_scene
+                                        && l == actor_label
+                                        && *t == kf_ms
+                                }) {
                                     multi_selected.remove(p);
                                 } else {
-                                    multi_selected.push((actor_label.clone(), kf_ms));
+                                    multi_selected.push((
+                                        ctx.active_scene.map(ToOwned::to_owned),
+                                        actor_label.clone(),
+                                        kf_ms,
+                                    ));
                                 }
                             } else {
                                 multi_selected.clear();
-                                multi_selected.push((actor_label.clone(), kf_ms));
+                                multi_selected.push((
+                                    ctx.active_scene.map(ToOwned::to_owned),
+                                    actor_label.clone(),
+                                    kf_ms,
+                                ));
                             }
                         }
                         if dresp.drag_started() {
                             new_kf_drag = Some((actor_label.clone(), prop, kf_ms, kf_s));
                             if !shift_held
-                                && !multi_selected
-                                    .iter()
-                                    .any(|(l, t)| l == actor_label && *t == kf_ms)
+                                && !multi_selected.iter().any(|(scene, l, t)| {
+                                    scene.as_deref() == ctx.active_scene
+                                        && l == actor_label
+                                        && *t == kf_ms
+                                })
                             {
                                 multi_selected.clear();
-                                multi_selected.push((actor_label.clone(), kf_ms));
+                                multi_selected.push((
+                                    ctx.active_scene.map(ToOwned::to_owned),
+                                    actor_label.clone(),
+                                    kf_ms,
+                                ));
                             }
                         }
                         if is_drag {
@@ -1729,8 +1746,13 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
             let track_bar_resp =
                 ui.interact(bar_area, ui.id().with(("track_bar", track_idx)), Sense::click());
             track_bar_resp.context_menu(|ui| {
-                let track_selected: Vec<(String, u64)> =
-                    multi_selected.iter().filter(|(l, _)| l == actor_label).cloned().collect();
+                let track_selected: Vec<(Option<String>, String, u64)> = multi_selected
+                    .iter()
+                    .filter(|(scene, l, _)| {
+                        scene.as_deref() == ctx.active_scene && l == actor_label
+                    })
+                    .cloned()
+                    .collect();
                 if !track_selected.is_empty() {
                     ui.strong(format!("{} selected keyframes", track_selected.len()));
                     ui.separator();
@@ -1741,7 +1763,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                         )))
                         .clicked()
                     {
-                        for (actor, time_ms) in &track_selected {
+                        for (_scene, actor, time_ms) in &track_selected {
                             if let Some(tl) = timeline {
                                 if let Some(track) = tl.get_track(actor) {
                                     // Use per-property collector to delete all matching keyframes
@@ -1766,7 +1788,9 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     }
                     ui.separator();
                     if ui.button("Clear selection").clicked() {
-                        multi_selected.retain(|(l, _)| l != actor_label);
+                        multi_selected.retain(|(scene, l, _)| {
+                            scene.as_deref() != ctx.active_scene || l != actor_label
+                        });
                         ui.close();
                     }
                 } else {
@@ -2138,17 +2162,30 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
 
         // ── Mirror keyframe selection into the shared store ──
         if multi_selected != prev_multi_selected {
-            let canonical: Vec<(String, String, u64)> = multi_selected
+            let active_timeline: Option<&Timeline> = timeline.as_deref();
+            let active_composition: Option<&Composition> = composition.as_deref();
+            let canonical: Vec<KeyframeId> = multi_selected
                 .iter()
-                .filter_map(|(actor, time_ms)| {
-                    timeline.and_then(|tl| tl.get_track(actor)).map(|track| {
-                        let mut triples = Vec::new();
+                .filter_map(|(scene, actor, time_ms)| {
+                    let scene_timeline = match scene {
+                        None => active_timeline,
+                        Some(name) => active_composition
+                            .and_then(|comp| comp.scenes.get(name))
+                            .map(|scene| &scene.timeline),
+                    };
+                    scene_timeline.and_then(|tl| tl.get_track(actor)).map(|track| {
+                        let mut ids = Vec::new();
                         for (prop_name, times) in collect_per_property_keyframes(track) {
                             if times.contains(time_ms) {
-                                triples.push((actor.clone(), prop_name.to_string(), *time_ms));
+                                ids.push(KeyframeId {
+                                    scene: scene.clone(),
+                                    actor: actor.clone(),
+                                    property: prop_name.to_string(),
+                                    time_ms: *time_ms,
+                                });
                             }
                         }
-                        triples
+                        ids
                     })
                 })
                 .flatten()

@@ -5,12 +5,14 @@
 
 use std::collections::HashSet;
 
+use crate::app::document::timeline_diff::KeyframeId;
+
 /// Snapshot of UI state that should be restored on undo/redo.
 #[derive(Debug, Clone)]
 pub struct UiSnapshot {
     pub active_scene: Option<String>,
     pub selected_actors: HashSet<String>,
-    pub selected_keyframes: Vec<(String, String, u64)>, // (actor, property, time_ms)
+    pub selected_keyframes: Vec<KeyframeId>,
     pub playhead_time_s: f64,
     pub loop_start_s: Option<f64>,
     pub loop_end_s: Option<f64>,

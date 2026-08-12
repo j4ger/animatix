@@ -178,10 +178,20 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     })
                     .unwrap_or_default();
 
+                let active_scene =
+                    self.document_store.source.document.active_scene.as_deref().or_else(|| {
+                        self.document_store
+                            .source
+                            .document
+                            .composition
+                            .as_ref()
+                            .and_then(|c| c.declaration_order.first().map(String::as_str))
+                    });
                 let mut ctx = timeline_panel::TimelineContext {
                     preview: &mut self.preview_store.preview,
                     timeline: resolved_timeline,
                     composition: self.document_store.source.document.composition.as_ref(),
+                    active_scene,
                     commands: self.commands,
                     collapsed_actors: self.collapsed_actors,
                     expanded_properties: self.expanded_properties,

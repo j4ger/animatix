@@ -1,6 +1,8 @@
 use std::collections::VecDeque;
 use std::path::PathBuf;
 
+use crate::app::document::timeline_diff::KeyframeId;
+
 /// Side effects that can be produced by handling a command.
 ///
 /// These are collected by `handle_command` and applied by `GuiShell::apply_effects`
@@ -347,7 +349,7 @@ pub enum Command {
         time_s: f64,
     },
     /// Set the canonical keyframe multi-selection in the UI store.
-    SetSelectedKeyframes(Vec<(String, String, u64)>),
+    SetSelectedKeyframes(Vec<KeyframeId>),
     /// Move a keyframe to a new time. Emitted by timeline drag.
     MoveKeyframe {
         actor: String,

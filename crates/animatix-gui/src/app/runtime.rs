@@ -218,9 +218,13 @@ impl AnimatixApp {
                     if self.shell.ui_store.view.timeline_focused
                         && !self.shell.ui_store.selection.selected_keyframes.is_empty()
                     {
-                        for (actor, property, time_ms) in
-                            self.shell.ui_store.selection.selected_keyframes.clone()
-                        {
+                        for keyframe in self.shell.ui_store.selection.selected_keyframes.clone() {
+                            let crate::app::document::timeline_diff::KeyframeId {
+                                actor,
+                                property,
+                                time_ms,
+                                ..
+                            } = keyframe;
                             self.shell.ui_store.pending_actions.push_back(
                                 KeyframeCommand::DeleteKeyframe {
                                     actor,

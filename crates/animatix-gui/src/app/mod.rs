@@ -1043,9 +1043,16 @@ impl GuiShell {
 
     fn sync_active_scene_from_time(&mut self) {
         if let Some(composition) = self.document_store.source.document.composition.as_ref() {
+            let previous_scene = self.document_store.source.document.active_scene.clone();
             let (scene, _, _) =
                 composition.evaluate(self.preview_store.preview.playback.current_time_s());
-            self.document_store.source.document.active_scene = (!scene.is_empty()).then_some(scene);
+            let scene = (!scene.is_empty()).then_some(scene);
+            if scene != previous_scene {
+                // Keyframe selections are scene-qualified; automatic playback
+                // crossing a scene boundary must not replay old-scene entries.
+                self.ui_store.selection.selected_keyframes.clear();
+            }
+            self.document_store.source.document.active_scene = scene;
         }
     }
 

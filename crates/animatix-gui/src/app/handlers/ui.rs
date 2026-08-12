@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use crate::app::commands::{Effect, UndoEntry};
 use crate::app::components::toast::Toast;
+use crate::app::document::timeline_diff::KeyframeId;
 use crate::app::stores::{DocumentStore, ExportStore, PreviewStore, UiStore};
 
 pub fn handle_show_inspector(ui_store: &mut UiStore) -> Vec<Effect> {
@@ -216,7 +217,7 @@ fn suggest_export_filename(export_store: &ExportStore, document_store: &Document
 
 pub fn handle_set_selected_keyframes(
     ui_store: &mut crate::app::stores::UiStore,
-    keyframes: Vec<(String, String, u64)>,
+    keyframes: Vec<KeyframeId>,
 ) -> Vec<Effect> {
     ui_store.selection.selected_keyframes = keyframes;
     vec![]
@@ -226,25 +227,34 @@ pub fn handle_set_selected_keyframes(
 mod tests {
     use super::*;
 
+    fn keyframe_id(scene: Option<&str>, actor: &str, property: &str, time_ms: u64) -> KeyframeId {
+        KeyframeId {
+            scene: scene.map(ToOwned::to_owned),
+            actor: actor.to_string(),
+            property: property.to_string(),
+            time_ms,
+        }
+    }
+
     #[test]
     fn handle_set_selected_keyframes_populates_store() {
         let mut ui_store =
             crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
-        let triples = vec![
-            ("Actor1".into(), "position".into(), 1000u64),
-            ("Actor2".into(), "rotation".into(), 2000u64),
+        let keyframes = vec![
+            keyframe_id(Some("Intro"), "Actor1", "position", 1000),
+            keyframe_id(None, "Actor2", "rotation", 2000),
         ];
-        let _effects = handle_set_selected_keyframes(&mut ui_store, triples.clone());
-        assert_eq!(ui_store.selection.selected_keyframes, triples);
+        let _effects = handle_set_selected_keyframes(&mut ui_store, keyframes.clone());
+        assert_eq!(ui_store.selection.selected_keyframes, keyframes);
     }
 
     #[test]
     fn handle_set_selected_keyframes_replaces_previous() {
         let mut ui_store =
             crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
-        let first = vec![("A".into(), "p".into(), 1u64)];
+        let first = vec![keyframe_id(None, "A", "p", 1)];
         let _ = handle_set_selected_keyframes(&mut ui_store, first);
-        let second = vec![("B".into(), "q".into(), 2u64)];
+        let second = vec![keyframe_id(Some("Intro"), "B", "q", 2)];
         let _ = handle_set_selected_keyframes(&mut ui_store, second.clone());
         assert_eq!(ui_store.selection.selected_keyframes, second);
     }

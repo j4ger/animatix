@@ -5,12 +5,22 @@
 //! summarizes the compiled-target change so handlers can keep time, active
 //! scene, and selection when they still exist and report what was removed.
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use crate::document::DocumentSession;
 
-/// Stable identity of a keyframe selection: (actor, property, time_ms).
-pub type KeyframeId = (String, String, u64);
+/// Stable identity of a keyframe selection.
+///
+/// `scene` is `None` for a single-scene document and `Some(name)` for a named
+/// scene in a composition. Time is scene-local milliseconds, which is stable
+/// against composition reordering and scene duration changes.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct KeyframeId {
+    pub scene: Option<String>,
+    pub actor: String,
+    pub property: String,
+    pub time_ms: u64,
+}
 
 /// Collect per-property keyframe times for the canonical property set used by
 /// timeline selection.
@@ -81,7 +91,10 @@ pub(crate) fn collect_per_property_keyframes(
 /// previous `DocumentSession` data in place.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TimelineFingerprint {
+    /// Union across all scenes, used for structural change reporting.
     actors: BTreeSet<String>,
+    /// Actor labels per scene. `None` is the single-scene document.
+    actors_by_scene: BTreeMap<Option<String>, BTreeSet<String>>,
     scenes: BTreeSet<String>,
     duration_ms: i64,
     keyframes: BTreeSet<KeyframeId>,
@@ -91,11 +104,45 @@ impl TimelineFingerprint {
     /// Capture the current compiled actor/scene/keyframe identity.
     pub fn from_document(document: &DocumentSession) -> Self {
         let mut actors = BTreeSet::new();
+        let mut actors_by_scene: BTreeMap<Option<String>, BTreeSet<String>> = BTreeMap::new();
+        let mut keyframes = BTreeSet::new();
+
         if let Some(timeline) = &document.timeline {
             actors.extend(timeline.tracks().keys().cloned());
+            actors_by_scene.insert(None, timeline.tracks().keys().cloned().collect());
+            for track in timeline.tracks().values() {
+                for (property, times) in collect_per_property_keyframes(track) {
+                    for time_ms in times {
+                        keyframes.insert(KeyframeId {
+                            scene: None,
+                            actor: track.label.clone(),
+                            property: property.to_string(),
+                            time_ms,
+                        });
+                    }
+                }
+            }
         } else if let Some(composition) = &document.composition {
-            for scene in composition.scenes.values() {
-                actors.extend(scene.timeline.tracks().keys().cloned());
+            for scene_name in &composition.declaration_order {
+                let Some(scene) = composition.scenes.get(scene_name) else {
+                    continue;
+                };
+                let scene_actors: BTreeSet<String> =
+                    scene.timeline.tracks().keys().cloned().collect();
+                actors.extend(scene_actors.iter().cloned());
+                actors_by_scene.insert(Some(scene_name.clone()), scene_actors);
+                for track in scene.timeline.tracks().values() {
+                    for (property, times) in collect_per_property_keyframes(track) {
+                        for time_ms in times {
+                            keyframes.insert(KeyframeId {
+                                scene: Some(scene_name.clone()),
+                                actor: track.label.clone(),
+                                property: property.to_string(),
+                                time_ms,
+                            });
+                        }
+                    }
+                }
             }
         }
 
@@ -104,32 +151,26 @@ impl TimelineFingerprint {
             .as_ref()
             .map(|composition| composition.declaration_order.iter().cloned().collect())
             .unwrap_or_default();
-        let keyframes = document
-            .active_timeline()
-            .map(|timeline| {
-                let mut ids = BTreeSet::new();
-                for track in timeline.tracks().values() {
-                    for (property, times) in collect_per_property_keyframes(track) {
-                        for time_ms in times {
-                            ids.insert((track.label.clone(), property.to_string(), time_ms));
-                        }
-                    }
-                }
-                ids
-            })
-            .unwrap_or_default();
 
         Self {
             actors,
+            actors_by_scene,
             scenes,
             duration_ms: (document.duration_s * 1000.0).round() as i64,
             keyframes,
         }
     }
 
-    /// Actor labels that survived into the current build.
-    pub fn surviving_actors(&self, labels: impl IntoIterator<Item = String>) -> HashSet<String> {
-        labels.into_iter().filter(|label| self.actors.contains(label)).collect()
+    /// Actor labels from `scene` that survived into the current build.
+    pub fn surviving_actors(
+        &self,
+        scene: Option<&str>,
+        labels: impl IntoIterator<Item = String>,
+    ) -> HashSet<String> {
+        let Some(scene_actors) = self.actors_by_scene.get(&scene.map(ToOwned::to_owned)) else {
+            return HashSet::new();
+        };
+        labels.into_iter().filter(|label| scene_actors.contains(label)).collect()
     }
 
     /// Keyframes that still exist in the current build.
@@ -182,17 +223,26 @@ impl TimelineDiff {
 ///
 /// Keep the old playhead when the new duration still covers it. When the
 /// timeline shrank, jump to the nearest surviving keyframe; fall back to the
-/// end of the new duration if no keyframes remain.
+/// end of the new duration if no keyframes remain. Composition keyframes are
+/// compared in global time.
 pub fn preserved_time_s(previous_time_s: f64, document: &DocumentSession) -> f64 {
     let duration_s = document.duration_s.max(0.1);
     if previous_time_s <= duration_s {
         return previous_time_s;
     }
 
-    let times = document
-        .active_timeline()
-        .map(|timeline| timeline.keyframe_times_s())
-        .unwrap_or_default();
+    let times = if document.is_composition() {
+        crate::document::timeline_keyframe_times_s(
+            None,
+            document.composition.as_ref(),
+            document.active_scene.as_deref(),
+        )
+    } else {
+        document
+            .active_timeline()
+            .map(|timeline| timeline.keyframe_times_s())
+            .unwrap_or_default()
+    };
     times
         .into_iter()
         .filter(|time_s| *time_s <= duration_s)
@@ -212,6 +262,15 @@ mod tests {
             DocumentSession::from_source(PathBuf::from("test.amx"), source.to_string()).unwrap();
         session.rebuild().expect("valid source should rebuild");
         session
+    }
+
+    fn id(scene: Option<&str>, actor: &str, property: &str, time_ms: u64) -> KeyframeId {
+        KeyframeId {
+            scene: scene.map(ToOwned::to_owned),
+            actor: actor.to_string(),
+            property: property.to_string(),
+            time_ms,
+        }
     }
 
     #[test]
@@ -270,19 +329,13 @@ mod tests {
         ));
 
         let kept = current.surviving_keyframes(vec![
-            ("box".to_string(), "size".to_string(), 0),
-            ("box".to_string(), "color".to_string(), 2000),
-            ("box".to_string(), "position".to_string(), 2000),
-            ("gone".to_string(), "color".to_string(), 2000),
+            id(None, "box", "size", 0),
+            id(None, "box", "color", 2000),
+            id(None, "box", "position", 2000),
+            id(None, "gone", "color", 2000),
         ]);
 
-        assert_eq!(
-            kept,
-            vec![
-                ("box".to_string(), "size".to_string(), 0),
-                ("box".to_string(), "color".to_string(), 2000)
-            ]
-        );
+        assert_eq!(kept, vec![id(None, "box", "size", 0), id(None, "box", "color", 2000)]);
     }
 
     #[test]
@@ -295,11 +348,17 @@ mod tests {
         ));
 
         let diff = TimelineDiff::between(&previous, &current);
-        assert!(diff.removed_keyframes.iter().any(|(actor, property, time_ms)| {
-            actor == "box" && property == "color" && *time_ms == 2000
+        assert!(diff.removed_keyframes.iter().any(|keyframe| {
+            keyframe.scene.is_none()
+                && keyframe.actor == "box"
+                && keyframe.property == "color"
+                && keyframe.time_ms == 2000
         }));
-        assert!(diff.added_keyframes.iter().any(|(actor, property, time_ms)| {
-            actor == "box" && property == "position" && *time_ms == 2000
+        assert!(diff.added_keyframes.iter().any(|keyframe| {
+            keyframe.scene.is_none()
+                && keyframe.actor == "box"
+                && keyframe.property == "position"
+                && keyframe.time_ms == 2000
         }));
     }
 
@@ -311,17 +370,71 @@ mod tests {
 
         assert!(
             current
-                .surviving_keyframes(vec![(
-                    "box".to_string(),
-                    "background_color".to_string(),
-                    2000
-                )])
+                .surviving_keyframes(vec![id(None, "box", "background_color", 2000)])
                 .is_empty(),
             "background_color aliases ActorField::Color and must not create a separate identity"
         );
         assert_eq!(
-            current.surviving_keyframes(vec![("box".to_string(), "color".to_string(), 2000)]),
-            vec![("box".to_string(), "color".to_string(), 2000)]
+            current.surviving_keyframes(vec![id(None, "box", "color", 2000)]),
+            vec![id(None, "box", "color", 2000)]
+        );
+    }
+
+    #[test]
+    fn composition_fingerprint_qualifies_keyframes_by_scene() {
+        let fingerprint = TimelineFingerprint::from_document(&load_session(
+            "# A\n#0s\nbox: Rect, size: (100, 100)\n# B\n#0s\nbox: Rect, size: (100, 100)\n#2s\nbox.color = red\n",
+        ));
+
+        let kept = fingerprint.surviving_keyframes(vec![
+            id(Some("A"), "box", "size", 0),
+            id(Some("B"), "box", "size", 0),
+            id(Some("B"), "box", "color", 2000),
+            id(None, "box", "color", 2000),
+        ]);
+
+        assert_eq!(
+            kept,
+            vec![
+                id(Some("A"), "box", "size", 0),
+                id(Some("B"), "box", "size", 0),
+                id(Some("B"), "box", "color", 2000),
+            ]
+        );
+    }
+
+    #[test]
+    fn composition_diff_drops_only_removed_scene_keyframes() {
+        let previous = TimelineFingerprint::from_document(&load_session(
+            "# A\n#0s\nbox: Rect, size: (100, 100)\n# B\n#0s\nbox: Rect, size: (100, 100)\n#2s\nbox.color = red\n",
+        ));
+        let current = TimelineFingerprint::from_document(&load_session(
+            "# A\n#0s\nbox: Rect, size: (100, 100)\n",
+        ));
+
+        let diff = TimelineDiff::between(&previous, &current);
+        assert_eq!(diff.removed_scenes, vec!["B"]);
+        assert!(diff.removed_keyframes.iter().all(|id| id.scene.as_deref() == Some("B")));
+        assert!(
+            diff.removed_keyframes
+                .iter()
+                .any(|id| { id.actor == "box" && id.property == "color" && id.time_ms == 2000 })
+        );
+        assert!(diff.removed_actors.iter().all(|actor| actor != "box"));
+    }
+
+    #[test]
+    fn preserved_time_uses_global_composition_keyframes() {
+        let document =
+            load_session("# A\n#0s\nbox: Rect\n# B\n#0s\nbox: Rect\n#2s\nbox.color = red\n");
+
+        // Global keyframe positions are A=0s and B=start+2s. A playhead beyond
+        // the new duration should land on a real global keyframe, not active
+        // scene-local time.
+        let preserved = preserved_time_s(5.0, &document);
+        assert!(
+            (preserved - 2.0).abs() < 0.001,
+            "expected global keyframe time, got {preserved}"
         );
     }
 
