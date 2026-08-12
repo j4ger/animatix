@@ -473,6 +473,9 @@ impl HasDuration for VariableTrack {
 /// Cached transform entry: (time_ms, parent_transform_coeffs, node_transform).
 type TransformCacheEntry = (u64, [f64; 6], scene_eval::NodeTransform);
 
+/// Static subtree cache value: cached scene plus precise bounds for its nodes.
+type StaticSubtreeEntry = (vello::Scene, Vec<(String, kurbo::Rect)>);
+
 /// Compiled animation package containing the full scene graph, tracks, and
 /// evaluation state.
 pub struct Timeline {
@@ -520,17 +523,23 @@ pub struct Timeline {
     /// Cleared on timeline rebuild.
     transform_cache: std::cell::RefCell<std::collections::HashMap<String, TransformCacheEntry>>,
     /// Static subtree scene fragment cache (P2.17).
-    /// Maps (root_label, debug options) -> cached vello Scene for fully-static
-    /// subtrees. Debug options are part of the key because overlays change the
-    /// encoded output; hit-region evaluation bypasses this cache entirely.
-    static_subtree_cache:
-        std::cell::RefCell<std::collections::HashMap<(String, DebugRenderOptions), vello::Scene>>,
+    /// Maps (root_label, debug options) -> cached vello Scene and the precise
+    /// bounds computed for nodes in that subtree. Debug options are part of the
+    /// key because overlays change the encoded output; hit-region evaluation
+    /// bypasses this cache entirely.
+    static_subtree_cache: std::cell::RefCell<
+        std::collections::HashMap<(String, DebugRenderOptions), StaticSubtreeEntry>,
+    >,
     /// Reusable vello scene buffer (P2.25). Avoids allocating fresh encoding
     /// buffers on every frame by calling scene.reset() between evaluations.
     scene_buffer: std::cell::RefCell<Option<vello::Scene>>,
     /// Per-actor world-space bounding boxes from the last evaluate call.
     /// Each entry is (actor_label, world_bounds). Populated during evaluate.
     hit_regions: std::cell::RefCell<Vec<(String, kurbo::Rect)>>,
+    /// Precise world-space AABBs computed from emitted render commands on the
+    /// most recent frame. Used by callout/line/arrow anchor resolution when the
+    /// target has already been evaluated; falls back to size-box bounds.
+    precise_bounds_cache: std::cell::RefCell<std::collections::HashMap<String, kurbo::Rect>>,
     /// Keyframe-scoped variable tracks.
     /// Variables declared via `let` inside keyframes are stored here as
     /// piecewise-constant functions of time, injected into the frame environment
@@ -563,6 +572,8 @@ pub(crate) struct FrameCacheEntry {
     has_dynamic_layout: bool,
     has_child_orders: bool,
     scene: vello::Scene,
+    /// Precise world AABBs for the cached frame.
+    precise_bounds: std::collections::HashMap<String, kurbo::Rect>,
 }
 
 impl Clone for Timeline {
@@ -595,6 +606,7 @@ impl Clone for Timeline {
             static_subtree_cache: std::cell::RefCell::new(std::collections::HashMap::new()), /* cache is not cloned */
             scene_buffer: std::cell::RefCell::new(None), // buffer is not cloned
             hit_regions: std::cell::RefCell::new(Vec::new()),
+            precise_bounds_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
             variable_tracks: self.variable_tracks.clone(),
             audio_segments: self.audio_segments.clone(),
             action_events: self.action_events.clone(),
@@ -645,6 +657,7 @@ impl Timeline {
             static_subtree_cache: std::cell::RefCell::new(std::collections::HashMap::new()), /* cache is not cloned */
             scene_buffer: std::cell::RefCell::new(None), // buffer is not cloned
             hit_regions: std::cell::RefCell::new(Vec::new()),
+            precise_bounds_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
             variable_tracks: BTreeMap::new(),
             audio_segments: Vec::new(),
             action_events: Vec::new(),
@@ -1021,6 +1034,7 @@ impl Timeline {
         *self.frame_cache.borrow_mut() = None;
         *self.static_subtree_cache.borrow_mut() = std::collections::HashMap::new();
         *self.transform_cache.borrow_mut() = std::collections::HashMap::new();
+        *self.precise_bounds_cache.borrow_mut() = std::collections::HashMap::new();
         self.layout_engine.invalidate_cache();
     }
 

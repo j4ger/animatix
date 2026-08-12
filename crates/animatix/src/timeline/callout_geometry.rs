@@ -37,6 +37,18 @@ impl TargetResolver for Timeline {
         time_ms: u64,
         scene_dimensions: SceneDimensions,
     ) -> Option<([f32; 2], [f32; 2])> {
+        // Prefer the exact world AABB emitted from render commands on the
+        // current frame. This reflects text/path/image geometry in addition to
+        // the declared size box and works for already-evaluated targets.
+        if let Some(rect) = self.precise_bounds_cache.borrow().get(name).copied() {
+            let centre = rect.center();
+            let half = rect.size() * 0.5;
+            return Some((
+                [centre.x as f32, centre.y as f32],
+                [half.width as f32, half.height as f32],
+            ));
+        }
+
         let track = self.get_track(name)?;
         let half_local = track.geometry.size.get(time_ms, [50.0, 50.0]);
         // Use the world affine to get a transform-aware AABB.

@@ -74,6 +74,7 @@ pub fn evaluate_text_paths(
     let mut overflow = ctx.track.text.overflow.get(ctx.time_ms, "visible".to_string());
     let mut color = ctx.track.style.color.get(ctx.time_ms, DEFAULT_WHITE);
 
+    let mut content_override: Option<String> = None;
     if let Some(ov) = ctx.overrides {
         if let Some(Value::Str(s)) = ov
             .get("text")
@@ -82,6 +83,7 @@ pub fn evaluate_text_paths(
             .or_else(|| ov.get("latex"))
             .or_else(|| ov.get("content"))
         {
+            content_override = Some(s.clone());
             content = s.clone();
         }
         if let Some(Value::Str(s)) = ov.get("font_family") {
@@ -118,8 +120,10 @@ pub fn evaluate_text_paths(
             color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
         }
     }
-
-    if !content.is_empty() {
+    // An explicit empty-string override means "no visible content", not "keep
+    // the cached build-time glyphs". This makes `always { box.text = "" }`
+    // deterministic instead of silently falling back to stale paths.
+    if content_override.is_some() || !content.is_empty() {
         text_ctx.text_compiler.compile(
             &content,
             &font_family,

@@ -539,7 +539,22 @@ impl Timeline {
                         text_compiler: &mut self.text_compiler.borrow_mut(),
                         font_context: self.font_context.as_ref(),
                     };
-                    primitive.evaluate(&ctx, Some(&mut text_ctx)).ok().flatten()
+                    match primitive.evaluate(&ctx, Some(&mut text_ctx)) {
+                        Ok(commands) => commands,
+                        Err(e) => {
+                            self.runtime_diagnostics.borrow_mut().push(
+                                crate::diagnostics::Diagnostic::error(
+                                    crate::diagnostics::DiagnosticCode::RenderFailure,
+                                    crate::diagnostics::DiagnosticPhase::Render,
+                                    format!(
+                                        "failed to evaluate '{}' at t={time_ms}ms: {e}",
+                                        node_label
+                                    ),
+                                ),
+                            );
+                            None
+                        },
+                    }
                 } else {
                     None
                 }
@@ -571,17 +586,21 @@ impl Timeline {
                     transform_rect_bbox(&local_transform, default_bounds)
                 };
                 hit_regions.push((node_label.to_string(), world_bounds));
+                self.precise_bounds_cache
+                    .borrow_mut()
+                    .insert(node_label.to_string(), world_bounds);
 
                 // Debug overlays
                 if debug_options.draw_bounds {
                     let svg_paths = track.svg_paths_at(time_ms).unwrap_or_default();
+                    let text_paths = track.evaluate_text_paths(time_ms);
                     let _ = self.add_node_debug_overlays(
                         &svg_paths,
                         half_size,
                         &local_transform,
                         scene,
                         &vector_paths,
-                        &[],
+                        &text_paths,
                         image_size.is_some(),
                     );
                 }
@@ -1025,6 +1044,7 @@ impl Timeline {
                     && cached.has_dynamic_layout == self.dynamic_layout
                     && cached.has_child_orders == has_child_orders
                 {
+                    *self.precise_bounds_cache.borrow_mut() = cached.precise_bounds.clone();
                     return cached.scene.clone();
                 }
             }
@@ -1033,6 +1053,8 @@ impl Timeline {
         // P2.25: Reuse vello scene buffer to avoid allocating fresh encoding buffers.
         let mut scene = self.scene_buffer.borrow_mut().take().unwrap_or_default();
         scene.reset();
+        // Precise bounds are only valid for the frame that computed them.
+        self.precise_bounds_cache.borrow_mut().clear();
         let bg_color = self.background_color.evaluate_copy(time_ms);
 
         // Collect actor world-space bounding boxes for click-to-select
@@ -1114,12 +1136,17 @@ impl Timeline {
             {
                 let cache_key = (root.clone(), debug_options);
                 let cache = self.static_subtree_cache.borrow_mut();
-                if let Some(cached_scene) = cache.get(&cache_key) {
-                    // Fast path: append cached encoding directly
+                if let Some((cached_scene, cached_bounds)) = cache.get(&cache_key) {
+                    // Fast path: append cached encoding directly and restore the
+                    // precise bounds that were computed for this subtree.
                     scene.encoding_mut().append(cached_scene.encoding(), &None);
+                    for (label, bounds) in cached_bounds {
+                        self.precise_bounds_cache.borrow_mut().insert(label.clone(), *bounds);
+                    }
                 } else {
                     drop(cache);
                     let mut temp_scene = vello::Scene::new();
+                    let subtree_bounds_before = self.precise_bounds_cache.borrow().len();
                     self.evaluate_node(
                         root,
                         time_ms,
@@ -1135,9 +1162,18 @@ impl Timeline {
                         filter_backend,
                         true,
                     );
-                    // Append to main scene and cache for next time
+                    // Append to main scene and cache for next time.
                     scene.encoding_mut().append(temp_scene.encoding(), &None);
-                    self.static_subtree_cache.borrow_mut().insert(cache_key, temp_scene);
+                    let new_bounds: Vec<(String, kurbo::Rect)> = self
+                        .precise_bounds_cache
+                        .borrow()
+                        .iter()
+                        .skip(subtree_bounds_before)
+                        .map(|(label, rect)| (label.clone(), *rect))
+                        .collect();
+                    self.static_subtree_cache
+                        .borrow_mut()
+                        .insert(cache_key, (temp_scene, new_bounds));
                 }
             } else {
                 self.evaluate_node(
@@ -1177,6 +1213,7 @@ impl Timeline {
                 has_dynamic_layout: self.dynamic_layout,
                 has_child_orders: !self.child_orders.is_empty(),
                 scene: scene.clone(),
+                precise_bounds: self.precise_bounds_cache.borrow().clone(),
             });
         }
         let result = scene.clone();
@@ -1478,5 +1515,56 @@ mod tests {
 
         // Should not panic; returns a valid scene
         let _ = scene;
+    }
+
+    #[test]
+    fn target_bounds_prefer_precise_command_bounds() {
+        let timeline = make_minimal_timeline();
+        // The declared size box is 100x100 centered at (0,0), but the precise
+        // command bounds describe a different world AABB.
+        timeline
+            .precise_bounds_cache
+            .borrow_mut()
+            .insert("test_box".to_string(), kurbo::Rect::new(50.0, 40.0, 100.0, 80.0));
+        let (centre, half) = crate::timeline::callout_geometry::TargetResolver::target_bounds(
+            &timeline,
+            "test_box",
+            0,
+            SceneDimensions {
+                width: 800,
+                height: 600,
+            },
+        )
+        .expect("target bounds");
+        assert_eq!(centre, [75.0, 60.0]);
+        assert_eq!(half, [25.0, 20.0]);
+    }
+
+    #[test]
+    fn frame_cache_restores_precise_bounds_on_hit() {
+        let timeline = make_minimal_timeline();
+        let dimensions = SceneDimensions {
+            width: 800,
+            height: 600,
+        };
+
+        let _scene = timeline.evaluate(0.0, dimensions);
+        assert!(
+            timeline.precise_bounds_cache.borrow().contains_key("test_box"),
+            "precise bounds should be populated after evaluation"
+        );
+
+        let cached = timeline
+            .precise_bounds_cache
+            .borrow()
+            .get("test_box")
+            .copied()
+            .expect("cached bounds");
+        let _scene = timeline.evaluate(0.0, dimensions);
+        assert_eq!(
+            timeline.precise_bounds_cache.borrow().get("test_box").copied(),
+            Some(cached),
+            "frame-cache hit should restore precise bounds"
+        );
     }
 }

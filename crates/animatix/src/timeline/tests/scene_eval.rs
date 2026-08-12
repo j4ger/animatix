@@ -369,3 +369,71 @@ fn test_runtime_text_recompilation() {
         cache_len
     );
 }
+
+#[test]
+fn runtime_empty_text_override_clears_stale_glyphs() {
+    let ast = vec![Stmt::Keyframe {
+        time: crate::ast::Time::Seconds(0.0),
+        body: vec![
+            Stmt::ActorDecl {
+                is_pub: false,
+                is_anonymous: false,
+                label: "counter".to_string(),
+                array_index: None,
+                ty: "Text".to_string(),
+                props: vec![
+                    Property {
+                        name: "text".to_string(),
+                        value: Expr::Str("visible".to_string()),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "font_size".to_string(),
+                        value: Expr::Num(48.0),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "font_family".to_string(),
+                        value: Expr::Str("Open Sans".to_string()),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                ],
+                modifiers: vec![],
+                children: vec![],
+                span: None,
+            },
+            Stmt::Always {
+                body: vec![Stmt::Assignment {
+                    target: vec![crate::ast::TargetSegment::Static("counter".to_string())],
+                    property: "text".to_string(),
+                    value: Expr::Str("".to_string()),
+                    modifiers: vec![],
+                    easing: None,
+                    value_span: None,
+                    span: None,
+                }],
+                span: None,
+            },
+        ],
+        span: None,
+    }];
+
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+    let dimensions = SceneDimensions {
+        width: 400,
+        height: 200,
+    };
+
+    // The actor has build-time glyphs, but the runtime override is explicitly
+    // empty. Evaluation must produce no text commands instead of silently
+    // reusing the cached build-time content, so no precise bounds are recorded.
+    let _scene = timeline.evaluate(0.0, dimensions);
+    assert!(
+        !timeline.precise_bounds_cache.borrow().contains_key("counter"),
+        "empty runtime text override should clear visible content"
+    );
+}
