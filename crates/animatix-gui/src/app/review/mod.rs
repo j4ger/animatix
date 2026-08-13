@@ -16,6 +16,7 @@ use eframe::egui;
 use egui_phosphor::regular::{
     ARROW_LEFT, ARROW_RIGHT, CHAT_CIRCLE_TEXT, CHECK_CIRCLE, PAUSE, PLAY, TRASH,
 };
+use eparts::widget::UiExt;
 use serde::{Deserialize, Serialize};
 
 use super::runtime::{detect_system_dark, install_theme};
@@ -646,8 +647,10 @@ impl eframe::App for ReviewApp {
                 ui.horizontal_wrapped(|ui| {
                     if let Some(run) = self.run.as_ref() {
                         for (index, variant) in run.variants.iter().enumerate() {
-                            let response =
-                                ui.selectable_label(index == self.current_variant, &variant.label);
+                            let response = ui.stable_selectable_label(
+                                index == self.current_variant,
+                                &variant.label,
+                            );
                             if response
                                 .on_hover_text(format!(
                                     "Comment target: {} (key {})",
@@ -664,7 +667,7 @@ impl eframe::App for ReviewApp {
                     ui.separator();
 
                     for mode in [ReviewMode::Single, ReviewMode::Compare] {
-                        let response = ui.selectable_label(self.mode == mode, mode.label());
+                        let response = ui.stable_selectable_label(self.mode == mode, mode.label());
                         if response
                             .on_hover_text(if mode == ReviewMode::Compare {
                                 "Show all variants side by side (M)"
@@ -1039,7 +1042,7 @@ impl eframe::App for ReviewApp {
                                     let column = &mut columns[index];
                                     let active = variant_index == self.current_variant;
                                     if column
-                                        .selectable_label(
+                                        .stable_selectable_label(
                                             active,
                                             egui::RichText::new(label).strong(),
                                         )

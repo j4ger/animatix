@@ -1,4 +1,5 @@
 use egui::RichText;
+use eparts::widget::UiExt;
 
 use crate::app::components::layout;
 use crate::app::design_tokens::typography::TextRole;
@@ -155,7 +156,7 @@ impl GuiShell {
                         .width(ui.available_width())
                         .show_ui(ui, |ui| {
                             for (id, name) in schemes {
-                                if ui.selectable_label(id == current_scheme, name).clicked()
+                                if ui.stable_selectable_label(id == current_scheme, name).clicked()
                                     && id != current_scheme
                                     && self.document_store.source.document.raw_statements.is_some()
                                 {

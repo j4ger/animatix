@@ -218,16 +218,18 @@ fn render_code_cell(
     };
     let cell_diags = cell_analyzer_diagnostics(index, state);
 
-    let diagnostic_margin = border_color.map(|_| Margin {
+    // Reserve the diagnostic/focus stripe on every frame so focus and
+    // diagnostics only change paint, never the cell's layout width.
+    let diagnostic_margin = Margin {
         left: 2,
         right: 0,
         top: 0,
         bottom: 0,
-    });
+    };
 
     Frame::new()
         .fill(border_color.unwrap_or(bg))
-        .inner_margin(diagnostic_margin.unwrap_or(Margin::symmetric(0, 0)))
+        .inner_margin(diagnostic_margin)
         .show(ui, |ui| {
             Frame::new().fill(bg).inner_margin(Margin::symmetric(10, 8)).show(ui, |ui| {
                 ui.vertical(|ui| {
@@ -386,16 +388,18 @@ fn render_keyframe_cell(
     };
     let cell_diags = cell_analyzer_diagnostics(index, state);
 
-    let diagnostic_margin = border_color.map(|_| Margin {
+    // Reserve the diagnostic/focus stripe on every frame so focus and
+    // diagnostics only change paint, never the cell's layout width.
+    let diagnostic_margin = Margin {
         left: 2,
         right: 0,
         top: 0,
         bottom: 0,
-    });
+    };
 
     Frame::new()
         .fill(border_color.unwrap_or(bg))
-        .inner_margin(diagnostic_margin.unwrap_or(Margin::symmetric(0, 0)))
+        .inner_margin(diagnostic_margin)
         .show(ui, |ui| {
             Frame::new().fill(bg).show(ui, |ui| {
                 ui.vertical(|ui| {

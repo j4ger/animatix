@@ -5,7 +5,7 @@ use animatix::timeline::{
 };
 use animatix_syntax::easing::Easing;
 use egui::Vec2;
-use eparts::widget::Tooltip;
+use eparts::widget::{Tooltip, UiExt};
 
 use crate::app::commands::{ActionQueue, KeyframeCommand, PlaybackCommand};
 use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH, spatial};
@@ -190,7 +190,7 @@ fn render_compact_track_row(
                     let variant = animatix_syntax::easing::parse_easing_name(id_str)
                         .unwrap_or(Easing::Linear);
                     let is_selected = variant == current_easing;
-                    if ui.selectable_label(is_selected, display_name).clicked() {
+                    if ui.stable_selectable_label(is_selected, display_name).clicked() {
                         commands.push_back(
                             KeyframeCommand::SetKeyframeEasing {
                                 scene: active_scene.map(ToOwned::to_owned),

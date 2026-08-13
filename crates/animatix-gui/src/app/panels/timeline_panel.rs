@@ -23,7 +23,7 @@ use std::time::Duration;
 use animatix::composition::Composition;
 use animatix::timeline::Timeline;
 use egui::{Align2, Color32, FontId, Pos2, Rect, RichText, Sense, Stroke, Vec2};
-use eparts::widget::text_tooltip;
+use eparts::widget::{UiExt, text_tooltip};
 
 use crate::app::PreviewPaneState;
 use crate::app::commands::{ActionQueue, Command, PlaybackCommand, ShellAction};
@@ -330,7 +330,7 @@ fn render_transport_strip(
                     for (speed, label) in &SPEEDS {
                         let is_active =
                             (*speed - preview.playback.playback_speed).abs() < f32::EPSILON;
-                        if ui.selectable_label(is_active, *label).clicked() {
+                        if ui.stable_selectable_label(is_active, *label).clicked() {
                             preview.playback.playback_speed = *speed;
                             ui.close();
                         }
@@ -1561,7 +1561,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                 for &(id_str, display_name) in
                                     animatix_syntax::easing::EASING_REGISTRY
                                 {
-                                    if ui.selectable_label(false, display_name).clicked() {
+                                    if ui.stable_selectable_label(false, display_name).clicked() {
                                         let variant =
                                             animatix_syntax::easing::parse_easing_name(id_str)
                                                 .unwrap_or(animatix_syntax::easing::Easing::Linear);

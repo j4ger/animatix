@@ -783,6 +783,17 @@ impl Theme {
         ac.fg_stroke = Stroke::new(STROKE_WIDTH, self.text.primary);
         ac.corner_radius = radius;
 
+        // Menus and combo boxes use the `open` state for their trigger frame.
+        // Keep its geometry aligned with the other interactive states so opening
+        // a popup cannot introduce a state-dependent layout shift.
+        let op = &mut v.widgets.open;
+        op.bg_fill = self.surface.active;
+        op.weak_bg_fill = self.surface.active;
+        op.bg_stroke = Stroke::new(STROKE_WIDTH, self.accent.primary);
+        op.fg_stroke = Stroke::new(STROKE_WIDTH, self.text.primary);
+        op.corner_radius = radius;
+        op.expansion = 0.0;
+
         v
     }
 }
@@ -1451,6 +1462,12 @@ mod tests {
         let lt = Theme::light();
         let lv = lt.to_visuals(false);
         assert_eq!(lv.panel_fill, lt.surface.panel);
+        assert_eq!(v.widgets.open.corner_radius, v.widgets.hovered.corner_radius);
+        assert_eq!(v.widgets.open.bg_stroke.width, STROKE_WIDTH);
+        assert_eq!(v.widgets.open.expansion, 0.0);
+        assert_eq!(lv.widgets.open.corner_radius, lv.widgets.hovered.corner_radius);
+        assert_eq!(lv.widgets.open.bg_stroke.width, STROKE_WIDTH);
+        assert_eq!(lv.widgets.open.expansion, 0.0);
     }
 
     #[test]

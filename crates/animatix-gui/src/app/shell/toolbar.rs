@@ -1,4 +1,5 @@
 use egui::{Align, RichText, Stroke, Vec2};
+use eparts::widget::UiExt;
 
 use crate::app::GuiShell;
 use crate::app::commands::{ActionQueue, DocumentCommand, SceneCommand, ShellAction, ViewAction};
@@ -255,7 +256,10 @@ impl GuiShell {
 
                         // Grid toggle
                         let grid = self.preview_store.preview.overlay.show_grid;
-                        if ui.selectable_label(grid, "Grid").on_hover_text("Toggle grid").clicked()
+                        if ui
+                            .stable_selectable_label(grid, "Grid")
+                            .on_hover_text("Toggle grid")
+                            .clicked()
                         {
                             self.preview_store.preview.overlay.show_grid = !grid;
                         }
@@ -263,7 +267,7 @@ impl GuiShell {
                         // Guides toggle
                         let guides = self.preview_store.preview.overlay.show_guides;
                         if ui
-                            .selectable_label(guides, "Guides")
+                            .stable_selectable_label(guides, "Guides")
                             .on_hover_text("Toggle guides")
                             .clicked()
                         {
@@ -273,7 +277,7 @@ impl GuiShell {
                         // Labels toggle
                         let labels = self.preview_store.preview.overlay.show_actor_labels;
                         if ui
-                            .selectable_label(labels, "Labels")
+                            .stable_selectable_label(labels, "Labels")
                             .on_hover_text("Toggle actor labels")
                             .clicked()
                         {
@@ -326,11 +330,13 @@ impl GuiShell {
                                 .color(t.text.secondary),
                             |ui| {
                                 ui.set_min_width(80.0);
-                                if ui.selectable_label(false, "Fit").clicked() {
+                                if ui.stable_selectable_label(false, "Fit").clicked() {
                                     self.preview_store.preview.fit_zoom_requested = true;
                                     ui.close();
                                 }
-                                if ui.selectable_label((zoom - 1.0).abs() < 0.05, "100%").clicked()
+                                if ui
+                                    .stable_selectable_label((zoom - 1.0).abs() < 0.05, "100%")
+                                    .clicked()
                                 {
                                     self.preview_store.preview.viewport.preview_zoom = 1.0;
                                     self.preview_store.preview.viewport.preview_pan = Vec2::new(
@@ -339,7 +345,9 @@ impl GuiShell {
                                     );
                                     ui.close();
                                 }
-                                if ui.selectable_label((zoom - 1.5).abs() < 0.05, "150%").clicked()
+                                if ui
+                                    .stable_selectable_label((zoom - 1.5).abs() < 0.05, "150%")
+                                    .clicked()
                                 {
                                     self.preview_store.preview.viewport.preview_zoom = 1.5;
                                     self.preview_store.preview.viewport.preview_pan = Vec2::new(
@@ -348,7 +356,9 @@ impl GuiShell {
                                     );
                                     ui.close();
                                 }
-                                if ui.selectable_label((zoom - 2.0).abs() < 0.05, "200%").clicked()
+                                if ui
+                                    .stable_selectable_label((zoom - 2.0).abs() < 0.05, "200%")
+                                    .clicked()
                                 {
                                     self.preview_store.preview.viewport.preview_zoom = 2.0;
                                     self.preview_store.preview.viewport.preview_pan = Vec2::new(

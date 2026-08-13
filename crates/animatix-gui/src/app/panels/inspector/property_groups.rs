@@ -5,7 +5,7 @@ use animatix::timeline::{
     read_property_value_or_default,
 };
 use egui::{Color32, Stroke, Vec2};
-use eparts::widget::{Badge, Select};
+use eparts::widget::{Badge, Select, UiExt};
 use eparts::{NumberField, TextField};
 
 use crate::app::commands::{
@@ -622,7 +622,7 @@ pub(crate) fn render_property_row(
                 for &(id_str, display_name) in animatix_syntax::easing::EASING_REGISTRY {
                     let variant = animatix_syntax::easing::parse_easing_name(id_str)
                         .unwrap_or(animatix_syntax::easing::Easing::Linear);
-                    if ui.selectable_label(false, display_name).clicked() {
+                    if ui.stable_selectable_label(false, display_name).clicked() {
                         commands.push_back(
                             KeyframeCommand::SetKeyframeEasing {
                                 scene: active_scene.map(ToOwned::to_owned),
@@ -1145,7 +1145,9 @@ pub(crate) fn render_property_row(
                                     .show_ui(ui, |ui| {
                                         for family in families {
                                             let label = format!("Aa   {}", family);
-                                            if ui.selectable_label(family == *text, label).clicked()
+                                            if ui
+                                                .stable_selectable_label(family == *text, label)
+                                                .clicked()
                                             {
                                                 commands.push_back(
                                                     DocumentCommand::PropertyEdit(PropertyEdit {

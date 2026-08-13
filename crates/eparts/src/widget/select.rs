@@ -11,6 +11,7 @@ use egui::{Response, TextEdit, Widget};
 
 use crate::tokens::theme::theme;
 use crate::widget::popover::Popover;
+use crate::widget::styled_ext::UiExt;
 
 /// A single option entry in the flat list.
 #[derive(Debug)]
@@ -216,7 +217,9 @@ impl Widget for Select<'_> {
                             ui.label(egui::RichText::new(text).strong().color(t.text.secondary));
                         },
                         FlatOption::Item { label, index } => {
-                            if ui.selectable_label(*self.selected == Some(*index), label).clicked()
+                            if ui
+                                .stable_selectable_label(*self.selected == Some(*index), label)
+                                .clicked()
                             {
                                 *self.selected = Some(*index);
                                 ui.ctx().data_mut(|d| d.remove::<String>(filter_key));

@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use animatix::timeline::{AnimationTrack, Timeline, collect_all_keyframe_times};
 use egui::{Color32, Pos2, RichText, ScrollArea, Vec2};
-use eparts::widget::text_tooltip;
+use eparts::widget::{UiExt, text_tooltip};
 
 use crate::app::PreviewPaneState;
 use crate::app::commands::{
@@ -238,7 +238,10 @@ fn render_scene_inspector(
                         .show_ui(ui, |ui| {
                             for scene_name in &other_scenes {
                                 if ui
-                                    .selectable_label(*scene_name == &edge.to_scene, *scene_name)
+                                    .stable_selectable_label(
+                                        *scene_name == &edge.to_scene,
+                                        *scene_name,
+                                    )
                                     .clicked()
                                 {
                                     commands.push_back(
@@ -264,7 +267,7 @@ fn render_scene_inspector(
                         .show_ui(ui, |ui| {
                             for def in registry {
                                 if ui
-                                    .selectable_label(
+                                    .stable_selectable_label(
                                         def.id == edge.transition.id,
                                         def.display_name,
                                     )
@@ -334,7 +337,10 @@ fn render_scene_inspector(
                                 let variant = animatix_syntax::easing::parse_easing_name(id_str)
                                     .unwrap_or(animatix_syntax::easing::Easing::Linear);
                                 if ui
-                                    .selectable_label(variant == current_easing, display_name)
+                                    .stable_selectable_label(
+                                        variant == current_easing,
+                                        display_name,
+                                    )
                                     .clicked()
                                     && variant != current_easing
                                 {
@@ -653,8 +659,8 @@ pub(super) fn inspector_ui(
                     ];
                     for (mode, icon, label) in modes.iter() {
                         let is_active = *mode == view_mode;
-                        let resp =
-                            seg_ui.selectable_label(is_active, format!("{} {}", icon, label));
+                        let resp = seg_ui
+                            .stable_selectable_label(is_active, format!("{} {}", icon, label));
                         if resp.clicked() && !is_active {
                             *property_view_mode = *mode;
                             break;
@@ -811,8 +817,8 @@ pub(super) fn inspector_ui(
                     ];
                     for (mode, icon, label) in modes.iter() {
                         let is_active = *mode == kf_view;
-                        let resp =
-                            seg_ui.selectable_label(is_active, format!("{} {}", icon, label));
+                        let resp = seg_ui
+                            .stable_selectable_label(is_active, format!("{} {}", icon, label));
                         if resp.clicked() && !is_active {
                             *keyframe_view_mode = *mode;
                             break;
@@ -1125,7 +1131,7 @@ fn render_parent_card(
                 .selected_text(current_display)
                 .width(ui.available_width())
                 .show_ui(ui, |ui| {
-                    if ui.selectable_label(current_parent.is_none(), "None (root)").clicked()
+                    if ui.stable_selectable_label(current_parent.is_none(), "None (root)").clicked()
                         && current_parent.is_some()
                     {
                         commands.push_back(
@@ -1138,7 +1144,8 @@ fn render_parent_card(
                     }
                     for label in &all_labels {
                         let is_selected = current_parent.as_deref() == Some(label.as_str());
-                        if ui.selectable_label(is_selected, label).clicked() && !is_selected {
+                        if ui.stable_selectable_label(is_selected, label).clicked() && !is_selected
+                        {
                             commands.push_back(
                                 ActorCommand::ReparentActor {
                                     actor: actor.to_string(),
