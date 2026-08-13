@@ -500,6 +500,25 @@ title: Text {
     }
 
     #[test]
+    fn transform_is_known_actor_property() {
+        let source = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+a: Rect, size: (100, 100), transform: (1, 0.5, 0, 1, 0, 0), color: accent.primary, at: (200, 150)
+"#;
+        let analyzer = Analyzer::new(source);
+
+        let unknown_properties: Vec<_> = analyzer
+            .diagnostics()
+            .into_iter()
+            .filter(|d| d.code.as_deref() == Some("unknown-property"))
+            .collect();
+        assert!(
+            unknown_properties.is_empty(),
+            "transform should be a known actor property: {unknown_properties:?}"
+        );
+    }
+
+    #[test]
     fn analyzer_extracts_symbols() {
         let source = r#"
 # 0s

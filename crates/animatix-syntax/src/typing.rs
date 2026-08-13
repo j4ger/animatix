@@ -489,11 +489,28 @@ impl TypeEnv {
     }
 }
 
+/// Accepted source forms for `transform`: 2/4/6-element tuples.
+fn transform_type() -> Type {
+    Type::Union(vec![
+        Type::Vec2,
+        Type::Vec4,
+        Type::Tuple(vec![
+            Type::Num,
+            Type::Num,
+            Type::Num,
+            Type::Num,
+            Type::Num,
+            Type::Num,
+        ]),
+    ])
+}
+
 /// Resolve a property type for a primitive actor type.
 pub fn property_type(actor_type: &str, property: &str) -> Option<Type> {
     match property {
         "color" | "fill" | "stroke" => Some(Type::Color),
         "at" | "anchor" | "position" | "offset" | "size" => Some(Type::Vec2),
+        "transform" => Some(transform_type()),
         "opacity" | "scale" | "rotation" | "font_size" | "stroke_width" | "line_height"
         | "letter_spacing" | "word_spacing" | "head_size" | "standoff" => Some(Type::Num),
         "text" | "content" | "code" | "label" | "url" | "place" => Some(Type::Str),
@@ -559,6 +576,7 @@ fn property_specs() -> Vec<(&'static str, &'static str, Type)> {
         ("opacity", Type::Num),
         ("color", Type::Color),
         ("at", Type::Vec2),
+        ("transform", transform_type()),
     ];
     for ty in [
         "Text",
@@ -1075,6 +1093,38 @@ mod tests {
                     ty
                 );
             }
+        }
+    }
+
+    #[test]
+    fn transform_is_known_actor_property() {
+        let props = known_properties();
+        let rect = props.get("Rect").expect("Rect property list");
+        assert!(rect.contains(&"transform".to_string()), "missing transform");
+
+        let typed = known_property_types();
+        assert_eq!(
+            typed.get(&("Rect".to_string(), "transform".to_string())),
+            Some(&transform_type())
+        );
+    }
+
+    #[test]
+    fn transform_shorthand_forms_are_subtypes_of_expected_type() {
+        let expected = transform_type();
+        for actual in [
+            Type::Vec2,
+            Type::Vec4,
+            Type::Tuple(vec![
+                Type::Num,
+                Type::Num,
+                Type::Num,
+                Type::Num,
+                Type::Num,
+                Type::Num,
+            ]),
+        ] {
+            assert!(is_subtype(&actual, &expected), "unexpected transform mismatch");
         }
     }
 

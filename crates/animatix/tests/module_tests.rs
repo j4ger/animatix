@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use animatix::composition::BuildTarget;
 use animatix::timeline::Timeline;
 use animatix_syntax::ast::{Expr, Stmt};
 use animatix_syntax::module::{ModuleError, ModuleGraph};
@@ -1228,6 +1229,39 @@ box: Rect, size: (100, 100)
     let second = graph.load_program(&entry).unwrap();
     assert!(contains_actor(&second.statements, "box", "Rect"));
     assert!(!contains_actor(&second.statements, "title", "Text"));
+}
+
+#[test]
+fn transform_property_builds_without_diagnostics() {
+    let dir = temp_project_dir("transform_property");
+    let entry = dir.join("scene.amx");
+
+    write_file(
+        &entry,
+        r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+a: Rect, size: (100, 100), transform: (1, 0.5, 0, 1, 0, 0), color: accent.primary, at: (200, 150)
+
+#0s
+fade-in a [0ms]
+"#,
+    );
+
+    let mut program = ModuleGraph::new().load_program(&entry).unwrap();
+    let type_diagnostics = program.typecheck();
+    assert!(
+        type_diagnostics.is_empty(),
+        "transform declaration should typecheck: {type_diagnostics:?}"
+    );
+
+    let ast = program.expand_components();
+    let report = BuildTarget::from_ast(&ast, &program.namespaces, Some(&entry));
+    assert!(
+        report.diagnostics.is_empty(),
+        "transform declaration should build: {:?}",
+        report.diagnostics
+    );
 }
 
 fn contains_actor(stmts: &[Stmt], label: &str, ty: &str) -> bool {
