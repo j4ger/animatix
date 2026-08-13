@@ -44,6 +44,28 @@ speaker notes or export presets) only when a concrete user story appears. See
 [Item 7](plans/presenterm-inspired-roadmap.md#item-7-comment-directives-through-dsl-open-discussion)
 before scheduling any related language work.
 
+### Dogfood Follow-Ups (2026-08-13)
+
+| ID | Track | Status | Evidence | Next Action |
+|----|-------|--------|----------|-------------|
+| D1 | Indexed target source highlighting | Open | `dogfood/runs/002` pass 5: `card[i]` targets are uncolored while named targets are colored | Add `@label` captures for indexed target bases in `tree-sitter-animatix/queries/highlights.scm` and add GUI highlight regression tests |
+| D2 | Rect default stroke asymmetry | Open | `dogfood/probes/007-rect-default-stroke-asymmetric-edge` | Inspect shape path vs. default stroke geometry; suppress or align the default stroke for filled shapes |
+| D3 | Structural container `unused-label` | Open | `dogfood/runs/002` authoring findings; sorting visualizer needs `lint-disable` | Decide whether structural containers should be exempt from `unused-label` or documented as requiring the suppression |
+| D4 | Spec/runtime syntax drift | Open | Spec examples use `Circle`, square-bracket transform values, `duration:`, `Button`, and `gold`; parser/checker disagree | Align spec with the implemented surface and add check-based doc fixtures |
+
+`D4` is documentation and checker/registry work, not a runtime language change.
+The concrete drift: `Circle` is rejected, `transform` is expressed as a tuple
+but omitted from the known-property registry, `duration:` is rejected on
+actions while the modifier section calls it shared vocabulary, and `Button` /
+`gold` are not built-in primitives/colors.
+
+### Dogfood Content Backlog
+
+| Content | Status | Blocked By | Next Step |
+|---|---|---|---|
+| Sorting visualizer uses reusable `Bars` component | Open | Remaining analyzer awareness gaps for component-internal template actors | Refactor `dogfood/projects/sorting-visualizer/entry.amx`, rerun check/lint/render, and update `notes.md` |
+| Array/group `fade-in` target A/B run | Open | Design question not yet isolated | Create a focused run with one brief and current-grammar/alternate variants, validate, and review |
+
 ---
 
 ## Audit History
@@ -62,6 +84,7 @@ before scheduling any related language work.
 | Code style/maintainability pass | Done. Removed production `expect`/`unwrap` panics in frame-cache and LSP URI paths, fixed clippy warnings, moved misplaced keyframe handler tests, and consolidated duplicate keyframe property enumeration into `timeline_diff::collect_actor_keyframes`. |
 | Dogfood A/B review demo | Done. `animatix-gui --review dogfood/runs/<slug>` provides Single and Compare review modes, shared-time live preview, read-only highlighted source, diagnostics, and comments persisted to `review.json`; `review.done` and `scripts/dogfood-review.sh` define the agent launch/wait/handoff loop. Run directories stay local and gitignored. Static questionnaire/arena and proposed-syntax review remain deferred until an external-reviewer need appears. |
 | Dogfood review hardening | Done. Review passes fixed Compare mode (per-variant columns, render-before-layout, and console click timing), removed misleading comment line anchors, made comment timestamps opt-in, removed manual severity selection, fixed explicit `opacity` on pre-keyframe actor declarations (`probes/006-explicit-opacity-before-keyframe`), added playback speed presets, and consolidated interactive controls into the bottom review console. |
+| Dogfood workflow docs | Done 2026-08-13. `dogfood/README.md`, `dogfood/runs/README.md`, and the run/review templates now distinguish projects/probes/runs, document `dogfood-review.sh`, and state that comments are anchored to variant + optional time. |
 
 ### eparts Framework Expansion (closed)
 
