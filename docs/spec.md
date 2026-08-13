@@ -74,7 +74,7 @@ Use these rules when generating `.amx` files:
 | Symbol | Use | Example |
 |--------|-----|---------|
 | `let` | Variable/actor declaration | `let x = 0` |
-| `:` | Actor binding + scene placement | `btn: Button, text: "OK"` |
+| `:` | Actor binding + scene placement | `label: Text, text: "OK"` |
 | `#` | Keyframe (absolute `#0s` or relative `#+1s`) or scene declaration (`# SceneName`) | `#2.5s`, `#+1s`, `# Intro` |
 | `play` | Scene transition statement | `play Diagram [fade, 300ms]` |
 | `{ }` | Container children, arrays, block scopes | `Row { Item1, Item2 }` |
@@ -103,10 +103,10 @@ let name = expression
 Re-declaring an existing label at a later keyframe triggers morph transition.
 ```animatix
 #0s
-btn: Button, text: "OK"
+title: Text, text: "OK"
 
 #2s
-btn: Button, text: "Submit" [2s]
+title: Text, text: "Submit" [2s]
 ```
 > **Runtime note:** Re-declaration follows the same timing subset as other modifiers: positional duration shorthand + named `ease`. Unsupported modifier keys are reported explicitly.
 
@@ -222,7 +222,7 @@ config { colorscheme: "forest" }
 **Modifier Syntax:** Square brackets accept a comma-separated list of positional and/or named modifiers.
 
 - **Universal shorthand:** first bare time literal = duration
-- **Shared timing vocabulary:** `duration` (shorthand), `delay`, `ease`
+- **Shared timing vocabulary:** positional `duration` shorthand, `delay`, `ease`
 - **Host-specific keys:** when a statement kind explicitly supports them
 
 **Shipped modifier examples:**
@@ -401,8 +401,8 @@ circle: Ellipse, at: (100, 100) [2s]
 
 **Instant Change:** Zero duration or property assignment.
 ```animatix
-btn: Button, text: "New" [0s]
-btn.text = "New"
+title: Text, text: "New" [0s]
+title.text = "New"
 ```
 
 **Property-Level Animation:**
@@ -638,7 +638,7 @@ col: Col, gap: 8, padding: 16 {
 
 ### Transform Property
 
-All actors support a `transform` property: a 6-element array `[a, b, c, d, tx, ty]` representing a full 2D affine matrix. This coexists with `rotation` and `scale` as independent transform layers.
+All actors support a `transform` property: a 6-element tuple `(a, b, c, d, tx, ty)` representing a full 2D affine matrix. This coexists with `rotation` and `scale` as independent transform layers.
 
 ```animatix
 sheared: Rect, size: (100, 100), transform: (1, 0.5, 0, 1, 0, 0)
@@ -696,7 +696,7 @@ Actors can opt into or out of legend scanning with the generic `legend` property
 
 ```animatix
 line_a: Line, color: red, legend: "Revenue"
-axis: Line, color: gray, legend: false
+axis: Line, color: text.muted, legend: false
 ```
 
 `legend` accepts `Bool | Str`: `false` hides the actor, a string supplies an explicit label, an omitted
@@ -995,7 +995,7 @@ pub component MetricCard(title: Str = "Metric", value: Str = "0") {
     frame: Rect, size: (240, 120), color: blue
     title_text: Text, text: title, at: (0, -20)
     value_text: Text, text: value, at: (0, 24)
-    badge: Ellipse, size: (24, 24), color: gold
+    badge: Ellipse, size: (24, 24), color: yellow
 }
 ```
 
@@ -1012,7 +1012,8 @@ pub component MetricCard(title: Str = "Metric", value: Str = "0") {
 The following are **not allowed** in component bodies: `config { }`, keyframes (`#0s`/`#+1s`), `import`, `use`,
 `play`, scene declarations (`# SceneName`), and `viewport` declarations.
 
-**Import and instantiation:**
+**Import and instantiation:** `Button` is a component, not a built-in
+primitive; it must be defined in the file or imported before instantiation.
 ```animatix
 import "button.actor.amx"
 btn: Button, text: "Submit"
@@ -1862,7 +1863,7 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 # Intro
 title: Text, text: "Welcome", font_size: 48, at: (640, 200)
-badge: Circle, radius: 30, at: (100, 100), color: accent.primary
+badge: Ellipse, size: (60, 60), at: (100, 100), color: accent.primary
 
 #1s
 persist title, badge
