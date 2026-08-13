@@ -101,10 +101,8 @@ impl AnimatixApp {
         // (Resolved after `shell` is loaded below, since the choice is persisted there.)
         let system_is_dark = detect_system_dark();
 
-        // Register Phosphor icon font
-        let mut fonts = egui::FontDefinitions::default();
-        egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
-        cc.egui_ctx.set_fonts(fonts);
+        // Register egui defaults, Phosphor icons, and a system CJK fallback.
+        crate::fonts::install_fonts(&cc.egui_ctx);
 
         let preview_surface = PreviewSurface::new(device, queue)
             .map_err(|e| format!("Preview surface init failed: {e}"))?;

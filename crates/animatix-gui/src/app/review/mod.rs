@@ -251,9 +251,7 @@ impl ReviewApp {
             .as_ref()
             .ok_or_else(|| "eframe wgpu render state not available".to_string())?;
 
-        let mut fonts = egui::FontDefinitions::default();
-        egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
-        cc.egui_ctx.set_fonts(fonts);
+        crate::fonts::install_fonts(&cc.egui_ctx);
 
         let theme = eparts::AppThemeChoice::Dark.resolve(detect_system_dark());
         eparts::set_theme(&cc.egui_ctx, theme);

@@ -90,6 +90,7 @@ crates/
 - `crates/animatix-gui/src/app/panels/` — UI panels (inspector, timeline, sidebar, preview, editor)
 - `crates/animatix-gui/src/app/commands/mod.rs` — command system (ShellAction / Command / ViewAction)
 - `crates/animatix-gui/src/app/design_tokens/mod.rs` — GUI design token system
+- `crates/animatix-gui/src/fonts.rs` — egui font setup, including system CJK fallback
 - `tree-sitter-animatix/` — editor grammar
 
 ---

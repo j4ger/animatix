@@ -203,9 +203,7 @@ fn render_unknown_widget(ui: &mut egui::Ui, theme: eparts::Theme, name: &str) {
 pub fn install_theme(ctx: &egui::Context, theme: eparts::Theme, dark: bool) {
     eparts::set_theme(ctx, theme);
 
-    let mut fonts = egui::FontDefinitions::default();
-    egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
-    ctx.set_fonts(fonts);
+    crate::fonts::install_fonts(ctx);
 
     let mut style = (*ctx.global_style()).clone();
     style.spacing.item_spacing = egui::vec2(4.0, 4.0);

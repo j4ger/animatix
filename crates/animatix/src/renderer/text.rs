@@ -105,6 +105,79 @@ impl FontContext {
             .is_some()
     }
 
+    /// Return at most one regular system face per probe character.
+    ///
+    /// This is a startup-only discovery helper; callers should cache the result
+    /// for the application lifetime instead of calling it per frame. Preferring
+    /// normal sans-serif faces keeps the egui fallback list small while still
+    /// covering non-Latin scripts with a few broad fonts.
+    pub fn font_for_glyphs(&self, probes: &[char]) -> Vec<(Vec<u8>, u32)> {
+        let mut covered = vec![false; probes.len()];
+        let mut fonts = Vec::new();
+
+        // First pass prefers the generic UI face shape; second pass fills any
+        // remaining probes from other installed faces.
+        for pass in 0..2 {
+            if covered.iter().all(|covered| *covered) {
+                break;
+            }
+            for face in self.db.faces() {
+                let pass_matches = if pass == 0 {
+                    face.style == fontdb::Style::Normal
+                        && face.weight == fontdb::Weight::NORMAL
+                        && !face.monospaced
+                } else {
+                    face.style == fontdb::Style::Normal && !face.monospaced
+                };
+                if !pass_matches {
+                    continue;
+                }
+
+                let Some(data) = Self::probe_face_data(&self.db, face, probes, &mut covered) else {
+                    continue;
+                };
+                fonts.push((data, face.index));
+                if covered.iter().all(|covered| *covered) {
+                    return fonts;
+                }
+            }
+        }
+
+        // A second full scan for the rare case where every remaining probe is
+        // only covered by a mono/bold face. Keep the result bounded by probes.
+        for face in self.db.faces() {
+            if covered.iter().all(|covered| *covered) {
+                break;
+            }
+            let Some(data) = Self::probe_face_data(&self.db, face, probes, &mut covered) else {
+                continue;
+            };
+            fonts.push((data, face.index));
+        }
+
+        fonts
+    }
+
+    fn probe_face_data(
+        db: &fontdb::Database,
+        face: &fontdb::FaceInfo,
+        probes: &[char],
+        covered: &mut [bool],
+    ) -> Option<Vec<u8>> {
+        db.with_face_data(face.id, |data, face_index| {
+            let parsed = ttf_parser::Face::parse(data, face_index).ok()?;
+            let mut covers_any = false;
+            for (index, probe) in probes.iter().enumerate() {
+                if !covered[index] && parsed.glyph_index(*probe).is_some() {
+                    covered[index] = true;
+                    covers_any = true;
+                }
+            }
+            covers_any.then(|| data.to_vec())
+        })
+        .flatten()
+    }
+
     /// Return a sorted list of all available font family names from the system.
     pub fn families(&self) -> Vec<String> {
         let mut names: Vec<String> = self

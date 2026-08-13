@@ -231,6 +231,17 @@ impl TextRole {
    instead. (Replaces current `section_header` convention.)
 4. Text selection is disabled for non-editable labels (`.selectable(false)`).
 
+### 3.4 Font Loading and CJK Fallback
+
+egui's default fonts do not contain CJK glyphs. At startup the GUI scans the
+system font collection for faces that cover representative non-Latin glyphs
+(Han, Hiragana, Hangul, Cyrillic, Greek, Arabic, Hebrew, Devanagari, Thai) and
+registers those faces as fallbacks for both proportional and monospace
+families. Font discovery is cached for the application lifetime and shared with
+the font-family picker. Font setup is centralized in
+`crates/animatix-gui/src/fonts.rs` and shared by the main app, review console,
+and screenshot harness.
+
 ---
 
 ## 4. Spatial System
