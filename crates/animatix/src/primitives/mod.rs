@@ -45,6 +45,7 @@ use crate::timeline::callout_geometry::TargetResolver;
 use crate::timeline::{
     ActorCategory, ActorKindId, AnimationTrack, DEFAULT_WHITE, Environment, SceneDimensions,
     Timeline, TrackAccessor, Value, VectorShapeState, VectorShapeStyle, VelloPath,
+    default_stroke_width,
 };
 
 /// Evaluate text paths for a text primitive at frame time.
@@ -153,7 +154,7 @@ pub fn sample_shape_style(
     overrides: Option<&std::collections::HashMap<String, Value>>,
 ) -> VectorShapeStyle {
     let mut color = track.style.color.get(time_ms, DEFAULT_WHITE);
-    let mut stroke_width = track.style.stroke_width.get(time_ms, 2.0);
+    let mut stroke_width = track.style.stroke_width.get(time_ms, default_stroke_width(track.kind));
     let mut stroke_color = track.style.stroke_color.get(time_ms, DEFAULT_WHITE);
     let mut fill_opacity = track.style.fill_opacity.get(time_ms, 1.0);
     let mut line_cap = track.style.line_cap.get(time_ms, 0);

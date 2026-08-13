@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use super::property_lookup::parse_numeric_vec2;
 use super::{Diagnostic, Environment, Interpolate, KurboShape, VelloPath, evaluate_expr};
 use crate::ast::Expr;
+use crate::timeline::actor_kind::{ActorKindId, ShapeKind};
 
 /// Discriminant for the kind of geometric shape an actor represents.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -330,6 +331,20 @@ pub struct VectorShapeStyle {
     pub line_cap: u32,
     /// Stroke line join (0=Miter, 1=Round, 2=Bevel).
     pub line_join: u32,
+}
+
+/// Default stroke width for an actor kind.
+///
+/// Stroke-only actors need a visible outline by default; filled shapes do not,
+/// and a hidden white outline was visible as asymmetric edge artifacts on
+/// plain `Rect`s.
+pub fn default_stroke_width(kind: ActorKindId) -> f32 {
+    match kind {
+        ActorKindId::Shape(ShapeKind::Line | ShapeKind::Arrow)
+        | ActorKindId::Callout
+        | ActorKindId::PlotCurve => 2.0,
+        _ => 0.0,
+    }
 }
 
 #[cfg(test)]

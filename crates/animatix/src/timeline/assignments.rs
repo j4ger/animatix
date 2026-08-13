@@ -2,8 +2,8 @@ use super::{
     AnimationTrack, CapturedEnv, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, Diagnostic, Easing,
     Environment, ModifierHost, ParsedTimingModifiers, PositionBinding, ShapeType, Timeline, Value,
     VectorShapeState, VectorShapeStyle, assignment_target_key, best_path_suggestion,
-    build_shape_vello_path, build_vector_shape_vello_path, evaluate_expr,
-    evaluate_expr_with_lookup_diagnostic, mark_track_manual_position,
+    build_shape_vello_path, build_vector_shape_vello_path, default_stroke_width,
+    evaluate_expr, evaluate_expr_with_lookup_diagnostic, mark_track_manual_position,
     parse_color_in_env_with_lookup_diagnostic, parse_timing_modifiers,
     preserve_discrete_position_state_before, preserve_instant_delayed_value,
     push_unknown_target_path_diagnostic, resolve_position_binding_with_lookup_diagnostic,
@@ -1059,7 +1059,7 @@ fn rebuild_vector_paths(
     let line_to = track.shape.line_to.last([50.0, 0.0]);
     let arc_angles = track.shape.arc_angles.last(default_arc);
     let color = track.style.color.last(DEFAULT_WHITE);
-    let stroke_width = track.style.stroke_width.last(2.0);
+    let stroke_width = track.style.stroke_width.last(default_stroke_width(track.kind));
     let stroke_color = track.style.stroke_color.last(DEFAULT_WHITE);
     let fill_opacity = track.style.fill_opacity.last(1.0);
 

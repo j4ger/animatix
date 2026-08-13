@@ -793,3 +793,86 @@ fn test_for_loop_tuple_vars_cleaned_after_exit() {
         "Tuple var 'b' should be undefined after loop exit"
     );
 }
+
+fn build_timeline(source: &str) -> Timeline {
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.iter().all(|d| !d.is_error()),
+        "Unexpected build errors: {:?}",
+        report.diagnostics
+    );
+    report.output
+}
+
+#[test]
+fn filled_shape_defaults_to_no_stroke() {
+    let timeline = build_timeline(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+#0s
+a: Rect, size: (100, 100), color: accent.primary, at: (200, 150)
+"#,
+    );
+    let track = timeline.tracks.get("a").expect("rect track");
+    assert_eq!(track.style.stroke_width.get(0, 99.0), 0.0);
+}
+
+#[test]
+fn stroke_only_shape_keeps_default_stroke() {
+    let timeline = build_timeline(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+#0s
+a: Line, from: (0, 0), to: (100, 0), at: (200, 150)
+"#,
+    );
+    let track = timeline.tracks.get("a").expect("line track");
+    assert_eq!(track.style.stroke_width.get(0, 99.0), 2.0);
+}
+
+#[test]
+fn explicit_filled_shape_stroke_is_preserved() {
+    let timeline = build_timeline(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+#0s
+a: Rect, size: (100, 100), color: accent.primary, stroke: red, stroke_width: 4, at: (200, 150)
+"#,
+    );
+    let track = timeline.tracks.get("a").expect("rect track");
+    assert_eq!(track.style.stroke_width.get(0, 99.0), 4.0);
+}
+
+#[test]
+fn draw_in_adds_visible_stroke_to_filled_shape() {
+    let timeline = build_timeline(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+#0s
+a: Rect, size: (100, 100), color: accent.primary, at: (200, 150)
+draw-in a [1s]
+"#,
+    );
+    let track = timeline.tracks.get("a").expect("rect track");
+    assert_eq!(track.style.stroke_width.get(0, 99.0), 2.0);
+    let fill = track.style.color.get(0, [0.0, 0.0, 0.0, 1.0]);
+    let stroke = track.style.stroke_color.get(0, [0.0, 0.0, 0.0, 1.0]);
+    assert_eq!(stroke, fill, "draw-in outline should use the fill color");
+}
+
+#[test]
+fn reveal_in_adds_visible_stroke_to_filled_shape() {
+    let timeline = build_timeline(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+#0s
+a: Rect, size: (100, 100), color: accent.primary, at: (200, 150)
+reveal-in a [1s]
+"#,
+    );
+    let track = timeline.tracks.get("a").expect("rect track");
+    assert_eq!(track.style.stroke_width.get(0, 99.0), 2.0);
+}

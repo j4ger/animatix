@@ -4,7 +4,29 @@ use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::timeline::actor_kind::ActorKindId;
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
+use crate::timeline::{DEFAULT_WHITE, ModifierHost, Timeline, parse_timing_modifiers};
+
+/// Ensure a filled shape without a visible authored stroke has an outline for
+/// draw/reveal actions. The outline uses the actor's fill color so the default
+/// declaration stays clean while the entrance effect remains visible.
+fn ensure_reveal_stroke(track: &mut crate::timeline::AnimationTrack, time_ms: u64) {
+    let current_width =
+        track.style.stroke_width.get(time_ms, crate::timeline::default_stroke_width(track.kind));
+    if current_width > 0.0 {
+        return;
+    }
+    let color = track.style.color.get(time_ms, DEFAULT_WHITE);
+    track
+        .style
+        .stroke_width
+        .ensure(2.0)
+        .add_keyframe(time_ms, 2.0, Easing::Linear);
+    track
+        .style
+        .stroke_color
+        .ensure(DEFAULT_WHITE)
+        .add_keyframe(time_ms, color, Easing::Linear);
+}
 
 /// Draws in vector targets by animating stroke progress first, then revealing fill.
 pub struct DrawIn;
@@ -75,6 +97,7 @@ impl BuiltinAction for DrawIn {
                     .add_keyframe(t_start_ms, 0.0, Easing::Linear);
                 track.text.char_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
             } else {
+                ensure_reveal_stroke(track, t_start_ms);
                 if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
                     let guard_time = t_start_ms.saturating_sub(1);
                     super::ensure_guard_keyframe(&mut track.style.stroke_progress, guard_time, 1.0);
@@ -170,6 +193,8 @@ impl BuiltinAction for RevealIn {
             } else {
                 0.0
             };
+
+            ensure_reveal_stroke(track, t_start_ms);
 
             if duration_ms > 0.0 {
                 track.style.stroke_progress.ensure(1.0).add_keyframe(
