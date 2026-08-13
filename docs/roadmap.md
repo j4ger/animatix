@@ -48,7 +48,7 @@ before scheduling any related language work.
 
 | ID | Track | Status | Evidence | Next Action |
 |----|-------|--------|----------|-------------|
-| D1 | Indexed target source highlighting | Open | `dogfood/runs/002` pass 5: `card[i]` targets are uncolored while named targets are colored | Add `@label` captures for indexed target bases in `tree-sitter-animatix/queries/highlights.scm` and add GUI highlight regression tests |
+| D1 | Indexed target source highlighting | Done 2026-08-13 | `dogfood/runs/002` pass 5: `card[i]` targets are uncolored while named targets are colored | Added `@label` captures for indexed target bases in `tree-sitter-animatix/queries/highlights.scm` plus GUI regression tests |
 | D2 | Rect default stroke asymmetry | Open | `dogfood/probes/007-rect-default-stroke-asymmetric-edge` | Inspect shape path vs. default stroke geometry; suppress or align the default stroke for filled shapes |
 | D3 | Structural container `unused-label` | Open | `dogfood/runs/002` authoring findings; sorting visualizer needs `lint-disable` | Decide whether structural containers should be exempt from `unused-label` or documented as requiring the suppression |
 | D4 | Spec/runtime syntax drift | Open | Spec examples use `Circle`, square-bracket transform values, `duration:`, `Button`, and `gold`; parser/checker disagree | Align spec with the implemented surface and add check-based doc fixtures |
@@ -85,6 +85,7 @@ actions while the modifier section calls it shared vocabulary, and `Button` /
 | Dogfood A/B review demo | Done. `animatix-gui --review dogfood/runs/<slug>` provides Single and Compare review modes, shared-time live preview, read-only highlighted source, diagnostics, and comments persisted to `review.json`; `review.done` and `scripts/dogfood-review.sh` define the agent launch/wait/handoff loop. Run directories stay local and gitignored. Static questionnaire/arena and proposed-syntax review remain deferred until an external-reviewer need appears. |
 | Dogfood review hardening | Done. Review passes fixed Compare mode (per-variant columns, render-before-layout, and console click timing), removed misleading comment line anchors, made comment timestamps opt-in, removed manual severity selection, fixed explicit `opacity` on pre-keyframe actor declarations (`probes/006-explicit-opacity-before-keyframe`), added playback speed presets, and consolidated interactive controls into the bottom review console. |
 | Dogfood workflow docs | Done 2026-08-13. `dogfood/README.md`, `dogfood/runs/README.md`, and the run/review templates now distinguish projects/probes/runs, document `dogfood-review.sh`, and state that comments are anchored to variant + optional time. |
+| Dogfood indexed target highlighting | Done 2026-08-13. Action targets like `fade-in card[0]` and assignment targets like `card[0].scale` now highlight the actor base as a label; GUI regression tests cover indexed targets without turning ordinary index expressions into labels. |
 
 ### eparts Framework Expansion (closed)
 
