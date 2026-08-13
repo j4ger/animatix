@@ -1,6 +1,6 @@
 # Probe: Rect default stroke leaves asymmetric white edge artifacts
 
-Status: open.
+Status: resolved.
 
 ## Intent
 
@@ -23,12 +23,11 @@ The same declaration, with no explicit border.
 
 ## Current Workaround
 
-None clean. The artifact appears in both dogfood A/B variants and in the
-minimal repro, but not at every resolution/position.
+None needed after the fix.
 
 ## Diagnostics / Behavior
 
-`animatix check` reports no diagnostics. Rendering at 1280x720 shows the
+`animatix check` reports no diagnostics. Rendering at 1280x720 showed the
 default `stroke_width: 2` white stroke only on the left and right edges; A/B
 frames are pixel-identical, so this is not a variant-specific rendering bug.
 
@@ -39,6 +38,15 @@ border, which is confusing during visual review.
 
 ## Recommendation
 
-Inspect how `KurboShape::Rect` and `build_vello_path` emit geometry relative to
-the centered half-size, and either suppress the default stroke for filled
-shapes or align the path so the stroke is symmetric/outside the fill.
+Filled shapes now default to `stroke_width: 0`, while stroke-only actors
+(`Line`, `Arrow`, `Callout`) keep a visible default stroke. `draw-in` and
+`reveal-in` add a fill-colored outline when a filled shape has no authored
+stroke, so the default render stays clean without removing the reveal effect.
+
+## Regression coverage
+
+- `filled_shape_defaults_to_no_stroke`
+- `stroke_only_shape_keeps_default_stroke`
+- `explicit_filled_shape_stroke_is_preserved`
+- `draw_in_adds_visible_stroke_to_filled_shape`
+- `reveal_in_adds_visible_stroke_to_filled_shape`
