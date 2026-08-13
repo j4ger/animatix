@@ -5,6 +5,14 @@ import "../../../examples/lib/tokens.amx" as tokens
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
+pub component Bars(values: List<Num>, colors: List<Color>, at: Vec2 = (640, 440), gap: Num = 28, align: Str = "end") {
+  row: Row, at: at, gap: gap, align: align {
+    for v, i in values {
+      bar[i]: Rect, size: (110, v * 42), color: colors[i]
+    }
+  }
+}
+
 // ── Scene 1: Title ──────────────────────────────────────────────────────────
 
 # Title
@@ -34,16 +42,11 @@ config { colorscheme: "editorial-dark" }
 step_title: Text, text: "Insert 1, then 3, then 2", font_size: 40,
   color: text.primary, anchor: scene.top, offset: (0, 56)
 
-bars: Row, at: (640, 440), gap: 28, align: "end" {
-  for v, i in {4, 1, 3, 2} {
-    bar[i]: Rect, size: (110, v * 42),
-      color: if i == 1 { tokens.warning } else { tokens.info }
-  }
-}
+bars: Bars, values: {4, 1, 3, 2}, colors: {tokens.info, tokens.warning, tokens.info, tokens.info}
 
 key_note: Callout {
   from: (180, 170),
-  target: bar[1],
+  target: bars.bar[1],
   place: top,
   standoff: 10,
   label: "key = 1",
@@ -61,18 +64,18 @@ fade-in key_note [400ms, delay: 200ms]
 fade-in step_caption [400ms, delay: 300ms]
 
 #1.5s
-swap bar[0], bar[1] [600ms, ease: ease-in-out]
+swap bars.bar[0], bars.bar[1] [600ms, ease: ease-in-out]
 
 #3.2s
-key_note.target = bar[2] [300ms]
-swap bar[1], bar[2] [600ms, ease: ease-in-out]
+key_note.target = bars.bar[2] [300ms]
+swap bars.bar[1], bars.bar[2] [600ms, ease: ease-in-out]
 
 #4.9s
-key_note.target = bar[3] [300ms]
-swap bar[2], bar[3] [600ms, ease: ease-in-out]
+key_note.target = bars.bar[3] [300ms]
+swap bars.bar[2], bars.bar[3] [600ms, ease: ease-in-out]
 
 #6.4s
-swap bar[1], bar[2] [600ms, ease: ease-in-out]
+swap bars.bar[1], bars.bar[2] [600ms, ease: ease-in-out]
 
 #8s
 play Result [fade, 400ms]
@@ -85,11 +88,7 @@ config { colorscheme: "editorial-dark" }
 result_title: Text, text: "Sorted", font_size: 48,
   color: text.primary, anchor: scene.top, offset: (0, 72)
 
-result_bars: Row, at: (640, 440), gap: 28, align: "end" {
-  for v, i in {1, 2, 3, 4} {
-    sorted_bar[i]: Rect, size: (110, v * 42), color: tokens.success
-  }
-}
+result_bars: Bars, values: {1, 2, 3, 4}, colors: {tokens.success, tokens.success, tokens.success, tokens.success}
 
 result_note: Text, text: "One pass is enough for this array because every key only moves left a little.",
   font_size: 18, color: text.secondary, anchor: scene.bottom, offset: (0, -60)
