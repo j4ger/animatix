@@ -694,4 +694,62 @@ fade-in title [1s]
             "actor label 'backdrop' should be blue (#6699CC)"
         );
     }
+
+    fn text_color(job: &egui::text::LayoutJob, needle: &str) -> Option<Color32> {
+        job.sections
+            .iter()
+            .find(|section| &job.text[section.byte_range.clone()] == needle)
+            .map(|section| section.format.color)
+    }
+
+    #[test]
+    fn indexed_action_target_matches_named_target_label_color() {
+        let source = "fade-in card[0], named [1s]";
+
+        let style = egui::Style::default();
+        let job = highlight_source(source, &style, &[], None, &[]);
+
+        let card_color = text_color(&job, "card");
+        let named_color = text_color(&job, "named");
+        assert_eq!(
+            card_color, named_color,
+            "indexed target base 'card' should use the same color as named target 'named'"
+        );
+    }
+
+    #[test]
+    fn indexed_assignment_target_base_and_property_have_distinct_colors() {
+        let source = "card[0].scale = 1.0";
+
+        let style = egui::Style::default();
+        let job = highlight_source(source, &style, &[], None, &[]);
+
+        let expected_label = Color32::from_rgb(102, 153, 204);
+        let expected_property = Color32::from_rgb(131, 165, 152);
+        assert_eq!(
+            text_color(&job, "card"),
+            Some(expected_label),
+            "indexed target base 'card' should be highlighted as a label"
+        );
+        assert_eq!(
+            text_color(&job, "scale"),
+            Some(expected_property),
+            "indexed target property 'scale' should be highlighted as a property"
+        );
+    }
+
+    #[test]
+    fn index_expression_outside_target_list_keeps_non_label_color() {
+        let source = "let x = items[0]";
+
+        let style = egui::Style::default();
+        let job = highlight_source(source, &style, &[], None, &[]);
+
+        let expected_label = Color32::from_rgb(102, 153, 204);
+        assert_ne!(
+            text_color(&job, "items"),
+            Some(expected_label),
+            "indexed expression base 'items' should not become an actor label outside a target list"
+        );
+    }
 }

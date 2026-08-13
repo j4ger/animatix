@@ -151,3 +151,15 @@
 ; Target identifiers in action invocations (reference site)
 (target_list
   (identifier) @label)
+
+; Indexed target identifiers in action invocations (reference site)
+(target_list
+  (index_expression
+    object: (identifier) @label))
+
+; Indexed assignment and reactive binding targets
+(indexed_target_path
+  base: (identifier) @label)
+
+(indexed_target_path
+  name: (identifier) @property)
