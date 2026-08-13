@@ -622,6 +622,29 @@ impl GuiShell {
         }
     }
 
+    /// Log raw IME/text input events with the current editor focus state so
+    /// native input-method failures can be diagnosed without deep egui logs.
+    fn log_input_debug(&self, ctx: &egui::Context) {
+        if !tracing::enabled!(tracing::Level::DEBUG) {
+            return;
+        }
+        let events: Vec<egui::Event> = ctx.input(|i| {
+            i.events
+                .iter()
+                .filter(|event| matches!(event, egui::Event::Ime(_) | egui::Event::Text(_)))
+                .cloned()
+                .collect()
+        });
+        if !events.is_empty() {
+            tracing::debug!(
+                events = ?events,
+                text_edit_focused = ctx.text_edit_focused(),
+                focused_cell = self.document_store.source.editor.focused_cell(),
+                "IME/text input"
+            );
+        }
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, preview_texture_id: Option<egui::TextureId>) {
         let theme = eparts::theme(ui);
         let mut commands: ActionQueue = ActionQueue::default();

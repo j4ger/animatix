@@ -144,7 +144,7 @@ impl AnimatixApp {
 
         let has_selection = !self.shell.ui_store.selection.selected_actors.is_empty();
         let focus = FocusContext {
-            wants_keyboard: ctx.egui_wants_keyboard_input(),
+            text_edit_focused: ctx.text_edit_focused(),
             has_selection,
             drag_active: self.shell.ui_store.interaction.is_dragging(),
             inline_edit_active: false,
@@ -689,6 +689,9 @@ impl eframe::App for AnimatixApp {
 
         // Render the UI
         self.shell.ui(ui, self.preview_texture_id);
+
+        // Debug aid for native IME input: raw events plus focus state.
+        self.shell.log_input_debug(ui.ctx());
 
         // Capture window geometry for persistence
         let (size, maximized) = ui.ctx().input(|i| {

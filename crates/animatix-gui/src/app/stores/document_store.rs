@@ -281,6 +281,15 @@ impl DocumentStore {
         change
     }
 
+    /// Sync canonical source text from the live editor without resetting editor
+    /// focus or re-parsing its in-memory cells.
+    pub fn sync_from_editor(&mut self) -> crate::app::document::source_change::SourceChange {
+        let change = self.source.sync_from_editor();
+        self.mark_source_stale(change.after_epoch);
+        self.finalize_snapshot(UiSnapshot::default_with_tool(crate::app::preview::ToolMode::Move));
+        change
+    }
+
     /// Mark the current snapshot as stale due to a source change.
     pub fn mark_source_stale(&mut self, epoch: crate::app::document::version::SourceEpoch) {
         if let Some(ref current) = self.current {

@@ -99,6 +99,23 @@ impl SourceStore {
             source_len: self.document.source_text.len(),
         }
     }
+
+    /// Sync canonical source text from the live editor without replacing its
+    /// cell state. The editor is already the source of truth while typing, so
+    /// re-parsing here would drop in-memory cells and reset focus mid-edit.
+    pub fn sync_from_editor(&mut self) -> SourceChange {
+        let before_epoch = self.source_epoch;
+        let text = self.editor.text().to_string();
+        self.source_epoch = self.source_epoch.next();
+        self.document.source_text = text;
+        self.document.is_dirty = true;
+        self.invalidate_cache();
+        SourceChange {
+            before_epoch,
+            after_epoch: self.source_epoch,
+            source_len: self.document.source_text.len(),
+        }
+    }
 }
 
 /// Rebuild cached hit regions and actor bounds from the timeline. This is a free
@@ -118,4 +135,36 @@ pub fn rebuild_cache(
     *cached_actor_bounds = actor_bounds;
 
     *cache_valid = true;
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+    use crate::document::DocumentSession;
+    use crate::editor::EditorBuffer;
+
+    #[test]
+    fn sync_from_editor_preserves_live_cell_state() {
+        let path = PathBuf::from("test.amx");
+        // A leading blank line parses as an empty code cell followed by a keyframe.
+        let source = "\n#0s\n";
+        let mut document =
+            DocumentSession::from_source(path.clone(), source.to_string()).expect("valid source");
+        document.rebuild().expect("valid source should rebuild");
+        let mut editor = EditorBuffer::new(&path, source.to_string());
+        let parsed = crate::cell_editor::parse_cells(source);
+        assert!(matches!(parsed.first(), Some(crate::cell_editor::Cell::Code { .. })));
+        assert!(matches!(parsed.get(1), Some(crate::cell_editor::Cell::Keyframe { .. })));
+        editor.set_focused_cell(Some(1));
+
+        let mut store = SourceStore::new(document, editor);
+        let change = store.sync_from_editor();
+
+        assert_eq!(store.text(), source);
+        assert_eq!(store.editor.focused_cell(), Some(1));
+        assert!(store.document.is_dirty);
+        assert_eq!(store.epoch(), change.after_epoch);
+    }
 }

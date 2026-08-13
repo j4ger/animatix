@@ -60,6 +60,26 @@ fn diagnostic_border_color(
 // ── Public API ───────────────────────────────────────────────────────────
 
 /// Render the cell editor UI.
+/// Some native IME integrations deliver only `ImeEvent::Commit` without first
+/// sending `ImeEvent::Enabled`. egui's TextEdit uses the Enabled event to record
+/// the composition cursor range; without it a Commit at a non-zero cursor is
+/// silently ignored. Insert the missing Enabled event before the Commit so
+/// existing-text cells accept input the same way newly created empty cells do.
+fn normalize_ime_input(ctx: &egui::Context) {
+    ctx.input_mut(|i| {
+        if i.events.iter().any(|e| matches!(e, egui::Event::Ime(egui::ImeEvent::Enabled))) {
+            return;
+        }
+        if let Some(pos) = i
+            .events
+            .iter()
+            .position(|e| matches!(e, egui::Event::Ime(egui::ImeEvent::Commit(_))))
+        {
+            i.events.insert(pos, egui::Event::Ime(egui::ImeEvent::Enabled));
+        }
+    });
+}
+
 pub fn render_cell_editor(
     ui: &mut egui::Ui,
     cells: &mut [Cell],
@@ -67,6 +87,7 @@ pub fn render_cell_editor(
     on_source_changed: &mut dyn FnMut(String),
     on_scrub_to_time: &mut dyn FnMut(f64),
 ) {
+    normalize_ime_input(ui.ctx());
     let style = ui.style().clone();
     let mut source_changed = false;
 
@@ -715,6 +736,133 @@ fn draw_wavy_underlines(
         }
 
         painter.add(egui::Shape::line(points, egui::Stroke::new(1.5, color)));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use egui::{Context, Event, Modifiers, Pos2, Rect, Vec2};
+
+    use super::*;
+    use crate::cell_editor::Cell;
+
+    fn input() -> egui::RawInput {
+        egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(480.0, 320.0))),
+            ..Default::default()
+        }
+    }
+
+    fn render_cells(ctx: &Context, cells: &mut [Cell], state: &mut CellEditorState) {
+        let _ = ctx.run_ui(input(), |ui| {
+            render_cell_editor(ui, cells, state, &mut |_| {}, &mut |_| {});
+        });
+    }
+
+    fn click_cells(ctx: &Context, cells: &mut [Cell], state: &mut CellEditorState, pos: Pos2) {
+        let mut raw = input();
+        raw.events.extend([
+            Event::PointerMoved(pos),
+            Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: Modifiers::NONE,
+            },
+            Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: Modifiers::NONE,
+            },
+        ]);
+        let _ = ctx.run_ui(raw, |ui| {
+            render_cell_editor(ui, cells, state, &mut |_| {}, &mut |_| {});
+        });
+    }
+
+    fn send_ime(ctx: &Context, cells: &mut [Cell], state: &mut CellEditorState, commit: &str) {
+        let mut raw = input();
+        raw.events.extend([
+            Event::Ime(egui::ImeEvent::Enabled),
+            Event::Ime(egui::ImeEvent::Preedit("ni".to_string())),
+            Event::Ime(egui::ImeEvent::Commit(commit.to_string())),
+        ]);
+        let _ = ctx.run_ui(raw, |ui| {
+            render_cell_editor(ui, cells, state, &mut |_| {}, &mut |_| {});
+        });
+    }
+
+    #[test]
+    fn ime_commit_reaches_focused_existing_cell() {
+        let ctx = Context::default();
+        let mut cells = vec![Cell::Code {
+            body: "existing".to_string(),
+            expanded: true,
+        }];
+        let mut state = CellEditorState::default();
+        render_cells(&ctx, &mut cells, &mut state);
+
+        // Click into the body editor of the existing code cell.
+        click_cells(&ctx, &mut cells, &mut state, Pos2::new(120.0, 34.0));
+        assert!(ctx.text_edit_focused(), "clicking the existing cell should focus its TextEdit");
+
+        send_ime(&ctx, &mut cells, &mut state, "你");
+
+        assert_eq!(cells[0].body(), "existing你");
+    }
+
+    #[test]
+    fn commit_only_ime_reaches_existing_cell_without_stale_cursor() {
+        let ctx = Context::default();
+        let mut cells = vec![Cell::Code {
+            body: "existing".to_string(),
+            expanded: true,
+        }];
+        let mut state = CellEditorState::default();
+        render_cells(&ctx, &mut cells, &mut state);
+
+        click_cells(&ctx, &mut cells, &mut state, Pos2::new(200.0, 34.0));
+        assert!(ctx.text_edit_focused(), "clicking the existing cell should focus its TextEdit");
+
+        // Some native IME integrations deliver only the final Commit without
+        // Preedit/Enabled. The focused TextEdit must still insert it.
+        let mut raw = input();
+        raw.events.push(Event::Ime(egui::ImeEvent::Commit("你".to_string())));
+        let _ = ctx.run_ui(raw, |ui| {
+            render_cell_editor(ui, &mut cells, &mut state, &mut |_| {}, &mut |_| {});
+        });
+
+        assert!(cells[0].body().contains('你'));
+    }
+
+    #[test]
+    fn ime_commit_reaches_cell_after_focus_switch() {
+        let ctx = Context::default();
+        let mut cells = vec![
+            Cell::Code {
+                body: "first".to_string(),
+                expanded: true,
+            },
+            Cell::Code {
+                body: "second".to_string(),
+                expanded: true,
+            },
+        ];
+        let mut state = CellEditorState::default();
+        render_cells(&ctx, &mut cells, &mut state);
+
+        // Focus the first cell, then switch to the second existing cell.
+        click_cells(&ctx, &mut cells, &mut state, Pos2::new(120.0, 34.0));
+        assert_eq!(state.focused_cell, Some(0));
+        click_cells(&ctx, &mut cells, &mut state, Pos2::new(120.0, 190.0));
+        assert_eq!(state.focused_cell, Some(1), "second cell should receive focus");
+        assert!(ctx.text_edit_focused(), "second cell TextEdit should be focused");
+
+        send_ime(&ctx, &mut cells, &mut state, "你");
+
+        assert_eq!(cells[0].body(), "first");
+        assert_eq!(cells[1].body(), "second你");
     }
 }
 

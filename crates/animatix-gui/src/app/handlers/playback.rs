@@ -49,8 +49,7 @@ pub fn handle_editor_changed(
     preview_store: &mut PreviewStore,
     ui_store: &UiStore,
 ) -> Vec<Effect> {
-    let text = document_store.source.editor.text().to_string();
-    document_store.replace_text(text);
+    document_store.sync_from_editor();
     preview_store.pending_rebuild_at =
         Some(Instant::now() + Duration::from_millis(ui_store.rebuild_debounce_ms));
     preview_store.preview.error = None;

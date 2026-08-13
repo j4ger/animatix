@@ -242,8 +242,8 @@ pub enum KeyboardAction {
 
 /// Focus context that gates shortcut availability.
 pub struct FocusContext {
-    #[allow(dead_code)] // Reserved for future scope-gating logic
-    pub wants_keyboard: bool,
+    /// True when an egui `TextEdit` currently owns keyboard focus.
+    pub text_edit_focused: bool,
     #[allow(dead_code)] // Reserved for future scope-gating logic
     pub has_selection: bool,
     #[allow(dead_code)] // Reserved for future scope-gating logic
@@ -262,7 +262,8 @@ impl FocusContext {
             ShortcutScope::Global => true,
             ShortcutScope::TextSafe => !self.inline_edit_active && !self.unsaved_dialog_open,
             ShortcutScope::Canvas => {
-                !self.inline_edit_active
+                !self.text_edit_focused
+                    && !self.inline_edit_active
                     && !self.command_palette_open
                     && !self.find_replace_open
                     && !self.unsaved_dialog_open
@@ -691,9 +692,16 @@ impl ShortcutRegistry {
     }
 
     /// Check if a shortcut was pressed and return its action, respecting the focus context.
+    ///
+    /// The shortcut is only consumed when its scope allows it. This matters for
+    /// keys such as `Backspace`, which TextEdit needs even while a canvas scope
+    /// binding for the same key is registered.
     pub fn check(&self, ctx: &Context, focus: &FocusContext) -> Option<&KeyboardAction> {
         for (shortcut, info) in &self.shortcuts {
-            if ctx.input_mut(|i| i.consume_shortcut(shortcut)) && focus.can_handle(info.scope) {
+            if !focus.can_handle(info.scope) {
+                continue;
+            }
+            if ctx.input_mut(|i| i.consume_shortcut(shortcut)) {
                 return Some(&info.action);
             }
         }
@@ -767,9 +775,147 @@ pub fn tooltip_with_shortcut(
 
 #[cfg(test)]
 mod tests {
-    use egui::Key;
+    use egui::{Context, Key, Modifiers};
 
     use super::*;
+
+    fn test_input(events: Vec<egui::Event>) -> egui::RawInput {
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(320.0, 80.0))),
+            events,
+            ..Default::default()
+        }
+    }
+
+    fn canvas_focus(text_edit_focused: bool) -> FocusContext {
+        FocusContext {
+            text_edit_focused,
+            has_selection: false,
+            drag_active: false,
+            inline_edit_active: false,
+            command_palette_open: false,
+            find_replace_open: false,
+            unsaved_dialog_open: false,
+            tool_mode: crate::app::preview::ToolMode::Move,
+        }
+    }
+
+    #[test]
+    fn backspace_reaches_text_edit_when_focused() {
+        let ctx = Context::default();
+        let edit_id = egui::Id::new("test_text_edit");
+        let mut text = "abc".to_owned();
+
+        let _ = ctx.run_ui(test_input(Vec::new()), |ui| {
+            let response = ui.add(egui::TextEdit::singleline(&mut text).id(edit_id));
+            response.request_focus();
+        });
+        assert!(ctx.text_edit_focused(), "TextEdit should own keyboard focus");
+
+        // Move the caret to the end so Backspace deletes a character.
+        let mut edit_state =
+            egui::text_edit::TextEditState::load(&ctx, edit_id).unwrap_or_default();
+        edit_state.cursor.set_char_range(Some(egui::text::CCursorRange::one(
+            egui::text::CCursor::new(text.chars().count()),
+        )));
+        edit_state.store(&ctx, edit_id);
+
+        let registry = ShortcutRegistry::new();
+        let focus = canvas_focus(true);
+        let input = test_input(vec![egui::Event::Key {
+            key: Key::Backspace,
+            physical_key: Some(Key::Backspace),
+            pressed: true,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        }]);
+
+        ctx.begin_pass(input);
+        let action = registry.check(&ctx, &focus);
+        assert!(action.is_none(), "Backspace must not trigger a shortcut in a TextEdit");
+
+        let mut changed = false;
+        let _ = egui::Area::new(egui::Id::new("test_area")).show(&ctx, |ui| {
+            let response = ui.add(egui::TextEdit::singleline(&mut text).id(edit_id));
+            changed |= response.changed();
+        });
+        let _ = ctx.end_pass();
+
+        assert!(changed, "TextEdit should receive the Backspace event");
+        assert_eq!(text, "ab");
+    }
+
+    #[test]
+    fn ime_commit_reaches_text_edit_after_focus_switch() {
+        let ctx = Context::default();
+        let id_a = egui::Id::new("ime_a");
+        let id_b = egui::Id::new("ime_b");
+        let mut text_a = "existing".to_owned();
+        let mut text_b = String::new();
+
+        // Give A focus first, then switch focus to B. In real input this click
+        // is followed by IME events on a later frame.
+        let _ = ctx.run_ui(test_input(Vec::new()), |ui| {
+            let resp_a = ui.add(egui::TextEdit::singleline(&mut text_a).id(id_a));
+            resp_a.request_focus();
+            let resp_b = ui.add(egui::TextEdit::singleline(&mut text_b).id(id_b));
+            resp_b.request_focus();
+        });
+        ctx.begin_pass(test_input(Vec::new()));
+        show_text_edits(&ctx, &mut text_a, id_a, false, &mut text_b, id_b, true);
+        let _ = ctx.end_pass();
+        assert!(ctx.text_edit_focused(), "B should own focus after switch");
+
+        ctx.begin_pass(test_input(vec![
+            egui::Event::Ime(egui::ImeEvent::Enabled),
+            egui::Event::Ime(egui::ImeEvent::Preedit("ni".to_string())),
+            egui::Event::Ime(egui::ImeEvent::Commit("你".to_string())),
+        ]));
+        show_text_edits(&ctx, &mut text_a, id_a, false, &mut text_b, id_b, true);
+        let _ = ctx.end_pass();
+
+        assert_eq!(text_b, "你", "focused TextEdit should commit IME text");
+        assert_eq!(text_a, "existing");
+    }
+
+    fn show_text_edits(
+        ctx: &Context,
+        text_a: &mut String,
+        id_a: egui::Id,
+        focus_a: bool,
+        text_b: &mut String,
+        id_b: egui::Id,
+        focus_b: bool,
+    ) {
+        let _ = egui::Area::new(egui::Id::new("ime_area")).show(ctx, |ui| {
+            let resp_a = ui.add(egui::TextEdit::singleline(text_a).id(id_a));
+            if focus_a {
+                resp_a.request_focus();
+            }
+            let resp_b = ui.add(egui::TextEdit::singleline(text_b).id(id_b));
+            if focus_b {
+                resp_b.request_focus();
+            }
+        });
+    }
+
+    #[test]
+    fn backspace_canvas_shortcut_fires_when_no_text_focus() {
+        let ctx = Context::default();
+        let registry = ShortcutRegistry::new();
+        let input = test_input(vec![egui::Event::Key {
+            key: Key::Backspace,
+            physical_key: Some(Key::Backspace),
+            pressed: true,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        }]);
+
+        ctx.begin_pass(input);
+        let action = registry.check(&ctx, &canvas_focus(false));
+        assert!(matches!(action, Some(KeyboardAction::DeleteSelection)));
+        let _ = ctx.end_pass();
+    }
 
     #[test]
     fn shortcut_for_save_returns_ctrl_s() {

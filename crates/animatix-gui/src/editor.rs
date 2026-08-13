@@ -486,3 +486,76 @@ impl EditorBuffer {
         (line, col)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use egui::{Context, Event, Modifiers, Pos2, Rect, Vec2};
+
+    use super::*;
+    use crate::app::stores::DocumentStore;
+    use crate::document::DocumentSession;
+
+    fn input() -> egui::RawInput {
+        egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(480.0, 320.0))),
+            ..Default::default()
+        }
+    }
+
+    fn render(ctx: &Context, store: &mut DocumentStore, raw: egui::RawInput) {
+        let _ = ctx.run_ui(raw, |ui| {
+            let _ = store.source.editor.show(ui);
+        });
+    }
+
+    fn click(ctx: &Context, store: &mut DocumentStore, pos: Pos2) {
+        let mut raw = input();
+        raw.events.extend([
+            Event::PointerMoved(pos),
+            Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: Modifiers::NONE,
+            },
+            Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: Modifiers::NONE,
+            },
+        ]);
+        render(ctx, store, raw);
+    }
+
+    #[test]
+    fn commit_only_ime_survives_full_editor_sync() {
+        let ctx = Context::default();
+        let path = PathBuf::from("test.amx");
+        let source = "box: Rect, size: (100, 100)\n#0s\n";
+        let document = DocumentSession::from_source(path, source.to_string()).unwrap();
+        let mut store = DocumentStore::new(
+            document,
+            EditorBuffer::new(&PathBuf::from("test.amx"), source.to_string()),
+        );
+        render(&ctx, &mut store, input());
+        click(&ctx, &mut store, Pos2::new(120.0, 34.0));
+        assert_eq!(store.source.editor.focused_cell(), Some(0));
+        assert!(ctx.text_edit_focused(), "click should focus the cell body TextEdit");
+
+        // Reproduce IME integrations that deliver only the final Commit event.
+        let mut raw = input();
+        raw.events.push(Event::Ime(egui::ImeEvent::Commit("你".to_string())));
+        render(&ctx, &mut store, raw);
+        store.sync_from_editor();
+
+        assert!(
+            store.source.text().contains('你'),
+            "IME commit should be inserted into the focused code cell body"
+        );
+        assert!(store.source.text().starts_with("box: Rect"));
+        assert_eq!(store.source.editor.focused_cell(), Some(0));
+    }
+}
