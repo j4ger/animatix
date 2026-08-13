@@ -75,7 +75,7 @@ struct AnimatixApp {
 ///
 /// Cross-platform: XDG Desktop Portal on Linux, native APIs on Windows/macOS.
 /// Returns `None` when the OS does not report a preference.
-fn detect_system_dark() -> Option<bool> {
+pub(crate) fn detect_system_dark() -> Option<bool> {
     match dark_light::detect() {
         Ok(dark_light::Mode::Dark) => Some(true),
         Ok(dark_light::Mode::Light) => Some(false),
@@ -729,7 +729,7 @@ fn live_preview_status(preview: &PreviewPaneState, active_scene: Option<&str>) -
     }
 }
 
-fn install_theme(ctx: &egui::Context, theme: &eparts::Theme, dark: bool) {
+pub(crate) fn install_theme(ctx: &egui::Context, theme: &eparts::Theme, dark: bool) {
     let sp = spatial_from_ctx(ctx);
     let mut style = (*ctx.global_style()).clone();
 

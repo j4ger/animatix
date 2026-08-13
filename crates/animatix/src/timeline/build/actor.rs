@@ -305,7 +305,7 @@ impl Timeline {
         let mut color = existing_track.style.color.last(DEFAULT_WHITE);
         let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
         let is_first_decl = !self.tracks.contains_key(label);
-        let opacity = if is_first_decl && !has_explicit_opacity {
+        let mut opacity = if is_first_decl && !has_explicit_opacity {
             self.default_opacity
         } else {
             existing_track.style.opacity.last(1.0)
@@ -453,6 +453,16 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(0.0));
                     stroke_progress = v.as_num() as f32;
+                },
+                "opacity" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(1.0));
+                    opacity = v.as_num() as f32;
                 },
                 "fill_opacity" => {
                     let v = evaluate_expr_with_lookup_diagnostic(

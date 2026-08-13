@@ -14,6 +14,7 @@ pub(crate) mod interaction;
 pub(crate) mod panels;
 mod persistence;
 pub(crate) mod preview;
+pub(crate) mod review;
 mod runtime;
 pub(crate) mod shell;
 pub(crate) mod stores;
@@ -129,6 +130,12 @@ impl PlaybackController {
     fn clamp_time(&mut self) {
         let max_duration = self.duration_s.max(0.1);
         self.current_time_s = self.current_time_s.clamp(0.0, max_duration);
+    }
+
+    /// Advance by one frame at the given fps. Stops playback.
+    pub(crate) fn step_frame(&mut self, delta_s: f64) {
+        self.current_time_s = (self.current_time_s + delta_s).clamp(0.0, self.duration_s.max(0.0));
+        self.is_playing = false;
     }
 
     /// Advance by one frame at the given fps. Stops playback.

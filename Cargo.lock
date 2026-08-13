@@ -189,6 +189,7 @@ dependencies = [
  "rodio",
  "ron",
  "serde",
+ "serde_json",
  "syntect",
  "thiserror 2.0.18",
  "tracing",

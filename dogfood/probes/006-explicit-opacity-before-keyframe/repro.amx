@@ -1,0 +1,4 @@
+// Minimal repro: explicit opacity: 0 is ignored on pre-keyframe declarations.
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+box: Rect, size: (100, 100), color: accent.primary, opacity: 0, at: (200, 150)

@@ -151,6 +151,29 @@ fn test_hierarchical_assignment_target() {
 }
 
 #[test]
+fn explicit_opacity_before_keyframe_is_honored() {
+    // A declaration before any keyframe starts hidden by default, but an
+    // explicit `opacity` must be preserved instead of ignored.
+    let source = r#"
+        config { colorscheme: "editorial-dark", resolution: (640, 360) }
+        box: Rect, size: (100, 100), color: accent.primary, opacity: 0, at: (200, 150)
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no build diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let track = report.output.tracks.get("box").expect("box track should exist");
+    let opacity_at_0 = track.style.opacity.as_ref().unwrap().evaluate(0);
+    assert_eq!(opacity_at_0, 0.0, "explicit opacity: 0 should apply at t=0");
+}
+
+#[test]
 fn graph_axes_invisible_before_fadein() {
     // Graph declared before any keyframe → default_opacity = 0.0
     // fade-in at #0.5s should animate opacity 0→1

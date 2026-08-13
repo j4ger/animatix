@@ -25,3 +25,7 @@ target
 .picopi/
 .pi/
 .zcode/
+
+# Dogfood run experiments stay local. Keep the workflow guide and templates tracked.
+dogfood/runs/*/
+!dogfood/runs/README.md

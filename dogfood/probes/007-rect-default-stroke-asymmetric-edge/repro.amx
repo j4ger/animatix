@@ -1,0 +1,5 @@
+// Minimal repro: Rect default stroke leaves asymmetric white edge artifacts.
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+#0s
+a: Rect, size: (100, 100), color: accent.primary, at: (200, 150)
