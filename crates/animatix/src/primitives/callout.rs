@@ -30,6 +30,7 @@ fn parse_actor_ref_with_env(expr: &Expr, env: &Environment) -> Option<String> {
         Expr::Index(base, index) => {
             let base_name = match base.as_ref() {
                 Expr::Ident(name) => name.clone(),
+                Expr::Path(parts) if !parts.is_empty() => parts.join("."),
                 _ => return None,
             };
             let n = match crate::timeline::evaluate_expr(index, env).ok()? {

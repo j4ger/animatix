@@ -184,6 +184,21 @@ fn expand_stmt_into(
         // ComponentAction is NOT emitted into output; it's collected during instance expansion
         Stmt::ComponentAction { .. } => {},
         Stmt::ComponentDef(..) => {},
+        Stmt::Scene {
+            name,
+            config,
+            body,
+            span,
+        } => {
+            let (expanded_body, sub_registry) = expand_statements_inner(body, components, ctx);
+            merge_registry(registry, sub_registry);
+            output.push(Stmt::Scene {
+                name: name.clone(),
+                config: config.clone(),
+                body: expanded_body,
+                span: *span,
+            });
+        },
         Stmt::ActorDecl {
             is_pub,
             label,
@@ -588,5 +603,56 @@ mod tests {
                 "array_index must be preserved through expansion"
             );
         }
+    }
+
+    #[test]
+    fn test_expand_component_inside_scene_body() {
+        let source = r#"
+pub component Box(size: Num = 20) {
+  box: Rect, size: (size, size)
+}
+
+# Intro
+b: Box, size: 40
+"#;
+        let (stmts, _errors) = crate::parser::parse_source(source);
+        let stmts = stmts.unwrap();
+
+        let mut components = std::collections::HashMap::new();
+        for stmt in &stmts {
+            if let Stmt::ComponentDef(def, _) = stmt {
+                components.insert(
+                    def.name.clone(),
+                    super::super::ComponentEntry {
+                        definition: def.clone(),
+                        source_path: std::path::PathBuf::from("scene.amx"),
+                        actions: std::collections::HashMap::new(),
+                    },
+                );
+            }
+        }
+
+        let (expanded, _registry) = expand_statements(&stmts, &components);
+        let scene = expanded
+            .iter()
+            .find_map(|s| {
+                if let Stmt::Scene { body, .. } = s {
+                    Some(body)
+                } else {
+                    None
+                }
+            })
+            .expect("scene body should be expanded");
+        let box_actor = scene
+            .iter()
+            .find_map(|s| {
+                if let Stmt::ActorDecl { ty, .. } = s {
+                    Some(ty)
+                } else {
+                    None
+                }
+            })
+            .expect("component instance should expand inside scene body");
+        assert_eq!(box_actor, "Rect");
     }
 }

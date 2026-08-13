@@ -10,7 +10,8 @@ pub(crate) fn parse_numeric_vec2(expr: &Expr, env: &Environment) -> Option<[f32;
 }
 
 /// Parse a source-level actor reference into its internal track label.
-/// `box` -> `"box"`, `group.box` -> `"group.box"`, `bar[2]` -> `"bar__2"`.
+/// `box` -> `"box"`, `group.box` -> `"group.box"`, `bar[2]` -> `"bar__2"`,
+/// `group.bar[2]` -> `"group.bar__2"`.
 pub(crate) fn parse_actor_ref_literal(expr: &Expr) -> Option<String> {
     match expr {
         Expr::Str(s) => Some(s.clone()),
@@ -19,6 +20,7 @@ pub(crate) fn parse_actor_ref_literal(expr: &Expr) -> Option<String> {
         Expr::Index(base, index) => {
             let base_name = match base.as_ref() {
                 Expr::Ident(name) => name.clone(),
+                Expr::Path(parts) if !parts.is_empty() => parts.join("."),
                 _ => return None,
             };
             let n = match index.as_ref() {
