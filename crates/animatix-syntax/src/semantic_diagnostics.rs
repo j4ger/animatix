@@ -5,10 +5,14 @@
 
 use std::collections::HashSet;
 
-use crate::ast::{is_array_member_label, Span, Stmt};
+use crate::ast::{is_array_member_label, InlineItem, Span, Stmt};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticLocation, DiagnosticPhase, DiagnosticSeverity};
 use crate::symbol_table::{LabelKind, SymbolTable};
 use crate::walk;
+
+/// Built-in container types whose label may be purely structural.
+const STRUCTURAL_CONTAINER_TYPES: &[&str] =
+    &["Row", "Col", "Grid", "Stack", "Group", "Filter", "Mask"];
 
 /// Collect semantic diagnostics for a parsed program.
 ///
@@ -20,6 +24,7 @@ pub fn collect_semantic_diagnostics(
     tree: Option<&tree_sitter::Tree>,
     source: &str,
 ) -> Vec<Diagnostic> {
+    let structural_containers = collect_structural_container_labels(stmts);
     let mut diagnostics = Vec::new();
 
     let mut seen_labels = HashSet::new();
@@ -42,6 +47,7 @@ pub fn collect_semantic_diagnostics(
                 || info.kind == LabelKind::Always
                 || symbols.array_labels.contains(name)
                 || symbols.component_internal_labels.contains(name)
+                || structural_containers.contains(name)
             {
                 continue;
             }
@@ -139,6 +145,37 @@ fn is_component_array_member(symbols: &SymbolTable, label: &str) -> bool {
         return false;
     };
     info.ty.as_deref().is_some_and(|ty| symbols.components.contains_key(ty))
+}
+
+fn collect_structural_container_labels(stmts: &[Stmt]) -> HashSet<String> {
+    let mut structural = HashSet::new();
+    crate::walk::walk_stmts(stmts, &mut |stmt| {
+        if let Stmt::ActorDecl {
+            label,
+            ty,
+            children,
+            ..
+        } = stmt
+        {
+            if !children.is_empty() && STRUCTURAL_CONTAINER_TYPES.contains(&ty.as_str()) {
+                structural.insert(label.clone());
+            }
+            crate::walk::walk_inline_items(children, &mut |item| {
+                if let InlineItem::Labeled {
+                    label,
+                    ty,
+                    children,
+                    ..
+                } = item
+                {
+                    if !children.is_empty() && STRUCTURAL_CONTAINER_TYPES.contains(&ty.as_str()) {
+                        structural.insert(label.clone());
+                    }
+                }
+            });
+        }
+    });
+    structural
 }
 
 fn find_token_range(
@@ -340,5 +377,87 @@ trait PairPoint {
 impl PairPoint for tree_sitter::Point {
     fn pair_with_point(self, end: tree_sitter::Point) -> (tree_sitter::Point, tree_sitter::Point) {
         (self, end)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn unused_labels(stmts: &[Stmt]) -> Vec<String> {
+        let symbols = SymbolTable::build_from_ast(stmts);
+        collect_semantic_diagnostics(stmts, &symbols, None, "")
+            .into_iter()
+            .filter(|d| d.code == DiagnosticCode::UnusedLabel)
+            .map(|d| d.message.clone())
+            .collect()
+    }
+
+    #[test]
+    fn structural_container_with_children_is_not_unused() {
+        let stmts = vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "cards".to_string(),
+            array_index: None,
+            ty: "Row".to_string(),
+            props: vec![],
+            modifiers: vec![],
+            children: vec![InlineItem::Labeled {
+                label: "card".to_string(),
+                array_index: None,
+                ty: "Rect".to_string(),
+                props: vec![],
+                modifiers: vec![],
+                children: vec![],
+            }],
+            span: None,
+        }];
+        let labels = unused_labels(&stmts);
+        assert!(
+            !labels.iter().any(|m| m.contains("'cards'")),
+            "structural container label should be exempt: {labels:?}"
+        );
+    }
+
+    #[test]
+    fn empty_container_is_still_unused() {
+        let stmts = vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "holder".to_string(),
+            array_index: None,
+            ty: "Group".to_string(),
+            props: vec![],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }];
+        let labels = unused_labels(&stmts);
+        assert!(labels.iter().any(|m| m.contains("holder")));
+    }
+
+    #[test]
+    fn non_container_with_children_is_still_unused() {
+        let stmts = vec![Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "wrapper".to_string(),
+            array_index: None,
+            ty: "Rect".to_string(),
+            props: vec![],
+            modifiers: vec![],
+            children: vec![InlineItem::Labeled {
+                label: "child".to_string(),
+                array_index: None,
+                ty: "Rect".to_string(),
+                props: vec![],
+                modifiers: vec![],
+                children: vec![],
+            }],
+            span: None,
+        }];
+        let labels = unused_labels(&stmts);
+        assert!(labels.iter().any(|m| m.contains("wrapper")));
     }
 }
