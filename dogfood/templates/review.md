@@ -6,7 +6,7 @@ Which variant better serves the brief, and why?
 
 ## Observations
 
-Use comments anchored to `variant`, `time`, and `line`. Raw comments live in
+Use comments anchored to `variant` and optional `time`. Raw comments live in
 `review.json`; summarize the ones that changed your mind.
 
 ## Questions

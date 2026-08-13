@@ -5,13 +5,21 @@ ZCode session into a repeatable handoff: an agent writes and runs the
 experiment, the human reviews in the GUI, and the agent resumes from the files
 the reviewer leaves behind.
 
+## When To Use A Run
+
+Use a run when two or more source expressions can satisfy the same brief and
+the open question is which one is clearer, safer, or easier to maintain.
+
+Do not use a run for parser bugs, runtime bugs, or renderer artifacts. Those
+belong in `probes/<NNN>-<slug>/` as minimal repros.
+
 ## Roles
 
 - Agent: discover a problem, write the run, validate it, launch the GUI, wait
   for the review signal, read `review.json`, update `run.md`/`review.md`, and
   decide the next action.
-- Human: watch and compare A/B variants in the GUI, write anchored comments,
-  and mark the review done.
+- Human: watch and compare A/B variants in the GUI, write comments, and mark
+  the review done.
 - Files: the handoff state. The GUI never needs to talk to the agent directly.
 
 ## Run Layout
@@ -32,29 +40,38 @@ Run directories are local review experiments and are gitignored. Only this
 workflow guide and the run templates are committed; experiment sources and
 comments stay on disk until they are promoted to probes or projects.
 
+## Lifecycle
+
+1. Agent picks one focused design question and creates a run.
+2. Agent validates the run and launches the review GUI in the background.
+3. Human reviews, adds comments, and explicitly marks the review done.
+4. Agent reads `review.json`, summarizes feedback, and records a decision.
+5. The decision becomes an accepted idiom, a rejected experiment, a probe, or a
+   prototype.
+
 ## Agent Workflow
 
-1. Read `dogfood/runs/README.md` and this guide before creating a run.
-2. Open the relevant evidence and decide one focused design question. Do not
+1. Read the relevant evidence and choose one focused design question. Do not
    combine multiple questions in one run.
-3. Create `dogfood/runs/<slug>/` with `run.md`, `brief.md`, and at least two
+2. Create `dogfood/runs/<slug>/` with `run.md`, `brief.md`, and at least two
    `.amx` variants. The baseline variant must use current grammar. All variants
    must target the same brief and success criteria.
-4. Validate every variant:
+3. Validate every variant:
    ```bash
    cargo run --bin animatix -- check dogfood/runs/<slug>/a.amx
    cargo run --bin animatix -- check dogfood/runs/<slug>/b.amx
    ```
-5. Launch the review GUI in the background:
+4. Launch the review GUI in the background:
    ```bash
    bash scripts/dogfood-review.sh <slug>
    ```
    In ZCode, run this as a background task. The command exits when the reviewer
    closes the window or marks the review done.
-6. Wait for the reviewer. Do not consume feedback until the review is marked
+5. Wait for the reviewer. Do not consume feedback until the review is marked
    done or the window closes.
-7. Read `dogfood/runs/<slug>/review.json`. Preserve comment IDs and anchors.
-8. Summarize the comments into `review.md` and fill in the `Outcome` section of
+6. Read `dogfood/runs/<slug>/review.json`. Preserve comment IDs and the
+   variant/time anchors recorded there.
+7. Summarize the comments into `review.md` and fill in the `Outcome` section of
    `run.md`. Record a clear decision:
    - Accept: keep the winning expression as the idiomatic pattern.
    - Reject: note why, so the same experiment is not repeated blindly.
@@ -63,9 +80,24 @@ comments stay on disk until they are promoted to probes or projects.
    - Prototype: if a proposed syntax needs implementation, use the normal plan
      workflow; after landing, rerun the same brief to verify the workaround
      count dropped.
-9. If the run changes syntax or docs, update the PEG parser, tree-sitter
+8. If the run changes syntax or docs, update the PEG parser, tree-sitter
    grammar, analyzer, spec, and tests as required by `AGENTS.md`, then archive
    completed roadmap items.
+
+## What dogfood-review.sh Does
+
+`scripts/dogfood-review.sh <slug>` is the one-command wrapper for a review
+session:
+
+- Requires at least two `.amx` files in the run directory.
+- Runs `animatix check` on every variant.
+- Builds `animatix-gui` once.
+- Launches `animatix-gui --review dogfood/runs/<slug>`.
+- Prints `Review marked done` when `review.done` exists, otherwise prints
+  `Review window closed`.
+
+The script intentionally blocks until the GUI exits. Start it in the
+background when running from an agent workflow.
 
 ## Human Review Session
 
@@ -98,15 +130,20 @@ Controls:
 - Click a source line to select it; clicking line numbers jumps playback to the
   keyframe time for that line.
 
-Write comments anchored to `variant + optional time`. The GUI persists every
-comment to `review.json`. When finished, click the green check button or press
-`D`; this writes `review.done` and closes the review window. Closing the window
-directly is also a valid finish signal.
+## Comments And Review Signals
 
-Do not edit `review.json` by hand. If an old review needs to be redone, delete
-`review.done` and keep or clear the comments deliberately.
+Comments are persisted to `review.json`. Each comment stores:
 
-## Review Signals
+- `id`: stable identifier, used when summarizing feedback.
+- `variant`: which `.amx` file the comment targets.
+- `time_ms`: optional playback time anchor.
+- `severity`: `Blocker`, `Major`, `Minor`, or `Question`.
+- `note`: the human's observation.
+
+Comments are anchored to `variant + optional time`; there is no source-line
+comment anchor. Source line clicks are navigation only.
+
+Review signals:
 
 - `review.json` exists: comments may be present.
 - `review.done` exists: the human explicitly finished reviewing.
@@ -114,6 +151,9 @@ Do not edit `review.json` by hand. If an old review needs to be redone, delete
 
 The strongest signal is `review.done`; the agent should wait for it when the
 GUI was launched from this workflow.
+
+Do not edit `review.json` by hand. If an old review needs to be redone, delete
+`review.done` and keep or clear the comments deliberately.
 
 ## Checklist For A New Run
 

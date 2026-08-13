@@ -26,6 +26,14 @@ performance, readability.
 - [ ] Agent processed comments
 - [ ] Outcome recorded
 
+## Decision
+
+- [ ] Accept: keep the winning expression as idiomatic
+- [ ] Reject: note why, so the experiment is not repeated blindly
+- [ ] Probe: create `probes/NNN-<slug>/probe.md`
+- [ ] Prototype: implement proposed syntax, then rerun the same brief
+
 ## Outcome
 
-To be filled after review. Adopt, reject, or turn into a probe.
+To be filled after review. Record what changed the decision and what the next
+action is.

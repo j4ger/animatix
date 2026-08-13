@@ -8,17 +8,17 @@ A dogfooding session starts with a real brief, not a feature demo. The goal is
 to find where the grammar is expressive, where it forces workarounds, and where
 diagnostics make the intended change obvious.
 
-## Structure
+## Artifact Types
 
-- `projects/<name>/` - one complete real project per folder.
-- `probes/<NNN>-<slug>/` - minimal repros for language/grammar gaps.
-- `runs/<slug>/` - focused A/B language-design review experiments. Run
-  directories are local-only and gitignored; the workflow guide and templates
-  are committed.
-- `templates/` - starter files for projects, probes, and runs.
+| Path | Purpose | Lifecycle |
+|---|---|---|
+| `projects/<name>/` | One complete real project | Polish and promote to `examples/projects/`; `notes.md` records grammar feedback |
+| `probes/<NNN>-<slug>/` | Minimal repro for one parser, type, runtime, or renderer gap | Stays in dogfood as a regression fixture or design ticket |
+| `runs/<slug>/` | Focused A/B language-design review | Local-only and gitignored; conclusions are promoted into probes/projects |
 
-Projects may be moved into `examples/projects/` after they are polished and
-pass the standard checks. Probes stay here and become design tickets.
+Use a project to ask "can the current DSL express real content?", a probe to
+ask "what is the smallest failing example?", and a run to ask "which expression
+is clearer for the same content?"
 
 ## Workflow
 
@@ -35,14 +35,31 @@ pass the standard checks. Probes stay here and become design tickets.
    `probes/`. The probe should reproduce the gap with the smallest possible
    `.amx`, not with the whole project.
 5. For A/B expression comparisons, create a focused `runs/<slug>/` with one
-   brief and at least two `.amx` variants, then review in the GUI:
+   brief and at least two `.amx` variants, then launch the review GUI:
    ```bash
    bash scripts/dogfood-review.sh <slug>
    ```
-   The full agent/human handoff loop is documented in `runs/README.md`.
+   Start it as a background task, wait for `review.done` or for the script to
+   exit, then read `review.json`. The full agent/human handoff loop is
+   documented in `runs/README.md`.
 6. Record the workaround and impact in `projects/<name>/notes.md`. This is
    where grammar/feature design feedback should live. Run conclusions live in
    `runs/<slug>/run.md` and `runs/<slug>/review.md`.
+
+## Review Run Checklist
+
+A new run must satisfy the same rules as a real review experiment:
+
+- One focused design question.
+- At least two `.amx` variants using the same `brief.md`.
+- The baseline variant uses current grammar.
+- Every variant passes `animatix check`.
+- `run.md` records a hypothesis, success criteria, and metrics.
+- Feedback is summarized into `review.md` and the outcome is recorded in
+  `run.md`.
+
+See `runs/README.md` for the full agent workflow, human controls, review
+signals, and the decision options.
 
 ## Rules
 
