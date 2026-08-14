@@ -244,7 +244,13 @@ impl Timeline {
         }
 
         // Compute modifier hash for cross-rebuild IR caching.
-        // Uses Debug representation since Stmt doesn't implement Hash.
+        //
+        // We hash the Debug representation because the AST types cannot derive
+        // `Hash` (several variants hold `f64`/`f32`, which do not implement
+        // `Hash`). This is safe in practice: the hash is only compared within a
+        // single process/session and is never persisted, Debug output is a
+        // faithful rendering of every field, and a changed hash merely causes
+        // an unnecessary re-lower rather than incorrect cache reuse.
         {
             use std::hash::{Hash, Hasher};
             let mut hasher = std::collections::hash_map::DefaultHasher::new();
