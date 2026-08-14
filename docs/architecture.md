@@ -263,7 +263,7 @@ peniko::ImageData → drawn into parent scene at local transform
 
 Memory: Each `GpuFilterBackend` owns one temporary texture pair. A 4K RGBA8 texture is ~33 MB. Two ping-pong textures = ~66 MB per backend instance. The backend is created per evaluation call (for `OffscreenRenderer`) or shared (for `PreviewSurface`), so peak memory is bounded.
 
-#### GPU Shader Filter Pass (Phase 8.6)
+#### GPU Shader Filter Pass
 
 The CPU pipeline does a full GPU→CPU readback per filter actor, then runs `image` crate operations on the host. For scenes with multiple filters or large resolutions, this is a bottleneck:
 
@@ -329,16 +329,9 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
 The 4×4 matrix is pre-multiplied on the CPU from individual transforms (same math as `apply_color_matrix` in `timeline/filter.rs`).
 
-##### Implementation Status
+The GPU compute-filter path removes the CPU blur/color matrix cost. The WGSL shaders (`filter_blur.wgsl`, `filter_color_matrix.wgsl`) are embedded in `renderer/filter_backend.rs` as inline compute pipelines. `GpuFilterBackend::render_scene_to_image_gpu_filtered()` runs the full GPU pipeline (render → blur H → blur V → color matrix → readback) and is called from `scene_eval.rs` for every `Filter` actor.
 
-| Phase | Scope | Readback? | Status |
-|-------|-------|-----------|--------|
-| **8.6a** | GPU compute filters, still readback to `peniko::ImageData` | Yes (once per filter) | ✅ Implemented |
-| **8.6b** | Zero-readback composite via custom fullscreen pass | No | ✅ Implemented |
-
-**8.6a** removes the CPU blur/color matrix cost. The WGSL shaders (`filter_blur.wgsl`, `filter_color_matrix.wgsl`) are embedded in `renderer/filter_backend.rs` as inline compute pipelines. `GpuFilterBackend::render_scene_to_image_gpu_filtered()` runs the full GPU pipeline (render → blur H → blur V → color matrix → readback) and is called from `scene_eval.rs` for every `Filter` actor.
-
-**8.6b** eliminates the final CPU readback by storing filtered GPU textures as `PendingComposite` entries on the `GpuFilterBackend`. After the main Vello scene is rendered to the output texture, each pending composite is blitted on top via `FullscreenBlitPipeline` with alpha blending. This avoids the GPU→CPU→GPU round-trip entirely.
+The zero-readback path eliminates the final CPU readback by storing filtered GPU textures as `PendingComposite` entries on the `GpuFilterBackend`. After the main Vello scene is rendered to the output texture, each pending composite is blitted on top via `FullscreenBlitPipeline` with alpha blending. This avoids the GPU→CPU→GPU round-trip entirely.
 
 The zero-readback path activates only when the filter actor is the last child in every ancestor container (safe Z-ordering). For filters that aren't last-in-render-order, the existing readback path is used as a fallback. This is determined by `scene_eval.rs::can_post_composite_filter()`.
 
@@ -605,7 +598,7 @@ source_text ──parse──► AST (Vec<Stmt>)
 
 For the full formatting rules, see [`spec.md`](spec.md) §Appendix A: Source Formatting Specification.
 
-### Insertion Mechanism (Phase 8.5)
+### Insertion Mechanism
 
 The GUI provides a unified insertion palette (`/` key) for inserting primitives, actions, and snippets. All insertions go through `SourceEdit` → AST mutation → re-serialization (no raw text surgery).
 
@@ -633,11 +626,11 @@ Some GUI operations bypass `SourceEdit` and directly mutate `raw_statements`. Th
 
 | Operation | Handler | Bypasses `SourceEdit`? | Notes |
 |-----------|---------|----------------------|-------|
-| Delete actor | `document_controller::handle_delete_selected_actors` | No — uses `SourceEdit::DeleteActor` | Fixed 2026-06-05 |
+| Delete actor | `document_controller::handle_delete_selected_actors` | No — uses `SourceEdit::DeleteActor` | |
 | Duplicate actor | `document_controller::handle_duplicate_actor` | Yes — direct `stmts.insert` | No `DuplicateActor` variant |
 | Paste actors | `document_controller::paste_actors` | Yes — direct `stmts.insert` + keyframe clone/rename/shift | No `PasteActors` variant |
-| Ungroup | `handlers/actor::handle_ungroup_selected_actors` | No — uses `Reparent` + `DeleteActor` | Fixed 2026-06-05 |
-| Reorder scenes | `handlers/scene::handle_reorder_scenes` | No — uses `SourceEdit::ReorderScenes` | Fixed 2026-06-05 |
+| Ungroup | `handlers/actor::handle_ungroup_selected_actors` | No — uses `Reparent` + `DeleteActor` | |
+| Reorder scenes | `handlers/scene::handle_reorder_scenes` | No — uses `SourceEdit::ReorderScenes` | |
 
 **Design decision:** Keep `SourceEdit` for surgical edits (property, keyframe, single-actor operations). Structural operations (delete, duplicate, paste, ungroup) stay as direct mutations with a shared commit helper. Forcing them into `SourceEdit` variants would make the enum unwieldy and leak GUI concerns (clipboard, label uniqueness) into the edit layer. Revisit if edit serialization or scripting support is needed.
 
@@ -876,7 +869,7 @@ incompatible:
 These sites use guardrail tests (in `format_core.rs` and `apply.rs`) to ensure
 variant coverage is reviewed when new AST variants are added.
 
-## 18. Crate Split (Completed 2026-06-02)
+## 18. Crate Split
 
 `animatix-syntax` was extracted from the core `animatix` crate. `animatix-analyzer` now depends only on `animatix-syntax`, eliminating WGPU/Vello from the LSP compile graph.
 
