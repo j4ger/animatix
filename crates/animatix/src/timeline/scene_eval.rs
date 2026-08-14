@@ -394,7 +394,7 @@ impl Timeline {
         // properties when the same (time, parent_transform) is evaluated again.
         let parent_coeffs = parent_transform.as_coeffs();
         let node_transform = {
-            let cache = self.transform_cache.borrow();
+            let cache = self.eval_caches.transform_cache.borrow();
             if let Some((cached_time, cached_parent, cached_transform)) = cache.get(node_label) {
                 if *cached_time == time_ms && *cached_parent == parent_coeffs {
                     *cached_transform
@@ -409,7 +409,8 @@ impl Timeline {
                         layout_pos,
                         node_overrides,
                     );
-                    self.transform_cache
+                    self.eval_caches
+                        .transform_cache
                         .borrow_mut()
                         .insert(node_label.to_string(), (time_ms, parent_coeffs, t));
                     t
@@ -425,7 +426,8 @@ impl Timeline {
                     layout_pos,
                     node_overrides,
                 );
-                self.transform_cache
+                self.eval_caches
+                    .transform_cache
                     .borrow_mut()
                     .insert(node_label.to_string(), (time_ms, parent_coeffs, t));
                 t
@@ -547,7 +549,7 @@ impl Timeline {
                     match primitive.evaluate(&ctx, Some(&mut text_ctx)) {
                         Ok(commands) => commands,
                         Err(e) => {
-                            self.runtime_diagnostics.borrow_mut().push(
+                            self.eval_caches.runtime_diagnostics.borrow_mut().push(
                                 crate::diagnostics::Diagnostic::error(
                                     crate::diagnostics::DiagnosticCode::RenderFailure,
                                     crate::diagnostics::DiagnosticPhase::Render,
@@ -598,7 +600,8 @@ impl Timeline {
                     transform_rect_bbox(&local_transform, default_bounds)
                 };
                 hit_regions.push((node_label.to_string(), world_bounds));
-                self.precise_bounds_cache
+                self.eval_caches
+                    .precise_bounds_cache
                     .borrow_mut()
                     .insert(node_label.to_string(), world_bounds);
 
@@ -1069,7 +1072,7 @@ impl Timeline {
         let time_ms = (time_s * 1000.0) as u64;
         let needs_frame_env = self.needs_frame_env();
         let has_child_orders = !self.child_orders.is_empty();
-        let cached = self.frame_cache.borrow();
+        let cached = self.eval_caches.frame_cache.borrow();
         let cached = cached.as_ref()?;
         if cached.time_ms != time_ms
             || cached.dimensions != scene_dimensions
@@ -1080,9 +1083,9 @@ impl Timeline {
         {
             return None;
         }
-        *self.precise_bounds_cache.borrow_mut() = cached.program.precise_bounds.clone();
-        *self.runtime_diagnostics.borrow_mut() = cached.program.diagnostics.clone();
-        self.hit_regions.borrow_mut().clear();
+        *self.eval_caches.precise_bounds_cache.borrow_mut() = cached.program.precise_bounds.clone();
+        *self.eval_caches.runtime_diagnostics.borrow_mut() = cached.program.diagnostics.clone();
+        self.eval_caches.hit_regions.borrow_mut().clear();
         Some(cached.program.clone())
     }
 
@@ -1128,10 +1131,10 @@ impl Timeline {
         self.clear_runtime_diagnostics();
 
         // P2.25: Reuse vello scene buffer to avoid allocating fresh encoding buffers.
-        let mut scene = self.scene_buffer.borrow_mut().take().unwrap_or_default();
+        let mut scene = self.eval_caches.scene_buffer.borrow_mut().take().unwrap_or_default();
         scene.reset();
         // Precise bounds are only valid for the frame that computed them.
-        self.precise_bounds_cache.borrow_mut().clear();
+        self.eval_caches.precise_bounds_cache.borrow_mut().clear();
         let bg_color = self.background_color.evaluate_copy(time_ms);
 
         // Collect actor world-space bounding boxes for click-to-select
@@ -1178,13 +1181,13 @@ impl Timeline {
         // Collect modifier evaluation errors as runtime diagnostics.
         for err in &modifier_errors {
             tracing::warn!("Modifier evaluation error at t={time_ms}ms: {err}");
-            self.runtime_diagnostics
-                .borrow_mut()
-                .push(crate::diagnostics::Diagnostic::error(
+            self.eval_caches.runtime_diagnostics.borrow_mut().push(
+                crate::diagnostics::Diagnostic::error(
                     crate::diagnostics::DiagnosticCode::ModifierRuntimeError,
                     crate::diagnostics::DiagnosticPhase::Render,
                     format!("Modifier evaluation error at t={time_ms}ms: {err}"),
-                ));
+                ),
+            );
         }
 
         let bg = vello::peniko::Color::new([bg_color[0], bg_color[1], bg_color[2], bg_color[3]]);
@@ -1218,13 +1221,16 @@ impl Timeline {
                 && self.is_static_subtree(root)
             {
                 let cache_key = (root.clone(), scene_dimensions, collect_items, debug_options);
-                let cache = self.static_subtree_cache.borrow_mut();
+                let cache = self.eval_caches.static_subtree_cache.borrow_mut();
                 if let Some((cached_scene, cached_bounds, cached_items)) = cache.get(&cache_key) {
                     // Fast path: append cached encoding directly and restore the
                     // precise bounds that were computed for this subtree.
                     scene.encoding_mut().append(cached_scene.encoding(), &None);
                     for (label, bounds) in cached_bounds {
-                        self.precise_bounds_cache.borrow_mut().insert(label.clone(), *bounds);
+                        self.eval_caches
+                            .precise_bounds_cache
+                            .borrow_mut()
+                            .insert(label.clone(), *bounds);
                     }
                     if let Some(items) = program_items.as_mut() {
                         items.extend(cached_items.iter().cloned());
@@ -1232,7 +1238,8 @@ impl Timeline {
                 } else {
                     drop(cache);
                     let mut temp_scene = vello::Scene::new();
-                    let subtree_bounds_before = self.precise_bounds_cache.borrow().len();
+                    let subtree_bounds_before =
+                        self.eval_caches.precise_bounds_cache.borrow().len();
                     let mut subtree_items_slot = if collect_items {
                         Some(Vec::new())
                     } else {
@@ -1261,13 +1268,15 @@ impl Timeline {
                     // Append to main scene and cache for next time.
                     scene.encoding_mut().append(temp_scene.encoding(), &None);
                     let new_bounds: Vec<(String, kurbo::Rect)> = self
+                        .eval_caches
                         .precise_bounds_cache
                         .borrow()
                         .iter()
                         .skip(subtree_bounds_before)
                         .map(|(label, rect)| (label.clone(), *rect))
                         .collect();
-                    self.static_subtree_cache
+                    self.eval_caches
+                        .static_subtree_cache
                         .borrow_mut()
                         .insert(cache_key, (temp_scene, new_bounds, subtree_items));
                 }
@@ -1294,9 +1303,9 @@ impl Timeline {
         // P2.24: Only store hit regions when explicitly requested.
         // Saves bounding-box computation for frames where click-to-select is not needed.
         if debug_options.compute_hit_regions {
-            *self.hit_regions.borrow_mut() = hit_regions;
+            *self.eval_caches.hit_regions.borrow_mut() = hit_regions;
         } else {
-            self.hit_regions.borrow_mut().clear();
+            self.eval_caches.hit_regions.borrow_mut().clear();
         }
 
         // The program owns the encoded scene; scene_buffer keeps a reusable copy.
@@ -1305,11 +1314,11 @@ impl Timeline {
             background: bg_color,
             scene,
             items: program_items.take().unwrap_or_default(),
-            precise_bounds: self.precise_bounds_cache.borrow().clone(),
-            diagnostics: self.runtime_diagnostics.borrow().clone(),
+            precise_bounds: self.eval_caches.precise_bounds_cache.borrow().clone(),
+            diagnostics: self.eval_caches.runtime_diagnostics.borrow().clone(),
         };
         if filter_backend.is_none() && debug_options == DebugRenderOptions::default() {
-            *self.frame_cache.borrow_mut() = Some(super::FrameCacheEntry {
+            *self.eval_caches.frame_cache.borrow_mut() = Some(super::FrameCacheEntry {
                 time_ms,
                 dimensions: scene_dimensions,
                 has_modifiers: needs_frame_env,
@@ -1319,7 +1328,7 @@ impl Timeline {
                 collect_items,
             });
         }
-        *self.scene_buffer.borrow_mut() = Some(program.scene.clone());
+        *self.eval_caches.scene_buffer.borrow_mut() = Some(program.scene.clone());
 
         program
     }
@@ -1418,7 +1427,7 @@ mod tests {
         let _ = scene1;
 
         // Verify the cache is populated
-        let cache = timeline.frame_cache.borrow();
+        let cache = timeline.eval_caches.frame_cache.borrow();
         assert!(cache.is_some(), "frame cache should be populated after evaluate");
 
         if let Some(ref entry) = *cache {
@@ -1430,7 +1439,7 @@ mod tests {
         let scene2 = timeline.evaluate(1.0, dimensions);
         let _ = scene2;
 
-        let cache2 = timeline.frame_cache.borrow();
+        let cache2 = timeline.eval_caches.frame_cache.borrow();
         assert!(cache2.is_some(), "frame cache should still be populated");
         assert_eq!(cache2.as_ref().unwrap().time_ms, 1000);
     }
@@ -1445,7 +1454,7 @@ mod tests {
 
         let _scene = timeline.evaluate(1.0, dimensions);
         {
-            let cache = timeline.frame_cache.borrow();
+            let cache = timeline.eval_caches.frame_cache.borrow();
             let entry = cache.as_ref().expect("scene evaluation should populate cache");
             assert!(!entry.collect_items);
         }
@@ -1458,7 +1467,7 @@ mod tests {
         );
         assert!(!program.items.is_empty());
         {
-            let cache = timeline.frame_cache.borrow();
+            let cache = timeline.eval_caches.frame_cache.borrow();
             let entry = cache.as_ref().expect("program evaluation should populate cache");
             assert!(entry.collect_items);
         }
@@ -1479,6 +1488,7 @@ mod tests {
             &mut None,
         );
         timeline
+            .eval_caches
             .frame_cache
             .borrow_mut()
             .as_mut()
@@ -1517,7 +1527,7 @@ mod tests {
         let _scene2 = timeline.evaluate(2.0, dimensions);
 
         // Cache should contain the latest evaluation (t=2.0)
-        let cache = timeline.frame_cache.borrow();
+        let cache = timeline.eval_caches.frame_cache.borrow();
         assert!(cache.is_some(), "cache should be populated");
         assert_eq!(cache.as_ref().unwrap().time_ms, 2000, "cache should contain t=2.0");
     }
@@ -1539,7 +1549,7 @@ mod tests {
 
         // Cache should have dims_1
         {
-            let cache = timeline.frame_cache.borrow();
+            let cache = timeline.eval_caches.frame_cache.borrow();
             assert_eq!(cache.as_ref().unwrap().dimensions, dims_1);
         }
 
@@ -1547,7 +1557,7 @@ mod tests {
 
         // Cache should now have dims_2
         {
-            let cache = timeline.frame_cache.borrow();
+            let cache = timeline.eval_caches.frame_cache.borrow();
             assert_eq!(cache.as_ref().unwrap().dimensions, dims_2);
         }
     }
@@ -1562,7 +1572,7 @@ mod tests {
 
         // hit_regions should be empty before evaluate
         {
-            let regions = timeline.hit_regions.borrow();
+            let regions = timeline.eval_caches.hit_regions.borrow();
             assert!(regions.is_empty(), "hit_regions should be empty before evaluate");
         }
 
@@ -1578,7 +1588,7 @@ mod tests {
         );
 
         // hit_regions should be populated after evaluate
-        let regions = timeline.hit_regions.borrow();
+        let regions = timeline.eval_caches.hit_regions.borrow();
         assert!(!regions.is_empty(), "hit_regions should be populated after evaluate");
         assert!(
             regions.iter().any(|(label, _)| label == "test_box"),
@@ -1605,7 +1615,7 @@ mod tests {
             &mut None,
         );
 
-        let regions = timeline.hit_regions.borrow();
+        let regions = timeline.eval_caches.hit_regions.borrow();
         let (label, bounds) = regions
             .iter()
             .find(|(l, _)| l == "test_box")
@@ -1634,7 +1644,7 @@ mod tests {
         let _scene = timeline.evaluate_with_debug(0.0, dimensions, debug_opts, &mut None);
 
         // Cache should not be populated because debug_options != default
-        let cache = timeline.frame_cache.borrow();
+        let cache = timeline.eval_caches.frame_cache.borrow();
         assert!(
             cache.is_none(),
             "frame cache should not be populated with non-default debug options"
@@ -1695,6 +1705,7 @@ mod tests {
         // The declared size box is 100x100 centered at (0,0), but the precise
         // command bounds describe a different world AABB.
         timeline
+            .eval_caches
             .precise_bounds_cache
             .borrow_mut()
             .insert("test_box".to_string(), kurbo::Rect::new(50.0, 40.0, 100.0, 80.0));
@@ -1722,11 +1733,12 @@ mod tests {
 
         let _scene = timeline.evaluate(0.0, dimensions);
         assert!(
-            timeline.precise_bounds_cache.borrow().contains_key("test_box"),
+            timeline.eval_caches.precise_bounds_cache.borrow().contains_key("test_box"),
             "precise bounds should be populated after evaluation"
         );
 
         let cached = timeline
+            .eval_caches
             .precise_bounds_cache
             .borrow()
             .get("test_box")
@@ -1734,7 +1746,7 @@ mod tests {
             .expect("cached bounds");
         let _scene = timeline.evaluate(0.0, dimensions);
         assert_eq!(
-            timeline.precise_bounds_cache.borrow().get("test_box").copied(),
+            timeline.eval_caches.precise_bounds_cache.borrow().get("test_box").copied(),
             Some(cached),
             "frame-cache hit should restore precise bounds"
         );

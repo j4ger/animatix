@@ -487,6 +487,7 @@ type StaticSubtreeEntry = (
 
 /// Compiled animation package containing the full scene graph, tracks, and
 /// evaluation state.
+#[derive(Clone)]
 pub struct Timeline {
     pub(crate) tracks: BTreeMap<String, AnimationTrack>,
     pub(crate) background_color: PropertyTrack<[f32; 4]>,
@@ -523,34 +524,8 @@ pub struct Timeline {
     /// Runtime text compiler with cache. Enables `always` blocks to change
     /// text content / font_family / font_size and have glyphs recompiled on-demand.
     text_compiler: std::cell::RefCell<crate::renderer::text::TextCompiler>,
-    /// Frame evaluation cache: avoids re-evaluating when time and dimensions match.
-    frame_cache: std::cell::RefCell<Option<FrameCacheEntry>>,
-    /// Per-actor transform cache for temporal coherence (P2.18).
-    /// Maps actor_label -> (time_ms, parent_transform_coeffs, NodeTransform).
-    /// Cleared on timeline rebuild.
-    transform_cache: std::cell::RefCell<std::collections::HashMap<String, TransformCacheEntry>>,
-    /// Static subtree scene fragment cache (P2.17).
-    /// Maps (root_label, scene_dimensions, collect_items, debug options) to a
-    /// cached Vello scene and the precise bounds computed for nodes in that
-    /// subtree. Dimensions and item collection affect encoded output/observable
-    /// data, so both are part of the key; hit-region evaluation bypasses this
-    /// cache entirely.
-    static_subtree_cache: std::cell::RefCell<
-        std::collections::HashMap<
-            (String, SceneDimensions, bool, DebugRenderOptions),
-            StaticSubtreeEntry,
-        >,
-    >,
-    /// Reusable vello scene buffer (P2.25). Avoids allocating fresh encoding
-    /// buffers on every frame by calling scene.reset() between evaluations.
-    scene_buffer: std::cell::RefCell<Option<vello::Scene>>,
-    /// Per-actor world-space bounding boxes from the last evaluate call.
-    /// Each entry is (actor_label, world_bounds). Populated during evaluate.
-    hit_regions: std::cell::RefCell<Vec<(String, kurbo::Rect)>>,
-    /// Precise world-space AABBs computed from emitted render commands on the
-    /// most recent frame. Used by callout/line/arrow anchor resolution when the
-    /// target has already been evaluated; falls back to size-box bounds.
-    precise_bounds_cache: std::cell::RefCell<std::collections::HashMap<String, kurbo::Rect>>,
+    /// Per-frame evaluation caches and transient state. Reset on clone.
+    eval_caches: EvalCaches,
     /// Keyframe-scoped variable tracks.
     /// Variables declared via `let` inside keyframes are stored here as
     /// piecewise-constant functions of time, injected into the frame environment
@@ -565,9 +540,6 @@ pub struct Timeline {
     /// Survives across rebuilds when the GUI copies it from the old timeline.
     pub plot_path_cache:
         std::collections::HashMap<u64, Vec<crate::timeline::vello_path::VelloPath>>,
-    /// Runtime diagnostics from frame evaluation (modifier errors, etc.).
-    /// Cleared at the start of each evaluate call.
-    runtime_diagnostics: std::cell::RefCell<Vec<crate::diagnostics::Diagnostic>>,
     /// Hash of the modifier AST statements collected during build.
     /// Used to skip IR re-lowering when modifiers haven't changed.
     pub modifier_hash: u64,
@@ -587,43 +559,31 @@ pub(crate) struct FrameCacheEntry {
     collect_items: bool,
 }
 
-impl Clone for Timeline {
+/// Per-frame evaluation caches and transient state.
+///
+/// These are deliberately reset (not cloned) when a [`Timeline`] is cloned, so
+/// a cloned timeline starts with clean frame state while sharing the compiled
+/// scene data. `Clone` therefore returns `Default` rather than copying cache
+/// contents.
+#[derive(Default)]
+struct EvalCaches {
+    frame_cache: std::cell::RefCell<Option<FrameCacheEntry>>,
+    transform_cache: std::cell::RefCell<std::collections::HashMap<String, TransformCacheEntry>>,
+    static_subtree_cache: std::cell::RefCell<
+        std::collections::HashMap<
+            (String, SceneDimensions, bool, DebugRenderOptions),
+            StaticSubtreeEntry,
+        >,
+    >,
+    scene_buffer: std::cell::RefCell<Option<vello::Scene>>,
+    hit_regions: std::cell::RefCell<Vec<(String, kurbo::Rect)>>,
+    precise_bounds_cache: std::cell::RefCell<std::collections::HashMap<String, kurbo::Rect>>,
+    runtime_diagnostics: std::cell::RefCell<Vec<crate::diagnostics::Diagnostic>>,
+}
+
+impl Clone for EvalCaches {
     fn clone(&self) -> Self {
-        Self {
-            tracks: self.tracks.clone(),
-            background_color: self.background_color.clone(),
-            root_nodes: self.root_nodes.clone(),
-            env: self.env.clone(),
-            env_base: std::sync::Arc::clone(&self.env_base),
-            modifiers: self.modifiers.clone(),
-            modifier_programs: self.modifier_programs.clone(),
-            colorscheme: self.colorscheme.clone(),
-            external_colorschemes: self.external_colorschemes.clone(),
-            auto_color_assignments: self.auto_color_assignments.clone(),
-            next_auto_color_index: self.next_auto_color_index,
-            container_metadata: self.container_metadata.clone(),
-            layout_engine: self.layout_engine.clone(),
-            dynamic_layout: self.dynamic_layout,
-            asset_cache: std::sync::Arc::clone(&self.asset_cache),
-            font_context: std::sync::Arc::clone(&self.font_context),
-            build_quality: self.build_quality,
-            default_opacity: self.default_opacity,
-            child_orders: self.child_orders.clone(),
-            persistence_flags: self.persistence_flags.clone(),
-            text_compiler: std::cell::RefCell::new(self.text_compiler.borrow().clone()),
-            frame_cache: std::cell::RefCell::new(None), // cache is not cloned
-            transform_cache: std::cell::RefCell::new(std::collections::HashMap::new()), /* cache is not cloned */
-            static_subtree_cache: std::cell::RefCell::new(std::collections::HashMap::new()), /* cache is not cloned */
-            scene_buffer: std::cell::RefCell::new(None), // buffer is not cloned
-            hit_regions: std::cell::RefCell::new(Vec::new()),
-            precise_bounds_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
-            variable_tracks: self.variable_tracks.clone(),
-            audio_segments: self.audio_segments.clone(),
-            action_events: self.action_events.clone(),
-            plot_path_cache: self.plot_path_cache.clone(),
-            runtime_diagnostics: std::cell::RefCell::new(Vec::new()),
-            modifier_hash: self.modifier_hash,
-        }
+        Self::default()
     }
 }
 
@@ -661,17 +621,11 @@ impl Timeline {
             child_orders: BTreeMap::new(),
             persistence_flags: BTreeMap::new(),
             text_compiler: std::cell::RefCell::new(crate::renderer::text::TextCompiler::new()),
-            frame_cache: std::cell::RefCell::new(None), // cache is not cloned
-            transform_cache: std::cell::RefCell::new(std::collections::HashMap::new()), /* cache is not cloned */
-            static_subtree_cache: std::cell::RefCell::new(std::collections::HashMap::new()), /* cache is not cloned */
-            scene_buffer: std::cell::RefCell::new(None), // buffer is not cloned
-            hit_regions: std::cell::RefCell::new(Vec::new()),
-            precise_bounds_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
+            eval_caches: EvalCaches::default(),
             variable_tracks: BTreeMap::new(),
             audio_segments: Vec::new(),
             action_events: Vec::new(),
             plot_path_cache: std::collections::HashMap::new(),
-            runtime_diagnostics: std::cell::RefCell::new(Vec::new()),
             modifier_hash: 0,
         }
     }
@@ -913,7 +867,7 @@ impl Timeline {
     /// Returns the hit regions from the last evaluate call.
     /// Each entry is (actor_label, world_bounds) in scene coordinates.
     pub fn hit_regions(&self) -> Vec<(String, kurbo::Rect)> {
-        self.hit_regions.borrow().clone()
+        self.eval_caches.hit_regions.borrow().clone()
     }
 
     /// Returns a reference to the track for the given label, if it exists.
@@ -1046,10 +1000,10 @@ impl Timeline {
     /// of returning a stale cached one. Public mutable track/metadata/env
     /// accessors invoke this automatically.
     pub fn invalidate_frame_cache(&self) {
-        *self.frame_cache.borrow_mut() = None;
-        *self.static_subtree_cache.borrow_mut() = std::collections::HashMap::new();
-        *self.transform_cache.borrow_mut() = std::collections::HashMap::new();
-        *self.precise_bounds_cache.borrow_mut() = std::collections::HashMap::new();
+        *self.eval_caches.frame_cache.borrow_mut() = None;
+        *self.eval_caches.static_subtree_cache.borrow_mut() = std::collections::HashMap::new();
+        *self.eval_caches.transform_cache.borrow_mut() = std::collections::HashMap::new();
+        *self.eval_caches.precise_bounds_cache.borrow_mut() = std::collections::HashMap::new();
         self.layout_engine.invalidate_cache();
     }
 
@@ -1062,13 +1016,13 @@ impl Timeline {
     /// evaluation (modifier errors, etc.). Empty if evaluation succeeded
     /// without issues.
     pub fn runtime_diagnostics(&self) -> Vec<crate::diagnostics::Diagnostic> {
-        self.runtime_diagnostics.borrow().clone()
+        self.eval_caches.runtime_diagnostics.borrow().clone()
     }
 
     /// Clear runtime diagnostics. Called automatically at the start of each
     /// `evaluate()` call.
     pub fn clear_runtime_diagnostics(&self) {
-        self.runtime_diagnostics.borrow_mut().clear();
+        self.eval_caches.runtime_diagnostics.borrow_mut().clear();
     }
 
     /// Returns the name of the currently active colorscheme.

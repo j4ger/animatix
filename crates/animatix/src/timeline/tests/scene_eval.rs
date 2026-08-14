@@ -59,7 +59,7 @@ fn static_scene_cache_populated_after_first_evaluate() {
     // First evaluation — should populate static subtree cache
     let _scene1 = timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default(), &mut None);
 
-    let cache = timeline.static_subtree_cache.borrow();
+    let cache = timeline.eval_caches.static_subtree_cache.borrow();
     assert!(
         !cache.is_empty(),
         "static subtree cache should be populated after first evaluate"
@@ -74,7 +74,7 @@ fn static_scene_cache_populated_after_first_evaluate() {
     let _scene2 = timeline.evaluate_with_debug(1.0, dims, DebugRenderOptions::default(), &mut None);
 
     // Cache should still have entries
-    let cache2 = timeline.static_subtree_cache.borrow();
+    let cache2 = timeline.eval_caches.static_subtree_cache.borrow();
     assert!(!cache2.is_empty(), "static subtree cache should still have entries");
 }
 
@@ -135,7 +135,7 @@ fn static_scene_cache_is_keyed_by_debug_options() {
     };
     let _debug = timeline.evaluate_with_debug(0.0, dims, debug_opts, &mut None);
 
-    let cache = timeline.static_subtree_cache.borrow();
+    let cache = timeline.eval_caches.static_subtree_cache.borrow();
     assert!(cache.contains_key(&("box1".to_string(), dims, false, DebugRenderOptions::default())));
     assert!(cache.contains_key(&("box1".to_string(), dims, false, debug_opts)));
     assert_eq!(cache.len(), 2, "debug options must not reuse the default scene");
@@ -243,7 +243,7 @@ fn static_scene_only_cache_does_not_collect_items() {
     };
 
     let _scene = timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default(), &mut None);
-    let cache = timeline.static_subtree_cache.borrow();
+    let cache = timeline.eval_caches.static_subtree_cache.borrow();
     let scene_only_key = ("box1".to_string(), dims, false, DebugRenderOptions::default());
     let (_, _, items) =
         cache.get(&scene_only_key).expect("scene-only static subtree should be cached");
@@ -300,7 +300,7 @@ fn static_program_after_scene_only_still_collects_items() {
         "program path must collect items after scene-only cache"
     );
 
-    let cache = timeline.static_subtree_cache.borrow();
+    let cache = timeline.eval_caches.static_subtree_cache.borrow();
     let program_key = ("box1".to_string(), dims, true, DebugRenderOptions::default());
     let (_, _, items) = cache
         .get(&program_key)
@@ -402,7 +402,7 @@ fn static_scene_cache_is_keyed_by_dimensions() {
     let _second =
         timeline.evaluate_with_debug(0.0, dims_2, DebugRenderOptions::default(), &mut None);
 
-    let cache = timeline.static_subtree_cache.borrow();
+    let cache = timeline.eval_caches.static_subtree_cache.borrow();
     assert!(cache.contains_key(&(
         "box1".to_string(),
         dims_1,
@@ -646,7 +646,7 @@ fn runtime_empty_text_override_clears_stale_glyphs() {
     // reusing the cached build-time content, so no precise bounds are recorded.
     let _scene = timeline.evaluate(0.0, dimensions);
     assert!(
-        !timeline.precise_bounds_cache.borrow().contains_key("counter"),
+        !timeline.eval_caches.precise_bounds_cache.borrow().contains_key("counter"),
         "empty runtime text override should clear visible content"
     );
 }

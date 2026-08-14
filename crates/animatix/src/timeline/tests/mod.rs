@@ -61,10 +61,10 @@ fn get_track_mut_invalidates_frame_cache() {
         height: 100,
     };
     let _scene = timeline.evaluate(0.0, dims);
-    assert!(timeline.frame_cache.borrow().is_some());
+    assert!(timeline.eval_caches.frame_cache.borrow().is_some());
     let _track = timeline.get_track_mut("box0");
     assert!(
-        timeline.frame_cache.borrow().is_none(),
+        timeline.eval_caches.frame_cache.borrow().is_none(),
         "get_track_mut should invalidate the frame cache"
     );
 }
