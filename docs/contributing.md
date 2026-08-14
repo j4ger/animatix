@@ -35,14 +35,9 @@ cargo run --features animatix/video --bin animatix -- gif examples/animation/16_
 cargo run --bin animatix-gui -- examples/animation/16_showcase.amx
 ```
 
-### Grammar/Tooling Validation
+### Tokenizer/Tooling Validation
 
-```bash
-cd tree-sitter-animatix
-tree-sitter generate
-tree-sitter test
-tree-sitter highlight ../examples/animation/06_reactive.amx
-```
+For syntax or highlighting changes, run the syntax, analyzer, GUI, and LSP tests after updating `crates/animatix-syntax/src/token.rs`.
 
 ### Recommended Validation Loop
 
@@ -72,8 +67,7 @@ crates/
 ├── animatix-analyzer/     # Shared language intelligence
 ├── animatix-lsp/          # LSP server (tower-lsp)
 ├── animatix-gui/          # Desktop GUI (eframe/egui)
-├── eparts/                # Themed egui widget framework
-└── tree-sitter-animatix/  # Tree-sitter grammar
+└── eparts/                # Themed egui widget framework
 ```
 
 ### Source Areas Worth Knowing
@@ -90,8 +84,8 @@ crates/
 - `crates/animatix-gui/src/app/panels/` — UI panels (inspector, timeline, sidebar, preview, editor)
 - `crates/animatix-gui/src/app/commands/mod.rs` — command system (ShellAction / Command / ViewAction)
 - `crates/animatix-gui/src/app/design_tokens/mod.rs` — GUI design token system
+- `crates/animatix-syntax/src/token.rs` — single lossless tokenizer
 - `crates/animatix-gui/src/fonts.rs` — egui font setup, including system CJK fallback
-- `tree-sitter-animatix/` — editor grammar
 
 ---
 
@@ -137,7 +131,7 @@ animatix-gui (direct calls)    animatix-lsp (tower-lsp, JSON-RPC)
 1. **No I/O** — all functions take `&str` or `&[Stmt]`, return data
 2. **Position-based API** — `(line, col)` matching LSP's `Position`
 3. **Incremental** — `Analyzer::update()` re-parses only when source changes
-4. **Canonical parser**: `parse_canonical` is the Chumsky semantic parser used by module loading and the runtime. `parse_ts_canonical`/`reparse_ts_canonical` are the analyzer's tree-sitter CST paths for positions and incremental edits. Do not select a parser backend directly in callers.
+4. **Canonical parser**: `parse_canonical` is the Chumsky semantic parser used by module loading and the runtime. The analyzer tokenizes source and uses the same token stream plus AST for positions. Do not select a parser backend directly in callers.
 
 ### LSP Capabilities
 

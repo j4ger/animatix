@@ -27,10 +27,8 @@ cargo run --bin animatix -- ast path/to/file.amx --compact
 cargo run --bin animatix -- image path/to/file.amx --time 1.5 --output /tmp/frame.png
 ```
 
-If a change affects `.amx` syntax or highlighting:
-```bash
-cd tree-sitter-animatix && tree-sitter generate && tree-sitter test
-```
+If a change affects `.amx` syntax or highlighting, update the single tokenizer in
+`crates/animatix-syntax/src/token.rs` and run the syntax, GUI, and LSP tests.
 
 ## Commit Messages
 

@@ -80,9 +80,9 @@ comments stay on disk until they are promoted to probes or projects.
    - Prototype: if a proposed syntax needs implementation, use the normal plan
      workflow; after landing, rerun the same brief to verify the workaround
      count dropped.
-8. If the run changes syntax or docs, update the PEG parser, tree-sitter
-   grammar, analyzer, spec, and tests as required by `AGENTS.md`, then archive
-   completed roadmap items.
+8. If the run changes syntax or docs, update the parser, tokenizer, analyzer,
+   spec, and tests as required by `AGENTS.md`, then archive completed roadmap
+   items.
 
 ## What dogfood-review.sh Does
 

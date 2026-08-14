@@ -73,5 +73,4 @@ signals, and the decision options.
   Do not move them into `examples/`.
 - Runs must compare the same brief and success criteria across variants, and
   each run should isolate one design question.
-- Always run `bash scripts/check_examples.sh` and
-  `bash scripts/check-parser-sync.sh` before promoting a project to `examples/`.
+- Always run `bash scripts/check_examples.sh` before promoting a project to `examples/`.

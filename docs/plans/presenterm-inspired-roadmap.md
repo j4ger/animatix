@@ -422,4 +422,4 @@ Candidate extensions worth discussing, in order of product value:
 
 Recommendation: do not add comment directives. If speaker notes or export
 presets get a concrete user story, implement them as first-class DSL metadata
-so parser, analyzer, GUI, CLI, and tree-sitter stay in sync.
+so parser, analyzer, GUI, CLI, and tokenizer stay in sync.

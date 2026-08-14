@@ -4,7 +4,7 @@
 
 Animatix is a layout-first animation system with four core components:
 
-1. **Parser** (Chumsky semantic parser; tree-sitter CST for analyzer queries) — Converts `.amx` source into an AST
+1. **Parser** (Chumsky parser over a single lossless tokenizer) — Converts `.amx` source into an AST
 2. **Timeline** — Compiles AST into animated property tracks
 3. **Composition** — Orchestrates multi-scene timelines with transitions
 4. **Renderers** (Vello/WGPU, PNG, Frame sequences) — Rasterizes evaluated scenes
@@ -23,7 +23,7 @@ Animatix is a layout-first animation system with four core components:
      to_source::stmts_to_source()  (re-serialization for GUI write-back)
 ```
 
-The AST is round-trippable. The GUI inspector mutates the AST directly and re-serializes the entire file. Formatting is normalized during re-serialization. `parser::parse_canonical` is the semantic parser entry point used by module loading and the runtime. The analyzer separately retains a tree-sitter CST via `parser::parse_ts_canonical` / `parser::reparse_ts_canonical` for positions, completions, and incremental edits.
+The AST is round-trippable. The GUI inspector mutates the AST directly and re-serializes the entire file. Formatting is normalized during re-serialization. `parser::parse_canonical` is the semantic parser entry point used by module loading and the runtime. The analyzer tokenizes source and walks the same token stream plus AST for positions, completions, hover, and references.
 
 ### Module System
 
@@ -669,7 +669,7 @@ animatix-gui (direct calls)    animatix-lsp (tower-lsp, JSON-RPC)
   imports, namespaces, and source-map identity for both the runtime/module
   pipeline and the analyzer workspace. `Workspace` is a thin facade over that
   graph, so analyzer and runtime resolution cannot drift.
-- **Canonical parser API**: Chumsky remains the semantic AST source of truth; the analyzer uses tree-sitter CST conversion for position queries and incremental re-parsing
+- **Canonical parser API**: Chumsky remains the semantic AST source of truth; the analyzer uses the lossless token stream plus AST for position queries
 - **LSP capabilities**: completion, hover, goto-definition, document symbols, diagnostics
 - **Clean boundary**: `animatix-analyzer` depends only on `animatix-syntax`, not the full runtime engine
 
@@ -813,8 +813,8 @@ crates/
 ├── animatix-syntax/       # Syntax layer — parser, AST, module system
 │   └── src/
 │       ├── ast.rs         # AST types
-│       ├── parser/        # Chumsky parser (fallback backend)
-│       ├── ts_convert.rs  # Tree-sitter CST → AST converter
+│       ├── parser/        # Chumsky parser (consumes the token stream)
+│       ├── token.rs       # Lossless tokenizer
 │       ├── diagnostics.rs # Diagnostic types
 │       ├── easing.rs      # Easing function registry
 │       ├── source_index.rs# Source location mapping
@@ -838,8 +838,7 @@ crates/
 ├── animatix-analyzer/     # Shared language intelligence (depends on syntax)
 ├── animatix-lsp/          # LSP server (tower-lsp)
 ├── animatix-gui/          # Desktop GUI (eframe/egui)
-├── eparts/                # Themed egui widget framework
-└── tree-sitter-animatix/  # Tree-sitter grammar
+└── eparts/                # Themed egui widget framework
 ```
 
 ### Shared Walk Layer
@@ -865,7 +864,7 @@ variant coverage is reviewed when new AST variants are added.
 
 ### Modules in `animatix-syntax`
 
-`ast`, `parser/`, `module/`, `diagnostics`, `semantic_diagnostics`, `easing`, `source_index`, `source_map`, `to_source`, `formatter`, `transition_registry`, `icon_glyphs`, `ts_convert`, `typecheck`, `typing`, `walk`
+`ast`, `parser/`, `module/`, `diagnostics`, `semantic_diagnostics`, `easing`, `source_index`, `source_map`, `to_source`, `formatter`, `transition_registry`, `icon_glyphs`, `token`, `typecheck`, `typing`, `walk`
 
 ### Modules That Stay in `animatix`
 
