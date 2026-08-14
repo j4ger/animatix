@@ -1,4 +1,4 @@
-use super::property_lookup::parse_numeric_vec2_with_lookup_diagnostic;
+use super::lookup::parse_numeric_vec2_with_lookup_diagnostic;
 use super::{
     AnimationTrack, Environment, Interpolate, PlacementMode, PositionBinding, PropertyTrack,
     SceneAnchor, SceneDimensions,

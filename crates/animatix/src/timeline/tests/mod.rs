@@ -20,11 +20,11 @@ mod layout;
 #[cfg(test)]
 mod legend;
 #[cfg(test)]
+mod lookup;
+#[cfg(test)]
 mod media;
 #[cfg(test)]
 mod plot_transitions;
-#[cfg(test)]
-mod property_lookup;
 #[cfg(test)]
 mod scene_eval;
 #[cfg(test)]

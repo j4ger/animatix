@@ -694,7 +694,7 @@ impl Timeline {
                 let prop_subject = format!("{label}.{}", prop.name);
                 if prop.name == "target" {
                     if let Some(target) =
-                        crate::timeline::property_lookup::parse_actor_ref_literal(&prop.value)
+                        crate::timeline::lookup::parse_actor_ref_literal(&prop.value)
                     {
                         crate::timeline::property_engine::write_property_field(
                             track,

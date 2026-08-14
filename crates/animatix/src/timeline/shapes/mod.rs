@@ -1,7 +1,7 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::property_lookup::parse_numeric_vec2;
+use super::lookup::parse_numeric_vec2;
 use super::{Diagnostic, Environment, Interpolate, KurboShape, VelloPath, evaluate_expr};
 use crate::ast::Expr;
 use crate::timeline::actor_kind::{ActorKindId, ShapeKind};

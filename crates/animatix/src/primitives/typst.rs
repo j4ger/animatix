@@ -3,7 +3,7 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, Primitive};
-use crate::timeline::property_lookup::evaluate_expr_with_lookup_diagnostic;
+use crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
 
 /// The `Typst` primitive.

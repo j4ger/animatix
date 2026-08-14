@@ -1,3 +1,11 @@
+//! Lookup-path-aware evaluation and parsing helpers.
+//!
+//! These utilities evaluate or parse values that may reference dotted lookup
+//! paths (for example `color: text.primary`), emitting [`DiagnosticCode::UnknownLookupPath`]
+//! diagnostics with "did you mean" suggestions when resolution fails. They also
+//! provide a few small helpers for actor-reference parsing, target keys,
+//! iteration, and environment injection.
+
 use super::{Environment, EvalError, Value, evaluate_expr, resolve_color_in_env};
 use crate::ast::{Expr, TargetSegment, array_actor_label};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};

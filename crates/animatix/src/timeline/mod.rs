@@ -91,8 +91,8 @@ mod frame_env;
 mod index;
 /// Legend track storage.
 pub mod legend;
+pub(crate) mod lookup;
 mod primitive;
-pub(crate) mod property_lookup;
 #[cfg(feature = "render")]
 mod scene_eval;
 #[cfg(feature = "render")]
@@ -129,6 +129,14 @@ pub use env::{CapturedEnv, Environment, EvalError, Value};
 pub use image::load_image;
 pub use index::TimelineIndex;
 pub use kurbo_shapes::{KurboShape, morph_kurbo_shapes, morph_kurbo_shapes_default};
+use lookup::{
+    assignment_target_key, best_path_suggestion, evaluate_expr_with_lookup_diagnostic,
+    for_iter_values, parse_color_in_env_with_lookup_diagnostic, set_lookup_color, set_lookup_vec2,
+};
+pub(crate) use lookup::{
+    evaluate_expr_with_lookup_diagnostic as lookup_evaluate_expr_with_lookup_diagnostic,
+    parse_numeric_vec2_with_lookup_diagnostic as lookup_parse_numeric_vec2_with_lookup_diagnostic,
+};
 pub use morph::{
     MorphOptions, MorphStrategy, evaluate_paths_with_options, interpolate_text_paths,
     interpolate_vello_paths,
@@ -142,14 +150,6 @@ use position::{
     resolve_position_binding_with_lookup_diagnostic, set_track_position_binding,
 };
 pub(crate) use primitive::PrimitiveDescriptor;
-use property_lookup::{
-    assignment_target_key, best_path_suggestion, evaluate_expr_with_lookup_diagnostic,
-    for_iter_values, parse_color_in_env_with_lookup_diagnostic, set_lookup_color, set_lookup_vec2,
-};
-pub(crate) use property_lookup::{
-    evaluate_expr_with_lookup_diagnostic as lookup_evaluate_expr_with_lookup_diagnostic,
-    parse_numeric_vec2_with_lookup_diagnostic as lookup_parse_numeric_vec2_with_lookup_diagnostic,
-};
 pub use shapes::{
     ShapeType, VectorShapeState, VectorShapeStyle, apply_vector_shape_defaults,
     apply_vector_shape_property, build_shape_vello_path, build_vector_shape_vello_path,

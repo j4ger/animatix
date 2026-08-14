@@ -12,7 +12,7 @@ use crate::easing::Easing;
 use crate::primitives::{
     ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, Primitive, RenderCommand,
 };
-use crate::timeline::property_lookup::{
+use crate::timeline::lookup::{
     evaluate_expr_with_lookup_diagnostic, parse_color_in_env_with_lookup_diagnostic,
 };
 use crate::timeline::{AnimationTrack, Environment, TrackAccessor};
