@@ -146,14 +146,14 @@ pub fn collect_diagnostics(
     parse_errors: &[ParseError],
     symbols: &SymbolTable,
     ast: Option<&[Stmt]>,
-    tree: Option<&tree_sitter::Tree>,
+    tokens: &[animatix_syntax::token::Token],
 ) -> Vec<Diagnostic> {
     collect_diagnostics_with_config(
         source,
         parse_errors,
         symbols,
         ast,
-        tree,
+        tokens,
         &LintConfig::default(),
     )
 }
@@ -164,7 +164,7 @@ pub fn collect_diagnostics_with_config(
     parse_errors: &[ParseError],
     symbols: &SymbolTable,
     ast: Option<&[Stmt]>,
-    tree: Option<&tree_sitter::Tree>,
+    tokens: &[animatix_syntax::token::Token],
     config: &LintConfig,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
@@ -187,7 +187,7 @@ pub fn collect_diagnostics_with_config(
     if let Some(stmts) = ast {
         let syntax_diagnostics =
             animatix_syntax::semantic_diagnostics::collect_semantic_diagnostics(
-                stmts, symbols, tree, source,
+                stmts, symbols, tokens, source,
             );
         diagnostics.extend(syntax_diagnostics.into_iter().map(convert_syntax_diagnostic));
     }
@@ -244,7 +244,7 @@ mod tests {
 
     #[test]
     fn empty_source_has_no_diagnostics() {
-        let diagnostics = collect_diagnostics("", &[], &SymbolTable::default(), None, None);
+        let diagnostics = collect_diagnostics("", &[], &SymbolTable::default(), None, &[]);
         assert!(diagnostics.is_empty());
     }
 
@@ -261,7 +261,7 @@ mod tests {
             None,
         )];
         let symbols = SymbolTable::build_from_ast(&[]);
-        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), None);
+        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), &[]);
 
         let unknown_actions: Vec<_> = diagnostics
             .iter()
@@ -284,7 +284,7 @@ mod tests {
             None,
         )];
         let symbols = SymbolTable::build_from_ast(&[]);
-        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), None);
+        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), &[]);
 
         let undefined: Vec<_> = diagnostics
             .iter()
@@ -308,7 +308,7 @@ mod tests {
             span: None,
         }];
         let symbols = SymbolTable::build_from_ast(&stmts);
-        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), None);
+        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), &[]);
 
         let unknown_types: Vec<_> = diagnostics
             .iter()
@@ -352,7 +352,7 @@ mod tests {
         symbols.collect_references(&[]);
         let config = LintConfig::from_source(source);
         let diagnostics =
-            collect_diagnostics_with_config(source, &[], &symbols, Some(&stmts), None, &config);
+            collect_diagnostics_with_config(source, &[], &symbols, Some(&stmts), &[], &config);
 
         let unused: Vec<_> = diagnostics
             .iter()
@@ -379,7 +379,7 @@ mod tests {
         symbols.collect_references(&[]);
         let config = LintConfig::from_source(source);
         let diagnostics =
-            collect_diagnostics_with_config(source, &[], &symbols, Some(&stmts), None, &config);
+            collect_diagnostics_with_config(source, &[], &symbols, Some(&stmts), &[], &config);
 
         let warnings: Vec<_> = diagnostics
             .iter()
@@ -409,7 +409,7 @@ mod tests {
             span: None,
         }];
         let symbols = SymbolTable::build_from_ast(&stmts);
-        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), None);
+        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), &[]);
 
         let type_mismatches: Vec<_> = diagnostics
             .iter()
@@ -442,7 +442,7 @@ mod tests {
             span: None,
         }];
         let symbols = SymbolTable::build_from_ast(&stmts);
-        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), None);
+        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), &[]);
 
         let type_mismatches: Vec<_> = diagnostics
             .iter()
@@ -466,7 +466,7 @@ mod tests {
         let symbols = SymbolTable::build_from_ast(&[]);
         let config = LintConfig::from_source(source);
         let diagnostics =
-            collect_diagnostics_with_config(source, &parse_errors, &symbols, None, None, &config);
+            collect_diagnostics_with_config(source, &parse_errors, &symbols, None, &[], &config);
 
         let errors: Vec<_> =
             diagnostics.iter().filter(|d| d.severity == DiagnosticSeverity::Error).collect();

@@ -1,52 +1,14 @@
-//! Tree-sitter based syntax highlighting for the Animatix DSL.
+//! Tokenizer-based syntax highlighting for the Animatix DSL.
 
-use std::sync::LazyLock;
+use std::collections::HashSet;
 
-use animatix_analyzer::Diagnostic;
+use animatix_analyzer::{Diagnostic, LabelKind, SymbolTable};
+use animatix_syntax::token::{Token, TokenKind, tokenize};
 use egui::text::LayoutJob;
 use egui::{Color32, FontId, TextFormat};
-use tracing::warn;
-use tree_sitter::{Language, Parser};
-use tree_sitter_animatix::{HIGHLIGHTS_QUERY, language};
 
 use crate::app::design_tokens::typography::TextRole;
 use crate::cell_editor::SemanticHighlight;
-
-static LANGUAGE: LazyLock<Language> = LazyLock::new(language);
-
-static HIGHLIGHT_CONFIG: LazyLock<Option<tree_sitter_highlight::HighlightConfiguration>> =
-    LazyLock::new(|| {
-        let mut config = tree_sitter_highlight::HighlightConfiguration::new(
-            tree_sitter_animatix::language(),
-            "animatix",
-            HIGHLIGHTS_QUERY,
-            "",
-            "",
-        )
-        .ok()?;
-        config.configure(HIGHLIGHT_NAMES);
-        Some(config)
-    });
-
-/// Highlight names used in the queries/highlights.scm file.
-/// These map to indices in the highlight configuration.
-const HIGHLIGHT_NAMES: &[&str] = &[
-    "keyword",
-    "type",
-    "type.builtin",
-    "string",
-    "number",
-    "boolean",
-    "comment",
-    "operator",
-    "punctuation",
-    "punctuation.bracket",
-    "variable",
-    "property",
-    "parameter",
-    "function",
-    "label",
-];
 
 /// Color scheme for syntax highlighting.
 struct HighlightColors {
@@ -145,67 +107,55 @@ pub fn highlight_source(
     let colors = HighlightColors::from_style(style);
     let font_id = TextRole::Mono.font_id();
 
-    let mut parser = Parser::new();
-    if parser.set_language(&LANGUAGE).is_err() {
-        warn!("highlight_source: failed to set language, falling back to plain text");
-        return plain_text_job(source, &font_id, colors.default);
-    }
-
-    // Verify the source can be parsed
-    if parser.parse(source, None).is_none() {
-        warn!("highlight_source: parse returned None, falling back to plain text");
-        return plain_text_job(source, &font_id, colors.default);
-    }
-
-    // Use tree-sitter highlight
-    let mut highlighter = tree_sitter_highlight::Highlighter::new();
-
-    let config = match HIGHLIGHT_CONFIG.as_ref() {
-        Some(c) => c,
-        None => {
-            warn!(
-                "highlight_source: HIGHLIGHT_CONFIG initialization failed, falling back to plain text"
-            );
-            return plain_text_job(source, &font_id, colors.default);
+    let tokens = tokenize(source);
+    let ast = animatix_syntax::parser::parse_source(source).0.unwrap_or_default();
+    let symbols = SymbolTable::build_from_ast(&ast);
+    let property_names: HashSet<String> =
+        symbols.properties.values().flat_map(|props| props.iter().cloned()).collect();
+    let param_names: HashSet<String> = symbols
+        .components
+        .values()
+        .flat_map(|c| c.params.iter().map(|p| p.name.clone()))
+        .collect();
+    let mut label_names: HashSet<String> = HashSet::new();
+    animatix_syntax::walk::walk_stmts(&ast, &mut |stmt| match stmt {
+        animatix_syntax::ast::Stmt::ActorDecl { label, .. } => {
+            label_names.insert(label.clone());
         },
-    };
-
-    let highlights = match highlighter.highlight(config, source.as_bytes(), None, |_| None) {
-        Ok(highlights) => highlights,
-        Err(e) => {
-            warn!(
-                "highlight_source: highlighter.highlight failed: {:?}, falling back to plain text",
-                e
-            );
-            return plain_text_job(source, &font_id, colors.default);
+        animatix_syntax::ast::Stmt::Action(action, _) => {
+            for target in &action.targets {
+                label_names.insert(target.clone());
+                if let Some(base) = animatix_syntax::ast::is_array_member_label(target) {
+                    label_names.insert(base.to_string());
+                }
+            }
         },
-    };
+        animatix_syntax::ast::Stmt::Assignment { target, .. }
+        | animatix_syntax::ast::Stmt::ReactiveBinding { target, .. } => {
+            for segment in target {
+                let name = segment.label_str().to_string();
+                label_names.insert(name.clone());
+                if let Some(base) = animatix_syntax::ast::is_array_member_label(&name) {
+                    label_names.insert(base.to_string());
+                }
+            }
+        },
+        animatix_syntax::ast::Stmt::Scene { name, .. } => {
+            label_names.insert(name.clone());
+        },
+        _ => {},
+    });
 
-    // Collect highlight spans as (start, end, color)
     let mut highlight_spans: Vec<(usize, usize, Color32)> = Vec::new();
-    let mut current_highlight: Option<&str> = None;
-    let mut last_end = 0;
-
-    for event in highlights {
-        match event {
-            Ok(tree_sitter_highlight::HighlightEvent::Source { start, end }) => {
-                let color = current_highlight
-                    .map(|h| colors.color_for_highlight(h))
-                    .unwrap_or(colors.default);
-                highlight_spans.push((start, end, color));
-                last_end = end;
-            },
-            Ok(tree_sitter_highlight::HighlightEvent::HighlightStart(highlight)) => {
-                current_highlight = Some(HIGHLIGHT_NAMES[highlight.0]);
-            },
-            Ok(tree_sitter_highlight::HighlightEvent::HighlightEnd) => {
-                current_highlight = None;
-            },
-            Err(_) => break,
+    let mut last_end = 0usize;
+    for token in &tokens {
+        if token.span.start > last_end {
+            highlight_spans.push((last_end, token.span.start, colors.default));
         }
+        let role = classify_token(token, &symbols, &property_names, &param_names, &label_names);
+        highlight_spans.push((token.span.start, token.span.end, colors.color_for_highlight(role)));
+        last_end = token.span.end;
     }
-
-    // Append any remaining text as a span
     if last_end < source.len() {
         highlight_spans.push((last_end, source.len(), colors.default));
     }
@@ -254,6 +204,94 @@ pub fn highlight_source(
         &deco_ranges,
         &special_highlights,
     )
+}
+
+fn classify_token(
+    token: &Token,
+    symbols: &SymbolTable,
+    property_names: &HashSet<String>,
+    param_names: &HashSet<String>,
+    label_names: &HashSet<String>,
+) -> &'static str {
+    match &token.kind {
+        TokenKind::Keyword(_) => "keyword",
+        TokenKind::Number(_) | TokenKind::Time { .. } | TokenKind::Percent(_) => "number",
+        TokenKind::Bool(_) => "boolean",
+        TokenKind::Str(_) | TokenKind::Typst(_) => "string",
+        TokenKind::Comment(_) => "comment",
+        TokenKind::Plus
+        | TokenKind::Minus
+        | TokenKind::Star
+        | TokenKind::Slash
+        | TokenKind::PercentOp
+        | TokenKind::Caret
+        | TokenKind::Eq
+        | TokenKind::Neq
+        | TokenKind::Lt
+        | TokenKind::Gt
+        | TokenKind::Le
+        | TokenKind::Ge
+        | TokenKind::And
+        | TokenKind::Or
+        | TokenKind::Not
+        | TokenKind::Assign
+        | TokenKind::ReactiveAssign
+        | TokenKind::Arrow
+        | TokenKind::RangeInclusive
+        | TokenKind::Pipe
+        | TokenKind::ColonColon => "operator",
+        TokenKind::LParen
+        | TokenKind::RParen
+        | TokenKind::LBracket
+        | TokenKind::RBracket
+        | TokenKind::LBrace
+        | TokenKind::RBrace
+        | TokenKind::Colon
+        | TokenKind::Comma
+        | TokenKind::Dot
+        | TokenKind::Hash
+        | TokenKind::At
+        | TokenKind::AtSlot
+        | TokenKind::Underscore => "punctuation",
+        TokenKind::Null => "keyword",
+        TokenKind::Ident(name) => {
+            classify_ident(name, symbols, property_names, param_names, label_names)
+        },
+    }
+}
+
+fn classify_ident(
+    name: &str,
+    symbols: &SymbolTable,
+    property_names: &HashSet<String>,
+    param_names: &HashSet<String>,
+    label_names: &HashSet<String>,
+) -> &'static str {
+    if let Some(info) = symbols.labels.get(name) {
+        return match info.kind {
+            LabelKind::Actor | LabelKind::Component => "label",
+            LabelKind::Let | LabelKind::For | LabelKind::Always => "variable",
+        };
+    }
+    if label_names.contains(name) {
+        return "label";
+    }
+    if symbols.types.contains(name)
+        || symbols.components.contains_key(name)
+        || symbols.type_aliases.contains_key(name)
+    {
+        return "type";
+    }
+    if param_names.contains(name) {
+        return "parameter";
+    }
+    if property_names.contains(name) {
+        return "property";
+    }
+    if symbols.actions.contains(name) {
+        return "function";
+    }
+    "variable"
 }
 
 /// Return the byte range of `line` (0-indexed) in `source`.
@@ -426,20 +464,6 @@ fn line_col_to_byte(source: &str, line: usize, col: usize) -> usize {
     source.len()
 }
 
-fn plain_text_job(text: &str, font_id: &FontId, color: Color32) -> LayoutJob {
-    let mut job = LayoutJob::default();
-    job.append(
-        text,
-        0.0,
-        TextFormat {
-            font_id: font_id.clone(),
-            color,
-            ..Default::default()
-        },
-    );
-    job
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -512,64 +536,6 @@ fade-in title [1s]
             "Expected some highlighted sections, but all sections used the default color. \
              This usually means the highlight pipeline fell back to plain_text_job."
         );
-    }
-
-    #[test]
-    fn highlight_configuration_loads() {
-        // Verify the tree-sitter highlight configuration can be created from the query.
-        let mut config = tree_sitter_highlight::HighlightConfiguration::new(
-            tree_sitter_animatix::language(),
-            "animatix",
-            tree_sitter_animatix::HIGHLIGHTS_QUERY,
-            "",
-            "",
-        )
-        .expect("HighlightConfiguration::new should succeed with the bundled query");
-
-        config.configure(HIGHLIGHT_NAMES);
-    }
-
-    #[test]
-    fn highlight_events_are_produced() {
-        // Verify that tree-sitter-highlight actually produces highlight events.
-        let source = r#"let x = 42
-fade-in title [1s]
-"#;
-
-        let mut highlighter = tree_sitter_highlight::Highlighter::new();
-        let mut config = tree_sitter_highlight::HighlightConfiguration::new(
-            tree_sitter_animatix::language(),
-            "animatix",
-            tree_sitter_animatix::HIGHLIGHTS_QUERY,
-            "",
-            "",
-        )
-        .unwrap();
-        config.configure(HIGHLIGHT_NAMES);
-
-        let highlights = highlighter.highlight(&config, source.as_bytes(), None, |_| None).unwrap();
-
-        let mut source_events = 0;
-        let mut highlight_starts = 0;
-        let mut highlight_ends = 0;
-
-        for event in highlights {
-            match event {
-                Ok(tree_sitter_highlight::HighlightEvent::Source { .. }) => source_events += 1,
-                Ok(tree_sitter_highlight::HighlightEvent::HighlightStart(_)) => {
-                    highlight_starts += 1
-                },
-                Ok(tree_sitter_highlight::HighlightEvent::HighlightEnd) => highlight_ends += 1,
-                Err(e) => panic!("Highlight error: {:?}", e),
-            }
-        }
-
-        assert!(highlight_starts > 0, "Expected at least some HighlightStart events, got 0");
-        assert_eq!(
-            highlight_starts, highlight_ends,
-            "Mismatched HighlightStart/HighlightEnd count"
-        );
-        assert!(source_events > 0, "Expected at least some Source events");
     }
 
     #[test]

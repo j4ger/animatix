@@ -27,8 +27,6 @@ pub mod to_source;
 /// Lossless tokenizer for highlighting and position queries.
 pub mod token;
 pub mod transition_registry;
-/// Tree-sitter CST → Animatix AST converter for incremental parsing.
-pub mod ts_convert;
 /// Gradual type checker for component/action parameter validation.
 pub mod typecheck;
 /// Symbol-aware type inference shared by the typechecker and analyzer.

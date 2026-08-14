@@ -28,6 +28,7 @@ use std::path::{Path, PathBuf};
 
 use animatix_syntax::ast::{Span, Stmt};
 use animatix_syntax::parser::ParseError;
+use animatix_syntax::token::{Token, TokenKind};
 pub use completer::{CompletionItem, CompletionKind, all_snippets, completions_at};
 pub use diagnostics::{
     Diagnostic, DiagnosticSeverity, LintConfig, collect_diagnostics,
@@ -36,7 +37,6 @@ pub use diagnostics::{
 pub use symbol_table::{
     ComponentInfo, ImportInfo, LabelInfo, LabelKind, ParamInfo, SceneInfo, SymbolTable,
 };
-use tree_sitter::Tree;
 pub use types::{DocumentSymbol, HoverInfo, Location, SymbolKind};
 pub use workspace::Workspace;
 
@@ -49,7 +49,7 @@ pub struct Analyzer {
     path: Option<PathBuf>,
     ast: Option<Vec<Stmt>>,
     parse_errors: Vec<ParseError>,
-    tree: Option<Tree>,
+    tokens: Vec<Token>,
     symbols: SymbolTable,
     type_diagnostics: Vec<diagnostics::Diagnostic>,
     lint_config: diagnostics::LintConfig,
@@ -68,7 +68,7 @@ impl Analyzer {
             path,
             ast: None,
             parse_errors: Vec::new(),
-            tree: None,
+            tokens: Vec::new(),
             symbols: SymbolTable::default(),
             type_diagnostics: Vec::new(),
             lint_config: diagnostics::LintConfig::default(),
@@ -85,34 +85,24 @@ impl Analyzer {
 
         self.source = source.to_string();
 
-        // Parse through the combined canonical pipeline: Chumsky produces the
-        // semantic AST, while tree-sitter is retained only as the CST used for
-        // positions, completions, and incremental re-parsing.
-        let parsed = if let Some(old_tree) = self.tree.as_ref() {
-            animatix_syntax::parser::reparse_canonical_with_cst(source, old_tree)
-        } else {
-            animatix_syntax::parser::parse_canonical_with_cst(source)
-        };
-
-        self.ast = parsed.statements;
-        self.parse_errors = parsed.parse_errors;
-        self.tree = parsed.tree;
+        let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+        self.ast = ast;
+        self.parse_errors = parse_errors;
+        self.tokens = animatix_syntax::token::tokenize(source);
 
         self.rebuild_symbols();
     }
 
-    /// Rebuild the symbol table from the current source and tree.
+    /// Rebuild the symbol table from the current source and token stream.
     fn rebuild_symbols(&mut self) {
         let source = &self.source;
-        let tree = self.tree.as_ref();
+        let tokens = &self.tokens;
 
         // Build symbol table from AST
         let table = if let Some(ref stmts) = self.ast {
             let mut table = SymbolTable::build_from_ast(stmts);
             table.collect_references(stmts);
-            if let Some(tree) = tree {
-                Self::enrich_positions(tree, source, &mut table);
-            }
+            Self::enrich_positions(tokens, source, &mut table);
             table
         } else {
             SymbolTable::default()
@@ -189,166 +179,45 @@ impl Analyzer {
         }
     }
 
-    /// Walk the tree-sitter tree and populate symbol table entries with real line/col positions.
-    fn enrich_positions(tree: &Tree, source: &str, table: &mut SymbolTable) {
-        let root = tree.root_node();
-        let mut cursor = root.walk();
-        Self::walk_for_positions(&mut cursor, source, table);
-    }
-
-    fn walk_for_positions(
-        cursor: &mut tree_sitter::TreeCursor,
-        source: &str,
-        table: &mut SymbolTable,
-    ) {
-        let node = cursor.node();
-        let kind = node.kind();
-
-        // Extract positions for declaration nodes
-        match kind {
-            "let_declaration" => {
-                if let Some(name_node) = node.child_by_field_name("name") {
-                    let name = name_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
-                    let start = name_node.start_position();
-                    let end = name_node.end_position();
-                    if let Some(info) = table.labels.get_mut(&name) {
-                        info.line = start.row + 1; // tree-sitter is 0-based
-                        info.col = start.column + 1;
-                        info.span = Some(Span {
-                            start_line: start.row + 1,
-                            start_col: start.column + 1,
-                            end_line: end.row + 1,
-                            end_col: end.column + 1,
-                        });
+    /// Populate symbol table entries with real line/col positions from the
+    /// lossless token stream. The first matching identifier token is treated as
+    /// the declaration position, matching the previous tree-sitter walk.
+    fn enrich_positions(tokens: &[Token], source: &str, table: &mut SymbolTable) {
+        for token in tokens {
+            if let TokenKind::Ident(name) = &token.kind {
+                let span = Span::from_byte_span(source, token.span);
+                if let Some(info) = table.labels.get_mut(name) {
+                    if info.line == 0 && info.col == 0 {
+                        info.line = span.start_line;
+                        info.col = span.start_col;
+                        info.span = Some(span);
                     }
                 }
-            },
-            "actor_declaration" => {
-                if let Some(label_node) = node.child_by_field_name("label") {
-                    let name = label_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
-                    let start = label_node.start_position();
-                    let end = label_node.end_position();
-                    if let Some(info) = table.labels.get_mut(&name) {
-                        info.line = start.row + 1;
-                        info.col = start.column + 1;
-                        info.span = Some(Span {
-                            start_line: start.row + 1,
-                            start_col: start.column + 1,
-                            end_line: end.row + 1,
-                            end_col: end.column + 1,
-                        });
+                if let Some(info) = table.components.get_mut(name) {
+                    if info.line == 0 && info.col == 0 {
+                        info.line = span.start_line;
+                        info.col = span.start_col;
+                        info.span = Some(span);
                     }
                 }
-            },
-            "component_definition" => {
-                if let Some(name_node) = node.child_by_field_name("name") {
-                    let name = name_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
-                    let start = name_node.start_position();
-                    let end = name_node.end_position();
-                    if let Some(info) = table.components.get_mut(&name) {
-                        info.line = start.row + 1;
-                        info.col = start.column + 1;
-                        info.span = Some(Span {
-                            start_line: start.row + 1,
-                            start_col: start.column + 1,
-                            end_line: end.row + 1,
-                            end_col: end.column + 1,
-                        });
+                if let Some(info) = table.scenes.get_mut(name) {
+                    if info.line == 0 && info.col == 0 {
+                        info.line = span.start_line;
+                        info.col = span.start_col;
+                        info.span = Some(span);
                     }
-                }
-            },
-            "import_statement" => {
-                if let Some(path_node) = node.child_by_field_name("path") {
-                    let path = path_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
-                    let start = node.start_position();
-                    let end = node.end_position();
-                    for info in &mut table.imports {
-                        if info.path == path {
-                            info.span = Some(Span {
-                                start_line: start.row + 1,
-                                start_col: start.column + 1,
-                                end_line: end.row + 1,
-                                end_col: end.column + 1,
-                            });
-                            break;
-                        }
-                    }
-                }
-            },
-            "for_block" => {
-                if let Some(var_node) = node.child_by_field_name("variable") {
-                    let name = var_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
-                    let start = var_node.start_position();
-                    let end = var_node.end_position();
-                    if let Some(info) = table.labels.get_mut(&name) {
-                        info.line = start.row + 1;
-                        info.col = start.column + 1;
-                        info.span = Some(Span {
-                            start_line: start.row + 1,
-                            start_col: start.column + 1,
-                            end_line: end.row + 1,
-                            end_col: end.column + 1,
-                        });
-                    }
-                }
-            },
-            "use_statement" => {
-                if let Some(path_node) = node.child_by_field_name("path") {
-                    let path = path_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
-                    let start = node.start_position();
-                    let end = node.end_position();
-                    for info in &mut table.imports {
-                        if info.path == path {
-                            info.span = Some(Span {
-                                start_line: start.row + 1,
-                                start_col: start.column + 1,
-                                end_line: end.row + 1,
-                                end_col: end.column + 1,
-                            });
-                            break;
-                        }
-                    }
-                }
-            },
-            "reactive_binding" => {
-                if let Some(target_node) = node.child_by_field_name("target") {
-                    let name = target_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
-                    let start = target_node.start_position();
-                    let end = target_node.end_position();
-                    if let Some(info) = table.labels.get_mut(&name) {
-                        info.line = start.row + 1;
-                        info.col = start.column + 1;
-                        info.span = Some(Span {
-                            start_line: start.row + 1,
-                            start_col: start.column + 1,
-                            end_line: end.row + 1,
-                            end_col: end.column + 1,
-                        });
-                    }
-                }
-            },
-            "scene_declaration" => {
-                if let Some(name_node) = node.child_by_field_name("name") {
-                    let name = name_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
-                    let start = name_node.start_position();
-                    if let Some(info) = table.scenes.get_mut(&name) {
-                        info.line = start.row + 1;
-                        info.col = start.column + 1;
-                    }
-                }
-            },
-            _ => {},
-        }
-
-        // Recurse into children
-        if cursor.goto_first_child() {
-            loop {
-                Self::walk_for_positions(cursor, source, table);
-                if !cursor.goto_next_sibling() {
-                    break;
                 }
             }
-            cursor.goto_parent();
+
+            if let TokenKind::Str(path) = &token.kind {
+                let span = Span::from_byte_span(source, token.span);
+                for info in &mut table.imports {
+                    if &info.path == path && info.span.is_none() {
+                        info.span = Some(span);
+                        break;
+                    }
+                }
+            }
         }
     }
 
@@ -367,11 +236,6 @@ impl Analyzer {
         self.ast.as_deref()
     }
 
-    /// Get the tree-sitter tree, if parsing succeeded.
-    pub fn tree(&self) -> Option<&tree_sitter::Tree> {
-        self.tree.as_ref()
-    }
-
     /// Get the extracted symbol table.
     pub fn symbols(&self) -> &SymbolTable {
         &self.symbols
@@ -384,7 +248,7 @@ impl Analyzer {
 
     /// Completions at cursor position.
     pub fn completions_at(&self, line: usize, col: usize) -> Vec<CompletionItem> {
-        completer::completions_at(&self.symbols, self.tree.as_ref(), &self.source, line, col)
+        completer::completions_at(&self.symbols, &self.tokens, &self.source, line, col)
     }
 
     /// All diagnostics (parse errors + semantic checks).
@@ -399,7 +263,7 @@ impl Analyzer {
             &self.parse_errors,
             &self.symbols,
             self.ast.as_deref(),
-            self.tree.as_ref(),
+            &self.tokens,
             config,
         );
         diagnostics.extend_from_slice(&self.type_diagnostics);
@@ -408,7 +272,7 @@ impl Analyzer {
 
     /// Hover information at cursor position.
     pub fn hover_at(&self, line: usize, col: usize) -> Option<HoverInfo> {
-        hover::hover_at(&self.symbols, self.tree.as_ref(), &self.source, line, col)
+        hover::hover_at(&self.symbols, &self.tokens, &self.source, line, col)
     }
 
     /// Go-to-definition at cursor position.
@@ -422,7 +286,7 @@ impl Analyzer {
     ) -> Option<Location> {
         definition::definition_at(
             &self.symbols,
-            self.tree.as_ref(),
+            &self.tokens,
             &self.source,
             workspace,
             self.path.as_deref(),
@@ -434,7 +298,7 @@ impl Analyzer {
     /// Find all references to a symbol name in this file.
     /// Returns a list of (start_line, start_col, end_line, end_col) ranges.
     pub fn find_references(&self, symbol_name: &str) -> Vec<(usize, usize, usize, usize)> {
-        references::find_references(self.tree.as_ref(), &self.source, symbol_name)
+        references::find_references(&self.tokens, &self.source, symbol_name)
     }
 
     /// Document symbols (outline view).
@@ -446,12 +310,10 @@ impl Analyzer {
     /// Returns the identifier or type name at the given line/column,
     /// or None if the position is not on a symbol.
     pub fn symbol_at(&self, line: usize, col: usize) -> Option<String> {
-        let tree = self.tree.as_ref()?;
-        let point = tree_sitter::Point::new(line, col);
-        let node = tree.root_node().descendant_for_point_range(point, point)?;
-
-        match node.kind() {
-            "identifier" => Some(node.utf8_text(self.source.as_bytes()).unwrap_or("").to_string()),
+        let byte = animatix_syntax::token::line_col_to_byte(&self.source, line, col);
+        let token = animatix_syntax::token::token_at_byte(&self.tokens, byte)?;
+        match &token.kind {
+            TokenKind::Ident(name) => Some(name.clone()),
             _ => None,
         }
     }
@@ -472,7 +334,6 @@ title: Text {
 "#;
         let analyzer = Analyzer::new(source);
         assert!(analyzer.ast().is_some());
-        assert!(analyzer.tree().is_some());
         assert!(analyzer.parse_errors().is_empty());
     }
 

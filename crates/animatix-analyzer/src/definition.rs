@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use tree_sitter::Tree;
+use animatix_syntax::token::{Token, TokenKind, line_col_to_byte, token_at_byte};
 
 use crate::Workspace;
 use crate::symbol_table::SymbolTable;
@@ -11,23 +11,19 @@ use crate::types::Location;
 /// Find the definition location of a symbol at a cursor position.
 pub fn definition_at(
     symbols: &SymbolTable,
-    tree: Option<&Tree>,
+    tokens: &[Token],
     source: &str,
     workspace: Option<&Workspace>,
     path: Option<&Path>,
     line: usize,
     col: usize,
 ) -> Option<Location> {
-    let tree = tree?;
-    let point = tree_sitter::Point::new(line, col);
-    let node = tree.root_node().descendant_for_point_range(point, point)?;
-
-    let text = &source[node.byte_range()];
-
-    // Only handle identifiers (tree-sitter-animatix uses "identifier" for all names)
-    if node.kind() != "identifier" {
-        return None;
-    }
+    let byte = line_col_to_byte(source, line, col);
+    let token = token_at_byte(tokens, byte)?;
+    let text = match &token.kind {
+        TokenKind::Ident(name) => name,
+        _ => return None,
+    };
 
     // Check if it's a label defined in this file
     if let Some(info) = symbols.labels.get(text) {

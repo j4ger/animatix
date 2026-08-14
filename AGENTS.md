@@ -10,7 +10,7 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 - `crates/animatix-analyzer`: shared language intelligence; update for new syntax.
 - `crates/animatix-lsp`: LSP wrapper over analyzer.
 - `crates/eparts`: themed egui widget framework used by the GUI.
-- `tree-sitter-animatix`: highlighting grammar; touch when syntax tokens change.
+- `crates/animatix-syntax/src/token.rs`: the single lossless tokenizer; drives parser input, LSP semantic tokens, and GUI highlighting.
 - `docs`: documentation. `examples`: runnable `.amx` demos. `dogfood`: in-progress real-content projects and grammar probes.
 
 ## Workflow
@@ -36,35 +36,7 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 ## Common Pitfalls
 
 - **GUI drift**: The GUI crate is excluded from `cargo check` (no `-p` flag), so errors can accumulate silently. Always run `cargo check --workspace` before committing to catch GUI, analyzer, and LSP compilation issues.
-- **Tree-sitter grammar**: Changes to `.amx` syntax require updates to **both** the PEG parser (in `crates/animatix-syntax/src/parser/`) and the tree-sitter grammar (`tree-sitter-animatix/grammar.js`). Forgetting one breaks either parsing or syntax highlighting. After editing `grammar.js`, always regenerate the parser:
-  ```bash
-  cd tree-sitter-animatix && tree-sitter generate
-  ```
-  Then run the full sync check:
-  ```bash
-  bash scripts/check-parser-sync.sh
-  ```
-  The script runs `cargo test -p animatix-syntax`, the tree-sitter corpus tests, and parses every `.amx` under `examples/` recursively with tree-sitter, reporting failures.
-
-  Known constructs that must be kept in sync (verified as of this writing):
-  | PEG construct | Tree-sitter rule |
-  |---|---|
-  | `pub label: Type` | `actor_declaration` (with `optional('pub')`) |
-  | `label[n]: Type` | `actor_declaration` / `inline_actor_declaration` (with `array_index` field) |
-  | `action name(params) {}` | `action_definition` (with `optional(parameter_list)`) |
-  | `for item, i in list {}` | `for_block` / `inline_for_loop` (with `index_variable` field) |
-  | `for (a, b) in list {}` | `for_block` / `inline_for_loop` (tuple variable) |
-  | `x => expr` single-ident closure | `closure_expression` (no-parens form) |
-  | `play module.Scene` dotted path | `play_statement` (accepts `path_expression`) |
-  | `verb actor.child [mods]` | `target_list` (accepts `path_expression`) |
-  | `verb actor[0] [mods]` | `target_list` (accepts `index_expression`) |
-  | `bars[i].color = red` | `property_assignment` (target `indexed_target_path`) |
-  | `bars[i].color := red` | `reactive_binding` (target `indexed_target_path`) |
-  | `value: Bool | Str` | `type_annotation` (union of `_type_annotation`) |
-  | `type LegendMode = Bool | Str` | `type_alias` |
-  | trailing comma in `config {}` | `property_list` (with `optional(',')`) |
-  | newline-separated inline items | `inline_items` (optional comma separator) |
-  | `label: $$ content $$` shorthand | `typst_shorthand` (with `token(/[^$]*/)` content) |
+- **Single tokenizer**: Syntax tokens are defined once in `crates/animatix-syntax/src/token.rs`. The parser consumes that token stream, the analyzer and LSP use it for positions, and the GUI uses it for syntax highlighting. Do not add a second lexer or grammar.
 - **Evaluation paths**: Build-time expressions use the AST tree-walker (`evaluate_expr`); frame-time modifier code and plot closures are lowered to IR and interpreted by the single IR executor (`execute_modifier_ir` / `evaluate_compiled_expr`). Leaf operators and builtins are shared through `eval_shared`, so new operators/builtins are added there to keep both paths in sync.
 
 ## Optional Features

@@ -9,7 +9,5 @@ serde = ["dep:serde"]
 
 [dependencies]
 chumsky = "0.12.0"
-tree-sitter = "0.26"
-tree-sitter-animatix = { path = "../tree-sitter-animatix" }
 tracing = { workspace = true }
 serde = { workspace = true, optional = true }

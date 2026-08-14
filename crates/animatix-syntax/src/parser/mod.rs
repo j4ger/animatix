@@ -228,57 +228,15 @@ pub struct ParseResult {
     pub parse_errors: Vec<ParseError>,
     /// Non-fatal parse diagnostics (currently produced by chumsky).
     pub warnings: Vec<Diagnostic>,
-    /// The tree-sitter tree when the tree-sitter backend succeeded.
-    pub tree: Option<tree_sitter::Tree>,
 }
 
 /// Parse source through the canonical semantic parse pipeline.
-///
-/// Chumsky remains the executable source of truth for the semantic AST.
-/// Tree-sitter conversion is deliberately not used here yet because its CST
-/// converter has not reached full semantic parity with the PEG parser.
 pub fn parse_canonical(source: &str) -> ParseResult {
     let (statements, parse_errors, warnings) = parse_source_diagnostics(source);
     ParseResult {
         statements,
         parse_errors,
         warnings,
-        tree: None,
-    }
-}
-
-/// Parse source with the canonical semantic parser while retaining a CST.
-///
-/// This is the analyzer entry point: the semantic AST comes from Chumsky, while
-/// tree-sitter is retained only as the CST used for positions, completions, and
-/// incremental re-parsing.
-pub fn parse_canonical_with_cst(source: &str) -> ParseResult {
-    let (statements, parse_errors, warnings) = parse_source_diagnostics(source);
-    let tree = crate::ts_convert::parse_source(source).map(|result| result.tree);
-    ParseResult {
-        statements,
-        parse_errors,
-        warnings,
-        tree,
-    }
-}
-
-/// Re-parse source incrementally while keeping the semantic parser as the AST
-/// source of truth.
-///
-/// The tree-sitter CST is incrementally reparsed for position queries; the
-/// semantic AST is produced by Chumsky on every update until the CST converter
-/// reaches semantic parity.
-pub fn reparse_canonical_with_cst(source: &str, old_tree: &tree_sitter::Tree) -> ParseResult {
-    let (statements, parse_errors, warnings) = parse_source_diagnostics(source);
-    let tree = crate::ts_convert::reparse(source, old_tree)
-        .map(|result| result.tree)
-        .or_else(|| crate::ts_convert::parse_source(source).map(|result| result.tree));
-    ParseResult {
-        statements,
-        parse_errors,
-        warnings,
-        tree,
     }
 }
 

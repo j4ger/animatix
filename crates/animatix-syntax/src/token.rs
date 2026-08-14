@@ -526,6 +526,49 @@ impl<'a> Lexer<'a> {
     }
 }
 
+/// Convert a 0-based line/column position to a byte offset in `source`.
+pub fn line_col_to_byte(source: &str, line: usize, col: usize) -> usize {
+    let mut current_line = 0usize;
+    let mut current_col = 0usize;
+    let mut byte_offset = 0usize;
+    for ch in source.chars() {
+        if current_line == line && current_col >= col {
+            return byte_offset;
+        }
+        if ch == '\n' {
+            current_line += 1;
+            current_col = 0;
+        } else {
+            current_col += 1;
+        }
+        byte_offset += ch.len_utf8();
+    }
+    source.len()
+}
+
+/// Convert a byte offset to a 0-based (line, column) pair.
+pub fn byte_to_line_col(source: &str, byte: usize) -> (usize, usize) {
+    let mut line = 0usize;
+    let mut col = 0usize;
+    for (i, ch) in source.char_indices() {
+        if i >= byte {
+            break;
+        }
+        if ch == '\n' {
+            line += 1;
+            col = 0;
+        } else {
+            col += 1;
+        }
+    }
+    (line, col)
+}
+
+/// Return the token whose byte range contains `byte`, if any.
+pub fn token_at_byte(tokens: &[Token], byte: usize) -> Option<&Token> {
+    tokens.iter().find(|t| t.span.start <= byte && byte < t.span.end)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

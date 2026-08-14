@@ -6,8 +6,7 @@ members = [
     "crates/animatix-gui",
     "crates/animatix-lsp",
     "crates/animatix-syntax",
-    "crates/eparts",
-    "crates/tree-sitter-animatix"
+    "crates/eparts"
 ]
 resolver = "2"
 

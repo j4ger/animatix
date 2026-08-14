@@ -10,6 +10,7 @@ use crate::diagnostics::{
     Diagnostic, DiagnosticCode, DiagnosticLocation, DiagnosticPhase, DiagnosticSeverity,
 };
 use crate::symbol_table::{LabelKind, SymbolTable};
+use crate::token::{Token, TokenKind, byte_to_line_col};
 use crate::walk;
 
 /// Built-in container types whose label may be purely structural.
@@ -23,7 +24,7 @@ const STRUCTURAL_CONTAINER_TYPES: &[&str] =
 pub fn collect_semantic_diagnostics(
     stmts: &[Stmt],
     symbols: &SymbolTable,
-    tree: Option<&tree_sitter::Tree>,
+    tokens: &[Token],
     source: &str,
 ) -> Vec<Diagnostic> {
     let structural_containers = collect_structural_container_labels(stmts);
@@ -74,7 +75,7 @@ pub fn collect_semantic_diagnostics(
     }
 
     walk::walk_stmts(stmts, &mut |stmt| {
-        check_stmt(stmt, symbols, tree, source, &mut diagnostics);
+        check_stmt(stmt, symbols, tokens, source, &mut diagnostics);
     });
 
     diagnostics
@@ -105,12 +106,12 @@ fn span_diagnostic(
     }
 }
 
-fn tree_range_diagnostic(
+fn range_diagnostic(
     severity: DiagnosticSeverity,
     code: DiagnosticCode,
     message: String,
-    start: tree_sitter::Point,
-    end: tree_sitter::Point,
+    start: (usize, usize),
+    end: (usize, usize),
 ) -> Diagnostic {
     Diagnostic {
         severity,
@@ -118,10 +119,10 @@ fn tree_range_diagnostic(
         code,
         message,
         location: DiagnosticLocation {
-            line: Some(start.row + 1),
-            column: Some(start.column + 1),
-            end_line: Some(end.row + 1),
-            end_col: Some(end.column + 1),
+            line: Some(start.0 + 1),
+            column: Some(start.1 + 1),
+            end_line: Some(end.0 + 1),
+            end_col: Some(end.1 + 1),
             span: None,
             path: None,
             subject: None,
@@ -180,32 +181,25 @@ fn collect_structural_container_labels(stmts: &[Stmt]) -> HashSet<String> {
     structural
 }
 
-fn find_token_range(
-    node: tree_sitter::Node,
+fn find_ident_range(
+    tokens: &[Token],
     source: &str,
-    kind: &str,
     text: &str,
-) -> Option<(tree_sitter::Point, tree_sitter::Point)> {
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if child.kind() == kind {
-            if let Ok(node_text) = child.utf8_text(source.as_bytes()) {
-                if node_text == text {
-                    return Some((child.start_position(), child.end_position()));
-                }
-            }
-        }
-        if let Some(found) = find_token_range(child, source, kind, text) {
-            return Some(found);
-        }
-    }
-    None
+) -> Option<((usize, usize), (usize, usize))> {
+    tokens
+        .iter()
+        .find(|t| matches!(&t.kind, TokenKind::Ident(name) if name == text))
+        .map(|t| {
+            let start = byte_to_line_col(source, t.span.start);
+            let end = byte_to_line_col(source, t.span.end);
+            (start, end)
+        })
 }
 
 fn check_stmt(
     stmt: &Stmt,
     symbols: &SymbolTable,
-    tree: Option<&tree_sitter::Tree>,
+    tokens: &[Token],
     source: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -214,15 +208,9 @@ fn check_stmt(
             let (line, col, end_line, end_col) = span_positions(span);
 
             if !symbols.actions.contains(&action.verb) {
-                let (vstart, vend) = tree
-                    .and_then(|t| {
-                        find_token_range(t.root_node(), source, "action_verb", &action.verb)
-                    })
-                    .unwrap_or_else(|| {
-                        tree_sitter::Point::new(line - 1, col - 1)
-                            .pair_with_point(tree_sitter::Point::new(end_line - 1, end_col - 1))
-                    });
-                diagnostics.push(tree_range_diagnostic(
+                let (vstart, vend) = find_ident_range(tokens, source, &action.verb)
+                    .unwrap_or_else(|| ((line - 1, col - 1), (end_line - 1, end_col - 1)));
+                diagnostics.push(range_diagnostic(
                     DiagnosticSeverity::Warning,
                     DiagnosticCode::UnknownAction,
                     format!("Unknown action: {}", action.verb),
@@ -237,13 +225,9 @@ fn check_stmt(
                         .is_some_and(|base| symbols.array_labels.contains(base))
                     || is_component_array_member(symbols, target);
                 if !is_defined {
-                    let (tstart, tend) = tree
-                        .and_then(|t| find_token_range(t.root_node(), source, "identifier", target))
-                        .unwrap_or_else(|| {
-                            tree_sitter::Point::new(line - 1, col - 1)
-                                .pair_with_point(tree_sitter::Point::new(end_line - 1, end_col - 1))
-                        });
-                    diagnostics.push(tree_range_diagnostic(
+                    let (tstart, tend) = find_ident_range(tokens, source, target)
+                        .unwrap_or_else(|| ((line - 1, col - 1), (end_line - 1, end_col - 1)));
+                    diagnostics.push(range_diagnostic(
                         DiagnosticSeverity::Warning,
                         DiagnosticCode::UndefinedLabel,
                         format!("Undefined label: {}", target),
@@ -380,23 +364,13 @@ fn check_stmt(
     }
 }
 
-trait PairPoint {
-    fn pair_with_point(self, end: tree_sitter::Point) -> (tree_sitter::Point, tree_sitter::Point);
-}
-
-impl PairPoint for tree_sitter::Point {
-    fn pair_with_point(self, end: tree_sitter::Point) -> (tree_sitter::Point, tree_sitter::Point) {
-        (self, end)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn unused_labels(stmts: &[Stmt]) -> Vec<String> {
         let symbols = SymbolTable::build_from_ast(stmts);
-        collect_semantic_diagnostics(stmts, &symbols, None, "")
+        collect_semantic_diagnostics(stmts, &symbols, &[], "")
             .into_iter()
             .filter(|d| d.code == DiagnosticCode::UnusedLabel)
             .map(|d| d.message.clone())

@@ -1,6 +1,6 @@
 //! Context-aware completion provider.
 
-use tree_sitter::{Point, Tree};
+use animatix_syntax::token::{Token, TokenKind, line_col_to_byte};
 
 use crate::symbol_table::{LabelKind, SymbolTable};
 
@@ -41,64 +41,59 @@ pub enum CompletionKind {
 /// Get completions at a cursor position.
 pub fn completions_at(
     symbols: &SymbolTable,
-    tree: Option<&Tree>,
+    tokens: &[Token],
     source: &str,
     line: usize,
     col: usize,
 ) -> Vec<CompletionItem> {
     let mut items = Vec::new();
 
-    // Determine context from tree-sitter
-    if let Some(tree) = tree {
-        let point = Point::new(line, col);
-        let node = tree.root_node().descendant_for_point_range(point, point);
-        if let Some(node) = node {
-            let context = CompletionContext::from_node(node, source);
-
-            match context {
-                CompletionContext::TopLevel => {
-                    items.extend(snippet_completions());
-                    items.extend(keyword_completions(symbols));
-                    items.extend(label_completions(symbols));
-                    items.extend(type_completions(symbols));
-                    items.extend(action_completions(symbols));
-                },
-                CompletionContext::TypePosition => {
-                    items.extend(type_completions(symbols));
-                },
-                CompletionContext::PropertyBlock { actor_type } => {
-                    items.extend(property_completions(symbols, actor_type.as_deref()));
-                    items.extend(value_completions());
-                },
-                CompletionContext::ActionTarget => {
-                    items.extend(label_completions(symbols));
-                },
-                CompletionContext::ModifierList => {
-                    items.extend(modifier_completions());
-                },
-                CompletionContext::PropertyValue {
-                    property_name,
-                    actor_type,
-                } => {
-                    items.extend(value_for_property(
-                        &property_name,
-                        actor_type.as_deref(),
-                        symbols,
-                    ));
-                },
-                CompletionContext::Unknown => {
-                    items.extend(keyword_completions(symbols));
-                    items.extend(label_completions(symbols));
-                    items.extend(type_completions(symbols));
-                },
-            }
-        }
+    let context = if tokens.is_empty() {
+        None
     } else {
-        items.extend(snippet_completions());
-        items.extend(keyword_completions(symbols));
-        items.extend(label_completions(symbols));
-        items.extend(type_completions(symbols));
-        items.extend(action_completions(symbols));
+        let byte = line_col_to_byte(source, line, col);
+        Some(CompletionContext::from_tokens(tokens, byte, symbols))
+    };
+
+    match context {
+        None => {
+            items.extend(snippet_completions());
+            items.extend(keyword_completions(symbols));
+            items.extend(label_completions(symbols));
+            items.extend(type_completions(symbols));
+            items.extend(action_completions(symbols));
+        },
+        Some(CompletionContext::TopLevel) => {
+            items.extend(snippet_completions());
+            items.extend(keyword_completions(symbols));
+            items.extend(label_completions(symbols));
+            items.extend(type_completions(symbols));
+            items.extend(action_completions(symbols));
+        },
+        Some(CompletionContext::TypePosition) => {
+            items.extend(type_completions(symbols));
+        },
+        Some(CompletionContext::PropertyBlock { actor_type }) => {
+            items.extend(property_completions(symbols, actor_type.as_deref()));
+            items.extend(value_completions());
+        },
+        Some(CompletionContext::ActionTarget) => {
+            items.extend(label_completions(symbols));
+        },
+        Some(CompletionContext::ModifierList) => {
+            items.extend(modifier_completions());
+        },
+        Some(CompletionContext::PropertyValue {
+            property_name,
+            actor_type,
+        }) => {
+            items.extend(value_for_property(&property_name, actor_type.as_deref(), symbols));
+        },
+        Some(CompletionContext::Unknown) => {
+            items.extend(keyword_completions(symbols));
+            items.extend(label_completions(symbols));
+            items.extend(type_completions(symbols));
+        },
     }
 
     items
@@ -126,93 +121,66 @@ enum CompletionContext {
 }
 
 impl CompletionContext {
-    fn from_node(node: tree_sitter::Node, source: &str) -> Self {
-        let kind = node.kind();
+    fn from_tokens(tokens: &[Token], byte: usize, symbols: &SymbolTable) -> Self {
+        // Find the last non-trivia token that ends at or before the cursor.
+        let prev = tokens
+            .iter()
+            .filter(|t| t.span.end <= byte)
+            .filter(|t| !matches!(t.kind, TokenKind::Comment(_)))
+            .last();
 
-        // Check parent context
-        if let Some(parent) = node.parent() {
-            let parent_kind = parent.kind();
-
-            match parent_kind {
-                // Inside a property list
-                "property_list" => {
-                    let actor_type = find_actor_type(parent, source);
-                    return CompletionContext::PropertyBlock { actor_type };
-                },
-
-                // After ":" in actor declaration
-                "actor_declaration" => {
-                    if is_after_colon(node, source) {
-                        return CompletionContext::TypePosition;
-                    }
-                },
-
-                // After action verb
-                "action_invocation" => {
-                    return CompletionContext::ActionTarget;
-                },
-
-                // Inside modifier list
-                "modifier_list" | "modifier" => {
-                    return CompletionContext::ModifierList;
-                },
-
-                // Property value context
-                "property" => {
-                    if kind == "identifier" || kind == "string" || kind == "number" {
-                        let prop_name = find_property_name(parent, source);
-                        let actor_type = find_actor_type(parent, source);
-                        return CompletionContext::PropertyValue {
-                            property_name: prop_name,
-                            actor_type,
-                        };
-                    }
-                },
-
-                _ => {},
-            }
-        }
-
-        // Check if we're at the top level
-        if node.parent().is_none_or(|p| p.kind() == "source_file") {
+        let Some(prev) = prev else {
             return CompletionContext::TopLevel;
-        }
+        };
 
-        CompletionContext::Unknown
+        match &prev.kind {
+            TokenKind::Colon => {
+                let before_colon = tokens
+                    .iter()
+                    .take_while(|t| t.span != prev.span)
+                    .filter(|t| !matches!(t.kind, TokenKind::Comment(_)))
+                    .last();
+                if before_colon.is_some_and(|t| {
+                    matches!(&t.kind, TokenKind::Ident(name) if symbols.labels.contains_key(name))
+                }) {
+                    CompletionContext::TypePosition
+                } else {
+                    CompletionContext::PropertyValue {
+                        property_name: None,
+                        actor_type: None,
+                    }
+                }
+            },
+            TokenKind::Assign | TokenKind::ReactiveAssign => CompletionContext::PropertyValue {
+                property_name: None,
+                actor_type: None,
+            },
+            TokenKind::LBracket => CompletionContext::ModifierList,
+            TokenKind::Ident(name) if symbols.actions.contains(name) => {
+                CompletionContext::ActionTarget
+            },
+            TokenKind::LBrace => CompletionContext::PropertyBlock {
+                actor_type: find_actor_type_before_brace(tokens, prev, symbols),
+            },
+            _ => CompletionContext::Unknown,
+        }
     }
 }
 
-/// Find the actor type for a property block by walking up the tree.
-fn find_actor_type(node: tree_sitter::Node, source: &str) -> Option<String> {
-    let mut current = node.parent()?;
-    loop {
-        if let "actor_declaration" = current.kind() {
-            if let Some(type_node) = current.child_by_field_name("type") {
-                return Some(source[type_node.byte_range()].to_string());
+fn find_actor_type_before_brace(
+    tokens: &[Token],
+    brace: &Token,
+    symbols: &SymbolTable,
+) -> Option<String> {
+    let idx = tokens.iter().position(|t| t.span == brace.span)?;
+    for t in tokens[..idx].iter().rev() {
+        if let TokenKind::Ident(name) = &t.kind {
+            if symbols.types.contains(name) {
+                return Some(name.clone());
             }
-        }
-        current = current.parent()?;
-    }
-}
-
-/// Find the property name for a property value node.
-fn find_property_name(node: tree_sitter::Node, source: &str) -> Option<String> {
-    if node.kind() == "property" {
-        if let Some(name_node) = node.child_by_field_name("name") {
-            return Some(source[name_node.byte_range()].to_string());
         }
     }
     None
-}
-
-/// Check if a node is after a colon in a declaration.
-fn is_after_colon(node: tree_sitter::Node, source: &str) -> bool {
-    let start = node.start_byte();
-    if start == 0 {
-        return false;
-    }
-    let before = &source[..start];
-    before.ends_with(':')
 }
 
 /// Snippet completions for common patterns.
@@ -782,7 +750,7 @@ mod tests {
     fn top_level_completions_include_keywords() {
         let source = "";
         let symbols = SymbolTable::build_from_ast(&[]);
-        let items = completions_at(&symbols, None, source, 0, 0);
+        let items = completions_at(&symbols, &[], source, 0, 0);
 
         let keywords: Vec<_> = items
             .iter()
@@ -799,7 +767,7 @@ mod tests {
     fn type_completions_include_builtins() {
         let source = "";
         let symbols = SymbolTable::build_from_ast(&[]);
-        let items = completions_at(&symbols, None, source, 0, 0);
+        let items = completions_at(&symbols, &[], source, 0, 0);
 
         let types: Vec<_> = items
             .iter()
@@ -816,7 +784,7 @@ mod tests {
     fn snippet_completions_at_top_level() {
         let source = "";
         let symbols = SymbolTable::build_from_ast(&[]);
-        let items = completions_at(&symbols, None, source, 0, 0);
+        let items = completions_at(&symbols, &[], source, 0, 0);
 
         let snippets: Vec<_> = items
             .iter()
@@ -833,7 +801,7 @@ mod tests {
     fn action_completions_include_builtins() {
         let source = "";
         let symbols = SymbolTable::build_from_ast(&[]);
-        let items = completions_at(&symbols, None, source, 0, 0);
+        let items = completions_at(&symbols, &[], source, 0, 0);
 
         let actions: Vec<_> = items
             .iter()

@@ -8,10 +8,27 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use animatix_analyzer::{Analyzer, Workspace};
+use animatix_syntax::token::{TokenKind, byte_to_line_col, tokenize};
 use tokio::sync::Mutex;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
+
+const SEMANTIC_TOKEN_TYPES: &[&str] = &[
+    "keyword",
+    "type",
+    "string",
+    "number",
+    "comment",
+    "operator",
+    "variable",
+    "property",
+    "parameter",
+    "function",
+    "label",
+    "boolean",
+    "punctuation",
+];
 
 /// The LSP server backend.
 struct Backend {
@@ -165,6 +182,21 @@ impl LanguageServer for Backend {
                 document_symbol_provider: Some(OneOf::Left(true)),
                 workspace_symbol_provider: Some(OneOf::Left(true)),
                 references_provider: Some(OneOf::Left(true)),
+                semantic_tokens_provider: Some(
+                    SemanticTokensServerCapabilities::SemanticTokensOptions(
+                        SemanticTokensOptions {
+                            legend: SemanticTokensLegend {
+                                token_types: SEMANTIC_TOKEN_TYPES
+                                    .iter()
+                                    .map(|s| SemanticTokenType::from(*s))
+                                    .collect(),
+                                token_modifiers: vec![],
+                            },
+                            full: Some(SemanticTokensFullOptions::Bool(true)),
+                            ..Default::default()
+                        },
+                    ),
+                ),
                 ..Default::default()
             },
             ..Default::default()
@@ -179,6 +211,25 @@ impl LanguageServer for Backend {
 
     async fn shutdown(&self) -> Result<()> {
         Ok(())
+    }
+
+    async fn semantic_tokens_full(
+        &self,
+        params: SemanticTokensParams,
+    ) -> Result<Option<SemanticTokensResult>> {
+        let uri = params.text_document.uri.to_string();
+        let source = {
+            let analyzers = self.analyzers.lock().await;
+            analyzers.get(&uri).map(|a| a.source().to_string())
+        };
+        let Some(source) = source else {
+            return Ok(None);
+        };
+        let data = build_semantic_tokens(&source);
+        Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {
+            result_id: None,
+            data,
+        })))
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
@@ -469,13 +520,91 @@ impl LanguageServer for Backend {
     }
 }
 
+/// Build LSP semantic token deltas from the lossless tokenizer.
+fn build_semantic_tokens(source: &str) -> Vec<SemanticToken> {
+    let tokens = tokenize(source);
+    let mut data = Vec::with_capacity(tokens.len());
+    let mut prev_line = 0u32;
+    let mut prev_col = 0u32;
+
+    for token in tokens {
+        let (line, col) = byte_to_line_col(source, token.span.start);
+        let (_, end_col) = byte_to_line_col(source, token.span.end);
+        let delta_line = line as u32 - prev_line;
+        let delta_start = if delta_line == 0 {
+            col as u32 - prev_col
+        } else {
+            col as u32
+        };
+        let length = (end_col - col) as u32;
+        let token_type = semantic_token_type(&token.kind);
+
+        data.push(SemanticToken {
+            delta_line,
+            delta_start,
+            length,
+            token_type,
+            token_modifiers_bitset: 0,
+        });
+
+        prev_line = line as u32;
+        prev_col = col as u32;
+    }
+
+    data
+}
+
+fn semantic_token_type(kind: &TokenKind) -> u32 {
+    match kind {
+        TokenKind::Keyword(_) | TokenKind::Null => 0,
+        TokenKind::Ident(_) => 6,
+        TokenKind::Number(_) | TokenKind::Time { .. } | TokenKind::Percent(_) => 3,
+        TokenKind::Str(_) | TokenKind::Typst(_) => 2,
+        TokenKind::Comment(_) => 4,
+        TokenKind::Bool(_) => 11,
+        TokenKind::Plus
+        | TokenKind::Minus
+        | TokenKind::Star
+        | TokenKind::Slash
+        | TokenKind::PercentOp
+        | TokenKind::Caret
+        | TokenKind::Eq
+        | TokenKind::Neq
+        | TokenKind::Lt
+        | TokenKind::Gt
+        | TokenKind::Le
+        | TokenKind::Ge
+        | TokenKind::And
+        | TokenKind::Or
+        | TokenKind::Not
+        | TokenKind::Assign
+        | TokenKind::ReactiveAssign
+        | TokenKind::Arrow
+        | TokenKind::RangeInclusive
+        | TokenKind::Pipe
+        | TokenKind::ColonColon => 5,
+        TokenKind::LParen
+        | TokenKind::RParen
+        | TokenKind::LBracket
+        | TokenKind::RBracket
+        | TokenKind::LBrace
+        | TokenKind::RBrace
+        | TokenKind::Colon
+        | TokenKind::Comma
+        | TokenKind::Dot
+        | TokenKind::Hash
+        | TokenKind::At
+        | TokenKind::AtSlot
+        | TokenKind::Underscore => 12,
+    }
+}
+
 /// Convert a file:// URI to a PathBuf.
 fn uri_to_path(uri: &str) -> Option<PathBuf> {
     let url = url::Url::parse(uri).ok()?;
     url.to_file_path().ok()
 }
 
-/// Build a valid `Url` from a raw file path.
 fn path_to_uri(path: &str) -> Option<Url> {
     Url::parse(&format!("file://{path}")).ok()
 }
