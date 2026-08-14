@@ -50,52 +50,6 @@ use chumsky::prelude::*;
 use crate::ast::*;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 
-/// Replace `//` line comments with spaces while preserving newlines.
-///
-/// This allows comments inside `{}`, `[]`, and `()` delimiters where chumsky's
-/// `.padded()` only skips whitespace. String literals are respected so `//`
-/// inside a string is left untouched.
-///
-/// Comment text is replaced with spaces (not removed) so that byte spans in
-/// parse errors remain valid for the original source.
-pub fn strip_comments(input: &str) -> String {
-    let mut result = String::with_capacity(input.len());
-    let mut chars = input.chars().peekable();
-    let mut in_string = false;
-
-    while let Some(c) = chars.next() {
-        if in_string {
-            result.push(c);
-            if c == '"' {
-                in_string = false;
-            }
-        } else if c == '"' {
-            result.push(c);
-            in_string = true;
-        } else if c == '/' && chars.peek() == Some(&'/') {
-            // Line comment: replace with spaces until newline
-            chars.next(); // consume second '/'
-            result.push(' ');
-            result.push(' ');
-            while let Some(&next) = chars.peek() {
-                if next == '\n' {
-                    break;
-                }
-                chars.next();
-                result.push(' ');
-            }
-        } else {
-            result.push(c);
-        }
-    }
-
-    result
-}
-
-/// Parse source after replacing line comments with spaces.
-///
-/// Use this for all production parsing so that `//` comments work everywhere,
-/// including inside delimiters. Test code may call `parser_simple().parse()` directly.
 /// Parse source and return AST, parse errors, and diagnostics (warnings).
 ///
 /// This is the full-diagnostics entry point that includes both syntax errors
@@ -104,10 +58,16 @@ pub fn parse_source_diagnostics(
     source: &str,
 ) -> (Option<Vec<Stmt>>, Vec<ParseError>, Vec<Diagnostic>) {
     let warnings = Rc::new(RefCell::new(Vec::new()));
-    let stripped = strip_comments(source);
-    let (ast, errors) = parser(Rc::clone(&warnings)).parse(&stripped).into_output_errors();
+    let tokens = crate::token::tokenize(source);
+    let spanned = token_parser::spanned(&tokens);
+    let input = token_parser::as_input(&spanned);
+    let (ast, errors) = parser(Rc::clone(&warnings)).parse(input).into_output_errors();
+    let mut ast = ast;
+    if let Some(statements) = ast.as_mut() {
+        attach_trailing_comments(statements, source, &tokens);
+    }
     let owned_errors: Vec<ParseError> =
-        errors.iter().map(|e| ParseError::from_rich(source, e)).collect();
+        errors.iter().map(|e| ParseError::from_rich_tokens(source, e)).collect();
     let owned_warnings = match Rc::try_unwrap(warnings) {
         Ok(cell) => cell.into_inner(),
         Err(_) => Vec::new(),
@@ -115,13 +75,143 @@ pub fn parse_source_diagnostics(
     (ast, owned_errors, owned_warnings)
 }
 
-/// Parse source after replacing line comments with spaces.
+/// Parse source into an AST and structured parse errors.
 ///
-/// Use this for all production parsing so that `//` comments work everywhere,
-/// including inside delimiters. Test code may call `parser_simple().parse()` directly.
+/// The tokenizer handles whitespace and comments, so this entry point accepts
+/// comments in all the same positions the lexer does. Test code may call
+/// [`parser_simple`] directly when warnings are not needed.
 pub fn parse_source(source: &str) -> (Option<Vec<Stmt>>, Vec<ParseError>) {
     let (ast, errors, _warnings) = parse_source_diagnostics(source);
     (ast, errors)
+}
+
+/// Parse source into an AST and structured parse errors without warnings.
+///
+/// This is a thin wrapper over [`parse_source`] kept for callers that only need
+/// the AST plus errors, matching the shape `parser_simple().parse()` previously
+/// returned.
+pub fn parse_simple(source: &str) -> (Option<Vec<Stmt>>, Vec<ParseError>) {
+    let (ast, errors, _warnings) = parse_source_diagnostics(source);
+    (ast, errors)
+}
+
+/// Attach `//` line comments to the properties they follow on the same line.
+///
+/// The tokenizer keeps comments in its lossless stream, but the parser filters
+/// them out. This restores the previous parser's `Property::trailing_comment`
+/// behavior from the token stream without reintroducing comments into the
+/// grammar.
+fn attach_trailing_comments(statements: &mut [Stmt], source: &str, tokens: &[crate::token::Token]) {
+    let comments: Vec<(usize, String)> = tokens
+        .iter()
+        .filter_map(|t| match &t.kind {
+            crate::token::TokenKind::Comment(text) => Some((t.span.start, text.clone())),
+            _ => None,
+        })
+        .collect();
+    if comments.is_empty() {
+        return;
+    }
+
+    let mut props: Vec<&mut Property> = Vec::new();
+    collect_property_spans(statements, &mut props);
+
+    for (comment_start, text) in comments {
+        let mut best: Option<usize> = None;
+        let mut best_end = 0usize;
+        for (i, prop) in props.iter().enumerate() {
+            if let Some(span) = prop.value_span {
+                if span.end <= comment_start
+                    && !source[span.end..comment_start].contains('\n')
+                    && span.end >= best_end
+                {
+                    best = Some(i);
+                    best_end = span.end;
+                }
+            }
+        }
+        if let Some(i) = best {
+            props[i].trailing_comment = Some(text);
+        }
+    }
+}
+
+/// Collect mutable references to every property that can carry a trailing
+/// comment (those produced by [`common::property`], all of which set
+/// `value_span`).
+fn collect_property_spans<'a>(stmts: &'a mut [Stmt], out: &mut Vec<&'a mut Property>) {
+    for stmt in stmts.iter_mut() {
+        collect_stmt_property_spans(stmt, out);
+    }
+}
+
+fn collect_stmt_property_spans<'a>(stmt: &'a mut Stmt, out: &mut Vec<&'a mut Property>) {
+    match stmt {
+        Stmt::ActorDecl {
+            props, children, ..
+        } => {
+            out.extend(props.iter_mut());
+            for child in children {
+                collect_inline_property_spans(child, out);
+            }
+        },
+        Stmt::Keyframe { body, .. }
+        | Stmt::RelativeKeyframe { body, .. }
+        | Stmt::Sequence { body, .. }
+        | Stmt::Always { body, .. } => collect_property_spans(body, out),
+        Stmt::Stagger { body, .. } => collect_property_spans(body, out),
+        Stmt::Conditional {
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            collect_property_spans(then_branch, out);
+            if let Some(else_branch) = else_branch {
+                collect_property_spans(else_branch, out);
+            }
+        },
+        Stmt::Match { arms, .. } => {
+            for (_, body) in arms {
+                collect_property_spans(body, out);
+            }
+        },
+        Stmt::ForLoop { body, .. } => collect_property_spans(body, out),
+        Stmt::ComponentDef(def, _) => collect_property_spans(&mut def.body, out),
+        Stmt::ComponentAction { body, .. } => collect_property_spans(body, out),
+        Stmt::Config { settings, .. } => out.extend(settings.iter_mut()),
+        Stmt::Scene { config, body, .. } => {
+            out.extend(config.iter_mut());
+            collect_property_spans(body, out);
+        },
+        _ => {},
+    }
+}
+
+fn collect_inline_property_spans<'a>(item: &'a mut InlineItem, out: &mut Vec<&'a mut Property>) {
+    match item {
+        InlineItem::Anonymous {
+            props, children, ..
+        }
+        | InlineItem::Labeled {
+            props, children, ..
+        } => {
+            out.extend(props.iter_mut());
+            for child in children {
+                collect_inline_property_spans(child, out);
+            }
+        },
+        InlineItem::ForLoop { body, .. } => {
+            for child in body {
+                collect_inline_property_spans(child, out);
+            }
+        },
+        InlineItem::SlotFill { items, .. } => {
+            for child in items {
+                collect_inline_property_spans(child, out);
+            }
+        },
+        InlineItem::SlotMarker => {},
+    }
 }
 
 /// A parse result with both AST/parse errors and the optional tree-sitter tree.
@@ -293,8 +383,11 @@ impl ParseError {
         )
     }
 
-    /// Convert a chumsky `Rich` error into a structured `ParseError`.
-    pub fn from_rich(source: &str, err: &Rich<'_, char>) -> Self {
+    /// Convert a chumsky `Rich` token error into a structured `ParseError`.
+    pub fn from_rich_tokens(
+        source: &str,
+        err: &Rich<'_, crate::token::TokenKind, ByteSpan>,
+    ) -> Self {
         let span = err.span();
         let start = span.start;
         let end = span.end;
@@ -361,8 +454,8 @@ fn byte_offset_to_line_col(source: &str, offset: usize) -> (usize, usize) {
 /// Build the top-level `.amx` file parser that discards warnings.
 ///
 /// Convenience wrapper for tests and contexts where diagnostics are not needed.
-pub fn parser_simple<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich<'src, char>>>
-{
+pub fn parser_simple<'src>()
+-> impl Parser<'src, token_parser::TokInput<'src>, Vec<Stmt>, token_parser::TokErr<'src>> {
     parser(Rc::new(RefCell::new(Vec::new())))
 }
 
@@ -373,7 +466,7 @@ pub fn parser_simple<'src>() -> impl Parser<'src, &'src str, Vec<Stmt>, extra::E
 /// diagnostics during parsing.
 pub fn parser<'src>(
     warnings: Rc<RefCell<Vec<Diagnostic>>>,
-) -> impl Parser<'src, &'src str, Vec<Stmt>, extra::Err<Rich<'src, char>>> {
+) -> impl Parser<'src, token_parser::TokInput<'src>, Vec<Stmt>, token_parser::TokErr<'src>> {
     let expr = expr::parser();
     let property = common::property(expr.clone());
     let modifier = common::modifier(expr.clone(), common::time());
@@ -385,14 +478,12 @@ pub fn parser<'src>(
 
 #[cfg(test)]
 mod tests {
-    use chumsky::Parser;
-
     use super::*;
 
     #[test]
     fn test_closure_parser() {
         let input = "let f = (x) => x ^ 2";
-        let res = parser_simple().parse(input).unwrap();
+        let res = parse_simple(input).0.unwrap();
 
         // Find the LetDecl stmt
         if let Stmt::LetDecl {
@@ -423,7 +514,7 @@ mod tests {
     #[test]
     fn test_text_shorthand_parser() {
         let input = r#"a: "hello world""#;
-        let res = parser_simple().parse(input).unwrap();
+        let res = parse_simple(input).0.unwrap();
 
         if let Stmt::ActorDecl {
             is_pub,
@@ -451,7 +542,7 @@ mod tests {
     #[test]
     fn test_text_shorthand_with_modifiers() {
         let input = r#"title: "Slide 1" [2s, ease: ease-in-out]"#;
-        let res = parser_simple().parse(input).unwrap();
+        let res = parse_simple(input).0.unwrap();
 
         if let Stmt::ActorDecl {
             label,
@@ -475,7 +566,7 @@ mod tests {
     #[test]
     fn test_typst_shorthand_parser() {
         let input = "eq: $$ x^2 + y^2 $$";
-        let res = parser_simple().parse(input).unwrap();
+        let res = parse_simple(input).0.unwrap();
 
         if let Stmt::ActorDecl {
             is_pub,
@@ -503,7 +594,7 @@ mod tests {
     #[test]
     fn test_typst_shorthand_with_modifiers() {
         let input = "eq: $$ x^2 $$ [2s]";
-        let res = parser_simple().parse(input).unwrap();
+        let res = parse_simple(input).0.unwrap();
 
         if let Stmt::ActorDecl {
             label,
@@ -528,7 +619,7 @@ mod tests {
     fn test_vec2_value_span_accuracy() {
         // Reproduce the bug: size: (2494.552, 1377.7778) should have correct span
         let input = r#"backdrop: Rect, size: (2494.552, 1377.7778), color: scene.background"#;
-        let res = parser_simple().parse(input).unwrap();
+        let res = parse_simple(input).0.unwrap();
 
         if let Stmt::ActorDecl { props, .. } = &res[0] {
             let size_prop = props.iter().find(|p| p.name == "size").unwrap();
@@ -554,7 +645,7 @@ mod tests {
     fn test_vec2_value_span_with_trailing_comma() {
         // Test with trailing comma in tuple: (2494.552, 1377.7778,)
         let input = r#"backdrop: Rect, size: (2494.552, 1377.7778,), color: scene.background"#;
-        let res = parser_simple().parse(input).unwrap();
+        let res = parse_simple(input).0.unwrap();
 
         if let Stmt::ActorDecl { props, .. } = &res[0] {
             let size_prop = props.iter().find(|p| p.name == "size").unwrap();
@@ -578,7 +669,7 @@ mod tests {
     fn test_multiple_properties_span_independence() {
         // Test that spans for multiple properties don't overlap
         let input = r#"backdrop: Rect, size: (100, 200), color: red, anchor: center"#;
-        let res = parser_simple().parse(input).unwrap();
+        let res = parse_simple(input).0.unwrap();
 
         if let Stmt::ActorDecl { props, .. } = &res[0] {
             let size_prop = props.iter().find(|p| p.name == "size").unwrap();
@@ -609,7 +700,7 @@ mod tests {
     #[test]
     fn test_reactive_binding_parser() {
         let input = r#"orbiter.at := tracker.at + (200 * cos(3 * t), 200 * sin(3 * t))"#;
-        let res = parser_simple().parse(input).unwrap();
+        let res = parse_simple(input).0.unwrap();
         assert_eq!(res.len(), 1);
         // Reactive bindings are not wrapped in a default keyframe
         if let Stmt::ReactiveBinding {
@@ -639,8 +730,8 @@ mod tests {
     #[test]
     fn test_reactive_binding_rejects_single_segment() {
         let input = r#"at := (100, 200)"#;
-        let res = parser_simple().parse(input);
-        assert!(res.has_errors(), "Expected parse error for single-segment reactive binding");
+        let (_, errors) = parse_source(input);
+        assert!(!errors.is_empty(), "Expected parse error for single-segment reactive binding");
     }
 
     #[test]
@@ -944,9 +1035,9 @@ mod tests {
     fn test_any_type_annotation_in_action_param() {
         // `Any` in a parameter type annotation should parse without error.
         let src = r#"action transform(x: Any = 0) { fade-in x [300ms] }"#;
-        let res = parser_simple().parse(src);
-        assert!(!res.has_errors(), "parse errors: {:?}", res.errors().collect::<Vec<_>>());
-        let stmts = res.output().expect("expected parse output");
+        let (stmts, errors) = parse_source(src);
+        assert!(errors.is_empty(), "parse errors: {:?}", errors);
+        let stmts = stmts.expect("expected parse output");
         if let Stmt::ComponentAction { params, .. } = &stmts[0] {
             assert_eq!(params[0].param_type, Some(TypeAnnotation::Any));
         } else {
@@ -957,9 +1048,9 @@ mod tests {
     #[test]
     fn test_union_type_annotation_in_action_param() {
         let src = r#"action transform(x: Bool | Str = "x") { fade-in x [300ms] }"#;
-        let res = parser_simple().parse(src);
-        assert!(!res.has_errors(), "parse errors: {:?}", res.errors().collect::<Vec<_>>());
-        let stmts = res.output().expect("expected parse output");
+        let (stmts, errors) = parse_source(src);
+        assert!(errors.is_empty(), "parse errors: {:?}", errors);
+        let stmts = stmts.expect("expected parse output");
         if let Stmt::ComponentAction { params, .. } = &stmts[0] {
             assert_eq!(
                 params[0].param_type,
@@ -973,9 +1064,9 @@ mod tests {
     #[test]
     fn test_type_alias_parses_union_annotation() {
         let src = "pub type LegendMode = Bool | Str\n";
-        let res = parser_simple().parse(src);
-        assert!(!res.has_errors(), "parse errors: {:?}", res.errors().collect::<Vec<_>>());
-        let stmts = res.output().expect("expected parse output");
+        let (stmts, errors) = parse_source(src);
+        assert!(errors.is_empty(), "parse errors: {:?}", errors);
+        let stmts = stmts.expect("expected parse output");
         match &stmts[0] {
             Stmt::TypeAlias {
                 is_pub,
@@ -997,9 +1088,9 @@ mod tests {
     #[test]
     fn test_namespaced_type_alias_reference_parses() {
         let src = "pub component Card(value: types::Metric) {}\n";
-        let res = parser_simple().parse(src);
-        assert!(!res.has_errors(), "parse errors: {:?}", res.errors().collect::<Vec<_>>());
-        let stmts = res.output().expect("expected parse output");
+        let (stmts, errors) = parse_source(src);
+        assert!(errors.is_empty(), "parse errors: {:?}", errors);
+        let stmts = stmts.expect("expected parse output");
         if let Stmt::ComponentDef(def, _) = &stmts[0] {
             assert_eq!(
                 def.params[0].param_type,
@@ -1013,9 +1104,9 @@ mod tests {
     #[test]
     fn test_legacy_dotted_type_alias_normalizes() {
         let src = "pub component Card(value: types.Metric) {}\n";
-        let res = parser_simple().parse(src);
-        assert!(!res.has_errors(), "parse errors: {:?}", res.errors().collect::<Vec<_>>());
-        let stmts = res.output().expect("expected parse output");
+        let (stmts, errors) = parse_source(src);
+        assert!(errors.is_empty(), "parse errors: {:?}", errors);
+        let stmts = stmts.expect("expected parse output");
         if let Stmt::ComponentDef(def, _) = &stmts[0] {
             assert_eq!(
                 def.params[0].param_type,
@@ -1030,9 +1121,9 @@ mod tests {
     fn test_rich_type_annotations_parse() {
         let src =
             "type P3 = Vec3\ntype Pair = Tuple<Str, Num>\ntype Mapper = Fn(Num, Num) => Num\n";
-        let res = parser_simple().parse(src);
-        assert!(!res.has_errors(), "parse errors: {:?}", res.errors().collect::<Vec<_>>());
-        let stmts = res.output().expect("expected parse output");
+        let (stmts, errors) = parse_source(src);
+        assert!(errors.is_empty(), "parse errors: {:?}", errors);
+        let stmts = stmts.expect("expected parse output");
         match &stmts[0] {
             Stmt::TypeAlias {
                 name, annotation, ..
@@ -1075,9 +1166,9 @@ mod tests {
     fn test_rich_type_annotations_in_component_params() {
         let src =
             "pub component App(p: Vec3, pair: Tuple<Str, Num>, mapper: Fn(Num, Num) => Num) {}\n";
-        let res = parser_simple().parse(src);
-        assert!(!res.has_errors(), "parse errors: {:?}", res.errors().collect::<Vec<_>>());
-        let stmts = res.output().expect("expected parse output");
+        let (stmts, errors) = parse_source(src);
+        assert!(errors.is_empty(), "parse errors: {:?}", errors);
+        let stmts = stmts.expect("expected parse output");
         if let Stmt::ComponentDef(def, _) = &stmts[0] {
             assert_eq!(def.params[0].param_type, Some(TypeAnnotation::Vec3));
             assert_eq!(
@@ -1100,9 +1191,9 @@ mod tests {
     fn parenthesized_param_value_stays_default_expression() {
         // `(Num, Num)` is a tuple expression default, not a type annotation.
         let src = "component C(x: (Num, Num)) {}\n";
-        let res = parser_simple().parse(src);
-        assert!(!res.has_errors(), "parse errors: {:?}", res.errors().collect::<Vec<_>>());
-        let stmts = res.output().expect("expected parse output");
+        let (stmts, errors) = parse_source(src);
+        assert!(errors.is_empty(), "parse errors: {:?}", errors);
+        let stmts = stmts.expect("expected parse output");
         if let Stmt::ComponentDef(def, _) = &stmts[0] {
             assert_eq!(def.params[0].param_type, None);
             assert_eq!(

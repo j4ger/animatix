@@ -604,17 +604,13 @@ fn scene_body_has_any_label(stmts: &[Stmt], labels: &[String]) -> bool {
 #[cfg(test)]
 mod tests {
     use animatix_syntax::ast::{Stmt, Transition};
-    use animatix_syntax::parser::parser_simple;
+    use animatix_syntax::parser::parse_simple;
     use animatix_syntax::to_source::stmts_to_source;
-    use chumsky::Parser;
 
     use super::super::apply::{SourceEdit, apply_edit};
 
     fn parse(source: &str) -> Vec<Stmt> {
-        parser_simple()
-            .parse(source)
-            .into_result()
-            .expect("failed to parse test source")
+        parse_simple(source).0.expect("failed to parse test source")
     }
 
     #[test]

@@ -678,17 +678,13 @@ fn contains_assignment(body: &[Stmt], actor: &str, property: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use animatix_syntax::ast::{Expr, Stmt, Time};
-    use animatix_syntax::parser::parser_simple;
+    use animatix_syntax::parser::parse_simple;
     use animatix_syntax::walk::time_to_seconds;
-    use chumsky::Parser;
 
     use super::super::apply::{SourceEdit, apply_edit};
 
     fn parse(source: &str) -> Vec<Stmt> {
-        parser_simple()
-            .parse(source)
-            .into_result()
-            .expect("failed to parse test source")
+        parse_simple(source).0.expect("failed to parse test source")
     }
 
     #[test]

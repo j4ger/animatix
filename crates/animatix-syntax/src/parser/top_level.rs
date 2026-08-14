@@ -7,13 +7,10 @@
 use chumsky::prelude::*;
 
 use super::common::{self, ModifiersParser, PropertyParser};
+use super::token_parser::*;
 use crate::ast::*;
 
 /// Build the top-level parser combining all top-level constructs.
-///
-/// Takes the recursive statement parser, property parser, and modifiers parser
-/// as arguments to avoid circular dependencies. Returns a parser that produces
-/// a flat `Vec<Stmt>` which is then grouped into scenes by [`group_scenes`].
 pub(crate) fn parser<'src>(
     stmt: common::StmtParser<'src>,
     property: PropertyParser<'src>,
@@ -23,30 +20,25 @@ pub(crate) fn parser<'src>(
     let dotted_ident = common::dotted_ident();
     let time = common::time();
 
-    // --- Config statement ---
     let config_props = property
         .clone()
-        .separated_by(just(',').padded())
+        .separated_by(comma())
         .allow_trailing()
         .collect::<Vec<_>>()
-        .delimited_by(just('{').padded(), just('}').padded());
+        .delimited_by(lbrace(), rbrace());
 
-    let config_stmt = text::keyword("config")
+    let config_stmt = keyword("config")
         .ignore_then(config_props)
         .map(|settings| Stmt::Config {
             settings,
             span: None,
         })
         .labelled("config")
-        .as_context()
-        .padded();
+        .as_context();
 
-    // --- Scene reference ---
     let scene_ref = dotted_ident.clone().map(|parts: Vec<String>| parts.join("."));
 
-    // `play SceneName [modifier, ...]` — scene-level transition statement
-    let play_stmt = text::keyword("play")
-        .padded()
+    let play_stmt = keyword("play")
         .ignore_then(scene_ref)
         .then(modifiers.clone())
         .map(|(scene_name, mods)| {
@@ -57,12 +49,10 @@ pub(crate) fn parser<'src>(
                 span: None,
             }
         })
-        .labelled("play statement")
-        .padded();
+        .labelled("play statement");
 
-    // `# SceneName` — scene declaration
-    let scene_decl = just('#')
-        .ignore_then(ident.clone().padded())
+    let scene_decl = hash()
+        .ignore_then(ident.clone())
         .map(|name| Stmt::Scene {
             name,
             config: vec![],
@@ -70,12 +60,10 @@ pub(crate) fn parser<'src>(
             span: None,
         })
         .labelled("reactive binding")
-        .as_context()
-        .padded();
+        .as_context();
 
-    // --- Keyframe parser ---
-    let keyframe = just('#')
-        .ignore_then(just('+').or_not())
+    let keyframe = hash()
+        .ignore_then(plus().or_not())
         .then(time)
         .then(stmt.clone().repeated().collect::<Vec<_>>())
         .map(|((is_relative, t), body)| {
@@ -93,14 +81,8 @@ pub(crate) fn parser<'src>(
                 }
             }
         })
-        .labelled("keyframe")
-        .padded();
+        .labelled("keyframe");
 
-    // Top-level: scenes, keyframes, play, config, or standalone statements.
-    // Actions, sequences, and staggers are wrapped in a default #0s keyframe
-    // because they need a timeline context. Actor declarations and other
-    // statements remain top-level so the compiler can distinguish pre-keyframe
-    // actors (hidden by default) from in-keyframe actors (visible by default).
     choice((
         keyframe,
         scene_decl,
@@ -122,16 +104,6 @@ pub(crate) fn parser<'src>(
 }
 
 /// After parsing, group flat statements into scenes.
-///
-/// If any `Stmt::Scene` markers exist in the parsed output:
-///   - Everything before the first scene is the shared prelude.
-///   - Each scene marker starts a new scene; its body accumulates all subsequent statements until
-///     the next scene marker or EOF.
-///   - A `config { ... }` immediately after a scene marker is absorbed as that scene's config.
-///   - `play` statements belong to the current scene's body.
-///
-/// If no scene markers exist, the output is returned unmodified
-/// (single-scene file, backward compatible).
 pub fn group_scenes(flat: Vec<Stmt>) -> Vec<Stmt> {
     let has_scenes = flat.iter().any(|s| matches!(s, Stmt::Scene { .. }));
     if !has_scenes {
@@ -149,7 +121,6 @@ pub fn group_scenes(flat: Vec<Stmt>) -> Vec<Stmt> {
                 body: _,
                 span,
             } => {
-                // Finish previous scene if any
                 if let Some(scene) = current_scene.take() {
                     result.push(scene);
                 }
@@ -167,8 +138,6 @@ pub fn group_scenes(flat: Vec<Stmt>) -> Vec<Stmt> {
                     ..
                 }) = current_scene
                 {
-                    // Absorb config into the scene only if both config and body
-                    // are still empty (config must be the first thing after the scene name).
                     if config.is_empty() && body.is_empty() {
                         if let Stmt::Config { settings, .. } = stmt {
                             *config = settings;
@@ -176,11 +145,9 @@ pub fn group_scenes(flat: Vec<Stmt>) -> Vec<Stmt> {
                         }
                     }
                 }
-                // Otherwise treat as part of the body
                 if let Some(Stmt::Scene { ref mut body, .. }) = current_scene {
                     body.push(stmt);
                 } else {
-                    // Prelude config — keep in result
                     result.push(stmt);
                 }
             },
@@ -188,14 +155,12 @@ pub fn group_scenes(flat: Vec<Stmt>) -> Vec<Stmt> {
                 if let Some(Stmt::Scene { ref mut body, .. }) = current_scene {
                     body.push(other);
                 } else {
-                    // Prelude statements (imports, pub lets, etc.)
                     result.push(other);
                 }
             },
         }
     }
 
-    // Push the last scene
     if let Some(scene) = current_scene {
         result.push(scene);
     }
@@ -204,10 +169,6 @@ pub fn group_scenes(flat: Vec<Stmt>) -> Vec<Stmt> {
 }
 
 /// Convert play statement modifiers into a `Transition` descriptor.
-///
-/// Modifiers format: `[fade, 300ms]` or `[wipe-left, 200ms]`.
-/// The first bare identifier (not a time) is the transition type.
-/// The first time literal is the duration.
 pub(crate) fn parse_transition_from_modifiers(
     modifiers: &[Modifier],
 ) -> Option<crate::ast::Transition> {

@@ -77,12 +77,12 @@ fn roundtrip_all_example_files() {
         let serialized = animatix_syntax::to_source::stmts_to_source(&parsed);
 
         // Phase 3: re-parse the serialized output
-        let (reparsed_opt, reparse_errors) =
-            animatix_syntax::parser::parser_simple().parse(&serialized).into_output_errors();
+        let (reparsed_opt, reparse_errors) = animatix_syntax::parser::parse_source(&serialized);
         let reparsed: Vec<Stmt> = match reparsed_opt {
             Some(stmts) if reparse_errors.is_empty() => stmts,
             _ => {
-                let msg: Vec<String> = reparse_errors.iter().map(|e| format!("  {}", e)).collect();
+                let msg: Vec<String> =
+                    reparse_errors.iter().map(|e| format!("  {}", e.message)).collect();
                 failures.push(format!(
                     "{}: re-parse failed after serialization ({} error(s)):\n{}",
                     file_path.display(),

@@ -59,6 +59,8 @@ pub enum TokenKind {
     Str(String),
     /// A `//` line comment (without the leading `//`).
     Comment(String),
+    /// A `$$ ... $$` Typst shorthand body (without the delimiters).
+    Typst(String),
     /// A boolean literal.
     Bool(bool),
     /// The `null` literal.
@@ -129,12 +131,8 @@ pub enum TokenKind {
     At,
     /// `@slot`
     AtSlot,
-    /// `$$`
-    DollarDollar,
     /// `_`
     Underscore,
-    /// End of input.
-    Eof,
 }
 
 /// A token with its byte range in the source.
@@ -144,6 +142,56 @@ pub struct Token {
     pub kind: TokenKind,
     /// Byte range of this token in the source.
     pub span: ByteSpan,
+}
+
+impl std::fmt::Display for TokenKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TokenKind::Keyword(s) | TokenKind::Ident(s) => write!(f, "{s}"),
+            TokenKind::Number(n) => write!(f, "{n}"),
+            TokenKind::Time { value, ms } => write!(f, "{value}{}", if *ms { "ms" } else { "s" }),
+            TokenKind::Percent(n) => write!(f, "{n}%"),
+            TokenKind::Str(s) => write!(f, "\"{s}\""),
+            TokenKind::Comment(_) => write!(f, "comment"),
+            TokenKind::Typst(s) => write!(f, "$$ {s} $$"),
+            TokenKind::Bool(b) => write!(f, "{b}"),
+            TokenKind::Null => write!(f, "null"),
+            TokenKind::Plus => write!(f, "+"),
+            TokenKind::Minus => write!(f, "-"),
+            TokenKind::Star => write!(f, "*"),
+            TokenKind::Slash => write!(f, "/"),
+            TokenKind::PercentOp => write!(f, "%"),
+            TokenKind::Caret => write!(f, "^"),
+            TokenKind::Eq => write!(f, "=="),
+            TokenKind::Neq => write!(f, "!="),
+            TokenKind::Lt => write!(f, "<"),
+            TokenKind::Gt => write!(f, ">"),
+            TokenKind::Le => write!(f, "<="),
+            TokenKind::Ge => write!(f, ">="),
+            TokenKind::And => write!(f, "&&"),
+            TokenKind::Or => write!(f, "||"),
+            TokenKind::Not => write!(f, "!"),
+            TokenKind::Assign => write!(f, "="),
+            TokenKind::ReactiveAssign => write!(f, ":="),
+            TokenKind::Arrow => write!(f, "=>"),
+            TokenKind::RangeInclusive => write!(f, "..="),
+            TokenKind::Pipe => write!(f, "|"),
+            TokenKind::ColonColon => write!(f, "::"),
+            TokenKind::LParen => write!(f, "("),
+            TokenKind::RParen => write!(f, ")"),
+            TokenKind::LBracket => write!(f, "["),
+            TokenKind::RBracket => write!(f, "]"),
+            TokenKind::LBrace => write!(f, "{{"),
+            TokenKind::RBrace => write!(f, "}}"),
+            TokenKind::Colon => write!(f, ":"),
+            TokenKind::Comma => write!(f, ","),
+            TokenKind::Dot => write!(f, "."),
+            TokenKind::Hash => write!(f, "#"),
+            TokenKind::At => write!(f, "@"),
+            TokenKind::AtSlot => write!(f, "@slot"),
+            TokenKind::Underscore => write!(f, "_"),
+        }
+    }
 }
 
 impl chumsky::span::Span for ByteSpan {
@@ -411,15 +459,16 @@ impl<'a> Lexer<'a> {
                 TokenKind::AtSlot
             },
             b'@' => self.advance(TokenKind::At),
-            b'$' if self.peek_n(1) == b'$' => {
-                self.pos += 2;
-                TokenKind::DollarDollar
-            },
+            b'$' if self.peek_n(1) == b'$' => self.lex_typst(),
             b'_' => self.advance(TokenKind::Underscore),
             _ => {
-                // Unknown byte: recover by consuming one byte as an identifier.
+                // Unknown byte: recover by consuming one full UTF-8 character.
                 let start = self.pos;
-                self.pos += 1;
+                if let Some(c) = self.peek_char() {
+                    self.pos += c.len_utf8();
+                } else {
+                    self.pos += 1;
+                }
                 TokenKind::Ident(self.src[start..self.pos].to_string())
             },
         }
@@ -428,6 +477,24 @@ impl<'a> Lexer<'a> {
     fn advance(&mut self, kind: TokenKind) -> TokenKind {
         self.pos += 1;
         kind
+    }
+
+    /// Lex a `$$ ... $$` Typst shorthand body as a single token.
+    ///
+    /// The returned token carries the trimmed content without the delimiters.
+    /// An unterminated `$$` consumes to end of input, matching the parser's
+    /// previous raw-text recovery.
+    fn lex_typst(&mut self) -> TokenKind {
+        self.pos += 2; // opening `$$`
+        let content_start = self.pos;
+        while self.pos + 1 < self.bytes.len() && !(self.peek() == b'$' && self.peek_n(1) == b'$') {
+            self.pos += 1;
+        }
+        let content = self.src[content_start..self.pos].trim().to_string();
+        if self.pos + 1 < self.bytes.len() {
+            self.pos += 2; // closing `$$`
+        }
+        TokenKind::Typst(content)
     }
 
     fn push(&mut self, kind: TokenKind, start: usize, end: usize) {
@@ -520,7 +587,7 @@ mod tests {
 
     #[test]
     fn tokenizes_operators_and_punct() {
-        let tokens = tokenize(":= => == != <= >= && || ..= :: @ @slot $$ _");
+        let tokens = tokenize(":= => == != <= >= && || ..= :: @ @slot _");
         let kinds: Vec<TokenKind> = tokens.into_iter().map(|t| t.kind).collect();
         assert_eq!(
             kinds,
@@ -537,10 +604,21 @@ mod tests {
                 TokenKind::ColonColon,
                 TokenKind::At,
                 TokenKind::AtSlot,
-                TokenKind::DollarDollar,
                 TokenKind::Underscore,
             ]
         );
+    }
+
+    #[test]
+    fn tokenizes_typst_shorthand() {
+        let tokens = tokenize("$$ x^2 + y^2 $$");
+        assert_eq!(tokens[0].kind, TokenKind::Typst("x^2 + y^2".to_string()));
+    }
+
+    #[test]
+    fn tokenizes_multibyte_without_panicking() {
+        let tokens = tokenize("box: Rect, size你: (100, 100)");
+        assert!(tokens.iter().any(|t| matches!(&t.kind, TokenKind::Ident(s) if s == "你")));
     }
 
     #[test]

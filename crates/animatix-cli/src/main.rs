@@ -805,14 +805,10 @@ fn format_file(
     formatter: &animatix_syntax::formatter::Formatter,
     check: bool,
 ) -> Result<(), String> {
-    use animatix_syntax::chumsky::Parser;
-
     let source = std::fs::read_to_string(path).map_err(|e| format!("Failed to read: {}", e))?;
 
-    let stmts = animatix_syntax::parser::parser_simple()
-        .parse(&source)
-        .into_result()
-        .map_err(|e| format!("Parse error: {:?}", e))?;
+    let (stmts, errors) = animatix_syntax::parser::parse_simple(&source);
+    let stmts = stmts.ok_or_else(|| format!("Parse error: {:?}", errors))?;
 
     let formatted = formatter.format(&stmts);
 

@@ -559,8 +559,6 @@ fn expr_summary(expr: &Expr) -> String {
 mod tests {
     use std::collections::HashMap;
 
-    use chumsky::Parser;
-
     use super::*;
     use crate::ast::{ComponentDef, ParamDef, Property, Stmt, TypeAnnotation};
     use crate::module::{ActionTemplate, ComponentEntry};
@@ -872,7 +870,7 @@ mod tests {
     #[test]
     fn example_component_actions_demo_parses_and_typechecks() {
         let source = include_str!("../../../examples/components/09_components.amx");
-        let (ast, errors) = crate::parser::parser_simple().parse(source).into_output_errors();
+        let (ast, errors) = crate::parser::parse_source(source);
         assert!(errors.is_empty(), "Parse errors: {:?}", errors);
         let ast = ast.expect("parsed AST");
 

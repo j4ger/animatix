@@ -1,32 +1,5 @@
 //!
 //! Statement parsers for the Animatix DSL.
-//!
-//! This module provides the [`parser()`] function which builds the recursive
-//! statement parser used by [`super::parser()`]. The function takes shared
-//! sub-parsers (`expr`, `property`, `modifiers`, `inline_items`) as arguments
-//! and returns a boxed parser for a single [`Stmt`].
-//!
-//! The statement parsers extracted here are:
-//!
-//! * `let_decl` — `let name = expr` / `pub let name = expr`
-//! * `import_stmt` — `import "path" as alias`
-//! * `assignment` — `target.prop = expr [modifiers]`
-//! * `reactive_binding` — `actor.prop := expr`
-//! * `svg_stmt` — `label: Svg { ... }`
-//! * `image_stmt` — `label: Image { ... }`
-//! * `typst_shorthand` — `label: $$ content $$ [modifiers]`
-//! * `text_shorthand` — `label: "string" [modifiers]`
-//! * `actor_decl` — `label: Type, props [modifiers] { children }`
-//! * `action` — `verb target [args] [modifiers]`
-//! * `always_stmt` — `always { ... }`
-//! * `conditional_stmt` — `if expr { ... } else { ... }`
-//! * `for_stmt` — `for var in expr { ... }`
-//! * `sequence_stmt` — `sequence { ... }`
-//! * `stagger_stmt` — `stagger [modifiers] { ... }`
-//! * `component_action_stmt` — `action name(params) { ... }`
-//! * `component_def` — `pub component name(params) { ... }`
-//! * `comment` — `// ...`
-//! * `block_comment_reject` — rejects `/* */` with a clear diagnostic
 
 use chumsky::input::MapExtra;
 use chumsky::prelude::*;
@@ -34,70 +7,66 @@ use chumsky::prelude::*;
 use super::common::{
     self, ExprParser, InlineItemsParser, ModifiersParser, ParserExtra, PropertyParser, StrInput,
 };
+use super::token_parser::*;
 use crate::ast::*;
 
 /// Build the recursive statement parser.
-///
-/// All shared sub-parsers are passed as arguments so that this module has no
-/// dependency on the outer [`super::parser()`] function's local variables.
 pub(crate) fn parser<'src>(
     expr: ExprParser<'src>,
     property: PropertyParser<'src>,
     modifiers: ModifiersParser<'src>,
     inline_items: InlineItemsParser<'src>,
 ) -> Boxed<'src, 'src, StrInput<'src>, Stmt, ParserExtra<'src>> {
+    fn type_keyword<'src>(
+        name: &'static str,
+    ) -> impl Parser<'src, StrInput<'src>, (), ParserExtra<'src>> + Clone {
+        common::ident().filter(move |s: &String| s == name).to(())
+    }
+
     recursive(|_stmt| {
         let ident = common::ident();
         let label_expr = common::label_expr(expr.clone());
 
-        // Property block: { prop1, prop2, ... }
         let block_props = property
             .clone()
-            .separated_by(just(',').padded())
+            .separated_by(comma())
             .allow_trailing()
             .collect::<Vec<_>>()
-            .delimited_by(just('{').padded(), just('}').padded());
+            .delimited_by(lbrace(), rbrace());
 
-        // Always body: { stmt1; stmt2; ... }
-        let always_body = _stmt
-            .clone()
-            .repeated()
-            .collect::<Vec<_>>()
-            .delimited_by(just('{').padded(), just('}').padded());
+        let always_body = _stmt.clone().repeated().collect::<Vec<_>>().delimited_by(lbrace(), rbrace());
 
-        // For loop body
-        let for_loop_body = _stmt
-            .clone()
-            .repeated()
-            .collect::<Vec<_>>()
-            .delimited_by(just('{').padded(), just('}').padded());
+        let for_loop_body = _stmt.clone().repeated().collect::<Vec<_>>().delimited_by(lbrace(), rbrace());
 
-        // Type annotation: Num | Str | Bool | Vec2/3/4 | Color | Actor | Scene | List<Type> |
-        // (T, U) | (T, U) => R | Any | aliases
         let type_annotation = recursive(|type_annotation| {
             let simple = choice((
-                text::keyword("Num").to(TypeAnnotation::Num),
-                text::keyword("Str").to(TypeAnnotation::Str),
-                text::keyword("Bool").to(TypeAnnotation::Bool),
-                text::keyword("Vec2").to(TypeAnnotation::Vec2),
-                text::keyword("Vec3").to(TypeAnnotation::Vec3),
-                text::keyword("Vec4").to(TypeAnnotation::Vec4),
-                text::keyword("Color").to(TypeAnnotation::Color),
-                text::keyword("Actor").to(TypeAnnotation::Actor),
-                text::keyword("Scene").to(TypeAnnotation::Scene),
-                text::keyword("Any").to(TypeAnnotation::Any),
+                type_keyword("Num").to(TypeAnnotation::Num),
+                type_keyword("Str").to(TypeAnnotation::Str),
+                type_keyword("Bool").to(TypeAnnotation::Bool),
+                type_keyword("Vec2").to(TypeAnnotation::Vec2),
+                type_keyword("Vec3").to(TypeAnnotation::Vec3),
+                type_keyword("Vec4").to(TypeAnnotation::Vec4),
+                type_keyword("Color").to(TypeAnnotation::Color),
+                type_keyword("Actor").to(TypeAnnotation::Actor),
+                type_keyword("Scene").to(TypeAnnotation::Scene),
+                type_keyword("Any").to(TypeAnnotation::Any),
             ));
-            let list = text::keyword("List")
-                .ignore_then(just('<').padded())
+            let list = type_keyword("List")
+                .ignore_then(lt())
                 .ignore_then(type_annotation.clone())
-                .then_ignore(just('>').padded())
+                .then_ignore(gt())
                 .map(|inner| TypeAnnotation::List(Box::new(inner)));
             let alias_middle = common::ident().filter(|s: &String| {
                 s.chars().next().is_some_and(|c| c.is_lowercase() || c == '_')
             });
             let canonical_alias = common::ident()
-                .then(just("::").padded().ignore_then(alias_middle.clone()).repeated().collect::<Vec<_>>())
-                .then_ignore(just("::").padded())
+                .then(
+                    colon_colon()
+                        .ignore_then(alias_middle.clone())
+                        .repeated()
+                        .collect::<Vec<_>>(),
+                )
+                .then_ignore(colon_colon())
                 .then(common::type_ident())
                 .map(|((first, middle), last)| {
                     let mut parts = vec![first];
@@ -106,14 +75,8 @@ pub(crate) fn parser<'src>(
                     TypeAnnotation::Alias(parts.join("::"))
                 });
             let legacy_alias = common::ident()
-                .then(
-                    just('.')
-                        .padded()
-                        .ignore_then(alias_middle)
-                        .repeated()
-                        .collect::<Vec<_>>(),
-                )
-                .then_ignore(just('.').padded())
+                .then(dot().ignore_then(alias_middle).repeated().collect::<Vec<_>>())
+                .then_ignore(dot())
                 .then(common::type_ident())
                 .map(|((first, middle), last)| {
                     let mut parts = vec![first];
@@ -121,33 +84,32 @@ pub(crate) fn parser<'src>(
                     parts.push(last);
                     TypeAnnotation::Alias(parts.join("::"))
                 });
-            let tuple = text::keyword("Tuple")
-                .ignore_then(just('<').padded())
+            let tuple = type_keyword("Tuple")
+                .ignore_then(lt())
                 .ignore_then(
                     type_annotation
                         .clone()
-                        .separated_by(just(',').padded())
+                        .separated_by(comma())
                         .allow_trailing()
                         .collect::<Vec<_>>()
                         .or_not()
                         .map(|items| items.unwrap_or_default()),
                 )
-                .then_ignore(just('>').padded())
+                .then_ignore(gt())
                 .map(TypeAnnotation::Tuple)
                 .boxed();
-            let function = text::keyword("Fn")
-                .padded()
+            let function = type_keyword("Fn")
                 .ignore_then(
                     type_annotation
                         .clone()
-                        .separated_by(just(',').padded())
+                        .separated_by(comma())
                         .allow_trailing()
                         .collect::<Vec<_>>()
                         .or_not()
                         .map(|items| items.unwrap_or_default())
-                        .delimited_by(just('(').padded(), just(')').padded()),
+                        .delimited_by(lparen(), rparen()),
                 )
-                .then_ignore(just("=>").padded())
+                .then_ignore(arrow())
                 .then(type_annotation.clone())
                 .map(|(params, ret)| TypeAnnotation::Function {
                     params,
@@ -163,13 +125,7 @@ pub(crate) fn parser<'src>(
                 .or(legacy_alias);
             let union = atom
                 .clone()
-                .then(
-                    just('|')
-                        .padded()
-                        .ignore_then(atom.clone())
-                        .repeated()
-                        .collect::<Vec<_>>(),
-                )
+                .then(pipe().ignore_then(atom.clone()).repeated().collect::<Vec<_>>())
                 .map(|(first, rest)| {
                     if rest.is_empty() {
                         first
@@ -184,14 +140,12 @@ pub(crate) fn parser<'src>(
 
         let param_def = ident
             .clone()
-            .then_ignore(just(':').padded())
+            .then_ignore(colon())
             .then(
-                // Try type annotation + optional default first
                 type_annotation
                     .clone()
-                    .then(just('=').padded().ignore_then(expr.clone()).or_not())
+                    .then(assign().ignore_then(expr.clone()).or_not())
                     .map(|(ty, default)| (Some(ty), default))
-                    // Fall back to expression as default (backward compat)
                     .or(expr.clone().map(|e| (None, Some(e)))),
             )
             .map(|(name, (param_type, default))| ParamDef {
@@ -200,14 +154,9 @@ pub(crate) fn parser<'src>(
                 default,
             });
 
-        let let_decl = text::keyword("pub")
-            .padded()
+        let let_decl = keyword("pub")
             .or_not()
-            .then(text::keyword("let")
-                .padded()
-                .ignore_then(ident.clone())
-                .then_ignore(just('=').padded())
-                .then(expr.clone()))
+            .then(keyword("let").ignore_then(ident.clone()).then_ignore(assign()).then(expr.clone()))
             .map(|(pub_kw, (name, value))| Stmt::LetDecl {
                 is_pub: pub_kw.is_some(),
                 name,
@@ -215,19 +164,11 @@ pub(crate) fn parser<'src>(
                 span: None,
             })
             .labelled("let declaration")
-            .as_context()
-            .padded();
+            .as_context();
 
-        let type_alias = text::keyword("pub")
-            .padded()
+        let type_alias = keyword("pub")
             .or_not()
-            .then(
-                text::keyword("type")
-                    .padded()
-                    .ignore_then(ident.clone())
-                    .then_ignore(just('=').padded())
-                    .then(type_annotation.clone()),
-            )
+            .then(keyword("type").ignore_then(ident.clone()).then_ignore(assign()).then(type_annotation.clone()))
             .map(|(is_pub, (name, annotation))| Stmt::TypeAlias {
                 is_pub: is_pub.is_some(),
                 name,
@@ -235,38 +176,26 @@ pub(crate) fn parser<'src>(
                 span: None,
             })
             .labelled("type alias")
-            .as_context()
-            .padded();
+            .as_context();
 
-        let import_stmt = text::keyword("import")
-            .padded()
-            .ignore_then(
-                just('"')
-                    .ignore_then(none_of('"').repeated().collect::<String>())
-                    .then_ignore(just('"')),
-            )
-            .then(
-                text::keyword("as")
-                    .padded()
-                    .ignore_then(ident.clone())
-                    .or_not(),
-            )
+        let import_stmt = keyword("import")
+            .ignore_then(string())
+            .then(keyword("as").ignore_then(ident.clone()).or_not())
             .map(|(path, alias)| Stmt::Import { path, alias, span: None })
             .labelled("import")
-            .as_context()
-            .padded();
+            .as_context();
 
         let indexed_dotted_ident = common::indexed_dotted_ident();
-        // For assignments/reactive-bindings we need full expr parsing in brackets.
         let indexed_dotted_ident_with_expr = common::indexed_dotted_ident_with_expr(expr.clone());
 
         let assignment = indexed_dotted_ident_with_expr
             .clone()
-            .then_ignore(just('=').padded())
-            .then(expr.clone().map_with(|value, extra: &mut MapExtra<'src, '_, &'src str, extra::Err<Rich<'src, char>>>| {
-                let span = extra.span();
-                (value, ByteSpan { start: span.start, end: span.end })
-            }))
+            .then_ignore(assign())
+            .then(expr.clone().map_with(
+                |value, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+                    (value, extra.span())
+                },
+            ))
             .then(modifiers.clone())
             .try_map(|((path, (value, value_span)), mut modifiers), span| {
                 if path.is_empty() {
@@ -275,13 +204,11 @@ pub(crate) fn parser<'src>(
                         "assignment target must be a property name or actor.property path",
                     ))
                 } else if path.len() == 1 {
-                    // Single-segment assignment: e.g. `at = expr` inside an always block
                     let property = match &path[0] {
                         TargetSegment::Static(s) => s.clone(),
-                        TargetSegment::Indexed { .. } => return Err(Rich::custom(
-                            span,
-                            "indexed target cannot be a property name",
-                        )),
+                        TargetSegment::Indexed { .. } => {
+                            return Err(Rich::custom(span, "indexed target cannot be a property name"));
+                        },
                     };
                     let easing = common::extract_easing(&mut modifiers);
                     Ok(Stmt::Assignment {
@@ -296,14 +223,18 @@ pub(crate) fn parser<'src>(
                 } else {
                     let property = match path.last() {
                         Some(TargetSegment::Static(s)) => s.clone(),
-                        Some(TargetSegment::Indexed { .. }) => return Err(Rich::custom(
-                            span,
-                            "array index cannot appear on the property segment (e.g. use bars[i].color, not a.b[i])",
-                        )),
-                        None => return Err(Rich::custom(
-                            span,
-                            "assignment target must include a property name",
-                        )),
+                        Some(TargetSegment::Indexed { .. }) => {
+                            return Err(Rich::custom(
+                                span,
+                                "array index cannot appear on the property segment (e.g. use bars[i].color, not a.b[i])",
+                            ));
+                        },
+                        None => {
+                            return Err(Rich::custom(
+                                span,
+                                "assignment target must include a property name",
+                            ));
+                        },
                     };
                     let target = path[..path.len() - 1].to_vec();
                     let easing = common::extract_easing(&mut modifiers);
@@ -319,17 +250,16 @@ pub(crate) fn parser<'src>(
                 }
             })
             .labelled("assignment")
-            .as_context()
-            .padded();
+            .as_context();
 
-        // Reactive binding: actor.prop := expr
         let reactive_binding = indexed_dotted_ident_with_expr
             .clone()
-            .then_ignore(just(":=").padded())
-            .then(expr.clone().map_with(|value, extra: &mut MapExtra<'src, '_, &'src str, extra::Err<Rich<'src, char>>>| {
-                let span = extra.span();
-                (value, ByteSpan { start: span.start, end: span.end })
-            }))
+            .then_ignore(reactive_assign())
+            .then(expr.clone().map_with(
+                |value, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+                    (value, extra.span())
+                },
+            ))
             .try_map(|(path, (value, value_span)), span| {
                 if path.len() < 2 {
                     Err(Rich::custom(
@@ -339,14 +269,18 @@ pub(crate) fn parser<'src>(
                 } else {
                     let property = match path.last() {
                         Some(TargetSegment::Static(s)) => s.clone(),
-                        Some(TargetSegment::Indexed { .. }) => return Err(Rich::custom(
-                            span,
-                            "array index cannot appear on the property segment (e.g. use bars[i].color, not a.b[i])",
-                        )),
-                        None => return Err(Rich::custom(
-                            span,
-                            "reactive binding target must include a property name",
-                        )),
+                        Some(TargetSegment::Indexed { .. }) => {
+                            return Err(Rich::custom(
+                                span,
+                                "array index cannot appear on the property segment (e.g. use bars[i].color, not a.b[i])",
+                            ));
+                        },
+                        None => {
+                            return Err(Rich::custom(
+                                span,
+                                "reactive binding target must include a property name",
+                            ));
+                        },
                     };
                     let target = path[..path.len() - 1].to_vec();
                     Ok(Stmt::ReactiveBinding {
@@ -358,14 +292,13 @@ pub(crate) fn parser<'src>(
                     })
                 }
             })
-            .labelled("reactive binding")
-            .padded();
+            .labelled("reactive binding");
 
         let svg_stmt = ident
             .clone()
-            .then_ignore(just(':').padded())
+            .then_ignore(colon())
             .or_not()
-            .then_ignore(text::keyword("Svg"))
+            .then_ignore(type_keyword("Svg"))
             .then(block_props.clone())
             .map(|(label, props)| Stmt::ActorDecl {
                 is_pub: false,
@@ -377,14 +310,13 @@ pub(crate) fn parser<'src>(
                 modifiers: vec![],
                 children: vec![],
                 span: None,
-            })
-            .padded();
+            });
 
         let image_stmt = ident
             .clone()
-            .then_ignore(just(':').padded())
+            .then_ignore(colon())
             .or_not()
-            .then_ignore(text::keyword("Image"))
+            .then_ignore(type_keyword("Image"))
             .then(block_props.clone())
             .map(|(label, props)| Stmt::ActorDecl {
                 is_pub: false,
@@ -396,14 +328,13 @@ pub(crate) fn parser<'src>(
                 modifiers: vec![],
                 children: vec![],
                 span: None,
-            })
-            .padded();
+            });
 
         let callout_stmt = ident
             .clone()
-            .then_ignore(just(':').padded())
+            .then_ignore(colon())
             .or_not()
-            .then_ignore(text::keyword("Callout"))
+            .then_ignore(type_keyword("Callout"))
             .then(block_props.clone())
             .map(|(label, props)| Stmt::ActorDecl {
                 is_pub: false,
@@ -415,22 +346,12 @@ pub(crate) fn parser<'src>(
                 modifiers: vec![],
                 children: vec![],
                 span: None,
-            })
-            .padded();
+            });
 
-        // Shorthand: label: $$ content $$ → label: Typst, content: content
         let typst_shorthand = ident
             .clone()
-            .then_ignore(just(':').padded())
-            .then_ignore(just("$$"))
-            .then(
-                just("$$").not()
-                    .ignore_then(any())
-                    .repeated()
-                    .collect::<String>()
-                    .map(|s: String| s.trim().to_string()),
-            )
-            .then_ignore(just("$$"))
+            .then_ignore(colon())
+            .then(typst())
             .then(modifiers.clone())
             .map(|((label, content), modifiers)| Stmt::ActorDecl {
                 is_pub: false,
@@ -447,13 +368,11 @@ pub(crate) fn parser<'src>(
                 modifiers,
                 children: vec![],
                 span: None,
-            })
-            .padded();
+            });
 
-        // Shorthand: label: "string" → label: Text, text: "string"
         let text_shorthand = ident
             .clone()
-            .then_ignore(just(':').padded())
+            .then_ignore(colon())
             .then(common::string_literal())
             .then(modifiers.clone())
             .map(|((label, text), modifiers)| Stmt::ActorDecl {
@@ -471,25 +390,17 @@ pub(crate) fn parser<'src>(
                 modifiers,
                 children: vec![],
                 span: None,
-            })
-            .padded();
+            });
 
-        let actor_decl = text::keyword("pub")
-            .padded()
+        let actor_decl = keyword("pub")
             .or_not()
             .map(|p| p.is_some())
             .then(label_expr.clone())
-            .then_ignore(just(':').padded())
+            .then_ignore(colon())
             .then(ident.clone())
             .then(
-                just(',')
-                    .padded()
-                    .ignore_then(
-                        property
-                            .clone()
-                            .separated_by(just(',').padded())
-                            .collect::<Vec<_>>(),
-                    )
+                comma()
+                    .ignore_then(property.clone().separated_by(comma()).collect::<Vec<_>>())
                     .or_not()
                     .map(|p: Option<Vec<Property>>| p.unwrap_or_default()),
             )
@@ -497,243 +408,166 @@ pub(crate) fn parser<'src>(
             .then(
                 inline_items
                     .clone()
-                    .delimited_by(just('{').padded(), just('}').padded())
+                    .delimited_by(lbrace(), rbrace())
                     .or_not()
                     .map(|c| c.unwrap_or_default()),
             )
             .map(
-                |(((((is_pub, (label, array_index)), ty), props), modifiers), children)| Stmt::ActorDecl {
-                    is_pub,
-                    is_anonymous: false,
-                    label,
-                    array_index,
-                    ty,
-                    props,
-                    modifiers,
-                    children,
-                    span: None,
+                |(((((is_pub, (label, array_index)), ty), props), modifiers), children)| {
+                    Stmt::ActorDecl {
+                        is_pub,
+                        is_anonymous: false,
+                        label,
+                        array_index,
+                        ty,
+                        props,
+                        modifiers,
+                        children,
+                        span: None,
+                    }
                 },
             )
             .labelled("actor declaration")
-            .as_context()
-            .padded();
+            .as_context();
 
-        // Action target: dotted path where segments may carry integer array indices.
-        // `dots[0].at` is resolved to `dots__0.at` by the indexed parser, matching
-        // the `__` scheme used by `resolve_array_index` in timeline/build/process.rs.
-        let action_target = indexed_dotted_ident
-            .clone()
-            .map(|segments| {
-                target_segments_static_key(&segments)
-            });
+        let action_target = indexed_dotted_ident.clone().map(|segments| target_segments_static_key(&segments));
 
         let action = ident
             .clone()
             .then(
-                // Comma-separated targets: `pulse btn, icon [200ms]`
                 action_target
                     .clone()
-                    .then(
-                        just(',').padded().ignore_then(action_target.clone()).repeated().at_least(1).collect::<Vec<_>>()
-                    )
+                    .then(comma().ignore_then(action_target.clone()).repeated().at_least(1).collect::<Vec<_>>())
                     .map(|(first, rest)| {
                         let mut targets = vec![first];
                         targets.extend(rest);
                         targets
                     })
-                    .or(
-                        // Space-separated targets (backward compat): `swap bar1 bar2 [500ms]`
-                        action_target.clone().repeated().at_least(1).collect::<Vec<_>>()
-                    )
+                    .or(action_target.clone().repeated().at_least(1).collect::<Vec<_>>())
                     .or_not()
-                    .map(|opt| opt.unwrap_or_default())
-            ) // targets
-            .then(expr.clone().repeated().collect::<Vec<_>>()) // args
+                    .map(|opt| opt.unwrap_or_default()),
+            )
+            .then(expr.clone().repeated().collect::<Vec<_>>())
             .then(modifiers.clone())
-            .map_with(|(((verb, targets), args), modifiers), extra: &mut MapExtra<'src, '_, &'src str, extra::Err<Rich<'src, char>>>| {
-                let span = extra.span();
-                Stmt::Action(Action {
-                    verb,
-                    targets,
-                    args,
-                    modifiers,
-                    byte_span: Some(ByteSpan { start: span.start, end: span.end }),
-                }, None)
-            })
-            .padded();
+            .map_with(
+                |(((verb, targets), args), modifiers),
+                 extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+                    Stmt::Action(
+                        Action {
+                            verb,
+                            targets,
+                            args,
+                            modifiers,
+                            byte_span: Some(extra.span()),
+                        },
+                        None,
+                    )
+                },
+            );
 
-        let sequence_stmt = text::keyword("sequence")
-            .ignore_then(
-                _stmt
-                    .clone()
-                    .repeated()
-                    .collect::<Vec<_>>()
-                    .delimited_by(just('{').padded(), just('}').padded()),
-            )
-            .map(|body| Stmt::Sequence { body, span: None })
-            .padded();
+        let sequence_stmt = keyword("sequence")
+            .ignore_then(_stmt.clone().repeated().collect::<Vec<_>>().delimited_by(lbrace(), rbrace()))
+            .map(|body| Stmt::Sequence { body, span: None });
 
-        let stagger_stmt = text::keyword("stagger")
+        let stagger_stmt = keyword("stagger")
             .ignore_then(modifiers.clone())
-            .then(
-                _stmt
-                    .clone()
-                    .repeated()
-                    .collect::<Vec<_>>()
-                    .delimited_by(just('{').padded(), just('}').padded()),
-            )
-            .map(|(modifiers, body)| Stmt::Stagger { modifiers, body, span: None })
-            .padded();
+            .then(_stmt.clone().repeated().collect::<Vec<_>>().delimited_by(lbrace(), rbrace()))
+            .map(|(modifiers, body)| Stmt::Stagger { modifiers, body, span: None });
 
-        let comment = just("//")
-            .ignore_then(none_of("\r\n").repeated().to_slice().map(String::from))
-            .map(|text| Stmt::Comment(text, None))
-            .padded();
-
-        // Always statement: always { }
-        let always_stmt = text::keyword("always")
+        let always_stmt = keyword("always")
             .ignore_then(always_body.clone())
             .map(|body| Stmt::Always { body, span: None })
             .labelled("always block")
-            .as_context()
-            .padded();
+            .as_context();
 
-        // Conditional: if expr { }
-        let conditional_stmt = text::keyword("if")
+        let conditional_stmt = keyword("if")
             .ignore_then(expr.clone())
             .then(always_body.clone())
-            .then(
-                text::keyword("else")
-                    .ignore_then(always_body.clone())
-                    .or_not(),
-            )
-            .map(
-                |((condition, then_branch), else_branch)| Stmt::Conditional {
-                    condition,
-                    then_branch,
-                    else_branch,
-                    span: None,
-                },
-            )
+            .then(keyword("else").ignore_then(always_body.clone()).or_not())
+            .map(|((condition, then_branch), else_branch)| Stmt::Conditional {
+                condition,
+                then_branch,
+                else_branch,
+                span: None,
+            })
             .labelled("if statement")
-            .as_context()
-            .padded();
+            .as_context();
 
-        // Match statement: match <expr> { <pat> => { <stmts> }, ..., _ => {} }
-        // The match pattern parser reuses the same logic as the expression form.
-        // We inline a simplified pattern parser here since `match_pat` references
-        // itself recursively and needs to be inside the recursive block.
         let match_pat = recursive(|match_pat| {
-            let wildcard = just('_').to(MatchPattern::Wildcard).padded();
-
-            let num_pat = text::int(10)
-                .then(just('.').ignore_then(text::digits(10)).or_not())
-                .to_slice()
-                .from_str()
-                .unwrapped()
-                .map(MatchPattern::Num)
-                .padded();
-
-            let str_pat = super::common::string_literal()
-                .map(|e| match e {
-                    Expr::Str(s) => MatchPattern::Str(s),
-                    _ => unreachable!(),
-                })
-                .padded();
-
-            let bool_pat = text::keyword("true")
-                .to(MatchPattern::Bool(true))
-                .or(text::keyword("false").to(MatchPattern::Bool(false)))
-                .padded();
-
+            let wildcard = underscore().to(MatchPattern::Wildcard);
+            let num_pat = number().map(MatchPattern::Num);
+            let str_pat = super::common::string_literal().map(|e| match e {
+                Expr::Str(s) => MatchPattern::Str(s),
+                _ => unreachable!(),
+            });
+            let bool_pat = bool_lit().map(MatchPattern::Bool);
             let literal_pat = choice((num_pat, str_pat, bool_pat)).boxed();
-
             let range_pat = literal_pat
                 .clone()
-                .then_ignore(just("..=").padded())
+                .then_ignore(range_inclusive())
                 .then(literal_pat.clone())
                 .map(|(lo, hi)| MatchPattern::Range(Box::new(lo), Box::new(hi)))
                 .boxed();
-
             let tuple_pat = match_pat
                 .clone()
-                .separated_by(just(',').padded())
+                .separated_by(comma())
                 .allow_trailing()
                 .collect::<Vec<_>>()
-                .delimited_by(just('(').padded(), just(')').padded())
+                .delimited_by(lparen(), rparen())
                 .map(MatchPattern::Tuple)
                 .boxed();
-
             let atom = choice((wildcard.clone(), range_pat, tuple_pat, literal_pat)).boxed();
-
             atom.clone()
-                .foldl(
-                    just('|').padded().ignore_then(atom.clone()).repeated(),
-                    |left, right| match left {
-                        MatchPattern::Or(mut items) => {
-                            items.push(right);
-                            MatchPattern::Or(items)
-                        }
-                        other => MatchPattern::Or(vec![other, right]),
+                .foldl(pipe().ignore_then(atom.clone()).repeated(), |left, right| match left {
+                    MatchPattern::Or(mut items) => {
+                        items.push(right);
+                        MatchPattern::Or(items)
                     },
-                )
+                    other => MatchPattern::Or(vec![other, right]),
+                })
                 .boxed()
         });
 
-        let match_stmt = text::keyword("match")
-            .ignore_then(expr.clone().padded())
-            .then(
-                {
-                    let match_arm = match_pat
-                        .clone()
-                        .then_ignore(just("=>").padded())
-                        .then(always_body.clone());
-                    match_arm
-                        .clone()
-                        .then(just(',').padded().or_not())
-                        .repeated()
-                        .at_least(1)
-                        .collect::<Vec<_>>()
-                        .map(|items| {
-                            items
-                                .into_iter()
-                                .map(|(arm, _comma)| arm)
-                                .collect::<Vec<(MatchPattern, Vec<Stmt>)>>()
-                        })
-                        .delimited_by(just('{').padded(), just('}').padded())
-                },
-            )
+        let match_stmt = keyword("match")
+            .ignore_then(expr.clone())
+            .then({
+                let match_arm = match_pat.clone().then_ignore(arrow()).then(always_body.clone());
+                match_arm
+                    .clone()
+                    .then(comma().or_not())
+                    .repeated()
+                    .at_least(1)
+                    .collect::<Vec<_>>()
+                    .map(|items| {
+                        items
+                            .into_iter()
+                            .map(|(arm, _comma)| arm)
+                            .collect::<Vec<(MatchPattern, Vec<Stmt>)>>()
+                    })
+                    .delimited_by(lbrace(), rbrace())
+            })
             .map(|(scrutinee, arms)| Stmt::Match {
                 scrutinee,
                 arms,
                 span: None,
             })
             .labelled("match statement")
-            .as_context()
-            .padded();
+            .as_context();
 
-        // Loop variable pattern: single ident or tuple (a, b, c)
         let loop_var_pat = ident
             .clone()
             .map(LoopPattern::Single)
             .or(ident
                 .clone()
-                .separated_by(just(',').padded())
+                .separated_by(comma())
                 .collect::<Vec<_>>()
-                .delimited_by(just('(').padded(), just(')').padded())
+                .delimited_by(lparen(), rparen())
                 .map(LoopPattern::Tuple));
 
-        // For loop: for i in items { } or for (a, b) in items { }
-        let for_stmt = text::keyword("for")
+        let for_stmt = keyword("for")
             .ignore_then(loop_var_pat.clone())
-            .then(
-                // Index variable only valid after single ident, not after tuple pattern
-                just(',')
-                    .padded()
-                    .ignore_then(ident.clone())
-                    .or_not(),
-            )
-            .then_ignore(text::keyword("in").padded())
+            .then(comma().ignore_then(ident.clone()).or_not())
+            .then_ignore(keyword("in"))
             .then(expr.clone())
             .then(for_loop_body)
             .map(|(((var, index_var), iterable), body)| Stmt::ForLoop {
@@ -744,46 +578,37 @@ pub(crate) fn parser<'src>(
                 span: None,
             })
             .labelled("for loop")
-            .as_context()
-            .padded();
+            .as_context();
 
-        let component_action_stmt = text::keyword("action")
+        let component_action_stmt = keyword("action")
             .ignore_then(ident.clone())
             .then(
                 param_def
                     .clone()
-                    .separated_by(just(',').padded())
+                    .separated_by(comma())
                     .collect::<Vec<_>>()
-                    .delimited_by(just('(').padded(), just(')').padded())
+                    .delimited_by(lparen(), rparen())
                     .or_not()
                     .map(|p| p.unwrap_or_default()),
             )
-            .then(
-                _stmt
-                    .clone()
-                    .repeated()
-                    .collect::<Vec<_>>()
-                    .delimited_by(just('{').padded(), just('}').padded()),
-            )
+            .then(_stmt.clone().repeated().collect::<Vec<_>>().delimited_by(lbrace(), rbrace()))
             .map(|((name, params), body)| Stmt::ComponentAction {
                 name,
                 params,
                 body,
                 span: None,
-            })
-            .padded();
+            });
 
-        let component_def = text::keyword("pub")
-            .padded()
+        let component_def = keyword("pub")
             .or_not()
             .map(|p| p.is_some())
-            .then_ignore(text::keyword("component").padded())
+            .then_ignore(keyword("component"))
             .then(ident.clone())
             .then(
                 param_def
-                    .separated_by(just(',').padded())
+                    .separated_by(comma())
                     .collect::<Vec<_>>()
-                    .delimited_by(just('(').padded(), just(')').padded())
+                    .delimited_by(lparen(), rparen())
                     .or_not()
                     .map(|p| p.unwrap_or_default()),
             )
@@ -792,10 +617,8 @@ pub(crate) fn parser<'src>(
                     .clone()
                     .repeated()
                     .collect::<Vec<_>>()
-                    .delimited_by(just('{').padded(), just('}').padded())
+                    .delimited_by(lbrace(), rbrace())
                     .try_map(|body: Vec<Stmt>, span| {
-                        // Reject imports inside component bodies — components are
-                        // actor templates, not module-level containers.
                         for stmt in &body {
                             if matches!(stmt, Stmt::Import { .. }) {
                                 return Err(Rich::custom(
@@ -808,25 +631,17 @@ pub(crate) fn parser<'src>(
                     }),
             )
             .map(|(((is_pub, name), params), body)| {
-                Stmt::ComponentDef(ComponentDef {
-                    is_pub,
-                    name,
-                    params,
-                    body,
-                }, None)
+                Stmt::ComponentDef(ComponentDef { is_pub, name, params, body }, None)
             })
             .labelled("component definition")
-            .as_context()
-            .padded();
+            .as_context();
 
-        // Reject block comments with a clear diagnostic.
-        let block_comment_reject = just("/*")
-            .try_map(|_, span| {
-                Err(Rich::custom(
-                    span,
-                    "block comments (/* */) are not supported; use // line comments instead",
-                ))
-            });
+        let block_comment_reject = slash().ignore_then(star()).try_map(|_, span| {
+            Err(Rich::custom(
+                span,
+                "block comments (/* */) are not supported; use // line comments instead",
+            ))
+        });
 
         choice((
             block_comment_reject,
@@ -850,7 +665,6 @@ pub(crate) fn parser<'src>(
             text_shorthand,
             actor_decl,
             action,
-            comment,
         ))
         .labelled("statement")
         .boxed()

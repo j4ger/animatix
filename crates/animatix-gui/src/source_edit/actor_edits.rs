@@ -821,8 +821,7 @@ fn delete_from_inline_items(items: &mut Vec<InlineItem>, label: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use animatix_syntax::ast::{ComponentDef, Expr, InlineItem, Property, Stmt};
-    use animatix_syntax::parser::parser_simple;
-    use chumsky::Parser;
+    use animatix_syntax::parser::parse_simple;
 
     use super::super::apply::{
         SourceEdit, apply_edit, find_actor_decl_mut, find_assignment_mut, find_prop_mut,
@@ -830,10 +829,7 @@ mod tests {
     };
 
     fn parse(source: &str) -> Vec<Stmt> {
-        parser_simple()
-            .parse(source)
-            .into_result()
-            .expect("failed to parse test source")
+        parse_simple(source).0.expect("failed to parse test source")
     }
 
     #[test]

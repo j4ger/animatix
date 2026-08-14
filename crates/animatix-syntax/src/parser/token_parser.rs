@@ -1,13 +1,8 @@
 //! Token-level parser primitives.
 //!
-//! The full parser is being migrated from char-level to token-level. This
-//! module defines the input type and leaf combinators over [`Token`] slices so
-//! the rest of the parser can consume the single lossless tokenizer. The input
-//! is mapped so each token is a [`TokenKind`] and each span is the original
-//! byte [`ByteSpan`], preserving the char-level parser's span semantics.
-
-// Phase 2 foundation: these primitives are wired into the parser incrementally.
-#![allow(dead_code)]
+//! The full parser consumes the single lossless tokenizer. The input is mapped
+//! so each token is a [`TokenKind`] and each span is the original byte
+//! [`ByteSpan`], preserving the char-level parser's span semantics.
 
 use chumsky::prelude::*;
 
@@ -21,9 +16,18 @@ pub type TokInput<'a> = chumsky::input::MappedInput<'a, TokenKind, ByteSpan, &'a
 /// Token-slice parser error type.
 pub type TokErr<'a> = extra::Err<Rich<'a, TokenKind, ByteSpan>>;
 
-/// Convert a token stream into spanned tokens.
+/// Convert a token stream into spanned tokens for the parser.
+///
+/// Line comments are filtered out here: the tokenizer keeps them for
+/// lossless highlighting, but the parser ignores them. Block comments are not
+/// lexed as comments (`/` and `*` arrive as operators) so the parser can still
+/// reject them explicitly.
 pub fn spanned(tokens: &[Token]) -> Vec<SpannedToken> {
-    tokens.iter().map(|t| (t.kind.clone(), t.span)).collect()
+    tokens
+        .iter()
+        .filter(|t| !matches!(t.kind, TokenKind::Comment(_)))
+        .map(|t| (t.kind.clone(), t.span))
+        .collect()
 }
 
 /// Build a token-slice parser input from spanned tokens.
@@ -46,17 +50,23 @@ pub fn ident<'a>() -> impl Parser<'a, TokInput<'a>, String, TokErr<'a>> + Clone 
     select! { TokenKind::Ident(s) => s }
 }
 
-/// Match an identifier and return its text plus byte span.
-pub fn ident_span<'a>() -> impl Parser<'a, TokInput<'a>, (String, ByteSpan), TokErr<'a>> + Clone {
-    use chumsky::input::MapExtra;
-    ident().map_with(|name, extra: &mut MapExtra<'a, '_, TokInput<'a>, TokErr<'a>>| {
-        (name, extra.span())
-    })
+/// A Typst shorthand body (`$$ ... $$`).
+pub fn typst<'a>() -> impl Parser<'a, TokInput<'a>, String, TokErr<'a>> + Clone {
+    select! { TokenKind::Typst(s) => s }
 }
 
 /// Match a number literal.
 pub fn number<'a>() -> impl Parser<'a, TokInput<'a>, f64, TokErr<'a>> + Clone {
     select! { TokenKind::Number(n) => n }
+}
+
+/// Match an identifier and return its text plus byte span.
+#[cfg(test)]
+pub fn ident_span<'a>() -> impl Parser<'a, TokInput<'a>, (String, ByteSpan), TokErr<'a>> + Clone {
+    use chumsky::input::MapExtra;
+    ident().map_with(|name, extra: &mut MapExtra<'a, '_, TokInput<'a>, TokErr<'a>>| {
+        (name, extra.span())
+    })
 }
 
 /// Match a string literal.
@@ -67,31 +77,6 @@ pub fn string<'a>() -> impl Parser<'a, TokInput<'a>, String, TokErr<'a>> + Clone
 /// Match a boolean literal.
 pub fn bool_lit<'a>() -> impl Parser<'a, TokInput<'a>, bool, TokErr<'a>> + Clone {
     select! { TokenKind::Bool(b) => b }
-}
-
-/// `{`
-pub fn lbrace<'a>() -> impl Parser<'a, TokInput<'a>, (), TokErr<'a>> + Clone {
-    select! { TokenKind::LBrace => () }
-}
-
-/// `}`
-pub fn rbrace<'a>() -> impl Parser<'a, TokInput<'a>, (), TokErr<'a>> + Clone {
-    select! { TokenKind::RBrace => () }
-}
-
-/// `:`
-pub fn colon<'a>() -> impl Parser<'a, TokInput<'a>, (), TokErr<'a>> + Clone {
-    select! { TokenKind::Colon => () }
-}
-
-/// `,`
-pub fn comma<'a>() -> impl Parser<'a, TokInput<'a>, (), TokErr<'a>> + Clone {
-    select! { TokenKind::Comma => () }
-}
-
-/// `=`
-pub fn assign<'a>() -> impl Parser<'a, TokInput<'a>, (), TokErr<'a>> + Clone {
-    select! { TokenKind::Assign => () }
 }
 
 /// A time literal, returned as an AST `Time`.
@@ -116,6 +101,53 @@ pub fn null<'a>() -> impl Parser<'a, TokInput<'a>, (), TokErr<'a>> + Clone {
 pub fn punct<'a>(kind: TokenKind) -> impl Parser<'a, TokInput<'a>, (), TokErr<'a>> + Clone {
     select! { tok if tok == kind => () }
 }
+
+macro_rules! unit_parsers {
+    ($(($name:ident, $variant:ident)),* $(,)?) => {
+        $(
+            pub fn $name<'a>() -> impl Parser<'a, TokInput<'a>, (), TokErr<'a>> + Clone {
+                select! { TokenKind::$variant => () }
+            }
+        )*
+    };
+}
+
+unit_parsers!(
+    (lparen, LParen),
+    (rparen, RParen),
+    (lbracket, LBracket),
+    (rbracket, RBracket),
+    (lbrace, LBrace),
+    (rbrace, RBrace),
+    (colon, Colon),
+    (comma, Comma),
+    (dot, Dot),
+    (plus, Plus),
+    (minus, Minus),
+    (star, Star),
+    (slash, Slash),
+    (percent_op, PercentOp),
+    (caret, Caret),
+    (eq, Eq),
+    (neq, Neq),
+    (lt, Lt),
+    (gt, Gt),
+    (le, Le),
+    (ge, Ge),
+    (and, And),
+    (or, Or),
+    (not, Not),
+    (assign, Assign),
+    (reactive_assign, ReactiveAssign),
+    (arrow, Arrow),
+    (range_inclusive, RangeInclusive),
+    (pipe, Pipe),
+    (colon_colon, ColonColon),
+    (hash, Hash),
+    (at, At),
+    (at_slot, AtSlot),
+    (underscore, Underscore),
+);
 
 #[cfg(test)]
 mod tests {
@@ -149,7 +181,6 @@ mod tests {
 
     #[test]
     fn captures_byte_spans_from_tokens() {
-        // `let x`: `x` occupies bytes 4..5.
         let tokens = crate::token::tokenize("let x");
         let spanned = spanned(&tokens);
         let input = as_input(&spanned);
@@ -167,7 +198,7 @@ mod tests {
         let spanned = spanned(&tokens);
         let input = as_input(&spanned);
 
-        let parser = time().then(percent()).then(null()).then(punct(TokenKind::Plus));
+        let parser = time().then(percent()).then(null()).then(plus());
         let (((t, p), _), _) = parser.parse(input).into_result().unwrap();
         assert_eq!(t, crate::ast::Time::Seconds(2.0));
         assert_eq!(p, 50.0);
