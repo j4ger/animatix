@@ -188,6 +188,18 @@ impl Value {
         }
     }
 
+    /// Returns whether this value is truthy in a conditional or boolean context.
+    ///
+    /// `Num(non-zero)` and `Bool(true)` are truthy; `Num(0)`, `Bool(false)`, and
+    /// every other value type are falsy.
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            Value::Num(n) => *n != 0.0,
+            Value::Bool(b) => *b,
+            _ => false,
+        }
+    }
+
     /// Extract the contained 2D vector, or `[0.0, 0.0]` if the value is not a `Vec2`.
     pub fn as_vec2(&self) -> [f64; 2] {
         match self {

@@ -697,6 +697,83 @@ fn ir_for_loop_binds_index_var() {
 }
 
 #[test]
+fn ir_truthiness_handles_bool_literals() {
+    let assign = |property: &str, value: CompiledExpr| ModifierIrStmt::Assign {
+        target: vec!["actor".to_string()],
+        property: property.to_string(),
+        value,
+    };
+
+    // `if true` must take the then-branch.
+    let program = ModifierIrProgram {
+        statements: vec![ModifierIrStmt::If {
+            condition: CompiledExpr::Const(Value::Bool(true)),
+            then_branch: vec![assign("a", CompiledExpr::Const(Value::Num(1.0)))],
+            else_branch: vec![assign("a", CompiledExpr::Const(Value::Num(0.0)))],
+        }],
+    };
+    let mut env = Environment::new();
+    let mut overrides = ModifierOverrides::default();
+    execute_modifier_ir(&program, &mut env, &mut overrides).expect("execute");
+    assert_eq!(overrides["actor"]["a"], Value::Num(1.0));
+
+    // Ternary `Select` with a Bool condition.
+    let select = CompiledExpr::Select(
+        Box::new(CompiledExpr::Const(Value::Bool(true))),
+        Box::new(CompiledExpr::Const(Value::Num(7.0))),
+        Box::new(CompiledExpr::Const(Value::Num(9.0))),
+    );
+    let program = ModifierIrProgram {
+        statements: vec![ModifierIrStmt::Let {
+            name: "r".to_string(),
+            value: select,
+        }],
+    };
+    let mut env = Environment::new();
+    let mut overrides = ModifierOverrides::default();
+    execute_modifier_ir(&program, &mut env, &mut overrides).expect("execute");
+    assert_eq!(env.get("r"), Some(Value::Num(7.0)));
+
+    // `!true`, `true && false`, and `true || false` with Bool operands.
+    let not_true = CompiledExpr::Unary(
+        animatix_syntax::ast::UnaryOp::Not,
+        Box::new(CompiledExpr::Const(Value::Bool(true))),
+    );
+    let and_expr = CompiledExpr::Binary(
+        Box::new(CompiledExpr::Const(Value::Bool(true))),
+        BinaryOp::And,
+        Box::new(CompiledExpr::Const(Value::Bool(false))),
+    );
+    let or_expr = CompiledExpr::Binary(
+        Box::new(CompiledExpr::Const(Value::Bool(true))),
+        BinaryOp::Or,
+        Box::new(CompiledExpr::Const(Value::Bool(false))),
+    );
+    let program = ModifierIrProgram {
+        statements: vec![
+            ModifierIrStmt::Let {
+                name: "n".to_string(),
+                value: not_true,
+            },
+            ModifierIrStmt::Let {
+                name: "and".to_string(),
+                value: and_expr,
+            },
+            ModifierIrStmt::Let {
+                name: "or".to_string(),
+                value: or_expr,
+            },
+        ],
+    };
+    let mut env = Environment::new();
+    let mut overrides = ModifierOverrides::default();
+    execute_modifier_ir(&program, &mut env, &mut overrides).expect("execute");
+    assert_eq!(env.get("n"), Some(Value::Num(0.0)));
+    assert_eq!(env.get("and"), Some(Value::Num(0.0)));
+    assert_eq!(env.get("or"), Some(Value::Num(1.0)));
+}
+
+#[test]
 fn ir_for_loop_tuple_destructures_color() {
     let program = ModifierIrProgram {
         statements: vec![ModifierIrStmt::For {

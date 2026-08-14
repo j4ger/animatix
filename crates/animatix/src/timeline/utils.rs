@@ -354,21 +354,15 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
         },
 
         Expr::Unary(op, inner) => {
-            let v = evaluate_expr(inner, env)?.as_num();
-            Ok(Value::Num(match op {
-                crate::ast::UnaryOp::Neg => -v,
-                crate::ast::UnaryOp::Not => {
-                    if v == 0.0 {
-                        1.0
-                    } else {
-                        0.0
-                    }
-                },
-            }))
+            let value = evaluate_expr(inner, env)?;
+            Ok(match op {
+                crate::ast::UnaryOp::Neg => Value::Num(-value.as_num()),
+                crate::ast::UnaryOp::Not => Value::Num(if value.is_truthy() { 0.0 } else { 1.0 }),
+            })
         },
 
         Expr::Conditional(cond, then_branch, else_branch) => {
-            if evaluate_expr(cond, env)?.as_num() != 0.0 {
+            if evaluate_expr(cond, env)?.is_truthy() {
                 evaluate_expr(then_branch, env)
             } else {
                 evaluate_expr(else_branch, env)
@@ -1078,6 +1072,36 @@ mod tests {
         assert_eq!(parse_color(&Expr::Ident("red".to_string())), [1.0, 0.0, 0.0, 1.0]);
         assert_eq!(parse_color(&Expr::Ident("unknown".to_string())), [0.8, 0.8, 0.8, 1.0]);
         assert_eq!(parse_color(&Expr::Num(1.0)), [0.8, 0.8, 0.8, 1.0]);
+    }
+
+    #[test]
+    fn test_bool_truthiness_in_conditionals_and_logic() {
+        let env = Environment::new();
+
+        let cond_true = Expr::Conditional(
+            Box::new(Expr::Bool(true)),
+            Box::new(Expr::Num(1.0)),
+            Box::new(Expr::Num(0.0)),
+        );
+        assert_eq!(evaluate_expr(&cond_true, &env).unwrap(), Value::Num(1.0));
+
+        let cond_false = Expr::Conditional(
+            Box::new(Expr::Bool(false)),
+            Box::new(Expr::Num(1.0)),
+            Box::new(Expr::Num(0.0)),
+        );
+        assert_eq!(evaluate_expr(&cond_false, &env).unwrap(), Value::Num(0.0));
+
+        let not_true = Expr::Unary(crate::ast::UnaryOp::Not, Box::new(Expr::Bool(true)));
+        assert_eq!(evaluate_expr(&not_true, &env).unwrap(), Value::Num(0.0));
+
+        let and_expr =
+            Expr::Binary(Box::new(Expr::Bool(true)), BinaryOp::And, Box::new(Expr::Bool(false)));
+        assert_eq!(evaluate_expr(&and_expr, &env).unwrap(), Value::Num(0.0));
+
+        let or_expr =
+            Expr::Binary(Box::new(Expr::Bool(true)), BinaryOp::Or, Box::new(Expr::Bool(false)));
+        assert_eq!(evaluate_expr(&or_expr, &env).unwrap(), Value::Num(1.0));
     }
 
     #[test]

@@ -254,7 +254,7 @@ impl Timeline {
                 } => {
                     let eval_env = self.build_eval_env(time_ms as u64);
                     let truthy = evaluate_expr(condition, &eval_env)
-                        .map(|value| value.as_num() != 0.0)
+                        .map(|value| value.is_truthy())
                         .unwrap_or(false);
                     if truthy {
                         self.process_body(time_ms, then_branch, parent_label, diagnostics);

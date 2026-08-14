@@ -25,7 +25,7 @@ pub(crate) fn evaluate_compiled_expr(
             let value = evaluate_compiled_expr(expr, env)?;
             match op {
                 UnaryOp::Neg => Ok(Value::Num(-value.as_num())),
-                UnaryOp::Not => Ok(Value::Num(if value.as_num() == 0.0 { 1.0 } else { 0.0 })),
+                UnaryOp::Not => Ok(Value::Num(if value.is_truthy() { 0.0 } else { 1.0 })),
             }
         },
         CompiledExpr::Binary(left, op, right) => {
@@ -35,7 +35,7 @@ pub(crate) fn evaluate_compiled_expr(
         },
         CompiledExpr::Select(condition, then_expr, else_expr) => {
             let cond = evaluate_compiled_expr(condition, env)?;
-            if cond.as_num() != 0.0 {
+            if cond.is_truthy() {
                 evaluate_compiled_expr(then_expr, env)
             } else {
                 evaluate_compiled_expr(else_expr, env)

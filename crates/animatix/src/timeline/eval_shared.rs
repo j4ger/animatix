@@ -23,6 +23,26 @@ use crate::timeline::{EvalError, Value};
 ///
 /// Returns [`EvalError::TypeMismatch`] for unsupported type/op combinations.
 pub fn eval_binary_op(left: Value, op: &BinaryOp, right: Value) -> Result<Value, EvalError> {
+    // `and`/`or` are truthiness-based and accept both `Num` and `Bool` operands,
+    // so handle them before the type-specific arithmetic arms below.
+    match op {
+        BinaryOp::And => {
+            return Ok(Value::Num(if left.is_truthy() && right.is_truthy() {
+                1.0
+            } else {
+                0.0
+            }));
+        },
+        BinaryOp::Or => {
+            return Ok(Value::Num(if left.is_truthy() || right.is_truthy() {
+                1.0
+            } else {
+                0.0
+            }));
+        },
+        _ => {},
+    }
+
     match (left.clone(), right.clone()) {
         (Value::Num(l), Value::Num(r)) => Ok(Value::Num(match op {
             BinaryOp::Add => l + r,

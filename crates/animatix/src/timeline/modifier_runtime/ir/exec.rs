@@ -102,7 +102,7 @@ fn execute_stmt(
             else_branch,
         } => {
             let condition = evaluate_compiled_expr(condition, frame_env)?;
-            let branch = if condition.as_num() != 0.0 {
+            let branch = if condition.is_truthy() {
                 then_branch
             } else {
                 else_branch
