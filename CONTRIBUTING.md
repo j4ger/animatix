@@ -43,7 +43,7 @@ Scopes: `animatix`, `gui`, `analyzer`, `lsp`, `syntax`, `parser`, `renderer`, `t
 
 ## Documentation
 
-Keep these in sync when relevant: `README.md`, `docs/spec.md`, `docs/architecture.md`, `docs/primitives.md`, `docs/properties.md`, `docs/roadmap.md`, `docs/plans/README.md`, `examples/README.md`, `dogfood/README.md`.
+Keep these in sync when relevant: `README.md`, `docs/spec.md`, `docs/architecture.md`, `docs/primitives.md`, `docs/properties.md`, `docs/roadmap.md`, `examples/README.md`, `dogfood/README.md`.
 
 ## Detailed Guide
 

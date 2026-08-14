@@ -24,7 +24,7 @@ eframe        = { workspace = true }
 # egui + egui-phosphor, so the default build stays dependency-light.
 default = []
 
-# ── Archived feature seams (docs/plans/eparts-refinement-roadmap.md §6.X). ──
+# ── Archived feature seams (see docs/roadmap.md eparts backlog). ──
 # These remain empty by design and are not scheduled. Re-open one only when a
 # concrete consumer exists; `theme-json` is delivered and active.
 #

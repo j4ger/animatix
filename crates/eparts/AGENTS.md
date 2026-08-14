@@ -4,7 +4,7 @@
 immediate-mode egui (pinned to one egui minor — today **0.34**). It is being grown into a general
 framework reusable by future apps, so build framework-clean, domain-free APIs.
 
-See the detailed eparts roadmap at `docs/plans/eparts-refinement-roadmap.md` and the short canonical work list at `docs/roadmap.md`.
+See the canonical work list at `docs/roadmap.md` for the eparts widget-adoption backlog.
 
 ## Module map
 

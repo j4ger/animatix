@@ -1,8 +1,7 @@
 # Animatix Roadmap
 
 Canonical source of truth for remaining work. When a segment is fully done,
-remove the completed items from this file. Detailed planning documents and
-historical archives live in [docs/plans/README.md](plans/README.md).
+remove the completed items from this file.
 
 ---
 
@@ -31,18 +30,13 @@ starting.
 | P5 | Unified asset store + usage tracking | Done 2026-08-12 (usage re-derived on rebuild) | Inspector asset usage and a clear rebuild lifecycle | Medium | Medium |
 | P6 | Async file-backed asset loading | Closed by design 2026-08-12 | No current consumer; P5 fallback seam remains documented | High if scoped | Low |
 
-The full evaluation, sequencing, and acceptance criteria are in
-[docs/plans/presenterm-inspired-roadmap.md](plans/presenterm-inspired-roadmap.md).
-
 ### Comment Directive Question (open)
 
 Presenterm uses HTML-comment directives because it must extend markdown without
 creating a second DSL. Animatix already owns a semantic DSL, so comment
 directives are likely the wrong mechanism. The recommendation is to map valuable
 commands to native `.amx` features and add first-class metadata (for example
-speaker notes or export presets) only when a concrete user story appears. See
-[Item 7](plans/presenterm-inspired-roadmap.md#item-7-comment-directives-through-dsl-open-discussion)
-before scheduling any related language work.
+speaker notes or export presets) only when a concrete user story appears.
 
 ### Dogfood Follow-Ups (2026-08-13)
 
@@ -106,9 +100,8 @@ Delivered:
 Archived:
 - B9/B10, C7–C15, D6–D9, F6–F10, G9–G11, H4/H5, J4, K4/K5/K7–K11
 
-The full itemized status is in
-[docs/plans/eparts-refinement-roadmap.md](plans/eparts-refinement-roadmap.md) section `6.X`. Archived
-items have no current consumer and should be re-opened only when a concrete second-app need exists.
+Archived items have no current consumer and should be re-opened only when a
+concrete second-app need exists.
 
 ### GUI Follow-Ups (closed)
 
@@ -126,12 +119,38 @@ items have no current consumer and should be re-opened only when a concrete seco
 
 ---
 
-## Audit History
+## Open Backlog
 
-The 2026-08-05 audit trail is archived at
-[docs/plans/archive/roadmap-audit-2026-08-05.md](plans/archive/roadmap-audit-2026-08-05.md).
-Future sessions should read `Active Work` above for current remaining items and
-consult the archive only for prior findings and resolution context.
+Consolidated from former planning documents. Items are not sequenced and remain
+unscheduled until a concrete user story or milestone pulls them forward.
+
+| Area | Item |
+|------|------|
+| GUI | Adopt eparts `ColorPicker` for actor/style color properties. |
+| GUI | Adopt stateful eparts `TabBar` at natural call sites. |
+| GUI | Replace inline status banners with eparts `Alert`. |
+| GUI | Replace ad-hoc counts/labels with eparts `Badge`/`Tag`. |
+| GUI | Group inspector sections with eparts `Collapsible`/`GroupBox`. |
+| GUI | Replace raw hover text with grace-period eparts `Tooltip`. |
+| GUI/theme | Wire GUI to eparts `theme-json` and add theme directory/name selection. |
+| GUI/commands | Add an external command queue or test-only sender for integration tests and future remote control. |
+| GUI/assets | Preserve `Arc<AssetCache>` across rebuilds and invalidate only changed asset paths. |
+| Language | Add first-class speaker-notes metadata (scene/actor `notes`) for GUI and presentation/export. |
+| Language/export | Add config-level export presets (resolution/fps/codec) shared by CLI and GUI. |
+| Callout | Snap callout tip, label, and standoff drags to guides/edges like actor moves. |
+| Review | Add a static HTML questionnaire/arena frontend for external reviewers. |
+| Review | Support review runs with proposed-syntax variants the grammar cannot parse. |
+| Review | Add agent-driven run discovery and hypothesis generation. |
+| Docs | Refresh eparts Button theme-slot docs and variant count to match shipped variants. |
+| Docs | Fix BarChart `data`/`bar_colors` examples to brace-list syntax and document scheme tokens. |
+| Docs | Document `graph.map`/`graph.map_inverse` semantics in `docs/spec.md`. |
+| Docs | Sync `_animating_*` docs to interpolation-segment semantics. |
+| Plot | Support animated `func` transitions on VectorField, Heatmap, and ContourSet. |
+| Plot | Add opacity cross-fade blend mode as an alternative to output blending for func transitions. |
+| Text | Cross-fade `Text.text`/`Typst.content` swaps instead of midpoint hard cut. |
+| BarChart | Correct `bar_colors` registry type and implement `show_labels`; guard numeric props. |
+| Examples | Make the gradient-descent example trajectory consistent with its loss surface. |
+| Build | Make bare `cargo check -p animatix --no-default-features` pass or formally drop that target. |
 
 ---
 

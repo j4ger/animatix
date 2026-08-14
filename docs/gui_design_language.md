@@ -885,10 +885,9 @@ interactions.
 
 ## 11. Status & Remaining Work
 
-Phases 1–3 of the original migration plan are complete. See
-[`plans/eparts-refinement-roadmap.md`](plans/eparts-refinement-roadmap.md) (M1–M7) for the eparts component
-work detail and `crates/animatix-gui/src/app/commands/` for the command-split
-implementation.
+Phases 1–3 of the original migration plan are complete. See `docs/roadmap.md`
+for the remaining eparts widget-adoption backlog and `crates/animatix-gui/src/app/commands/`
+for the command-split implementation.
 
 **Completed:**
 - Phase 1 (token refoundation): 3-layer token system extracted into `eparts`

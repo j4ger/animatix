@@ -882,3 +882,39 @@ variant coverage is reviewed when new AST variants are added.
 ---
 
 *For language details, see [`spec.md`](spec.md). For work items, see [`roadmap.md`](roadmap.md).*
+
+## 19. Design Decisions (Current)
+
+### Frontend
+- One lossless tokenizer (`crates/animatix-syntax/src/token.rs`) is the only lexical definition. The parser consumes its token stream; the analyzer, LSP, and GUI use the same tokens for positions and highlighting.
+
+### Evaluation and IR
+- Closures capture lexical scope at creation: `Value::Closure` carries a `CapturedEnv` that snapshots only the build-time override layer; the shared stdlib base is re-provided at render time.
+- Nested plot blends are flattened into a linear weighted sum (`flatten_blend`), evaluating depth-N blends in O(N) per sample.
+- `Value::NativeFn` is non-serializable by design; persistence errors on it instead of silently dropping stdlib functions.
+- For-loop and index variables are scoped to their loop; closure capture-at-creation keeps that clearing safe.
+
+### Plot and Graph Coordinates
+- Graph domain/scale are static `GraphScaleConfig`; `size`/`at`/`padding` are dynamic `GraphGeometry`, so layout-driven graph geometry stays animatable.
+- Per-graph `graph.map` / `graph.map_inverse` are `Value::NativeFn` closures that capture static config and read dynamic geometry from the frame environment.
+- Func transitions blend function outputs per sample (`lerp(f(x), g(x), p)`) rather than morphing sampled paths; the per-sample cache is keyed per source body.
+
+### Scene Persistence
+- `persist` and `remove` reuse `Stmt::Action`, not new AST surface. Persisted state is a build-time carry bag of single-keyframe track snapshots taken at scene end time.
+- Persistence is sticky until explicit `remove`; re-declaring a carried actor morphs from its carried state. Carried children re-root to `Absolute`, and colors carry as baked RGBA while preserving the auto-color slot index.
+
+### Text and Charts
+- Text content changes should interpolate cached glyph paths with `Fade`; typography changes (font/size/weight/spacing/color) recompile glyphs per frame. Typewriter `draw-in` is preferred for entrances.
+- BarChart `data` and `bar_colors` use brace-list `{...}` syntax; build-time-static paths resolve through shared eval helpers.
+
+### eparts Widget Framework
+- Runtime theme lives in egui Memory and is read via `eparts::theme(ui)`; it stays `Copy`. Density and reduced-motion are sibling runtime preferences.
+- eparts keeps one crate with feature-gated heavy surfaces (`theme-json`, table, charts, webview, i18n); default deps are `egui` + `egui-phosphor`.
+- Widgets expose one primary entry point: `impl egui::Widget` (Tier 1) or `pub fn show()` (Tier 2). Cross-frame state lives in `ctx.data` or app-owned structs.
+- Colors are only defined in the token layer; component-scoped slot taxonomy has no gradients in the core model. Density scales only spacing, row heights, and control dimensions (Default is identity; Compact is 0.875 rounded once).
+- Overlay layering is a managed priority ladder (`Dialog < Popover < Tooltip`); default cursor is arrow, `PointingHand` only for links.
+
+### GUI Shell
+- Destructive document-replacement commands route through one Save/Discard/Cancel dialog and replay the follow-up via `pending_action`.
+- Keyframe identity is scene-qualified `KeyframeId { scene, actor, property, time_ms }`; panels emit commands rather than mutating shared stores.
+- Snap resolution returns corrected coordinates and writes visual feedback as a side effect, keeping geometry resolution separate from preview state.
