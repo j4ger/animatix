@@ -1,4 +1,3 @@
-
 use animatix_syntax::parser::parser_simple;
 use chumsky::Parser;
 
