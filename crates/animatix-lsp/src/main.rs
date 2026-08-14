@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use animatix_analyzer::{Analyzer, Workspace};
-use animatix_syntax::token::{TokenKind, byte_to_line_col, tokenize};
+use animatix_syntax::token::byte_to_line_col;
 use tokio::sync::Mutex;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
@@ -218,14 +218,14 @@ impl LanguageServer for Backend {
         params: SemanticTokensParams,
     ) -> Result<Option<SemanticTokensResult>> {
         let uri = params.text_document.uri.to_string();
-        let source = {
+        let data = {
             let analyzers = self.analyzers.lock().await;
-            analyzers.get(&uri).map(|a| a.source().to_string())
+            let Some(analyzer) = analyzers.get(&uri) else {
+                return Ok(None);
+            };
+            let roles = analyzer.token_roles();
+            build_semantic_tokens(analyzer.source(), &roles)
         };
-        let Some(source) = source else {
-            return Ok(None);
-        };
-        let data = build_semantic_tokens(&source);
         Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {
             result_id: None,
             data,
@@ -520,16 +520,18 @@ impl LanguageServer for Backend {
     }
 }
 
-/// Build LSP semantic token deltas from the lossless tokenizer.
-fn build_semantic_tokens(source: &str) -> Vec<SemanticToken> {
-    let tokens = tokenize(source);
-    let mut data = Vec::with_capacity(tokens.len());
+/// Build LSP semantic token deltas from analyzer token roles.
+fn build_semantic_tokens(
+    source: &str,
+    roles: &[(usize, usize, &'static str)],
+) -> Vec<SemanticToken> {
+    let mut data = Vec::with_capacity(roles.len());
     let mut prev_line = 0u32;
     let mut prev_col = 0u32;
 
-    for token in tokens {
-        let (line, col) = byte_to_line_col(source, token.span.start);
-        let (_, end_col) = byte_to_line_col(source, token.span.end);
+    for &(start, end, role) in roles {
+        let (line, col) = byte_to_line_col(source, start);
+        let (_, end_col) = byte_to_line_col(source, end);
         let delta_line = line as u32 - prev_line;
         let delta_start = if delta_line == 0 {
             col as u32 - prev_col
@@ -537,7 +539,7 @@ fn build_semantic_tokens(source: &str) -> Vec<SemanticToken> {
             col as u32
         };
         let length = (end_col - col) as u32;
-        let token_type = semantic_token_type(&token.kind);
+        let token_type = role_index(role);
 
         data.push(SemanticToken {
             delta_line,
@@ -554,49 +556,12 @@ fn build_semantic_tokens(source: &str) -> Vec<SemanticToken> {
     data
 }
 
-fn semantic_token_type(kind: &TokenKind) -> u32 {
-    match kind {
-        TokenKind::Keyword(_) | TokenKind::Null => 0,
-        TokenKind::Ident(_) => 6,
-        TokenKind::Number(_) | TokenKind::Time { .. } | TokenKind::Percent(_) => 3,
-        TokenKind::Str(_) | TokenKind::Typst(_) => 2,
-        TokenKind::Comment(_) => 4,
-        TokenKind::Bool(_) => 11,
-        TokenKind::Plus
-        | TokenKind::Minus
-        | TokenKind::Star
-        | TokenKind::Slash
-        | TokenKind::PercentOp
-        | TokenKind::Caret
-        | TokenKind::Eq
-        | TokenKind::Neq
-        | TokenKind::Lt
-        | TokenKind::Gt
-        | TokenKind::Le
-        | TokenKind::Ge
-        | TokenKind::And
-        | TokenKind::Or
-        | TokenKind::Not
-        | TokenKind::Assign
-        | TokenKind::ReactiveAssign
-        | TokenKind::Arrow
-        | TokenKind::RangeInclusive
-        | TokenKind::Pipe
-        | TokenKind::ColonColon => 5,
-        TokenKind::LParen
-        | TokenKind::RParen
-        | TokenKind::LBracket
-        | TokenKind::RBracket
-        | TokenKind::LBrace
-        | TokenKind::RBrace
-        | TokenKind::Colon
-        | TokenKind::Comma
-        | TokenKind::Dot
-        | TokenKind::Hash
-        | TokenKind::At
-        | TokenKind::AtSlot
-        | TokenKind::Underscore => 12,
-    }
+fn role_index(role: &str) -> u32 {
+    SEMANTIC_TOKEN_TYPES
+        .iter()
+        .position(|name| *name == role)
+        .map(|idx| idx as u32)
+        .unwrap_or(6) // fall back to variable for unknown roles
 }
 
 /// Convert a file:// URI to a PathBuf.

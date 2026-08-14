@@ -11,6 +11,8 @@ pub mod easing;
 pub mod format_core;
 /// Configurable source formatter for `.amx` files.
 pub mod formatter;
+/// Shared token-role classification for GUI and LSP highlighting.
+pub mod highlight;
 /// Icon glyph constants for UI primitives.
 pub mod icon_glyphs;
 pub mod module;

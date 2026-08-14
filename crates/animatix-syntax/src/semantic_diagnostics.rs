@@ -185,15 +185,23 @@ fn find_ident_range(
     tokens: &[Token],
     source: &str,
     text: &str,
+    range: Option<std::ops::Range<usize>>,
 ) -> Option<((usize, usize), (usize, usize))> {
     tokens
         .iter()
+        .filter(|t| range.as_ref().is_none_or(|r| t.span.start >= r.start && t.span.end <= r.end))
         .find(|t| matches!(&t.kind, TokenKind::Ident(name) if name == text))
         .map(|t| {
             let start = byte_to_line_col(source, t.span.start);
             let end = byte_to_line_col(source, t.span.end);
             (start, end)
         })
+}
+
+/// Return the source-level identifier text for a resolved target string.
+fn target_source_text(target: &str) -> &str {
+    let first = target.split('.').next().unwrap_or(target);
+    is_array_member_label(first).unwrap_or(first)
 }
 
 fn check_stmt(
@@ -206,10 +214,12 @@ fn check_stmt(
     match stmt {
         Stmt::Action(action, span) => {
             let (line, col, end_line, end_col) = span_positions(span);
+            let byte_range = action.byte_span.map(|s| s.start..s.end);
 
             if !symbols.actions.contains(&action.verb) {
-                let (vstart, vend) = find_ident_range(tokens, source, &action.verb)
-                    .unwrap_or_else(|| ((line - 1, col - 1), (end_line - 1, end_col - 1)));
+                let (vstart, vend) =
+                    find_ident_range(tokens, source, &action.verb, byte_range.clone())
+                        .unwrap_or_else(|| ((line - 1, col - 1), (end_line - 1, end_col - 1)));
                 diagnostics.push(range_diagnostic(
                     DiagnosticSeverity::Warning,
                     DiagnosticCode::UnknownAction,
@@ -225,8 +235,10 @@ fn check_stmt(
                         .is_some_and(|base| symbols.array_labels.contains(base))
                     || is_component_array_member(symbols, target);
                 if !is_defined {
-                    let (tstart, tend) = find_ident_range(tokens, source, target)
-                        .unwrap_or_else(|| ((line - 1, col - 1), (end_line - 1, end_col - 1)));
+                    let source_text = target_source_text(target);
+                    let (tstart, tend) =
+                        find_ident_range(tokens, source, source_text, byte_range.clone())
+                            .unwrap_or_else(|| ((line - 1, col - 1), (end_line - 1, end_col - 1)));
                     diagnostics.push(range_diagnostic(
                         DiagnosticSeverity::Warning,
                         DiagnosticCode::UndefinedLabel,

@@ -145,8 +145,12 @@ impl CompletionContext {
                 }) {
                     CompletionContext::TypePosition
                 } else {
+                    let property_name = before_colon.and_then(|t| match &t.kind {
+                        TokenKind::Ident(name) => Some(name.clone()),
+                        _ => None,
+                    });
                     CompletionContext::PropertyValue {
-                        property_name: None,
+                        property_name,
                         actor_type: None,
                     }
                 }

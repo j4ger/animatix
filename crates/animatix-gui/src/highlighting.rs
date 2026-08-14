@@ -2,8 +2,9 @@
 
 use std::collections::HashSet;
 
-use animatix_analyzer::{Diagnostic, LabelKind, SymbolTable};
-use animatix_syntax::token::{Token, TokenKind, tokenize};
+use animatix_analyzer::{Diagnostic, SymbolTable};
+use animatix_syntax::highlight::{classify_token, collect_label_names};
+use animatix_syntax::token::{line_col_to_byte, tokenize};
 use egui::text::LayoutJob;
 use egui::{Color32, FontId, TextFormat};
 
@@ -117,42 +118,23 @@ pub fn highlight_source(
         .values()
         .flat_map(|c| c.params.iter().map(|p| p.name.clone()))
         .collect();
-    let mut label_names: HashSet<String> = HashSet::new();
-    animatix_syntax::walk::walk_stmts(&ast, &mut |stmt| match stmt {
-        animatix_syntax::ast::Stmt::ActorDecl { label, .. } => {
-            label_names.insert(label.clone());
-        },
-        animatix_syntax::ast::Stmt::Action(action, _) => {
-            for target in &action.targets {
-                label_names.insert(target.clone());
-                if let Some(base) = animatix_syntax::ast::is_array_member_label(target) {
-                    label_names.insert(base.to_string());
-                }
-            }
-        },
-        animatix_syntax::ast::Stmt::Assignment { target, .. }
-        | animatix_syntax::ast::Stmt::ReactiveBinding { target, .. } => {
-            for segment in target {
-                let name = segment.label_str().to_string();
-                label_names.insert(name.clone());
-                if let Some(base) = animatix_syntax::ast::is_array_member_label(&name) {
-                    label_names.insert(base.to_string());
-                }
-            }
-        },
-        animatix_syntax::ast::Stmt::Scene { name, .. } => {
-            label_names.insert(name.clone());
-        },
-        _ => {},
-    });
+    let label_names = collect_label_names(&ast);
 
     let mut highlight_spans: Vec<(usize, usize, Color32)> = Vec::new();
     let mut last_end = 0usize;
-    for token in &tokens {
+    for (idx, token) in tokens.iter().enumerate() {
         if token.span.start > last_end {
             highlight_spans.push((last_end, token.span.start, colors.default));
         }
-        let role = classify_token(token, &symbols, &property_names, &param_names, &label_names);
+        let role = classify_token(
+            idx,
+            token,
+            &tokens,
+            &symbols,
+            &label_names,
+            &property_names,
+            &param_names,
+        );
         highlight_spans.push((token.span.start, token.span.end, colors.color_for_highlight(role)));
         last_end = token.span.end;
     }
@@ -204,94 +186,6 @@ pub fn highlight_source(
         &deco_ranges,
         &special_highlights,
     )
-}
-
-fn classify_token(
-    token: &Token,
-    symbols: &SymbolTable,
-    property_names: &HashSet<String>,
-    param_names: &HashSet<String>,
-    label_names: &HashSet<String>,
-) -> &'static str {
-    match &token.kind {
-        TokenKind::Keyword(_) => "keyword",
-        TokenKind::Number(_) | TokenKind::Time { .. } | TokenKind::Percent(_) => "number",
-        TokenKind::Bool(_) => "boolean",
-        TokenKind::Str(_) | TokenKind::Typst(_) => "string",
-        TokenKind::Comment(_) => "comment",
-        TokenKind::Plus
-        | TokenKind::Minus
-        | TokenKind::Star
-        | TokenKind::Slash
-        | TokenKind::PercentOp
-        | TokenKind::Caret
-        | TokenKind::Eq
-        | TokenKind::Neq
-        | TokenKind::Lt
-        | TokenKind::Gt
-        | TokenKind::Le
-        | TokenKind::Ge
-        | TokenKind::And
-        | TokenKind::Or
-        | TokenKind::Not
-        | TokenKind::Assign
-        | TokenKind::ReactiveAssign
-        | TokenKind::Arrow
-        | TokenKind::RangeInclusive
-        | TokenKind::Pipe
-        | TokenKind::ColonColon => "operator",
-        TokenKind::LParen
-        | TokenKind::RParen
-        | TokenKind::LBracket
-        | TokenKind::RBracket
-        | TokenKind::LBrace
-        | TokenKind::RBrace
-        | TokenKind::Colon
-        | TokenKind::Comma
-        | TokenKind::Dot
-        | TokenKind::Hash
-        | TokenKind::At
-        | TokenKind::AtSlot
-        | TokenKind::Underscore => "punctuation",
-        TokenKind::Null => "keyword",
-        TokenKind::Ident(name) => {
-            classify_ident(name, symbols, property_names, param_names, label_names)
-        },
-    }
-}
-
-fn classify_ident(
-    name: &str,
-    symbols: &SymbolTable,
-    property_names: &HashSet<String>,
-    param_names: &HashSet<String>,
-    label_names: &HashSet<String>,
-) -> &'static str {
-    if let Some(info) = symbols.labels.get(name) {
-        return match info.kind {
-            LabelKind::Actor | LabelKind::Component => "label",
-            LabelKind::Let | LabelKind::For | LabelKind::Always => "variable",
-        };
-    }
-    if label_names.contains(name) {
-        return "label";
-    }
-    if symbols.types.contains(name)
-        || symbols.components.contains_key(name)
-        || symbols.type_aliases.contains_key(name)
-    {
-        return "type";
-    }
-    if param_names.contains(name) {
-        return "parameter";
-    }
-    if property_names.contains(name) {
-        return "property";
-    }
-    if symbols.actions.contains(name) {
-        return "function";
-    }
-    "variable"
 }
 
 /// Return the byte range of `line` (0-indexed) in `source`.
@@ -439,29 +333,6 @@ fn apply_background_layers(
     }
 
     job
-}
-
-/// Convert line and column (0-indexed) to a byte offset in the source.
-fn line_col_to_byte(source: &str, line: usize, col: usize) -> usize {
-    let mut current_line = 0;
-    let mut current_col = 0;
-    let mut byte_offset = 0;
-
-    for ch in source.chars() {
-        if current_line == line {
-            if current_col >= col {
-                return byte_offset;
-            }
-            current_col += 1;
-        } else if ch == '\n' {
-            current_line += 1;
-            current_col = 0;
-        }
-        byte_offset += ch.len_utf8();
-    }
-
-    // If we reached end of source and the position is at or past the requested position
-    source.len()
 }
 
 #[cfg(test)]

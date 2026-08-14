@@ -88,11 +88,9 @@ pub fn parse_source(source: &str) -> (Option<Vec<Stmt>>, Vec<ParseError>) {
 /// Parse source into an AST and structured parse errors without warnings.
 ///
 /// This is a thin wrapper over [`parse_source`] kept for callers that only need
-/// the AST plus errors, matching the shape `parser_simple().parse()` previously
-/// returned.
+/// the AST plus errors.
 pub fn parse_simple(source: &str) -> (Option<Vec<Stmt>>, Vec<ParseError>) {
-    let (ast, errors, _warnings) = parse_source_diagnostics(source);
-    (ast, errors)
+    parse_source(source)
 }
 
 /// Attach `//` line comments to the properties they follow on the same line.
@@ -349,7 +347,9 @@ impl ParseError {
         let span = err.span();
         let start = span.start;
         let end = span.end;
-        let (line, column) = byte_offset_to_line_col(source, start);
+        let (line0, column0) = crate::token::byte_to_line_col(source, start);
+        let line = line0 + 1;
+        let column = column0 + 1;
 
         let mut _message = String::new();
         let mut expected = Vec::new();
@@ -389,24 +389,6 @@ impl ParseError {
             context,
         }
     }
-}
-
-/// Convert a byte offset into a 1-based (line, column) pair.
-fn byte_offset_to_line_col(source: &str, offset: usize) -> (usize, usize) {
-    let mut line = 1usize;
-    let mut col = 1usize;
-    for (i, ch) in source.char_indices() {
-        if i >= offset {
-            break;
-        }
-        if ch == '\n' {
-            line += 1;
-            col = 1;
-        } else {
-            col += 1;
-        }
-    }
-    (line, col)
 }
 
 /// Build the top-level `.amx` file parser that discards warnings.

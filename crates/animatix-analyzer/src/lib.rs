@@ -24,6 +24,7 @@ mod types;
 mod workspace;
 
 // chumsky::Parser trait is not needed directly; parser functions are called via module API.
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use animatix_syntax::ast::{Span, Stmt};
@@ -316,6 +317,44 @@ impl Analyzer {
             TokenKind::Ident(name) => Some(name.clone()),
             _ => None,
         }
+    }
+
+    /// Return `(start_byte, end_byte, role)` for every token in the source.
+    ///
+    /// Roles are the shared `animatix_syntax::highlight` role names and are used
+    /// by the LSP semantic-token provider.
+    pub fn token_roles(&self) -> Vec<(usize, usize, &'static str)> {
+        let ast = self.ast.as_deref().unwrap_or(&[]);
+        let label_names = animatix_syntax::highlight::collect_label_names(ast);
+        let property_names: HashSet<String> = self
+            .symbols
+            .properties
+            .values()
+            .flat_map(|props| props.iter().cloned())
+            .collect();
+        let param_names: HashSet<String> = self
+            .symbols
+            .components
+            .values()
+            .flat_map(|c| c.params.iter().map(|p| p.name.clone()))
+            .collect();
+
+        self.tokens
+            .iter()
+            .enumerate()
+            .map(|(idx, token)| {
+                let role = animatix_syntax::highlight::classify_token(
+                    idx,
+                    token,
+                    &self.tokens,
+                    &self.symbols,
+                    &label_names,
+                    &property_names,
+                    &param_names,
+                );
+                (token.span.start, token.span.end, role)
+            })
+            .collect()
     }
 }
 

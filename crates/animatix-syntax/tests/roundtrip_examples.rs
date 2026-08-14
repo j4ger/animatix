@@ -8,7 +8,6 @@
 use std::path::Path;
 
 use animatix_syntax::ast::Stmt;
-use animatix_syntax::chumsky::Parser;
 
 /// Recursively collect all `.amx` files under `dir`.
 fn collect_amx_files(dir: &Path) -> Vec<std::path::PathBuf> {
