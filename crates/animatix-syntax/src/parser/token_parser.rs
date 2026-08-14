@@ -94,6 +94,29 @@ pub fn assign<'a>() -> impl Parser<'a, TokInput<'a>, (), TokErr<'a>> + Clone {
     select! { TokenKind::Assign => () }
 }
 
+/// A time literal, returned as an AST `Time`.
+pub fn time<'a>() -> impl Parser<'a, TokInput<'a>, crate::ast::Time, TokErr<'a>> + Clone {
+    select! {
+        TokenKind::Time { value, ms } if ms => crate::ast::Time::Milliseconds(value as u64),
+        TokenKind::Time { value, ms: false } => crate::ast::Time::Seconds(value),
+    }
+}
+
+/// A percentage literal.
+pub fn percent<'a>() -> impl Parser<'a, TokInput<'a>, f64, TokErr<'a>> + Clone {
+    select! { TokenKind::Percent(n) => n }
+}
+
+/// The `null` literal.
+pub fn null<'a>() -> impl Parser<'a, TokInput<'a>, (), TokErr<'a>> + Clone {
+    select! { TokenKind::Null => () }
+}
+
+/// Match an arbitrary unit-variant punctuation or operator token.
+pub fn punct<'a>(kind: TokenKind) -> impl Parser<'a, TokInput<'a>, (), TokErr<'a>> + Clone {
+    select! { tok if tok == kind => () }
+}
+
 #[cfg(test)]
 mod tests {
     use chumsky::Parser;
@@ -136,5 +159,17 @@ mod tests {
         assert_eq!(name, "x");
         assert_eq!(span.start, 4);
         assert_eq!(span.end, 5);
+    }
+
+    #[test]
+    fn parses_literals_and_punct() {
+        let tokens = crate::token::tokenize("2s 50% null +");
+        let spanned = spanned(&tokens);
+        let input = as_input(&spanned);
+
+        let parser = time().then(percent()).then(null()).then(punct(TokenKind::Plus));
+        let (((t, p), _), _) = parser.parse(input).into_result().unwrap();
+        assert_eq!(t, crate::ast::Time::Seconds(2.0));
+        assert_eq!(p, 50.0);
     }
 }
