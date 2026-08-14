@@ -9,52 +9,10 @@ use std::collections::{HashMap, HashSet};
 
 use crate::ast::{BinaryOp, Expr, TypeAnnotation};
 
-/// Built-in colorscheme namespaces whose two-segment paths are colors.
-pub const COLOR_NAMESPACES: &[&str] = &["accent", "text", "surface", "stroke"];
-
-/// Built-in functions that construct a color value.
-pub const COLOR_CONSTRUCTOR_FNS: &[&str] = &["rgb", "rgba", "hsv", "hsl", "hsla"];
-
-/// Built-in scalar/math functions available at build and frame time.
-pub const MATH_FUNCTION_NAMES: &[&str] = &[
-    "abs",
-    "clamp",
-    "ceil",
-    "cos",
-    "deg",
-    "exp",
-    "floor",
-    "lerp",
-    "log",
-    "max",
-    "min",
-    "rad",
-    "rand",
-    "seeded_rand",
-    "sin",
-    "sqrt",
-    "tan",
-];
-
-/// Named color literals accepted by the runtime and static type layer.
-pub const NAMED_COLOR_NAMES: &[&str] = &[
-    "red", "RED", "green", "GREEN", "blue", "BLUE", "black", "BLACK", "white", "WHITE", "yellow",
-    "YELLOW", "orange", "ORANGE",
-];
-
-/// Named color literal values in RGBA order.
-pub fn named_color_rgba(name: &str) -> Option<[f64; 4]> {
-    match name {
-        "red" | "RED" => Some([1.0, 0.0, 0.0, 1.0]),
-        "green" | "GREEN" => Some([0.0, 1.0, 0.0, 1.0]),
-        "blue" | "BLUE" => Some([0.0, 0.0, 1.0, 1.0]),
-        "black" | "BLACK" => Some([0.0, 0.0, 0.0, 1.0]),
-        "white" | "WHITE" => Some([1.0, 1.0, 1.0, 1.0]),
-        "yellow" | "YELLOW" => Some([1.0, 1.0, 0.0, 1.0]),
-        "orange" | "ORANGE" => Some([1.0, 0.65, 0.0, 1.0]),
-        _ => None,
-    }
-}
+pub use crate::builtins::{
+    COLOR_CONSTRUCTOR_FUNCTIONS as COLOR_CONSTRUCTOR_FNS, COLOR_NAMES as NAMED_COLOR_NAMES,
+    COLOR_NAMESPACES, MATH_FUNCTIONS as MATH_FUNCTION_NAMES, named_color_rgba,
+};
 
 /// A namespaced value, either a concrete type or a nested namespace.
 #[derive(Clone, Debug, PartialEq, Eq)]

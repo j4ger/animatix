@@ -10,33 +10,6 @@
 
 use crate::ast::ByteSpan;
 
-/// Structural and reserved keywords recognized by the tokenizer.
-pub const KEYWORDS: &[&str] = &[
-    "config",
-    "import",
-    "as",
-    "let",
-    "pub",
-    "type",
-    "component",
-    "action",
-    "sequence",
-    "stagger",
-    "always",
-    "for",
-    "in",
-    "if",
-    "else",
-    "match",
-    "play",
-    // Reserved for future constructs; rejected as identifiers today.
-    "loop",
-    "yield",
-    "stop",
-    "pause",
-    "resume",
-];
-
 /// A lexical token kind.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
@@ -307,7 +280,9 @@ impl<'a> Lexer<'a> {
 
         let text = &self.src[start..self.pos];
         let lower = text.to_ascii_lowercase();
-        if KEYWORDS.contains(&lower.as_str()) {
+        if crate::builtins::KEYWORDS.contains(&lower.as_str())
+            || crate::builtins::RESERVED_KEYWORDS.contains(&lower.as_str())
+        {
             TokenKind::Keyword(lower)
         } else if lower == "true" {
             TokenKind::Bool(true)

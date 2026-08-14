@@ -267,25 +267,12 @@ fn keyword_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
         .keywords
         .iter()
         .map(|kw| {
-            let doc = match kw.as_str() {
-                "let" => Some("Declare a variable: let name = value"),
-                "import" => Some("Import another file: import \"path\""),
-                "always" => Some("Reactive block that runs continuously"),
-                "if" => Some("Conditional: if condition { ... }"),
-                "else" => Some("Else branch: if ... { } else { }"),
-                "for" => Some("Loop: for item in collection { ... }"),
-                "in" => Some("Used in for loops"),
-                "pub" => Some("Make visible to other files"),
-                "component" => Some("Define a reusable component"),
-                "sequence" => Some("Run actions in sequence"),
-                "stagger" => Some("Stagger actions with delay"),
-                _ => None,
-            };
+            let doc = animatix_syntax::builtins::keyword_documentation(kw);
             CompletionItem {
                 label: kw.clone(),
                 kind: CompletionKind::Keyword,
                 detail: Some("Keyword".to_string()),
-                documentation: doc.map(|s| s.to_string()),
+                documentation: Some(doc.to_string()),
                 insert_text: None,
             }
         })
@@ -298,27 +285,12 @@ fn type_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
         .types
         .iter()
         .map(|ty| {
-            let doc = match ty.as_str() {
-                "Text" => Some("Text element with content and styling"),
-                "Typst" => Some("Typst document with markup support"),
-                "Code" => Some("Code block with syntax highlighting"),
-                "Svg" => Some("SVG image element"),
-                "Image" => Some("Raster image element"),
-                "Rect" => Some("Rectangle shape"),
-                "Ellipse" => Some("Ellipse, circle, arc, or dot"),
-                "Line" => Some("Line segment or arrow"),
-                "Polygon" => Some("Polygon or regular polygon"),
-                "Path" => Some("SVG path element"),
-                "Graph" => Some("Function graph"),
-                "PlotCurve" => Some("Plot curve with configurable sampling kind"),
-                "Button" => Some("Interactive button element"),
-                _ => None,
-            };
+            let doc = animatix_syntax::builtins::type_documentation(ty);
             CompletionItem {
                 label: ty.clone(),
                 kind: CompletionKind::Type,
                 detail: Some("Type".to_string()),
-                documentation: doc.map(|s| s.to_string()),
+                documentation: Some(doc.to_string()),
                 insert_text: None,
             }
         })
@@ -432,27 +404,12 @@ fn action_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
         .actions
         .iter()
         .map(|action| {
-            let doc = match action.as_str() {
-                "fade-in" => Some("Fade in from transparent"),
-                "draw-in" => Some("Draw in (like handwriting)"),
-                "wipe-in" => Some("Wipe in from edge"),
-                "fade-out" => Some("Fade out to transparent"),
-                "wipe-out" => Some("Wipe out to edge"),
-                "reveal-out" => Some("Reveal out (reverse draw)"),
-                "draw-out" => Some("Draw out (reverse handwriting)"),
-                "move" => Some("Move to position: move target to (x, y)"),
-                "shift" => Some("Shift by offset: shift target by (dx, dy)"),
-                "rotate" => Some("Rotate: rotate target by 90"),
-                "scale" => Some("Scale: scale target to 2"),
-                "persist" => Some("Persist actor across scene boundary: persist actor"),
-                "remove" => Some("Fade out and stop persisting: remove actor [duration]"),
-                _ => None,
-            };
+            let doc = animatix_syntax::builtins::action_documentation(action);
             CompletionItem {
                 label: action.clone(),
                 kind: CompletionKind::Action,
                 detail: Some("Action".to_string()),
-                documentation: doc.map(|s| s.to_string()),
+                documentation: Some(doc.to_string()),
                 insert_text: None,
             }
         })

@@ -335,6 +335,20 @@ mod tests {
     use crate::timeline::{AnimationTrack, ContainerMetadata, LayoutType, PropertyTrack};
 
     #[test]
+    fn runtime_action_names_match_builtins_registry() {
+        let mut runtime: Vec<String> =
+            get_builtin_actions().iter().map(|a| a.signature().name.clone()).collect();
+        let mut registry: Vec<String> =
+            animatix_syntax::builtins::ACTIONS.iter().map(|s| s.to_string()).collect();
+        runtime.sort();
+        registry.sort();
+        assert_eq!(
+            runtime, registry,
+            "runtime action verbs drifted from animatix-syntax::builtins::ACTIONS"
+        );
+    }
+
+    #[test]
     fn unknown_actions_emit_diagnostics() {
         let action = Action {
             verb: "spin-in".to_string(),

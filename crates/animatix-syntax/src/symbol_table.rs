@@ -128,96 +128,13 @@ pub struct SceneInfo {
     pub span: Option<Span>,
 }
 
-/// Known built-in types in the Animatix DSL.
-const BUILTIN_TYPES: &[&str] = &[
-    // Shapes
-    "Rect",
-    "Ellipse",
-    "Line",
-    "Arrow",
-    "Polygon",
-    "Path",
-    // Text
-    "Text",
-    "Code",
-    "Typst",
-    // Media
-    "Image",
-    "Svg",
-    "Audio",
-    // Plots
-    "Graph",
-    "PlotCurve",
-    "VectorField",
-    "Heatmap",
-    "ContourSet",
-    "NumberPlane",
-    "BarChart",
-    // Containers
-    "Row",
-    "Col",
-    "Grid",
-    "Stack",
-    "Group",
-    "Mask",
-    "Filter",
-    // Equation / Fragment
-    "Equation",
-    "Fragment",
-    // Annotations
-    "Callout",
-    "Legend",
-    // Built-in component (handled by component system, not a primitive)
-    "Button",
-];
-
-/// Known built-in actions.
-const BUILTIN_ACTIONS: &[&str] = &[
-    "fade-in",
-    "draw-in",
-    "wipe-in",
-    "reveal-in",
-    "fade-out",
-    "wipe-out",
-    "reveal-out",
-    "draw-out",
-    "move",
-    "shift",
-    "rotate",
-    "scale",
-    "shake",
-    "pulse",
-    "bounce",
-    "highlight",
-    "unhighlight",
-    "persist",
-    "remove",
-    "swap",
-    "reorder",
-];
-
-/// Known keywords.
-const KEYWORDS: &[&str] = &[
-    "let",
-    "import",
-    "always",
-    "if",
-    "else",
-    "for",
-    "in",
-    "pub",
-    "component",
-    "sequence",
-    "stagger",
-];
-
 impl SymbolTable {
     /// Build a symbol table from parsed AST statements.
     pub fn build_from_ast(stmts: &[Stmt]) -> Self {
         let mut table = Self {
-            types: BUILTIN_TYPES.iter().map(|s| s.to_string()).collect(),
-            keywords: KEYWORDS.iter().map(|s| s.to_string()).collect(),
-            actions: BUILTIN_ACTIONS.iter().map(|s| s.to_string()).collect(),
+            types: crate::builtins::TYPES.iter().map(|s| s.to_string()).collect(),
+            keywords: crate::builtins::KEYWORDS.iter().map(|s| s.to_string()).collect(),
+            actions: crate::builtins::ACTIONS.iter().map(|s| s.to_string()).collect(),
             properties: typing::known_properties().clone(),
             property_types: typing::known_property_types().clone(),
             scenes: HashMap::new(),

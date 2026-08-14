@@ -58,19 +58,31 @@ pub fn hover_at(
     }
     if symbols.types.contains(text) {
         return Some(HoverInfo {
-            contents: format!("**Type** `{}`\n\n{}", text, type_documentation(text)),
+            contents: format!(
+                "**Type** `{}`\n\n{}",
+                text,
+                animatix_syntax::builtins::type_documentation(text)
+            ),
             range,
         });
     }
     if symbols.actions.contains(text) {
         return Some(HoverInfo {
-            contents: format!("**Action** `{}`\n\n{}", text, action_documentation(text)),
+            contents: format!(
+                "**Action** `{}`\n\n{}",
+                text,
+                animatix_syntax::builtins::action_documentation(text)
+            ),
             range,
         });
     }
     if symbols.keywords.contains(text) {
         return Some(HoverInfo {
-            contents: format!("**Keyword** `{}`\n\n{}", text, keyword_documentation(text)),
+            contents: format!(
+                "**Keyword** `{}`\n\n{}",
+                text,
+                animatix_syntax::builtins::keyword_documentation(text)
+            ),
             range,
         });
     }
@@ -125,62 +137,5 @@ fn is_property_position(tokens: &[Token], token: &Token) -> bool {
             next_is_colon || prev_is_dot
         },
         None => false,
-    }
-}
-
-/// Documentation for a type.
-pub fn type_documentation(name: &str) -> &'static str {
-    match name {
-        "Text" => "Text element with content and styling properties.",
-        "Code" => "Code block with syntax highlighting.",
-        "Svg" => "SVG image element.",
-        "Image" => "Raster image element.",
-        "Rect" => "Rectangle shape with fill and stroke.",
-        "Ellipse" => "Ellipse, circle, arc, or dot shape.",
-        "Line" => "Line segment or arrow with optional head.",
-        "Polygon" => "Polygon or regular polygon shape.",
-        "Path" => "SVG path element.",
-        "Graph" => "Function graph.",
-        "PlotCurve" => "Plot curve with configurable sampling kind.",
-        "Button" => "Interactive button element.",
-        _ => "Unknown type.",
-    }
-}
-
-/// Documentation for an action.
-pub fn action_documentation(name: &str) -> &'static str {
-    match name {
-        "fade-in" => "Fade in from transparent.",
-        "draw-in" => "Draw in (like handwriting).",
-        "wipe-in" => "Wipe in from edge.",
-        "fade-out" => "Fade out to transparent.",
-        "wipe-out" => "Wipe out to edge.",
-        "reveal-out" => "Reveal out (reverse draw).",
-        "draw-out" => "Draw out (reverse handwriting).",
-        "move" => "Move to position: `move target to (x, y)`",
-        "shift" => "Shift by offset: `shift target by (dx, dy)`",
-        "rotate" => "Rotate: `rotate target by 90`",
-        "scale" => "Scale: `scale target to 2`",
-        "persist" => "Mark actor(s) to carry into the next scene: `persist actor1, actor2`",
-        "remove" => "Fade out and stop persisting: `remove actor [500ms]`",
-        _ => "Unknown action.",
-    }
-}
-
-/// Documentation for a keyword.
-pub fn keyword_documentation(name: &str) -> &'static str {
-    match name {
-        "let" => "Declare a variable: `let name = value`",
-        "import" => "Import another file: `import \"path\"`",
-        "always" => "Reactive block that runs continuously.",
-        "if" => "Conditional: `if condition { ... }`",
-        "else" => "Else branch: `if ... { } else { }`",
-        "for" => "Loop: `for item in collection { ... }`",
-        "in" => "Used in for loops.",
-        "pub" => "Make visible to other files.",
-        "component" => "Define a reusable component.",
-        "sequence" => "Run actions in sequence.",
-        "stagger" => "Stagger actions with delay.",
-        _ => "Keyword.",
     }
 }
