@@ -735,8 +735,8 @@ impl<'a> TsConverter<'a> {
         let mut current = node.child_by_field_name("pattern").unwrap_or(node);
         loop {
             match current.kind() {
-                "match_pattern" | "match_literal" | "match_range" | "match_or"
-                | "match_tuple" | "match_wildcard" => break,
+                "match_pattern" | "match_literal" | "match_range" | "match_or" | "match_tuple"
+                | "match_wildcard" => break,
                 _ => {
                     let mut cursor = current.walk();
                     match current.named_children(&mut cursor).next() {
@@ -2057,7 +2057,11 @@ title: Text, text: "Hello"
         assert_eq!(config.len(), 1);
         assert_eq!(config[0].name, "duration");
         assert_eq!(body.len(), 1);
-        assert!(matches!(body[0], Stmt::Keyframe { .. }), "expected keyframe, got: {:?}", body[0]);
+        assert!(
+            matches!(body[0], Stmt::Keyframe { .. }),
+            "expected keyframe, got: {:?}",
+            body[0]
+        );
     }
 
     #[test]

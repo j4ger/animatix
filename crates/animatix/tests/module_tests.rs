@@ -1283,9 +1283,7 @@ fn contains_actor(stmts: &[Stmt], label: &str, ty: &str) -> bool {
             ..
         } => {
             contains_actor(then_branch, label, ty)
-                || else_branch
-                    .as_ref()
-                    .is_some_and(|body| contains_actor(body, label, ty))
+                || else_branch.as_ref().is_some_and(|body| contains_actor(body, label, ty))
         },
         _ => false,
     })
@@ -1304,11 +1302,8 @@ box: Rect, size: (100, 100)
     );
 
     let mut graph = ModuleGraph::new();
-    let result = graph.with_source(
-        &entry,
-        "this is not valid @@@ syntax",
-        |graph| graph.load_program(&entry),
-    );
+    let result = graph
+        .with_source(&entry, "this is not valid @@@ syntax", |graph| graph.load_program(&entry));
 
     assert!(result.is_err(), "invalid override should fail");
 

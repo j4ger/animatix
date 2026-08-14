@@ -44,10 +44,7 @@ pub fn normalize_path(path: &Path) -> PathBuf {
 /// Resolve an import string relative to a base file path.
 pub fn resolve_import(base: &Path, import_path: &str) -> PathBuf {
     let trimmed = import_path.trim_matches('"');
-    let joined = base
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .join(trimmed);
+    let joined = base.parent().unwrap_or_else(|| Path::new(".")).join(trimmed);
     normalize_path(&joined)
 }
 

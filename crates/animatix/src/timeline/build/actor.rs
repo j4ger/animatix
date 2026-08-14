@@ -310,7 +310,8 @@ impl Timeline {
         } else {
             existing_track.style.opacity.last(1.0)
         };
-        let mut stroke_width = existing_track.style.stroke_width.last(default_stroke_width(kind_id));
+        let mut stroke_width =
+            existing_track.style.stroke_width.last(default_stroke_width(kind_id));
         let mut stroke_color = existing_track.style.stroke_color.last(DEFAULT_WHITE);
         let legend_color = existing_track.legend.color;
         let mut stroke_progress = existing_track.style.stroke_progress.last(1.0);

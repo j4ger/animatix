@@ -384,13 +384,7 @@ impl Analyzer {
 
     /// Completions at cursor position.
     pub fn completions_at(&self, line: usize, col: usize) -> Vec<CompletionItem> {
-        completer::completions_at(
-            &self.symbols,
-            self.tree.as_ref(),
-            &self.source,
-            line,
-            col,
-        )
+        completer::completions_at(&self.symbols, self.tree.as_ref(), &self.source, line, col)
     }
 
     /// All diagnostics (parse errors + semantic checks).
@@ -414,13 +408,7 @@ impl Analyzer {
 
     /// Hover information at cursor position.
     pub fn hover_at(&self, line: usize, col: usize) -> Option<HoverInfo> {
-        hover::hover_at(
-            &self.symbols,
-            self.tree.as_ref(),
-            &self.source,
-            line,
-            col,
-        )
+        hover::hover_at(&self.symbols, self.tree.as_ref(), &self.source, line, col)
     }
 
     /// Go-to-definition at cursor position.
@@ -446,11 +434,7 @@ impl Analyzer {
     /// Find all references to a symbol name in this file.
     /// Returns a list of (start_line, start_col, end_line, end_col) ranges.
     pub fn find_references(&self, symbol_name: &str) -> Vec<(usize, usize, usize, usize)> {
-        references::find_references(
-            self.tree.as_ref(),
-            &self.source,
-            symbol_name,
-        )
+        references::find_references(self.tree.as_ref(), &self.source, symbol_name)
     }
 
     /// Document symbols (outline view).
@@ -1092,19 +1076,12 @@ title: Text { content: "Hello" }
         graph_aliases.sort();
         assert_eq!(ws_aliases, graph_aliases, "pub type export sets should agree");
 
-        let mut ws_components: Vec<&str> =
-            ws_ns.components.keys().map(String::as_str).collect();
+        let mut ws_components: Vec<&str> = ws_ns.components.keys().map(String::as_str).collect();
         ws_components.sort();
-        let mut graph_components: Vec<&str> = graph_ns
-            .component_exports
-            .keys()
-            .map(String::as_str)
-            .collect();
+        let mut graph_components: Vec<&str> =
+            graph_ns.component_exports.keys().map(String::as_str).collect();
         graph_components.sort();
-        assert_eq!(
-            ws_components, graph_components,
-            "pub component export sets should agree"
-        );
+        assert_eq!(ws_components, graph_components, "pub component export sets should agree");
 
         let mut ws_scenes: Vec<&str> = ws_ns.scenes.keys().map(String::as_str).collect();
         ws_scenes.sort();
@@ -1114,8 +1091,7 @@ title: Text { content: "Hello" }
 
         let mut ws_nested: Vec<&str> = ws_ns.namespaces.keys().map(String::as_str).collect();
         ws_nested.sort();
-        let mut graph_nested: Vec<&str> =
-            graph_ns.namespaces.keys().map(String::as_str).collect();
+        let mut graph_nested: Vec<&str> = graph_ns.namespaces.keys().map(String::as_str).collect();
         graph_nested.sort();
         assert_eq!(ws_nested, graph_nested, "nested namespace sets should agree");
     }
@@ -1154,8 +1130,7 @@ title: Text { content: "Hello" }
         let resolved = workspace.resolve_symbols(std::path::Path::new(main));
         let program = graph.load_program(std::path::Path::new(main)).expect("program loads");
 
-        let mut ws_components: Vec<&str> =
-            resolved.components.keys().map(String::as_str).collect();
+        let mut ws_components: Vec<&str> = resolved.components.keys().map(String::as_str).collect();
         ws_components.sort();
         let mut graph_components: Vec<&str> =
             program.components.keys().map(String::as_str).collect();
@@ -1167,7 +1142,8 @@ title: Text { content: "Hello" }
 
         let mut ws_scenes: Vec<&str> = resolved.scenes.keys().map(String::as_str).collect();
         ws_scenes.sort();
-        let mut graph_scenes: Vec<&str> = program.namespaces
+        let mut graph_scenes: Vec<&str> = program
+            .namespaces
             .values()
             .flat_map(|ns| ns.scenes.keys().map(String::as_str).collect::<Vec<_>>())
             .collect();

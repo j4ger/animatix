@@ -163,11 +163,11 @@ pub(crate) fn insert_end_keyframes(
         .ensure(ShapeType::Rect)
         .add_keyframe(t_end_ms, shape_type, easing);
     track.style.opacity.ensure(1.0).add_keyframe(t_end_ms, opacity, easing);
-    track
-        .style
-        .stroke_width
-        .ensure(default_stroke_width(track.kind))
-        .add_keyframe(t_end_ms, stroke_width, easing);
+    track.style.stroke_width.ensure(default_stroke_width(track.kind)).add_keyframe(
+        t_end_ms,
+        stroke_width,
+        easing,
+    );
     track
         .style
         .stroke_color

@@ -775,14 +775,12 @@ fn main() {
             }
 
             match format {
-                OutputFormat::Json => {
-                    match serde_json::to_string_pretty(&all_diagnostics) {
-                        Ok(json) => println!("{json}"),
-                        Err(err) => {
-                            tracing::error!("Failed to serialize diagnostics JSON: {err}");
-                            std::process::exit(1);
-                        },
-                    }
+                OutputFormat::Json => match serde_json::to_string_pretty(&all_diagnostics) {
+                    Ok(json) => println!("{json}"),
+                    Err(err) => {
+                        tracing::error!("Failed to serialize diagnostics JSON: {err}");
+                        std::process::exit(1);
+                    },
                 },
                 OutputFormat::Text => {
                     if total_errors > 0 || total_warnings > 0 {

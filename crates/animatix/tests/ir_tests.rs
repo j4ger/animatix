@@ -347,13 +347,7 @@ fn modifier_ir_executes_let_and_if() {
     let mut overrides = HashMap::new();
     let mut env = timeline.build_frame_env(500, SceneDimensions::default(), &overrides);
     timeline
-        .apply_modifier_program(
-            &ir,
-            500,
-            SceneDimensions::default(),
-            &mut env,
-            &mut overrides,
-        )
+        .apply_modifier_program(&ir, 500, SceneDimensions::default(), &mut env, &mut overrides)
         .expect("IR execution should succeed");
 
     assert_eq!(overrides["pulse"]["opacity"], Value::Num(0.0));
@@ -634,13 +628,7 @@ fn ir_nested_modifier_targets_execute() {
     let mut overrides = HashMap::new();
     let mut env = timeline.build_frame_env(1000, SceneDimensions::default(), &overrides);
     timeline
-        .apply_modifier_program(
-            &ir,
-            1000,
-            SceneDimensions::default(),
-            &mut env,
-            &mut overrides,
-        )
+        .apply_modifier_program(&ir, 1000, SceneDimensions::default(), &mut env, &mut overrides)
         .expect("IR execution should succeed");
 
     assert!(

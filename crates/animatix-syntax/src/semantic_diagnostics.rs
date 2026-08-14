@@ -5,8 +5,10 @@
 
 use std::collections::HashSet;
 
-use crate::ast::{is_array_member_label, InlineItem, Span, Stmt};
-use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticLocation, DiagnosticPhase, DiagnosticSeverity};
+use crate::ast::{InlineItem, Span, Stmt, is_array_member_label};
+use crate::diagnostics::{
+    Diagnostic, DiagnosticCode, DiagnosticLocation, DiagnosticPhase, DiagnosticSeverity,
+};
 use crate::symbol_table::{LabelKind, SymbolTable};
 use crate::walk;
 
@@ -213,8 +215,13 @@ fn check_stmt(
 
             if !symbols.actions.contains(&action.verb) {
                 let (vstart, vend) = tree
-                    .and_then(|t| find_token_range(t.root_node(), source, "action_verb", &action.verb))
-                    .unwrap_or_else(|| tree_sitter::Point::new(line - 1, col - 1).pair_with_point(tree_sitter::Point::new(end_line - 1, end_col - 1)));
+                    .and_then(|t| {
+                        find_token_range(t.root_node(), source, "action_verb", &action.verb)
+                    })
+                    .unwrap_or_else(|| {
+                        tree_sitter::Point::new(line - 1, col - 1)
+                            .pair_with_point(tree_sitter::Point::new(end_line - 1, end_col - 1))
+                    });
                 diagnostics.push(tree_range_diagnostic(
                     DiagnosticSeverity::Warning,
                     DiagnosticCode::UnknownAction,
@@ -232,7 +239,10 @@ fn check_stmt(
                 if !is_defined {
                     let (tstart, tend) = tree
                         .and_then(|t| find_token_range(t.root_node(), source, "identifier", target))
-                        .unwrap_or_else(|| tree_sitter::Point::new(line - 1, col - 1).pair_with_point(tree_sitter::Point::new(end_line - 1, end_col - 1)));
+                        .unwrap_or_else(|| {
+                            tree_sitter::Point::new(line - 1, col - 1)
+                                .pair_with_point(tree_sitter::Point::new(end_line - 1, end_col - 1))
+                        });
                     diagnostics.push(tree_range_diagnostic(
                         DiagnosticSeverity::Warning,
                         DiagnosticCode::UndefinedLabel,

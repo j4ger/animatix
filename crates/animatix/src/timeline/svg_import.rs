@@ -145,10 +145,7 @@ impl GradientDef {
 
         if total_weight <= 0.0 {
             // All stops at same offset — use the last stop, if any.
-            return stops
-                .last()
-                .map(|stop| (stop.r, stop.g, stop.b))
-                .unwrap_or((0, 0, 0));
+            return stops.last().map(|stop| (stop.r, stop.g, stop.b)).unwrap_or((0, 0, 0));
         }
 
         (

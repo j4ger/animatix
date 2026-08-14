@@ -2168,9 +2168,7 @@ fn stmt_contains_match_expr(stmt: &Stmt) -> bool {
             ..
         } => {
             then_branch.iter().any(stmt_contains_match_expr)
-                || else_branch
-                    .as_ref()
-                    .is_some_and(|b| b.iter().any(stmt_contains_match_expr))
+                || else_branch.as_ref().is_some_and(|b| b.iter().any(stmt_contains_match_expr))
         },
         Stmt::ForLoop { body, .. } => body.iter().any(stmt_contains_match_expr),
         Stmt::Match { .. } => true,
