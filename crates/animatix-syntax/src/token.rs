@@ -146,6 +146,28 @@ pub struct Token {
     pub span: ByteSpan,
 }
 
+impl chumsky::span::Span for ByteSpan {
+    type Context = ();
+    type Offset = usize;
+
+    fn new(_context: Self::Context, range: std::ops::Range<Self::Offset>) -> Self {
+        ByteSpan {
+            start: range.start,
+            end: range.end,
+        }
+    }
+
+    fn context(&self) -> Self::Context {}
+
+    fn start(&self) -> Self::Offset {
+        self.start
+    }
+
+    fn end(&self) -> Self::Offset {
+        self.end
+    }
+}
+
 /// Tokenize `source` into a lossless token stream.
 ///
 /// Whitespace is skipped. Tokens are emitted in source order; the slice's end
