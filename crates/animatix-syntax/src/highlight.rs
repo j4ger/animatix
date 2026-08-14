@@ -100,7 +100,7 @@ fn classify_ident(
             LabelKind::Let | LabelKind::For | LabelKind::Always => "variable",
         };
     }
-    if label_names.contains(name) {
+    if label_names.contains(name) || symbols.scenes.contains_key(name) {
         return "label";
     }
     if symbols.types.contains(name)
@@ -174,6 +174,9 @@ fn collect_stmt_label_names(stmt: &Stmt, names: &mut HashSet<String>) {
             for child in body {
                 collect_stmt_label_names(child, names);
             }
+        },
+        Stmt::Play { scene_name, .. } => {
+            names.insert(scene_name.clone());
         },
         Stmt::Keyframe { body, .. }
         | Stmt::RelativeKeyframe { body, .. }
