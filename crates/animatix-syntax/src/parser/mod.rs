@@ -75,6 +75,18 @@ pub fn parse_source_diagnostics(
     (ast, owned_errors, owned_warnings)
 }
 
+/// Parse source and return AST, errors, and identifier occurrences.
+pub fn parse_source_with_occurrences(
+    source: &str,
+) -> (Option<Vec<Stmt>>, Vec<ParseError>, Vec<crate::occurrence::Occurrence>) {
+    let (ast, errors, _warnings) = parse_source_diagnostics(source);
+    let occurrences = ast
+        .as_deref()
+        .map(|stmts| crate::occurrence::collect(stmts, source))
+        .unwrap_or_default();
+    (ast, errors, occurrences)
+}
+
 /// Parse source into an AST and structured parse errors.
 ///
 /// The tokenizer handles whitespace and comments, so this entry point accepts

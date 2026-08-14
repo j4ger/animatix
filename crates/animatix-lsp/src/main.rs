@@ -25,6 +25,7 @@ const SEMANTIC_TOKEN_TYPES: &[&str] = &[
     "property",
     "parameter",
     "function",
+    "action",
     "label",
     "boolean",
     "punctuation",

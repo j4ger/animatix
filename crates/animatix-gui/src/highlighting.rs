@@ -86,7 +86,7 @@ impl HighlightColors {
             "variable" => self.variable,
             "property" => self.property,
             "parameter" => self.parameter,
-            "function" => self.function,
+            "function" | "action" => self.function,
             "label" => self.label,
             _ => self.default,
         }

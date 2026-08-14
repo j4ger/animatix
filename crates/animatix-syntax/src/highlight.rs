@@ -130,7 +130,7 @@ fn classify_ident(
     }
 
     if symbols.actions.contains(name) {
-        return "function";
+        return "action";
     }
     if property_names.contains(name) {
         return "property";
@@ -311,10 +311,8 @@ mod tests {
         let roles = classify_all("card[0].scale = 1.0\nscale card to 2\n");
         let scale_prop = roles.iter().find(|(text, _)| text == "scale");
         assert_eq!(scale_prop.map(|(_, role)| *role), Some("property"));
-        let action_scale = roles
-            .iter()
-            .filter(|(text, role)| text == "scale" && *role == "function")
-            .count();
+        let action_scale =
+            roles.iter().filter(|(text, role)| text == "scale" && *role == "action").count();
         assert_eq!(action_scale, 1);
     }
 
