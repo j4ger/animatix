@@ -31,7 +31,7 @@
 //! ## Relationship to Other Systems
 //!
 //! - [`crate::ast`] defines the AST nodes this parser produces.
-//! - `tree-sitter-animatix/` is a synchronized derivative for editor tooling.
+//! - The lossless tokenizer in [`crate::token`] is the single lexical definition.
 //! - Parser tests in `tests/parser_tests.rs` are the authority on accepted syntax.
 
 pub(crate) mod common;
@@ -214,9 +214,9 @@ fn collect_inline_property_spans<'a>(item: &'a mut InlineItem, out: &mut Vec<&'a
     }
 }
 
-/// A parse result with both AST/parse errors and the optional tree-sitter tree.
+/// A parse result with AST, parse errors, and diagnostics.
 ///
-/// This is the canonical result type for source parsing. Tree-sitter produces a
+/// This is the canonical result type for source parsing.
 /// best-effort AST even when malformed nodes are present; chumsky returns no AST
 /// when the source cannot be parsed. Callers should treat `statements` as
 /// `Option` to cover both backends.

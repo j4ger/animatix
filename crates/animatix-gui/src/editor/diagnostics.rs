@@ -171,7 +171,7 @@ impl EditorBuffer {
             });
         }
 
-        // Scene names (from AST — tree-sitter doesn't support scenes yet)
+        // Scene names (from AST)
         // We do a simple text search for `# Name` and `play Name` patterns.
         if !symbols.scenes.is_empty() {
             for (cell_idx, cell) in self.cells.iter().enumerate() {
@@ -237,7 +237,7 @@ impl EditorBuffer {
     fn refresh_analyzer_diagnostics(&mut self) {
         let analyzer_diagnostics = self.analyzer.diagnostics();
         for d in analyzer_diagnostics {
-            // Analyzer diagnostics use 0-based tree-sitter positions
+            // Analyzer diagnostics use 0-based positions
             let doc_line = d.line;
 
             let Some(cell_idx) = self.cell_index_for_source_line(doc_line) else {

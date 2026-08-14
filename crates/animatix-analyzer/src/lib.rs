@@ -42,7 +42,7 @@ pub use workspace::Workspace;
 
 /// The main entry point for language intelligence.
 ///
-/// Holds parsed source, AST, tree-sitter tree, and extracted symbols.
+/// Holds parsed source, AST, token stream, and extracted symbols.
 /// Call `update()` when source changes; query methods are cheap.
 pub struct Analyzer {
     source: String,
@@ -181,7 +181,7 @@ impl Analyzer {
 
     /// Populate symbol table entries with real line/col positions from the
     /// lossless token stream. The first matching identifier token is treated as
-    /// the declaration position, matching the previous tree-sitter walk.
+    /// the declaration position from the lossless token stream.
     fn enrich_positions(tokens: &[Token], source: &str, table: &mut SymbolTable) {
         for token in tokens {
             if let TokenKind::Ident(name) = &token.kind {

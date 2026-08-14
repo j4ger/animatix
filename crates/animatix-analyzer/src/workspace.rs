@@ -34,7 +34,7 @@ impl Workspace {
     ///
     /// Symbols are built by the shared canonical semantic parser in
     /// `ModuleGraph`, so cross-file analysis agrees with the runtime/module
-    /// pipeline; tree-sitter is not used here.
+    /// pipeline; the tokenizer is used for positions.
     pub fn add_file(&mut self, path: PathBuf, source: &str) {
         self.graph.upsert_source(path.clone(), source.to_string());
         // Parse the file even when an import is missing so local symbols stay

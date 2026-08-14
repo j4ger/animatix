@@ -92,7 +92,7 @@ impl HighlightColors {
     }
 }
 
-/// Highlight source code using tree-sitter and return an egui LayoutJob.
+/// Highlight source code using the lossless tokenizer and return an egui LayoutJob.
 ///
 /// Additional visual layers:
 /// - `highlighted_line`: entire line gets a subtle blue background (timeline sync)
@@ -621,7 +621,7 @@ fade-in title [1s]
     fn actor_label_is_blue_with_semantic_highlight() {
         // Verify actor labels stay blue even when semantic highlights are applied.
         // Regression test: ActorName semantic highlight (amber) was overriding
-        // the tree-sitter @label (blue), making labels look the same as types.
+        // the tokenizer's label role (blue), making labels look the same as types.
         let source = "backdrop: Rect";
 
         let style = egui::Style::default();

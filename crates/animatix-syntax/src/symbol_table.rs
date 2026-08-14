@@ -246,8 +246,8 @@ impl SymbolTable {
                     LabelInfo {
                         name: name.clone(),
                         kind: LabelKind::Let,
-                        line: 0, // populated by Analyzer::enrich_positions from tree-sitter
-                        col: 0,  // populated by Analyzer::enrich_positions from tree-sitter
+                        line: 0, // populated by Analyzer::enrich_positions from the token stream
+                        col: 0,  // populated by Analyzer::enrich_positions from the token stream
                         span: *span,
                         ty: None,
                         inferred_type: Some(inferred),
@@ -270,8 +270,8 @@ impl SymbolTable {
                     LabelInfo {
                         name: label.clone(),
                         kind: LabelKind::Actor,
-                        line: 0, // populated by Analyzer::enrich_positions from tree-sitter
-                        col: 0,  // populated by Analyzer::enrich_positions from tree-sitter
+                        line: 0, // populated by Analyzer::enrich_positions from the token stream
+                        col: 0,  // populated by Analyzer::enrich_positions from the token stream
                         span: *span,
                         ty: Some(ty.clone()),
                         inferred_type: Some(if self.components.contains_key(ty) {
@@ -306,8 +306,8 @@ impl SymbolTable {
                                 default: p.default.as_ref().map(|e| e.to_source()),
                             })
                             .collect(),
-                        line: 0, // populated by Analyzer::enrich_positions from tree-sitter
-                        col: 0,  // populated by Analyzer::enrich_positions from tree-sitter
+                        line: 0, // populated by Analyzer::enrich_positions from the token stream
+                        col: 0,  // populated by Analyzer::enrich_positions from the token stream
                         span: *span,
                         is_pub: def.is_pub,
                     },
@@ -343,8 +343,8 @@ impl SymbolTable {
                         LabelInfo {
                             name: name.clone(),
                             kind: LabelKind::For,
-                            line: 0, // populated by Analyzer::enrich_positions from tree-sitter
-                            col: 0,  // populated by Analyzer::enrich_positions from tree-sitter
+                            line: 0, // populated by Analyzer::enrich_positions from the token stream
+                            col: 0, // populated by Analyzer::enrich_positions from the token stream
                             span: *span,
                             ty: None,
                             inferred_type: None,
@@ -359,8 +359,8 @@ impl SymbolTable {
                         LabelInfo {
                             name: iv.clone(),
                             kind: LabelKind::For,
-                            line: 0, // populated by Analyzer::enrich_positions from tree-sitter
-                            col: 0,  // populated by Analyzer::enrich_positions from tree-sitter
+                            line: 0, // populated by Analyzer::enrich_positions from the token stream
+                            col: 0, // populated by Analyzer::enrich_positions from the token stream
                             span: *span,
                             ty: None,
                             inferred_type: None,
@@ -414,8 +414,8 @@ impl SymbolTable {
                     name.clone(),
                     SceneInfo {
                         name: name.clone(),
-                        line: 0, // populated by Analyzer::enrich_positions from tree-sitter
-                        col: 0,  // populated by Analyzer::enrich_positions from tree-sitter
+                        line: 0, // populated by Analyzer::enrich_positions from the token stream
+                        col: 0,  // populated by Analyzer::enrich_positions from the token stream
                         span: *span,
                     },
                 );

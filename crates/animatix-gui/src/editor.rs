@@ -1,4 +1,4 @@
-//! Code editor with cell-based notebook UI, tree-sitter syntax highlighting,
+//! Code editor with cell-based notebook UI, tokenizer syntax highlighting,
 //! line numbers, and auto-complete.
 
 use std::path::{Path, PathBuf};
