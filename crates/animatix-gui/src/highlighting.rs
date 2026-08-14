@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use animatix_analyzer::{Diagnostic, SymbolTable};
 use animatix_syntax::highlight::{classify_token, collect_label_names};
-use animatix_syntax::token::{line_col_to_byte, tokenize};
+use animatix_syntax::token::{LineIndex, tokenize};
 use egui::text::LayoutJob;
 use egui::{Color32, FontId, TextFormat};
 
@@ -107,6 +107,7 @@ pub fn highlight_source(
 ) -> LayoutJob {
     let colors = HighlightColors::from_style(style);
     let font_id = TextRole::Mono.font_id();
+    let line_index = LineIndex::new(source);
 
     let tokens = tokenize(source);
     let ast = animatix_syntax::parser::parse_source(source).0.unwrap_or_default();
@@ -156,8 +157,8 @@ pub fn highlight_source(
     // Convert semantic highlights to special highlight ranges with colors
     let mut special_highlights: Vec<(usize, usize, Color32)> = Vec::new();
     for sh in semantic_highlights {
-        let start = line_col_to_byte(source, sh.rel_line, sh.rel_col);
-        let end = line_col_to_byte(source, sh.rel_end_line, sh.rel_end_col);
+        let start = line_index.line_col_to_byte(sh.rel_line, sh.rel_col);
+        let end = line_index.line_col_to_byte(sh.rel_end_line, sh.rel_end_col);
         if start < end {
             let color = match sh.kind {
                 crate::cell_editor::SemanticTokenKind::ActorName => {
@@ -181,6 +182,7 @@ pub fn highlight_source(
     apply_background_layers(
         source,
         &font_id,
+        &line_index,
         &highlight_spans,
         diagnostics,
         &deco_ranges,
@@ -217,6 +219,7 @@ fn line_byte_range(source: &str, line: usize) -> (usize, usize) {
 fn apply_background_layers(
     source: &str,
     font_id: &FontId,
+    line_index: &LineIndex<'_>,
     highlight_spans: &[(usize, usize, Color32)],
     diagnostics: &[Diagnostic],
     deco_ranges: &[(usize, usize, Color32)],
@@ -226,8 +229,8 @@ fn apply_background_layers(
     let diag_ranges: Vec<(usize, usize)> = diagnostics
         .iter()
         .filter_map(|d| {
-            let start = line_col_to_byte(source, d.line, d.col);
-            let end = line_col_to_byte(source, d.end_line, d.end_col);
+            let start = line_index.line_col_to_byte(d.line, d.col);
+            let end = line_index.line_col_to_byte(d.end_line, d.end_col);
             if start < end {
                 Some((start, end))
             } else {
@@ -288,8 +291,8 @@ fn apply_background_layers(
         // Check if segment is covered by a diagnostic
         let mut bg_color: Option<Color32> = None;
         for d in diagnostics {
-            let d_start = line_col_to_byte(source, d.line, d.col);
-            let d_end = line_col_to_byte(source, d.end_line, d.end_col);
+            let d_start = line_index.line_col_to_byte(d.line, d.col);
+            let d_end = line_index.line_col_to_byte(d.end_line, d.end_col);
             if seg_start >= d_start && seg_end <= d_end {
                 bg_color = Some(match d.severity {
                     animatix_analyzer::DiagnosticSeverity::Error => {

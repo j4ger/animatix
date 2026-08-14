@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use animatix_analyzer::{Analyzer, Workspace};
-use animatix_syntax::token::byte_to_line_col;
+use animatix_syntax::token::LineIndex;
 use tokio::sync::Mutex;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
@@ -525,13 +525,14 @@ fn build_semantic_tokens(
     source: &str,
     roles: &[(usize, usize, &'static str)],
 ) -> Vec<SemanticToken> {
+    let line_index = LineIndex::new(source);
     let mut data = Vec::with_capacity(roles.len());
     let mut prev_line = 0u32;
     let mut prev_col = 0u32;
 
     for &(start, end, role) in roles {
-        let (line, col) = byte_to_line_col(source, start);
-        let (_, end_col) = byte_to_line_col(source, end);
+        let (line, col) = line_index.byte_to_line_col(start);
+        let (_, end_col) = line_index.byte_to_line_col(end);
         let delta_line = line as u32 - prev_line;
         let delta_start = if delta_line == 0 {
             col as u32 - prev_col
