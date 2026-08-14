@@ -25,8 +25,6 @@ pub struct SymbolTable {
     pub keywords: HashSet<String>,
     /// Built-in action verbs (e.g., "fade-in", "move", "rotate").
     pub actions: HashSet<String>,
-    /// Built-in function names (e.g., "rgb", "cos", "format").
-    pub functions: HashSet<String>,
     /// Imports declared in this file.
     pub imports: Vec<ImportInfo>,
     /// Labels referenced in actions/assignments (for unused label detection).
@@ -213,16 +211,6 @@ const KEYWORDS: &[&str] = &[
     "stagger",
 ];
 
-/// Built-in function names shared by typing and highlighting.
-fn builtin_function_names() -> std::collections::HashSet<String> {
-    typing::COLOR_CONSTRUCTOR_FNS
-        .iter()
-        .chain(typing::MATH_FUNCTION_NAMES)
-        .chain(["format"].iter())
-        .map(|s| s.to_string())
-        .collect()
-}
-
 impl SymbolTable {
     /// Build a symbol table from parsed AST statements.
     pub fn build_from_ast(stmts: &[Stmt]) -> Self {
@@ -230,7 +218,6 @@ impl SymbolTable {
             types: BUILTIN_TYPES.iter().map(|s| s.to_string()).collect(),
             keywords: KEYWORDS.iter().map(|s| s.to_string()).collect(),
             actions: BUILTIN_ACTIONS.iter().map(|s| s.to_string()).collect(),
-            functions: builtin_function_names(),
             properties: typing::known_properties().clone(),
             property_types: typing::known_property_types().clone(),
             scenes: HashMap::new(),

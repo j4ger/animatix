@@ -113,6 +113,13 @@ fn classify_ident(
         return "parameter";
     }
 
+    // Function and method calls are structural, not name-based: any identifier
+    // immediately followed by `(` is a call, whether it is builtin (`cos`) or
+    // user-defined.
+    if next_significant(tokens, idx).is_some_and(|k| matches!(k, TokenKind::LParen)) {
+        return "function";
+    }
+
     // Property names in declaration lists (`size: ...`) and access paths
     // (`actor.size`) are distinguishable from action verbs that share a name
     // (e.g. `scale`).
@@ -122,7 +129,7 @@ fn classify_ident(
         return "property";
     }
 
-    if symbols.actions.contains(name) || symbols.functions.contains(name) {
+    if symbols.actions.contains(name) {
         return "function";
     }
     if property_names.contains(name) {
