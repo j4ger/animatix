@@ -17,8 +17,9 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 
 1. Read relevant docs before changing (`docs/spec.md`, `docs/architecture.md`, etc.).
 2. Keep tests green: run `cargo test -p animatix` and `cargo test -p animatix-gui` before finishing when relevant.
-3. **Before committing**: run these checks and ensure they pass:
+3. **Before committing**: format first, then run these checks and ensure they pass:
    ```bash
+   cargo fmt --all                # Format the workspace; commit any resulting changes
    cargo check --workspace        # All crates compile
    cargo test -p animatix-syntax  # Parser tests pass
    cargo test -p animatix --lib   # Core library tests pass
