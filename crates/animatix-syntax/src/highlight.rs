@@ -122,7 +122,7 @@ fn classify_ident(
         return "property";
     }
 
-    if symbols.actions.contains(name) {
+    if symbols.actions.contains(name) || symbols.functions.contains(name) {
         return "function";
     }
     if property_names.contains(name) {
@@ -313,5 +313,12 @@ mod tests {
         let roles = classify_all("fade-in card[0], named [1s]\n");
         assert!(roles.iter().any(|(text, role)| text == "card" && *role == "label"));
         assert!(roles.iter().any(|(text, role)| text == "named" && *role == "label"));
+    }
+
+    #[test]
+    fn classifies_builtin_functions() {
+        let roles = classify_all("let x = cos(0) + rgb(255, 0, 0)\n");
+        assert!(roles.iter().any(|(text, role)| text == "cos" && *role == "function"));
+        assert!(roles.iter().any(|(text, role)| text == "rgb" && *role == "function"));
     }
 }

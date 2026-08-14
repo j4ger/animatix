@@ -15,6 +15,27 @@ pub const COLOR_NAMESPACES: &[&str] = &["accent", "text", "surface", "stroke"];
 /// Built-in functions that construct a color value.
 pub const COLOR_CONSTRUCTOR_FNS: &[&str] = &["rgb", "rgba", "hsv", "hsl", "hsla"];
 
+/// Built-in scalar/math functions available at build and frame time.
+pub const MATH_FUNCTION_NAMES: &[&str] = &[
+    "abs",
+    "clamp",
+    "ceil",
+    "cos",
+    "deg",
+    "exp",
+    "floor",
+    "lerp",
+    "log",
+    "max",
+    "min",
+    "rad",
+    "rand",
+    "seeded_rand",
+    "sin",
+    "sqrt",
+    "tan",
+];
+
 /// Named color literals accepted by the runtime and static type layer.
 pub const NAMED_COLOR_NAMES: &[&str] = &[
     "red", "RED", "green", "GREEN", "blue", "BLUE", "black", "BLACK", "white", "WHITE", "yellow",
@@ -300,26 +321,8 @@ impl TypeEnv {
             self.functions.insert((*name).to_string(), Type::Color);
         }
         self.functions.insert("format".to_string(), Type::Str);
-        for name in [
-            "abs",
-            "clamp",
-            "ceil",
-            "cos",
-            "deg",
-            "exp",
-            "floor",
-            "lerp",
-            "log",
-            "max",
-            "min",
-            "rad",
-            "rand",
-            "seeded_rand",
-            "sin",
-            "sqrt",
-            "tan",
-        ] {
-            self.functions.insert(name.to_string(), Type::Num);
+        for name in MATH_FUNCTION_NAMES {
+            self.functions.insert((*name).to_string(), Type::Num);
         }
         self.construct_types.insert("Color".to_string(), Type::Color);
         self.construct_types
