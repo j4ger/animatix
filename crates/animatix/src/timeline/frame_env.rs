@@ -2,8 +2,8 @@
 //!
 //! [`Timeline::build_frame_env`] assembles the per-frame variable environment
 //! (`t`, `scene_width`, track properties, overrides) that drives both rendering
-//! and modifier evaluation. Modifier statements / IR / bytecode are executed
-//! against this environment to produce property overrides.
+//! and modifier evaluation. Modifier IR programs are executed against this
+//! environment to produce property overrides.
 
 use super::{
     Environment, SceneAnchor, SceneDimensions, Timeline, Value, scene_anchor_point,

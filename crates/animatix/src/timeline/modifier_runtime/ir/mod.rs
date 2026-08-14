@@ -1,10 +1,12 @@
 mod display;
 mod eval;
+mod exec;
 mod lower;
 mod types;
 
 // display module provides `impl Display for` IR types; re-export is not needed
 // because the trait implementations are used via `.to_string()` calls.
 pub(crate) use eval::*;
+pub use exec::*;
 pub use lower::*;
 pub use types::*;

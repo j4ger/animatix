@@ -164,8 +164,16 @@ fn test_keyframe_scoped_variables_injected_into_frame_env() {
         },
         &overrides,
     );
-    for modifier in &timeline.modifiers {
-        timeline.apply_modifier_stmt(modifier, &mut env, &mut overrides);
+    for program in &timeline.modifier_programs {
+        timeline
+            .apply_modifier_program(
+                program,
+                0,
+                SceneDimensions::default(),
+                &mut env,
+                &mut overrides,
+            )
+            .expect("modifier IR execution should succeed");
     }
 
     let tracker_at = overrides.get("tracker").and_then(|m| m.get("at"));
@@ -246,8 +254,16 @@ fn always_object_field_writes_update_frame_environment() {
 
     let mut overrides = std::collections::HashMap::new();
     let mut env = timeline.build_frame_env(0, SceneDimensions::default(), &overrides);
-    for modifier in &timeline.modifiers {
-        timeline.apply_modifier_stmt(modifier, &mut env, &mut overrides);
+    for program in &timeline.modifier_programs {
+        timeline
+            .apply_modifier_program(
+                program,
+                0,
+                SceneDimensions::default(),
+                &mut env,
+                &mut overrides,
+            )
+            .expect("modifier IR execution should succeed");
     }
 
     match env.get("p") {
@@ -379,8 +395,16 @@ fn always_nested_object_field_writes_update_frame_environment() {
 
     let mut overrides = std::collections::HashMap::new();
     let mut env = timeline.build_frame_env(0, SceneDimensions::default(), &overrides);
-    for modifier in &timeline.modifiers {
-        timeline.apply_modifier_stmt(modifier, &mut env, &mut overrides);
+    for program in &timeline.modifier_programs {
+        timeline
+            .apply_modifier_program(
+                program,
+                0,
+                SceneDimensions::default(),
+                &mut env,
+                &mut overrides,
+            )
+            .expect("modifier IR execution should succeed");
     }
 
     assert_eq!(env.get("q"), Some(Value::Num(31.0)));

@@ -90,8 +90,16 @@ fn test_reactive_binding_desugars_to_modifier() {
         },
         &overrides,
     );
-    for modifier in &timeline.modifiers {
-        timeline.apply_modifier_stmt(modifier, &mut env, &mut overrides);
+    for program in &timeline.modifier_programs {
+        timeline
+            .apply_modifier_program(
+                program,
+                0,
+                SceneDimensions::default(),
+                &mut env,
+                &mut overrides,
+            )
+            .expect("modifier IR execution should succeed");
     }
 
     let orbiter_at = overrides.get("orbiter").and_then(|m| m.get("at"));

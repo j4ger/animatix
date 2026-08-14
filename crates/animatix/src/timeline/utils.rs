@@ -525,8 +525,8 @@ fn evaluate_call(func: &str, args: &[Expr], env: &Environment) -> Result<Value, 
 
 /// Invoke a named function with already-evaluated arguments.
 ///
-/// Shared by the tree-walker, IR evaluator, and bytecode VM so that calls to
-/// `NativeFn` values and closures follow one semantic path.
+/// Shared by the tree-walker and IR evaluator so that calls to `NativeFn`
+/// values and closures follow one semantic path.
 pub(crate) fn evaluate_call_value(
     func: &str,
     arg_values: Vec<Value>,

@@ -25,7 +25,7 @@
 //! | `morph.rs` | Path morphing between vector shapes |
 //! | `plot.rs` | Adaptive sampling for graph plots |
 //! | `utils.rs` | Expression evaluation |
-//! | `modifier_runtime/` | IR and bytecode VM for `always` blocks |
+//! | `modifier_runtime/` | IR lowering and interpretation for `always` blocks |
 //!
 //! ## The compile boundary
 //!
@@ -56,7 +56,7 @@ pub mod kurbo_shapes;
 mod layout;
 #[cfg(feature = "render")]
 mod media;
-/// Modifier statement execution (tree-walk, IR, bytecode).
+/// Modifier statement execution (IR interpreter).
 pub mod modifier_exec;
 pub(crate) mod modifier_runtime;
 /// Path morphing between vector shapes.
@@ -143,9 +143,8 @@ use position::{
 };
 pub(crate) use primitive::PrimitiveDescriptor;
 use property_lookup::{
-    assignment_target_key, assignment_target_key_with_env, best_path_suggestion,
-    evaluate_expr_with_lookup_diagnostic, for_iter_values,
-    parse_color_in_env_with_lookup_diagnostic, set_lookup_color, set_lookup_vec2,
+    assignment_target_key, best_path_suggestion, evaluate_expr_with_lookup_diagnostic,
+    for_iter_values, parse_color_in_env_with_lookup_diagnostic, set_lookup_color, set_lookup_vec2,
 };
 pub(crate) use property_lookup::{
     evaluate_expr_with_lookup_diagnostic as lookup_evaluate_expr_with_lookup_diagnostic,
@@ -497,10 +496,8 @@ pub struct Timeline {
     /// colorscheme). Avoids copying ~90 entries on every [`Timeline::build_frame_env`].
     env_base: std::sync::Arc<std::collections::HashMap<String, Value>>,
     pub(crate) modifiers: Vec<Stmt>,
-    /// Compiled modifier IR programs. Populated during build.
+    /// Lowered modifier IR programs. Populated during build.
     pub modifier_programs: Vec<ModifierIrProgram>,
-    /// Compiled modifier bytecode programs. Populated during build.
-    pub modifier_bytecode_programs: Vec<modifier_runtime::vm::ModifierBytecodeProgram>,
     colorscheme: ResolvedColorscheme,
     external_colorschemes: std::collections::HashMap<String, ResolvedColorscheme>,
     pub(crate) auto_color_assignments: BTreeMap<String, usize>,
@@ -572,8 +569,7 @@ pub struct Timeline {
     /// Cleared at the start of each evaluate call.
     runtime_diagnostics: std::cell::RefCell<Vec<crate::diagnostics::Diagnostic>>,
     /// Hash of the modifier AST statements collected during build.
-    /// Used to skip IR/bytecode recompilation when modifiers haven't changed.
-    /// Hash of modifier ASTs. Used to skip recompilation across rebuilds.
+    /// Used to skip IR re-lowering when modifiers haven't changed.
     pub modifier_hash: u64,
 }
 
@@ -601,7 +597,6 @@ impl Clone for Timeline {
             env_base: std::sync::Arc::clone(&self.env_base),
             modifiers: self.modifiers.clone(),
             modifier_programs: self.modifier_programs.clone(),
-            modifier_bytecode_programs: self.modifier_bytecode_programs.clone(),
             colorscheme: self.colorscheme.clone(),
             external_colorschemes: self.external_colorschemes.clone(),
             auto_color_assignments: self.auto_color_assignments.clone(),
@@ -652,7 +647,6 @@ impl Timeline {
             env_base: std::sync::Arc::new(std::collections::HashMap::new()),
             modifiers: Vec::new(),
             modifier_programs: Vec::new(),
-            modifier_bytecode_programs: Vec::new(),
             colorscheme: BuiltInColorscheme::DefaultDark.resolved(),
             external_colorschemes: std::collections::HashMap::new(),
             auto_color_assignments: BTreeMap::new(),
@@ -1022,7 +1016,6 @@ impl Timeline {
     pub(crate) fn needs_frame_env(&self) -> bool {
         !self.modifiers.is_empty()
             || !self.modifier_programs.is_empty()
-            || !self.modifier_bytecode_programs.is_empty()
             || self.has_procedural_plots()
     }
 

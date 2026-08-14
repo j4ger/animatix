@@ -850,8 +850,7 @@ crates/
 │       ├── timeline/      # Timeline compilation, actions, morphing, plotting
 │       ├── renderer/      # Vello/WGPU rendering pipeline
 │       ├── primitives/    # Actor primitive system
-│       ├── ir.rs          # Re-export: timeline modifier runtime IR
-│       └── vm.rs          # Re-export: timeline modifier runtime VM
+│       └── ir.rs          # Re-export: timeline modifier runtime IR
 │
 ├── animatix-analyzer/     # Shared language intelligence (depends on syntax)
 ├── animatix-lsp/          # LSP server (tower-lsp)
@@ -887,7 +886,7 @@ variant coverage is reviewed when new AST variants are added.
 
 ### Modules That Stay in `animatix`
 
-`timeline/`, `composition`, `renderer/`, `primitives/`, `ir` (re-export), `vm` (re-export)
+`timeline/`, `composition`, `renderer/`, `primitives/`, `ir` (re-export)
 
 ### Dependency Changes
 

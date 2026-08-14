@@ -3,26 +3,24 @@ use std::fs;
 
 use animatix::ir::{
     CompiledExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides, compile_expr,
-    lower_modifier_ir,
+    execute_modifier_ir, lower_modifier_ir,
 };
 use animatix::timeline::{
     Environment, SceneDimensions, Timeline, Value, evaluate_expr, load_standard_library,
 };
-use animatix::vm::{compile_modifier_bytecode, execute_modifier_bytecode};
 use animatix_syntax::ast::{BinaryOp, Expr, LoopPattern, Stmt, Time};
 use animatix_syntax::module::ModuleGraph;
 
-fn evaluate_modifier_via_vm(value: CompiledExpr, env: &mut Environment) -> Value {
+fn evaluate_modifier_via_ir(value: CompiledExpr, env: &mut Environment) -> Value {
     let program = ModifierIrProgram {
         statements: vec![ModifierIrStmt::Let {
-            name: "__vm_test_result".to_string(),
+            name: "__ir_test_result".to_string(),
             value,
         }],
     };
-    let bytecode = compile_modifier_bytecode(&program).expect("VM compilation should succeed");
     let mut overrides = ModifierOverrides::default();
-    execute_modifier_bytecode(&bytecode, env, &mut overrides).expect("VM execution should succeed");
-    env.get("__vm_test_result").expect("VM result should be stored")
+    execute_modifier_ir(&program, env, &mut overrides).expect("IR execution should succeed");
+    env.get("__ir_test_result").expect("IR result should be stored")
 }
 
 const REACTIVE_FIXTURE: &str = r#"// Reactive: always, time-driven behavior, if/else.
@@ -157,7 +155,7 @@ fn ir_lowering_supports_construct_expression_forms() {
 }
 
 #[test]
-fn vm_matches_evaluate_expr_for_supported_subset() {
+fn ir_matches_evaluate_expr_for_supported_subset() {
     let expr = Expr::Conditional(
         Box::new(Expr::Binary(
             Box::new(Expr::Call("sin".to_string(), vec![Expr::Ident("t".to_string())])),
@@ -180,14 +178,14 @@ fn vm_matches_evaluate_expr_for_supported_subset() {
     env.set("t", Value::Num(std::f64::consts::FRAC_PI_2));
     env.set("pulse", Value::Num(3.0));
 
-    let compiled_value = evaluate_modifier_via_vm(compiled, &mut env);
+    let compiled_value = evaluate_modifier_via_ir(compiled, &mut env);
     let ast_value = evaluate_expr(&expr, &env).expect("ast eval should work");
 
     assert_eq!(compiled_value, ast_value);
 }
 
 #[test]
-fn vm_matches_ast_for_extended_builtins() {
+fn ir_matches_ast_for_extended_builtins() {
     let cases: Vec<Expr> = vec![
         Expr::Call("signum".to_string(), vec![Expr::Num(-2.5)]),
         Expr::Call("fract".to_string(), vec![Expr::Num(3.75)]),
@@ -202,14 +200,14 @@ fn vm_matches_ast_for_extended_builtins() {
         let compiled = compile_expr(&expr).expect("builtin should compile");
         let mut env = Environment::new();
         load_standard_library(&mut env);
-        let vm_value = evaluate_modifier_via_vm(compiled, &mut env);
+        let ir_value = evaluate_modifier_via_ir(compiled, &mut env);
         let ast_value = evaluate_expr(&expr, &env).expect("ast eval should work");
-        assert_eq!(vm_value, ast_value, "VM and AST disagree for {expr:?}");
+        assert_eq!(ir_value, ast_value, "IR and AST disagree for {expr:?}");
     }
 }
 
 #[test]
-fn vm_matches_ast_for_environment_functions() {
+fn ir_matches_ast_for_environment_functions() {
     let cases: Vec<Expr> = vec![
         Expr::Call("rgb".to_string(), vec![Expr::Num(255.0), Expr::Num(0.0), Expr::Num(128.0)]),
         Expr::Call(
@@ -230,9 +228,9 @@ fn vm_matches_ast_for_environment_functions() {
         let compiled = compile_expr(&expr).expect("environment call should compile");
         let mut env = Environment::new();
         load_standard_library(&mut env);
-        let vm_value = evaluate_modifier_via_vm(compiled, &mut env);
+        let ir_value = evaluate_modifier_via_ir(compiled, &mut env);
         let ast_value = evaluate_expr(&expr, &env).expect("ast eval should work");
-        assert_eq!(vm_value, ast_value, "VM and AST disagree for {expr:?}");
+        assert_eq!(ir_value, ast_value, "IR and AST disagree for {expr:?}");
     }
 }
 
@@ -270,95 +268,7 @@ fn modifier_ir_can_lower_post_expansion_program() {
 }
 
 #[test]
-fn modifier_ir_matches_statement_modifier_execution() {
-    let mut timeline = Timeline::new();
-    load_standard_library(timeline.env_mut());
-
-    let modifier = Stmt::Conditional {
-        condition: Expr::Binary(
-            Box::new(Expr::Ident("t".to_string())),
-            BinaryOp::Lt,
-            Box::new(Expr::Num(1.0)),
-        ),
-        then_branch: vec![Stmt::Assignment {
-            target: vec![animatix_syntax::ast::TargetSegment::Static(
-                "pulse".to_string(),
-            )],
-            property: "opacity".to_string(),
-            value: Expr::Num(1.0),
-            modifiers: vec![],
-            easing: None,
-            value_span: None,
-            span: None,
-        }],
-        else_branch: Some(vec![Stmt::Assignment {
-            target: vec![animatix_syntax::ast::TargetSegment::Static(
-                "pulse".to_string(),
-            )],
-            property: "opacity".to_string(),
-            value: Expr::Num(0.0),
-            modifiers: vec![],
-            easing: None,
-            value_span: None,
-            span: None,
-        }]),
-        span: None,
-    };
-
-    let program = vec![Stmt::Always {
-        body: vec![modifier.clone()],
-        span: None,
-    }];
-    let ir = lower_modifier_ir(&program).expect("lowering should succeed");
-
-    let mut stmt_overrides = std::collections::HashMap::new();
-    let mut stmt_env = timeline.build_frame_env(500, SceneDimensions::default(), &stmt_overrides);
-    timeline.apply_modifier_stmt(&modifier, &mut stmt_env, &mut stmt_overrides);
-
-    let bytecode = compile_modifier_bytecode(&ir).expect("bytecode compilation should succeed");
-    let mut vm_overrides = std::collections::HashMap::new();
-    let mut vm_env = timeline.build_frame_env(500, SceneDimensions::default(), &vm_overrides);
-    timeline
-        .apply_modifier_bytecode_program(
-            &bytecode,
-            500,
-            SceneDimensions::default(),
-            &mut vm_env,
-            &mut vm_overrides,
-        )
-        .expect("VM execution should succeed");
-
-    assert_eq!(stmt_overrides, vm_overrides);
-}
-
-#[test]
-fn modifier_bytecode_compiles_assignment_subset() {
-    let program = vec![Stmt::Always {
-        body: vec![Stmt::Assignment {
-            target: vec![animatix_syntax::ast::TargetSegment::Static(
-                "pulse".to_string(),
-            )],
-            property: "opacity".to_string(),
-            value: Expr::Num(1.0),
-            modifiers: vec![],
-            easing: None,
-            value_span: None,
-            span: None,
-        }],
-        span: None,
-    }];
-
-    let ir = lower_modifier_ir(&program).expect("lowering should succeed");
-    let bytecode = compile_modifier_bytecode(&ir).expect("bytecode compilation should succeed");
-    let rendered = format!("{bytecode}");
-
-    assert!(rendered.contains("LoadConst Num(1"));
-    assert!(rendered.contains("WriteOverride pulse opacity"));
-    assert!(rendered.contains("Halt"));
-}
-
-#[test]
-fn vm_indexed_override_compiles_and_executes() {
+fn ir_indexed_override_executes() {
     let program = vec![Stmt::Always {
         body: vec![Stmt::Assignment {
             target: vec![animatix_syntax::ast::TargetSegment::Indexed {
@@ -376,20 +286,15 @@ fn vm_indexed_override_compiles_and_executes() {
     }];
 
     let ir = lower_modifier_ir(&program).expect("IR lowering should succeed");
-    let bytecode = compile_modifier_bytecode(&ir).expect("bytecode compilation should succeed");
-    let rendered = format!("{bytecode}");
-    assert!(rendered.contains("WriteOverrideIndexed bars scale"));
-
-    let mut vm_env = Environment::new();
-    let mut vm_overrides = ModifierOverrides::default();
-    vm_env.set("i", Value::Num(2.0));
-    animatix::vm::execute_modifier_bytecode(&bytecode, &mut vm_env, &mut vm_overrides)
-        .expect("VM execution should succeed");
-    assert_eq!(vm_overrides["bars__2"]["scale"], Value::Num(1.5));
+    let mut env = Environment::new();
+    let mut overrides = ModifierOverrides::default();
+    env.set("i", Value::Num(2.0));
+    execute_modifier_ir(&ir, &mut env, &mut overrides).expect("IR execution should succeed");
+    assert_eq!(overrides["bars__2"]["scale"], Value::Num(1.5));
 }
 
 #[test]
-fn modifier_bytecode_executes_let_and_if() {
+fn modifier_ir_executes_let_and_if() {
     let program = vec![Stmt::Always {
         body: vec![
             Stmt::LetDecl {
@@ -436,27 +341,26 @@ fn modifier_bytecode_executes_let_and_if() {
         span: None,
     }];
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
-    let bytecode = compile_modifier_bytecode(&ir).expect("bytecode compilation should succeed");
 
     let mut timeline = Timeline::new();
     load_standard_library(timeline.env_mut());
     let mut overrides = HashMap::new();
     let mut env = timeline.build_frame_env(500, SceneDimensions::default(), &overrides);
     timeline
-        .apply_modifier_bytecode_program(
-            &bytecode,
+        .apply_modifier_program(
+            &ir,
             500,
             SceneDimensions::default(),
             &mut env,
             &mut overrides,
         )
-        .expect("bytecode execution should succeed");
+        .expect("IR execution should succeed");
 
     assert_eq!(overrides["pulse"]["opacity"], Value::Num(0.0));
 }
 
 #[test]
-fn vm_supports_runtime_object_field_writes() {
+fn ir_supports_runtime_object_field_writes() {
     let program = vec![Stmt::Always {
         body: vec![
             Stmt::Assignment {
@@ -483,7 +387,6 @@ fn vm_supports_runtime_object_field_writes() {
     }];
 
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
-    let bytecode = compile_modifier_bytecode(&ir).expect("bytecode compilation should succeed");
 
     let make_env = || {
         let mut env = Environment::new();
@@ -500,16 +403,15 @@ fn vm_supports_runtime_object_field_writes() {
         env
     };
 
-    let mut vm_env = make_env();
-    let mut vm_overrides = ModifierOverrides::default();
-    animatix::vm::execute_modifier_bytecode(&bytecode, &mut vm_env, &mut vm_overrides)
-        .expect("VM execution should succeed");
-    assert_eq!(vm_env.get("q"), Some(Value::Num(31.0)));
-    assert!(vm_overrides.is_empty(), "object writes should not create actor overrides");
+    let mut env = make_env();
+    let mut overrides = ModifierOverrides::default();
+    execute_modifier_ir(&ir, &mut env, &mut overrides).expect("IR execution should succeed");
+    assert_eq!(env.get("q"), Some(Value::Num(31.0)));
+    assert!(overrides.is_empty(), "object writes should not create actor overrides");
 }
 
 #[test]
-fn vm_supports_nested_object_field_writes() {
+fn ir_supports_nested_object_field_writes() {
     let program = vec![Stmt::Always {
         body: vec![
             Stmt::Assignment {
@@ -539,7 +441,6 @@ fn vm_supports_nested_object_field_writes() {
     }];
 
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
-    let bytecode = compile_modifier_bytecode(&ir).expect("bytecode compilation should succeed");
 
     let make_env = || {
         let mut env = Environment::new();
@@ -562,16 +463,15 @@ fn vm_supports_nested_object_field_writes() {
         env
     };
 
-    let mut vm_env = make_env();
-    let mut vm_overrides = ModifierOverrides::default();
-    animatix::vm::execute_modifier_bytecode(&bytecode, &mut vm_env, &mut vm_overrides)
-        .expect("VM execution should succeed");
-    assert_eq!(vm_env.get("q"), Some(Value::Num(31.0)));
-    assert!(vm_overrides.is_empty());
+    let mut env = make_env();
+    let mut overrides = ModifierOverrides::default();
+    execute_modifier_ir(&ir, &mut env, &mut overrides).expect("IR execution should succeed");
+    assert_eq!(env.get("q"), Some(Value::Num(31.0)));
+    assert!(overrides.is_empty());
 }
 
 #[test]
-fn modifier_bytecode_supports_construct_ir_expr() {
+fn modifier_ir_executes_construct_expr() {
     let program = vec![Stmt::Always {
         body: vec![Stmt::Assignment {
             target: vec![animatix_syntax::ast::TargetSegment::Static(
@@ -588,39 +488,43 @@ fn modifier_bytecode_supports_construct_ir_expr() {
     }];
 
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
-    compile_modifier_bytecode(&ir).expect("bytecode compilation should succeed for Construct");
+    let mut env = Environment::new();
+    let mut overrides = ModifierOverrides::default();
+    execute_modifier_ir(&ir, &mut env, &mut overrides).expect("IR execution should succeed");
+    match overrides["pulse"].get("opacity") {
+        Some(Value::Object(name, _)) => assert_eq!(name, "Point"),
+        other => panic!("expected Point object override, got {:?}", other),
+    }
 }
 
 #[test]
-fn vm_reactive_runtime_executes() {
+fn ir_reactive_runtime_executes() {
     let expanded = load_fixture_program(REACTIVE_FIXTURE);
     let timeline = Timeline::build(&expanded);
     let ir = lower_modifier_ir(&expanded).expect("IR lowering should succeed");
-    let bytecode = compile_modifier_bytecode(&ir).expect("bytecode compilation should succeed");
 
     for time_ms in [500_u64, 1500_u64] {
-        let mut vm_overrides = HashMap::new();
-        let mut vm_env =
-            timeline.build_frame_env(time_ms, SceneDimensions::default(), &vm_overrides);
+        let mut overrides = HashMap::new();
+        let mut env = timeline.build_frame_env(time_ms, SceneDimensions::default(), &overrides);
         timeline
-            .apply_modifier_bytecode_program(
-                &bytecode,
+            .apply_modifier_program(
+                &ir,
                 time_ms,
                 SceneDimensions::default(),
-                &mut vm_env,
-                &mut vm_overrides,
+                &mut env,
+                &mut overrides,
             )
-            .expect("VM execution should succeed");
+            .expect("IR execution should succeed");
 
         assert!(
-            !vm_overrides.is_empty(),
+            !overrides.is_empty(),
             "reactive fixture should produce overrides at time {time_ms}"
         );
     }
 }
 
 #[test]
-fn vm_nested_modifier_targets_execute() {
+fn ir_nested_modifier_targets_execute() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
         body: vec![
@@ -726,29 +630,28 @@ fn vm_nested_modifier_targets_execute() {
 
     let timeline = Timeline::build(&ast);
     let ir = lower_modifier_ir(&ast).expect("IR lowering should succeed");
-    let bytecode = compile_modifier_bytecode(&ir).expect("bytecode compilation should succeed");
 
-    let mut vm_overrides = HashMap::new();
-    let mut vm_env = timeline.build_frame_env(1000, SceneDimensions::default(), &vm_overrides);
+    let mut overrides = HashMap::new();
+    let mut env = timeline.build_frame_env(1000, SceneDimensions::default(), &overrides);
     timeline
-        .apply_modifier_bytecode_program(
-            &bytecode,
+        .apply_modifier_program(
+            &ir,
             1000,
             SceneDimensions::default(),
-            &mut vm_env,
-            &mut vm_overrides,
+            &mut env,
+            &mut overrides,
         )
-        .expect("VM execution should succeed");
+        .expect("IR execution should succeed");
 
     assert!(
-        vm_overrides.contains_key("echo"),
+        overrides.contains_key("echo"),
         "nested modifier targets should produce an echo override"
     );
 }
 
 #[test]
-fn vm_for_loop_binds_index_var() {
-    // Test for-loops through the bytecode VM, including loop variable cleanup.
+fn ir_for_loop_binds_index_var() {
+    // Test for-loops through the IR interpreter, including loop variable cleanup.
     let stmt = Stmt::ForLoop {
         var: LoopPattern::Single("v".to_string()),
         index_var: Some("i".to_string()),
@@ -776,35 +679,59 @@ fn vm_for_loop_binds_index_var() {
     }];
 
     let ir = lower_modifier_ir(&program).expect("IR lowering should succeed");
-    let bytecode = compile_modifier_bytecode(&ir).expect("Bytecode compilation should succeed");
 
-    // Execute via the bytecode VM
+    // Execute via the IR interpreter
     let mut env = Environment::new();
     let mut overrides: ModifierOverrides = HashMap::new();
-    animatix::vm::execute_modifier_bytecode(&bytecode, &mut env, &mut overrides)
-        .expect("VM execution should succeed");
+    execute_modifier_ir(&ir, &mut env, &mut overrides).expect("IR execution should succeed");
 
     // After the loop, all loop variables should be cleaned up
     assert!(
         env.get("v").is_none(),
-        "Loop variable 'v' should be cleaned up after loop exit (VM path)"
+        "Loop variable 'v' should be cleaned up after loop exit (IR path)"
     );
     assert!(
         env.get("i").is_none(),
-        "Index variable 'i' should be cleaned up after loop exit (VM path)"
+        "Index variable 'i' should be cleaned up after loop exit (IR path)"
     );
     // The let-decl 'z' should survive
-    assert!(env.get("z").is_some(), "Let-decl 'z' should survive after loop exit (VM path)");
+    assert!(env.get("z").is_some(), "Let-decl 'z' should survive after loop exit (IR path)");
     // Last iteration: v=30, i=2, z = 30 * (2+1) = 90
     if let Some(Value::Num(n)) = env.get("z") {
         assert!(
             (n - 90.0).abs() < 0.01,
-            "Expected z=90 (last iter: v=30, i=2), got {} (VM path)",
+            "Expected z=90 (last iter: v=30, i=2), got {} (IR path)",
             n
         );
     } else {
-        panic!("Expected Num value for z (VM path)");
+        panic!("Expected Num value for z (IR path)");
     }
+}
+
+#[test]
+fn ir_for_loop_tuple_destructures_color() {
+    let program = ModifierIrProgram {
+        statements: vec![ModifierIrStmt::For {
+            var: LoopPattern::Tuple(vec![
+                "r".to_string(),
+                "g".to_string(),
+                "b".to_string(),
+                "a".to_string(),
+            ]),
+            index_var: None,
+            iterable: CompiledExpr::Const(Value::Color([0.1, 0.2, 0.3, 1.0])),
+            body: vec![ModifierIrStmt::Let {
+                name: "__captured_color".to_string(),
+                value: CompiledExpr::LoadEnv("r".to_string()),
+            }],
+        }],
+    };
+
+    let mut env = Environment::new();
+    let mut overrides = ModifierOverrides::default();
+    execute_modifier_ir(&program, &mut env, &mut overrides).expect("IR execution should succeed");
+    assert_eq!(env.get("__captured_color"), Some(Value::Num(0.1)));
+    assert_eq!(env.get("r"), None, "loop variables should be cleaned up");
 }
 
 fn load_fixture_program(source: &str) -> Vec<Stmt> {

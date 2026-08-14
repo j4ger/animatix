@@ -36,51 +36,10 @@ pub(crate) fn parse_actor_ref_literal(expr: &Expr) -> Option<String> {
 /// Build a joined dot-separated key from target segments, using the base label
 /// for Indexed segments (e.g. `bars[i].color` → `"bars.color"`).
 ///
-/// For all-Static targets this is equivalent to the static key.
-/// For Indexed targets, the runtime index is not resolved — use
-/// [`assignment_target_key_with_env`] for frame-time resolution.
+/// Frame-time indexed targets are handled by the modifier IR's
+/// `AssignIndexed` statement instead of this build-time key helper.
 pub(crate) fn assignment_target_key(target: &[TargetSegment]) -> String {
     target.iter().map(|s| s.label_str()).collect::<Vec<&str>>().join(".")
-}
-
-/// Build a target key at frame time, evaluating any Indexed segments against
-/// the environment. Static segments are copied as-is; Indexed segments evaluate
-/// the index expression, producing `{base}__{index}`.
-pub(crate) fn assignment_target_key_with_env(
-    target: &[TargetSegment],
-    env: &Environment,
-) -> Result<String, EvalError> {
-    let mut parts = Vec::with_capacity(target.len());
-    for seg in target {
-        match seg {
-            TargetSegment::Static(s) => parts.push(s.clone()),
-            TargetSegment::Indexed { base, index } => {
-                let idx_val = evaluate_expr(index, env)?;
-                match idx_val {
-                    Value::Num(n) if n >= 0.0 && n == n.floor() => {
-                        parts.push(array_actor_label(base, n as usize));
-                    },
-                    Value::Num(n) => {
-                        let msg = format!(
-                            "Array index for '{}' must be a non-negative integer, got {}",
-                            base, n
-                        );
-                        tracing::warn!("{}", msg);
-                        return Err(EvalError::TypeMismatch(msg));
-                    },
-                    other => {
-                        let msg = format!(
-                            "Array index for '{}' must evaluate to a number, got {:?}",
-                            base, other
-                        );
-                        tracing::warn!("{}", msg);
-                        return Err(EvalError::TypeMismatch(msg));
-                    },
-                }
-            },
-        }
-    }
-    Ok(parts.join("."))
 }
 
 pub(crate) fn push_unknown_lookup_path_diagnostic(
@@ -282,34 +241,6 @@ pub(crate) fn set_lookup_color(env: &mut Environment, key: &str, value: [f64; 4]
 mod tests {
     use super::*;
     use crate::ast::{Expr, TargetSegment};
-    use crate::timeline::{Environment, Value};
-
-    #[test]
-    fn test_assignment_target_key_with_env_indexed() {
-        // Given: bars[i] with i=2 in the environment
-        let target = vec![TargetSegment::Indexed {
-            base: "bars".to_string(),
-            index: Box::new(Expr::Ident("i".to_string())),
-        }];
-        let mut env = Environment::new();
-        env.set("i", Value::Num(2.0));
-
-        let key = assignment_target_key_with_env(&target, &env).unwrap();
-        // Should resolve to "bars__2" using array_actor_label
-        assert_eq!(key, "bars__2");
-    }
-
-    #[test]
-    fn test_assignment_target_key_with_env_static() {
-        // All-static segments should produce the same result as assignment_target_key
-        let target = vec![
-            TargetSegment::Static("container".to_string()),
-            TargetSegment::Static("child".to_string()),
-        ];
-        let env = Environment::new();
-        let key = assignment_target_key_with_env(&target, &env).unwrap();
-        assert_eq!(key, "container.child");
-    }
 
     #[test]
     fn test_assignment_target_key_static() {

@@ -74,7 +74,7 @@ always {
 
     // always block should produce modifier programs
     assert!(
-        !timeline.modifier_programs.is_empty() || !timeline.modifier_bytecode_programs.is_empty(),
+        !timeline.modifier_programs.is_empty(),
         "Expected modifier programs from always block"
     );
 
@@ -165,7 +165,7 @@ always {
 
     // Modifier programs should exist from the always block
     assert!(
-        !timeline.modifier_programs.is_empty() || !timeline.modifier_bytecode_programs.is_empty(),
+        !timeline.modifier_programs.is_empty(),
         "Expected modifier programs from always block"
     );
 
@@ -179,9 +179,9 @@ always {
 
     // Execute modifier programs against the env
     let mut local_overrides = std::collections::HashMap::new();
-    if let Some(program) = timeline.modifier_bytecode_programs.first() {
+    if let Some(program) = timeline.modifier_programs.first() {
         timeline
-            .apply_modifier_bytecode_program(program, 1000, DIMS, &mut env, &mut local_overrides)
+            .apply_modifier_program(program, 1000, DIMS, &mut env, &mut local_overrides)
             .expect("modifier execution should succeed");
     }
 

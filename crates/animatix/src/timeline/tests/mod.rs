@@ -22,8 +22,6 @@ mod legend;
 #[cfg(test)]
 mod media;
 #[cfg(test)]
-mod modifiers;
-#[cfg(test)]
 mod plot_transitions;
 #[cfg(test)]
 mod property_lookup;

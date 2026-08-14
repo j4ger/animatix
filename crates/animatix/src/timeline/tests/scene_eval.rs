@@ -471,10 +471,9 @@ fn static_scene_skips_frame_env() {
 
     // Static scene with no modifiers or procedural plots should not need frame env
     let msg = format!(
-        "static scene should not need frame env. modifiers={}, programs={}, bytecode={}, proc_plots={}",
+        "static scene should not need frame env. modifiers={}, programs={}, proc_plots={}",
         timeline.modifiers.len(),
         timeline.modifier_programs.len(),
-        timeline.modifier_bytecode_programs.len(),
         timeline.has_procedural_plots()
     );
     assert!(!timeline.needs_frame_env(), "{}", msg);

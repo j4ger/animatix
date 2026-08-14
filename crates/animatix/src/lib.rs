@@ -15,5 +15,3 @@ pub mod primitives;
 pub mod renderer;
 /// Timeline construction, evaluation, and animation engine.
 pub mod timeline;
-/// Modifier bytecode VM.
-pub mod vm;

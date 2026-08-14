@@ -243,7 +243,7 @@ impl Timeline {
             }
         }
 
-        // Compute modifier hash for cross-rebuild IR/bytecode caching.
+        // Compute modifier hash for cross-rebuild IR caching.
         // Uses Debug representation since Stmt doesn't implement Hash.
         {
             use std::hash::{Hash, Hasher};
@@ -254,32 +254,19 @@ impl Timeline {
             timeline.modifier_hash = hasher.finish();
         }
 
-        // Compile always-body statements into IR for faster frame-time evaluation.
-        // Skip compilation when no modifiers exist to avoid empty programs.
+        // Lower always-body statements into IR for frame-time interpretation.
+        // Skip lowering when no modifiers exist to avoid empty programs.
         if !timeline.modifiers.is_empty() {
             match crate::timeline::modifier_runtime::ir::lower_modifier_body(&timeline.modifiers) {
                 Ok(program) => {
-                    match crate::timeline::modifier_runtime::vm::compile_modifier_bytecode(&program)
-                    {
-                        Ok(bytecode) => {
-                            timeline.modifier_programs.push(program);
-                            timeline.modifier_bytecode_programs.push(bytecode);
-                        },
-                        Err(e) => {
-                            diagnostics.push(Diagnostic::warning(
-                                DiagnosticCode::ModifierCompilationError,
-                                DiagnosticPhase::Build,
-                                format!("Bytecode compilation failed: {e}. Modifier execution will be skipped."),
-                            ));
-                        },
-                    }
+                    timeline.modifier_programs.push(program);
                 },
                 Err(e) => {
                     diagnostics.push(Diagnostic::warning(
                         DiagnosticCode::ModifierCompilationError,
                         DiagnosticPhase::Build,
                         format!(
-                            "Always-block compilation failed: {e}. Modifier execution will be skipped."
+                            "Always-block lowering failed: {e}. Modifier execution will be skipped."
                         ),
                     ));
                 },

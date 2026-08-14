@@ -1150,14 +1150,14 @@ impl Timeline {
             None
         };
 
-        // Execute compiled bytecode only. Lowering is total for all modifier
-        // statements; if compilation failed at build time, the build already
+        // Execute lowered modifier IR only. Lowering is total for all modifier
+        // statements; if lowering failed at build time, the build already
         // emitted a ModifierCompilationError diagnostic.
         let mut modifier_errors: Vec<EvalError> = Vec::new();
-        if !self.modifier_bytecode_programs.is_empty() {
+        if !self.modifier_programs.is_empty() {
             if let Some(ref mut env) = frame_env {
-                for program in &self.modifier_bytecode_programs {
-                    if let Err(e) = self.apply_modifier_bytecode_program(
+                for program in &self.modifier_programs {
+                    if let Err(e) = self.apply_modifier_program(
                         program,
                         time_ms,
                         scene_dimensions,
@@ -1170,7 +1170,7 @@ impl Timeline {
             }
         } else if !self.modifiers.is_empty() {
             tracing::warn!(
-                "No compiled modifier bytecode is available for {} modifier statement(s); skipping modifier execution",
+                "No lowered modifier IR is available for {} modifier statement(s); skipping modifier execution",
                 self.modifiers.len()
             );
         }
