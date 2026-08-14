@@ -24,6 +24,8 @@ pub mod source_index;
 /// Semantic symbol extraction shared by the typechecker and analyzer.
 pub mod symbol_table;
 pub mod to_source;
+/// Lossless tokenizer for highlighting and position queries.
+pub mod token;
 pub mod transition_registry;
 /// Tree-sitter CST → Animatix AST converter for incremental parsing.
 pub mod ts_convert;
