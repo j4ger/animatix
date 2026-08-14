@@ -148,9 +148,10 @@ pub struct Token {
 
 /// Tokenize `source` into a lossless token stream.
 ///
-/// Whitespace is skipped. Tokens are emitted in source order. A trailing
-/// [`TokenKind::Eof`] token is always appended. Malformed input is recovered
-/// by emitting [`TokenKind::Ident`] for unrecognized runs instead of failing.
+/// Whitespace is skipped. Tokens are emitted in source order; the slice's end
+/// serves as end-of-input, so no explicit EOF token is produced. Malformed
+/// input is recovered by emitting [`TokenKind::Ident`] for unrecognized runs
+/// instead of failing.
 pub fn tokenize(source: &str) -> Vec<Token> {
     Lexer::new(source).run()
 }
@@ -181,7 +182,6 @@ impl<'a> Lexer<'a> {
             let kind = self.lex_token();
             self.push(kind, start, self.pos);
         }
-        self.push(TokenKind::Eof, self.pos, self.pos);
         self.tokens
     }
 
@@ -455,7 +455,6 @@ mod tests {
                 TokenKind::Assign,
                 TokenKind::Number(42.0),
                 TokenKind::RBrace,
-                TokenKind::Eof,
             ]
         );
     }
@@ -480,7 +479,6 @@ mod tests {
                 TokenKind::Bool(true),
                 TokenKind::Bool(false),
                 TokenKind::Null,
-                TokenKind::Eof,
             ]
         );
     }
@@ -519,7 +517,6 @@ mod tests {
                 TokenKind::AtSlot,
                 TokenKind::DollarDollar,
                 TokenKind::Underscore,
-                TokenKind::Eof,
             ]
         );
     }
@@ -528,6 +525,6 @@ mod tests {
     fn skips_comments() {
         let tokens = tokenize("// hi\nlet x = 1 // tail");
         assert!(matches!(tokens[0].kind, TokenKind::Comment(_)));
-        assert!(matches!(tokens.last().unwrap().kind, TokenKind::Comment(_) | TokenKind::Eof));
+        assert!(matches!(tokens.last().unwrap().kind, TokenKind::Comment(_)));
     }
 }

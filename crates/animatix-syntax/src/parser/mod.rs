@@ -38,6 +38,7 @@ pub(crate) mod common;
 pub(crate) mod expr;
 pub(crate) mod inline;
 pub(crate) mod stmt;
+pub(crate) mod token_parser;
 pub(crate) mod top_level;
 
 use std::cell::RefCell;
