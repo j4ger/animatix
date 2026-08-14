@@ -2,7 +2,7 @@
 
 ## Overview
 
-Animatix is a layout-first animation system with three core components:
+Animatix is a layout-first animation system with four core components:
 
 1. **Parser** (Chumsky semantic parser; tree-sitter CST for analyzer queries) — Converts `.amx` source into an AST
 2. **Timeline** — Compiles AST into animated property tracks
@@ -39,7 +39,7 @@ After parsing and module expansion, the gradual type checker validates component
 
 ### Composition (Multi-Scene)
 
-The `Composition` type in `composition.rs` manages multiple scenes:
+The `Composition` type in `composition/` manages multiple scenes:
 
 - **Build**: Extracts scenes from AST, builds per-scene `Timeline` instances, resolves `play` edges
 - **Time mapping**: `Composition::evaluate(global_time_s)` → `(scene_name, local_time_s, transition_blend)`
@@ -237,7 +237,7 @@ peniko::ImageData → drawn into parent scene at local transform
 
 **Key design decisions:**
 - **Unified backend** — `GpuFilterBackend` lives in the core crate and is used by both `PreviewSurface` (GUI) and `OffscreenRenderer` (CLI export). This guarantees pixel-identical output.
-- **Renderer-agnostic timeline** — `scene_eval.rs` checks `Timeline::filter_backend` (a `RefCell<Option<Box<dyn FilterBackend>>>`). If no backend is installed, `Filter` falls back to rendering children directly (no filtering).
+- **Renderer-agnostic timeline** — `scene_eval` receives a `&mut Option<&mut dyn FilterBackend>` from the renderer. If no backend is installed, `Filter` falls back to rendering children directly (no filtering).
 - **Identity fast-path** — If all filter properties are at identity (`blur == 0`, `brightness == 1.0`, etc.), the sub-scene is appended directly without any offscreen pass.
 - **Nested filters** — Each nesting level triggers its own offscreen pass. Expensive but explicit.
 
@@ -620,19 +620,9 @@ The GUI provides a unified insertion palette (`/` key) for inserting primitives,
 5. No micro-fragmentation — within 50ms of existing keyframe, append instead
 6. Visual confirmation — status bar explains what happened
 
-### SourceEdit Design Gaps
+### SourceEdit Coverage
 
-Some GUI operations bypass `SourceEdit` and directly mutate `raw_statements`. These are structural edits (insert/remove/rearrange multiple statements) that have no corresponding `SourceEdit` variant. Each duplicates the commit-source boilerplate (`stmts_to_source` + `replace_text` + `is_dirty` + `source_index`).
-
-| Operation | Handler | Bypasses `SourceEdit`? | Notes |
-|-----------|---------|----------------------|-------|
-| Delete actor | `document_controller::handle_delete_selected_actors` | No — uses `SourceEdit::DeleteActor` | |
-| Duplicate actor | `document_controller::handle_duplicate_actor` | Yes — direct `stmts.insert` | No `DuplicateActor` variant |
-| Paste actors | `document_controller::paste_actors` | Yes — direct `stmts.insert` + keyframe clone/rename/shift | No `PasteActors` variant |
-| Ungroup | `handlers/actor::handle_ungroup_selected_actors` | No — uses `Reparent` + `DeleteActor` | |
-| Reorder scenes | `handlers/scene::handle_reorder_scenes` | No — uses `SourceEdit::ReorderScenes` | |
-
-**Design decision:** Keep `SourceEdit` for surgical edits (property, keyframe, single-actor operations). Structural operations (delete, duplicate, paste, ungroup) stay as direct mutations with a shared commit helper. Forcing them into `SourceEdit` variants would make the enum unwieldy and leak GUI concerns (clipboard, label uniqueness) into the edit layer. Revisit if edit serialization or scripting support is needed.
+All GUI structural edits now route through `SourceEdit` → AST mutation → re-serialization. This includes delete, duplicate, paste, ungroup, and scene reordering. The previously direct-mutated `DuplicateActor` and `PasteActors` operations are now `SourceEdit::DuplicateActor` and `SourceEdit::PasteActors` variants implemented in `source_edit/actor_edits.rs`.
 
 ---
 
@@ -718,7 +708,7 @@ impl Primitive for TrianglePrimitive {
 Steps:
 1. Create `primitives/<name>.rs` implementing `Primitive`.
 2. Add `&name::CONST` to the `PRIMITIVES` array in `primitives/mod.rs`.
-3. Add variants to `ActorKindId` / `ShapeKind` enums in `timeline/animation_track.rs` (still needed for match arms).
+3. Add variants to `ActorKindId` / `ShapeKind` enums in `timeline/actor_kind.rs` (still needed for match arms).
 
 Registry, dispatch, icon mapping, and GUI defaults are auto-generated from `PRIMITIVES`.
 
@@ -839,7 +829,7 @@ crates/
 ├── animatix/              # Runtime engine — timeline, renderer, primitives
 │   └── src/
 │       ├── lib.rs         # Re-exports syntax modules
-│       ├── composition.rs # Multi-scene composition engine
+│       ├── composition/   # Multi-scene composition engine (mod, build, time, tests)
 │       ├── timeline/      # Timeline compilation, actions, morphing, plotting
 │       ├── renderer/      # Vello/WGPU rendering pipeline
 │       ├── primitives/    # Actor primitive system
@@ -875,7 +865,7 @@ variant coverage is reviewed when new AST variants are added.
 
 ### Modules in `animatix-syntax`
 
-`ast`, `parser`, `module/`, `diagnostics`, `easing`, `source_index`, `to_source`, `transition_registry`, `icon_glyphs`
+`ast`, `parser/`, `module/`, `diagnostics`, `semantic_diagnostics`, `easing`, `source_index`, `source_map`, `to_source`, `formatter`, `transition_registry`, `icon_glyphs`, `ts_convert`, `typecheck`, `typing`, `walk`
 
 ### Modules That Stay in `animatix`
 
