@@ -63,7 +63,7 @@ actions while the modifier section calls it shared vocabulary, and `Button` /
 
 | Content | Status | Blocked By | Next Step |
 |---|---|---|---|
-| Array/group `fade-in` target A/B run | Open | Design question not yet isolated | Create a focused run with one brief and current-grammar/alternate variants, validate, and review |
+| Array/group `fade-in` target A/B run | Done 2026-08-14 | None | `dogfood/runs/003` accepted group-target `fade-in cards` as idiomatic; document container group-targets for entrance actions |
 
 ---
 
@@ -89,6 +89,7 @@ actions while the modifier section calls it shared vocabulary, and `Button` /
 | Dogfood filled-shape default stroke | Done 2026-08-13. Filled shapes default to no stroke so plain `Rect`/`Ellipse` renders are clean; `Line`/`Arrow`/`Callout` retain a visible default, and `draw-in`/`reveal-in` add a fill-colored outline only when needed. |
 | Dogfood structural container lint | Done 2026-08-13. Built-in containers with children are exempt from `unused-label`, matching their structural use; empty containers and non-container actors still report unused labels. |
 | Dogfood sorting visualizer componentization | Done 2026-08-13. Steps and Result scenes use a reusable `Bars` component; component expansion now recurses into scene bodies and callout targets accept namespaced indexed references. |
+| Dogfood group entrance A/B | Done 2026-08-14. `fade-in cards [500ms]` on a generated container renders identically to enumerating `card[0..4]`; the group-target form was accepted as idiomatic. |
 
 ### eparts Framework Expansion (closed)
 
