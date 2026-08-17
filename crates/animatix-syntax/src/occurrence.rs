@@ -163,3 +163,15 @@ mod tests {
         assert!(roles.iter().any(|(n, k)| n == "cos" && *k == OccurrenceKind::Function));
     }
 }
+
+#[test]
+fn parser_records_declaration_occurrences() {
+    let (ast, _errors, occurrences) =
+        crate::parser::parse_source_with_occurrences("title: Text, size: (100, 100)\nlet x = 1\n");
+    assert!(ast.is_some());
+    let kinds: Vec<(String, OccurrenceKind)> =
+        occurrences.into_iter().map(|o| (o.name, o.kind)).collect();
+    assert!(kinds.iter().any(|(n, k)| n == "title" && *k == OccurrenceKind::Label));
+    assert!(kinds.iter().any(|(n, k)| n == "Text" && *k == OccurrenceKind::Type));
+    assert!(kinds.iter().any(|(n, k)| n == "x" && *k == OccurrenceKind::Variable));
+}
