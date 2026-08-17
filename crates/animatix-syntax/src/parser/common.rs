@@ -125,7 +125,7 @@ pub(crate) fn indexed_dotted_ident_with_expr<'src>(
 
 /// Parse a type identifier: an identifier starting with an uppercase letter.
 pub(crate) fn type_ident<'src>() -> IdentParser<'src> {
-    ident()
+    ident_occ(crate::occurrence::OccurrenceKind::Type)
         .filter(|s: &String| s.chars().next().is_some_and(|c| c.is_uppercase()))
         .boxed()
 }

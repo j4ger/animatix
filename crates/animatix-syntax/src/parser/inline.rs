@@ -15,6 +15,7 @@ use super::common::{self, ExprParser, InlineItemsParser, ParserExtra, StrInput};
 use super::token_parser::*;
 use crate::ast::*;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use crate::occurrence::OccurrenceKind;
 
 /// Internal flat representation of items parsed inside an actor block.
 #[derive(Clone)]
@@ -53,7 +54,8 @@ pub(crate) fn parser<'src>(
                 .or_not()
                 .map(|c| c.unwrap_or_default());
 
-            let for_inline_index = comma().ignore_then(common::ident()).or_not();
+            let for_inline_index =
+                comma().ignore_then(common::ident_occ(OccurrenceKind::Variable)).or_not();
 
             let flat_item = choice((
                 at().ignore_then(common::ident())
@@ -61,11 +63,13 @@ pub(crate) fn parser<'src>(
                     .map(|(name, items)| FlatItem::SlotFill(name, items)),
                 at_slot().to(FlatItem::SlotMarker),
                 {
-                    let loop_var_pat = common::ident().map(LoopPattern::Single).or(common::ident()
-                        .separated_by(comma())
-                        .collect::<Vec<_>>()
-                        .delimited_by(lparen(), rparen())
-                        .map(LoopPattern::Tuple));
+                    let loop_var_pat = common::ident_occ(OccurrenceKind::Variable)
+                        .map(LoopPattern::Single)
+                        .or(common::ident_occ(OccurrenceKind::Variable)
+                            .separated_by(comma())
+                            .collect::<Vec<_>>()
+                            .delimited_by(lparen(), rparen())
+                            .map(LoopPattern::Tuple));
                     keyword("for")
                         .ignore_then(loop_var_pat)
                         .then(for_inline_index)

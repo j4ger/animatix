@@ -9,6 +9,7 @@ use chumsky::prelude::*;
 use super::common::{self, ModifiersParser, PropertyParser};
 use super::token_parser::*;
 use crate::ast::*;
+use crate::occurrence::OccurrenceKind;
 
 /// Build the top-level parser combining all top-level constructs.
 pub(crate) fn parser<'src>(
@@ -16,7 +17,6 @@ pub(crate) fn parser<'src>(
     property: PropertyParser<'src>,
     modifiers: ModifiersParser<'src>,
 ) -> Boxed<'src, 'src, common::StrInput<'src>, Vec<Stmt>, common::ParserExtra<'src>> {
-    let ident = common::ident();
     let dotted_ident = common::dotted_ident();
     let time = common::time();
 
@@ -52,7 +52,7 @@ pub(crate) fn parser<'src>(
         .labelled("play statement");
 
     let scene_decl = hash()
-        .ignore_then(ident.clone())
+        .ignore_then(common::ident_occ(OccurrenceKind::Scene).clone())
         .map(|name| Stmt::Scene {
             name,
             config: vec![],

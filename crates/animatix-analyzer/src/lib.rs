@@ -51,6 +51,7 @@ pub struct Analyzer {
     ast: Option<Vec<Stmt>>,
     parse_errors: Vec<ParseError>,
     tokens: Vec<Token>,
+    occurrences: Vec<animatix_syntax::occurrence::Occurrence>,
     symbols: SymbolTable,
     type_diagnostics: Vec<diagnostics::Diagnostic>,
     lint_config: diagnostics::LintConfig,
@@ -70,6 +71,7 @@ impl Analyzer {
             ast: None,
             parse_errors: Vec::new(),
             tokens: Vec::new(),
+            occurrences: Vec::new(),
             symbols: SymbolTable::default(),
             type_diagnostics: Vec::new(),
             lint_config: diagnostics::LintConfig::default(),
@@ -86,24 +88,26 @@ impl Analyzer {
 
         self.source = source.to_string();
 
-        let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+        let (ast, parse_errors, occurrences) =
+            animatix_syntax::parser::parse_source_with_occurrences(source);
         self.ast = ast;
         self.parse_errors = parse_errors;
+        self.occurrences = occurrences;
         self.tokens = animatix_syntax::token::tokenize(source);
 
         self.rebuild_symbols();
     }
 
-    /// Rebuild the symbol table from the current source and token stream.
+    /// Rebuild the symbol table from the current source and occurrence stream.
     fn rebuild_symbols(&mut self) {
         let source = &self.source;
-        let tokens = &self.tokens;
+        let occurrences = &self.occurrences;
 
         // Build symbol table from AST
         let table = if let Some(ref stmts) = self.ast {
             let mut table = SymbolTable::build_from_ast(stmts);
             table.collect_references(stmts);
-            Self::enrich_positions(tokens, source, &mut table);
+            Self::enrich_positions(occurrences, &self.tokens, source, &mut table);
             table
         } else {
             SymbolTable::default()
@@ -180,36 +184,53 @@ impl Analyzer {
         }
     }
 
-    /// Populate symbol table entries with real line/col positions from the
-    /// lossless token stream. The first matching identifier token is treated as
-    /// the declaration position from the lossless token stream.
-    fn enrich_positions(tokens: &[Token], source: &str, table: &mut SymbolTable) {
-        for token in tokens {
-            if let TokenKind::Ident(name) = &token.kind {
-                let span = Span::from_byte_span(source, token.span);
-                if let Some(info) = table.labels.get_mut(name) {
-                    if info.line == 0 && info.col == 0 {
-                        info.line = span.start_line;
-                        info.col = span.start_col;
-                        info.span = Some(span);
-                    }
-                }
-                if let Some(info) = table.components.get_mut(name) {
-                    if info.line == 0 && info.col == 0 {
-                        info.line = span.start_line;
-                        info.col = span.start_col;
-                        info.span = Some(span);
-                    }
-                }
-                if let Some(info) = table.scenes.get_mut(name) {
-                    if info.line == 0 && info.col == 0 {
-                        info.line = span.start_line;
-                        info.col = span.start_col;
-                        info.span = Some(span);
-                    }
-                }
-            }
+    /// Populate symbol table entries with declaration positions recorded by
+    /// the parser, so declarations are distinguished from references.
+    fn enrich_positions(
+        occurrences: &[animatix_syntax::occurrence::Occurrence],
+        tokens: &[Token],
+        source: &str,
+        table: &mut SymbolTable,
+    ) {
+        use animatix_syntax::occurrence::OccurrenceKind;
 
+        for occ in occurrences {
+            let span = Span::from_byte_span(source, occ.span);
+            match occ.kind {
+                OccurrenceKind::Label | OccurrenceKind::Variable => {
+                    if let Some(info) = table.labels.get_mut(&occ.name) {
+                        if info.line == 0 && info.col == 0 {
+                            info.line = span.start_line;
+                            info.col = span.start_col;
+                            info.span = Some(span);
+                        }
+                    }
+                },
+                OccurrenceKind::Component => {
+                    if let Some(info) = table.components.get_mut(&occ.name) {
+                        if info.line == 0 && info.col == 0 {
+                            info.line = span.start_line;
+                            info.col = span.start_col;
+                            info.span = Some(span);
+                        }
+                    }
+                },
+                OccurrenceKind::Scene => {
+                    if let Some(info) = table.scenes.get_mut(&occ.name) {
+                        if info.line == 0 && info.col == 0 {
+                            info.line = span.start_line;
+                            info.col = span.start_col;
+                            info.span = Some(span);
+                        }
+                    }
+                },
+                _ => {},
+            }
+        }
+
+        // Import spans come from the string literal path token, not an
+        // identifier occurrence, so resolve them from the token stream.
+        for token in tokens {
             if let TokenKind::Str(path) = &token.kind {
                 let span = Span::from_byte_span(source, token.span);
                 for info in &mut table.imports {

@@ -139,7 +139,7 @@ pub(crate) fn parser<'src>(
             union.or(atom)
         });
 
-        let param_def = ident
+        let param_def = common::ident_occ(OccurrenceKind::Parameter)
             .clone()
             .then_ignore(colon())
             .then(
@@ -174,7 +174,12 @@ pub(crate) fn parser<'src>(
 
         let type_alias = keyword("pub")
             .or_not()
-            .then(keyword("type").ignore_then(ident.clone()).then_ignore(assign()).then(type_annotation.clone()))
+            .then(
+                keyword("type")
+                    .ignore_then(common::ident_occ(OccurrenceKind::TypeAlias).clone())
+                    .then_ignore(assign())
+                    .then(type_annotation.clone()),
+            )
             .map(|(is_pub, (name, annotation))| Stmt::TypeAlias {
                 is_pub: is_pub.is_some(),
                 name,
@@ -186,7 +191,11 @@ pub(crate) fn parser<'src>(
 
         let import_stmt = keyword("import")
             .ignore_then(string())
-            .then(keyword("as").ignore_then(ident.clone()).or_not())
+            .then(
+                keyword("as")
+                    .ignore_then(common::ident_occ(OccurrenceKind::ImportAlias).clone())
+                    .or_not(),
+            )
             .map(|(path, alias)| Stmt::Import { path, alias, span: None })
             .labelled("import")
             .as_context();
@@ -560,10 +569,10 @@ pub(crate) fn parser<'src>(
             .labelled("match statement")
             .as_context();
 
-        let loop_var_pat = ident
+        let loop_var_pat = common::ident_occ(OccurrenceKind::Variable)
             .clone()
             .map(LoopPattern::Single)
-            .or(ident
+            .or(common::ident_occ(OccurrenceKind::Variable)
                 .clone()
                 .separated_by(comma())
                 .collect::<Vec<_>>()
@@ -572,7 +581,11 @@ pub(crate) fn parser<'src>(
 
         let for_stmt = keyword("for")
             .ignore_then(loop_var_pat.clone())
-            .then(comma().ignore_then(ident.clone()).or_not())
+            .then(
+                comma()
+                    .ignore_then(common::ident_occ(OccurrenceKind::Variable).clone())
+                    .or_not(),
+            )
             .then_ignore(keyword("in"))
             .then(expr.clone())
             .then(for_loop_body)
@@ -587,7 +600,7 @@ pub(crate) fn parser<'src>(
             .as_context();
 
         let component_action_stmt = keyword("action")
-            .ignore_then(ident.clone())
+            .ignore_then(common::ident_occ(OccurrenceKind::Action).clone())
             .then(
                 param_def
                     .clone()
@@ -609,7 +622,7 @@ pub(crate) fn parser<'src>(
             .or_not()
             .map(|p| p.is_some())
             .then_ignore(keyword("component"))
-            .then(ident.clone())
+            .then(common::ident_occ(OccurrenceKind::Component).clone())
             .then(
                 param_def
                     .separated_by(comma())
