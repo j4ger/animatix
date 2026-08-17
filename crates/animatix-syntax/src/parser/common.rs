@@ -72,7 +72,7 @@ pub(crate) fn dotted_ident<'src>()
 /// a runtime index expression.
 pub(crate) fn indexed_dotted_ident<'src>()
 -> impl Parser<'src, StrInput<'src>, Vec<TargetSegment>, ParserExtra<'src>> + Clone {
-    let segment = ident()
+    let segment = ident_occ(crate::occurrence::OccurrenceKind::Label)
         .then(
             token_parser::punct(crate::token::TokenKind::LBracket)
                 .ignore_then(token_parser::number().map(|n| n as usize))
