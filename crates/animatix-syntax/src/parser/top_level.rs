@@ -17,7 +17,6 @@ pub(crate) fn parser<'src>(
     property: PropertyParser<'src>,
     modifiers: ModifiersParser<'src>,
 ) -> Boxed<'src, 'src, common::StrInput<'src>, Vec<Stmt>, common::ParserExtra<'src>> {
-    let dotted_ident = common::dotted_ident();
     let time = common::time();
 
     let config_props = property
@@ -36,7 +35,11 @@ pub(crate) fn parser<'src>(
         .labelled("config")
         .as_context();
 
-    let scene_ref = dotted_ident.clone().map(|parts: Vec<String>| parts.join("."));
+    let scene_ref = common::ident_occ(OccurrenceKind::Scene)
+        .clone()
+        .separated_by(dot())
+        .collect::<Vec<_>>()
+        .map(|parts: Vec<String>| parts.join("."));
 
     let play_stmt = keyword("play")
         .ignore_then(scene_ref)
