@@ -190,7 +190,7 @@ fn test_assignments_and_paths() {
                 value: Expr::Ident("2s".to_string()),
             },],
             easing: Some(animatix_syntax::easing::Easing::EaseOut),
-            value_span: Some(ByteSpan { start: 15, end: 26 }),
+            value_span: Some(ByteSpan { start: 15, end: 25 }),
             span: None,
         }
     );
@@ -206,7 +206,7 @@ fn test_assignments_and_paths() {
             value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
             modifiers: vec![],
             easing: Some(animatix_syntax::easing::Easing::Linear),
-            value_span: Some(ByteSpan { start: 9, end: 20 }),
+            value_span: Some(ByteSpan { start: 9, end: 19 }),
             span: None,
         }
     );
@@ -221,7 +221,7 @@ fn test_assignments_and_paths() {
             value: Expr::Num(0.5),
             modifiers: vec![],
             easing: Some(animatix_syntax::easing::Easing::Bounce),
-            value_span: Some(ByteSpan { start: 14, end: 18 }),
+            value_span: Some(ByteSpan { start: 14, end: 17 }),
             span: None,
         }
     );
@@ -287,7 +287,7 @@ fn test_sequence_parse() {
                             name: None,
                             value: Expr::Ident("500ms".to_string()),
                         }],
-                        byte_span: Some(ByteSpan { start: 11, end: 33 }),
+                        byte_span: Some(ByteSpan { start: 11, end: 32 }),
                     },
                     None
                 ),
@@ -308,7 +308,7 @@ fn test_sequence_parse() {
                         },
                     ],
                     easing: None,
-                    value_span: Some(ByteSpan { start: 47, end: 51 }),
+                    value_span: Some(ByteSpan { start: 47, end: 50 }),
                     span: None,
                 },
             ],
@@ -336,7 +336,7 @@ fn test_stagger_parse() {
                             name: None,
                             value: Expr::Ident("200ms".to_string()),
                         }],
-                        byte_span: Some(ByteSpan { start: 18, end: 40 }),
+                        byte_span: Some(ByteSpan { start: 18, end: 39 }),
                     },
                     None
                 ),
@@ -351,7 +351,7 @@ fn test_stagger_parse() {
                         value: Expr::Ident("100ms".to_string()),
                     }],
                     easing: None,
-                    value_span: Some(ByteSpan { start: 55, end: 59 }),
+                    value_span: Some(ByteSpan { start: 55, end: 58 }),
                     span: None,
                 },
             ],
@@ -378,7 +378,7 @@ fn test_stagger_each_parse() {
                         name: None,
                         value: Expr::Ident("200ms".to_string()),
                     }],
-                    byte_span: Some(ByteSpan { start: 24, end: 46 }),
+                    byte_span: Some(ByteSpan { start: 24, end: 45 }),
                 },
                 None
             )],
@@ -407,7 +407,7 @@ fn test_actor_decl_full() {
                 Property {
                     name: "color".to_string(),
                     value: Expr::Ident("blue".to_string()),
-                    value_span: Some(ByteSpan { start: 36, end: 41 }),
+                    value_span: Some(ByteSpan { start: 36, end: 40 }),
                     trailing_comment: None,
                 }
             ],
@@ -435,7 +435,7 @@ fn test_config_parse() {
             settings: vec![Property {
                 name: "colorscheme".to_string(),
                 value: Expr::Str("editorial-dark".to_string()),
-                value_span: Some(ByteSpan { start: 22, end: 39 }),
+                value_span: Some(ByteSpan { start: 22, end: 38 }),
                 trailing_comment: None,
             }],
             span: None,
@@ -526,7 +526,7 @@ fn test_modifier_delay_and_duplicates_parse() {
             props: vec![Property {
                 name: "radius".to_string(),
                 value: Expr::Num(20.0),
-                value_span: Some(ByteSpan { start: 24, end: 27 }),
+                value_span: Some(ByteSpan { start: 24, end: 26 }),
                 trailing_comment: None,
             }],
             modifiers: vec![
@@ -567,7 +567,7 @@ fn test_modifier_delay_and_duplicates_parse() {
                 },
             ],
             easing: None,
-            value_span: Some(ByteSpan { start: 15, end: 18 }),
+            value_span: Some(ByteSpan { start: 15, end: 17 }),
             span: None,
         }
     );
@@ -667,7 +667,7 @@ fn test_image_stmt() {
                 Property {
                     name: "size".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(240.0), Expr::Num(180.0)]),
-                    value_span: Some(ByteSpan { start: 66, end: 77 }),
+                    value_span: Some(ByteSpan { start: 66, end: 76 }),
                     trailing_comment: None,
                 },
             ],
@@ -734,7 +734,7 @@ fn test_svg_stmt_preserves_anchor_and_offset() {
                 Property {
                     name: "scale".to_string(),
                     value: Expr::Num(1.5),
-                    value_span: Some(ByteSpan { start: 83, end: 87 }),
+                    value_span: Some(ByteSpan { start: 83, end: 86 }),
                     trailing_comment: None,
                 },
             ],
@@ -784,7 +784,7 @@ fn test_image_stmt_preserves_anchor_and_offset() {
                     value: Expr::Tuple(vec![Expr::Num(240.0), Expr::Num(180.0)]),
                     value_span: Some(ByteSpan {
                         start: 90,
-                        end: 101
+                        end: 100
                     }),
                     trailing_comment: None,
                 },
@@ -1073,7 +1073,7 @@ fn test_actor_decl_nested() {
                     props: vec![Property {
                         name: "size".to_string(),
                         value: Expr::Num(20.0),
-                        value_span: Some(ByteSpan { start: 52, end: 55 }),
+                        value_span: Some(ByteSpan { start: 52, end: 54 }),
                         trailing_comment: None,
                     }],
                     modifiers: vec![],
@@ -1114,7 +1114,7 @@ fn test_actor_decl_anonymous() {
                     props: vec![Property {
                         name: "size".to_string(),
                         value: Expr::Num(20.0),
-                        value_span: Some(ByteSpan { start: 46, end: 49 }),
+                        value_span: Some(ByteSpan { start: 46, end: 48 }),
                         trailing_comment: None,
                     }],
                     modifiers: vec![],
@@ -1150,7 +1150,7 @@ fn test_actor_decl_nested_with_children() {
                     props: vec![Property {
                         name: "size".to_string(),
                         value: Expr::Num(10.0),
-                        value_span: Some(ByteSpan { start: 33, end: 36 }),
+                        value_span: Some(ByteSpan { start: 33, end: 35 }),
                         trailing_comment: None,
                     }],
                     modifiers: vec![],
@@ -1161,7 +1161,7 @@ fn test_actor_decl_nested_with_children() {
                         props: vec![Property {
                             name: "text".to_string(),
                             value: Expr::Str("hi".to_string()),
-                            value_span: Some(ByteSpan { start: 57, end: 62 }),
+                            value_span: Some(ByteSpan { start: 57, end: 61 }),
                             trailing_comment: None,
                         }],
                         modifiers: vec![],
@@ -1175,7 +1175,7 @@ fn test_actor_decl_nested_with_children() {
                     props: vec![Property {
                         name: "size".to_string(),
                         value: Expr::Num(20.0),
-                        value_span: Some(ByteSpan { start: 80, end: 83 }),
+                        value_span: Some(ByteSpan { start: 80, end: 82 }),
                         trailing_comment: None,
                     }],
                     modifiers: vec![],
@@ -1383,7 +1383,7 @@ fn test_conditional() {
                     targets: vec!["btn".to_string()],
                     args: vec![],
                     modifiers: vec![],
-                    byte_span: Some(ByteSpan { start: 12, end: 23 }),
+                    byte_span: Some(ByteSpan { start: 12, end: 22 }),
                 },
                 None
             )],
@@ -1406,7 +1406,7 @@ fn test_conditional_with_else() {
                     targets: vec!["btn".to_string()],
                     args: vec![],
                     modifiers: vec![],
-                    byte_span: Some(ByteSpan { start: 12, end: 24 }),
+                    byte_span: Some(ByteSpan { start: 12, end: 23 }),
                 },
                 None
             )],
@@ -1416,7 +1416,7 @@ fn test_conditional_with_else() {
                     targets: vec!["btn".to_string()],
                     args: vec![],
                     modifiers: vec![],
-                    byte_span: Some(ByteSpan { start: 33, end: 46 }),
+                    byte_span: Some(ByteSpan { start: 33, end: 45 }),
                 },
                 None
             )]),
@@ -1440,7 +1440,7 @@ fn test_for_loop() {
                     targets: vec!["item".to_string()],
                     args: vec![],
                     modifiers: vec![],
-                    byte_span: Some(ByteSpan { start: 22, end: 34 }),
+                    byte_span: Some(ByteSpan { start: 22, end: 33 }),
                 },
                 None
             )],
@@ -1467,7 +1467,7 @@ fn test_for_loop_with_range() {
                         name: None,
                         value: Expr::Ident("0.1s".to_string()),
                     }],
-                    byte_span: Some(ByteSpan { start: 21, end: 38 }),
+                    byte_span: Some(ByteSpan { start: 21, end: 37 }),
                 },
                 None
             )],
@@ -1491,7 +1491,7 @@ fn test_for_loop_tuple_destructuring_basic() {
                     targets: vec!["dot".to_string()],
                     args: vec![],
                     modifiers: vec![],
-                    byte_span: Some(ByteSpan { start: 23, end: 34 }),
+                    byte_span: Some(ByteSpan { start: 23, end: 33 }),
                 },
                 None
             )],
@@ -1515,7 +1515,7 @@ fn test_for_loop_tuple_three_elements() {
                     targets: vec!["fade".to_string()],
                     args: vec![],
                     modifiers: vec![],
-                    byte_span: Some(ByteSpan { start: 26, end: 40 }),
+                    byte_span: Some(ByteSpan { start: 26, end: 39 }),
                 },
                 None
             )],
@@ -1539,7 +1539,7 @@ fn test_for_loop_tuple_with_index() {
                     targets: vec!["dot".to_string()],
                     args: vec![],
                     modifiers: vec![],
-                    byte_span: Some(ByteSpan { start: 25, end: 36 }),
+                    byte_span: Some(ByteSpan { start: 25, end: 35 }),
                 },
                 None
             )],
@@ -1769,7 +1769,7 @@ fn test_slot_fill_parsing() {
 fn test_mixed_slot_fill_parsing() {
     // @slot itself should also parse as a slot fill when used as @slot { items }
     let src = r#"mycomp: MyComponent {
-  @slot {
+  @ slot {
     Text, text: "Content"
   }
 }"#;
@@ -1792,7 +1792,7 @@ fn test_mixed_slot_fill_parsing() {
 fn test_empty_slot_fill() {
     // Tests parsing a slot fill with empty body @slotname { }
     let src = r#"modal: Dialog {
-  @slot { }
+  @ slot { }
 }"#;
     let stmt = parse_single_stmt(src);
     if let Stmt::ActorDecl {
@@ -1876,8 +1876,8 @@ fn test_slot_marker_as_only_child() {
 fn test_at_slot_as_slot_fill() {
     // When @slot is followed by { }, it's parsed as a slot fill with name "slot"
     // This is a valid-but-weird case
-    let src = r#"comp: Component {
-  @slot {
+    let src = r#"comp: MyComponent {
+  @ slot {
     Text, text: "Inline content"
   }
 }"#;
