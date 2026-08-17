@@ -77,8 +77,8 @@ pub fn classify_token(
         | TokenKind::Dot
         | TokenKind::Hash
         | TokenKind::At
-        | TokenKind::AtSlot
-        | TokenKind::Underscore => "punctuation",
+        | TokenKind::AtSlot => "punctuation",
+        TokenKind::Underscore => "wildcard",
         TokenKind::Ident(name) => {
             classify_ident(name, idx, tokens, symbols, label_names, property_names, param_names)
         },

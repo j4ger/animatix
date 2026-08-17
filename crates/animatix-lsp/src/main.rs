@@ -29,6 +29,7 @@ const SEMANTIC_TOKEN_TYPES: &[&str] = &[
     "label",
     "boolean",
     "punctuation",
+    "wildcard",
 ];
 
 /// The LSP server backend.

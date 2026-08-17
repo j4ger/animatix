@@ -75,7 +75,7 @@ impl HighlightColors {
 
     fn color_for_highlight(&self, name: &str) -> Color32 {
         match name {
-            "keyword" => self.keyword,
+            "keyword" | "wildcard" => self.keyword,
             "type" | "type.builtin" => self.type_name,
             "string" => self.string,
             "number" => self.number,
