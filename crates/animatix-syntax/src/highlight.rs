@@ -382,4 +382,10 @@ mod tests {
         assert!(roles.iter().any(|(text, role)| text == "cos" && *role == "function"));
         assert!(roles.iter().any(|(text, role)| text == "rgb" && *role == "function"));
     }
+
+    #[test]
+    fn classifies_import_alias_and_wildcard() {
+        let roles = classify_all("import \"x\" as x\n");
+        assert!(roles.iter().any(|(t, r)| t == "x" && *r == "importalias"));
+    }
 }
