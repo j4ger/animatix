@@ -41,6 +41,16 @@ pub(crate) fn ident<'src>() -> IdentParser<'src> {
     token_parser::ident().boxed()
 }
 
+/// Parse an identifier and record its occurrence with the given role.
+pub(crate) fn ident_occ<'src>(kind: crate::occurrence::OccurrenceKind) -> IdentParser<'src> {
+    token_parser::ident()
+        .map_with(move |name, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+            crate::occurrence::record(kind, name.clone(), extra.span());
+            name
+        })
+        .boxed()
+}
+
 // ---------------------------------------------------------------------------
 // Dotted identifier parser
 // ---------------------------------------------------------------------------
@@ -128,7 +138,7 @@ pub(crate) fn type_ident<'src>() -> IdentParser<'src> {
 pub(crate) fn label_expr<'src>(
     expr: impl Parser<'src, StrInput<'src>, Expr, ParserExtra<'src>> + Clone + 'src,
 ) -> Boxed<'src, 'src, StrInput<'src>, (String, Option<Expr>), ParserExtra<'src>> {
-    ident()
+    ident_occ(crate::occurrence::OccurrenceKind::Label)
         .then(
             expr.clone()
                 .delimited_by(

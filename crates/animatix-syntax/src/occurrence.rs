@@ -3,6 +3,7 @@
 //! This module turns the shared role classifier into a concrete list of
 //! `(byte_span, name, kind)` records consumed by the analyzer, GUI, and LSP.
 
+use std::cell::RefCell;
 use std::collections::HashSet;
 
 use crate::ast::{ByteSpan, Stmt};
@@ -107,6 +108,32 @@ fn role_to_kind(role: &str) -> OccurrenceKind {
         "wildcard" => OccurrenceKind::Wildcard,
         _ => OccurrenceKind::Variable,
     }
+}
+
+thread_local! {
+    static PARSER_OCCURRENCES: RefCell<Vec<Vec<Occurrence>>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Run `f` while recording parser-side occurrences.
+pub(crate) fn with_occurrences<T>(f: impl FnOnce() -> T) -> (T, Vec<Occurrence>) {
+    PARSER_OCCURRENCES.with(|stack| stack.borrow_mut().push(Vec::new()));
+    let result = f();
+    let occurrences = PARSER_OCCURRENCES.with(|stack| stack.borrow_mut().pop().unwrap_or_default());
+    (result, occurrences)
+}
+
+/// Record a parser-side identifier occurrence.
+pub(crate) fn record(kind: OccurrenceKind, name: String, span: ByteSpan) {
+    PARSER_OCCURRENCES.with(|stack| {
+        if let Some(current) = stack.borrow_mut().last_mut() {
+            current.push(Occurrence {
+                span,
+                name,
+                kind,
+                scope_id: None,
+            });
+        }
+    });
 }
 
 #[cfg(test)]

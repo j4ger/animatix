@@ -57,11 +57,33 @@ use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 pub fn parse_source_diagnostics(
     source: &str,
 ) -> (Option<Vec<Stmt>>, Vec<ParseError>, Vec<Diagnostic>) {
+    let (ast, errors, warnings, _occurrences) = parse_impl(source);
+    (ast, errors, warnings)
+}
+
+/// Parse source and return AST, errors, and parser-recorded occurrences.
+pub fn parse_source_with_occurrences(
+    source: &str,
+) -> (Option<Vec<Stmt>>, Vec<ParseError>, Vec<crate::occurrence::Occurrence>) {
+    let (ast, errors, _warnings, occurrences) = parse_impl(source);
+    (ast, errors, occurrences)
+}
+
+fn parse_impl(
+    source: &str,
+) -> (
+    Option<Vec<Stmt>>,
+    Vec<ParseError>,
+    Vec<Diagnostic>,
+    Vec<crate::occurrence::Occurrence>,
+) {
     let warnings = Rc::new(RefCell::new(Vec::new()));
     let tokens = crate::token::tokenize(source);
     let spanned = token_parser::spanned(&tokens);
     let input = token_parser::as_input(&spanned);
-    let (ast, errors) = parser(Rc::clone(&warnings)).parse(input).into_output_errors();
+    let ((ast, errors), occurrences) = crate::occurrence::with_occurrences(|| {
+        parser(Rc::clone(&warnings)).parse(input).into_output_errors()
+    });
     let mut ast = ast;
     if let Some(statements) = ast.as_mut() {
         attach_trailing_comments(statements, source, &tokens);
@@ -72,19 +94,7 @@ pub fn parse_source_diagnostics(
         Ok(cell) => cell.into_inner(),
         Err(_) => Vec::new(),
     };
-    (ast, owned_errors, owned_warnings)
-}
-
-/// Parse source and return AST, errors, and identifier occurrences.
-pub fn parse_source_with_occurrences(
-    source: &str,
-) -> (Option<Vec<Stmt>>, Vec<ParseError>, Vec<crate::occurrence::Occurrence>) {
-    let (ast, errors, _warnings) = parse_source_diagnostics(source);
-    let occurrences = ast
-        .as_deref()
-        .map(|stmts| crate::occurrence::collect(stmts, source))
-        .unwrap_or_default();
-    (ast, errors, occurrences)
+    (ast, owned_errors, owned_warnings, occurrences)
 }
 
 /// Parse source into an AST and structured parse errors.

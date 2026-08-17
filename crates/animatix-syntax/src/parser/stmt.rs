@@ -9,6 +9,7 @@ use super::common::{
 };
 use super::token_parser::*;
 use crate::ast::*;
+use crate::occurrence::OccurrenceKind;
 
 /// Build the recursive statement parser.
 pub(crate) fn parser<'src>(
@@ -156,7 +157,12 @@ pub(crate) fn parser<'src>(
 
         let let_decl = keyword("pub")
             .or_not()
-            .then(keyword("let").ignore_then(ident.clone()).then_ignore(assign()).then(expr.clone()))
+            .then(
+                keyword("let")
+                    .ignore_then(common::ident_occ(OccurrenceKind::Variable).clone())
+                    .then_ignore(assign())
+                    .then(expr.clone()),
+            )
             .map(|(pub_kw, (name, value))| Stmt::LetDecl {
                 is_pub: pub_kw.is_some(),
                 name,
@@ -397,7 +403,7 @@ pub(crate) fn parser<'src>(
             .map(|p| p.is_some())
             .then(label_expr.clone())
             .then_ignore(colon())
-            .then(ident.clone())
+            .then(common::ident_occ(OccurrenceKind::Type).clone())
             .then(
                 comma()
                     .ignore_then(property.clone().separated_by(comma()).collect::<Vec<_>>())
@@ -432,7 +438,7 @@ pub(crate) fn parser<'src>(
 
         let action_target = indexed_dotted_ident.clone().map(|segments| target_segments_static_key(&segments));
 
-        let action = ident
+        let action = common::ident_occ(OccurrenceKind::Action)
             .clone()
             .then(
                 action_target
