@@ -359,6 +359,7 @@ impl Analyzer {
             .values()
             .flat_map(|c| c.params.iter().map(|p| p.name.clone()))
             .collect();
+        let import_aliases = animatix_syntax::highlight::collect_import_alias_names(ast);
 
         self.tokens
             .iter()
@@ -372,6 +373,7 @@ impl Analyzer {
                     &label_names,
                     &property_names,
                     &param_names,
+                    &import_aliases,
                 );
                 (token.span.start, token.span.end, role)
             })

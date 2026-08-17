@@ -65,6 +65,7 @@ pub fn collect(stmts: &[Stmt], source: &str) -> Vec<Occurrence> {
         .values()
         .flat_map(|c| c.params.iter().map(|p| p.name.clone()))
         .collect();
+    let import_aliases = highlight::collect_import_alias_names(stmts);
 
     tokens
         .iter()
@@ -82,6 +83,7 @@ pub fn collect(stmts: &[Stmt], source: &str) -> Vec<Occurrence> {
                 &label_names,
                 &property_names,
                 &param_names,
+                &import_aliases,
             );
             Some(Occurrence {
                 span: token.span,

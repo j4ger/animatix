@@ -17,12 +17,22 @@ pub fn classify_tokens(
     label_names: &HashSet<String>,
     property_names: &HashSet<String>,
     param_names: &HashSet<String>,
+    import_aliases: &HashSet<String>,
 ) -> Vec<&'static str> {
     tokens
         .iter()
         .enumerate()
         .map(|(idx, token)| {
-            classify_token(idx, token, tokens, symbols, label_names, property_names, param_names)
+            classify_token(
+                idx,
+                token,
+                tokens,
+                symbols,
+                label_names,
+                property_names,
+                param_names,
+                import_aliases,
+            )
         })
         .collect()
 }
@@ -37,6 +47,7 @@ pub fn classify_token(
     label_names: &HashSet<String>,
     property_names: &HashSet<String>,
     param_names: &HashSet<String>,
+    import_aliases: &HashSet<String>,
 ) -> &'static str {
     match &token.kind {
         TokenKind::Keyword(_) => "keyword",
@@ -79,9 +90,16 @@ pub fn classify_token(
         | TokenKind::At
         | TokenKind::AtSlot => "punctuation",
         TokenKind::Underscore => "wildcard",
-        TokenKind::Ident(name) => {
-            classify_ident(name, idx, tokens, symbols, label_names, property_names, param_names)
-        },
+        TokenKind::Ident(name) => classify_ident(
+            name,
+            idx,
+            tokens,
+            symbols,
+            label_names,
+            property_names,
+            param_names,
+            import_aliases,
+        ),
     }
 }
 
@@ -93,6 +111,7 @@ fn classify_ident(
     label_names: &HashSet<String>,
     property_names: &HashSet<String>,
     param_names: &HashSet<String>,
+    import_aliases: &HashSet<String>,
 ) -> &'static str {
     if let Some(info) = symbols.labels.get(name) {
         return match info.kind {
@@ -111,6 +130,9 @@ fn classify_ident(
     }
     if param_names.contains(name) {
         return "parameter";
+    }
+    if import_aliases.contains(name) {
+        return "importalias";
     }
 
     // Function and method calls are structural, not name-based: any identifier
@@ -150,6 +172,29 @@ pub fn collect_label_names(stmts: &[Stmt]) -> HashSet<String> {
         collect_stmt_label_names(stmt, &mut names);
     }
     names
+}
+
+/// Collect import aliases declared by `import "path" as alias`.
+pub fn collect_import_alias_names(stmts: &[Stmt]) -> HashSet<String> {
+    let mut names = HashSet::new();
+    for stmt in stmts {
+        collect_stmt_import_aliases(stmt, &mut names);
+    }
+    names
+}
+
+fn collect_stmt_import_aliases(stmt: &Stmt, names: &mut HashSet<String>) {
+    if let Stmt::Import {
+        alias: Some(alias), ..
+    } = stmt
+    {
+        names.insert(alias.clone());
+    }
+    crate::walk::recurse_stmt_bodies(stmt, &mut |body| {
+        for child in body {
+            collect_stmt_import_aliases(child, names);
+        }
+    });
 }
 
 fn collect_stmt_label_names(stmt: &Stmt, names: &mut HashSet<String>) {
@@ -292,11 +337,19 @@ mod tests {
             .values()
             .flat_map(|c| c.params.iter().map(|p| p.name.clone()))
             .collect();
-        classify_tokens(&tokens, &symbols, &label_names, &property_names, &param_names)
-            .into_iter()
-            .zip(tokens.iter())
-            .map(|(role, token)| (token_text(token), role))
-            .collect()
+        let import_aliases = collect_import_alias_names(&stmts);
+        classify_tokens(
+            &tokens,
+            &symbols,
+            &label_names,
+            &property_names,
+            &param_names,
+            &import_aliases,
+        )
+        .into_iter()
+        .zip(tokens.iter())
+        .map(|(role, token)| (token_text(token), role))
+        .collect()
     }
 
     fn token_text(token: &Token) -> String {

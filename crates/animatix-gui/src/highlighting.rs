@@ -83,7 +83,7 @@ impl HighlightColors {
             "comment" => self.comment,
             "operator" => self.operator,
             "punctuation" | "punctuation.bracket" => self.punctuation,
-            "variable" => self.variable,
+            "variable" | "importalias" => self.variable,
             "property" => self.property,
             "parameter" => self.parameter,
             "function" | "action" => self.function,
@@ -120,6 +120,7 @@ pub fn highlight_source(
         .flat_map(|c| c.params.iter().map(|p| p.name.clone()))
         .collect();
     let label_names = collect_label_names(&ast);
+    let import_aliases = animatix_syntax::highlight::collect_import_alias_names(&ast);
 
     let mut highlight_spans: Vec<(usize, usize, Color32)> = Vec::new();
     let mut last_end = 0usize;
@@ -135,6 +136,7 @@ pub fn highlight_source(
             &label_names,
             &property_names,
             &param_names,
+            &import_aliases,
         );
         highlight_spans.push((token.span.start, token.span.end, colors.color_for_highlight(role)));
         last_end = token.span.end;
