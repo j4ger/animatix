@@ -591,6 +591,18 @@ impl<'a> LineIndex<'a> {
         let col = self.source[start..byte].chars().count();
         (line, col)
     }
+
+    /// Convert a byte offset to a 0-based (line, UTF-16 column) pair.
+    ///
+    /// LSP positions use UTF-16 code units, so this variant is used at the LSP
+    /// boundary rather than the char-counting [`LineIndex::byte_to_line_col`].
+    pub fn byte_to_line_col_utf16(&self, byte: usize) -> (usize, usize) {
+        let byte = byte.min(self.source.len());
+        let line = self.line_starts.partition_point(|&start| start <= byte).saturating_sub(1);
+        let start = self.line_starts.get(line).copied().unwrap_or(0);
+        let col = self.source[start..byte].encode_utf16().count();
+        (line, col)
+    }
 }
 
 #[cfg(test)]
@@ -693,5 +705,18 @@ mod tests {
         let tokens = tokenize("// hi\nlet x = 1 // tail");
         assert!(matches!(tokens[0].kind, TokenKind::Comment(_)));
         assert!(matches!(tokens.last().unwrap().kind, TokenKind::Comment(_)));
+    }
+}
+
+#[cfg(test)]
+mod line_index_tests {
+    use super::*;
+
+    #[test]
+    fn utf16_columns_count_code_units() {
+        let idx = LineIndex::new("a你b\ncd");
+        // '你' is 3 bytes and one UTF-16 code unit.
+        assert_eq!(idx.byte_to_line_col_utf16("a你".len()), (0, 2));
+        assert_eq!(idx.byte_to_line_col_utf16("a你b\n".len()), (1, 0));
     }
 }

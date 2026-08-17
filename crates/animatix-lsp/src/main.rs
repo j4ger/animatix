@@ -532,8 +532,8 @@ fn build_semantic_tokens(
     let mut prev_col = 0u32;
 
     for &(start, end, role) in roles {
-        let (line, col) = line_index.byte_to_line_col(start);
-        let (_, end_col) = line_index.byte_to_line_col(end);
+        let (line, col) = line_index.byte_to_line_col_utf16(start);
+        let (_, end_col) = line_index.byte_to_line_col_utf16(end);
         let delta_line = line as u32 - prev_line;
         let delta_start = if delta_line == 0 {
             col as u32 - prev_col
